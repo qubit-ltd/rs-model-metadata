@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "name": "core",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": []
+    },
+    {
+      "name": "serde",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["serde"]
+    },
+    {
+      "name": "json",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["json"]
+    },
+    {
+      "name": "http",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["http"]
+    },
+    {
+      "name": "uri",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["uri"]
+    },
+    {
+      "name": "http-uri",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["http", "uri"]
+    },
+    {
+      "name": "all-root",
+      "commands": ["check", "test", "doc", "clippy"],
+      "allFeatures": true
+    }
+  ]
+}

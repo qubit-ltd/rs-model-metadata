@@ -1,0 +1,32 @@
+[package]
+name = "qubit-model-metadata"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+authors = ["Haixing Hu <starfish.hu@gmail.com>"]
+license = "Apache-2.0"
+repository = "https://github.com/qubit-ltd/rs-model-metadata"
+description = "Static, strongly typed metadata for Rust domain models"
+homepage = "https://github.com/qubit-ltd/rs-model-metadata"
+documentation = "https://docs.rs/qubit-model-metadata"
+readme = "README.md"
+keywords = ["metadata", "model", "reflection", "qubit", "rust"]
+categories = ["data-structures", "development-tools"]
+include = [
+    "/Cargo.toml",
+    "/LICENSE",
+    "/README.md",
+    "/README.zh_CN.md",
+    "/src/**",
+    "/doc/**",
+    "/tests/**",
+]
+
+[lib]
+name = "qubit_model_metadata"
+doctest = true
+
+[dependencies]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
