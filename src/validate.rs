@@ -629,6 +629,14 @@ fn validate_field_attribute(
                 }
             }
         }
+        FieldAttributeIr::LookupRelation(value) => {
+            validate_duplicate_type_paths("target", &value.target, errors);
+            validate_duplicate_field_paths(
+                "target_field",
+                &value.target_field,
+                errors,
+            );
+        }
         FieldAttributeIr::Sensitive(value) => {
             validate_duplicate_values(
                 "sensitive handling",
@@ -897,6 +905,7 @@ fn field_attribute_name(attribute: &FieldAttributeIr) -> &'static str {
         FieldAttributeIr::Temporal(_) => "time",
         FieldAttributeIr::Decimal(value) => decimal_name(value),
         FieldAttributeIr::Reference(_) => "reference",
+        FieldAttributeIr::LookupRelation(_) => "lookup_relation",
         FieldAttributeIr::Sensitive(_) => "sensitive",
         FieldAttributeIr::Codec(_) => "codec",
         FieldAttributeIr::Generator(_) => "generator",
@@ -912,6 +921,7 @@ fn field_attribute_span(attribute: &FieldAttributeIr) -> Span {
         FieldAttributeIr::Temporal(value) => value.span,
         FieldAttributeIr::Decimal(value) => value.value.span,
         FieldAttributeIr::Reference(value) => value.span,
+        FieldAttributeIr::LookupRelation(value) => value.span,
         FieldAttributeIr::Sensitive(value) => value.span,
         FieldAttributeIr::Codec(value) | FieldAttributeIr::Generator(value) => {
             value.span

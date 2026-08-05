@@ -87,6 +87,8 @@ struct AttributedModel {
         same_as = organization_id
     ))]
     organization_id: i64,
+    #[model(lookup_relation(target = Organization, target_field = id))]
+    organization_lookup: i64,
     #[model(text(
         min_chars = 3,
         max_chars = 32,
@@ -331,6 +333,17 @@ fn test_reference_sensitive_and_strategy_attributes_expand() {
         reference.same_as().expect("same-as path").segments(),
         &["organization_id"]
     );
+
+    let lookup = metadata
+        .field("organization_lookup")
+        .expect("organization lookup metadata")
+        .lookup_relation()
+        .expect("lookup relation metadata");
+    assert_eq!(
+        lookup.target().identity().type_name(),
+        core::any::type_name::<Organization>()
+    );
+    assert_eq!(lookup.target_field().segments(), &["id"]);
 
     let secret = metadata.field("secret").expect("secret metadata");
     assert!(matches!(

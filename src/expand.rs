@@ -426,6 +426,7 @@ fn expand_capability_assertions(
                     )
                 }
                 FieldAttributeIr::Reference(_)
+                | FieldAttributeIr::LookupRelation(_)
                 | FieldAttributeIr::Sensitive(_)
                 | FieldAttributeIr::Codec(_)
                 | FieldAttributeIr::Generator(_) => return None,
@@ -518,6 +519,9 @@ fn expand_field_attributes(
             FieldAttributeIr::Temporal(value) => expand_temporal(value, runtime),
             FieldAttributeIr::Decimal(value) => expand_decimal(value, runtime),
             FieldAttributeIr::Reference(value) => expand_reference(value, runtime),
+            FieldAttributeIr::LookupRelation(value) => {
+                expand_lookup_relation(value, runtime)
+            }
             FieldAttributeIr::Sensitive(value) => expand_sensitive(value, runtime),
             FieldAttributeIr::Codec(value) => expand_strategy(value, runtime, true),
             FieldAttributeIr::Generator(value) => expand_strategy(value, runtime, false),
@@ -746,6 +750,32 @@ fn expand_reference(
             #must_exist,
             #same_as,
         ))
+    }
+}
+
+/// Generates one lookup-relation attribute and its static target field path.
+fn expand_lookup_relation(
+    value: &crate::attribute::LookupRelationAttribute,
+    runtime: &TokenStream,
+) -> TokenStream {
+    let target = value
+        .target
+        .first()
+        .expect("lookup_relation parser requires a target");
+    let target_field = value
+        .target_field
+        .first()
+        .expect("lookup_relation parser requires a target field")
+        .iter()
+        .map(|field| LitStr::new(&field.name, field.span));
+    let span = value.span;
+    quote_spanned! {span=>
+        #runtime::AttributeMetadata::LookupRelation(
+            #runtime::LookupRelationMetadata::new(
+                #runtime::NamedTypeRef::of::<#target>(),
+                #runtime::FieldPath::new(&[#(#target_field),*]),
+            )
+        )
     }
 }
 

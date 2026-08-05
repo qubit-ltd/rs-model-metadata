@@ -22,6 +22,7 @@ use super::attribute::{
     DecimalAttribute,
     FieldAttribute,
     FieldName,
+    LookupRelationAttribute,
     MapAttribute,
     ModelAttribute,
     ReferenceAttribute,
@@ -163,6 +164,8 @@ pub(crate) enum FieldAttributeIr {
     Decimal(DecimalIr),
     /// A direct model reference.
     Reference(ReferenceAttribute),
+    /// A lookup relation to another model.
+    LookupRelation(LookupRelationAttribute),
     /// Sensitive-data handling.
     Sensitive(SensitiveAttribute),
     /// A codec strategy.
@@ -423,6 +426,10 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
             }
             FieldAttribute::Reference(attribute) => {
                 field_attributes.push(FieldAttributeIr::Reference(attribute));
+            }
+            FieldAttribute::LookupRelation(attribute) => {
+                field_attributes
+                    .push(FieldAttributeIr::LookupRelation(attribute));
             }
             FieldAttribute::Sensitive(attribute) => {
                 field_attributes.push(FieldAttributeIr::Sensitive(attribute));

@@ -121,6 +121,8 @@ pub(crate) enum FieldAttribute {
     Money(DecimalAttribute),
     /// A direct model reference.
     Reference(ReferenceAttribute),
+    /// A relation resolved by looking up another model.
+    LookupRelation(LookupRelationAttribute),
     /// Sensitive-data handling.
     Sensitive(SensitiveAttribute),
     /// A codec strategy.
@@ -281,6 +283,16 @@ pub(crate) struct ReferenceAttribute {
     pub(crate) span: Span,
 }
 
+/// Parsed lookup-relation values.
+pub(crate) struct LookupRelationAttribute {
+    /// Target-model occurrences in source order.
+    pub(crate) target: Vec<TypePath>,
+    /// Target-field path occurrences in source order.
+    pub(crate) target_field: Vec<Vec<FieldName>>,
+    /// The span of the complete attribute item.
+    pub(crate) span: Span,
+}
+
 /// Parsed sensitive-data handling.
 pub(crate) struct SensitiveAttribute {
     /// Handling-policy occurrences in source order.
@@ -427,6 +439,9 @@ fn parse_field_attribute(
         parsed.push(FieldAttribute::Money(parse_decimal(meta)?));
     } else if meta.path.is_ident("reference") {
         parsed.push(FieldAttribute::Reference(parse_reference(meta)?));
+    } else if meta.path.is_ident("lookup_relation") {
+        parsed
+            .push(FieldAttribute::LookupRelation(parse_lookup_relation(meta)?));
     } else if meta.path.is_ident("sensitive") {
         parsed.push(FieldAttribute::Sensitive(parse_sensitive(meta)?));
     } else if meta.path.is_ident("codec") {
@@ -804,6 +819,48 @@ fn parse_reference(meta: ParseNestedMeta<'_>) -> Result<ReferenceAttribute> {
     })
 }
 
+/// Parses a lookup-relation declaration.
+fn parse_lookup_relation(
+    meta: ParseNestedMeta<'_>,
+) -> Result<LookupRelationAttribute> {
+    let span = meta.path.span();
+    if meta.input.is_empty() {
+        return Err(Error::new(
+            span,
+            "bare `lookup_relation` is not supported; specify `target = Type` and `target_field = field`",
+        ));
+    }
+    let mut target = Vec::new();
+    let mut target_field = Vec::new();
+    meta.parse_nested_meta(|nested| {
+        if nested.path.is_ident("target") {
+            target.push(nested.value()?.parse()?);
+        } else if nested.path.is_ident("target_field") {
+            target_field.push(parse_field_path(&nested)?);
+        } else {
+            return Err(nested.error("unknown `lookup_relation` argument"));
+        }
+        Ok(())
+    })?;
+    if target.is_empty() {
+        return Err(Error::new(
+            span,
+            "lookup_relation requires `target = Type`",
+        ));
+    }
+    if target_field.is_empty() {
+        return Err(Error::new(
+            span,
+            "lookup_relation requires `target_field = field`",
+        ));
+    }
+    Ok(LookupRelationAttribute {
+        target,
+        target_field,
+        span,
+    })
+}
+
 /// Parses sensitive-data handling, defaulting to complete redaction.
 fn parse_sensitive(meta: ParseNestedMeta<'_>) -> Result<SensitiveAttribute> {
     let span = meta.path.span();
@@ -973,6 +1030,7 @@ fn is_field_attribute_path(path: &Path) -> bool {
         || path.is_ident("decimal")
         || path.is_ident("money")
         || path.is_ident("reference")
+        || path.is_ident("lookup_relation")
         || path.is_ident("sensitive")
         || path.is_ident("codec")
         || path.is_ident("generator")

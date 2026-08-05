@@ -30,6 +30,8 @@ struct ValidAttributes {
     balance: bigdecimal::BigDecimal,
     #[model(reference(target = Organization, target_field = id))]
     organization_id: i64,
+    #[model(lookup_relation(target = Organization, target_field = id))]
+    organization_lookup: i64,
 }
 
 fn main() {}
