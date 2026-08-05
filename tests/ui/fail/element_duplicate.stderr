@@ -1,0 +1,5 @@
+error: duplicate `text` element constraint
+  --> tests/ui/fail/element_duplicate.rs:11:47
+   |
+11 |     #[model(element(text(repertoire = ascii), text(max_chars = 8)))]
+   |                                               ^^^^

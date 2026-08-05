@@ -119,6 +119,8 @@ pub(crate) enum FieldAttribute {
     Decimal(DecimalAttribute),
     /// Monetary decimal constraints.
     Money(DecimalAttribute),
+    /// Constraints applied to each sequence element.
+    Element(ElementAttribute),
     /// A direct model reference.
     Reference(ReferenceAttribute),
     /// A relation resolved by looking up another model.
@@ -183,6 +185,8 @@ pub(crate) enum TextRepertoire {
 pub(crate) enum TextFormat {
     /// Email address syntax.
     Email,
+    /// Mainland China mobile telephone number syntax.
+    Mobile,
     /// URI syntax.
     Uri,
     /// UUID string syntax.
@@ -256,6 +260,22 @@ pub(crate) struct DecimalAttribute {
     pub(crate) span: Span,
 }
 
+/// Parsed constraints applied to sequence elements.
+pub(crate) struct ElementAttribute {
+    /// Element constraints in source order.
+    pub(crate) attributes: Vec<ElementConstraintAttribute>,
+    /// The span of the complete attribute item.
+    pub(crate) span: Span,
+}
+
+/// A parsed constraint supported on migrated collection elements.
+pub(crate) enum ElementConstraintAttribute {
+    /// Text constraints for string elements.
+    Text(TextAttribute),
+    /// Decimal constraints for high-precision numeric elements.
+    Decimal(DecimalAttribute),
+}
+
 /// Parsed decimal rounding mode.
 #[derive(Clone, Copy)]
 pub(crate) enum RoundingMode {
@@ -308,6 +328,8 @@ pub(crate) enum SensitiveHandling {
     Redact,
     /// Mask part of the value.
     Mask,
+    /// Apply the policy for authentication tokens and verification codes.
+    Token,
 }
 
 /// Parsed external strategy name.
@@ -437,6 +459,8 @@ fn parse_field_attribute(
         parsed.push(FieldAttribute::Decimal(parse_decimal(meta)?));
     } else if meta.path.is_ident("money") {
         parsed.push(FieldAttribute::Money(parse_decimal(meta)?));
+    } else if meta.path.is_ident("element") {
+        parsed.push(FieldAttribute::Element(parse_element(meta)?));
     } else if meta.path.is_ident("reference") {
         parsed.push(FieldAttribute::Reference(parse_reference(meta)?));
     } else if meta.path.is_ident("lookup_relation") {
@@ -633,12 +657,13 @@ fn parse_text(meta: ParseNestedMeta<'_>) -> Result<TextAttribute> {
             let ident = parse_ident(&nested)?;
             let format = match ident.to_string().as_str() {
                 "email" => TextFormat::Email,
+                "mobile" => TextFormat::Mobile,
                 "uri" => TextFormat::Uri,
                 "uuid" => TextFormat::Uuid,
                 _ => {
-                    return Err(
-                        nested.error("expected `email`, `uri`, or `uuid`")
-                    );
+                    return Err(nested.error(
+                        "expected `email`, `mobile`, `uri`, or `uuid`",
+                    ));
                 }
             };
             value.format.push(SpannedValue {
@@ -774,6 +799,34 @@ fn parse_decimal(meta: ParseNestedMeta<'_>) -> Result<DecimalAttribute> {
     Ok(value)
 }
 
+/// Parses constraints that apply to every element of a sequence.
+fn parse_element(meta: ParseNestedMeta<'_>) -> Result<ElementAttribute> {
+    let span = meta.path.span();
+    let mut attributes = Vec::new();
+    meta.parse_nested_meta(|nested| {
+        if nested.path.is_ident("text") {
+            attributes
+                .push(ElementConstraintAttribute::Text(parse_text(nested)?));
+        } else if nested.path.is_ident("decimal") {
+            attributes.push(ElementConstraintAttribute::Decimal(
+                parse_decimal(nested)?,
+            ));
+        } else {
+            discard_nested_meta_input(nested.input)?;
+            return Err(nested
+                .error("element only supports `text(...)` or `decimal(...)`"));
+        }
+        Ok(())
+    })?;
+    if attributes.is_empty() {
+        return Err(Error::new(
+            span,
+            "element requires `text(...)` or `decimal(...)`",
+        ));
+    }
+    Ok(ElementAttribute { attributes, span })
+}
+
 /// Parses a direct-reference declaration.
 fn parse_reference(meta: ParseNestedMeta<'_>) -> Result<ReferenceAttribute> {
     let span = meta.path.span();
@@ -795,7 +848,7 @@ fn parse_reference(meta: ParseNestedMeta<'_>) -> Result<ReferenceAttribute> {
         } else if nested.path.is_ident("must_exist") {
             must_exist.push(parse_bool(&nested)?);
         } else if nested.path.is_ident("same_as") {
-            same_as.push(parse_local_field_path(&nested)?);
+            same_as.push(parse_field_path(&nested)?);
         } else {
             return Err(nested.error("unknown `reference` argument"));
         }
@@ -871,8 +924,12 @@ fn parse_sensitive(meta: ParseNestedMeta<'_>) -> Result<SensitiveAttribute> {
                 SensitiveHandling::Redact
             } else if nested.path.is_ident("mask") {
                 SensitiveHandling::Mask
+            } else if nested.path.is_ident("token") {
+                SensitiveHandling::Token
             } else {
-                return Err(nested.error("expected `redact` or `mask`"));
+                return Err(
+                    nested.error("expected `redact`, `mask`, or `token`")
+                );
             };
             handling.push(SpannedValue {
                 value,
@@ -939,22 +996,6 @@ fn parse_field_path(meta: &ParseNestedMeta<'_>) -> Result<Vec<FieldName>> {
             .map(|segment| field_name_from_ident(&segment.ident))
             .collect())
     }
-}
-
-/// Parses a local field path that is intentionally restricted to one field in
-/// the first derive phase.
-fn parse_local_field_path(
-    meta: &ParseNestedMeta<'_>,
-) -> Result<Vec<FieldName>> {
-    let path = parse_field_path(meta)?;
-    if path.len() != 1 {
-        let span = path.first().map_or(Span::call_site(), |field| field.span);
-        return Err(Error::new(
-            span,
-            "`same_as` only supports one local field in the first derive phase",
-        ));
-    }
-    Ok(path)
 }
 
 /// Parses and normalizes one string-literal path segment as a Rust field name.
@@ -1029,6 +1070,7 @@ fn is_field_attribute_path(path: &Path) -> bool {
         || path.is_ident("time")
         || path.is_ident("decimal")
         || path.is_ident("money")
+        || path.is_ident("element")
         || path.is_ident("reference")
         || path.is_ident("lookup_relation")
         || path.is_ident("sensitive")

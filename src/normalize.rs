@@ -20,6 +20,8 @@ use syn::{
 use super::attribute::{
     self,
     DecimalAttribute,
+    ElementAttribute,
+    ElementConstraintAttribute,
     FieldAttribute,
     FieldName,
     LookupRelationAttribute,
@@ -162,6 +164,8 @@ pub(crate) enum FieldAttributeIr {
     Temporal(TemporalAttribute),
     /// Decimal constraints with normalized domain semantics.
     Decimal(DecimalIr),
+    /// Constraints applied to sequence elements.
+    Element(ElementIr),
     /// A direct model reference.
     Reference(ReferenceAttribute),
     /// A lookup relation to another model.
@@ -180,6 +184,22 @@ pub(crate) struct DecimalIr {
     pub(crate) value: DecimalAttribute,
     /// Whether the value is an ordinary number or money.
     pub(crate) semantic: DecimalSemantic,
+}
+
+/// Canonical constraints applied to sequence elements.
+pub(crate) struct ElementIr {
+    /// Element constraints in source order.
+    pub(crate) attributes: Vec<ElementConstraintIr>,
+    /// The originating attribute span.
+    pub(crate) span: Span,
+}
+
+/// A normalized constraint supported on migrated collection elements.
+pub(crate) enum ElementConstraintIr {
+    /// Text constraints for string elements.
+    Text(TextAttribute),
+    /// Ordinary decimal constraints for high-precision numeric elements.
+    Decimal(DecimalIr),
 }
 
 /// The domain meaning of a decimal field.
@@ -424,6 +444,10 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
                     semantic: DecimalSemantic::Money,
                 }));
             }
+            FieldAttribute::Element(value) => {
+                field_attributes
+                    .push(FieldAttributeIr::Element(normalize_element(value)));
+            }
             FieldAttribute::Reference(attribute) => {
                 field_attributes.push(FieldAttributeIr::Reference(attribute));
             }
@@ -454,4 +478,35 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
         },
         model_attributes,
     )
+}
+
+/// Normalizes element constraints into their runtime semantic forms.
+///
+/// # Parameters
+///
+/// - `value`: The parsed element constraint syntax.
+///
+/// # Returns
+///
+/// Element IR containing text and ordinary decimal constraints.
+fn normalize_element(value: ElementAttribute) -> ElementIr {
+    let attributes = value
+        .attributes
+        .into_iter()
+        .map(|attribute| match attribute {
+            ElementConstraintAttribute::Text(value) => {
+                ElementConstraintIr::Text(value)
+            }
+            ElementConstraintAttribute::Decimal(value) => {
+                ElementConstraintIr::Decimal(DecimalIr {
+                    value,
+                    semantic: DecimalSemantic::Number,
+                })
+            }
+        })
+        .collect();
+    ElementIr {
+        attributes,
+        span: value.span,
+    }
 }

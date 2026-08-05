@@ -7,15 +7,9 @@
 // =============================================================================
 
 #[derive(qubit_model_derive::ModelMetadata)]
-struct Organization {
-    id: i64,
-}
-
-#[derive(qubit_model_derive::ModelMetadata)]
 struct Invalid {
-    nested: String,
-    #[model(reference(target = Organization, target_field = id, same_as = "missing.id"))]
-    organization_id: i64,
+    #[model(element(text(repertoire = ascii), text(max_chars = 8)))]
+    values: Vec<String>,
 }
 
 fn main() {}

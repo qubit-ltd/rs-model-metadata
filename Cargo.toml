@@ -36,4 +36,6 @@ syn = { version = "2", features = ["full"] }
 bigdecimal = "0.4"
 chrono = { version = "0.4", features = ["std"], default-features = false }
 model_runtime = { package = "qubit-model-metadata", path = "../rs-model-metadata", features = ["big-decimal", "chrono"] }
+qubit-redact = { path = "../../rust-common/rs-redact", default-features = false }
+qubit-redact-derive = { path = "../../rust-common/rs-redact-derive" }
 trybuild = "1"

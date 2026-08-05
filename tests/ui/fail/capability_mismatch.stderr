@@ -7,8 +7,8 @@ error[E0080]: evaluation panicked: text attributes require a text-capable field
 note: inside `FieldMetadata::new`
   --> $MODEL_RUNTIME/src/field_metadata.rs
    |
-   |         validate_field_attributes(attributes, field_type.capabilities());
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |         validate_field_attributes(attributes, field_type);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
   --> $RUST/core/src/panic.rs
    |

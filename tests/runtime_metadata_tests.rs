@@ -84,9 +84,10 @@ struct AttributedModel {
         target = Organization,
         target_field = id,
         must_exist = true,
-        same_as = organization_id
+        same_as = "organization.id"
     ))]
     organization_id: i64,
+    organization: Organization,
     #[model(lookup_relation(target = Organization, target_field = id))]
     organization_lookup: i64,
     #[model(text(
@@ -101,6 +102,8 @@ struct AttributedModel {
     username: String,
     #[model(sequence(min_items = 1, max_items = 5, unique_items))]
     aliases: Vec<String>,
+    #[model(element(text(repertoire = ascii)))]
+    ascii_codes: [String; 2],
     #[model(map(min_entries = 1, max_entries = 4))]
     labels: HashMap<String, String>,
     #[model(time(precision = millisecond, normalization = utc))]
@@ -109,12 +112,18 @@ struct AttributedModel {
     ratio: bigdecimal::BigDecimal,
     #[model(money(precision = 12, scale = 2, rounding = half_even))]
     balance: bigdecimal::BigDecimal,
+    #[model(element(decimal(scale = 2)))]
+    decimal_values: Vec<bigdecimal::BigDecimal>,
+    #[model(text(format = mobile))]
+    mobile: String,
     #[model(
         sensitive(mask),
         codec = "encrypted",
         generator(name = "account_balance")
     )]
     secret: String,
+    #[model(sensitive(token))]
+    verification_code: String,
     #[model(opaque)]
     external: ExternalValue,
 }
@@ -316,6 +325,42 @@ fn test_temporal_decimal_and_money_attributes_expand() {
 }
 
 #[test]
+fn test_migrated_element_and_mobile_constraints_expand() {
+    let metadata = metadata_of::<AttributedModel>();
+    let ascii_element = metadata
+        .field("ascii_codes")
+        .expect("ascii_codes metadata")
+        .element_metadata()
+        .expect("ASCII element metadata");
+    assert!(matches!(
+        ascii_element.attributes(),
+        [AttributeMetadata::Text(text)]
+            if text.repertoire() == TextRepertoire::Ascii
+    ));
+
+    let decimal_element = metadata
+        .field("decimal_values")
+        .expect("decimal_values metadata")
+        .element_metadata()
+        .expect("decimal element metadata");
+    assert!(matches!(
+        decimal_element.attributes(),
+        [AttributeMetadata::Decimal(decimal)]
+            if decimal.scale() == 2
+                && decimal.semantic() == DecimalSemantic::Number
+    ));
+
+    assert_eq!(
+        metadata
+            .field("mobile")
+            .expect("mobile metadata")
+            .text_constraint()
+            .and_then(|text| text.format()),
+        Some(TextFormat::Mobile)
+    );
+}
+
+#[test]
 fn test_reference_sensitive_and_strategy_attributes_expand() {
     let metadata = metadata_of::<AttributedModel>();
     let reference = metadata
@@ -331,7 +376,7 @@ fn test_reference_sensitive_and_strategy_attributes_expand() {
     assert!(reference.must_exist());
     assert_eq!(
         reference.same_as().expect("same-as path").segments(),
-        &["organization_id"]
+        &["organization", "id"]
     );
 
     let lookup = metadata
@@ -350,6 +395,14 @@ fn test_reference_sensitive_and_strategy_attributes_expand() {
         secret.attribute(AttributeKind::Sensitive),
         Some(AttributeMetadata::Sensitive(sensitive))
             if sensitive.handling() == SensitiveHandling::Mask
+    ));
+    assert!(matches!(
+        metadata
+            .field("verification_code")
+            .expect("verification_code metadata")
+            .attribute(AttributeKind::Sensitive),
+        Some(AttributeMetadata::Sensitive(sensitive))
+            if sensitive.handling() == SensitiveHandling::Token
     ));
     assert!(matches!(
         secret.attribute(AttributeKind::Codec),

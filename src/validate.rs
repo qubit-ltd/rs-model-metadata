@@ -20,10 +20,13 @@ use syn::{
 use crate::attribute::{
     FieldName,
     SpannedValue,
+    TextAttribute,
 };
 use crate::normalize::{
     DecimalIr,
     DecimalSemantic,
+    ElementConstraintIr,
+    ElementIr,
     FieldAttributeIr,
     FieldIr,
     ModelAttributeIr,
@@ -544,29 +547,7 @@ fn validate_field_attribute(
     errors: &mut Option<Error>,
 ) {
     match attribute {
-        FieldAttributeIr::Text(value) => {
-            validate_duplicate_values("min_chars", &value.min_chars, errors);
-            validate_duplicate_values("max_chars", &value.max_chars, errors);
-            validate_duplicate_values("min_bytes", &value.min_bytes, errors);
-            validate_duplicate_values("max_bytes", &value.max_bytes, errors);
-            validate_duplicate_values("repertoire", &value.repertoire, errors);
-            validate_duplicate_spans("non_blank", &value.non_blank, errors);
-            validate_duplicate_values("format", &value.format, errors);
-            validate_min_max(
-                "min_chars",
-                &value.min_chars,
-                "max_chars",
-                &value.max_chars,
-                errors,
-            );
-            validate_min_max(
-                "min_bytes",
-                &value.min_bytes,
-                "max_bytes",
-                &value.max_bytes,
-                errors,
-            );
-        }
+        FieldAttributeIr::Text(value) => validate_text(value, errors),
         FieldAttributeIr::Sequence(value) => {
             validate_duplicate_values("min_items", &value.min_items, errors);
             validate_duplicate_values("max_items", &value.max_items, errors);
@@ -612,6 +593,7 @@ fn validate_field_attribute(
             );
         }
         FieldAttributeIr::Decimal(value) => validate_decimal(value, errors),
+        FieldAttributeIr::Element(value) => validate_element(value, errors),
         FieldAttributeIr::Reference(value) => {
             validate_duplicate_type_paths("target", &value.target, errors);
             validate_duplicate_field_paths(
@@ -656,6 +638,82 @@ fn validate_field_attribute(
             );
             validate_strategy_name("generator", &value.name, errors);
         }
+    }
+}
+
+/// Validates repeated text arguments and text-length ranges.
+///
+/// # Parameters
+///
+/// - `value`: The parsed text constraint.
+/// - `errors`: The combined diagnostics accumulated so far.
+fn validate_text(value: &TextAttribute, errors: &mut Option<Error>) {
+    validate_duplicate_values("min_chars", &value.min_chars, errors);
+    validate_duplicate_values("max_chars", &value.max_chars, errors);
+    validate_duplicate_values("min_bytes", &value.min_bytes, errors);
+    validate_duplicate_values("max_bytes", &value.max_bytes, errors);
+    validate_duplicate_values("repertoire", &value.repertoire, errors);
+    validate_duplicate_spans("non_blank", &value.non_blank, errors);
+    validate_duplicate_values("format", &value.format, errors);
+    validate_min_max(
+        "min_chars",
+        &value.min_chars,
+        "max_chars",
+        &value.max_chars,
+        errors,
+    );
+    validate_min_max(
+        "min_bytes",
+        &value.min_bytes,
+        "max_bytes",
+        &value.max_bytes,
+        errors,
+    );
+}
+
+/// Validates element constraint uniqueness and retained arguments.
+///
+/// # Parameters
+///
+/// - `value`: The normalized element metadata declaration.
+/// - `errors`: The combined diagnostics accumulated so far.
+fn validate_element(value: &ElementIr, errors: &mut Option<Error>) {
+    for (index, attribute) in value.attributes.iter().enumerate() {
+        let name = element_constraint_name(attribute);
+        if value.attributes[..index]
+            .iter()
+            .any(|previous| element_constraint_name(previous) == name)
+        {
+            push_error(
+                errors,
+                Error::new(
+                    element_constraint_span(attribute),
+                    format!("duplicate `{name}` element constraint"),
+                ),
+            );
+        }
+        match attribute {
+            ElementConstraintIr::Text(value) => validate_text(value, errors),
+            ElementConstraintIr::Decimal(value) => {
+                validate_decimal(value, errors)
+            }
+        }
+    }
+}
+
+/// Returns the source name of one element constraint.
+fn element_constraint_name(value: &ElementConstraintIr) -> &'static str {
+    match value {
+        ElementConstraintIr::Text(_) => "text",
+        ElementConstraintIr::Decimal(_) => "decimal",
+    }
+}
+
+/// Returns the source span of one element constraint.
+fn element_constraint_span(value: &ElementConstraintIr) -> Span {
+    match value {
+        ElementConstraintIr::Text(value) => value.span,
+        ElementConstraintIr::Decimal(value) => value.value.span,
     }
 }
 
@@ -763,6 +821,7 @@ fn is_shape_constraint(attribute: &FieldAttributeIr) -> bool {
             | FieldAttributeIr::Map(_)
             | FieldAttributeIr::Temporal(_)
             | FieldAttributeIr::Decimal(_)
+            | FieldAttributeIr::Element(_)
     )
 }
 
@@ -904,6 +963,7 @@ fn field_attribute_name(attribute: &FieldAttributeIr) -> &'static str {
         FieldAttributeIr::Map(_) => "map",
         FieldAttributeIr::Temporal(_) => "time",
         FieldAttributeIr::Decimal(value) => decimal_name(value),
+        FieldAttributeIr::Element(_) => "element",
         FieldAttributeIr::Reference(_) => "reference",
         FieldAttributeIr::LookupRelation(_) => "lookup_relation",
         FieldAttributeIr::Sensitive(_) => "sensitive",
@@ -920,6 +980,7 @@ fn field_attribute_span(attribute: &FieldAttributeIr) -> Span {
         FieldAttributeIr::Map(value) => value.span,
         FieldAttributeIr::Temporal(value) => value.span,
         FieldAttributeIr::Decimal(value) => value.value.span,
+        FieldAttributeIr::Element(value) => value.span,
         FieldAttributeIr::Reference(value) => value.span,
         FieldAttributeIr::LookupRelation(value) => value.span,
         FieldAttributeIr::Sensitive(value) => value.span,

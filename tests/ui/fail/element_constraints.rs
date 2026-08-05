@@ -6,16 +6,16 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-#[derive(qubit_model_derive::ModelMetadata)]
-struct Organization {
-    id: i64,
-}
+#![allow(dead_code)]
 
 #[derive(qubit_model_derive::ModelMetadata)]
 struct Invalid {
-    nested: String,
-    #[model(reference(target = Organization, target_field = id, same_as = "missing.id"))]
-    organization_id: i64,
+    #[model(element(text(repertoire = ascii)))]
+    scalar: String,
+    #[model(element(decimal(scale = 2)))]
+    strings: Vec<String>,
+    #[model(element(text(repertoire = ascii)))]
+    set: std::collections::HashSet<String>,
 }
 
 fn main() {}

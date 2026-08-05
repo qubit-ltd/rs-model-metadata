@@ -7,15 +7,11 @@
 // =============================================================================
 
 #[derive(qubit_model_derive::ModelMetadata)]
-struct Organization {
-    id: i64,
-}
-
-#[derive(qubit_model_derive::ModelMetadata)]
 struct Invalid {
-    nested: String,
-    #[model(reference(target = Organization, target_field = id, same_as = "missing.id"))]
-    organization_id: i64,
+    #[model(element())]
+    empty: Vec<String>,
+    #[model(element(time(precision = second)))]
+    unsupported: Vec<chrono::DateTime<chrono::Utc>>,
 }
 
 fn main() {}

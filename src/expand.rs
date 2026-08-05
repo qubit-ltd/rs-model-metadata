@@ -33,6 +33,8 @@ use crate::attribute::{
 use crate::input::ModelVariant;
 use crate::normalize::{
     DecimalSemantic,
+    ElementConstraintIr,
+    ElementIr,
     FieldAttributeIr,
     FieldIr,
     ModelAttributeIr,
@@ -425,6 +427,9 @@ fn expand_capability_assertions(
                         runtime,
                     )
                 }
+                FieldAttributeIr::Element(value) => {
+                    expand_element_capability_assertion(ty, value, runtime)
+                }
                 FieldAttributeIr::Reference(_)
                 | FieldAttributeIr::LookupRelation(_)
                 | FieldAttributeIr::Sensitive(_)
@@ -483,6 +488,44 @@ fn expand_sequence_capability_assertion(
     }
 }
 
+/// Generates capability assertions for a field's element constraints.
+fn expand_element_capability_assertion(
+    ty: &syn::Type,
+    value: &ElementIr,
+    runtime: &TokenStream,
+) -> TokenStream {
+    let checks = value.attributes.iter().map(|attribute| match attribute {
+        ElementConstraintIr::Text(value) => {
+            let span = value.span;
+            quote_spanned! {span=>
+                assert!(
+                    capabilities.contains(#runtime::TypeCapabilities::TEXT),
+                    "`element(text(...))` requires a text-capable element",
+                );
+            }
+        }
+        ElementConstraintIr::Decimal(value) => {
+            let span = value.value.span;
+            quote_spanned! {span=>
+                assert!(
+                    capabilities.contains(#runtime::TypeCapabilities::DECIMAL),
+                    "`element(decimal(...))` requires a decimal-capable element",
+                );
+            }
+        }
+    });
+    let span = value.span;
+    quote_spanned! {span=>
+        const _: () = {
+            let capabilities = match <#ty as #runtime::HasTypeShape>::ELEMENT_CAPABILITIES {
+                Some(capabilities) => capabilities,
+                None => panic!("`element` requires a sequence field"),
+            };
+            #(#checks)*
+        };
+    }
+}
+
 /// Generates canonical field-level runtime attributes in IR order.
 fn expand_field_attributes(
     attributes: &[FieldAttributeIr],
@@ -518,6 +561,7 @@ fn expand_field_attributes(
             }
             FieldAttributeIr::Temporal(value) => expand_temporal(value, runtime),
             FieldAttributeIr::Decimal(value) => expand_decimal(value, runtime),
+            FieldAttributeIr::Element(value) => expand_element(value, runtime),
             FieldAttributeIr::Reference(value) => expand_reference(value, runtime),
             FieldAttributeIr::LookupRelation(value) => {
                 expand_lookup_relation(value, runtime)
@@ -556,6 +600,7 @@ fn expand_text(
         Some(format) => {
             let format_value = match format.value {
                 TextFormat::Email => quote!(#runtime::TextFormat::Email),
+                TextFormat::Mobile => quote!(#runtime::TextFormat::Mobile),
                 TextFormat::Uri => quote!(#runtime::TextFormat::Uri),
                 TextFormat::Uuid => quote!(#runtime::TextFormat::Uuid),
             };
@@ -662,6 +707,20 @@ fn expand_decimal(
             #scale,
             #rounding,
             #semantic,
+        ))
+    }
+}
+
+/// Generates nested static metadata for sequence elements.
+fn expand_element(value: &ElementIr, runtime: &TokenStream) -> TokenStream {
+    let attributes = value.attributes.iter().map(|attribute| match attribute {
+        ElementConstraintIr::Text(value) => expand_text(value, runtime),
+        ElementConstraintIr::Decimal(value) => expand_decimal(value, runtime),
+    });
+    let span = value.span;
+    quote_spanned! {span=>
+        #runtime::AttributeMetadata::Element(#runtime::ElementMetadata::new(
+            &[#(#attributes),*],
         ))
     }
 }
@@ -791,6 +850,9 @@ fn expand_sensitive(
         }
         Some(SensitiveHandling::Mask) => {
             quote!(#runtime::SensitiveHandling::Mask)
+        }
+        Some(SensitiveHandling::Token) => {
+            quote!(#runtime::SensitiveHandling::Token)
         }
     };
     let handling = if let Some(handling) = handling {
