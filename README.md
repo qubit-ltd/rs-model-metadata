@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-`qubit-model-derive` supplies `#[derive(ModelMetadata)]` for Rust domain models. It turns a model declaration into the static, strongly typed metadata exposed by `qubit-model-metadata`, so validation, schema-oriented tooling, and application code can query model structure without a runtime registry or string-based type inspection.
+`qubit-model-derive` supplies `#[derive(Model)]` for Rust domain models. It turns a model declaration into the static, strongly typed metadata exposed by `qubit-model-metadata`, so validation, schema-oriented tooling, and application code can query model structure without a runtime registry or string-based type inspection.
 
 ## Installation
 
@@ -21,15 +21,18 @@ qubit-model-metadata = "0.1"
 
 The runtime crate is required: an expansion without a `qubit-model-metadata` dependency emits a compile error explaining the missing dependency.
 
+`ModelMetadata` remains available as a compatibility alias for existing users;
+new code should use `Model`.
+
 ## Quick Start
 
 For an account model, derive metadata once and query it wherever the application needs to inspect the model:
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 use qubit_model_metadata::metadata_of;
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Account {
     #[model(identifier)]
     id: i64,
@@ -68,7 +71,7 @@ For an opaque field, use the marker only when structural inspection is intention
 ```rust
 struct ExternalToken;
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct ImportRecord {
     #[model(opaque)]
     token: ExternalToken,

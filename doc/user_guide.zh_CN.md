@@ -4,9 +4,11 @@
 
 适用于 `qubit-model-derive` 0.1.0 与 `qubit-model-metadata` 0.1.0。
 
+`ModelMetadata` 仍作为兼容别名保留；新代码请使用 `Model`。
+
 ## 手册目标与读者
 
-当 Rust 领域模型声明需要成为校验、面向 schema 的工具或应用代码的元数据事实来源时，请使用本 crate。`#[derive(ModelMetadata)]` 会生成 `qubit-model-metadata` 所消费的静态实现；它既不会全局注册模型，也不执行数据校验。
+当 Rust 领域模型声明需要成为校验、面向 schema 的工具或应用代码的元数据事实来源时，请使用本 crate。`#[derive(Model)]` 会生成 `qubit-model-metadata` 所消费的静态实现；它既不会全局注册模型，也不执行数据校验。
 
 ## 概念模型
 
@@ -16,7 +18,7 @@ derive 宏在编译期读取受支持的声明及其 `#[model(...)]` 属性，�
 Rust 模型 + #[model(...)]
             │ 编译期
             ▼
-ModelMetadata derive ──► 静态 runtime 元数据 ──► metadata_of::<T>()
+Model derive ──► 静态 runtime 元数据 ──► metadata_of::<T>()
 ```
 
 ## 贯穿场景：描述账户
@@ -32,10 +34,10 @@ qubit-model-metadata = "0.1.0"
 让元数据声明紧邻模型，再查询其规范化结果：
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 use qubit_model_metadata::{AttributeQuery, metadata_of};
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Account {
     #[model(identifier(generated))]
     id: i64,
@@ -99,12 +101,12 @@ bigdecimal = "0.4"
 关系要同时声明目标类型和目标字段：
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Organization { #[model(identifier)] id: i64 }
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Membership {
     #[model(reference(target = Organization, target_field = id, must_exist = true))]
     organization_id: i64,
@@ -116,10 +118,10 @@ struct Membership {
 对有意不提供结构元数据的外部类型，请使用 `opaque`：
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 
 struct ExternalToken;
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct ImportRecord { #[model(opaque)] token: ExternalToken }
 ```
 

@@ -4,11 +4,14 @@
 
 Applies to `qubit-model-derive` 0.1.0 and `qubit-model-metadata` 0.1.0.
 
+`ModelMetadata` remains available as a compatibility alias; use `Model` in new
+code.
+
 ## Purpose and Audience
 
 Use this crate when a Rust domain-model declaration must remain the source of
 truth for metadata consumed by validation, schema-oriented tools, or application
-code. `#[derive(ModelMetadata)]` produces the static implementations consumed by
+code. `#[derive(Model)]` produces the static implementations consumed by
 `qubit-model-metadata`; it neither registers models globally nor validates data.
 
 ## Conceptual Model
@@ -21,7 +24,7 @@ exposes the resulting immutable metadata through typed queries.
 Rust model + #[model(...)]
             │ compile time
             ▼
-ModelMetadata derive ──► static runtime metadata ──► metadata_of::<T>()
+Model derive ──► static runtime metadata ──► metadata_of::<T>()
 ```
 
 ## Scenario: Describe an Account
@@ -37,10 +40,10 @@ qubit-model-metadata = "0.1.0"
 Declare metadata next to the model, then query its normalized result:
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 use qubit_model_metadata::{AttributeQuery, metadata_of};
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Account {
     #[model(identifier(generated))]
     id: i64,
@@ -119,12 +122,12 @@ ranges, unavailable type capabilities, and invalid local field references.
 Relations name both their target type and target field:
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Organization { #[model(identifier)] id: i64 }
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Membership {
     #[model(reference(target = Organization, target_field = id, must_exist = true))]
     organization_id: i64,
@@ -137,10 +140,10 @@ compatibility or relation cycles across a full model graph.
 For an external type that intentionally lacks structural metadata, use `opaque`:
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 
 struct ExternalToken;
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct ImportRecord { #[model(opaque)] token: ExternalToken }
 ```
 

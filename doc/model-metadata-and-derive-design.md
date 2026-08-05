@@ -415,16 +415,16 @@ assert_eq!(unique.comparison_of("username"), Some(UniqueComparison::IgnoreCase))
 derive crate 提供一个入口：
 
 ```rust
-#[proc_macro_derive(ModelMetadata, attributes(model))]
+#[proc_macro_derive(Model, attributes(model))]
 ```
 
 使用方显式导入 derive 宏和 runtime trait：
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 use qubit_model_metadata::HasTypeMetadata;
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 #[model(
     primary_key(fields(id), generated(id)),
     unique(

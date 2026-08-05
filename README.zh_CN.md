@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
-`qubit-model-derive` 为 Rust 领域模型提供 `#[derive(ModelMetadata)]`。它将模型声明转换为 `qubit-model-metadata` 暴露的静态强类型元数据，使校验、面向 schema 的工具和应用代码无需运行时注册表或基于字符串的类型推断即可查询模型结构。
+`qubit-model-derive` 为 Rust 领域模型提供 `#[derive(Model)]`。它将模型声明转换为 `qubit-model-metadata` 暴露的静态强类型元数据，使校验、面向 schema 的工具和应用代码无需运行时注册表或基于字符串的类型推断即可查询模型结构。
 
 ## 安装
 
@@ -21,15 +21,17 @@ qubit-model-metadata = "0.1"
 
 runtime crate 是必需依赖：若展开位置没有 `qubit-model-metadata` 依赖，宏会发出 `compile_error!`，说明缺少该依赖。
 
+为兼容已有用户，`ModelMetadata` 仍作为别名保留；新代码应使用 `Model`。
+
 ## 快速开始
 
 以账户模型为例，只需 derive 一次，应用中任何需要查看模型的地方都可以查询元数据：
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 use qubit_model_metadata::metadata_of;
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Account {
     #[model(identifier)]
     id: i64,
@@ -68,7 +70,7 @@ Rust 模型通常不仅需要 Rust 类型：校验、持久化和 schema 工具�
 ```rust
 struct ExternalToken;
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct ImportRecord {
     #[model(opaque)]
     token: ExternalToken,
