@@ -86,6 +86,7 @@ struct ImportRecord {
 
 ## 延伸阅读
 
+- [用户手册](doc/user_guide.zh_CN.md)
 - [模型元数据与 derive 设计](doc/model-metadata-and-derive-design.md)
 - [API 文档](https://docs.rs/qubit-model-derive)
 - [English document](README.md)

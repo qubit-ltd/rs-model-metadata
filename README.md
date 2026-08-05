@@ -86,6 +86,7 @@ Without `opaque`, an external type must implement `HasTypeShape`; `opaque` canno
 
 ## Learn More
 
+- [User guide](doc/user_guide.md)
 - [Model metadata and derive design](doc/model-metadata-and-derive-design.md)
 - [API documentation](https://docs.rs/qubit-model-derive)
 - [中文文档](README.zh_CN.md)
