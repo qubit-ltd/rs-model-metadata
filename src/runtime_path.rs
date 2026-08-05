@@ -6,14 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
-// =============================================================================
-
 //! Resolution of the runtime metadata crate's path in consuming crates.
 
 use proc_macro_crate::{
