@@ -8,3 +8,9 @@ multiple-public-types | src/json/redacted_json.rs | The session view is the prim
 multiple-public-types | src/json/redacted_json_text.rs | The session view is the primary JSON-text view's shared-budget formatting adapter.
 multiple-public-types | src/policy/redaction_policy_builder.rs | Builder views are inseparable mutable projections of the root builder.
 multiple-public-types | src/policy/redaction_session.rs | Session budget types form one shared accounting model.
+multiple-public-types | src/attribute.rs | Attribute variants and their key value objects form one static metadata vocabulary.
+multiple-public-types | src/constraint.rs | Constraint values and their supporting enums form one cohesive constraint vocabulary.
+multiple-public-types | src/query.rs | Attribute queries and path-resolution errors form one query contract.
+multiple-public-types | src/relation.rs | Static field paths and relation value objects form one relation contract.
+multiple-public-types | src/type_metadata.rs | Named type metadata and structural descriptors form one recursive metadata contract.
+multiple-public-types | src/type_shape.rs | Type shapes, capabilities, and references form one recursive type system contract.

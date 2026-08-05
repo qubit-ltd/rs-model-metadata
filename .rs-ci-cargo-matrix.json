@@ -4,44 +4,26 @@
     {
       "name": "core",
       "commands": ["check", "test", "doc"],
-      "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": []
     },
     {
-      "name": "serde",
+      "name": "chrono",
       "commands": ["check", "test", "doc"],
-      "packages": ["qubit-redact"],
       "defaultFeatures": false,
-      "features": ["serde"]
+      "features": ["chrono"]
     },
     {
-      "name": "json",
+      "name": "big-decimal",
       "commands": ["check", "test", "doc"],
-      "packages": ["qubit-redact"],
       "defaultFeatures": false,
-      "features": ["json"]
+      "features": ["big-decimal"]
     },
     {
-      "name": "http",
+      "name": "chrono-big-decimal",
       "commands": ["check", "test", "doc"],
-      "packages": ["qubit-redact"],
       "defaultFeatures": false,
-      "features": ["http"]
-    },
-    {
-      "name": "uri",
-      "commands": ["check", "test", "doc"],
-      "packages": ["qubit-redact"],
-      "defaultFeatures": false,
-      "features": ["uri"]
-    },
-    {
-      "name": "http-uri",
-      "commands": ["check", "test", "doc"],
-      "packages": ["qubit-redact"],
-      "defaultFeatures": false,
-      "features": ["http", "uri"]
+      "features": ["chrono", "big-decimal"]
     },
     {
       "name": "all-root",
