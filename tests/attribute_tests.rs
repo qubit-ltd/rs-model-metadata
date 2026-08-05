@@ -11,6 +11,7 @@
 use qubit_model_metadata::{
     AttributeKind,
     AttributeMetadata,
+    ElementMetadata,
     IndexMetadata,
     KeyMetadata,
     PrimaryKeyFieldMetadata,
@@ -18,6 +19,8 @@ use qubit_model_metadata::{
     SensitiveHandling,
     SensitiveMetadata,
     StrategyRef,
+    TextConstraint,
+    TextRepertoire,
     UniqueComparison,
     UniqueFieldMetadata,
     UniqueMetadata,
@@ -41,6 +44,22 @@ const VALID_KEY: KeyMetadata = KeyMetadata::new(Some("user"), &KEY_FIELDS);
 const STRATEGY: StrategyRef = StrategyRef::new("redact-email");
 const SENSITIVE: SensitiveMetadata =
     SensitiveMetadata::new(SensitiveHandling::Mask);
+const TOKEN_SENSITIVE: SensitiveMetadata =
+    SensitiveMetadata::new(SensitiveHandling::Token);
+const ELEMENT_TEXT: AttributeMetadata =
+    AttributeMetadata::Text(TextConstraint::new(
+        None,
+        None,
+        None,
+        None,
+        TextRepertoire::Ascii,
+        false,
+        None,
+    ));
+static DUPLICATE_ELEMENT_ATTRIBUTES: [AttributeMetadata; 2] =
+    [ELEMENT_TEXT, ELEMENT_TEXT];
+static INVALID_ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Codec(STRATEGY)];
 const DUPLICATE_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 2] = [
     PrimaryKeyFieldMetadata::new("id", false),
     PrimaryKeyFieldMetadata::new("id", true),
@@ -100,6 +119,7 @@ fn test_metadata_accessors_return_declared_values() {
 
     assert_eq!(STRATEGY.name(), "redact-email");
     assert_eq!(SENSITIVE.handling(), SensitiveHandling::Mask);
+    assert_eq!(TOKEN_SENSITIVE.handling(), SensitiveHandling::Token);
 }
 
 #[test]
@@ -166,4 +186,18 @@ fn test_logical_key_rejects_empty_logical_name() {
 #[should_panic(expected = "strategy names cannot be empty")]
 fn test_strategy_ref_rejects_empty_name() {
     let _ = StrategyRef::new("");
+}
+
+#[test]
+#[should_panic(
+    expected = "element metadata only supports text and decimal attributes"
+)]
+fn test_element_metadata_rejects_non_constraint_attributes() {
+    let _ = ElementMetadata::new(&INVALID_ELEMENT_ATTRIBUTES);
+}
+
+#[test]
+#[should_panic(expected = "element metadata attributes must be unique")]
+fn test_element_metadata_rejects_duplicate_constraints() {
+    let _ = ElementMetadata::new(&DUPLICATE_ELEMENT_ATTRIBUTES);
 }

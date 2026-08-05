@@ -485,6 +485,7 @@ const fn validate_type_attributes(
             | AttributeMetadata::Map(_)
             | AttributeMetadata::Temporal(_)
             | AttributeMetadata::Decimal(_)
+            | AttributeMetadata::Element(_)
             | AttributeMetadata::Reference(_)
             | AttributeMetadata::LookupRelation(_)
             | AttributeMetadata::Codec(_)

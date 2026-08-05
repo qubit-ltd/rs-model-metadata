@@ -10,6 +10,7 @@
 
 use qubit_model_metadata::{
     AttributeMetadata,
+    ElementMetadata,
     FieldMetadata,
     PrimaryKeyFieldMetadata,
     PrimaryKeyMetadata,
@@ -40,6 +41,20 @@ static SEQUENCE_ATTRIBUTES: [AttributeMetadata; 1] =
         Some(1),
         Some(3),
         true,
+    ))];
+static ELEMENT_TEXT_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Text(TextConstraint::new(
+        None,
+        None,
+        None,
+        None,
+        TextRepertoire::Ascii,
+        false,
+        None,
+    ))];
+static ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Element(ElementMetadata::new(
+        &ELEMENT_TEXT_ATTRIBUTES,
     ))];
 
 #[test]
@@ -97,5 +112,47 @@ fn test_field_metadata_exposes_sequence_constraint() {
     assert_eq!(
         field.sequence_constraint().map(|value| value.max_items()),
         Some(Some(3))
+    );
+}
+
+#[test]
+fn test_field_metadata_exposes_sequence_element_constraints() {
+    let field = FieldMetadata::new(
+        0,
+        "aliases",
+        "Vec<String>",
+        TypeRef::of::<Vec<String>>(),
+        &ELEMENT_ATTRIBUTES,
+    );
+
+    let element = field.element_metadata().expect("element metadata");
+    assert!(matches!(
+        element.attributes(),
+        [AttributeMetadata::Text(constraint)]
+            if constraint.repertoire() == TextRepertoire::Ascii
+    ));
+}
+
+#[test]
+#[should_panic(expected = "element attributes require a sequence field")]
+fn test_field_metadata_rejects_element_constraints_on_scalar_fields() {
+    let _ = FieldMetadata::new(
+        0,
+        "alias",
+        "String",
+        TypeRef::of::<String>(),
+        &ELEMENT_ATTRIBUTES,
+    );
+}
+
+#[test]
+#[should_panic(expected = "text attributes require a text-capable element")]
+fn test_field_metadata_rejects_constraints_unsupported_by_element_type() {
+    let _ = FieldMetadata::new(
+        0,
+        "ids",
+        "Vec<i64>",
+        TypeRef::of::<Vec<i64>>(),
+        &ELEMENT_ATTRIBUTES,
     );
 }

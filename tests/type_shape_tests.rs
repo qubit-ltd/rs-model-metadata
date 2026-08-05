@@ -79,6 +79,10 @@ fn test_container_capabilities_describe_the_outer_layer() {
         TypeCapabilities::SET
     );
     assert_eq!(
+        <HashSet<String> as HasTypeShape>::ELEMENT_CAPABILITIES,
+        None
+    );
+    assert_eq!(
         <HashMap<String, Vec<String>> as HasTypeShape>::CAPABILITIES,
         TypeCapabilities::MAP
     );

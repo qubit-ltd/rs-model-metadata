@@ -178,6 +178,8 @@ pub enum TextRepertoire {
 pub enum TextFormat {
     /// An email address.
     Email,
+    /// A mainland China mobile telephone number.
+    Mobile,
     /// A URI.
     Uri,
     /// A UUID string.

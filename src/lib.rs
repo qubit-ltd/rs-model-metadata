@@ -21,6 +21,7 @@ mod type_shape;
 pub use crate::attribute::{
     AttributeKind,
     AttributeMetadata,
+    ElementMetadata,
     IndexMetadata,
     KeyMetadata,
     PrimaryKeyFieldMetadata,

@@ -141,6 +141,10 @@ pub trait HasTypeShape: 'static {
 
     /// Capabilities supported by this type's outermost layer.
     const CAPABILITIES: TypeCapabilities;
+
+    /// Capabilities of sequence elements, when the outer shape has elements
+    /// that may carry constraints.
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> = None;
 }
 
 /// A small, copyable reference to a type's static shape metadata.
@@ -154,6 +158,8 @@ pub struct TypeRef {
     shape: fn() -> TypeShape,
     /// The capabilities of the referenced type's outermost structural layer.
     capabilities: TypeCapabilities,
+    /// Capabilities exposed by sequence elements, when applicable.
+    element_capabilities: Option<TypeCapabilities>,
 }
 
 impl TypeRef {
@@ -172,6 +178,7 @@ impl TypeRef {
             type_name: type_name::<T>,
             shape: type_shape_of::<T>,
             capabilities: T::CAPABILITIES,
+            element_capabilities: T::ELEMENT_CAPABILITIES,
         }
     }
 
@@ -193,6 +200,7 @@ impl TypeRef {
             type_name: type_name::<T>,
             shape: opaque_type_shape,
             capabilities: TypeCapabilities::NONE,
+            element_capabilities: None,
         }
     }
 
@@ -226,6 +234,17 @@ impl TypeRef {
     #[inline(always)]
     pub const fn capabilities(self) -> TypeCapabilities {
         self.capabilities
+    }
+
+    /// Returns the capabilities of sequence elements.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the element capabilities for sequence and array shapes;
+    /// otherwise, `None`.
+    #[inline(always)]
+    pub const fn element_capabilities(self) -> Option<TypeCapabilities> {
+        self.element_capabilities
     }
 
     /// Removes one outer `Option` layer, leaving other shapes unchanged.
@@ -352,11 +371,15 @@ impl HasTypeShape for bigdecimal::BigDecimal {
 impl<T: HasTypeShape> HasTypeShape for Option<T> {
     const TYPE_SHAPE: TypeShape = TypeShape::Optional(TypeRef::of::<T>());
     const CAPABILITIES: TypeCapabilities = T::CAPABILITIES;
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> =
+        T::ELEMENT_CAPABILITIES;
 }
 
 impl<T: HasTypeShape> HasTypeShape for Vec<T> {
     const TYPE_SHAPE: TypeShape = TypeShape::Sequence(TypeRef::of::<T>());
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::SEQUENCE;
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> =
+        Some(T::CAPABILITIES);
 }
 
 impl<T: HasTypeShape> HasTypeShape for HashSet<T> {
@@ -392,4 +415,6 @@ impl<T: HasTypeShape, const N: usize> HasTypeShape for [T; N] {
     };
     const CAPABILITIES: TypeCapabilities =
         TypeCapabilities::SEQUENCE.union(TypeCapabilities::ARRAY);
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> =
+        Some(T::CAPABILITIES);
 }

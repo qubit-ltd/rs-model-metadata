@@ -10,6 +10,7 @@
 
 use crate::attribute::{
     AttributeMetadata,
+    ElementMetadata,
     SensitiveMetadata,
     StrategyRef,
 };
@@ -73,7 +74,7 @@ impl FieldMetadata {
         field_type: TypeRef,
         attributes: &'static [AttributeMetadata],
     ) -> Self {
-        validate_field_attributes(attributes, field_type.capabilities());
+        validate_field_attributes(attributes, field_type);
         Self {
             ordinal,
             name,
@@ -243,6 +244,22 @@ impl FieldMetadata {
             })
     }
 
+    /// Returns constraints applied to each sequence element.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the element metadata when one is present; otherwise,
+    /// `None`.
+    #[must_use]
+    pub fn element_metadata(self) -> Option<ElementMetadata> {
+        self.attributes
+            .iter()
+            .find_map(|attribute| match attribute {
+                AttributeMetadata::Element(metadata) => Some(*metadata),
+                _ => None,
+            })
+    }
+
     /// Returns the field's lookup relation, if present.
     ///
     /// # Returns
@@ -311,7 +328,7 @@ impl FieldMetadata {
 /// # Parameters
 ///
 /// - `attributes`: The field-level attributes to validate.
-/// - `capabilities`: The capabilities exposed by the field's type.
+/// - `field_type`: The field type and its outer and element capabilities.
 ///
 /// # Panics
 ///
@@ -320,8 +337,9 @@ impl FieldMetadata {
 /// model scope.
 const fn validate_field_attributes(
     attributes: &'static [AttributeMetadata],
-    capabilities: TypeCapabilities,
+    field_type: TypeRef,
 ) {
+    let capabilities = field_type.capabilities();
     let mut index = 0;
     while index < attributes.len() {
         match attributes[index] {
@@ -353,6 +371,17 @@ const fn validate_field_attributes(
                 has_capability(capabilities, TypeCapabilities::DECIMAL),
                 "decimal attributes require a decimal-capable field"
             ),
+            AttributeMetadata::Element(metadata) => {
+                let Some(element_capabilities) =
+                    field_type.element_capabilities()
+                else {
+                    panic!("element attributes require a sequence field");
+                };
+                validate_element_attributes(
+                    metadata.attributes(),
+                    element_capabilities,
+                );
+            }
             AttributeMetadata::PrimaryKey(_)
             | AttributeMetadata::Unique(_)
             | AttributeMetadata::Index(_)
@@ -365,6 +394,40 @@ const fn validate_field_attributes(
             | AttributeMetadata::Codec(_)
             | AttributeMetadata::Generator(_)
             | AttributeMetadata::Sensitive(_) => {}
+        }
+        index += 1;
+    }
+}
+
+/// Validates attributes attached to sequence elements.
+///
+/// # Parameters
+///
+/// - `attributes`: The element-level attributes to validate.
+/// - `capabilities`: The capabilities exposed by each element.
+///
+/// # Panics
+///
+/// Panics when an element attribute is outside the migrated text and decimal
+/// constraint set or is incompatible with the element type.
+const fn validate_element_attributes(
+    attributes: &'static [AttributeMetadata],
+    capabilities: TypeCapabilities,
+) {
+    let mut index = 0;
+    while index < attributes.len() {
+        match attributes[index] {
+            AttributeMetadata::Text(_) => assert!(
+                has_capability(capabilities, TypeCapabilities::TEXT),
+                "text attributes require a text-capable element"
+            ),
+            AttributeMetadata::Decimal(_) => assert!(
+                has_capability(capabilities, TypeCapabilities::DECIMAL),
+                "decimal attributes require a decimal-capable element"
+            ),
+            _ => panic!(
+                "element metadata only supports text and decimal attributes"
+            ),
         }
         index += 1;
     }

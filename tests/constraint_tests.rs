@@ -31,6 +31,15 @@ const VALID_TEXT: TextConstraint = TextConstraint::new(
     true,
     Some(TextFormat::Email),
 );
+const VALID_MOBILE_TEXT: TextConstraint = TextConstraint::new(
+    None,
+    None,
+    None,
+    None,
+    TextRepertoire::Unicode,
+    false,
+    Some(TextFormat::Mobile),
+);
 const VALID_SEQUENCE: SequenceConstraint =
     SequenceConstraint::new(Some(1), Some(8), true);
 const VALID_MAP: MapConstraint = MapConstraint::new(Some(1), Some(8));
@@ -54,6 +63,7 @@ fn test_constraint_constructors_remain_const_compatible() {
     assert_eq!(VALID_TEXT.repertoire(), TextRepertoire::Ascii);
     assert!(VALID_TEXT.is_non_blank());
     assert_eq!(VALID_TEXT.format(), Some(TextFormat::Email));
+    assert_eq!(VALID_MOBILE_TEXT.format(), Some(TextFormat::Mobile));
 
     assert_eq!(VALID_SEQUENCE.min_items(), Some(1));
     assert_eq!(VALID_SEQUENCE.max_items(), Some(8));
