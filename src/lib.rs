@@ -11,6 +11,8 @@
 mod attribute;
 mod constraint;
 mod field_metadata;
+mod metadata_registry;
+mod metadata_resolver;
 mod query;
 mod relation;
 mod type_metadata;
@@ -44,6 +46,8 @@ pub use crate::constraint::{
     TextRepertoire,
 };
 pub use crate::field_metadata::FieldMetadata;
+pub use crate::metadata_registry::MetadataRegistry;
+pub use crate::metadata_resolver::MetadataResolver;
 pub use crate::query::{
     AttributeQuery,
     FieldPathResolveError,

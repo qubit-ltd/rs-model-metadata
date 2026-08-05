@@ -43,9 +43,12 @@ pub fn metadata_of<T: HasTypeMetadata>() -> &'static TypeMetadata {
     T::type_metadata()
 }
 
-/// A stable identity for a Rust type, with its fully qualified name retained
+/// A runtime identity for a Rust type, with its fully qualified name retained
 /// for display.
-#[must_use]
+///
+/// This identity is local to the Rust process/build that produced it. It is
+/// suitable for in-memory metadata lookup, but must not be persisted or used
+/// as a stable cross-process identifier.
 #[derive(Clone, Copy)]
 pub struct TypeIdentity {
     /// A function that returns the runtime [`TypeId`] for the represented
@@ -230,7 +233,7 @@ impl NamedTypeRef {
         }
     }
 
-    /// Returns the stable identity of the named type.
+    /// Returns the runtime identity of the named type.
     ///
     /// # Returns
     ///
@@ -297,7 +300,7 @@ impl TypeMetadata {
         }
     }
 
-    /// Returns the stable identity of this model type.
+    /// Returns the runtime identity of this model type.
     ///
     /// # Returns
     ///
@@ -660,8 +663,32 @@ impl EnumMetadata {
     /// # Returns
     ///
     /// Immutable metadata for the fieldless enum.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a variant name is empty or duplicated, or when a variant's
+    /// ordinal does not match its position in `variants`.
     #[inline]
     pub const fn new(variants: &'static [EnumVariantMetadata]) -> Self {
+        let mut index = 0;
+        while index < variants.len() {
+            let variant = variants[index];
+            assert!(
+                !variant.name.is_empty(),
+                "enum variant names cannot be empty"
+            );
+            if variant.ordinal != index {
+                panic!("enum variant ordinals must match declaration order");
+            }
+            let mut previous = 0;
+            while previous < index {
+                if str_eq(variant.name, variants[previous].name) {
+                    panic!("enum variant names must be unique");
+                }
+                previous += 1;
+            }
+            index += 1;
+        }
         Self { variants }
     }
 
@@ -673,6 +700,51 @@ impl EnumMetadata {
     #[inline(always)]
     pub const fn variants(self) -> &'static [EnumVariantMetadata] {
         self.variants
+    }
+
+    /// Returns the first variant with the supplied normalized name.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The normalized variant name to search for.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the matching variant, or `None` when no variant has that
+    /// name.
+    #[must_use]
+    pub const fn variant(self, name: &str) -> Option<EnumVariantMetadata> {
+        let mut index = 0;
+        while index < self.variants.len() {
+            let variant = self.variants[index];
+            if str_eq(variant.name, name) {
+                return Some(variant);
+            }
+            index += 1;
+        }
+        None
+    }
+
+    /// Returns the variant declared at `ordinal`.
+    ///
+    /// # Parameters
+    ///
+    /// * `ordinal` - The zero-based declaration ordinal to search for.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the matching variant, or `None` when the ordinal is out of
+    /// range.
+    #[must_use]
+    pub const fn variant_at(
+        self,
+        ordinal: usize,
+    ) -> Option<EnumVariantMetadata> {
+        if ordinal < self.variants.len() {
+            Some(self.variants[ordinal])
+        } else {
+            None
+        }
     }
 }
 
