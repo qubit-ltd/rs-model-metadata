@@ -67,13 +67,15 @@ assert_eq!(email.text_constraint().and_then(|text| text.max_chars()), Some(320))
 
 ## 已知限制
 
-- runtime crate 不会自动发现模型，也不提供全局注册表。
+- runtime crate 不会自动发现模型，也不提供全局注册表。需要模型集合的消费者可以构造调用方持有的静态 `MetadataRegistry`。
 - 不定义数据库映射、校验错误文案、序列化格式、codec、generator 或脱敏实现。
 - 跨模型图校验与关系环检查不属于本 crate 的本地元数据 API。
 - 用户自定义类型必须实现 `HasTypeShape`；结构确实不可用时，配套 derive 提供显式 `#[model(opaque)]` 逃生口。
 
 ## 延伸阅读
 
+- [用户手册](doc/user_guide.zh_CN.md)
+- [模型元数据与 derive 设计](../doc/model-metadata-and-derive-design.md)
 - [API 文档](https://docs.rs/qubit-model-metadata)
 - [English document](README.md)
 

@@ -67,13 +67,15 @@ Domain-model consumers need more than Rust's memory representation: they need fi
 
 ## Known Limits
 
-- The runtime crate does not automatically discover models or provide a global registry.
+- The runtime crate does not automatically discover models or provide a global registry. Consumers that need a model set can construct a caller-owned, static `MetadataRegistry`.
 - It does not define database mappings, validation error messages, serialization formats, codecs, generators, or redaction implementations.
 - Cross-model graph validation and relationship-cycle checks are outside this crate's local metadata API.
 - User-defined types must implement `HasTypeShape`; the companion derive supports an explicit `#[model(opaque)]` escape hatch when structure is intentionally unavailable.
 
 ## Learn More
 
+- [User guide](doc/user_guide.md)
+- [Model metadata and derive design](../doc/model-metadata-and-derive-design.md)
 - [API documentation](https://docs.rs/qubit-model-metadata)
 - [中文文档](README.zh_CN.md)
 
