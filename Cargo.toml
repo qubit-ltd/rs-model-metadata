@@ -26,7 +26,14 @@ include = [
 name = "qubit_model_metadata"
 doctest = true
 
+[features]
+chrono = ["dep:chrono"]
+big-decimal = ["dep:bigdecimal"]
+
 [dependencies]
+bitflags = "2.10.0"
+chrono = { version = "0.4", features = ["std"], default-features = false, optional = true }
+bigdecimal = { version = "0.4", optional = true }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
