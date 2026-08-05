@@ -22,7 +22,9 @@ use qubit_model_metadata::{
     HasTypeMetadata,
     HasTypeShape,
     IndexMetadata,
+    KeyMetadata,
     NamedTypeRef,
+    OwnershipMetadata,
     PrimaryKeyFieldMetadata,
     PrimaryKeyMetadata,
     StructMetadata,
@@ -63,7 +65,8 @@ static ACCOUNT_UNIQUE_FIELDS: [UniqueFieldMetadata; 1] =
         UniqueComparison::IgnoreCase,
     )];
 static ACCOUNT_INDEX_FIELDS: [&str; 1] = ["username"];
-static ACCOUNT_ATTRIBUTES: [AttributeMetadata; 3] = [
+static ACCOUNT_KEY_FIELDS: [&str; 1] = ["username"];
+static ACCOUNT_ATTRIBUTES: [AttributeMetadata; 5] = [
     AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
         &ACCOUNT_PRIMARY_KEY_FIELDS,
     )),
@@ -72,6 +75,10 @@ static ACCOUNT_ATTRIBUTES: [AttributeMetadata; 3] = [
         &ACCOUNT_UNIQUE_FIELDS,
     )),
     AttributeMetadata::Index(IndexMetadata::new(None, &ACCOUNT_INDEX_FIELDS)),
+    AttributeMetadata::Key(KeyMetadata::new(None, &ACCOUNT_KEY_FIELDS)),
+    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::of::<
+        Account,
+    >())),
 ];
 static ACCOUNT_FIELDS: [FieldMetadata; 5] = [
     FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &[]),
@@ -180,6 +187,13 @@ fn test_field_and_unique_constraint_queries_are_typed() {
     let metadata = metadata_of::<Account>();
     let username = metadata.field("username").expect("username metadata");
 
+    assert_eq!(
+        metadata
+            .fields()
+            .map(|field| field.name())
+            .collect::<Vec<_>>(),
+        vec!["id", "username", "aliases", "labels", "contact"]
+    );
     assert!(!username.is_nullable());
     assert_eq!(
         username.text_constraint().and_then(|text| text.max_chars()),
@@ -200,6 +214,16 @@ fn test_primary_key_index_and_generic_attribute_queries_are_typed() {
 
     assert!(metadata.primary_key().is_some_and(|key| key.contains("id")));
     assert!(metadata.indexes().any(|index| index.contains("username")));
+    assert_eq!(
+        metadata.keys().next().map(|key| key.fields()),
+        Some(&ACCOUNT_KEY_FIELDS[..])
+    );
+    assert_eq!(
+        metadata
+            .ownership()
+            .map(|ownership| ownership.owner().identity()),
+        Some(TypeIdentity::of::<Account>())
+    );
     assert!(matches!(
         metadata.attribute(AttributeKind::Unique),
         Some(AttributeMetadata::Unique(_))
@@ -275,5 +299,13 @@ fn test_resolve_field_path_reports_unresolvable_named_type() {
         Err(FieldPathResolveError::NamedMetadataUnavailable {
             segment: "target"
         })
+    ));
+}
+
+#[test]
+fn test_resolve_field_path_reports_empty_path() {
+    assert!(matches!(
+        metadata_of::<Account>().resolve_field_path(FieldPath::new(&[])),
+        Err(FieldPathResolveError::EmptyPath)
     ));
 }

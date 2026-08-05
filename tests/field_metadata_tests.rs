@@ -43,6 +43,22 @@ static SEQUENCE_ATTRIBUTES: [AttributeMetadata; 1] =
     ))];
 
 #[test]
+fn test_field_metadata_exposes_declaration_details() {
+    let field =
+        FieldMetadata::new(2, "amount", "i64", TypeRef::of::<i64>(), &[]);
+
+    assert_eq!(field.ordinal(), 2);
+    assert_eq!(field.name(), "amount");
+    assert_eq!(field.rust_type_name(), "i64");
+    assert_eq!(
+        field.field_type().type_name(),
+        core::any::type_name::<i64>()
+    );
+    assert!(!field.is_nullable());
+    assert!(field.attributes().is_empty());
+}
+
+#[test]
 #[should_panic(expected = "text attributes require a text-capable field")]
 fn test_field_metadata_rejects_text_constraints_on_non_text_types() {
     let _ = FieldMetadata::new(

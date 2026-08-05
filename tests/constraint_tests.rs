@@ -14,7 +14,11 @@ use qubit_model_metadata::{
     MapConstraint,
     RoundingMode,
     SequenceConstraint,
+    TemporalConstraint,
+    TemporalNormalization,
+    TemporalPrecision,
     TextConstraint,
+    TextFormat,
     TextRepertoire,
 };
 
@@ -23,9 +27,9 @@ const VALID_TEXT: TextConstraint = TextConstraint::new(
     Some(8),
     Some(1),
     Some(16),
-    TextRepertoire::Unicode,
-    false,
-    None,
+    TextRepertoire::Ascii,
+    true,
+    Some(TextFormat::Email),
 );
 const VALID_SEQUENCE: SequenceConstraint =
     SequenceConstraint::new(Some(1), Some(8), true);
@@ -36,13 +40,35 @@ const VALID_DECIMAL: DecimalConstraint = DecimalConstraint::new(
     RoundingMode::HalfEven,
     DecimalSemantic::Number,
 );
+const VALID_TEMPORAL: TemporalConstraint = TemporalConstraint::new(
+    TemporalPrecision::Millisecond,
+    TemporalNormalization::Utc,
+);
 
 #[test]
 fn test_constraint_constructors_remain_const_compatible() {
+    assert_eq!(VALID_TEXT.min_chars(), Some(1));
     assert_eq!(VALID_TEXT.max_chars(), Some(8));
+    assert_eq!(VALID_TEXT.min_bytes(), Some(1));
+    assert_eq!(VALID_TEXT.max_bytes(), Some(16));
+    assert_eq!(VALID_TEXT.repertoire(), TextRepertoire::Ascii);
+    assert!(VALID_TEXT.is_non_blank());
+    assert_eq!(VALID_TEXT.format(), Some(TextFormat::Email));
+
+    assert_eq!(VALID_SEQUENCE.min_items(), Some(1));
     assert_eq!(VALID_SEQUENCE.max_items(), Some(8));
+    assert!(VALID_SEQUENCE.has_unique_items());
+
+    assert_eq!(VALID_MAP.min_entries(), Some(1));
     assert_eq!(VALID_MAP.max_entries(), Some(8));
+
+    assert_eq!(VALID_TEMPORAL.precision(), TemporalPrecision::Millisecond);
+    assert_eq!(VALID_TEMPORAL.normalization(), TemporalNormalization::Utc);
+
+    assert_eq!(VALID_DECIMAL.precision(), Some(8));
     assert_eq!(VALID_DECIMAL.scale(), 3);
+    assert_eq!(VALID_DECIMAL.rounding(), RoundingMode::HalfEven);
+    assert_eq!(VALID_DECIMAL.semantic(), DecimalSemantic::Number);
 }
 
 #[test]

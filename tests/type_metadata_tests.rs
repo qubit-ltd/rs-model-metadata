@@ -81,5 +81,9 @@ fn test_type_metadata_exposes_keys_and_ownership() {
         metadata.keys().next().and_then(|key| key.name()),
         Some("account")
     );
-    assert!(metadata.ownership().is_some());
+    assert!(matches!(
+        metadata.ownership(),
+        Some(ownership)
+            if ownership.owner().identity() == TypeIdentity::of::<Organization>()
+    ));
 }
