@@ -9,9 +9,19 @@
 //! Integration tests for structural type metadata validation.
 
 use qubit_model_metadata::{
-    AttributeMetadata, EnumMetadata, EnumVariantMetadata, FieldMetadata, IndexMetadata,
-    KeyMetadata, NamedTypeRef, OwnershipMetadata, StructMetadata, TypeIdentity, TypeKind,
-    TypeMetadata, TypeRef,
+    AttributeMetadata,
+    EnumMetadata,
+    EnumVariantMetadata,
+    FieldMetadata,
+    IndexMetadata,
+    KeyMetadata,
+    NamedTypeRef,
+    OwnershipMetadata,
+    StructMetadata,
+    TypeIdentity,
+    TypeKind,
+    TypeMetadata,
+    TypeRef,
 };
 
 struct Account;
@@ -32,15 +42,17 @@ static ACCOUNT_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &[],
 )];
 static INDEX_FIELDS: [&str; 1] = ["missing"];
-static INVALID_INDEX_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Index(
-    IndexMetadata::new(None, &INDEX_FIELDS),
-)];
+static INVALID_INDEX_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Index(IndexMetadata::new(
+        None,
+        &INDEX_FIELDS,
+    ))];
 static KEY_FIELDS: [&str; 1] = ["id"];
 static QUERY_ATTRIBUTES: [AttributeMetadata; 2] = [
     AttributeMetadata::Key(KeyMetadata::new(Some("account"), &KEY_FIELDS)),
-    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::unresolved(
-        TypeIdentity::of::<Organization>(),
-    ))),
+    AttributeMetadata::Ownership(OwnershipMetadata::new(
+        NamedTypeRef::unresolved(TypeIdentity::of::<Organization>()),
+    )),
 ];
 
 #[test]
@@ -53,7 +65,8 @@ static ENUM_VARIANTS: [EnumVariantMetadata; 2] = [
     EnumVariantMetadata::new(0, "pending"),
     EnumVariantMetadata::new(1, "active"),
 ];
-static EMPTY_NAME_VARIANTS: [EnumVariantMetadata; 1] = [EnumVariantMetadata::new(0, "")];
+static EMPTY_NAME_VARIANTS: [EnumVariantMetadata; 1] =
+    [EnumVariantMetadata::new(0, "")];
 static DUPLICATE_NAME_VARIANTS: [EnumVariantMetadata; 2] = [
     EnumVariantMetadata::new(0, "pending"),
     EnumVariantMetadata::new(1, "pending"),

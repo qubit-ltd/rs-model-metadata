@@ -8,12 +8,28 @@
 
 //! Immutable metadata for a declared model field.
 
-use crate::attribute::{AttributeMetadata, ElementMetadata, SensitiveMetadata, StrategyRef};
-use crate::constraint::{
-    DecimalConstraint, MapConstraint, SequenceConstraint, TemporalConstraint, TextConstraint,
+use crate::attribute::{
+    AttributeMetadata,
+    ElementMetadata,
+    SensitiveMetadata,
+    StrategyRef,
 };
-use crate::relation::{LookupRelationMetadata, ReferenceMetadata};
-use crate::type_shape::{TypeCapabilities, TypeRef, TypeShape};
+use crate::constraint::{
+    DecimalConstraint,
+    MapConstraint,
+    SequenceConstraint,
+    TemporalConstraint,
+    TextConstraint,
+};
+use crate::relation::{
+    LookupRelationMetadata,
+    ReferenceMetadata,
+};
+use crate::type_shape::{
+    TypeCapabilities,
+    TypeRef,
+    TypeShape,
+};
 
 /// Immutable metadata for a declared model field.
 #[derive(Clone, Copy, Debug)]
@@ -319,7 +335,10 @@ impl FieldMetadata {
 /// Panics when an attribute requires an unsupported capability, specifies a
 /// length for an array with a fixed type-level length, or is valid only at
 /// model scope.
-const fn validate_field_attributes(attributes: &'static [AttributeMetadata], field_type: TypeRef) {
+const fn validate_field_attributes(
+    attributes: &'static [AttributeMetadata],
+    field_type: TypeRef,
+) {
     let capabilities = field_type.capabilities();
     let mut index = 0;
     while index < attributes.len() {
@@ -335,7 +354,8 @@ const fn validate_field_attributes(attributes: &'static [AttributeMetadata], fie
                 );
                 assert!(
                     !has_capability(capabilities, TypeCapabilities::ARRAY)
-                        || (constraint.min_items().is_none() && constraint.max_items().is_none()),
+                        || (constraint.min_items().is_none()
+                            && constraint.max_items().is_none()),
                     "array length is fixed by its type"
                 );
             }
@@ -352,10 +372,15 @@ const fn validate_field_attributes(attributes: &'static [AttributeMetadata], fie
                 "decimal attributes require a decimal-capable field"
             ),
             AttributeMetadata::Element(metadata) => {
-                let Some(element_capabilities) = field_type.element_capabilities() else {
+                let Some(element_capabilities) =
+                    field_type.element_capabilities()
+                else {
                     panic!("element attributes require a sequence field");
                 };
-                validate_element_attributes(metadata.attributes(), element_capabilities);
+                validate_element_attributes(
+                    metadata.attributes(),
+                    element_capabilities,
+                );
             }
             AttributeMetadata::PrimaryKey(_)
             | AttributeMetadata::Unique(_)
@@ -400,7 +425,9 @@ const fn validate_element_attributes(
                 has_capability(capabilities, TypeCapabilities::DECIMAL),
                 "decimal attributes require a decimal-capable element"
             ),
-            _ => panic!("element metadata only supports text and decimal attributes"),
+            _ => panic!(
+                "element metadata only supports text and decimal attributes"
+            ),
         }
         index += 1;
     }
@@ -417,6 +444,9 @@ const fn validate_element_attributes(
 ///
 /// `true` when every bit in `required` is present in `capabilities`.
 #[inline]
-const fn has_capability(capabilities: TypeCapabilities, required: TypeCapabilities) -> bool {
+const fn has_capability(
+    capabilities: TypeCapabilities,
+    required: TypeCapabilities,
+) -> bool {
     capabilities.bits() & required.bits() == required.bits()
 }

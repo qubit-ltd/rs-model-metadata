@@ -9,8 +9,15 @@
 //! Integration tests for field metadata validation and typed queries.
 
 use qubit_model_metadata::{
-    AttributeMetadata, ElementMetadata, FieldMetadata, PrimaryKeyFieldMetadata, PrimaryKeyMetadata,
-    SequenceConstraint, TextConstraint, TextRepertoire, TypeRef,
+    AttributeMetadata,
+    ElementMetadata,
+    FieldMetadata,
+    PrimaryKeyFieldMetadata,
+    PrimaryKeyMetadata,
+    SequenceConstraint,
+    TextConstraint,
+    TextRepertoire,
+    TypeRef,
 };
 
 static INVALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] =
@@ -25,22 +32,35 @@ static INVALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] =
     ))];
 static PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
     [PrimaryKeyFieldMetadata::new("id", true)];
-static INVALID_PRIMARY_KEY_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::PrimaryKey(
-    PrimaryKeyMetadata::new(&PRIMARY_KEY_FIELDS),
-)];
-static SEQUENCE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Sequence(
-    SequenceConstraint::new(Some(1), Some(3), true),
-)];
-static ELEMENT_TEXT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(
-    TextConstraint::new(None, None, None, None, TextRepertoire::Ascii, false, None),
-)];
-static ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Element(
-    ElementMetadata::new(&ELEMENT_TEXT_ATTRIBUTES),
-)];
+static INVALID_PRIMARY_KEY_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
+        &PRIMARY_KEY_FIELDS,
+    ))];
+static SEQUENCE_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Sequence(SequenceConstraint::new(
+        Some(1),
+        Some(3),
+        true,
+    ))];
+static ELEMENT_TEXT_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Text(TextConstraint::new(
+        None,
+        None,
+        None,
+        None,
+        TextRepertoire::Ascii,
+        false,
+        None,
+    ))];
+static ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Element(ElementMetadata::new(
+        &ELEMENT_TEXT_ATTRIBUTES,
+    ))];
 
 #[test]
 fn test_field_metadata_exposes_declaration_details() {
-    let field = FieldMetadata::new(2, "amount", "i64", TypeRef::of::<i64>(), &[]);
+    let field =
+        FieldMetadata::new(2, "amount", "i64", TypeRef::of::<i64>(), &[]);
 
     assert_eq!(field.ordinal(), 2);
     assert_eq!(field.name(), "amount");
@@ -66,7 +86,9 @@ fn test_field_metadata_rejects_text_constraints_on_non_text_types() {
 }
 
 #[test]
-#[should_panic(expected = "primary-key attributes are only valid at model scope")]
+#[should_panic(
+    expected = "primary-key attributes are only valid at model scope"
+)]
 fn test_field_metadata_rejects_model_level_attributes() {
     let _ = FieldMetadata::new(
         0,

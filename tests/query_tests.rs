@@ -13,11 +13,33 @@ use core::any::TypeId;
 use std::collections::HashMap;
 
 use qubit_model_metadata::{
-    AttributeKind, AttributeMetadata, AttributeQuery, FieldMetadata, FieldPath,
-    FieldPathResolveError, HasTypeMetadata, HasTypeShape, IndexMetadata, KeyMetadata, NamedTypeRef,
-    OwnershipMetadata, PrimaryKeyFieldMetadata, PrimaryKeyMetadata, StructMetadata, TextConstraint,
-    TextRepertoire, TypeCapabilities, TypeIdentity, TypeKind, TypeMetadata, TypeRef, TypeShape,
-    UniqueComparison, UniqueFieldMetadata, UniqueMetadata, metadata_of,
+    AttributeKind,
+    AttributeMetadata,
+    AttributeQuery,
+    FieldMetadata,
+    FieldPath,
+    FieldPathResolveError,
+    HasTypeMetadata,
+    HasTypeShape,
+    IndexMetadata,
+    KeyMetadata,
+    NamedTypeRef,
+    OwnershipMetadata,
+    PrimaryKeyFieldMetadata,
+    PrimaryKeyMetadata,
+    StructMetadata,
+    TextConstraint,
+    TextRepertoire,
+    TypeCapabilities,
+    TypeIdentity,
+    TypeKind,
+    TypeMetadata,
+    TypeRef,
+    TypeShape,
+    UniqueComparison,
+    UniqueFieldMetadata,
+    UniqueMetadata,
+    metadata_of,
 };
 
 struct Account;
@@ -37,18 +59,26 @@ static USERNAME_ATTRIBUTES: [AttributeMetadata; 1] =
     ))];
 static ACCOUNT_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
     [PrimaryKeyFieldMetadata::new("id", true)];
-static ACCOUNT_UNIQUE_FIELDS: [UniqueFieldMetadata; 1] = [UniqueFieldMetadata::new(
-    "username",
-    UniqueComparison::IgnoreCase,
-)];
+static ACCOUNT_UNIQUE_FIELDS: [UniqueFieldMetadata; 1] =
+    [UniqueFieldMetadata::new(
+        "username",
+        UniqueComparison::IgnoreCase,
+    )];
 static ACCOUNT_INDEX_FIELDS: [&str; 1] = ["username"];
 static ACCOUNT_KEY_FIELDS: [&str; 1] = ["username"];
 static ACCOUNT_ATTRIBUTES: [AttributeMetadata; 5] = [
-    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(&ACCOUNT_PRIMARY_KEY_FIELDS)),
-    AttributeMetadata::Unique(UniqueMetadata::new(None, &ACCOUNT_UNIQUE_FIELDS)),
+    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
+        &ACCOUNT_PRIMARY_KEY_FIELDS,
+    )),
+    AttributeMetadata::Unique(UniqueMetadata::new(
+        None,
+        &ACCOUNT_UNIQUE_FIELDS,
+    )),
     AttributeMetadata::Index(IndexMetadata::new(None, &ACCOUNT_INDEX_FIELDS)),
     AttributeMetadata::Key(KeyMetadata::new(None, &ACCOUNT_KEY_FIELDS)),
-    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::of::<Account>())),
+    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::of::<
+        Account,
+    >())),
 ];
 static ACCOUNT_FIELDS: [FieldMetadata; 5] = [
     FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &[]),
@@ -266,7 +296,9 @@ fn test_resolve_field_path_reports_unresolvable_named_type() {
 
     assert!(matches!(
         metadata_of::<Detached>().resolve_field_path(path),
-        Err(FieldPathResolveError::NamedMetadataUnavailable { segment: "target" })
+        Err(FieldPathResolveError::NamedMetadataUnavailable {
+            segment: "target"
+        })
     ));
 }
 

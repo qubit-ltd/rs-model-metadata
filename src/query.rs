@@ -10,12 +10,22 @@
 //! Read-only attribute and field-path query operations.
 
 use crate::attribute::{
-    AttributeKind, AttributeMetadata, IndexMetadata, KeyMetadata, PrimaryKeyMetadata,
+    AttributeKind,
+    AttributeMetadata,
+    IndexMetadata,
+    KeyMetadata,
+    PrimaryKeyMetadata,
     UniqueMetadata,
 };
 use crate::field_metadata::FieldMetadata;
-use crate::relation::{FieldPath, OwnershipMetadata};
-use crate::type_metadata::{TypeKind, TypeMetadata};
+use crate::relation::{
+    FieldPath,
+    OwnershipMetadata,
+};
+use crate::type_metadata::{
+    TypeKind,
+    TypeMetadata,
+};
 use crate::type_shape::TypeShape;
 
 /// Provides allocation-free queries over a static metadata attribute slice.
@@ -40,7 +50,10 @@ pub trait AttributeQuery {
     /// `Some` with the first matching attribute, or `None` when no attribute
     /// has the requested kind.
     #[must_use]
-    fn attribute(&self, kind: AttributeKind) -> Option<&'static AttributeMetadata> {
+    fn attribute(
+        &self,
+        kind: AttributeKind,
+    ) -> Option<&'static AttributeMetadata> {
         self.attributes()
             .iter()
             .find(|attribute| attribute.kind() == kind)
@@ -153,7 +166,9 @@ impl TypeMetadata {
         self.attributes()
             .iter()
             .find_map(|attribute| match attribute {
-                AttributeMetadata::PrimaryKey(primary_key) => Some(*primary_key),
+                AttributeMetadata::PrimaryKey(primary_key) => {
+                    Some(*primary_key)
+                }
                 _ => None,
             })
     }
@@ -281,21 +296,26 @@ impl TypeMetadata {
         let field = self
             .field(segment)
             .ok_or(FieldPathResolveError::FieldNotFound { segment })?;
-        let Some((next_segment, next_remaining)) = remaining.split_first() else {
+        let Some((next_segment, next_remaining)) = remaining.split_first()
+        else {
             return Ok(field);
         };
 
         let named = match field.field_type().strip_optional().shape() {
             TypeShape::Named(named) => named,
             _ => {
-                return Err(FieldPathResolveError::IntermediateNotStruct { segment });
+                return Err(FieldPathResolveError::IntermediateNotStruct {
+                    segment,
+                });
             }
         };
-        let metadata = named
-            .metadata()
-            .ok_or(FieldPathResolveError::NamedMetadataUnavailable { segment })?;
+        let metadata = named.metadata().ok_or(
+            FieldPathResolveError::NamedMetadataUnavailable { segment },
+        )?;
         match metadata.kind() {
-            TypeKind::Struct(_) => metadata.resolve_field_path_from(next_segment, next_remaining),
+            TypeKind::Struct(_) => {
+                metadata.resolve_field_path_from(next_segment, next_remaining)
+            }
             TypeKind::Enum(_) | TypeKind::Newtype(_) => {
                 Err(FieldPathResolveError::IntermediateNotStruct { segment })
             }

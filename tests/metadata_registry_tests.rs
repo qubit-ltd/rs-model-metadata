@@ -19,7 +19,12 @@
 //! Integration tests for explicit metadata resolution.
 
 use qubit_model_metadata::{
-    MetadataRegistry, MetadataResolver, StructMetadata, TypeIdentity, TypeKind, TypeMetadata,
+    MetadataRegistry,
+    MetadataResolver,
+    StructMetadata,
+    TypeIdentity,
+    TypeKind,
+    TypeMetadata,
 };
 
 struct Account;
@@ -69,7 +74,8 @@ fn test_registry_returns_none_for_unknown_identity_and_empty_registry() {
 
 #[test]
 fn test_registry_resolves_first_duplicate_identity() {
-    static DUPLICATES: [&TypeMetadata; 2] = [&ACCOUNT_METADATA, &ACCOUNT_METADATA];
+    static DUPLICATES: [&TypeMetadata; 2] =
+        [&ACCOUNT_METADATA, &ACCOUNT_METADATA];
     let registry = MetadataRegistry::new(&DUPLICATES);
 
     assert!(registry.resolve(TypeIdentity::of::<Account>()).is_some());

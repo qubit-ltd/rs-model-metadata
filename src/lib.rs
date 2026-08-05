@@ -19,24 +19,62 @@ mod type_metadata;
 mod type_shape;
 
 pub use crate::attribute::{
-    AttributeKind, AttributeMetadata, ElementMetadata, IndexMetadata, KeyMetadata,
-    PrimaryKeyFieldMetadata, PrimaryKeyMetadata, SensitiveHandling, SensitiveMetadata, StrategyRef,
-    UniqueComparison, UniqueFieldMetadata, UniqueMetadata,
+    AttributeKind,
+    AttributeMetadata,
+    ElementMetadata,
+    IndexMetadata,
+    KeyMetadata,
+    PrimaryKeyFieldMetadata,
+    PrimaryKeyMetadata,
+    SensitiveHandling,
+    SensitiveMetadata,
+    StrategyRef,
+    UniqueComparison,
+    UniqueFieldMetadata,
+    UniqueMetadata,
 };
 pub use crate::constraint::{
-    DecimalConstraint, DecimalSemantic, MapConstraint, RoundingMode, SequenceConstraint,
-    TemporalConstraint, TemporalNormalization, TemporalPrecision, TextConstraint, TextFormat,
+    DecimalConstraint,
+    DecimalSemantic,
+    MapConstraint,
+    RoundingMode,
+    SequenceConstraint,
+    TemporalConstraint,
+    TemporalNormalization,
+    TemporalPrecision,
+    TextConstraint,
+    TextFormat,
     TextRepertoire,
 };
 pub use crate::field_metadata::FieldMetadata;
 pub use crate::metadata_registry::MetadataRegistry;
 pub use crate::metadata_resolver::MetadataResolver;
-pub use crate::query::{AttributeQuery, FieldPathResolveError};
+pub use crate::query::{
+    AttributeQuery,
+    FieldPathResolveError,
+};
 pub use crate::relation::{
-    FieldPath, LookupRelationMetadata, OwnershipMetadata, ReferenceMetadata,
+    FieldPath,
+    LookupRelationMetadata,
+    OwnershipMetadata,
+    ReferenceMetadata,
 };
 pub use crate::type_metadata::{
-    EnumMetadata, EnumVariantMetadata, HasTypeMetadata, NamedTypeRef, NewtypeMetadata,
-    StructMetadata, TypeIdentity, TypeKind, TypeMetadata, metadata_of,
+    EnumMetadata,
+    EnumVariantMetadata,
+    HasTypeMetadata,
+    NamedTypeRef,
+    NewtypeMetadata,
+    StructMetadata,
+    TypeIdentity,
+    TypeKind,
+    TypeMetadata,
+    metadata_of,
 };
-pub use crate::type_shape::{HasTypeShape, ScalarType, TypeCapabilities, TypeRef, TypeShape};
+pub use crate::type_shape::{
+    HasTypeShape,
+    ScalarType,
+    TypeCapabilities,
+    TypeRef,
+    TypeShape,
+};

@@ -224,7 +224,9 @@ const fn validate_relation_path(path: FieldPath, lookup: bool) {
     while index < segments.len() {
         if segments[index].is_empty() {
             if lookup {
-                panic!("lookup relation target field path cannot contain empty segments");
+                panic!(
+                    "lookup relation target field path cannot contain empty segments"
+                );
             }
             panic!("reference target field path cannot contain empty segments");
         }
