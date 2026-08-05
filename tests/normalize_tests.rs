@@ -8,26 +8,20 @@
 
 //! Tests for pre-validation semantic IR retention.
 
-#![allow(dead_code)]
-
-#[path = "../src/attribute.rs"]
-mod attribute;
-#[path = "../src/input.rs"]
-mod input;
-#[path = "../src/normalize.rs"]
-mod normalize;
-
-use proc_macro2::Span;
 use syn::parse_quote;
 
-use crate::normalize::{
+mod support;
+
+use support::normalize::{
     FieldAttributeIr,
     ModelAttributeIr,
     ModelShapeIr,
 };
 
-/// Accepts a span so tests prove every retained occurrence still carries one.
-fn assert_span(_: Span) {}
+use support::{
+    input,
+    normalize,
+};
 
 #[test]
 fn test_primary_key_ir_retains_generated_field_references_before_validation() {
@@ -57,9 +51,6 @@ fn test_primary_key_ir_retains_generated_field_references_before_validation() {
             .collect::<Vec<_>>(),
         ["missing", "missing"]
     );
-    for field in &primary_key.generated {
-        assert_span(field.span);
-    }
 }
 
 #[test]
@@ -90,9 +81,6 @@ fn test_unique_ir_retains_ignore_case_field_references_before_validation() {
             .collect::<Vec<_>>(),
         ["missing", "missing"]
     );
-    for field in &unique.ignore_case {
-        assert_span(field.span);
-    }
 }
 
 #[test]
@@ -125,7 +113,4 @@ fn test_attribute_ir_retains_repeated_single_value_occurrences() {
             .collect::<Vec<_>>(),
         [16, 32]
     );
-    for occurrence in &text.max_chars {
-        assert_span(occurrence.span);
-    }
 }

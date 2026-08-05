@@ -134,15 +134,32 @@ fn test_derive_emits_declared_fields_and_nullable_shape() {
 fn test_shorthand_normalizes_to_type_constraints() {
     let metadata = metadata_of::<User>();
 
-    assert!(metadata.primary_key().expect("primary key").contains("id"));
+    let primary_key = metadata.primary_key().expect("primary key");
     assert_eq!(
-        metadata
-            .unique_constraints()
-            .next()
-            .and_then(|value| value.comparison_of("nickname")),
-        Some(UniqueComparison::IgnoreCase)
+        primary_key
+            .fields()
+            .iter()
+            .map(|field| field.name())
+            .collect::<Vec<_>>(),
+        ["id"]
     );
-    assert!(metadata.indexes().any(|index| index.contains("nickname")));
+    assert!(primary_key.fields()[0].is_generated());
+
+    let unique = metadata
+        .unique_constraints()
+        .next()
+        .expect("unique metadata");
+    assert_eq!(
+        unique
+            .fields()
+            .iter()
+            .map(|field| (field.name(), field.comparison()))
+            .collect::<Vec<_>>(),
+        [("nickname", UniqueComparison::IgnoreCase)]
+    );
+
+    let index = metadata.indexes().next().expect("index metadata");
+    assert_eq!(index.fields(), &["nickname"]);
 }
 
 #[test]
@@ -186,8 +203,14 @@ fn test_model_attributes_expand_in_canonical_form() {
     let metadata = metadata_of::<AttributedModel>();
 
     let primary_key = metadata.primary_key().expect("primary key metadata");
-    assert!(primary_key.contains("id"));
-    assert!(primary_key.fields()[0].is_generated());
+    assert_eq!(
+        primary_key
+            .fields()
+            .iter()
+            .map(|field| (field.name(), field.is_generated()))
+            .collect::<Vec<_>>(),
+        [("id", true)]
+    );
     let unique = metadata
         .unique_constraints()
         .next()
@@ -201,12 +224,9 @@ fn test_model_attributes_expand_in_canonical_form() {
         unique.comparison_of("username"),
         Some(UniqueComparison::IgnoreCase)
     );
-    assert!(
-        metadata
-            .indexes()
-            .any(|index| index.name() == Some("created_at_index")
-                && index.contains("created_at"))
-    );
+    let index = metadata.indexes().next().expect("index metadata");
+    assert_eq!(index.name(), Some("created_at_index"));
+    assert_eq!(index.fields(), &["created_at"]);
     assert!(matches!(
         metadata.attribute(AttributeKind::Key),
         Some(AttributeMetadata::Key(key))

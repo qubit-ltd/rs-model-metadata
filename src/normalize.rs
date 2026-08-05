@@ -17,7 +17,7 @@ use syn::{
     TypePath,
 };
 
-use crate::attribute::{
+use super::attribute::{
     self,
     DecimalAttribute,
     FieldAttribute,
@@ -31,7 +31,7 @@ use crate::attribute::{
     TemporalAttribute,
     TextAttribute,
 };
-use crate::input::{
+use super::input::{
     ModelField,
     ModelInput,
     ModelShape,
@@ -193,6 +193,15 @@ pub(crate) enum DecimalSemantic {
 /// Field `identifier`, `unique`, and `index` shorthands become model
 /// attributes. Monetary values become decimal IR with money semantics. The
 /// function preserves source spans for later local validation and diagnostics.
+///
+/// # Parameters
+///
+/// - `input`: The parsed model declaration to normalize.
+///
+/// # Returns
+///
+/// Returns the canonical intermediate representation used by validation and
+/// token expansion.
 pub(crate) fn normalize(input: ModelInput) -> ModelIr {
     let ModelInput {
         ident,

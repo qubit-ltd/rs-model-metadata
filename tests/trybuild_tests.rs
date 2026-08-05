@@ -11,7 +11,7 @@
 /// Checks accepted declarations and exact diagnostics for rejected
 /// declarations.
 #[test]
-fn test_ui() {
+fn test_compile_pass_and_fail_diagnostics() {
     let tests = trybuild::TestCases::new();
     tests.pass("tests/ui/pass/*.rs");
     tests.compile_fail("tests/ui/fail/*.rs");

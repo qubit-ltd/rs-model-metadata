@@ -22,7 +22,7 @@ use syn::{
     Type,
 };
 
-use crate::attribute::{
+use super::attribute::{
     FieldAttribute,
     ModelAttribute,
     parse_field_attributes,
