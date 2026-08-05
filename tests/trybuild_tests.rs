@@ -6,7 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Compile-pass and compile-fail coverage for `ModelMetadata` diagnostics.
+//! Compile-pass and compile-fail coverage for model derive diagnostics.
 
 /// Checks accepted declarations and exact diagnostics for rejected
 /// declarations.

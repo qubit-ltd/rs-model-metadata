@@ -1,4 +1,4 @@
-error: ModelMetadata does not support generic models
+error: Model derive does not support generic models
   --> tests/ui/fail/generic_model.rs:10:15
    |
 10 | struct Invalid<T> {

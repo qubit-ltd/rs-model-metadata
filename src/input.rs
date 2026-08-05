@@ -87,7 +87,7 @@ impl ModelInput {
                 &mut errors,
                 Error::new(
                     input.generics.span(),
-                    "ModelMetadata does not support generic models",
+                    "Model derive does not support generic models",
                 ),
             );
         }
@@ -106,7 +106,7 @@ impl ModelInput {
             }
             Data::Union(data) => Err(Error::new_spanned(
                 data.union_token,
-                "ModelMetadata does not support unions",
+                "Model derive does not support unions",
             )),
         } {
             Ok(shape) => Some(shape),
@@ -122,7 +122,7 @@ impl ModelInput {
         let (Some(attributes), Some(shape)) = (attributes, shape) else {
             return Err(Error::new(
                 ident.span(),
-                "ModelMetadata input parsing did not produce a model",
+                "Model derive input parsing did not produce a model",
             ));
         };
 
@@ -167,7 +167,7 @@ impl ModelInput {
             }
             Fields::Unnamed(fields) => Err(Error::new_spanned(
                 fields,
-                "ModelMetadata only supports single-field tuple newtypes",
+                "Model derive only supports single-field tuple newtypes",
             )),
         }
     }
@@ -214,7 +214,7 @@ impl ModelInput {
             if !matches!(variant.fields, Fields::Unit) {
                 let error = Error::new(
                     variant.fields.span(),
-                    "ModelMetadata only supports fieldless enums",
+                    "Model derive only supports fieldless enums",
                 );
                 combine_error(&mut errors, error);
             }

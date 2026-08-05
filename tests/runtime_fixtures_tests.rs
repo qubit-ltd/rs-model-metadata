@@ -35,7 +35,7 @@ fn assert_missing_runtime_fixture_fails() {
     assert!(!output.status.success(), "missing runtime fixture compiled");
     assert!(
         String::from_utf8_lossy(&output.stderr).contains(
-            "ModelMetadata requires the `qubit-model-metadata` dependency"
+            "Model derive requires the `qubit-model-metadata` dependency"
         ),
         "unexpected missing runtime diagnostic: {}",
         String::from_utf8_lossy(&output.stderr)

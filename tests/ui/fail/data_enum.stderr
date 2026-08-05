@@ -1,4 +1,4 @@
-error: ModelMetadata only supports fieldless enums
+error: Model derive only supports fieldless enums
   --> tests/ui/fail/data_enum.rs:11:10
    |
 11 |     Value(i64),

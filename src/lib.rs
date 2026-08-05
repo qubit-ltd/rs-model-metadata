@@ -39,8 +39,22 @@ use quote::quote;
 ///
 /// Diagnostics are returned as compile-error tokens for unsupported model
 /// shapes, invalid attributes, and missing runtime dependencies.
+#[proc_macro_derive(Model, attributes(model))]
+pub fn derive_model(input: TokenStream) -> TokenStream {
+    derive_model_impl(input)
+}
+
+/// Derives static model metadata using the legacy macro name.
+///
+/// Use [`Model`] for new code. This compatibility entry point remains
+/// available for existing users of the pre-`Model` API.
 #[proc_macro_derive(ModelMetadata, attributes(model))]
 pub fn derive_model_metadata(input: TokenStream) -> TokenStream {
+    derive_model_impl(input)
+}
+
+/// Expands either the current or legacy derive entry point.
+fn derive_model_impl(input: TokenStream) -> TokenStream {
     let derive_input = match syn::parse(input) {
         Ok(derive_input) => derive_input,
         Err(error) => return error.into_compile_error().into(),

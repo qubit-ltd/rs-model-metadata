@@ -47,7 +47,7 @@ pub(crate) fn runtime_path() -> Result<TokenStream> {
         }
         Err(_) => Err(Error::new(
             Span::call_site(),
-            "ModelMetadata requires the `qubit-model-metadata` dependency",
+            "Model derive requires the `qubit-model-metadata` dependency",
         )),
     }
 }
