@@ -249,7 +249,7 @@ impl UniqueMetadata {
     ///
     /// # Panics
     ///
-    /// Panics when `fields` is empty.
+    /// Panics when `name` is empty or `fields` is empty.
     ///
     /// # Returns
     ///
@@ -259,6 +259,7 @@ impl UniqueMetadata {
         name: Option<&'static str>,
         fields: &'static [UniqueFieldMetadata],
     ) -> Self {
+        validate_optional_logical_name(name);
         assert!(
             !fields.is_empty(),
             "unique constraint requires at least one field"
@@ -402,7 +403,7 @@ impl IndexMetadata {
     ///
     /// # Panics
     ///
-    /// Panics when `fields` is empty.
+    /// Panics when `name` is empty or `fields` is empty.
     ///
     /// # Returns
     ///
@@ -412,6 +413,7 @@ impl IndexMetadata {
         name: Option<&'static str>,
         fields: &'static [&'static str],
     ) -> Self {
+        validate_optional_logical_name(name);
         assert!(!fields.is_empty(), "index requires at least one field");
         validate_named_fields(fields);
         Self { name, fields }
@@ -474,7 +476,7 @@ impl KeyMetadata {
     ///
     /// # Panics
     ///
-    /// Panics when `fields` is empty.
+    /// Panics when `name` is empty or `fields` is empty.
     ///
     /// # Returns
     ///
@@ -484,6 +486,7 @@ impl KeyMetadata {
         name: Option<&'static str>,
         fields: &'static [&'static str],
     ) -> Self {
+        validate_optional_logical_name(name);
         assert!(
             !fields.is_empty(),
             "logical key requires at least one field"
@@ -546,9 +549,14 @@ impl StrategyRef {
     /// # Returns
     ///
     /// A strategy reference containing the supplied name.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `name` is empty.
     #[must_use]
     #[inline(always)]
     pub const fn new(name: &'static str) -> Self {
+        assert!(!name.is_empty(), "strategy names cannot be empty");
         Self { name }
     }
 
@@ -679,6 +687,13 @@ const fn validate_named_fields(names: &'static [&'static str]) {
             previous += 1;
         }
         index += 1;
+    }
+}
+
+/// Validates an optional logical name when one is supplied.
+const fn validate_optional_logical_name(name: Option<&'static str>) {
+    if let Some(name) = name {
+        assert!(!name.is_empty(), "logical constraint names cannot be empty");
     }
 }
 

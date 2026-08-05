@@ -19,6 +19,9 @@ use qubit_model_metadata::{
 
 struct Target;
 
+static EMPTY_PATH: FieldPath = FieldPath::new(&[]);
+static EMPTY_SEGMENT_PATH: FieldPath = FieldPath::new(&[""]);
+
 #[test]
 fn test_field_path_preserves_static_segments() {
     let path = FieldPath::new(&["organization", "id"]);
@@ -51,4 +54,27 @@ fn test_relation_metadata_preserves_targets_paths_and_policies() {
 
     let ownership = OwnershipMetadata::new(target);
     assert_eq!(ownership.owner().identity(), target.identity());
+}
+
+#[test]
+#[should_panic(expected = "reference target field path cannot be empty")]
+fn test_reference_rejects_empty_target_path() {
+    let target = NamedTypeRef::unresolved(TypeIdentity::of::<Target>());
+    let _ = ReferenceMetadata::new(target, EMPTY_PATH, true, None);
+}
+
+#[test]
+#[should_panic(
+    expected = "reference target field path cannot contain empty segments"
+)]
+fn test_reference_rejects_empty_target_path_segments() {
+    let target = NamedTypeRef::unresolved(TypeIdentity::of::<Target>());
+    let _ = ReferenceMetadata::new(target, EMPTY_SEGMENT_PATH, true, None);
+}
+
+#[test]
+#[should_panic(expected = "lookup relation target field path cannot be empty")]
+fn test_lookup_relation_rejects_empty_target_path() {
+    let target = NamedTypeRef::unresolved(TypeIdentity::of::<Target>());
+    let _ = LookupRelationMetadata::new(target, EMPTY_PATH);
 }

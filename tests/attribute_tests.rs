@@ -143,3 +143,27 @@ fn test_primary_key_rejects_duplicate_field_names() {
 fn test_unique_constraint_rejects_duplicate_field_names() {
     let _ = UniqueMetadata::new(None, &DUPLICATE_UNIQUE_FIELDS);
 }
+
+#[test]
+#[should_panic(expected = "logical constraint names cannot be empty")]
+fn test_unique_constraint_rejects_empty_logical_name() {
+    let _ = UniqueMetadata::new(Some(""), &UNIQUE_FIELDS);
+}
+
+#[test]
+#[should_panic(expected = "logical constraint names cannot be empty")]
+fn test_index_rejects_empty_logical_name() {
+    let _ = IndexMetadata::new(Some(""), &INDEX_FIELDS);
+}
+
+#[test]
+#[should_panic(expected = "logical constraint names cannot be empty")]
+fn test_logical_key_rejects_empty_logical_name() {
+    let _ = KeyMetadata::new(Some(""), &KEY_FIELDS);
+}
+
+#[test]
+#[should_panic(expected = "strategy names cannot be empty")]
+fn test_strategy_ref_rejects_empty_name() {
+    let _ = StrategyRef::new("");
+}

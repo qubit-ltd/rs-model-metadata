@@ -84,6 +84,11 @@ impl ReferenceMetadata {
     /// # Returns
     ///
     /// The constructed direct-reference metadata.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `target_field` is empty or contains an empty segment, or
+    /// when `same_as` is empty or contains an empty segment.
     #[must_use]
     #[inline]
     pub const fn new(
@@ -92,6 +97,10 @@ impl ReferenceMetadata {
         must_exist: bool,
         same_as: Option<FieldPath>,
     ) -> Self {
+        validate_relation_path(target_field, false);
+        if let Some(same_as) = same_as {
+            validate_same_as_path(same_as);
+        }
         Self {
             target,
             target_field,
@@ -166,9 +175,14 @@ impl LookupRelationMetadata {
     /// # Returns
     ///
     /// The constructed lookup-relation metadata.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `target_field` is empty or contains an empty segment.
     #[must_use]
     #[inline]
     pub const fn new(target: NamedTypeRef, target_field: FieldPath) -> Self {
+        validate_relation_path(target_field, true);
         Self {
             target,
             target_field,
@@ -194,6 +208,44 @@ impl LookupRelationMetadata {
     #[inline(always)]
     pub const fn target_field(self) -> FieldPath {
         self.target_field
+    }
+}
+
+/// Validates a path used by a relation constructor.
+const fn validate_relation_path(path: FieldPath, lookup: bool) {
+    if path.is_empty() {
+        if lookup {
+            panic!("lookup relation target field path cannot be empty");
+        }
+        panic!("reference target field path cannot be empty");
+    }
+    let segments = path.segments();
+    let mut index = 0;
+    while index < segments.len() {
+        if segments[index].is_empty() {
+            if lookup {
+                panic!(
+                    "lookup relation target field path cannot contain empty segments"
+                );
+            }
+            panic!("reference target field path cannot contain empty segments");
+        }
+        index += 1;
+    }
+}
+
+/// Validates a same-as path used by a reference constructor.
+const fn validate_same_as_path(path: FieldPath) {
+    if path.is_empty() {
+        panic!("reference same-as path cannot be empty");
+    }
+    let segments = path.segments();
+    let mut index = 0;
+    while index < segments.len() {
+        if segments[index].is_empty() {
+            panic!("reference same-as path cannot contain empty segments");
+        }
+        index += 1;
     }
 }
 
