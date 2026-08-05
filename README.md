@@ -54,7 +54,7 @@ The query reads static slices and function pointers. It does not allocate a meta
 
 ## Why This Project Exists
 
-Domain-model consumers need more than Rust's memory representation: they need field structure and constraints with stable semantics. Separate registries drift from source declarations, while parsing `type_name` strings fails for aliases and renamed dependencies. This crate uses recursive traits for structure and `TypeId` for identity; type names remain diagnostic display data.
+Domain-model consumers need more than Rust's memory representation: they need field structure and constraints with stable semantics. Separate registries drift from source declarations, while parsing `type_name` strings fails for aliases and renamed dependencies. This crate uses recursive traits for structure and runtime-local `TypeId` identity; type names remain diagnostic display data. `TypeId` is for in-process metadata lookup, not persistence or cross-process stable identifiers.
 
 ## What It Provides
 
