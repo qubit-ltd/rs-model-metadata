@@ -1,0 +1,11 @@
+error: `primary_key` requires at least one field
+  --> tests/ui/fail/missing_primary_key_fields.rs:12:9
+   |
+12 | #[model(primary_key(generated(id)))]
+   |         ^^^^^^^^^^^
+
+error: generated field `id` is not part of this primary key
+  --> tests/ui/fail/missing_primary_key_fields.rs:12:31
+   |
+12 | #[model(primary_key(generated(id)))]
+   |                               ^^

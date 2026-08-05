@@ -27,3 +27,13 @@ name = "qubit_model_derive"
 proc-macro = true
 
 [dependencies]
+proc-macro-crate = "3"
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+
+[dev-dependencies]
+bigdecimal = "0.4"
+chrono = { version = "0.4", features = ["std"], default-features = false }
+model_runtime = { package = "qubit-model-metadata", path = "../rs-model-metadata", features = ["big-decimal", "chrono"] }
+trybuild = "1"

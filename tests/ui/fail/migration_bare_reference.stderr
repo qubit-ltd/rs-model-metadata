@@ -1,0 +1,5 @@
+error: bare `reference` is not supported; specify `target = Type` and `target_field = field`
+  --> tests/ui/fail/migration_bare_reference.rs:11:13
+   |
+11 |     #[model(reference)]
+   |             ^^^^^^^^^

@@ -1,0 +1,11 @@
+[package]
+name = "model-derive-runtime-renamed-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+qubit-model-derive = { path = "../../../" }
+model_runtime = { package = "qubit-model-metadata", path = "../../../../rs-model-metadata" }

@@ -1,0 +1,23 @@
+error: `nullable` is not supported; use `Option<T>` for nullability
+  --> tests/ui/fail/multiple_parse_errors.rs:10:9
+   |
+10 | #[model(nullable)]
+   |         ^^^^^^^^
+
+error: `computed` is not supported; declare a real Rust field instead
+  --> tests/ui/fail/multiple_parse_errors.rs:11:9
+   |
+11 | #[model(computed)]
+   |         ^^^^^^^^
+
+error: this model-level `model` attribute cannot be used on a field
+  --> tests/ui/fail/multiple_parse_errors.rs:13:13
+   |
+13 |     #[model(primary_key(fields(first)))]
+   |             ^^^^^^^^^^^
+
+error: unknown field-level `model` attribute
+  --> tests/ui/fail/multiple_parse_errors.rs:15:13
+   |
+15 |     #[model(unknown)]
+   |             ^^^^^^^

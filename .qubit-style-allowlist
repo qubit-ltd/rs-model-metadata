@@ -8,3 +8,6 @@ multiple-public-types | src/json/redacted_json.rs | The session view is the prim
 multiple-public-types | src/json/redacted_json_text.rs | The session view is the primary JSON-text view's shared-budget formatting adapter.
 multiple-public-types | src/policy/redaction_policy_builder.rs | Builder views are inseparable mutable projections of the root builder.
 multiple-public-types | src/policy/redaction_session.rs | Session budget types form one shared accounting model.
+multiple-public-types | src/attribute.rs | Parsed macro syntax nodes form one private attribute grammar.
+multiple-public-types | src/input.rs | Parsed model syntax nodes form one private derive input grammar.
+multiple-public-types | src/normalize.rs | Normalized IR nodes form one private semantic representation.

@@ -1,0 +1,5 @@
+error: `model` attributes are not supported on enum variants
+  --> tests/ui/fail/enum_variant_attribute.rs:11:5
+   |
+11 |     #[model(index)]
+   |     ^^^^^^^^^^^^^^^

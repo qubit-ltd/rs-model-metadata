@@ -1,0 +1,5 @@
+error: `nullable` is not supported; use `Option<T>` for nullability
+  --> tests/ui/fail/migration_nullable.rs:11:13
+   |
+11 |     #[model(nullable)]
+   |             ^^^^^^^^

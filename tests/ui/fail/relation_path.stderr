@@ -1,0 +1,5 @@
+error: `same_as` only supports one local field in the first derive phase
+  --> tests/ui/fail/relation_path.rs:17:75
+   |
+17 |     #[model(reference(target = Organization, target_field = id, same_as = "nested.missing"))]
+   |                                                                           ^^^^^^^^^^^^^^^^
