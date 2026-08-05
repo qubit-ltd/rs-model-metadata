@@ -49,6 +49,16 @@ use crate::normalize::{
 /// Generated items refer only to public runtime metadata APIs. Errors are
 /// reserved for future expansion checks that cannot be represented while
 /// building the normalized IR.
+///
+/// # Parameters
+///
+/// - `input`: The validated normalized model to expand.
+/// - `runtime`: The resolved runtime crate path used by generated tokens.
+///
+/// # Returns
+///
+/// Returns generated Rust tokens, or an expansion error if a future expansion
+/// check cannot be represented by the normalized IR.
 pub(crate) fn expand(
     input: &ModelIr,
     runtime: &TokenStream,

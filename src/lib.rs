@@ -24,6 +24,21 @@ use quote::quote;
 /// fieldless enums. It emits compile errors for unsupported declaration shapes
 /// or when the runtime metadata crate cannot be resolved from the consuming
 /// crate's dependencies.
+///
+/// # Parameters
+///
+/// - `input`: The token stream containing the model declaration and its
+///   `#[model(...)]` attributes.
+///
+/// # Returns
+///
+/// Returns generated implementations and static metadata, or compile-error
+/// tokens when the declaration is invalid.
+///
+/// # Errors
+///
+/// Diagnostics are returned as compile-error tokens for unsupported model
+/// shapes, invalid attributes, and missing runtime dependencies.
 #[proc_macro_derive(ModelMetadata, attributes(model))]
 pub fn derive_model_metadata(input: TokenStream) -> TokenStream {
     let derive_input = match syn::parse(input) {

@@ -28,6 +28,16 @@ use syn::{
 ///
 /// Returns a call-site error when the consuming crate does not declare
 /// `qubit-model-metadata` as a dependency.
+///
+/// # Returns
+///
+/// Returns a token stream naming the runtime crate, including a Cargo-renamed
+/// dependency, or `crate` when the runtime crate is itself.
+///
+/// # Errors
+///
+/// Returns an error when the consuming crate does not declare
+/// `qubit-model-metadata` as a dependency.
 pub(crate) fn runtime_path() -> Result<TokenStream> {
     match crate_name("qubit-model-metadata") {
         Ok(FoundCrate::Itself) => Ok(quote!(crate)),
