@@ -11,22 +11,9 @@
 use std::collections::HashMap;
 
 use model_runtime::{
-    AttributeKind,
-    AttributeMetadata,
-    AttributeQuery,
-    DecimalSemantic,
-    HasTypeShape,
-    RoundingMode,
-    SensitiveHandling,
-    TemporalNormalization,
-    TemporalPrecision,
-    TextFormat,
-    TextRepertoire,
-    TypeCapabilities,
-    TypeKind,
-    TypeShape,
-    UniqueComparison,
-    metadata_of,
+    AttributeKind, AttributeMetadata, AttributeQuery, DecimalSemantic, HasTypeShape, RoundingMode,
+    SensitiveHandling, TemporalNormalization, TemporalPrecision, TextFormat, TextRepertoire,
+    TypeCapabilities, TypeKind, TypeShape, UniqueComparison, metadata_of,
 };
 use qubit_model_derive::ModelMetadata;
 

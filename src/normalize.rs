@@ -10,36 +10,14 @@
 //! Normalization from parsed attribute syntax to expansion-ready semantic IR.
 
 use proc_macro2::Span;
-use syn::{
-    Ident,
-    LitStr,
-    Type,
-    TypePath,
-};
+use syn::{Ident, LitStr, Type, TypePath};
 
 use super::attribute::{
-    self,
-    DecimalAttribute,
-    ElementAttribute,
-    ElementConstraintAttribute,
-    FieldAttribute,
-    FieldName,
-    LookupRelationAttribute,
-    MapAttribute,
-    ModelAttribute,
-    ReferenceAttribute,
-    SensitiveAttribute,
-    SequenceAttribute,
-    StrategyAttribute,
-    TemporalAttribute,
-    TextAttribute,
+    self, DecimalAttribute, ElementAttribute, ElementConstraintAttribute, FieldAttribute,
+    FieldName, LookupRelationAttribute, MapAttribute, ModelAttribute, ReferenceAttribute,
+    SensitiveAttribute, SequenceAttribute, StrategyAttribute, TemporalAttribute, TextAttribute,
 };
-use super::input::{
-    ModelField,
-    ModelInput,
-    ModelShape,
-    ModelVariant,
-};
+use super::input::{ModelField, ModelInput, ModelShape, ModelVariant};
 
 /// An expansion-ready model with all shorthand syntax removed.
 pub(crate) struct ModelIr {
@@ -253,9 +231,7 @@ pub(crate) fn normalize(input: ModelInput) -> ModelIr {
             model_attributes.extend(shorthand);
             ModelShapeIr::Newtype(Box::new(field))
         }
-        ModelShape::FieldlessEnum(variants) => {
-            ModelShapeIr::FieldlessEnum(variants)
-        }
+        ModelShape::FieldlessEnum(variants) => ModelShapeIr::FieldlessEnum(variants),
     };
 
     ModelIr {
@@ -268,9 +244,7 @@ pub(crate) fn normalize(input: ModelInput) -> ModelIr {
 }
 
 /// Converts one parsed model attribute to canonical IR.
-fn normalize_model_attribute(
-    attribute: ModelAttribute,
-) -> Option<ModelAttributeIr> {
+fn normalize_model_attribute(attribute: ModelAttribute) -> Option<ModelAttributeIr> {
     match attribute {
         ModelAttribute::Textual => None,
         ModelAttribute::PrimaryKey(attribute) => {
@@ -310,19 +284,15 @@ fn normalize_model_attribute(
         ModelAttribute::Key(attribute) => {
             Some(ModelAttributeIr::Key(normalize_named_fields(attribute)))
         }
-        ModelAttribute::Ownership(attribute) => {
-            Some(ModelAttributeIr::Ownership(OwnershipIr {
-                owner: attribute.owner,
-                span: attribute.span,
-            }))
-        }
+        ModelAttribute::Ownership(attribute) => Some(ModelAttributeIr::Ownership(OwnershipIr {
+            owner: attribute.owner,
+            span: attribute.span,
+        })),
     }
 }
 
 /// Converts parsed named-field syntax to canonical IR.
-fn normalize_named_fields(
-    attribute: attribute::NamedFieldsAttribute,
-) -> NamedFieldsIr {
+fn normalize_named_fields(attribute: attribute::NamedFieldsAttribute) -> NamedFieldsIr {
     NamedFieldsIr {
         name: attribute.name,
         fields: attribute
@@ -336,9 +306,7 @@ fn normalize_named_fields(
 
 /// Normalizes named fields and combines identifier shorthands into one primary
 /// key.
-fn normalize_fields(
-    fields: Vec<ModelField>,
-) -> (Vec<FieldIr>, Vec<ModelAttributeIr>) {
+fn normalize_fields(fields: Vec<ModelField>) -> (Vec<FieldIr>, Vec<ModelAttributeIr>) {
     let mut normalized = Vec::with_capacity(fields.len());
     let mut shorthand = Vec::new();
     let mut identifier_fields = Vec::new();
@@ -392,16 +360,14 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
                         span,
                     })
                     .collect();
-                model_attributes.push(ModelAttributeIr::PrimaryKey(
-                    PrimaryKeyIr {
-                        fields: vec![PrimaryKeyFieldIr {
-                            name: name.clone(),
-                            span: attribute.span,
-                        }],
-                        generated,
+                model_attributes.push(ModelAttributeIr::PrimaryKey(PrimaryKeyIr {
+                    fields: vec![PrimaryKeyFieldIr {
+                        name: name.clone(),
                         span: attribute.span,
-                    },
-                ));
+                    }],
+                    generated,
+                    span: attribute.span,
+                }));
             }
             FieldAttribute::Unique(attribute) => {
                 let ignore_case = attribute
@@ -454,15 +420,13 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
                 }));
             }
             FieldAttribute::Element(value) => {
-                field_attributes
-                    .push(FieldAttributeIr::Element(normalize_element(value)));
+                field_attributes.push(FieldAttributeIr::Element(normalize_element(value)));
             }
             FieldAttribute::Reference(attribute) => {
                 field_attributes.push(FieldAttributeIr::Reference(attribute));
             }
             FieldAttribute::LookupRelation(attribute) => {
-                field_attributes
-                    .push(FieldAttributeIr::LookupRelation(attribute));
+                field_attributes.push(FieldAttributeIr::LookupRelation(attribute));
             }
             FieldAttribute::Sensitive(attribute) => {
                 field_attributes.push(FieldAttributeIr::Sensitive(attribute));
@@ -503,15 +467,11 @@ fn normalize_element(value: ElementAttribute) -> ElementIr {
         .attributes
         .into_iter()
         .map(|attribute| match attribute {
-            ElementConstraintAttribute::Text(value) => {
-                ElementConstraintIr::Text(value)
-            }
-            ElementConstraintAttribute::Decimal(value) => {
-                ElementConstraintIr::Decimal(DecimalIr {
-                    value,
-                    semantic: DecimalSemantic::Number,
-                })
-            }
+            ElementConstraintAttribute::Text(value) => ElementConstraintIr::Text(value),
+            ElementConstraintAttribute::Decimal(value) => ElementConstraintIr::Decimal(DecimalIr {
+                value,
+                semantic: DecimalSemantic::Number,
+            }),
         })
         .collect();
     ElementIr {
