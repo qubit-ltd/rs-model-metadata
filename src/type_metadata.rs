@@ -9,10 +9,7 @@
 // qubit-style: allow multiple-public-types
 //! Immutable metadata for named Rust model types.
 
-use core::any::{
-    TypeId,
-    type_name,
-};
+use core::any::{TypeId, type_name};
 
 use crate::attribute::AttributeMetadata;
 use crate::field_metadata::FieldMetadata;
@@ -110,10 +107,7 @@ impl core::fmt::Debug for TypeIdentity {
     /// # Returns
     ///
     /// `Ok(())` when formatting succeeds; otherwise, the formatter's error.
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter
             .debug_tuple("TypeIdentity")
             .field(&self.type_name())
@@ -205,10 +199,7 @@ impl NamedTypeRef {
     ///
     /// A resolvable named-type reference.
     #[inline]
-    pub const fn new(
-        identity: TypeIdentity,
-        metadata: fn() -> &'static TypeMetadata,
-    ) -> Self {
+    pub const fn new(identity: TypeIdentity, metadata: fn() -> &'static TypeMetadata) -> Self {
         Self {
             identity,
             metadata: Some(metadata),
@@ -443,10 +434,7 @@ const fn validate_struct_fields(fields: &'static [FieldMetadata]) {
 ///
 /// Panics when a field-level attribute is used at model scope, a singleton
 /// declaration is duplicated, or an attribute references an unknown field.
-const fn validate_type_attributes(
-    kind: TypeKind,
-    attributes: &'static [AttributeMetadata],
-) {
+const fn validate_type_attributes(kind: TypeKind, attributes: &'static [AttributeMetadata]) {
     let fields = match kind {
         TypeKind::Struct(metadata) => metadata.fields(),
         TypeKind::Enum(_) | TypeKind::Newtype(_) => &[],
@@ -464,15 +452,11 @@ const fn validate_type_attributes(
                 );
                 validate_primary_key_fields(primary_key, fields);
             }
-            AttributeMetadata::Unique(unique) => {
-                validate_unique_fields(unique, fields)
-            }
+            AttributeMetadata::Unique(unique) => validate_unique_fields(unique, fields),
             AttributeMetadata::Index(index_metadata) => {
                 validate_index_fields(index_metadata.fields(), fields)
             }
-            AttributeMetadata::Key(key) => {
-                validate_key_fields(key.fields(), fields)
-            }
+            AttributeMetadata::Key(key) => validate_key_fields(key.fields(), fields),
             AttributeMetadata::Ownership(_) => {
                 ownership_count += 1;
                 assert!(
@@ -558,10 +542,7 @@ const fn validate_unique_fields(
 /// # Panics
 ///
 /// Panics when the index references an unknown model field.
-const fn validate_index_fields(
-    names: &'static [&'static str],
-    fields: &'static [FieldMetadata],
-) {
+const fn validate_index_fields(names: &'static [&'static str], fields: &'static [FieldMetadata]) {
     let mut index = 0;
     while index < names.len() {
         assert!(
@@ -582,10 +563,7 @@ const fn validate_index_fields(
 /// # Panics
 ///
 /// Panics when the logical key references an unknown model field.
-const fn validate_key_fields(
-    names: &'static [&'static str],
-    fields: &'static [FieldMetadata],
-) {
+const fn validate_key_fields(names: &'static [&'static str], fields: &'static [FieldMetadata]) {
     let mut index = 0;
     while index < names.len() {
         assert!(
@@ -606,10 +584,7 @@ const fn validate_key_fields(
 /// # Returns
 ///
 /// `true` when a field with `name` is present; otherwise, `false`.
-const fn contains_field(
-    fields: &'static [FieldMetadata],
-    name: &'static str,
-) -> bool {
+const fn contains_field(fields: &'static [FieldMetadata], name: &'static str) -> bool {
     let mut index = 0;
     while index < fields.len() {
         if str_eq(fields[index].name(), name) {
@@ -737,10 +712,7 @@ impl EnumMetadata {
     /// `Some` with the matching variant, or `None` when the ordinal is out of
     /// range.
     #[must_use]
-    pub const fn variant_at(
-        self,
-        ordinal: usize,
-    ) -> Option<EnumVariantMetadata> {
+    pub const fn variant_at(self, ordinal: usize) -> Option<EnumVariantMetadata> {
         if ordinal < self.variants.len() {
             Some(self.variants[ordinal])
         } else {

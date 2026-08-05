@@ -18,10 +18,7 @@
 
 //! Resolution interface for static model metadata.
 
-use crate::type_metadata::{
-    TypeIdentity,
-    TypeMetadata,
-};
+use crate::type_metadata::{TypeIdentity, TypeMetadata};
 
 /// Resolves model metadata by its runtime type identity.
 pub trait MetadataResolver {

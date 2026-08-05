@@ -18,11 +18,7 @@
 
 //! Integration tests for the metadata resolver interface.
 
-use qubit_model_metadata::{
-    MetadataRegistry,
-    MetadataResolver,
-    TypeIdentity,
-};
+use qubit_model_metadata::{MetadataRegistry, MetadataResolver, TypeIdentity};
 
 #[test]
 fn test_registry_implements_metadata_resolver() {

@@ -10,17 +10,9 @@
 //! Strongly typed type-level and field-level metadata attributes.
 
 use crate::constraint::{
-    DecimalConstraint,
-    MapConstraint,
-    SequenceConstraint,
-    TemporalConstraint,
-    TextConstraint,
+    DecimalConstraint, MapConstraint, SequenceConstraint, TemporalConstraint, TextConstraint,
 };
-use crate::relation::{
-    LookupRelationMetadata,
-    OwnershipMetadata,
-    ReferenceMetadata,
-};
+use crate::relation::{LookupRelationMetadata, OwnershipMetadata, ReferenceMetadata};
 
 /// A strongly typed metadata attribute.
 #[derive(Clone, Copy, Debug)]
@@ -260,10 +252,7 @@ impl UniqueMetadata {
     ///
     /// A unique-constraint definition containing the supplied fields.
     #[must_use]
-    pub const fn new(
-        name: Option<&'static str>,
-        fields: &'static [UniqueFieldMetadata],
-    ) -> Self {
+    pub const fn new(name: Option<&'static str>, fields: &'static [UniqueFieldMetadata]) -> Self {
         validate_optional_logical_name(name);
         assert!(
             !fields.is_empty(),
@@ -414,10 +403,7 @@ impl IndexMetadata {
     ///
     /// An index definition containing the supplied fields.
     #[must_use]
-    pub const fn new(
-        name: Option<&'static str>,
-        fields: &'static [&'static str],
-    ) -> Self {
+    pub const fn new(name: Option<&'static str>, fields: &'static [&'static str]) -> Self {
         validate_optional_logical_name(name);
         assert!(!fields.is_empty(), "index requires at least one field");
         validate_named_fields(fields);
@@ -487,10 +473,7 @@ impl KeyMetadata {
     ///
     /// A logical-key definition containing the supplied fields.
     #[must_use]
-    pub const fn new(
-        name: Option<&'static str>,
-        fields: &'static [&'static str],
-    ) -> Self {
+    pub const fn new(name: Option<&'static str>, fields: &'static [&'static str]) -> Self {
         validate_optional_logical_name(name);
         assert!(
             !fields.is_empty(),
@@ -680,25 +663,18 @@ impl ElementMetadata {
 ///
 /// Panics when an attribute is not a text or decimal constraint or when either
 /// constraint kind appears more than once.
-const fn validate_element_metadata_attributes(
-    attributes: &'static [AttributeMetadata],
-) {
+const fn validate_element_metadata_attributes(attributes: &'static [AttributeMetadata]) {
     let mut index = 0;
     while index < attributes.len() {
         match attributes[index] {
             AttributeMetadata::Text(_) | AttributeMetadata::Decimal(_) => {}
-            _ => panic!(
-                "element metadata only supports text and decimal attributes"
-            ),
+            _ => panic!("element metadata only supports text and decimal attributes"),
         }
         let mut previous = 0;
         while previous < index {
             match (attributes[previous], attributes[index]) {
                 (AttributeMetadata::Text(_), AttributeMetadata::Text(_))
-                | (
-                    AttributeMetadata::Decimal(_),
-                    AttributeMetadata::Decimal(_),
-                ) => {
+                | (AttributeMetadata::Decimal(_), AttributeMetadata::Decimal(_)) => {
                     panic!("element metadata attributes must be unique")
                 }
                 _ => {}
@@ -714,9 +690,7 @@ const fn validate_element_metadata_attributes(
 /// # Parameters
 ///
 /// * `fields` - The primary-key fields to validate.
-const fn validate_primary_key_fields(
-    fields: &'static [PrimaryKeyFieldMetadata],
-) {
+const fn validate_primary_key_fields(fields: &'static [PrimaryKeyFieldMetadata]) {
     let mut index = 0;
     while index < fields.len() {
         assert!(

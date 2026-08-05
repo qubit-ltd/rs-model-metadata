@@ -9,57 +9,36 @@
 //! Integration tests for attribute construction invariants.
 
 use qubit_model_metadata::{
-    AttributeKind,
-    AttributeMetadata,
-    ElementMetadata,
-    IndexMetadata,
-    KeyMetadata,
-    PrimaryKeyFieldMetadata,
-    PrimaryKeyMetadata,
-    SensitiveHandling,
-    SensitiveMetadata,
-    StrategyRef,
-    TextConstraint,
-    TextRepertoire,
-    UniqueComparison,
-    UniqueFieldMetadata,
-    UniqueMetadata,
+    AttributeKind, AttributeMetadata, ElementMetadata, IndexMetadata, KeyMetadata,
+    PrimaryKeyFieldMetadata, PrimaryKeyMetadata, SensitiveHandling, SensitiveMetadata, StrategyRef,
+    TextConstraint, TextRepertoire, UniqueComparison, UniqueFieldMetadata, UniqueMetadata,
 };
 
-const PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
-    [PrimaryKeyFieldMetadata::new("id", true)];
-const VALID_PRIMARY_KEY: PrimaryKeyMetadata =
-    PrimaryKeyMetadata::new(&PRIMARY_KEY_FIELDS);
+const PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] = [PrimaryKeyFieldMetadata::new("id", true)];
+const VALID_PRIMARY_KEY: PrimaryKeyMetadata = PrimaryKeyMetadata::new(&PRIMARY_KEY_FIELDS);
 const UNIQUE_FIELDS: [UniqueFieldMetadata; 1] = [UniqueFieldMetadata::new(
     "email",
     UniqueComparison::IgnoreCase,
 )];
-const VALID_UNIQUE: UniqueMetadata =
-    UniqueMetadata::new(Some("user_email"), &UNIQUE_FIELDS);
+const VALID_UNIQUE: UniqueMetadata = UniqueMetadata::new(Some("user_email"), &UNIQUE_FIELDS);
 const INDEX_FIELDS: [&str; 2] = ["organization_id", "email"];
-const VALID_INDEX: IndexMetadata =
-    IndexMetadata::new(Some("organization_email"), &INDEX_FIELDS);
+const VALID_INDEX: IndexMetadata = IndexMetadata::new(Some("organization_email"), &INDEX_FIELDS);
 const KEY_FIELDS: [&str; 1] = ["username"];
 const VALID_KEY: KeyMetadata = KeyMetadata::new(Some("user"), &KEY_FIELDS);
 const STRATEGY: StrategyRef = StrategyRef::new("redact-email");
-const SENSITIVE: SensitiveMetadata =
-    SensitiveMetadata::new(SensitiveHandling::Mask);
-const TOKEN_SENSITIVE: SensitiveMetadata =
-    SensitiveMetadata::new(SensitiveHandling::Token);
-const ELEMENT_TEXT: AttributeMetadata =
-    AttributeMetadata::Text(TextConstraint::new(
-        None,
-        None,
-        None,
-        None,
-        TextRepertoire::Ascii,
-        false,
-        None,
-    ));
-static DUPLICATE_ELEMENT_ATTRIBUTES: [AttributeMetadata; 2] =
-    [ELEMENT_TEXT, ELEMENT_TEXT];
-static INVALID_ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Codec(STRATEGY)];
+const SENSITIVE: SensitiveMetadata = SensitiveMetadata::new(SensitiveHandling::Mask);
+const TOKEN_SENSITIVE: SensitiveMetadata = SensitiveMetadata::new(SensitiveHandling::Token);
+const ELEMENT_TEXT: AttributeMetadata = AttributeMetadata::Text(TextConstraint::new(
+    None,
+    None,
+    None,
+    None,
+    TextRepertoire::Ascii,
+    false,
+    None,
+));
+static DUPLICATE_ELEMENT_ATTRIBUTES: [AttributeMetadata; 2] = [ELEMENT_TEXT, ELEMENT_TEXT];
+static INVALID_ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Codec(STRATEGY)];
 const DUPLICATE_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 2] = [
     PrimaryKeyFieldMetadata::new("id", false),
     PrimaryKeyFieldMetadata::new("id", true),
@@ -189,9 +168,7 @@ fn test_strategy_ref_rejects_empty_name() {
 }
 
 #[test]
-#[should_panic(
-    expected = "element metadata only supports text and decimal attributes"
-)]
+#[should_panic(expected = "element metadata only supports text and decimal attributes")]
 fn test_element_metadata_rejects_non_constraint_attributes() {
     let _ = ElementMetadata::new(&INVALID_ELEMENT_ATTRIBUTES);
 }

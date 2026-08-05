@@ -215,11 +215,7 @@ impl SequenceConstraint {
     /// Sequence constraints containing the supplied limits and uniqueness
     /// policy.
     #[must_use]
-    pub const fn new(
-        min_items: Option<u32>,
-        max_items: Option<u32>,
-        unique_items: bool,
-    ) -> Self {
+    pub const fn new(min_items: Option<u32>, max_items: Option<u32>, unique_items: bool) -> Self {
         if let (Some(min_items), Some(max_items)) = (min_items, max_items) {
             assert!(
                 min_items <= max_items,
@@ -292,13 +288,8 @@ impl MapConstraint {
     ///
     /// Map constraints containing the supplied entry limits.
     #[must_use]
-    pub const fn new(
-        min_entries: Option<u32>,
-        max_entries: Option<u32>,
-    ) -> Self {
-        if let (Some(min_entries), Some(max_entries)) =
-            (min_entries, max_entries)
-        {
+    pub const fn new(min_entries: Option<u32>, max_entries: Option<u32>) -> Self {
+        if let (Some(min_entries), Some(max_entries)) = (min_entries, max_entries) {
             assert!(
                 min_entries <= max_entries,
                 "minimum entry count cannot exceed maximum entry count"
@@ -355,10 +346,7 @@ impl TemporalConstraint {
     /// Temporal constraints containing the supplied precision and policy.
     #[must_use]
     #[inline(always)]
-    pub const fn new(
-        precision: TemporalPrecision,
-        normalization: TemporalNormalization,
-    ) -> Self {
+    pub const fn new(precision: TemporalPrecision, normalization: TemporalNormalization) -> Self {
         Self {
             precision,
             normalization,
@@ -450,10 +438,7 @@ impl DecimalConstraint {
         semantic: DecimalSemantic,
     ) -> Self {
         if let Some(precision) = precision {
-            assert!(
-                scale <= precision,
-                "decimal scale cannot exceed precision"
-            );
+            assert!(scale <= precision, "decimal scale cannot exceed precision");
         }
         Self {
             precision,

@@ -19,10 +19,7 @@
 //! Explicit, allocation-free resolution of static model metadata.
 
 use crate::metadata_resolver::MetadataResolver;
-use crate::type_metadata::{
-    TypeIdentity,
-    TypeMetadata,
-};
+use crate::type_metadata::{TypeIdentity, TypeMetadata};
 
 /// A caller-owned, statically declared collection of model metadata.
 ///
