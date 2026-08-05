@@ -268,7 +268,9 @@ pub(crate) fn normalize(input: ModelInput) -> ModelIr {
 }
 
 /// Converts one parsed model attribute to canonical IR.
-fn normalize_model_attribute(attribute: ModelAttribute) -> Option<ModelAttributeIr> {
+fn normalize_model_attribute(
+    attribute: ModelAttribute,
+) -> Option<ModelAttributeIr> {
     match attribute {
         ModelAttribute::Textual => None,
         ModelAttribute::PrimaryKey(attribute) => {

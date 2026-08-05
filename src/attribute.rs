@@ -410,7 +410,10 @@ fn parse_model_attribute(
     parsed: &mut Vec<ModelAttribute>,
 ) -> Result<()> {
     if meta.path.is_ident("textual") {
-        if parsed.iter().any(|attribute| matches!(attribute, ModelAttribute::Textual)) {
+        if parsed
+            .iter()
+            .any(|attribute| matches!(attribute, ModelAttribute::Textual))
+        {
             return Err(meta.error("duplicate `textual` model capability"));
         }
         if !meta.input.is_empty() {
