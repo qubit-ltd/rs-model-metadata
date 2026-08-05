@@ -31,10 +31,10 @@ Optional Cargo features add shape support for external scalar types:
 For an account model, derive its static metadata once and query it through the runtime API:
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 use qubit_model_metadata::{TypeShape, metadata_of};
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Account {
     #[model(identifier)]
     id: i64,
@@ -51,6 +51,9 @@ assert_eq!(email.text_constraint().and_then(|text| text.max_chars()), Some(320))
 ```
 
 The query reads static slices and function pointers. It does not allocate a metadata graph at runtime.
+
+`ModelMetadata` remains available as a compatibility alias in the derive crate;
+new code should use `Model`.
 
 ## Why This Project Exists
 

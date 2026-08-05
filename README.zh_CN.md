@@ -31,10 +31,10 @@ qubit-model-derive = "0.1.0"
 以账户模型为例，只需 derive 一次静态元数据，即可通过 runtime API 查询：
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 use qubit_model_metadata::{TypeShape, metadata_of};
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Account {
     #[model(identifier)]
     id: i64,
@@ -51,6 +51,8 @@ assert_eq!(email.text_constraint().and_then(|text| text.max_chars()), Some(320))
 ```
 
 查询只读取静态切片与函数指针，不会在运行时分配元数据图。
+
+derive crate 仍保留 `ModelMetadata` 兼容别名；新代码请使用 `Model`。
 
 ## 为什么需要这个项目
 

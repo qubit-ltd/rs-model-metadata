@@ -33,10 +33,10 @@ qubit-model-derive = "0.1.0"
 用强类型 API 查询生成的元数据：
 
 ```rust
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 use qubit_model_metadata::{AttributeQuery, TypeShape, metadata_of};
 
-#[derive(ModelMetadata)]
+#[derive(Model)]
 struct Account {
     #[model(identifier)]
     id: i64,
@@ -105,7 +105,7 @@ let result = metadata_of::<Account>().resolve_field_path(path);
 
 | 症状 | 检查项 |
 | --- | --- |
-| `metadata_of::<T>()` 无法编译 | 确认 `T` 实现 `HasTypeMetadata`，通常通过 `ModelMetadata` 完成。 |
+| `metadata_of::<T>()` 无法编译 | 确认 `T` 实现 `HasTypeMetadata`，通常通过 `Model` 完成。 |
 | derive 拒绝外部字段类型 | 启用所需 feature、实现 `HasTypeShape`，或有意使用 `#[model(opaque)]`。 |
 | 字段意外可空 | 检查最外层 `TypeShape`；只有外层 `Option<T>` 可空。 |
 | 路径解析失败 | 验证每个字段段、中间具名 struct 及其元数据 resolver。 |
