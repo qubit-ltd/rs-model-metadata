@@ -9,6 +9,8 @@
 // qubit-style: allow multiple-public-types
 //! Type-level structural metadata for model fields.
 
+// qubit-style: allow multiple-public-types
+
 use core::any::type_name;
 use std::collections::{
     BTreeMap,
@@ -26,6 +28,7 @@ use crate::type_metadata::{
 
 bitflags! {
     /// Capabilities that determine which metadata attributes a type can accept.
+    #[must_use]
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
     pub struct TypeCapabilities: u8 {
         /// The type accepts no metadata constraints.
@@ -48,6 +51,7 @@ bitflags! {
 }
 
 /// A scalar type supported by the metadata system.
+#[must_use]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ScalarType {
     /// The Rust `bool` type.
@@ -97,6 +101,7 @@ pub enum ScalarType {
 }
 
 /// The recursive structural shape of a Rust type.
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum TypeShape {
@@ -139,16 +144,29 @@ pub trait HasTypeShape: 'static {
 }
 
 /// A small, copyable reference to a type's static shape metadata.
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct TypeRef {
+    /// A function that returns the fully qualified name of the referenced
+    /// type.
     type_name: fn() -> &'static str,
+    /// A function that returns the referenced type's structural shape.
     shape: fn() -> TypeShape,
+    /// The capabilities of the referenced type's outermost structural layer.
     capabilities: TypeCapabilities,
 }
 
 impl TypeRef {
     /// Creates a reference to the static metadata for `T`.
-    #[must_use]
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The type that implements [`HasTypeShape`].
+    ///
+    /// # Returns
+    ///
+    /// A reference to `T`'s static type shape metadata.
+    #[inline]
     pub const fn of<T: HasTypeShape>() -> Self {
         Self {
             type_name: type_name::<T>,
@@ -161,7 +179,15 @@ impl TypeRef {
     ///
     /// The resulting reference retains `T`'s Rust type name while exposing only
     /// [`TypeShape::Opaque`] to structural queries.
-    #[must_use]
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The `'static` Rust type represented by the opaque reference.
+    ///
+    /// # Returns
+    ///
+    /// An opaque reference that retains `T`'s type name.
+    #[inline]
     pub const fn opaque<T: 'static>() -> Self {
         Self {
             type_name: type_name::<T>,
@@ -171,26 +197,44 @@ impl TypeRef {
     }
 
     /// Returns the recursive shape represented by this reference.
-    #[must_use]
+    ///
+    /// # Returns
+    ///
+    /// The structural shape represented by this reference.
+    #[inline(always)]
     pub fn shape(self) -> TypeShape {
         (self.shape)()
     }
 
     /// Returns Rust's fully qualified name for the referenced type.
+    ///
+    /// # Returns
+    ///
+    /// The fully qualified Rust type name represented by this reference.
     #[must_use]
+    #[inline(always)]
     pub fn type_name(self) -> &'static str {
         (self.type_name)()
     }
 
     /// Returns the capabilities supported by the referenced type's outermost
     /// structural layer.
-    #[must_use]
+    ///
+    /// # Returns
+    ///
+    /// The capabilities supported by the outermost structural layer.
+    #[inline(always)]
     pub const fn capabilities(self) -> TypeCapabilities {
         self.capabilities
     }
 
     /// Removes one outer `Option` layer, leaving other shapes unchanged.
-    #[must_use]
+    ///
+    /// # Returns
+    ///
+    /// The inner reference when the outer shape is optional; otherwise, this
+    /// reference unchanged.
+    #[inline]
     pub fn strip_optional(self) -> Self {
         match self.shape() {
             TypeShape::Optional(inner) => inner,
@@ -200,7 +244,13 @@ impl TypeRef {
 
     /// Resolves an outer named type after removing one optional layer, if
     /// present.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the named type's metadata when the resulting shape is named
+    /// and has a resolver; otherwise, `None`.
     #[must_use]
+    #[inline]
     pub fn named_metadata(self) -> Option<&'static TypeMetadata> {
         match self.strip_optional().shape() {
             TypeShape::Named(named) => named.metadata(),
@@ -210,11 +260,25 @@ impl TypeRef {
 }
 
 /// Returns the shape associated with `T` for use in [`TypeRef`].
+///
+/// # Type Parameters
+///
+/// * `T` - The type that implements [`HasTypeShape`].
+///
+/// # Returns
+///
+/// The static shape declared by `T`.
+#[inline]
 fn type_shape_of<T: HasTypeShape>() -> TypeShape {
     T::TYPE_SHAPE
 }
 
 /// Returns the intentionally uninterpreted shape associated with opaque `T`.
+///
+/// # Returns
+///
+/// [`TypeShape::Opaque`].
+#[inline]
 fn opaque_type_shape() -> TypeShape {
     TypeShape::Opaque
 }

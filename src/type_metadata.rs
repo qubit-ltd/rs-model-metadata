@@ -22,26 +22,51 @@ use crate::type_shape::HasTypeShape;
 /// statically.
 pub trait HasTypeMetadata: HasTypeShape {
     /// Returns this type's immutable static metadata.
+    ///
+    /// # Returns
+    ///
+    /// The immutable metadata registered for the implementing type.
     fn type_metadata() -> &'static TypeMetadata;
 }
 
 /// Returns the immutable static metadata associated with `T`.
-#[must_use]
+///
+/// # Type Parameters
+///
+/// * `T` - The named model type whose metadata is requested.
+///
+/// # Returns
+///
+/// The immutable metadata registered for `T`.
+#[inline(always)]
 pub fn metadata_of<T: HasTypeMetadata>() -> &'static TypeMetadata {
     T::type_metadata()
 }
 
 /// A stable identity for a Rust type, with its fully qualified name retained
 /// for display.
+#[must_use]
 #[derive(Clone, Copy)]
 pub struct TypeIdentity {
+    /// A function that returns the runtime [`TypeId`] for the represented
+    /// type.
     type_id: fn() -> TypeId,
+    /// A function that returns the fully qualified name of the represented
+    /// type.
     type_name: fn() -> &'static str,
 }
 
 impl TypeIdentity {
     /// Creates the identity associated with `T`.
-    #[must_use]
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The `'static` Rust type represented by the identity.
+    ///
+    /// # Returns
+    ///
+    /// A type identity that can be compared, hashed, and displayed.
+    #[inline]
     pub const fn of<T: 'static>() -> Self {
         Self {
             type_id: type_id_of::<T>,
@@ -50,13 +75,23 @@ impl TypeIdentity {
     }
 
     /// Returns Rust's runtime identity for this type.
+    ///
+    /// # Returns
+    ///
+    /// The runtime [`TypeId`] for this type.
     #[must_use]
+    #[inline(always)]
     pub fn type_id(self) -> TypeId {
         (self.type_id)()
     }
 
     /// Returns Rust's fully qualified name for this type.
+    ///
+    /// # Returns
+    ///
+    /// The fully qualified Rust type name.
     #[must_use]
+    #[inline(always)]
     pub fn type_name(self) -> &'static str {
         (self.type_name)()
     }
@@ -64,6 +99,14 @@ impl TypeIdentity {
 
 impl core::fmt::Debug for TypeIdentity {
     /// Formats the identity with its fully qualified type name.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatter receiving the debug representation.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when formatting succeeds; otherwise, the formatter's error.
     fn fmt(
         &self,
         formatter: &mut core::fmt::Formatter<'_>,
@@ -77,6 +120,16 @@ impl core::fmt::Debug for TypeIdentity {
 
 impl PartialEq for TypeIdentity {
     /// Compares identities using Rust's [`TypeId`].
+    ///
+    /// # Parameters
+    ///
+    /// * `other` - The identity to compare with this identity.
+    ///
+    /// # Returns
+    ///
+    /// `true` when both identities represent the same Rust type; otherwise,
+    /// `false`.
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.type_id() == other.type_id()
     }
@@ -86,26 +139,51 @@ impl Eq for TypeIdentity {}
 
 impl core::hash::Hash for TypeIdentity {
     /// Hashes Rust's [`TypeId`] for this type.
+    ///
+    /// # Parameters
+    ///
+    /// * `state` - The hasher receiving this identity's hash.
+    #[inline]
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.type_id().hash(state);
     }
 }
 
 /// Returns the runtime type identity associated with `T`.
+///
+/// # Type Parameters
+///
+/// * `T` - The `'static` Rust type whose runtime identity is requested.
+///
+/// # Returns
+///
+/// Rust's [`TypeId`] for `T`.
+#[inline]
 fn type_id_of<T: 'static>() -> TypeId {
     TypeId::of::<T>()
 }
 
 /// A static reference to metadata for a named model type.
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct NamedTypeRef {
+    /// The runtime identity of the named type.
     identity: TypeIdentity,
+    /// The resolver for metadata in the current model set, when available.
     metadata: Option<fn() -> &'static TypeMetadata>,
 }
 
 impl NamedTypeRef {
     /// Creates a resolvable named-type reference for `T`.
-    #[must_use]
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The type that implements [`HasTypeMetadata`].
+    ///
+    /// # Returns
+    ///
+    /// A reference containing `T`'s identity and metadata resolver.
+    #[inline]
     pub const fn of<T: HasTypeMetadata>() -> Self {
         Self {
             identity: TypeIdentity::of::<T>(),
@@ -114,7 +192,16 @@ impl NamedTypeRef {
     }
 
     /// Creates a named-type reference from an identity and metadata resolver.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `identity` - The identity of the referenced named type.
+    /// * `metadata` - A function that returns the referenced type's metadata.
+    ///
+    /// # Returns
+    ///
+    /// A resolvable named-type reference.
+    #[inline]
     pub const fn new(
         identity: TypeIdentity,
         metadata: fn() -> &'static TypeMetadata,
@@ -127,7 +214,15 @@ impl NamedTypeRef {
 
     /// Creates a named-type reference that cannot resolve metadata in this
     /// model set.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `identity` - The identity of the referenced named type.
+    ///
+    /// # Returns
+    ///
+    /// An unresolved named-type reference.
+    #[inline]
     pub const fn unresolved(identity: TypeIdentity) -> Self {
         Self {
             identity,
@@ -136,30 +231,59 @@ impl NamedTypeRef {
     }
 
     /// Returns the stable identity of the named type.
-    #[must_use]
+    ///
+    /// # Returns
+    ///
+    /// The runtime identity of the named type.
+    #[inline(always)]
     pub const fn identity(self) -> TypeIdentity {
         self.identity
     }
 
     /// Returns metadata for the named type, or `None` when no resolver is
     /// available.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the static metadata when a resolver is available; otherwise,
+    /// `None`.
     #[must_use]
+    #[inline(always)]
     pub fn metadata(self) -> Option<&'static TypeMetadata> {
         self.metadata.map(|resolve| resolve())
     }
 }
 
 /// Immutable metadata for a named model type.
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct TypeMetadata {
+    /// The runtime identity of the model type.
     identity: TypeIdentity,
+    /// The structural form of the model type.
     kind: TypeKind,
+    /// The model-level attributes in declaration order.
     attributes: &'static [AttributeMetadata],
 }
 
 impl TypeMetadata {
     /// Creates type metadata from an identity, structural kind, and attributes.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `identity` - The runtime identity of the model type.
+    /// * `kind` - The structural form of the model type.
+    /// * `attributes` - The model-level attributes to validate and retain.
+    ///
+    /// # Returns
+    ///
+    /// Validated immutable metadata for the model type.
+    ///
+    /// # Panics
+    ///
+    /// Panics when model-level attributes have invalid scopes, duplicate
+    /// singleton declarations, or references to unknown struct fields.
+    #[inline]
     pub const fn new(
         identity: TypeIdentity,
         kind: TypeKind,
@@ -174,25 +298,43 @@ impl TypeMetadata {
     }
 
     /// Returns the stable identity of this model type.
-    #[must_use]
+    ///
+    /// # Returns
+    ///
+    /// The runtime identity stored in this metadata.
+    #[inline(always)]
     pub const fn identity(&self) -> TypeIdentity {
         self.identity
     }
 
     /// Returns the structural kind of this model type.
-    #[must_use]
+    ///
+    /// # Returns
+    ///
+    /// The structural kind stored in this metadata.
+    #[inline(always)]
     pub const fn kind(&self) -> TypeKind {
         self.kind
     }
 
     /// Returns all model-level metadata attributes.
+    ///
+    /// # Returns
+    ///
+    /// The model-level attributes in their declaration order.
     #[must_use]
+    #[inline(always)]
     pub const fn attributes(&self) -> &'static [AttributeMetadata] {
         self.attributes
     }
 
     /// Returns the struct fields, or an empty slice for non-struct model kinds.
+    ///
+    /// # Returns
+    ///
+    /// The named fields for a struct, or an empty slice for an enum or newtype.
     #[must_use]
+    #[inline]
     pub const fn struct_fields(&self) -> &'static [FieldMetadata] {
         match self.kind {
             TypeKind::Struct(metadata) => metadata.fields(),
@@ -202,6 +344,7 @@ impl TypeMetadata {
 }
 
 /// The structural form of a named model type.
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub enum TypeKind {
     /// A type with named fields.
@@ -213,27 +356,56 @@ pub enum TypeKind {
 }
 
 /// Metadata for a struct with named fields.
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct StructMetadata {
+    /// The fields in declaration order.
     fields: &'static [FieldMetadata],
 }
 
 impl StructMetadata {
     /// Creates struct metadata from fields in declaration order.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `fields` - The named fields in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// Validated immutable struct metadata.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a field ordinal is not contiguous, a field name is empty,
+    /// or two fields have the same name.
+    #[inline]
     pub const fn new(fields: &'static [FieldMetadata]) -> Self {
         validate_struct_fields(fields);
         Self { fields }
     }
 
     /// Returns fields in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// The named fields in declaration order.
     #[must_use]
+    #[inline(always)]
     pub const fn fields(self) -> &'static [FieldMetadata] {
         self.fields
     }
 }
 
 /// Validates declaration order and names for a struct's fields.
+///
+/// # Parameters
+///
+/// * `fields` - The fields to validate in declaration order.
+///
+/// # Panics
+///
+/// Panics when a field ordinal is not contiguous, a field name is empty, or
+/// two fields have the same name.
 const fn validate_struct_fields(fields: &'static [FieldMetadata]) {
     let mut index = 0;
     while index < fields.len() {
@@ -258,6 +430,16 @@ const fn validate_struct_fields(fields: &'static [FieldMetadata]) {
 }
 
 /// Validates model-level attribute scopes, cardinality, and field references.
+///
+/// # Parameters
+///
+/// * `kind` - The model structure used to validate field references.
+/// * `attributes` - The model-level attributes to validate.
+///
+/// # Panics
+///
+/// Panics when a field-level attribute is used at model scope, a singleton
+/// declaration is duplicated, or an attribute references an unknown field.
 const fn validate_type_attributes(
     kind: TypeKind,
     attributes: &'static [AttributeMetadata],
@@ -313,6 +495,15 @@ const fn validate_type_attributes(
 }
 
 /// Validates that every primary-key field is declared by the model.
+///
+/// # Parameters
+///
+/// * `primary_key` - The primary-key definition to validate.
+/// * `fields` - The fields declared by the model.
+///
+/// # Panics
+///
+/// Panics when the primary key references an unknown model field.
 const fn validate_primary_key_fields(
     primary_key: crate::attribute::PrimaryKeyMetadata,
     fields: &'static [FieldMetadata],
@@ -329,6 +520,15 @@ const fn validate_primary_key_fields(
 }
 
 /// Validates that every unique-constraint field is declared by the model.
+///
+/// # Parameters
+///
+/// * `unique` - The unique constraint to validate.
+/// * `fields` - The fields declared by the model.
+///
+/// # Panics
+///
+/// Panics when the unique constraint references an unknown model field.
 const fn validate_unique_fields(
     unique: crate::attribute::UniqueMetadata,
     fields: &'static [FieldMetadata],
@@ -345,6 +545,15 @@ const fn validate_unique_fields(
 }
 
 /// Validates that every index field is declared by the model.
+///
+/// # Parameters
+///
+/// * `names` - The field names referenced by the index.
+/// * `fields` - The fields declared by the model.
+///
+/// # Panics
+///
+/// Panics when the index references an unknown model field.
 const fn validate_index_fields(
     names: &'static [&'static str],
     fields: &'static [FieldMetadata],
@@ -360,6 +569,15 @@ const fn validate_index_fields(
 }
 
 /// Validates that every logical-key field is declared by the model.
+///
+/// # Parameters
+///
+/// * `names` - The field names referenced by the logical key.
+/// * `fields` - The fields declared by the model.
+///
+/// # Panics
+///
+/// Panics when the logical key references an unknown model field.
 const fn validate_key_fields(
     names: &'static [&'static str],
     fields: &'static [FieldMetadata],
@@ -375,6 +593,15 @@ const fn validate_key_fields(
 }
 
 /// Returns whether `fields` contains a declaration named `name`.
+///
+/// # Parameters
+///
+/// * `fields` - The fields to search.
+/// * `name` - The field name to find.
+///
+/// # Returns
+///
+/// `true` when a field with `name` is present; otherwise, `false`.
 const fn contains_field(
     fields: &'static [FieldMetadata],
     name: &'static str,
@@ -390,6 +617,15 @@ const fn contains_field(
 }
 
 /// Compares two static strings without allocating.
+///
+/// # Parameters
+///
+/// * `left` - The first string to compare.
+/// * `right` - The second string to compare.
+///
+/// # Returns
+///
+/// `true` when both strings contain the same bytes; otherwise, `false`.
 const fn str_eq(left: &str, right: &str) -> bool {
     let left = left.as_bytes();
     let right = right.as_bytes();
@@ -407,68 +643,119 @@ const fn str_eq(left: &str, right: &str) -> bool {
 }
 
 /// Metadata for a fieldless enum.
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct EnumMetadata {
+    /// The variants in declaration order.
     variants: &'static [EnumVariantMetadata],
 }
 
 impl EnumMetadata {
     /// Creates enum metadata from variants in declaration order.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `variants` - The variants in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// Immutable metadata for the fieldless enum.
+    #[inline]
     pub const fn new(variants: &'static [EnumVariantMetadata]) -> Self {
         Self { variants }
     }
 
     /// Returns variants in declaration order.
-    #[must_use]
+    ///
+    /// # Returns
+    ///
+    /// The enum variants in declaration order.
+    #[inline(always)]
     pub const fn variants(self) -> &'static [EnumVariantMetadata] {
         self.variants
     }
 }
 
 /// Metadata for a fieldless enum variant.
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct EnumVariantMetadata {
+    /// The variant's declaration ordinal.
     ordinal: usize,
+    /// The variant's normalized name.
     name: &'static str,
 }
 
 impl EnumVariantMetadata {
     /// Creates variant metadata from its declaration ordinal and normalized
     /// name.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `ordinal` - The variant's zero-based declaration ordinal.
+    /// * `name` - The variant's normalized name.
+    ///
+    /// # Returns
+    ///
+    /// Immutable metadata for the enum variant.
+    #[inline]
     pub const fn new(ordinal: usize, name: &'static str) -> Self {
         Self { ordinal, name }
     }
 
     /// Returns the declaration ordinal of this variant.
+    ///
+    /// # Returns
+    ///
+    /// The variant's zero-based declaration ordinal.
     #[must_use]
+    #[inline(always)]
     pub const fn ordinal(self) -> usize {
         self.ordinal
     }
 
     /// Returns the normalized variant name.
+    ///
+    /// # Returns
+    ///
+    /// The normalized variant name.
     #[must_use]
+    #[inline(always)]
     pub const fn name(self) -> &'static str {
         self.name
     }
 }
 
 /// Metadata for a single-field tuple newtype.
+#[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct NewtypeMetadata {
+    /// The sole inner field.
     field: FieldMetadata,
 }
 
 impl NewtypeMetadata {
     /// Creates newtype metadata from its sole inner field.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Metadata for the newtype's sole inner field.
+    ///
+    /// # Returns
+    ///
+    /// Immutable metadata for the newtype.
+    #[inline]
     pub const fn new(field: FieldMetadata) -> Self {
         Self { field }
     }
 
     /// Returns the sole inner field.
+    ///
+    /// # Returns
+    ///
+    /// Metadata for the newtype's sole inner field.
     #[must_use]
+    #[inline(always)]
     pub const fn field(self) -> FieldMetadata {
         self.field
     }

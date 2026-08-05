@@ -31,9 +31,24 @@ use crate::type_shape::TypeShape;
 /// Provides allocation-free queries over a static metadata attribute slice.
 pub trait AttributeQuery {
     /// Returns the complete static attribute slice.
+    ///
+    /// # Returns
+    ///
+    /// The attributes exposed by the implementing metadata value in
+    /// declaration order.
+    #[must_use]
     fn attributes(&self) -> &'static [AttributeMetadata];
 
     /// Returns the first attribute with `kind`, or `None` when it is absent.
+    ///
+    /// # Parameters
+    ///
+    /// - `kind`: The attribute kind to find.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the first matching attribute, or `None` when no attribute
+    /// has the requested kind.
     #[must_use]
     fn attribute(
         &self,
@@ -46,6 +61,16 @@ pub trait AttributeQuery {
 
     /// Returns an iterator over every attribute with `kind` in declaration
     /// order.
+    ///
+    /// # Parameters
+    ///
+    /// - `kind`: The attribute kind to find.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over matching attributes in declaration order. The
+    /// iterator is empty when no attribute has the requested kind.
+    #[must_use]
     fn attributes_of(
         &self,
         kind: AttributeKind,
@@ -58,6 +83,11 @@ pub trait AttributeQuery {
 
 impl AttributeQuery for TypeMetadata {
     /// Returns the model-level static attribute slice.
+    ///
+    /// # Returns
+    ///
+    /// The model-level attributes in declaration order.
+    #[inline(always)]
     fn attributes(&self) -> &'static [AttributeMetadata] {
         TypeMetadata::attributes(self)
     }
@@ -65,6 +95,11 @@ impl AttributeQuery for TypeMetadata {
 
 impl AttributeQuery for FieldMetadata {
     /// Returns the field-level static attribute slice.
+    ///
+    /// # Returns
+    ///
+    /// The field-level attributes in declaration order.
+    #[inline(always)]
     fn attributes(&self) -> &'static [AttributeMetadata] {
         (*self).attributes()
     }
@@ -94,18 +129,38 @@ pub enum FieldPathResolveError {
 
 impl TypeMetadata {
     /// Returns the model's named fields in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the model's fields in declaration order. The iterator
+    /// is empty for non-struct model kinds.
+    #[must_use = "iterate over the model fields to inspect them"]
+    #[inline(always)]
     pub fn fields(&self) -> impl Iterator<Item = &'static FieldMetadata> {
         self.struct_fields().iter()
     }
 
     /// Returns the named field with `name`, or `None` when no such field
     /// exists.
+    ///
+    /// # Parameters
+    ///
+    /// - `name`: The normalized field name to find.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the matching field metadata, or `None` when the model has
+    /// no field with that name.
     #[must_use]
     pub fn field(&self, name: &str) -> Option<&'static FieldMetadata> {
         self.fields().find(|field| field.name() == name)
     }
 
     /// Returns the model's primary-key definition, if present.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the primary-key metadata when declared; otherwise `None`.
     #[must_use]
     pub fn primary_key(&self) -> Option<PrimaryKeyMetadata> {
         self.attributes()
@@ -119,6 +174,12 @@ impl TypeMetadata {
     }
 
     /// Returns model unique constraints in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over model-level unique constraints in declaration order.
+    /// The iterator is empty when none are declared.
+    #[must_use = "iterate over the declared unique constraints to inspect them"]
     pub fn unique_constraints(&self) -> impl Iterator<Item = UniqueMetadata> {
         self.attributes()
             .iter()
@@ -129,6 +190,12 @@ impl TypeMetadata {
     }
 
     /// Returns model indexes in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over model-level indexes in declaration order. The
+    /// iterator is empty when none are declared.
+    #[must_use = "iterate over the declared indexes to inspect them"]
     pub fn indexes(&self) -> impl Iterator<Item = IndexMetadata> {
         self.attributes()
             .iter()
@@ -139,6 +206,12 @@ impl TypeMetadata {
     }
 
     /// Returns model logical keys in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over model-level logical keys in declaration order. The
+    /// iterator is empty when none are declared.
+    #[must_use = "iterate over the declared logical keys to inspect them"]
     pub fn keys(&self) -> impl Iterator<Item = KeyMetadata> {
         self.attributes()
             .iter()
@@ -149,6 +222,10 @@ impl TypeMetadata {
     }
 
     /// Returns the model ownership declaration, if present.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the ownership metadata when declared; otherwise `None`.
     #[must_use]
     pub fn ownership(&self) -> Option<OwnershipMetadata> {
         self.attributes()
@@ -164,6 +241,24 @@ impl TypeMetadata {
     /// Returns the final field when every segment exists. Returns a typed error
     /// for an empty path, a missing field, an unresolvable named type, or
     /// an intermediate non-struct type.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The statically declared field path to resolve.
+    ///
+    /// # Returns
+    ///
+    /// `Ok` with the final field metadata when every segment resolves.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FieldPathResolveError::EmptyPath`] for an empty path,
+    /// [`FieldPathResolveError::FieldNotFound`] for a missing field,
+    /// [`FieldPathResolveError::NamedMetadataUnavailable`] when a named
+    /// intermediate type has no resolver, or
+    /// [`FieldPathResolveError::IntermediateNotStruct`] when traversal would
+    /// pass through a non-struct type.
+    #[must_use = "inspect the resolved field or handle the resolution error"]
     pub fn resolve_field_path(
         &self,
         path: FieldPath,
@@ -176,6 +271,23 @@ impl TypeMetadata {
     }
 
     /// Resolves `segment` and the remaining path from this metadata node.
+    ///
+    /// # Parameters
+    ///
+    /// - `segment`: The current field-name segment.
+    /// - `remaining`: The remaining field-name segments.
+    ///
+    /// # Returns
+    ///
+    /// `Ok` with the final field metadata when the remaining path resolves.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FieldPathResolveError::FieldNotFound`] when `segment` is not
+    /// declared, [`FieldPathResolveError::NamedMetadataUnavailable`] when an
+    /// intermediate named type has no resolver, or
+    /// [`FieldPathResolveError::IntermediateNotStruct`] when traversal would
+    /// pass through a non-struct type.
     fn resolve_field_path_from(
         &self,
         segment: &'static str,
