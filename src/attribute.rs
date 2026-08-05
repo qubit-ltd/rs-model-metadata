@@ -46,6 +46,8 @@ pub(crate) struct SpannedValue<T> {
 
 /// Parsed model-level attribute syntax.
 pub(crate) enum ModelAttribute {
+    /// Declares a named value object as text-capable for field constraints.
+    Textual,
     /// A primary-key declaration.
     PrimaryKey(PrimaryKeyAttribute),
     /// A unique-constraint declaration.
@@ -407,7 +409,15 @@ fn parse_model_attribute(
     meta: ParseNestedMeta<'_>,
     parsed: &mut Vec<ModelAttribute>,
 ) -> Result<()> {
-    if meta.path.is_ident("primary_key") {
+    if meta.path.is_ident("textual") {
+        if parsed.iter().any(|attribute| matches!(attribute, ModelAttribute::Textual)) {
+            return Err(meta.error("duplicate `textual` model capability"));
+        }
+        if !meta.input.is_empty() {
+            return Err(meta.error("`textual` does not accept arguments"));
+        }
+        parsed.push(ModelAttribute::Textual);
+    } else if meta.path.is_ident("primary_key") {
         parsed.push(ModelAttribute::PrimaryKey(parse_primary_key(meta)?));
     } else if meta.path.is_ident("unique") {
         parsed.push(ModelAttribute::Unique(parse_unique(meta)?));

@@ -50,6 +50,8 @@ pub(crate) struct ModelIr {
     /// Number of attributes declared directly on the model before field
     /// shorthands were appended.
     pub(crate) model_attribute_count: usize,
+    /// Whether this named model is a textual value object.
+    pub(crate) textual: bool,
     /// The model's supported structural form.
     pub(crate) shape: ModelShapeIr,
 }
@@ -231,10 +233,13 @@ pub(crate) fn normalize(input: ModelInput) -> ModelIr {
         attributes,
         shape,
     } = input;
-    let model_attribute_count = attributes.len();
+    let textual = attributes
+        .iter()
+        .any(|attribute| matches!(attribute, ModelAttribute::Textual));
+    let model_attribute_count = attributes.len() - usize::from(textual);
     let mut model_attributes = attributes
         .into_iter()
-        .map(normalize_model_attribute)
+        .filter_map(normalize_model_attribute)
         .collect::<Vec<_>>();
     let shape = match shape {
         ModelShape::NamedStruct(fields) => {
@@ -257,13 +262,15 @@ pub(crate) fn normalize(input: ModelInput) -> ModelIr {
         ident,
         attributes: model_attributes,
         model_attribute_count,
+        textual,
         shape,
     }
 }
 
 /// Converts one parsed model attribute to canonical IR.
-fn normalize_model_attribute(attribute: ModelAttribute) -> ModelAttributeIr {
+fn normalize_model_attribute(attribute: ModelAttribute) -> Option<ModelAttributeIr> {
     match attribute {
+        ModelAttribute::Textual => None,
         ModelAttribute::PrimaryKey(attribute) => {
             let fields = attribute
                 .fields
@@ -273,11 +280,11 @@ fn normalize_model_attribute(attribute: ModelAttribute) -> ModelAttributeIr {
                     span: field.span,
                 })
                 .collect();
-            ModelAttributeIr::PrimaryKey(PrimaryKeyIr {
+            Some(ModelAttributeIr::PrimaryKey(PrimaryKeyIr {
                 fields,
                 generated: attribute.generated,
                 span: attribute.span,
-            })
+            }))
         }
         ModelAttribute::Unique(attribute) => {
             let fields = attribute
@@ -288,24 +295,24 @@ fn normalize_model_attribute(attribute: ModelAttribute) -> ModelAttributeIr {
                     span: field.span,
                 })
                 .collect();
-            ModelAttributeIr::Unique(UniqueIr {
+            Some(ModelAttributeIr::Unique(UniqueIr {
                 name: attribute.name,
                 fields,
                 ignore_case: attribute.ignore_case,
                 span: attribute.span,
-            })
+            }))
         }
         ModelAttribute::Index(attribute) => {
-            ModelAttributeIr::Index(normalize_named_fields(attribute))
+            Some(ModelAttributeIr::Index(normalize_named_fields(attribute)))
         }
         ModelAttribute::Key(attribute) => {
-            ModelAttributeIr::Key(normalize_named_fields(attribute))
+            Some(ModelAttributeIr::Key(normalize_named_fields(attribute)))
         }
         ModelAttribute::Ownership(attribute) => {
-            ModelAttributeIr::Ownership(OwnershipIr {
+            Some(ModelAttributeIr::Ownership(OwnershipIr {
                 owner: attribute.owner,
                 span: attribute.span,
-            })
+            }))
         }
     }
 }

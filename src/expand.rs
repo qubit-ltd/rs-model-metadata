@@ -73,6 +73,9 @@ pub(crate) fn expand(
             let ty = &field.ty;
             quote!(<#ty as #runtime::HasTypeShape>::CAPABILITIES)
         }
+        ModelShapeIr::NamedStruct(_) if input.textual => {
+            quote!(#runtime::TypeCapabilities::TEXT)
+        }
         ModelShapeIr::NamedStruct(_)
         | ModelShapeIr::UnitStruct
         | ModelShapeIr::Newtype(_)

@@ -6,20 +6,10 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-#![allow(dead_code)]
-
 #[derive(qubit_model_derive::Model)]
-#[model(textual)]
-struct Phone {
-    country_area: Option<String>,
-    city_area: Option<String>,
+#[model(textual(unexpected))]
+struct InvalidPhone {
     number: String,
-}
-
-#[derive(qubit_model_derive::Model)]
-struct LoginParams {
-    #[model(text(format = mobile))]
-    mobile: Option<Phone>,
 }
 
 fn main() {}

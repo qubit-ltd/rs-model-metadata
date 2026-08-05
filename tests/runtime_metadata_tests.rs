@@ -51,6 +51,22 @@ struct UserId(i64);
 struct DisplayName(String);
 
 #[derive(ModelMetadata)]
+#[model(textual)]
+#[allow(dead_code)]
+struct Phone {
+    country_area: Option<String>,
+    city_area: Option<String>,
+    number: String,
+}
+
+#[derive(ModelMetadata)]
+#[allow(dead_code)]
+struct PhoneLoginParams {
+    #[model(text(format = mobile))]
+    mobile: Option<Phone>,
+}
+
+#[derive(ModelMetadata)]
 #[allow(dead_code)]
 enum Status {
     Draft,
@@ -197,6 +213,21 @@ fn test_derive_newtype_inherits_inner_type_capabilities() {
         <DisplayName as HasTypeShape>::CAPABILITIES,
         TypeCapabilities::TEXT
     );
+}
+
+#[test]
+fn test_textual_named_model_accepts_mobile_constraints() {
+    assert_eq!(
+        <Phone as HasTypeShape>::CAPABILITIES,
+        TypeCapabilities::TEXT
+    );
+    assert!(matches!(
+        metadata_of::<PhoneLoginParams>()
+            .field("mobile")
+            .expect("mobile field metadata")
+            .text_constraint(),
+        Some(constraint) if constraint.format() == Some(TextFormat::Mobile)
+    ));
 }
 
 #[test]
