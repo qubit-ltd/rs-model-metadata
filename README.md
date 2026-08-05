@@ -15,8 +15,8 @@ Use matching versions of the derive and runtime crates:
 
 ```toml
 [dependencies]
-qubit-model-derive = "0.1.0"
-qubit-model-metadata = "0.1.0"
+qubit-model-derive = "0.1"
+qubit-model-metadata = "0.1"
 ```
 
 The runtime crate is required: an expansion without a `qubit-model-metadata` dependency emits a compile error explaining the missing dependency.

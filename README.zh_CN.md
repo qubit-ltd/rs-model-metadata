@@ -15,8 +15,8 @@
 
 ```toml
 [dependencies]
-qubit-model-derive = "0.1.0"
-qubit-model-metadata = "0.1.0"
+qubit-model-derive = "0.1"
+qubit-model-metadata = "0.1"
 ```
 
 runtime crate 是必需依赖：若展开位置没有 `qubit-model-metadata` 依赖，宏会发出 `compile_error!`，说明缺少该依赖。
