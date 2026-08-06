@@ -16,7 +16,7 @@ mod normalize;
 mod runtime_path;
 mod validate;
 
-use derive_model_impl::derive_model_impl;
+use derive_model_impl::derive_model_tokens;
 use proc_macro::TokenStream;
 
 /// Derives static model metadata for supported Rust model declarations.
@@ -42,7 +42,7 @@ use proc_macro::TokenStream;
 /// shapes, invalid attributes, and missing runtime dependencies.
 #[proc_macro_derive(Model, attributes(model))]
 pub fn derive_model(input: TokenStream) -> TokenStream {
-    derive_model_impl(input)
+    derive_model_tokens(input.into(), runtime_path::runtime_path()).into()
 }
 
 /// Derives static model metadata using the legacy macro name.
@@ -51,5 +51,5 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
 /// available for existing users of the pre-`Model` API.
 #[proc_macro_derive(ModelMetadata, attributes(model))]
 pub fn derive_model_metadata(input: TokenStream) -> TokenStream {
-    derive_model_impl(input)
+    derive_model_tokens(input.into(), runtime_path::runtime_path()).into()
 }

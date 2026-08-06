@@ -16,6 +16,7 @@ fn test_runtime_dependency_fixtures() {
     assert_fixture_succeeds("normal");
     assert_fixture_succeeds("renamed");
     assert_missing_runtime_fixture_fails();
+    assert_missing_runtime_fixture_preserves_validation_error();
 }
 
 /// Runs one fixture that must compile successfully.
@@ -42,15 +43,40 @@ fn assert_missing_runtime_fixture_fails() {
     );
 }
 
+/// Checks that a missing runtime dependency preserves independent validation
+/// diagnostics from the same model declaration.
+fn assert_missing_runtime_fixture_preserves_validation_error() {
+    let output = run_fixture("missing-invalid");
+    assert!(
+        !output.status.success(),
+        "missing-invalid runtime fixture compiled"
+    );
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        diagnostic.contains(
+            "Model derive requires the `qubit-model-metadata` dependency"
+        ),
+        "missing runtime diagnostic: {diagnostic}"
+    );
+    assert!(
+        diagnostic.contains("only supported on named structs"),
+        "missing validation diagnostic: {diagnostic}"
+    );
+}
+
 /// Runs `cargo check` for one standalone fixture with an isolated target dir.
 fn run_fixture(name: &str) -> std::process::Output {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let fixture_dir = manifest_dir.join("tests/runtime-fixtures").join(name);
-    let target_dir = std::env::temp_dir().join(format!(
-        "qubit-model-derive-runtime-fixture-{}-{}",
-        name,
-        std::process::id()
-    ));
+    let target_dir = std::env::var_os("CARGO_TARGET_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::temp_dir().join(format!(
+                "qubit-model-derive-runtime-fixture-{}-{}",
+                name,
+                std::process::id()
+            ))
+        });
     Command::new(env!("CARGO"))
         .arg("check")
         .arg("--quiet")

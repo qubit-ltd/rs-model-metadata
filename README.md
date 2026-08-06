@@ -110,6 +110,12 @@ cargo test --all-features
 ./coverage.sh
 ```
 
+`src/derive_model_impl.rs` is excluded from per-file coverage thresholds only.
+Its runtime-resolution error paths are verified by isolated Cargo fixtures, but
+`cargo-llvm-cov` does not merge the profiler data emitted while Rust loads the
+proc-macro dylib for those fixture compilations. The exemption does not remove
+the fixture coverage from the test suite.
+
 ## License
 
 Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.

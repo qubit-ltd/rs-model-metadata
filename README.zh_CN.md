@@ -109,6 +109,11 @@ cargo test --all-features
 ./coverage.sh
 ```
 
+`src/derive_model_impl.rs` 仅免于逐文件覆盖率阈值检查。其运行时依赖解析的
+错误路径由隔离 Cargo fixture 覆盖；但 Rust 在编译 fixture 时加载过程宏 dylib
+产生的 profiler 数据不会被 `cargo-llvm-cov` 聚合。该豁免不会移除这些
+fixture 覆盖测试。
+
 ## 许可证
 
 Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.

@@ -1,0 +1,15 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
+use qubit_model_derive::ModelMetadata;
+
+#[derive(ModelMetadata)]
+#[model(primary_key(fields(value)))]
+struct Invalid;
+
+fn main() {}

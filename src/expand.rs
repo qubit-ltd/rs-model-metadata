@@ -17,10 +17,7 @@ use quote::{
     quote,
     quote_spanned,
 };
-use syn::{
-    LitStr,
-    Result,
-};
+use syn::LitStr;
 
 use crate::attribute::{
     RoundingMode,
@@ -48,9 +45,8 @@ use crate::normalize::{
 /// Generates static metadata and trait implementations for one normalized
 /// model.
 ///
-/// Generated items refer only to public runtime metadata APIs. Errors are
-/// reserved for future expansion checks that cannot be represented while
-/// building the normalized IR.
+/// Generated items refer only to public runtime metadata APIs. All expansion
+/// preconditions are checked before this function is called.
 ///
 /// # Parameters
 ///
@@ -59,12 +55,8 @@ use crate::normalize::{
 ///
 /// # Returns
 ///
-/// Returns generated Rust tokens, or an expansion error if a future expansion
-/// check cannot be represented by the normalized IR.
-pub(crate) fn expand(
-    input: &ModelIr,
-    runtime: &TokenStream,
-) -> Result<TokenStream> {
+/// Returns generated Rust tokens for the validated normalized model.
+pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
     let ident = &input.ident;
     let kind =
         expand_type_kind(&input.shape, &input.attributes, ident, runtime);
@@ -84,7 +76,7 @@ pub(crate) fn expand(
         }
     };
 
-    Ok(quote! {
+    quote! {
         const _: () = {
             #kind
 
@@ -100,7 +92,7 @@ pub(crate) fn expand(
                 }
             }
         };
-    })
+    }
 }
 
 /// Generates type-system diagnostics that remain meaningful even when local

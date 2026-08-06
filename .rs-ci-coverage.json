@@ -2,6 +2,7 @@
   "threshold_exempt_files": {
     "qubit-model-derive": [
       "src/attribute.rs",
+      "src/derive_model_impl.rs",
       "src/input.rs",
       "src/lib.rs",
       "src/runtime_path.rs",

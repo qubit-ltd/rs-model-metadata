@@ -7,27 +7,41 @@
 // =============================================================================
 //! Shared expansion entry point for the public derive macros.
 
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::quote;
+use syn::Result;
 
 use crate::{
     expand,
     input,
     normalize,
-    runtime_path,
     validate,
 };
 
-/// Expands either the current or legacy derive entry point.
-pub(crate) fn derive_model_impl(input: TokenStream) -> TokenStream {
-    let derive_input = match syn::parse(input) {
+/// Expands a parsed derive input with a previously resolved runtime path.
+///
+/// # Parameters
+///
+/// - `input`: The token stream for one derive declaration.
+/// - `runtime_path`: The runtime crate path resolved by the proc-macro entry
+///   point.
+///
+/// # Returns
+///
+/// Returns generated metadata tokens or compile-error tokens that preserve
+/// syntax, validation, and runtime-resolution diagnostics.
+pub(crate) fn derive_model_tokens(
+    input: TokenStream,
+    runtime_path: Result<TokenStream>,
+) -> TokenStream {
+    let derive_input = match syn::parse2(input) {
         Ok(derive_input) => derive_input,
-        Err(error) => return error.into_compile_error().into(),
+        Err(error) => return error.into_compile_error(),
     };
     let result = input::ModelInput::parse(derive_input).and_then(|model| {
         let model = normalize::normalize(model);
         let validation_error = validate::validate(&model).err();
-        let runtime_path = match runtime_path::runtime_path() {
+        let runtime_path = match runtime_path {
             Ok(path) => path,
             Err(mut runtime_error) => {
                 if let Some(validation_error) = validation_error {
@@ -46,12 +60,12 @@ pub(crate) fn derive_model_impl(input: TokenStream) -> TokenStream {
                     );
                 quote!(#diagnostics #independent_diagnostics)
             }
-            None => expand::expand(&model, &runtime_path)?,
+            None => expand::expand(&model, &runtime_path),
         })
     });
 
     match result {
-        Ok(tokens) => tokens.into(),
-        Err(error) => error.into_compile_error().into(),
+        Ok(tokens) => tokens,
+        Err(error) => error.into_compile_error(),
     }
 }
