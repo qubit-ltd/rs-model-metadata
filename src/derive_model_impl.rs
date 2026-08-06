@@ -10,7 +10,13 @@
 use proc_macro::TokenStream;
 use quote::quote;
 
-use crate::{expand, input, normalize, runtime_path, validate};
+use crate::{
+    expand,
+    input,
+    normalize,
+    runtime_path,
+    validate,
+};
 
 /// Expands either the current or legacy derive entry point.
 pub(crate) fn derive_model_impl(input: TokenStream) -> TokenStream {
@@ -34,7 +40,10 @@ pub(crate) fn derive_model_impl(input: TokenStream) -> TokenStream {
             Some(error) => {
                 let diagnostics = error.into_compile_error();
                 let independent_diagnostics =
-                    expand::expand_independent_diagnostics(&model, &runtime_path);
+                    expand::expand_independent_diagnostics(
+                        &model,
+                        &runtime_path,
+                    );
                 quote!(#diagnostics #independent_diagnostics)
             }
             None => expand::expand(&model, &runtime_path)?,
