@@ -8,20 +8,14 @@
 
 //! Resolution of the runtime metadata crate's path in consuming crates.
 
-use proc_macro_crate::{
-    FoundCrate,
-    crate_name,
-};
-use proc_macro2::{
-    Span,
-    TokenStream,
-};
+use proc_macro_crate::FoundCrate;
+use proc_macro_crate::crate_name;
+use proc_macro2::Span;
+use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{
-    Error,
-    Ident,
-    Result,
-};
+use syn::Error;
+use syn::Ident;
+use syn::Result;
 
 /// Resolves the runtime crate path, including a dependency renamed by the
 /// consuming crate.

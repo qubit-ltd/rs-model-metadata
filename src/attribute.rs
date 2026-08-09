@@ -11,22 +11,20 @@
 //! Parsing for `#[model(...)]` attributes.
 
 use proc_macro2::Span;
+use syn::Attribute;
+use syn::Error;
+use syn::Ident;
+use syn::LitBool;
+use syn::LitInt;
+use syn::LitStr;
+use syn::Path;
+use syn::Result;
+use syn::Token;
+use syn::TypePath;
 use syn::ext::IdentExt;
 use syn::meta::ParseNestedMeta;
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
-use syn::{
-    Attribute,
-    Error,
-    Ident,
-    LitBool,
-    LitInt,
-    LitStr,
-    Path,
-    Result,
-    Token,
-    TypePath,
-};
 
 /// A field name together with the source span that declared it.
 pub(crate) struct FieldName {

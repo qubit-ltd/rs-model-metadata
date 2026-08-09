@@ -8,10 +8,8 @@
 //! Tests for the shared implementation behind both public derive entry points.
 
 use model_runtime::metadata_of;
-use qubit_model_derive::{
-    Model,
-    ModelMetadata,
-};
+use qubit_model_derive::Model;
+use qubit_model_derive::ModelMetadata;
 
 #[allow(dead_code)]
 #[derive(Model)]

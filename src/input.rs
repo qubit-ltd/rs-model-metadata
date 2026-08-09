@@ -10,24 +10,20 @@
 // qubit-style: allow multiple-public-types
 //! Parsed model declarations supported by the derive macro.
 
+use syn::Data;
+use syn::DeriveInput;
+use syn::Error;
+use syn::Fields;
+use syn::Ident;
+use syn::Result;
+use syn::Type;
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
-use syn::{
-    Data,
-    DeriveInput,
-    Error,
-    Fields,
-    Ident,
-    Result,
-    Type,
-};
 
-use super::attribute::{
-    FieldAttribute,
-    ModelAttribute,
-    parse_field_attributes,
-    parse_model_attributes,
-};
+use super::attribute::FieldAttribute;
+use super::attribute::ModelAttribute;
+use super::attribute::parse_field_attributes;
+use super::attribute::parse_model_attributes;
 
 /// The parsed input required to generate model metadata.
 pub(crate) struct ModelInput {

@@ -10,24 +10,22 @@
 
 use std::collections::HashMap;
 
-use model_runtime::{
-    AttributeKind,
-    AttributeMetadata,
-    AttributeQuery,
-    DecimalSemantic,
-    HasTypeShape,
-    RoundingMode,
-    SensitiveHandling,
-    TemporalNormalization,
-    TemporalPrecision,
-    TextFormat,
-    TextRepertoire,
-    TypeCapabilities,
-    TypeKind,
-    TypeShape,
-    UniqueComparison,
-    metadata_of,
-};
+use model_runtime::AttributeKind;
+use model_runtime::AttributeMetadata;
+use model_runtime::AttributeQuery;
+use model_runtime::DecimalSemantic;
+use model_runtime::HasTypeShape;
+use model_runtime::RoundingMode;
+use model_runtime::SensitiveHandling;
+use model_runtime::TemporalNormalization;
+use model_runtime::TemporalPrecision;
+use model_runtime::TextFormat;
+use model_runtime::TextRepertoire;
+use model_runtime::TypeCapabilities;
+use model_runtime::TypeKind;
+use model_runtime::TypeShape;
+use model_runtime::UniqueComparison;
+use model_runtime::metadata_of;
 use qubit_model_derive::ModelMetadata;
 
 #[allow(dead_code)]

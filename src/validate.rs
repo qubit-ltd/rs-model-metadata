@@ -10,32 +10,26 @@
 //! Local semantic validation for normalized derive input.
 
 use proc_macro2::Span;
+use syn::Error;
+use syn::Result;
+use syn::Type;
 use syn::spanned::Spanned;
-use syn::{
-    Error,
-    Result,
-    Type,
-};
 
-use crate::attribute::{
-    FieldName,
-    SpannedValue,
-    TextAttribute,
-};
-use crate::normalize::{
-    DecimalIr,
-    DecimalSemantic,
-    ElementConstraintIr,
-    ElementIr,
-    FieldAttributeIr,
-    FieldIr,
-    ModelAttributeIr,
-    ModelIr,
-    ModelShapeIr,
-    NamedFieldsIr,
-    PrimaryKeyIr,
-    UniqueIr,
-};
+use crate::attribute::FieldName;
+use crate::attribute::SpannedValue;
+use crate::attribute::TextAttribute;
+use crate::normalize::DecimalIr;
+use crate::normalize::DecimalSemantic;
+use crate::normalize::ElementConstraintIr;
+use crate::normalize::ElementIr;
+use crate::normalize::FieldAttributeIr;
+use crate::normalize::FieldIr;
+use crate::normalize::ModelAttributeIr;
+use crate::normalize::ModelIr;
+use crate::normalize::ModelShapeIr;
+use crate::normalize::NamedFieldsIr;
+use crate::normalize::PrimaryKeyIr;
+use crate::normalize::UniqueIr;
 
 /// Validates all independently checkable semantics of one normalized model.
 ///

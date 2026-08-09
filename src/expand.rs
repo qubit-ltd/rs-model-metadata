@@ -9,38 +9,30 @@
 // qubit-style: allow source-test-pair
 //! Token generation for normalized static runtime model metadata.
 
-use proc_macro2::{
-    Span,
-    TokenStream,
-};
-use quote::{
-    quote,
-    quote_spanned,
-};
+use proc_macro2::Span;
+use proc_macro2::TokenStream;
+use quote::quote;
+use quote::quote_spanned;
 use syn::LitStr;
 
-use crate::attribute::{
-    RoundingMode,
-    SensitiveHandling,
-    TemporalNormalization,
-    TemporalPrecision,
-    TextFormat,
-    TextRepertoire,
-};
+use crate::attribute::RoundingMode;
+use crate::attribute::SensitiveHandling;
+use crate::attribute::TemporalNormalization;
+use crate::attribute::TemporalPrecision;
+use crate::attribute::TextFormat;
+use crate::attribute::TextRepertoire;
 use crate::input::ModelVariant;
-use crate::normalize::{
-    DecimalSemantic,
-    ElementConstraintIr,
-    ElementIr,
-    FieldAttributeIr,
-    FieldIr,
-    ModelAttributeIr,
-    ModelIr,
-    ModelShapeIr,
-    NamedFieldsIr,
-    PrimaryKeyIr,
-    UniqueIr,
-};
+use crate::normalize::DecimalSemantic;
+use crate::normalize::ElementConstraintIr;
+use crate::normalize::ElementIr;
+use crate::normalize::FieldAttributeIr;
+use crate::normalize::FieldIr;
+use crate::normalize::ModelAttributeIr;
+use crate::normalize::ModelIr;
+use crate::normalize::ModelShapeIr;
+use crate::normalize::NamedFieldsIr;
+use crate::normalize::PrimaryKeyIr;
+use crate::normalize::UniqueIr;
 
 /// Generates static metadata and trait implementations for one normalized
 /// model.

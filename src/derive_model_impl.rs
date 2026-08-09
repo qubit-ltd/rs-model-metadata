@@ -11,12 +11,10 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Result;
 
-use crate::{
-    expand,
-    input,
-    normalize,
-    validate,
-};
+use crate::expand;
+use crate::input;
+use crate::normalize;
+use crate::validate;
 
 /// Expands a parsed derive input with a previously resolved runtime path.
 ///

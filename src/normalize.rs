@@ -10,36 +10,30 @@
 //! Normalization from parsed attribute syntax to expansion-ready semantic IR.
 
 use proc_macro2::Span;
-use syn::{
-    Ident,
-    LitStr,
-    Type,
-    TypePath,
-};
+use syn::Ident;
+use syn::LitStr;
+use syn::Type;
+use syn::TypePath;
 
-use super::attribute::{
-    self,
-    DecimalAttribute,
-    ElementAttribute,
-    ElementConstraintAttribute,
-    FieldAttribute,
-    FieldName,
-    LookupRelationAttribute,
-    MapAttribute,
-    ModelAttribute,
-    ReferenceAttribute,
-    SensitiveAttribute,
-    SequenceAttribute,
-    StrategyAttribute,
-    TemporalAttribute,
-    TextAttribute,
-};
-use super::input::{
-    ModelField,
-    ModelInput,
-    ModelShape,
-    ModelVariant,
-};
+use super::attribute::DecimalAttribute;
+use super::attribute::ElementAttribute;
+use super::attribute::ElementConstraintAttribute;
+use super::attribute::FieldAttribute;
+use super::attribute::FieldName;
+use super::attribute::LookupRelationAttribute;
+use super::attribute::MapAttribute;
+use super::attribute::ModelAttribute;
+use super::attribute::ReferenceAttribute;
+use super::attribute::SensitiveAttribute;
+use super::attribute::SequenceAttribute;
+use super::attribute::StrategyAttribute;
+use super::attribute::TemporalAttribute;
+use super::attribute::TextAttribute;
+use super::attribute::{self};
+use super::input::ModelField;
+use super::input::ModelInput;
+use super::input::ModelShape;
+use super::input::ModelVariant;
 
 /// An expansion-ready model with all shorthand syntax removed.
 pub(crate) struct ModelIr {
