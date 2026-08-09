@@ -15,6 +15,7 @@ use syn::LitStr;
 use syn::Type;
 use syn::TypePath;
 
+use super::attribute;
 use super::attribute::DecimalAttribute;
 use super::attribute::ElementAttribute;
 use super::attribute::ElementConstraintAttribute;
@@ -29,7 +30,6 @@ use super::attribute::SequenceAttribute;
 use super::attribute::StrategyAttribute;
 use super::attribute::TemporalAttribute;
 use super::attribute::TextAttribute;
-use super::attribute::{self};
 use super::input::ModelField;
 use super::input::ModelInput;
 use super::input::ModelShape;

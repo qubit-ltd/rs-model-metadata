@@ -10,7 +10,11 @@
 // qubit-style: allow multiple-public-types
 //! Parsing for `#[model(...)]` attributes.
 
+use std::fmt::Display;
+use std::str::FromStr;
+
 use proc_macro2::Span;
+use proc_macro2::TokenTree;
 use syn::Attribute;
 use syn::Error;
 use syn::Ident;
@@ -24,6 +28,7 @@ use syn::TypePath;
 use syn::ext::IdentExt;
 use syn::meta::ParseNestedMeta;
 use syn::parse::ParseStream;
+use syn::parse_str;
 use syn::spanned::Spanned;
 
 /// A field name together with the source span that declared it.
@@ -1014,7 +1019,7 @@ fn parse_field_path_segment(name: &str, span: Span) -> Result<FieldName> {
     if name.is_empty() {
         return Err(Error::new(span, "field path contains an empty segment"));
     }
-    let ident = syn::parse_str::<Ident>(name).map_err(|_| {
+    let ident = parse_str::<Ident>(name).map_err(|_| {
         Error::new(span, "field path segments must be Rust identifiers")
     })?;
     Ok(FieldName {
@@ -1034,8 +1039,8 @@ fn field_name_from_ident(ident: &Ident) -> FieldName {
 /// Parses an integer assigned to a nested argument.
 fn parse_integer<T>(meta: &ParseNestedMeta<'_>) -> Result<SpannedValue<T>>
 where
-    T: std::str::FromStr,
-    T::Err: std::fmt::Display,
+    T: FromStr,
+    T::Err: Display,
 {
     let literal: LitInt = meta.value()?.parse()?;
     Ok(SpannedValue {
@@ -1094,7 +1099,7 @@ fn is_field_attribute_path(path: &Path) -> bool {
 /// item.
 fn discard_nested_meta_input(input: ParseStream<'_>) -> Result<()> {
     while !input.is_empty() && !input.peek(Token![,]) {
-        input.parse::<proc_macro2::TokenTree>()?;
+        input.parse::<TokenTree>()?;
     }
     Ok(())
 }

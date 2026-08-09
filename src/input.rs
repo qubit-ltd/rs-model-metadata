@@ -13,10 +13,12 @@
 use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
+use syn::Field;
 use syn::Fields;
 use syn::Ident;
 use syn::Result;
 use syn::Type;
+use syn::Variant;
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
@@ -169,10 +171,7 @@ impl ModelInput {
     }
 
     /// Converts one syntactically named field into its minimal metadata input.
-    fn parse_named_field(
-        ordinal: usize,
-        field: syn::Field,
-    ) -> Result<ModelField> {
+    fn parse_named_field(ordinal: usize, field: Field) -> Result<ModelField> {
         let span = field.span();
         let attributes = parse_field_attributes(&field.attrs)?;
         let name = field
@@ -193,7 +192,7 @@ impl ModelInput {
 
     /// Parses a fieldless enum and combines unsupported fields and variant
     /// attributes.
-    fn parse_enum(variants: Vec<syn::Variant>) -> Result<ModelShape> {
+    fn parse_enum(variants: Vec<Variant>) -> Result<ModelShape> {
         let mut errors: Option<Error> = None;
         for variant in &variants {
             for attribute in variant

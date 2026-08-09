@@ -10,6 +10,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Result;
+use syn::parse2;
 
 use crate::expand;
 use crate::input;
@@ -32,7 +33,7 @@ pub(crate) fn derive_model_tokens(
     input: TokenStream,
     runtime_path: Result<TokenStream>,
 ) -> TokenStream {
-    let derive_input = match syn::parse2(input) {
+    let derive_input = match parse2(input) {
         Ok(derive_input) => derive_input,
         Err(error) => return error.into_compile_error(),
     };

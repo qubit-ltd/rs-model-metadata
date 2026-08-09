@@ -9,14 +9,19 @@
 // qubit-style: allow source-test-pair
 //! Token generation for normalized static runtime model metadata.
 
+use std::slice::from_ref;
+
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
 use quote::quote_spanned;
+use syn::Ident;
 use syn::LitStr;
+use syn::Type;
 
 use crate::attribute::RoundingMode;
 use crate::attribute::SensitiveHandling;
+use crate::attribute::SequenceAttribute;
 use crate::attribute::TemporalNormalization;
 use crate::attribute::TemporalPrecision;
 use crate::attribute::TextFormat;
@@ -109,7 +114,7 @@ pub(crate) fn expand_independent_diagnostics(
 fn model_fields(shape: &ModelShapeIr) -> &[FieldIr] {
     match shape {
         ModelShapeIr::NamedStruct(fields) => fields,
-        ModelShapeIr::Newtype(field) => std::slice::from_ref(field.as_ref()),
+        ModelShapeIr::Newtype(field) => from_ref(field.as_ref()),
         ModelShapeIr::UnitStruct | ModelShapeIr::FieldlessEnum(_) => &[],
     }
 }
@@ -118,7 +123,7 @@ fn model_fields(shape: &ModelShapeIr) -> &[FieldIr] {
 fn expand_type_kind(
     shape: &ModelShapeIr,
     attributes: &[ModelAttributeIr],
-    ident: &syn::Ident,
+    ident: &Ident,
     runtime: &TokenStream,
 ) -> TokenStream {
     let unique_capability_assertions =
@@ -430,7 +435,7 @@ fn expand_capability_assertions(
 
 /// Generates one const assertion for a required type capability.
 fn expand_capability_assertion(
-    ty: &syn::Type,
+    ty: &Type,
     span: Span,
     capability: TokenStream,
     message: &str,
@@ -446,8 +451,8 @@ fn expand_capability_assertion(
 
 /// Generates the authoritative sequence capability and redundancy checks.
 fn expand_sequence_capability_assertion(
-    ty: &syn::Type,
-    value: &crate::attribute::SequenceAttribute,
+    ty: &Type,
+    value: &SequenceAttribute,
     runtime: &TokenStream,
 ) -> TokenStream {
     let span = value.span;
@@ -477,7 +482,7 @@ fn expand_sequence_capability_assertion(
 
 /// Generates capability assertions for a field's element constraints.
 fn expand_element_capability_assertion(
-    ty: &syn::Type,
+    ty: &Type,
     value: &ElementIr,
     runtime: &TokenStream,
 ) -> TokenStream {

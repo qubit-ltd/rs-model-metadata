@@ -9,10 +9,14 @@
 // qubit-style: allow source-test-pair
 //! Local semantic validation for normalized derive input.
 
+use std::slice::from_ref;
+
 use proc_macro2::Span;
 use syn::Error;
+use syn::LitStr;
 use syn::Result;
 use syn::Type;
+use syn::TypePath;
 use syn::spanned::Spanned;
 
 use crate::attribute::FieldName;
@@ -57,7 +61,7 @@ pub(crate) fn validate(model: &ModelIr) -> Result<()> {
 fn model_fields(model: &ModelIr) -> &[FieldIr] {
     match &model.shape {
         ModelShapeIr::NamedStruct(fields) => fields,
-        ModelShapeIr::Newtype(field) => std::slice::from_ref(field.as_ref()),
+        ModelShapeIr::Newtype(field) => from_ref(field.as_ref()),
         ModelShapeIr::UnitStruct | ModelShapeIr::FieldlessEnum(_) => &[],
     }
 }
@@ -165,7 +169,7 @@ fn validate_named_constraint_identifiers(
 /// Returns an explicitly declared model-constraint name and its category.
 fn named_constraint_identifier(
     attribute: &ModelAttributeIr,
-) -> Option<(&'static str, &syn::LitStr)> {
+) -> Option<(&'static str, &LitStr)> {
     match attribute {
         ModelAttributeIr::Unique(value) => {
             value.name.first().map(|name| ("unique", name))
@@ -296,7 +300,7 @@ fn same_repeatable_constraint(
 }
 
 /// Compares the first logical-name occurrence of two normalized constraints.
-fn optional_names_equal(left: &[syn::LitStr], right: &[syn::LitStr]) -> bool {
+fn optional_names_equal(left: &[LitStr], right: &[LitStr]) -> bool {
     match (left.first(), right.first()) {
         (Some(left), Some(right)) => left.value() == right.value(),
         (None, None) => true,
@@ -714,7 +718,7 @@ fn element_constraint_span(value: &ElementConstraintIr) -> Span {
 /// Rejects an empty logical codec or generator name.
 fn validate_strategy_name(
     kind: &str,
-    names: &[syn::LitStr],
+    names: &[LitStr],
     errors: &mut Option<Error>,
 ) {
     if let Some(name) = names.first()
@@ -872,7 +876,7 @@ fn validate_duplicate_spans(
 /// Reports every string literal occurrence after the first.
 fn validate_duplicate_literals(
     name: &str,
-    values: &[syn::LitStr],
+    values: &[LitStr],
     errors: &mut Option<Error>,
 ) {
     for value in values.iter().skip(1) {
@@ -886,7 +890,7 @@ fn validate_duplicate_literals(
 /// Reports every type-path occurrence after the first.
 fn validate_duplicate_type_paths(
     name: &str,
-    values: &[syn::TypePath],
+    values: &[TypePath],
     errors: &mut Option<Error>,
 ) {
     for value in values.iter().skip(1) {
