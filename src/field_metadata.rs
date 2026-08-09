@@ -8,28 +8,20 @@
 
 //! Immutable metadata for a declared model field.
 
-use crate::attribute::{
-    AttributeMetadata,
-    ElementMetadata,
-    SensitiveMetadata,
-    StrategyRef,
-};
-use crate::constraint::{
-    DecimalConstraint,
-    MapConstraint,
-    SequenceConstraint,
-    TemporalConstraint,
-    TextConstraint,
-};
-use crate::relation::{
-    LookupRelationMetadata,
-    ReferenceMetadata,
-};
-use crate::type_shape::{
-    TypeCapabilities,
-    TypeRef,
-    TypeShape,
-};
+use crate::attribute::AttributeMetadata;
+use crate::attribute::ElementMetadata;
+use crate::attribute::SensitiveMetadata;
+use crate::attribute::StrategyRef;
+use crate::constraint::DecimalConstraint;
+use crate::constraint::MapConstraint;
+use crate::constraint::SequenceConstraint;
+use crate::constraint::TemporalConstraint;
+use crate::constraint::TextConstraint;
+use crate::relation::LookupRelationMetadata;
+use crate::relation::ReferenceMetadata;
+use crate::type_shape::TypeCapabilities;
+use crate::type_shape::TypeRef;
+use crate::type_shape::TypeShape;
 
 /// Immutable metadata for a declared model field.
 #[derive(Clone, Copy, Debug)]

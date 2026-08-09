@@ -9,38 +9,35 @@
 //! Integration tests for static metadata queries.
 
 use core::any::TypeId;
-
 use std::collections::HashMap;
 
-use qubit_model_metadata::{
-    AttributeKind,
-    AttributeMetadata,
-    AttributeQuery,
-    FieldMetadata,
-    FieldPath,
-    FieldPathResolveError,
-    HasTypeMetadata,
-    HasTypeShape,
-    IndexMetadata,
-    KeyMetadata,
-    NamedTypeRef,
-    OwnershipMetadata,
-    PrimaryKeyFieldMetadata,
-    PrimaryKeyMetadata,
-    StructMetadata,
-    TextConstraint,
-    TextRepertoire,
-    TypeCapabilities,
-    TypeIdentity,
-    TypeKind,
-    TypeMetadata,
-    TypeRef,
-    TypeShape,
-    UniqueComparison,
-    UniqueFieldMetadata,
-    UniqueMetadata,
-    metadata_of,
-};
+use qubit_model_metadata::AttributeKind;
+use qubit_model_metadata::AttributeMetadata;
+use qubit_model_metadata::AttributeQuery;
+use qubit_model_metadata::FieldMetadata;
+use qubit_model_metadata::FieldPath;
+use qubit_model_metadata::FieldPathResolveError;
+use qubit_model_metadata::HasTypeMetadata;
+use qubit_model_metadata::HasTypeShape;
+use qubit_model_metadata::IndexMetadata;
+use qubit_model_metadata::KeyMetadata;
+use qubit_model_metadata::NamedTypeRef;
+use qubit_model_metadata::OwnershipMetadata;
+use qubit_model_metadata::PrimaryKeyFieldMetadata;
+use qubit_model_metadata::PrimaryKeyMetadata;
+use qubit_model_metadata::StructMetadata;
+use qubit_model_metadata::TextConstraint;
+use qubit_model_metadata::TextRepertoire;
+use qubit_model_metadata::TypeCapabilities;
+use qubit_model_metadata::TypeIdentity;
+use qubit_model_metadata::TypeKind;
+use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::TypeRef;
+use qubit_model_metadata::TypeShape;
+use qubit_model_metadata::UniqueComparison;
+use qubit_model_metadata::UniqueFieldMetadata;
+use qubit_model_metadata::UniqueMetadata;
+use qubit_model_metadata::metadata_of;
 
 struct Account;
 struct Contact;

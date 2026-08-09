@@ -8,21 +8,19 @@
 
 //! Integration tests for structural type metadata validation.
 
-use qubit_model_metadata::{
-    AttributeMetadata,
-    EnumMetadata,
-    EnumVariantMetadata,
-    FieldMetadata,
-    IndexMetadata,
-    KeyMetadata,
-    NamedTypeRef,
-    OwnershipMetadata,
-    StructMetadata,
-    TypeIdentity,
-    TypeKind,
-    TypeMetadata,
-    TypeRef,
-};
+use qubit_model_metadata::AttributeMetadata;
+use qubit_model_metadata::EnumMetadata;
+use qubit_model_metadata::EnumVariantMetadata;
+use qubit_model_metadata::FieldMetadata;
+use qubit_model_metadata::IndexMetadata;
+use qubit_model_metadata::KeyMetadata;
+use qubit_model_metadata::NamedTypeRef;
+use qubit_model_metadata::OwnershipMetadata;
+use qubit_model_metadata::StructMetadata;
+use qubit_model_metadata::TypeIdentity;
+use qubit_model_metadata::TypeKind;
+use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::TypeRef;
 
 struct Account;
 struct Organization;

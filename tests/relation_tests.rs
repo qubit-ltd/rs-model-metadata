@@ -8,14 +8,12 @@
 
 //! Integration tests for static field paths and relation value objects.
 
-use qubit_model_metadata::{
-    FieldPath,
-    LookupRelationMetadata,
-    NamedTypeRef,
-    OwnershipMetadata,
-    ReferenceMetadata,
-    TypeIdentity,
-};
+use qubit_model_metadata::FieldPath;
+use qubit_model_metadata::LookupRelationMetadata;
+use qubit_model_metadata::NamedTypeRef;
+use qubit_model_metadata::OwnershipMetadata;
+use qubit_model_metadata::ReferenceMetadata;
+use qubit_model_metadata::TypeIdentity;
 
 struct Target;
 

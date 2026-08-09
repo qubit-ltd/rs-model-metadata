@@ -8,23 +8,21 @@
 
 //! Integration tests for attribute construction invariants.
 
-use qubit_model_metadata::{
-    AttributeKind,
-    AttributeMetadata,
-    ElementMetadata,
-    IndexMetadata,
-    KeyMetadata,
-    PrimaryKeyFieldMetadata,
-    PrimaryKeyMetadata,
-    SensitiveHandling,
-    SensitiveMetadata,
-    StrategyRef,
-    TextConstraint,
-    TextRepertoire,
-    UniqueComparison,
-    UniqueFieldMetadata,
-    UniqueMetadata,
-};
+use qubit_model_metadata::AttributeKind;
+use qubit_model_metadata::AttributeMetadata;
+use qubit_model_metadata::ElementMetadata;
+use qubit_model_metadata::IndexMetadata;
+use qubit_model_metadata::KeyMetadata;
+use qubit_model_metadata::PrimaryKeyFieldMetadata;
+use qubit_model_metadata::PrimaryKeyMetadata;
+use qubit_model_metadata::SensitiveHandling;
+use qubit_model_metadata::SensitiveMetadata;
+use qubit_model_metadata::StrategyRef;
+use qubit_model_metadata::TextConstraint;
+use qubit_model_metadata::TextRepertoire;
+use qubit_model_metadata::UniqueComparison;
+use qubit_model_metadata::UniqueFieldMetadata;
+use qubit_model_metadata::UniqueMetadata;
 
 const PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
     [PrimaryKeyFieldMetadata::new("id", true)];

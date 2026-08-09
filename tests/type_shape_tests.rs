@@ -8,19 +8,15 @@
 
 //! Integration tests for type-shape metadata.
 
-use std::collections::{
-    BTreeMap,
-    HashMap,
-    HashSet,
-};
+use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::collections::HashSet;
 
-use qubit_model_metadata::{
-    HasTypeShape,
-    ScalarType,
-    TypeCapabilities,
-    TypeRef,
-    TypeShape,
-};
+use qubit_model_metadata::HasTypeShape;
+use qubit_model_metadata::ScalarType;
+use qubit_model_metadata::TypeCapabilities;
+use qubit_model_metadata::TypeRef;
+use qubit_model_metadata::TypeShape;
 
 #[test]
 fn test_type_ref_of_nested_option_vector_preserves_each_layer() {
@@ -104,13 +100,11 @@ fn test_set_and_map_shapes_recurse_into_unordered_primitive_types() {
 #[cfg(feature = "chrono")]
 #[test]
 fn test_chrono_types_have_temporal_capability_and_scalar_shapes() {
-    use chrono::{
-        DateTime,
-        NaiveDate,
-        NaiveDateTime,
-        NaiveTime,
-        Utc,
-    };
+    use chrono::DateTime;
+    use chrono::NaiveDate;
+    use chrono::NaiveDateTime;
+    use chrono::NaiveTime;
+    use chrono::Utc;
 
     assert_eq!(
         <NaiveDate as HasTypeShape>::CAPABILITIES,

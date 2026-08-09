@@ -9,18 +9,14 @@
 // qubit-style: allow multiple-public-types
 //! Strongly typed type-level and field-level metadata attributes.
 
-use crate::constraint::{
-    DecimalConstraint,
-    MapConstraint,
-    SequenceConstraint,
-    TemporalConstraint,
-    TextConstraint,
-};
-use crate::relation::{
-    LookupRelationMetadata,
-    OwnershipMetadata,
-    ReferenceMetadata,
-};
+use crate::constraint::DecimalConstraint;
+use crate::constraint::MapConstraint;
+use crate::constraint::SequenceConstraint;
+use crate::constraint::TemporalConstraint;
+use crate::constraint::TextConstraint;
+use crate::relation::LookupRelationMetadata;
+use crate::relation::OwnershipMetadata;
+use crate::relation::ReferenceMetadata;
 
 /// A strongly typed metadata attribute.
 #[derive(Clone, Copy, Debug)]

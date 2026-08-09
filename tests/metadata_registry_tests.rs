@@ -18,14 +18,12 @@
 
 //! Integration tests for explicit metadata resolution.
 
-use qubit_model_metadata::{
-    MetadataRegistry,
-    MetadataResolver,
-    StructMetadata,
-    TypeIdentity,
-    TypeKind,
-    TypeMetadata,
-};
+use qubit_model_metadata::MetadataRegistry;
+use qubit_model_metadata::MetadataResolver;
+use qubit_model_metadata::StructMetadata;
+use qubit_model_metadata::TypeIdentity;
+use qubit_model_metadata::TypeKind;
+use qubit_model_metadata::TypeMetadata;
 
 struct Account;
 struct Organization;

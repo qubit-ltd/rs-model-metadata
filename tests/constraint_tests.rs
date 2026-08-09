@@ -8,19 +8,17 @@
 
 //! Integration tests for constraint construction invariants.
 
-use qubit_model_metadata::{
-    DecimalConstraint,
-    DecimalSemantic,
-    MapConstraint,
-    RoundingMode,
-    SequenceConstraint,
-    TemporalConstraint,
-    TemporalNormalization,
-    TemporalPrecision,
-    TextConstraint,
-    TextFormat,
-    TextRepertoire,
-};
+use qubit_model_metadata::DecimalConstraint;
+use qubit_model_metadata::DecimalSemantic;
+use qubit_model_metadata::MapConstraint;
+use qubit_model_metadata::RoundingMode;
+use qubit_model_metadata::SequenceConstraint;
+use qubit_model_metadata::TemporalConstraint;
+use qubit_model_metadata::TemporalNormalization;
+use qubit_model_metadata::TemporalPrecision;
+use qubit_model_metadata::TextConstraint;
+use qubit_model_metadata::TextFormat;
+use qubit_model_metadata::TextRepertoire;
 
 const VALID_TEXT: TextConstraint = TextConstraint::new(
     Some(1),

@@ -8,17 +8,15 @@
 
 //! Integration tests for field metadata validation and typed queries.
 
-use qubit_model_metadata::{
-    AttributeMetadata,
-    ElementMetadata,
-    FieldMetadata,
-    PrimaryKeyFieldMetadata,
-    PrimaryKeyMetadata,
-    SequenceConstraint,
-    TextConstraint,
-    TextRepertoire,
-    TypeRef,
-};
+use qubit_model_metadata::AttributeMetadata;
+use qubit_model_metadata::ElementMetadata;
+use qubit_model_metadata::FieldMetadata;
+use qubit_model_metadata::PrimaryKeyFieldMetadata;
+use qubit_model_metadata::PrimaryKeyMetadata;
+use qubit_model_metadata::SequenceConstraint;
+use qubit_model_metadata::TextConstraint;
+use qubit_model_metadata::TextRepertoire;
+use qubit_model_metadata::TypeRef;
 
 static INVALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Text(TextConstraint::new(

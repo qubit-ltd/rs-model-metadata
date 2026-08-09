@@ -9,23 +9,17 @@
 // qubit-style: allow multiple-public-types
 //! Read-only attribute and field-path query operations.
 
-use crate::attribute::{
-    AttributeKind,
-    AttributeMetadata,
-    IndexMetadata,
-    KeyMetadata,
-    PrimaryKeyMetadata,
-    UniqueMetadata,
-};
+use crate::attribute::AttributeKind;
+use crate::attribute::AttributeMetadata;
+use crate::attribute::IndexMetadata;
+use crate::attribute::KeyMetadata;
+use crate::attribute::PrimaryKeyMetadata;
+use crate::attribute::UniqueMetadata;
 use crate::field_metadata::FieldMetadata;
-use crate::relation::{
-    FieldPath,
-    OwnershipMetadata,
-};
-use crate::type_metadata::{
-    TypeKind,
-    TypeMetadata,
-};
+use crate::relation::FieldPath;
+use crate::relation::OwnershipMetadata;
+use crate::type_metadata::TypeKind;
+use crate::type_metadata::TypeMetadata;
 use crate::type_shape::TypeShape;
 
 /// Provides allocation-free queries over a static metadata attribute slice.

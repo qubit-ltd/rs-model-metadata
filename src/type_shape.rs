@@ -12,19 +12,15 @@
 // qubit-style: allow multiple-public-types
 
 use core::any::type_name;
-use std::collections::{
-    BTreeMap,
-    BTreeSet,
-    HashMap,
-    HashSet,
-};
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 use bitflags::bitflags;
 
-use crate::type_metadata::{
-    NamedTypeRef,
-    TypeMetadata,
-};
+use crate::type_metadata::NamedTypeRef;
+use crate::type_metadata::TypeMetadata;
 
 bitflags! {
     /// Capabilities that determine which metadata attributes a type can accept.

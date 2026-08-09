@@ -9,10 +9,8 @@
 // qubit-style: allow multiple-public-types
 //! Immutable metadata for named Rust model types.
 
-use core::any::{
-    TypeId,
-    type_name,
-};
+use core::any::TypeId;
+use core::any::type_name;
 
 use crate::attribute::AttributeMetadata;
 use crate::field_metadata::FieldMetadata;
