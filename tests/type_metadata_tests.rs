@@ -16,6 +16,7 @@ use qubit_model_metadata::IndexMetadata;
 use qubit_model_metadata::KeyMetadata;
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::NamedTypeRef;
+use qubit_model_metadata::NewtypeMetadata;
 use qubit_model_metadata::OwnershipMetadata;
 use qubit_model_metadata::PrimaryKeyFieldMetadata;
 use qubit_model_metadata::PrimaryKeyMetadata;
@@ -54,10 +55,8 @@ static INVALID_INDEX_ATTRIBUTES: [AttributeMetadata; 1] =
 static KEY_FIELDS: [&str; 1] = ["id"];
 static UNKNOWN_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
     [PrimaryKeyFieldMetadata::new("missing", false)];
-static UNKNOWN_UNIQUE_FIELDS: [UniqueFieldMetadata; 1] = [UniqueFieldMetadata::new(
-    "missing",
-    UniqueComparison::Exact,
-)];
+static UNKNOWN_UNIQUE_FIELDS: [UniqueFieldMetadata; 1] =
+    [UniqueFieldMetadata::new("missing", UniqueComparison::Exact)];
 static UNKNOWN_KEY_FIELDS: [&str; 1] = ["missing"];
 static INVALID_PRIMARY_KEY_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
@@ -74,18 +73,22 @@ static INVALID_KEY_ATTRIBUTES: [AttributeMetadata; 1] =
         &UNKNOWN_KEY_FIELDS,
     ))];
 static DUPLICATE_PRIMARY_KEY_ATTRIBUTES: [AttributeMetadata; 2] = [
-    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(&ACCOUNT_PRIMARY_KEY_FIELDS)),
-    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(&ACCOUNT_PRIMARY_KEY_FIELDS)),
+    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
+        &ACCOUNT_PRIMARY_KEY_FIELDS,
+    )),
+    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
+        &ACCOUNT_PRIMARY_KEY_FIELDS,
+    )),
 ];
 static ACCOUNT_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
     [PrimaryKeyFieldMetadata::new("id", true)];
 static DUPLICATE_OWNERSHIP_ATTRIBUTES: [AttributeMetadata; 2] = [
-    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::unresolved(
-        TypeIdentity::of::<Organization>(),
-    ))),
-    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::unresolved(
-        TypeIdentity::of::<Organization>(),
-    ))),
+    AttributeMetadata::Ownership(OwnershipMetadata::new(
+        NamedTypeRef::unresolved(TypeIdentity::of::<Organization>()),
+    )),
+    AttributeMetadata::Ownership(OwnershipMetadata::new(
+        NamedTypeRef::unresolved(TypeIdentity::of::<Organization>()),
+    )),
 ];
 static QUERY_ATTRIBUTES: [AttributeMetadata; 2] = [
     AttributeMetadata::Key(KeyMetadata::new(Some("account"), &KEY_FIELDS)),
@@ -136,7 +139,9 @@ fn test_type_metadata_rejects_unknown_primary_key_fields() {
 }
 
 #[test]
-#[should_panic(expected = "unique constraint references an unknown model field")]
+#[should_panic(
+    expected = "unique constraint references an unknown model field"
+)]
 fn test_type_metadata_rejects_unknown_unique_fields() {
     let _ = TypeMetadata::new(
         ModelId::from_static("test.metadata.Account"),
@@ -221,9 +226,7 @@ fn test_type_metadata_has_no_struct_fields_for_enum_or_newtype() {
     let newtype_metadata = TypeMetadata::new(
         ModelId::from_static("test.metadata.Organization"),
         TypeIdentity::of::<Account>(),
-        TypeKind::Newtype(qubit_model_metadata::NewtypeMetadata::new(
-            ACCOUNT_FIELDS[0],
-        )),
+        TypeKind::Newtype(NewtypeMetadata::new(ACCOUNT_FIELDS[0])),
         &[],
     );
 

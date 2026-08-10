@@ -17,13 +17,8 @@ static DECLARED_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     TypeRef::of::<i64>(),
     &[],
 )];
-static EMPTY_NAME_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
-    0,
-    "",
-    "i64",
-    TypeRef::of::<i64>(),
-    &[],
-)];
+static EMPTY_NAME_FIELDS: [FieldMetadata; 1] =
+    [FieldMetadata::new(0, "", "i64", TypeRef::of::<i64>(), &[])];
 static DUPLICATE_NAME_FIELDS: [FieldMetadata; 2] = [
     FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &[]),
     FieldMetadata::new(1, "id", "i64", TypeRef::of::<i64>(), &[]),
@@ -38,7 +33,10 @@ fn test_struct_metadata_exposes_empty_fields() {
 fn test_struct_metadata_exposes_declared_fields() {
     let metadata = StructMetadata::new(&DECLARED_FIELDS);
 
-    assert!(core::ptr::eq(metadata.fields().as_ptr(), DECLARED_FIELDS.as_ptr()));
+    assert!(core::ptr::eq(
+        metadata.fields().as_ptr(),
+        DECLARED_FIELDS.as_ptr()
+    ));
     assert_eq!(metadata.fields().len(), DECLARED_FIELDS.len());
     assert_eq!(metadata.fields()[0].name(), "id");
 }

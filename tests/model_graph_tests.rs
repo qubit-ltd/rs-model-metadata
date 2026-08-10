@@ -483,9 +483,11 @@ fn test_validate_graph_aggregates_direct_reference_errors_and_required_cycles()
         .validate_graph()
         .expect_err("the reference graph should be invalid");
     assert_eq!(errors.errors(), expected);
-    assert!(errors
-        .to_string()
-        .starts_with("model graph validation failed; "));
+    assert!(
+        errors
+            .to_string()
+            .starts_with("model graph validation failed; ")
+    );
 
     let reversed_registry = ModelRegistry::from_registrations(registrations.into_iter().rev())
         .expect("the registrations should be valid and unique regardless of input order");

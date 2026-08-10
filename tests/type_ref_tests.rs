@@ -6,8 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use qubit_model_metadata::TypeRef;
 use qubit_model_metadata::TypeCapabilities;
+use qubit_model_metadata::TypeRef;
 use qubit_model_metadata::TypeShape;
 
 struct OpaqueType;

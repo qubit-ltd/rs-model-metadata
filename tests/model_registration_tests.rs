@@ -43,5 +43,8 @@ fn test_model_registration_exposes_declaration_details() {
     );
     assert_eq!(registration.rust_module_path(), "model_registration_tests");
     assert_eq!(registration.source(), source);
-    assert_eq!(registration.to_string(), "model_registration_tests::Account in model_registration_tests at tests/model_registration_tests.rs:27:3");
+    assert_eq!(
+        registration.to_string(),
+        "model_registration_tests::Account in model_registration_tests at tests/model_registration_tests.rs:27:3"
+    );
 }

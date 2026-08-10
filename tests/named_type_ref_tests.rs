@@ -49,11 +49,12 @@ fn test_named_type_ref_resolves_registered_metadata() {
 
 #[test]
 fn test_named_type_ref_supports_custom_and_unresolved_resolvers() {
-    let custom = NamedTypeRef::new(
-        TypeIdentity::of::<ReferencedModel>(),
-        || &REFERENCED_METADATA,
-    );
-    let unresolved = NamedTypeRef::unresolved(TypeIdentity::of::<ReferencedModel>());
+    let custom =
+        NamedTypeRef::new(TypeIdentity::of::<ReferencedModel>(), || {
+            &REFERENCED_METADATA
+        });
+    let unresolved =
+        NamedTypeRef::unresolved(TypeIdentity::of::<ReferencedModel>());
 
     assert_eq!(custom.identity(), TypeIdentity::of::<ReferencedModel>());
     assert!(custom.metadata().is_some());

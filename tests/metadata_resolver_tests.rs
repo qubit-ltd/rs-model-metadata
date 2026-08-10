@@ -58,8 +58,9 @@ fn test_registry_implements_metadata_resolver() {
 
 #[test]
 fn test_registry_resolves_registered_type_identity() {
-    let registry = ModelRegistry::from_registrations([&REGISTERED_REGISTRATION])
-        .expect("the registration should be valid");
+    let registry =
+        ModelRegistry::from_registrations([&REGISTERED_REGISTRATION])
+            .expect("the registration should be valid");
 
     assert!(core::ptr::eq(
         registry

@@ -18,6 +18,7 @@ use qubit_model_metadata::IndexMetadata;
 use qubit_model_metadata::KeyMetadata;
 use qubit_model_metadata::LookupRelationMetadata;
 use qubit_model_metadata::MapConstraint;
+use qubit_model_metadata::ModelId;
 use qubit_model_metadata::NamedTypeRef;
 use qubit_model_metadata::OwnershipMetadata;
 use qubit_model_metadata::PrimaryKeyFieldMetadata;
@@ -33,6 +34,7 @@ use qubit_model_metadata::TemporalNormalization;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
 use qubit_model_metadata::TextRepertoire;
+use qubit_model_metadata::TypeIdentity;
 use qubit_model_metadata::UniqueComparison;
 use qubit_model_metadata::UniqueFieldMetadata;
 use qubit_model_metadata::UniqueMetadata;
@@ -122,21 +124,17 @@ fn test_attribute_metadata_reports_every_kind() {
         AttributeMetadata::Index(VALID_INDEX),
         AttributeMetadata::Key(VALID_KEY),
         AttributeMetadata::Reference(ReferenceMetadata::new(
-            qubit_model_metadata::ModelId::from_static("test.Target"),
+            ModelId::from_static("test.Target"),
             FieldPath::new(&["id"]),
             true,
             None,
         )),
         AttributeMetadata::LookupRelation(LookupRelationMetadata::new(
-            NamedTypeRef::unresolved(qubit_model_metadata::TypeIdentity::of::<
-                u64,
-            >()),
+            NamedTypeRef::unresolved(TypeIdentity::of::<u64>()),
             FieldPath::new(&["id"]),
         )),
         AttributeMetadata::Ownership(OwnershipMetadata::new(
-            NamedTypeRef::unresolved(qubit_model_metadata::TypeIdentity::of::<
-                u64,
-            >()),
+            NamedTypeRef::unresolved(TypeIdentity::of::<u64>()),
         )),
         AttributeMetadata::Codec(STRATEGY),
         AttributeMetadata::Generator(StrategyRef::new("generate-id")),
@@ -212,7 +210,8 @@ fn test_metadata_accessors_return_declared_values() {
 #[test]
 fn test_metadata_accessors_return_runtime_values() {
     let generated = PrimaryKeyFieldMetadata::new("created_id", false);
-    let unique = UniqueFieldMetadata::new("display_name", UniqueComparison::Exact);
+    let unique =
+        UniqueFieldMetadata::new("display_name", UniqueComparison::Exact);
     let sensitive = SensitiveMetadata::new(SensitiveHandling::Redact);
 
     assert_eq!(generated.name(), "created_id");

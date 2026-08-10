@@ -12,8 +12,8 @@ use qubit_model_metadata::AttributeMetadata;
 use qubit_model_metadata::DecimalConstraint;
 use qubit_model_metadata::DecimalSemantic;
 use qubit_model_metadata::ElementMetadata;
-use qubit_model_metadata::FieldPath;
 use qubit_model_metadata::FieldMetadata;
+use qubit_model_metadata::FieldPath;
 use qubit_model_metadata::HasTypeShape;
 use qubit_model_metadata::LookupRelationMetadata;
 use qubit_model_metadata::MapConstraint;
@@ -33,6 +33,7 @@ use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
 use qubit_model_metadata::TextRepertoire;
 use qubit_model_metadata::TypeCapabilities;
+use qubit_model_metadata::TypeIdentity;
 use qubit_model_metadata::TypeRef;
 use qubit_model_metadata::TypeShape;
 
@@ -128,19 +129,25 @@ static RELATION_ATTRIBUTES: [AttributeMetadata; 5] = [
         None,
     )),
     AttributeMetadata::LookupRelation(LookupRelationMetadata::new(
-        NamedTypeRef::unresolved(qubit_model_metadata::TypeIdentity::of::<
-            DecimalValue,
-        >()),
+        NamedTypeRef::unresolved(TypeIdentity::of::<DecimalValue>()),
         FieldPath::new(&["id"]),
     )),
     AttributeMetadata::Codec(StrategyRef::new("decode")),
     AttributeMetadata::Generator(StrategyRef::new("generate")),
-    AttributeMetadata::Sensitive(SensitiveMetadata::new(SensitiveHandling::Mask)),
+    AttributeMetadata::Sensitive(SensitiveMetadata::new(
+        SensitiveHandling::Mask,
+    )),
 ];
 static FIXED_SEQUENCE_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Sequence(SequenceConstraint::new(None, None, false))];
+    [AttributeMetadata::Sequence(SequenceConstraint::new(
+        None, None, false,
+    ))];
 static FIXED_SEQUENCE_WITH_LENGTH_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Sequence(SequenceConstraint::new(Some(1), None, false))];
+    [AttributeMetadata::Sequence(SequenceConstraint::new(
+        Some(1),
+        None,
+        false,
+    ))];
 static ELEMENT_DECIMAL_ON_INTEGER_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Element(ElementMetadata::new(
         &DECIMAL_ELEMENT_ATTRIBUTES,
@@ -200,13 +207,24 @@ fn test_field_metadata_exposes_all_typed_attribute_queries() {
         &RELATION_ATTRIBUTES,
     );
 
-    assert_eq!(text.text_constraint().and_then(|value| value.max_chars()), Some(32));
-    assert_eq!(map.map_constraint().and_then(|value| value.max_entries()), Some(4));
     assert_eq!(
-        temporal.temporal_constraint().map(|value| value.precision()),
+        text.text_constraint().and_then(|value| value.max_chars()),
+        Some(32)
+    );
+    assert_eq!(
+        map.map_constraint().and_then(|value| value.max_entries()),
+        Some(4)
+    );
+    assert_eq!(
+        temporal
+            .temporal_constraint()
+            .map(|value| value.precision()),
         Some(TemporalPrecision::Second)
     );
-    assert_eq!(decimal.decimal_constraint().map(|value| value.scale()), Some(2));
+    assert_eq!(
+        decimal.decimal_constraint().map(|value| value.scale()),
+        Some(2)
+    );
     assert!(relations.reference().is_some());
     assert!(relations.lookup_relation().is_some());
     assert_eq!(relations.codec().map(|value| value.name()), Some("decode"));
@@ -243,7 +261,10 @@ fn test_field_metadata_accepts_fixed_array_without_length_constraints() {
         &FIXED_SEQUENCE_ATTRIBUTES,
     );
 
-    assert_eq!(field.sequence_constraint().map(|value| value.max_items()), Some(None));
+    assert_eq!(
+        field.sequence_constraint().map(|value| value.max_items()),
+        Some(None)
+    );
 }
 
 #[test]
@@ -356,7 +377,9 @@ fn test_field_metadata_rejects_length_constraints_on_fixed_arrays() {
 }
 
 #[test]
-#[should_panic(expected = "decimal attributes require a decimal-capable element")]
+#[should_panic(
+    expected = "decimal attributes require a decimal-capable element"
+)]
 fn test_field_metadata_rejects_decimal_constraints_on_integer_elements() {
     let _ = FieldMetadata::new(
         0,
