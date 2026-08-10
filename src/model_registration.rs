@@ -1,0 +1,127 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+//    You may obtain a copy of the License at
+//
+//        http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS,
+//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//    See the License for the specific language governing permissions and
+//    limitations under the License.
+// =============================================================================
+
+//! Distributed declarations for statically linked model metadata.
+
+use std::fmt;
+
+use linkme::distributed_slice;
+
+use crate::model_id::ModelId;
+use crate::type_metadata::TypeMetadata;
+
+mod source_location;
+
+pub use self::source_location::SourceLocation;
+
+/// A statically linked model metadata declaration.
+#[derive(Debug)]
+pub struct ModelRegistration {
+    /// The stable model identifier used as the registry key.
+    id: ModelId,
+    /// The metadata exposed by the registered Rust type.
+    metadata: &'static TypeMetadata,
+    /// The fully qualified Rust type name supplied by the derive macro.
+    rust_type_name: &'static str,
+    /// The Rust module path supplied by the derive macro.
+    rust_module_path: &'static str,
+    /// The registration declaration's source location.
+    source: SourceLocation,
+}
+
+impl ModelRegistration {
+    /// Creates a static model registration.
+    ///
+    /// # Parameters
+    ///
+    /// * `id` - The stable identifier used for registry lookups.
+    /// * `metadata` - The immutable metadata registered for this model.
+    /// * `rust_type_name` - The fully qualified Rust type name.
+    /// * `rust_module_path` - The Rust module path containing the declaration.
+    /// * `source` - The declaration's source location.
+    ///
+    /// # Returns
+    ///
+    /// A registration that can be placed in [`MODEL_REGISTRATIONS`].
+    #[must_use]
+    #[inline(always)]
+    pub const fn new(
+        id: ModelId,
+        metadata: &'static TypeMetadata,
+        rust_type_name: &'static str,
+        rust_module_path: &'static str,
+        source: SourceLocation,
+    ) -> Self {
+        Self {
+            id,
+            metadata,
+            rust_type_name,
+            rust_module_path,
+            source,
+        }
+    }
+
+    /// Returns the stable identifier used to register this model.
+    #[must_use]
+    #[inline(always)]
+    pub const fn id(&self) -> ModelId {
+        self.id
+    }
+
+    /// Returns the immutable metadata registered for this model.
+    #[inline(always)]
+    pub const fn metadata(&self) -> &'static TypeMetadata {
+        self.metadata
+    }
+
+    /// Returns the fully qualified Rust type name supplied by the registration.
+    #[must_use]
+    #[inline(always)]
+    pub const fn rust_type_name(&self) -> &'static str {
+        self.rust_type_name
+    }
+
+    /// Returns the Rust module path supplied by the registration.
+    #[must_use]
+    #[inline(always)]
+    pub const fn rust_module_path(&self) -> &'static str {
+        self.rust_module_path
+    }
+
+    /// Returns the source location where this registration was declared.
+    #[must_use]
+    #[inline(always)]
+    pub const fn source(&self) -> SourceLocation {
+        self.source
+    }
+}
+
+impl fmt::Display for ModelRegistration {
+    /// Formats the Rust type, module path, and declaration source location.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{} in {} at {}",
+            self.rust_type_name, self.rust_module_path, self.source,
+        )
+    }
+}
+
+/// Collects registrations emitted by linked model crates.
+#[distributed_slice]
+pub static MODEL_REGISTRATIONS: [ModelRegistration];

@@ -1,0 +1,67 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
+use super::PrimaryKeyFieldMetadata;
+use super::validation::validate_primary_key_fields;
+
+/// A model-level primary-key definition.
+#[derive(Clone, Copy, Debug)]
+pub struct PrimaryKeyMetadata {
+    /// The primary-key fields in declaration order.
+    fields: &'static [PrimaryKeyFieldMetadata],
+}
+
+impl PrimaryKeyMetadata {
+    /// Creates a primary-key definition from its ordered fields.
+    ///
+    /// # Parameters
+    ///
+    /// * `fields` - The non-empty, distinct fields in declaration order.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `fields` is empty.
+    ///
+    /// # Returns
+    ///
+    /// A primary-key definition containing the supplied fields.
+    #[must_use]
+    pub const fn new(fields: &'static [PrimaryKeyFieldMetadata]) -> Self {
+        assert!(
+            !fields.is_empty(),
+            "primary key requires at least one field"
+        );
+        validate_primary_key_fields(fields);
+        Self { fields }
+    }
+
+    /// Returns the primary-key fields in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// The statically allocated primary-key fields.
+    #[must_use]
+    #[inline(always)]
+    pub const fn fields(self) -> &'static [PrimaryKeyFieldMetadata] {
+        self.fields
+    }
+
+    /// Returns whether this primary key contains a field with `name`.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The normalized field name to search for.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the primary key contains `name`; otherwise, `false`.
+    #[must_use]
+    pub fn contains(self, name: &str) -> bool {
+        self.fields.iter().any(|field| field.name() == name)
+    }
+}

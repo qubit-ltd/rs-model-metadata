@@ -13,6 +13,9 @@ mod constraint;
 mod field_metadata;
 mod metadata_registry;
 mod metadata_resolver;
+mod model_graph;
+mod model_id;
+mod model_registration;
 mod query;
 mod relation;
 mod type_metadata;
@@ -43,8 +46,16 @@ pub use crate::constraint::TextConstraint;
 pub use crate::constraint::TextFormat;
 pub use crate::constraint::TextRepertoire;
 pub use crate::field_metadata::FieldMetadata;
-pub use crate::metadata_registry::MetadataRegistry;
+pub use crate::metadata_registry::ModelRegistry;
+pub use crate::metadata_registry::ModelRegistryError;
 pub use crate::metadata_resolver::MetadataResolver;
+pub use crate::model_graph::ModelGraphError;
+pub use crate::model_graph::ModelGraphErrors;
+pub use crate::model_id::ModelId;
+pub use crate::model_id::ModelIdError;
+pub use crate::model_registration::MODEL_REGISTRATIONS;
+pub use crate::model_registration::ModelRegistration;
+pub use crate::model_registration::SourceLocation;
 pub use crate::query::AttributeQuery;
 pub use crate::query::FieldPathResolveError;
 pub use crate::relation::FieldPath;
@@ -66,3 +77,9 @@ pub use crate::type_shape::ScalarType;
 pub use crate::type_shape::TypeCapabilities;
 pub use crate::type_shape::TypeRef;
 pub use crate::type_shape::TypeShape;
+
+/// Internal dependency re-exports used by generated model-registration code.
+#[doc(hidden)]
+pub mod __private {
+    pub use linkme;
+}

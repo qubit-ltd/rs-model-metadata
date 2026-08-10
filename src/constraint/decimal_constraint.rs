@@ -1,0 +1,108 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
+use super::DecimalSemantic;
+use super::RoundingMode;
+
+/// Constraints for decimal values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DecimalConstraint {
+    /// The total significant-digit precision, if constrained.
+    precision: Option<u16>,
+    /// The number of decimal places.
+    scale: u16,
+    /// The required rounding strategy.
+    rounding: RoundingMode,
+    /// The domain meaning of the decimal value.
+    semantic: DecimalSemantic,
+}
+
+impl DecimalConstraint {
+    /// Creates decimal constraints from precision, scale, rounding, and
+    /// semantic meaning.
+    ///
+    /// # Parameters
+    ///
+    /// * `precision` - The optional total significant-digit precision.
+    /// * `scale` - The number of decimal places.
+    /// * `rounding` - The required rounding strategy.
+    /// * `semantic` - The domain meaning of the decimal value.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `scale` exceeds a supplied `precision`.
+    ///
+    /// # Returns
+    ///
+    /// Decimal constraints containing the supplied precision, scale, and
+    /// policies.
+    #[must_use]
+    pub const fn new(
+        precision: Option<u16>,
+        scale: u16,
+        rounding: RoundingMode,
+        semantic: DecimalSemantic,
+    ) -> Self {
+        if let Some(precision) = precision {
+            assert!(
+                scale <= precision,
+                "decimal scale cannot exceed precision"
+            );
+        }
+        Self {
+            precision,
+            scale,
+            rounding,
+            semantic,
+        }
+    }
+
+    /// Returns the total significant-digit precision, if constrained.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the precision when constrained; otherwise, `None`.
+    #[must_use]
+    #[inline(always)]
+    pub const fn precision(self) -> Option<u16> {
+        self.precision
+    }
+
+    /// Returns the number of decimal places.
+    ///
+    /// # Returns
+    ///
+    /// The number of decimal places.
+    #[must_use]
+    #[inline(always)]
+    pub const fn scale(self) -> u16 {
+        self.scale
+    }
+
+    /// Returns the required rounding strategy.
+    ///
+    /// # Returns
+    ///
+    /// The required rounding strategy.
+    #[must_use]
+    #[inline(always)]
+    pub const fn rounding(self) -> RoundingMode {
+        self.rounding
+    }
+
+    /// Returns whether the value is an ordinary number or money.
+    ///
+    /// # Returns
+    ///
+    /// The domain meaning of the decimal value.
+    #[must_use]
+    #[inline(always)]
+    pub const fn semantic(self) -> DecimalSemantic {
+        self.semantic
+    }
+}

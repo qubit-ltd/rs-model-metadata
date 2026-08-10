@@ -6,10 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-// qubit-style: allow multiple-public-types
 //! Read-only attribute and field-path query operations.
 
-use crate::attribute::AttributeKind;
 use crate::attribute::AttributeMetadata;
 use crate::attribute::IndexMetadata;
 use crate::attribute::KeyMetadata;
@@ -22,104 +20,11 @@ use crate::type_metadata::TypeKind;
 use crate::type_metadata::TypeMetadata;
 use crate::type_shape::TypeShape;
 
-/// Provides allocation-free queries over a static metadata attribute slice.
-pub trait AttributeQuery {
-    /// Returns the complete static attribute slice.
-    ///
-    /// # Returns
-    ///
-    /// The attributes exposed by the implementing metadata value in
-    /// declaration order.
-    #[must_use]
-    fn attributes(&self) -> &'static [AttributeMetadata];
+mod attribute_query;
+mod field_path_resolve_error;
 
-    /// Returns the first attribute with `kind`, or `None` when it is absent.
-    ///
-    /// # Parameters
-    ///
-    /// - `kind`: The attribute kind to find.
-    ///
-    /// # Returns
-    ///
-    /// `Some` with the first matching attribute, or `None` when no attribute
-    /// has the requested kind.
-    #[must_use]
-    fn attribute(
-        &self,
-        kind: AttributeKind,
-    ) -> Option<&'static AttributeMetadata> {
-        self.attributes()
-            .iter()
-            .find(|attribute| attribute.kind() == kind)
-    }
-
-    /// Returns an iterator over every attribute with `kind` in declaration
-    /// order.
-    ///
-    /// # Parameters
-    ///
-    /// - `kind`: The attribute kind to find.
-    ///
-    /// # Returns
-    ///
-    /// An iterator over matching attributes in declaration order. The
-    /// iterator is empty when no attribute has the requested kind.
-    #[must_use]
-    fn attributes_of(
-        &self,
-        kind: AttributeKind,
-    ) -> impl Iterator<Item = &'static AttributeMetadata> {
-        self.attributes()
-            .iter()
-            .filter(move |attribute| attribute.kind() == kind)
-    }
-}
-
-impl AttributeQuery for TypeMetadata {
-    /// Returns the model-level static attribute slice.
-    ///
-    /// # Returns
-    ///
-    /// The model-level attributes in declaration order.
-    #[inline(always)]
-    fn attributes(&self) -> &'static [AttributeMetadata] {
-        TypeMetadata::attributes(self)
-    }
-}
-
-impl AttributeQuery for FieldMetadata {
-    /// Returns the field-level static attribute slice.
-    ///
-    /// # Returns
-    ///
-    /// The field-level attributes in declaration order.
-    #[inline(always)]
-    fn attributes(&self) -> &'static [AttributeMetadata] {
-        (*self).attributes()
-    }
-}
-
-/// A typed reason why a field path cannot be resolved.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FieldPathResolveError {
-    /// The supplied path contains no segments.
-    EmptyPath,
-    /// A field segment is not present in the current struct metadata.
-    FieldNotFound {
-        /// The missing field segment.
-        segment: &'static str,
-    },
-    /// A non-final path segment does not refer to a named struct.
-    IntermediateNotStruct {
-        /// The segment whose field cannot be traversed.
-        segment: &'static str,
-    },
-    /// A named intermediate field has no metadata resolver.
-    NamedMetadataUnavailable {
-        /// The segment whose named type could not be resolved.
-        segment: &'static str,
-    },
-}
+pub use self::attribute_query::AttributeQuery;
+pub use self::field_path_resolve_error::FieldPathResolveError;
 
 impl TypeMetadata {
     /// Returns the model's named fields in declaration order.
