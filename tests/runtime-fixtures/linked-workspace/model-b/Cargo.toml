@@ -1,0 +1,12 @@
+[package]
+name = "model-b"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+qubit-model-derive = { path = "../../../../" }
+qubit-model-metadata = { path = "../../../../../rs-model-metadata" }
+
+[features]
+duplicate-fixture = []

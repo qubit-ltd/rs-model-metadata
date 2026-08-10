@@ -1,0 +1,5 @@
+error: expected string literal
+  --> tests/ui/fail/model_id_non_string.rs:10:14
+   |
+10 | #[model(id = 42)]
+   |              ^^

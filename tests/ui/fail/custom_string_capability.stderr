@@ -24,9 +24,9 @@ note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
    | |_____________- in this macro invocation
 
 error[E0080]: evaluation panicked: `text` requires a text-capable field
-  --> tests/ui/fail/custom_string_capability.rs:17:13
+  --> tests/ui/fail/custom_string_capability.rs:18:13
    |
-17 |     #[model(text(max_chars = 8))]
+18 |     #[model(text(max_chars = 8))]
    |             ^^^^ evaluation of `_::FIELDS::_` failed here
 
 note: erroneous constant encountered

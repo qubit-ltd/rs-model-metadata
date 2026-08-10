@@ -7,14 +7,16 @@
 // =============================================================================
 
 #[derive(qubit_model_derive::ModelMetadata)]
+#[model(id = "test.derive.Organization")]
 struct Organization {
     id: i64,
 }
 
 #[derive(qubit_model_derive::ModelMetadata)]
+#[model(id = "test.derive.Invalid")]
 struct Invalid {
     nested: String,
-    #[model(reference(target = Organization, target_field = id, same_as = "missing.id"))]
+    #[model(reference(target = "test.derive.Organization", target_field = id, same_as = "missing.id"))]
     organization_id: i64,
 }
 

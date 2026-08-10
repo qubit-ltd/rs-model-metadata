@@ -7,6 +7,7 @@
 // =============================================================================
 
 #[derive(qubit_model_derive::ModelMetadata)]
+#[model(id = "test.derive.Invalid")]
 enum Invalid {
     Value(i64),
 }

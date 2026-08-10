@@ -1,11 +1,11 @@
 error: unexpected end of input, expected nested attribute
-  --> tests/ui/fail/element_syntax.rs:11:21
+  --> tests/ui/fail/element_syntax.rs:12:21
    |
-11 |     #[model(element())]
+12 |     #[model(element())]
    |                     ^
 
 error: element only supports `text(...)` or `decimal(...)`
-  --> tests/ui/fail/element_syntax.rs:13:21
+  --> tests/ui/fail/element_syntax.rs:14:21
    |
-13 |     #[model(element(time(precision = second)))]
+14 |     #[model(element(time(precision = second)))]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^

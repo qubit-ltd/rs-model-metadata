@@ -1,0 +1,5 @@
+error: duplicate model ID
+  --> tests/ui/fail/model_id_duplicate.rs:11:14
+   |
+11 | #[model(id = "test.derive.Duplicate")]
+   |              ^^^^^^^^^^^^^^^^^^^^^^^

@@ -1,0 +1,13 @@
+[package]
+name = "collector"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+model-a = { path = "../model-a" }
+model-b = { path = "../model-b" }
+qubit-model-metadata = { path = "../../../../../rs-model-metadata" }
+
+[features]
+duplicate-fixture = ["model-a/duplicate-fixture", "model-b/duplicate-fixture"]

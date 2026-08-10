@@ -14,6 +14,7 @@ use qubit_model_derive::ModelMetadata;
 mod model_runtime {}
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.RenamedRuntimeUser")]
 #[allow(dead_code)]
 struct RenamedRuntimeUser {
     id: i64,

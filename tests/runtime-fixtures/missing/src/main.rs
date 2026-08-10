@@ -9,6 +9,7 @@
 use qubit_model_derive::ModelMetadata;
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Missing")]
 struct Missing {
     value: String,
 }

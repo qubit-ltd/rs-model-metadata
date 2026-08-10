@@ -9,7 +9,7 @@
 use qubit_model_derive::ModelMetadata;
 
 #[derive(ModelMetadata)]
-#[model(primary_key(fields(value)))]
+#[model(id = "test.derive.Invalid", primary_key(fields(value)))]
 struct Invalid;
 
 fn main() {}

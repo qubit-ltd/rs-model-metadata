@@ -20,21 +20,21 @@ note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
    |                     ----------------------------------------------------- in this macro invocation
 
 error[E0080]: evaluation panicked: `element` requires a sequence field
-  --> tests/ui/fail/element_constraints.rs:13:13
+  --> tests/ui/fail/element_constraints.rs:14:13
    |
-13 |     #[model(element(text(repertoire = ascii)))]
+14 |     #[model(element(text(repertoire = ascii)))]
    |             ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `element(decimal(...))` requires a decimal-capable element
-  --> tests/ui/fail/element_constraints.rs:15:21
+  --> tests/ui/fail/element_constraints.rs:16:21
    |
-15 |     #[model(element(decimal(scale = 2)))]
+16 |     #[model(element(decimal(scale = 2)))]
    |                     ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `element` requires a sequence field
-  --> tests/ui/fail/element_constraints.rs:17:13
+  --> tests/ui/fail/element_constraints.rs:18:13
    |
-17 |     #[model(element(text(repertoire = ascii)))]
+18 |     #[model(element(text(repertoire = ascii)))]
    |             ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 note: erroneous constant encountered

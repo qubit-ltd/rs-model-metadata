@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use qubit_model_derive::ModelMetadata;
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.ModelWithOpaqueExternalField")]
 struct ModelWithOpaqueExternalField {
     #[model(opaque)]
     external: PathBuf,

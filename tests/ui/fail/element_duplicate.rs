@@ -7,6 +7,7 @@
 // =============================================================================
 
 #[derive(qubit_model_derive::ModelMetadata)]
+#[model(id = "test.derive.Invalid")]
 struct Invalid {
     #[model(element(text(repertoire = ascii), text(max_chars = 8)))]
     values: Vec<String>,

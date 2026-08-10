@@ -7,6 +7,7 @@
 // =============================================================================
 
 #[derive(qubit_model_derive::ModelMetadata)]
+#[model(id = "test.derive.Invalid")]
 #[model(nullable)]
 #[model(computed)]
 struct Invalid {

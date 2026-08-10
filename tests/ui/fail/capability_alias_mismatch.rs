@@ -11,6 +11,7 @@
 type NumberAlias = i64;
 
 #[derive(qubit_model_derive::ModelMetadata)]
+#[model(id = "test.derive.Invalid")]
 struct Invalid {
     #[model(unique(ignore_case))]
     value: NumberAlias,

@@ -24,33 +24,33 @@ note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
    | |_____________- in this macro invocation
 
 error[E0080]: evaluation panicked: `text` requires a text-capable field
-  --> tests/ui/fail/capability_mismatch.rs:13:13
+  --> tests/ui/fail/capability_mismatch.rs:14:13
    |
-13 |     #[model(text(max_chars = 8))]
+14 |     #[model(text(max_chars = 8))]
    |             ^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `sequence` requires a sequence-capable field
-  --> tests/ui/fail/capability_mismatch.rs:15:13
+  --> tests/ui/fail/capability_mismatch.rs:16:13
    |
-15 |     #[model(sequence(max_items = 8))]
+16 |     #[model(sequence(max_items = 8))]
    |             ^^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `map` requires a map-capable field
-  --> tests/ui/fail/capability_mismatch.rs:17:13
+  --> tests/ui/fail/capability_mismatch.rs:18:13
    |
-17 |     #[model(map(max_entries = 8))]
+18 |     #[model(map(max_entries = 8))]
    |             ^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `time` requires a temporal-capable field
-  --> tests/ui/fail/capability_mismatch.rs:19:13
+  --> tests/ui/fail/capability_mismatch.rs:20:13
    |
-19 |     #[model(time(precision = second))]
+20 |     #[model(time(precision = second))]
    |             ^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `decimal` requires a decimal-capable field
-  --> tests/ui/fail/capability_mismatch.rs:21:13
+  --> tests/ui/fail/capability_mismatch.rs:22:13
    |
-21 |     #[model(decimal(scale = 2))]
+22 |     #[model(decimal(scale = 2))]
    |             ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 note: erroneous constant encountered

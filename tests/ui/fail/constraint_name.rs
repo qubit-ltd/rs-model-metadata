@@ -8,6 +8,7 @@
 
 #[derive(qubit_model_derive::ModelMetadata)]
 #[model(
+    id = "test.derive.Invalid",
     index(name = "by_value", fields(value)),
     index(name = "by_value", fields(other)),
     key(name = "", fields(value))

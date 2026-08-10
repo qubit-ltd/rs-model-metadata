@@ -1,5 +1,5 @@
 error: unknown model field `missing`
-  --> tests/ui/fail/relation_path.rs:17:75
+  --> tests/ui/fail/relation_path.rs:19:89
    |
-17 |     #[model(reference(target = Organization, target_field = id, same_as = "missing.id"))]
-   |                                                                           ^^^^^^^^^^^^
+19 |     #[model(reference(target = "test.derive.Organization", target_field = id, same_as = "missing.id"))]
+   |                                                                                         ^^^^^^^^^^^^

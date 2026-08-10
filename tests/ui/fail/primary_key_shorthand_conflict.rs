@@ -9,7 +9,7 @@
 #![allow(dead_code)]
 
 #[derive(qubit_model_derive::ModelMetadata)]
-#[model(primary_key(fields(id)))]
+#[model(id = "test.derive.Invalid", primary_key(fields(id)))]
 struct Invalid {
     #[model(identifier)]
     id: i64,

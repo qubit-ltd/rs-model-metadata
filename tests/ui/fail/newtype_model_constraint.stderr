@@ -1,5 +1,5 @@
 error: model-level `primary_key` constraints are only supported on named structs
-  --> tests/ui/fail/newtype_model_constraint.rs:10:24
+  --> tests/ui/fail/newtype_model_constraint.rs:11:24
    |
-10 | struct Invalid(#[model(identifier)] i64);
+11 | struct Invalid(#[model(identifier)] i64);
    |                        ^^^^^^^^^^

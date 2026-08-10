@@ -9,7 +9,7 @@
 #![allow(dead_code)]
 
 #[derive(qubit_model_derive::Model)]
-#[model(textual)]
+#[model(id = "test.derive.Phone", textual)]
 struct Phone {
     country_area: Option<String>,
     city_area: Option<String>,
@@ -17,6 +17,7 @@ struct Phone {
 }
 
 #[derive(qubit_model_derive::Model)]
+#[model(id = "test.derive.LoginParams")]
 struct LoginParams {
     #[model(text(format = mobile))]
     mobile: Option<Phone>,

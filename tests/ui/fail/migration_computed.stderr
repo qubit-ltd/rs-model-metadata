@@ -1,5 +1,5 @@
 error: `computed` is not supported; declare a real Rust field instead
-  --> tests/ui/fail/migration_computed.rs:11:13
+  --> tests/ui/fail/migration_computed.rs:12:13
    |
-11 |     #[model(computed)]
+12 |     #[model(computed)]
    |             ^^^^^^^^

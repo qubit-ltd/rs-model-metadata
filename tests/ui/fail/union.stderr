@@ -1,5 +1,5 @@
 error: Model derive does not support unions
-  --> tests/ui/fail/union.rs:10:1
+  --> tests/ui/fail/union.rs:11:1
    |
-10 | union Invalid {
+11 | union Invalid {
    | ^^^^^

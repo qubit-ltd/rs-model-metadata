@@ -10,6 +10,7 @@
 
 #[derive(qubit_model_derive::ModelMetadata)]
 #[model(
+    id = "test.derive.Invalid",
     primary_key(fields(id)),
     primary_key(fields(id)),
     ownership(owner = Invalid),

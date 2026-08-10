@@ -13,12 +13,14 @@ use qubit_model_derive::ModelMetadata;
 
 #[allow(dead_code)]
 #[derive(Model)]
+#[model(id = "test.derive.CurrentModel")]
 struct CurrentModel {
     value: String,
 }
 
 #[allow(dead_code)]
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.LegacyModel")]
 struct LegacyModel {
     value: String,
 }

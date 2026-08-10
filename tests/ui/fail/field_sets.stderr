@@ -1,95 +1,95 @@
 error: duplicate primary-key field `id`
-  --> tests/ui/fail/field_sets.rs:18:28
+  --> tests/ui/fail/field_sets.rs:20:28
    |
-18 |     primary_key(fields(id, id, missing), generated(name, missing)),
+20 |     primary_key(fields(id, id, missing), generated(name, missing)),
    |                            ^^
 
 error: unknown model field `missing`
-  --> tests/ui/fail/field_sets.rs:18:32
+  --> tests/ui/fail/field_sets.rs:20:32
    |
-18 |     primary_key(fields(id, id, missing), generated(name, missing)),
+20 |     primary_key(fields(id, id, missing), generated(name, missing)),
    |                                ^^^^^^^
 
 error: generated field `name` is not part of this primary key
-  --> tests/ui/fail/field_sets.rs:18:52
+  --> tests/ui/fail/field_sets.rs:20:52
    |
-18 |     primary_key(fields(id, id, missing), generated(name, missing)),
+20 |     primary_key(fields(id, id, missing), generated(name, missing)),
    |                                                    ^^^^
 
 error: unknown model field `missing`
-  --> tests/ui/fail/field_sets.rs:18:58
+  --> tests/ui/fail/field_sets.rs:20:58
    |
-18 |     primary_key(fields(id, id, missing), generated(name, missing)),
+20 |     primary_key(fields(id, id, missing), generated(name, missing)),
    |                                                          ^^^^^^^
 
 error: duplicate unique field `name`
-  --> tests/ui/fail/field_sets.rs:19:25
+  --> tests/ui/fail/field_sets.rs:21:25
    |
-19 |     unique(fields(name, name, id, missing), ignore_case(id, other)),
+21 |     unique(fields(name, name, id, missing), ignore_case(id, other)),
    |                         ^^^^
 
 error: unknown model field `missing`
-  --> tests/ui/fail/field_sets.rs:19:35
+  --> tests/ui/fail/field_sets.rs:21:35
    |
-19 |     unique(fields(name, name, id, missing), ignore_case(id, other)),
+21 |     unique(fields(name, name, id, missing), ignore_case(id, other)),
    |                                   ^^^^^^^
 
 error: ignore-case field `other` is not part of this unique constraint
-  --> tests/ui/fail/field_sets.rs:19:61
+  --> tests/ui/fail/field_sets.rs:21:61
    |
-19 |     unique(fields(name, name, id, missing), ignore_case(id, other)),
+21 |     unique(fields(name, name, id, missing), ignore_case(id, other)),
    |                                                             ^^^^^
 
 error: `unique` requires at least one field
-  --> tests/ui/fail/field_sets.rs:20:5
+  --> tests/ui/fail/field_sets.rs:22:5
    |
-20 |     unique(name = "empty_unique"),
+22 |     unique(name = "empty_unique"),
    |     ^^^^^^
 
 error: duplicate index field `id`
-  --> tests/ui/fail/field_sets.rs:21:22
+  --> tests/ui/fail/field_sets.rs:23:22
    |
-21 |     index(fields(id, id, missing)),
+23 |     index(fields(id, id, missing)),
    |                      ^^
 
 error: unknown model field `missing`
-  --> tests/ui/fail/field_sets.rs:21:26
+  --> tests/ui/fail/field_sets.rs:23:26
    |
-21 |     index(fields(id, id, missing)),
+23 |     index(fields(id, id, missing)),
    |                          ^^^^^^^
 
 error: `index` requires at least one field
-  --> tests/ui/fail/field_sets.rs:22:5
+  --> tests/ui/fail/field_sets.rs:24:5
    |
-22 |     index(name = "empty_index"),
+24 |     index(name = "empty_index"),
    |     ^^^^^
 
 error: duplicate key field `name`
-  --> tests/ui/fail/field_sets.rs:23:22
+  --> tests/ui/fail/field_sets.rs:25:22
    |
-23 |     key(fields(name, name, missing)),
+25 |     key(fields(name, name, missing)),
    |                      ^^^^
 
 error: unknown model field `missing`
-  --> tests/ui/fail/field_sets.rs:23:28
+  --> tests/ui/fail/field_sets.rs:25:28
    |
-23 |     key(fields(name, name, missing)),
+25 |     key(fields(name, name, missing)),
    |                            ^^^^^^^
 
 error: `key` requires at least one field
-  --> tests/ui/fail/field_sets.rs:24:5
+  --> tests/ui/fail/field_sets.rs:26:5
    |
-24 |     key(name = "empty_key")
+26 |     key(name = "empty_key")
    |     ^^^
 
 error: unknown model field `missing`
-  --> tests/ui/fail/field_sets.rs:33:19
+  --> tests/ui/fail/field_sets.rs:35:19
    |
-33 |         same_as = missing
+35 |         same_as = missing
    |                   ^^^^^^^
 
 error[E0080]: evaluation panicked: `ignore_case` requires a text-capable field
-  --> tests/ui/fail/field_sets.rs:19:57
+  --> tests/ui/fail/field_sets.rs:21:57
    |
-19 |     unique(fields(name, name, id, missing), ignore_case(id, other)),
+21 |     unique(fields(name, name, id, missing), ignore_case(id, other)),
    |                                                         ^^ evaluation of `_` failed here

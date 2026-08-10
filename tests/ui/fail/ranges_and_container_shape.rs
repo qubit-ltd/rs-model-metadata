@@ -11,6 +11,7 @@
 use std::collections::{HashMap, HashSet};
 
 #[derive(qubit_model_derive::ModelMetadata)]
+#[model(id = "test.derive.Invalid")]
 struct Invalid {
     #[model(text(min_chars = 4, max_chars = 3, min_bytes = 8, max_bytes = 7))]
     text: String,

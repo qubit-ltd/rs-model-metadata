@@ -11,12 +11,14 @@
 use qubit_model_derive::ModelMetadata;
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Organization")]
 struct Organization {
     #[model(identifier)]
     id: i64,
 }
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.ValidAttributes")]
 struct ValidAttributes {
     #[model(identifier(generated))]
     id: Option<i64>,
@@ -28,7 +30,7 @@ struct ValidAttributes {
     ratio: bigdecimal::BigDecimal,
     #[model(money(precision = 12, scale = 2))]
     balance: bigdecimal::BigDecimal,
-    #[model(reference(target = Organization, target_field = id))]
+    #[model(reference(target = "test.derive.Organization", target_field = id))]
     organization_id: i64,
     #[model(lookup_relation(target = Organization, target_field = id))]
     organization_lookup: i64,

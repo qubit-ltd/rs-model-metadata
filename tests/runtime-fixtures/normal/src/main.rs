@@ -10,6 +10,7 @@ use qubit_model_derive::ModelMetadata;
 use qubit_model_metadata::metadata_of;
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Normal")]
 struct Normal {
     value: String,
 }

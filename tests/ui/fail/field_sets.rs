@@ -9,12 +9,14 @@
 #![allow(dead_code)]
 
 #[derive(qubit_model_derive::ModelMetadata)]
+#[model(id = "test.derive.Organization")]
 struct Organization {
     id: i64,
 }
 
 #[derive(qubit_model_derive::ModelMetadata)]
 #[model(
+    id = "test.derive.Invalid",
     primary_key(fields(id, id, missing), generated(name, missing)),
     unique(fields(name, name, id, missing), ignore_case(id, other)),
     unique(name = "empty_unique"),
@@ -28,7 +30,7 @@ struct Invalid {
     name: String,
     other: String,
     #[model(reference(
-        target = Organization,
+        target = "test.derive.Organization",
         target_field = id,
         same_as = missing
     ))]

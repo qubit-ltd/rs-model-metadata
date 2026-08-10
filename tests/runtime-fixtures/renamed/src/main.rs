@@ -12,6 +12,7 @@ use qubit_model_derive::ModelMetadata;
 mod model_runtime {}
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Renamed")]
 struct Renamed {
     value: String,
 }

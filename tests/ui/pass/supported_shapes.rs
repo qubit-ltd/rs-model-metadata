@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use qubit_model_derive::ModelMetadata;
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Named")]
 struct Named {
     #[model(sequence(min_items = 1, max_items = 3, unique_items))]
     values: Option<Vec<String>>,
@@ -23,12 +24,15 @@ struct Named {
 }
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Unit")]
 struct Unit;
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Newtype")]
 struct Newtype(#[model(text(max_chars = 8))] String);
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Fieldless")]
 enum Fieldless {
     First,
     Second,

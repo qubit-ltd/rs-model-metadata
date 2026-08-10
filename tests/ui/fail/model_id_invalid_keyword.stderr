@@ -1,0 +1,5 @@
+error: model ID module segments cannot be Rust keywords
+  --> tests/ui/fail/model_id_invalid_keyword.rs:10:14
+   |
+10 | #[model(id = "test.type.InvalidKeyword")]
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^

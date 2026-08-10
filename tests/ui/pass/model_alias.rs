@@ -19,6 +19,7 @@
 use qubit_model_derive::Model;
 
 #[derive(Model)]
+#[model(id = "test.derive.User")]
 struct User {
     id: i64,
 }

@@ -15,6 +15,7 @@ use model_runtime::AttributeMetadata;
 use model_runtime::AttributeQuery;
 use model_runtime::DecimalSemantic;
 use model_runtime::HasTypeShape;
+use model_runtime::ModelRegistry;
 use model_runtime::RoundingMode;
 use model_runtime::SensitiveHandling;
 use model_runtime::TemporalNormalization;
@@ -26,10 +27,12 @@ use model_runtime::TypeKind;
 use model_runtime::TypeShape;
 use model_runtime::UniqueComparison;
 use model_runtime::metadata_of;
+use qubit_model_derive::Model;
 use qubit_model_derive::ModelMetadata;
 
 #[allow(dead_code)]
-#[derive(ModelMetadata)]
+#[derive(Model)]
+#[model(id = "test.derive.User")]
 struct User {
     #[model(identifier(generated))]
     id: Option<i64>,
@@ -38,18 +41,21 @@ struct User {
 }
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Empty")]
 struct Empty;
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.UserId")]
 #[allow(dead_code)]
 struct UserId(i64);
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.DisplayName")]
 #[allow(dead_code)]
 struct DisplayName(String);
 
 #[derive(ModelMetadata)]
-#[model(textual)]
+#[model(id = "test.derive.Phone", textual)]
 #[allow(dead_code)]
 struct Phone {
     country_area: Option<String>,
@@ -58,6 +64,7 @@ struct Phone {
 }
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.PhoneLoginParams")]
 #[allow(dead_code)]
 struct PhoneLoginParams {
     #[model(text(format = mobile))]
@@ -65,6 +72,7 @@ struct PhoneLoginParams {
 }
 
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Status")]
 #[allow(dead_code)]
 enum Status {
     Draft,
@@ -73,6 +81,7 @@ enum Status {
 
 #[allow(dead_code)]
 #[derive(ModelMetadata)]
+#[model(id = "test.derive.Organization")]
 struct Organization {
     id: i64,
 }
@@ -82,6 +91,7 @@ struct ExternalValue;
 #[allow(dead_code)]
 #[derive(ModelMetadata)]
 #[model(
+    id = "test.derive.AttributedModel",
     primary_key(fields(id), generated(id)),
     unique(
         name = "organization_username",
@@ -95,7 +105,7 @@ struct ExternalValue;
 struct AttributedModel {
     id: i64,
     #[model(reference(
-        target = Organization,
+        target = "test.derive.Organization",
         target_field = id,
         must_exist = true,
         same_as = "organization.id"
@@ -140,6 +150,12 @@ struct AttributedModel {
     verification_code: String,
     #[model(opaque)]
     external: ExternalValue,
+}
+
+#[test]
+/// Verifies that the derive macro preserves the declared stable model ID.
+fn test_derive_emits_declared_model_id() {
+    assert_eq!(metadata_of::<User>().id().as_str(), "test.derive.User");
 }
 
 #[test]
@@ -397,10 +413,7 @@ fn test_reference_sensitive_and_strategy_attributes_expand() {
         .expect("organization_id metadata")
         .reference()
         .expect("reference metadata");
-    assert_eq!(
-        reference.target().identity().type_name(),
-        core::any::type_name::<Organization>()
-    );
+    assert_eq!(reference.target().as_str(), "test.derive.Organization");
     assert_eq!(reference.target_field().segments(), &["id"]);
     assert!(reference.must_exist());
     assert_eq!(
@@ -442,6 +455,24 @@ fn test_reference_sensitive_and_strategy_attributes_expand() {
         Some(AttributeMetadata::Generator(generator))
             if generator.name() == "account_balance"
     ));
+}
+
+#[test]
+fn test_derive_registers_every_supported_shape_and_legacy_macro() {
+    let registry = ModelRegistry::try_global()
+        .expect("the test models should register without duplicate IDs");
+    for (id, rust_type_name) in [
+        ("test.derive.User", "User"),
+        ("test.derive.Empty", "Empty"),
+        ("test.derive.UserId", "UserId"),
+        ("test.derive.Status", "Status"),
+    ] {
+        let registration = registry.registration(id).unwrap_or_else(|| {
+            panic!("the model with ID {id} should be registered")
+        });
+        assert_eq!(registration.metadata().id().as_str(), id);
+        assert_eq!(registration.rust_type_name(), rust_type_name);
+    }
 }
 
 #[test]

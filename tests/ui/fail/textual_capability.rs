@@ -7,7 +7,7 @@
 // =============================================================================
 
 #[derive(qubit_model_derive::Model)]
-#[model(textual(unexpected))]
+#[model(id = "test.derive.InvalidPhone", textual(unexpected))]
 struct InvalidPhone {
     number: String,
 }
