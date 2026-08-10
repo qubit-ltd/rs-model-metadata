@@ -10,14 +10,27 @@
 
 use qubit_model_metadata::AttributeKind;
 use qubit_model_metadata::AttributeMetadata;
+use qubit_model_metadata::DecimalConstraint;
+use qubit_model_metadata::DecimalSemantic;
 use qubit_model_metadata::ElementMetadata;
+use qubit_model_metadata::FieldPath;
 use qubit_model_metadata::IndexMetadata;
 use qubit_model_metadata::KeyMetadata;
+use qubit_model_metadata::LookupRelationMetadata;
+use qubit_model_metadata::MapConstraint;
+use qubit_model_metadata::NamedTypeRef;
+use qubit_model_metadata::OwnershipMetadata;
 use qubit_model_metadata::PrimaryKeyFieldMetadata;
 use qubit_model_metadata::PrimaryKeyMetadata;
+use qubit_model_metadata::ReferenceMetadata;
+use qubit_model_metadata::RoundingMode;
 use qubit_model_metadata::SensitiveHandling;
 use qubit_model_metadata::SensitiveMetadata;
+use qubit_model_metadata::SequenceConstraint;
 use qubit_model_metadata::StrategyRef;
+use qubit_model_metadata::TemporalConstraint;
+use qubit_model_metadata::TemporalNormalization;
+use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
 use qubit_model_metadata::TextRepertoire;
 use qubit_model_metadata::UniqueComparison;
@@ -80,6 +93,82 @@ fn test_attribute_metadata_reports_its_kind() {
 }
 
 #[test]
+fn test_attribute_metadata_reports_every_kind() {
+    let attributes = [
+        AttributeMetadata::Text(TextConstraint::new(
+            None,
+            None,
+            None,
+            None,
+            TextRepertoire::Unicode,
+            false,
+            None,
+        )),
+        AttributeMetadata::Sequence(SequenceConstraint::new(None, None, false)),
+        AttributeMetadata::Map(MapConstraint::new(None, None)),
+        AttributeMetadata::Temporal(TemporalConstraint::new(
+            TemporalPrecision::Second,
+            TemporalNormalization::Preserve,
+        )),
+        AttributeMetadata::Decimal(DecimalConstraint::new(
+            None,
+            0,
+            RoundingMode::HalfUp,
+            DecimalSemantic::Money,
+        )),
+        AttributeMetadata::Element(ElementMetadata::new(&[ELEMENT_TEXT])),
+        AttributeMetadata::PrimaryKey(VALID_PRIMARY_KEY),
+        AttributeMetadata::Unique(VALID_UNIQUE),
+        AttributeMetadata::Index(VALID_INDEX),
+        AttributeMetadata::Key(VALID_KEY),
+        AttributeMetadata::Reference(ReferenceMetadata::new(
+            qubit_model_metadata::ModelId::from_static("test.Target"),
+            FieldPath::new(&["id"]),
+            true,
+            None,
+        )),
+        AttributeMetadata::LookupRelation(LookupRelationMetadata::new(
+            NamedTypeRef::unresolved(qubit_model_metadata::TypeIdentity::of::<
+                u64,
+            >()),
+            FieldPath::new(&["id"]),
+        )),
+        AttributeMetadata::Ownership(OwnershipMetadata::new(
+            NamedTypeRef::unresolved(qubit_model_metadata::TypeIdentity::of::<
+                u64,
+            >()),
+        )),
+        AttributeMetadata::Codec(STRATEGY),
+        AttributeMetadata::Generator(StrategyRef::new("generate-id")),
+        AttributeMetadata::Sensitive(SensitiveMetadata::new(
+            SensitiveHandling::Redact,
+        )),
+    ];
+    let expected = [
+        AttributeKind::Text,
+        AttributeKind::Sequence,
+        AttributeKind::Map,
+        AttributeKind::Temporal,
+        AttributeKind::Decimal,
+        AttributeKind::Element,
+        AttributeKind::PrimaryKey,
+        AttributeKind::Unique,
+        AttributeKind::Index,
+        AttributeKind::Key,
+        AttributeKind::Reference,
+        AttributeKind::LookupRelation,
+        AttributeKind::Ownership,
+        AttributeKind::Codec,
+        AttributeKind::Generator,
+        AttributeKind::Sensitive,
+    ];
+
+    for (attribute, expected_kind) in attributes.into_iter().zip(expected) {
+        assert_eq!(attribute.kind(), expected_kind);
+    }
+}
+
+#[test]
 fn test_metadata_accessors_return_declared_values() {
     let primary_key_field = VALID_PRIMARY_KEY
         .fields()
@@ -118,6 +207,19 @@ fn test_metadata_accessors_return_declared_values() {
     assert_eq!(STRATEGY.name(), "redact-email");
     assert_eq!(SENSITIVE.handling(), SensitiveHandling::Mask);
     assert_eq!(TOKEN_SENSITIVE.handling(), SensitiveHandling::Token);
+}
+
+#[test]
+fn test_metadata_accessors_return_runtime_values() {
+    let generated = PrimaryKeyFieldMetadata::new("created_id", false);
+    let unique = UniqueFieldMetadata::new("display_name", UniqueComparison::Exact);
+    let sensitive = SensitiveMetadata::new(SensitiveHandling::Redact);
+
+    assert_eq!(generated.name(), "created_id");
+    assert!(!generated.is_generated());
+    assert_eq!(unique.name(), "display_name");
+    assert_eq!(unique.comparison(), UniqueComparison::Exact);
+    assert_eq!(sensitive.handling(), SensitiveHandling::Redact);
 }
 
 #[test]

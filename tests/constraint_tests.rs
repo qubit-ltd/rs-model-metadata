@@ -80,6 +80,37 @@ fn test_constraint_constructors_remain_const_compatible() {
 }
 
 #[test]
+fn test_constraint_constructors_execute_runtime_paths() {
+    let text = TextConstraint::new(
+        Some(1),
+        Some(8),
+        Some(1),
+        Some(16),
+        TextRepertoire::Ascii,
+        true,
+        Some(TextFormat::Email),
+    );
+    let sequence = SequenceConstraint::new(Some(1), Some(8), true);
+    let map = MapConstraint::new(Some(1), Some(8));
+    let decimal = DecimalConstraint::new(
+        Some(8),
+        3,
+        RoundingMode::HalfEven,
+        DecimalSemantic::Number,
+    );
+    let temporal = TemporalConstraint::new(
+        TemporalPrecision::Millisecond,
+        TemporalNormalization::Utc,
+    );
+
+    assert_eq!(text.max_chars(), Some(8));
+    assert!(sequence.has_unique_items());
+    assert_eq!(map.max_entries(), Some(8));
+    assert_eq!(decimal.scale(), 3);
+    assert_eq!(temporal.normalization(), TemporalNormalization::Utc);
+}
+
+#[test]
 #[should_panic(
     expected = "minimum character count cannot exceed maximum character count"
 )]
