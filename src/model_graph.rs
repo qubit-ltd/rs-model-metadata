@@ -34,6 +34,8 @@ mod model_graph_errors;
 pub use self::model_graph_error::ModelGraphError;
 pub use self::model_graph_errors::ModelGraphErrors;
 
+const OPAQUE_ID_TYPE_NAME: &str = concat!("qubit_id", "::id::Id");
+
 impl ModelRegistry {
     /// Validates direct references among all registered models.
     ///
@@ -183,8 +185,11 @@ fn is_id_reference_projection(
         .field_type()
         .strip_optional()
         .type_name()
-        .contains("qubit_id::id::Id")
-        && source.field_type().type_name().contains("qubit_id::id::Id")
+        .contains(OPAQUE_ID_TYPE_NAME)
+        && source
+            .field_type()
+            .type_name()
+            .contains(OPAQUE_ID_TYPE_NAME)
 }
 
 /// Returns every direct-reference attribute declared on `field`.
