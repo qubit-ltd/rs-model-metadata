@@ -12,7 +12,8 @@ note: inside `FieldMetadata::new`
 note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
   --> $RUST/core/src/panic.rs
    |
-   = note: the failure occurred here
+   |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
    |
   ::: $MODEL_RUNTIME/src/field_metadata.rs
    |
