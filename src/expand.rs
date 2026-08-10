@@ -55,8 +55,13 @@ use crate::normalize::UniqueIr;
 /// Returns generated Rust tokens for the validated normalized model.
 pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
     let ident = &input.ident;
+    let id = input
+        .id
+        .first()
+        .expect("validated model input requires one model ID");
     let kind =
-        expand_type_kind(&input.shape, &input.attributes, ident, runtime);
+        expand_type_kind(&input.shape, &input.attributes, ident, id, runtime);
+    let registration = expand_registration(ident, id, runtime);
     let capabilities = match &input.shape {
         ModelShapeIr::Newtype(field) if field.opaque.is_empty() => {
             let ty = &field.ty;
@@ -76,6 +81,7 @@ pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
     quote! {
         const _: () = {
             #kind
+            #registration
 
             impl #runtime::HasTypeShape for #ident {
                 const TYPE_SHAPE: #runtime::TypeShape =
@@ -89,6 +95,28 @@ pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
                 }
             }
         };
+    }
+}
+
+/// Generates the distributed registration for one statically derived model.
+fn expand_registration(
+    ident: &Ident,
+    id: &LitStr,
+    runtime: &TokenStream,
+) -> TokenStream {
+    quote! {
+        #[#runtime::__private::linkme::distributed_slice(
+            #runtime::MODEL_REGISTRATIONS
+        )]
+        #[linkme(crate = #runtime::__private::linkme)]
+        static MODEL_REGISTRATION: #runtime::ModelRegistration =
+            #runtime::ModelRegistration::new(
+                #runtime::ModelId::from_static(#id),
+                &MODEL_METADATA,
+                stringify!(#ident),
+                module_path!(),
+                #runtime::SourceLocation::new(file!(), line!(), column!()),
+            );
     }
 }
 
@@ -124,6 +152,7 @@ fn expand_type_kind(
     shape: &ModelShapeIr,
     attributes: &[ModelAttributeIr],
     ident: &Ident,
+    id: &LitStr,
     runtime: &TokenStream,
 ) -> TokenStream {
     let unique_capability_assertions =
@@ -137,6 +166,7 @@ fn expand_type_kind(
                 #(#unique_capability_assertions)*
                 static FIELDS: [#runtime::FieldMetadata; #count] = [#(#fields),*];
                 static MODEL_METADATA: #runtime::TypeMetadata = #runtime::TypeMetadata::new(
+                    #runtime::ModelId::from_static(#id),
                     #runtime::TypeIdentity::of::<#ident>(),
                     #runtime::TypeKind::Struct(#runtime::StructMetadata::new(&FIELDS)),
                     &[#(#attributes),*],
@@ -146,6 +176,7 @@ fn expand_type_kind(
         ModelShapeIr::UnitStruct => quote! {
             #(#unique_capability_assertions)*
             static MODEL_METADATA: #runtime::TypeMetadata = #runtime::TypeMetadata::new(
+                #runtime::ModelId::from_static(#id),
                 #runtime::TypeIdentity::of::<#ident>(),
                 #runtime::TypeKind::Struct(#runtime::StructMetadata::new(&[])),
                 &[#(#attributes),*],
@@ -157,6 +188,7 @@ fn expand_type_kind(
                 #(#unique_capability_assertions)*
                 static FIELDS: [#runtime::FieldMetadata; 1] = [#field];
                 static MODEL_METADATA: #runtime::TypeMetadata = #runtime::TypeMetadata::new(
+                    #runtime::ModelId::from_static(#id),
                     #runtime::TypeIdentity::of::<#ident>(),
                     #runtime::TypeKind::Newtype(#runtime::NewtypeMetadata::new(FIELDS[0])),
                     &[#(#attributes),*],
@@ -170,6 +202,7 @@ fn expand_type_kind(
                 #(#unique_capability_assertions)*
                 static VARIANTS: [#runtime::EnumVariantMetadata; #count] = [#(#variants),*];
                 static MODEL_METADATA: #runtime::TypeMetadata = #runtime::TypeMetadata::new(
+                    #runtime::ModelId::from_static(#id),
                     #runtime::TypeIdentity::of::<#ident>(),
                     #runtime::TypeKind::Enum(#runtime::EnumMetadata::new(&VARIANTS)),
                     &[#(#attributes),*],
@@ -794,7 +827,7 @@ fn expand_reference(
     let span = value.span;
     quote_spanned! {span=>
         #runtime::AttributeMetadata::Reference(#runtime::ReferenceMetadata::new(
-            #runtime::NamedTypeRef::of::<#target>(),
+            #runtime::ModelId::from_static(#target),
             #runtime::FieldPath::new(&[#(#target_field),*]),
             #must_exist,
             #same_as,

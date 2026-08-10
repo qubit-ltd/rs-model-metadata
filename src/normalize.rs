@@ -39,6 +39,8 @@ use super::input::ModelVariant;
 pub(crate) struct ModelIr {
     /// The declared model type name.
     pub(crate) ident: Ident,
+    /// Raw stable model-ID literals in source order.
+    pub(crate) id: Vec<LitStr>,
     /// Canonical model-level attributes.
     pub(crate) attributes: Vec<ModelAttributeIr>,
     /// Number of attributes declared directly on the model before field
@@ -224,6 +226,7 @@ pub(crate) enum DecimalSemantic {
 pub(crate) fn normalize(input: ModelInput) -> ModelIr {
     let ModelInput {
         ident,
+        id,
         attributes,
         shape,
     } = input;
@@ -254,6 +257,7 @@ pub(crate) fn normalize(input: ModelInput) -> ModelIr {
 
     ModelIr {
         ident,
+        id,
         attributes: model_attributes,
         model_attribute_count,
         textual,

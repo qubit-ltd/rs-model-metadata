@@ -63,6 +63,14 @@ pub(crate) enum ModelAttribute {
     Ownership(OwnershipAttribute),
 }
 
+/// Parsed type-level model attributes split from ordinary model constraints.
+pub(crate) struct ModelAttributes {
+    /// Raw stable model-ID literals in source order.
+    pub(crate) id: Vec<LitStr>,
+    /// Parsed model constraints in source order.
+    pub(crate) attributes: Vec<ModelAttribute>,
+}
+
 /// Parsed primary-key syntax.
 pub(crate) struct PrimaryKeyAttribute {
     /// Fields in key order.
@@ -297,7 +305,7 @@ pub(crate) enum RoundingMode {
 /// Parsed direct-reference values.
 pub(crate) struct ReferenceAttribute {
     /// Target-model occurrences in source order.
-    pub(crate) target: Vec<TypePath>,
+    pub(crate) target: Vec<LitStr>,
     /// Target-field path occurrences in source order.
     pub(crate) target_field: Vec<Vec<FieldName>>,
     /// Must-exist value occurrences in source order.
@@ -350,8 +358,9 @@ pub(crate) struct StrategyAttribute {
 /// Returns an error when an item is unknown or its value cannot be parsed.
 pub(crate) fn parse_model_attributes(
     attributes: &[Attribute],
-) -> Result<Vec<ModelAttribute>> {
+) -> Result<ModelAttributes> {
     let mut parsed = Vec::new();
+    let mut id = Vec::new();
     let mut errors = None;
     for attribute in attributes
         .iter()
@@ -359,7 +368,9 @@ pub(crate) fn parse_model_attributes(
     {
         let result = attribute.parse_nested_meta(|meta| {
             let input = meta.input;
-            if let Err(error) = parse_model_attribute(meta, &mut parsed) {
+            if let Err(error) =
+                parse_model_attribute(meta, &mut id, &mut parsed)
+            {
                 combine_error(&mut errors, error);
                 discard_nested_meta_input(input)?;
             }
@@ -372,7 +383,10 @@ pub(crate) fn parse_model_attributes(
     if let Some(error) = errors {
         Err(error)
     } else {
-        Ok(parsed)
+        Ok(ModelAttributes {
+            id,
+            attributes: parsed,
+        })
     }
 }
 
@@ -410,9 +424,12 @@ pub(crate) fn parse_field_attributes(
 /// Parses one model-level nested item and appends its syntax node.
 fn parse_model_attribute(
     meta: ParseNestedMeta<'_>,
+    id: &mut Vec<LitStr>,
     parsed: &mut Vec<ModelAttribute>,
 ) -> Result<()> {
-    if meta.path.is_ident("textual") {
+    if meta.path.is_ident("id") {
+        id.push(meta.value()?.parse()?);
+    } else if meta.path.is_ident("textual") {
         if parsed
             .iter()
             .any(|attribute| matches!(attribute, ModelAttribute::Textual))
@@ -849,7 +866,7 @@ fn parse_reference(meta: ParseNestedMeta<'_>) -> Result<ReferenceAttribute> {
     if meta.input.is_empty() {
         return Err(Error::new(
             span,
-            "bare `reference` is not supported; specify `target = Type` and `target_field = field`",
+            "bare `reference` is not supported; specify `target = \"module.Type\"` and `target_field = field`",
         ));
     }
     let mut target = Vec::new();
@@ -871,7 +888,10 @@ fn parse_reference(meta: ParseNestedMeta<'_>) -> Result<ReferenceAttribute> {
         Ok(())
     })?;
     if target.is_empty() {
-        return Err(Error::new(span, "reference requires `target = Type`"));
+        return Err(Error::new(
+            span,
+            "reference requires `target = \"module.Type\"`",
+        ));
     }
     if target_field.is_empty() {
         return Err(Error::new(

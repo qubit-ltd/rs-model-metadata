@@ -13,10 +13,12 @@ use std::slice::from_ref;
 
 use proc_macro2::Span;
 use syn::Error;
+use syn::Ident;
 use syn::LitStr;
 use syn::Result;
 use syn::Type;
 use syn::TypePath;
+use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
 use crate::attribute::FieldName;
@@ -48,6 +50,7 @@ use crate::normalize::UniqueIr;
 /// invalid attribute, range, capability, conflict, or local field reference.
 pub(crate) fn validate(model: &ModelIr) -> Result<()> {
     let mut errors = None;
+    validate_model_id(model, &mut errors);
     validate_model_attribute_scope(model, &mut errors);
     validate_model_attributes(model, &mut errors);
     let fields = model_fields(model);
@@ -55,6 +58,165 @@ pub(crate) fn validate(model: &ModelIr) -> Result<()> {
         validate_field(field, fields, &mut errors);
     }
     finish(errors)
+}
+
+/// Validates the required stable ID declared directly on the model type.
+fn validate_model_id(model: &ModelIr, errors: &mut Option<Error>) {
+    let Some(id) = model.id.first() else {
+        push_error(
+            errors,
+            Error::new(
+                model.ident.span(),
+                "missing required model ID; add `#[model(id = \"module.Type\")]`",
+            ),
+        );
+        return;
+    };
+    for duplicate in model.id.iter().skip(1) {
+        push_error(errors, Error::new(duplicate.span(), "duplicate model ID"));
+    }
+    if let Err(message) = validate_model_id_format(id.value().as_str()) {
+        push_error(errors, Error::new(id.span(), message));
+    } else {
+        validate_model_id_type_name(id, &model.ident, errors);
+    }
+}
+
+/// Validates the byte-level stable-ID grammar shared with the runtime crate.
+fn validate_model_id_format(
+    value: &str,
+) -> core::result::Result<(), &'static str> {
+    if value.is_empty() {
+        return Err("model ID cannot be empty");
+    }
+    if value.split('.').any(str::is_empty) {
+        return Err("model ID cannot contain empty segments");
+    }
+    let mut segments = value.split('.').peekable();
+    while let Some(segment) = segments.next() {
+        if segments.peek().is_some() {
+            validate_model_id_module_segment(segment)?;
+        } else {
+            validate_model_id_type_segment(segment)?;
+        }
+    }
+    Ok(())
+}
+
+/// Validates one ASCII snake-case module segment.
+fn validate_model_id_module_segment(
+    segment: &str,
+) -> core::result::Result<(), &'static str> {
+    if is_rust_keyword(segment) {
+        return Err("model ID module segments cannot be Rust keywords");
+    }
+    let bytes = segment.as_bytes();
+    if !matches!(bytes.first(), Some(b'a'..=b'z'))
+        || matches!(bytes.last(), Some(b'_'))
+    {
+        return Err("model ID module segments must use ASCII snake_case");
+    }
+    let mut previous_underscore = false;
+    for &byte in &bytes[1..] {
+        if !(byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+            || (byte == b'_' && previous_underscore)
+        {
+            return Err("model ID module segments must use ASCII snake_case");
+        }
+        previous_underscore = byte == b'_';
+    }
+    Ok(())
+}
+
+/// Validates one ASCII UpperCamelCase final type segment.
+fn validate_model_id_type_segment(
+    segment: &str,
+) -> core::result::Result<(), &'static str> {
+    let bytes = segment.as_bytes();
+    if !matches!(bytes.first(), Some(b'A'..=b'Z'))
+        || !bytes[1..].iter().all(u8::is_ascii_alphanumeric)
+    {
+        return Err("model ID type segment must use ASCII UpperCamelCase");
+    }
+    Ok(())
+}
+
+/// Validates that the ID's final segment matches the derived Rust type name.
+fn validate_model_id_type_name(
+    id: &LitStr,
+    ident: &Ident,
+    errors: &mut Option<Error>,
+) {
+    let id_value = id.value();
+    let actual_type_name = id_value.rsplit('.').next().unwrap_or_default();
+    let expected_type_name = ident.unraw().to_string();
+    if actual_type_name != expected_type_name {
+        push_error(
+            errors,
+            Error::new(
+                id.span(),
+                format!(
+                    "model ID type segment `{actual_type_name}` must match derived type `{expected_type_name}`"
+                ),
+            ),
+        );
+    }
+}
+
+/// Returns whether a module segment is reserved by Rust 2024.
+fn is_rust_keyword(segment: &str) -> bool {
+    matches!(
+        segment,
+        "as" | "async"
+            | "await"
+            | "break"
+            | "const"
+            | "continue"
+            | "crate"
+            | "else"
+            | "enum"
+            | "extern"
+            | "false"
+            | "fn"
+            | "for"
+            | "gen"
+            | "if"
+            | "impl"
+            | "in"
+            | "let"
+            | "loop"
+            | "match"
+            | "mod"
+            | "move"
+            | "mut"
+            | "pub"
+            | "ref"
+            | "return"
+            | "self"
+            | "Self"
+            | "static"
+            | "struct"
+            | "super"
+            | "trait"
+            | "true"
+            | "type"
+            | "unsafe"
+            | "use"
+            | "where"
+            | "while"
+            | "abstract"
+            | "become"
+            | "box"
+            | "do"
+            | "final"
+            | "macro"
+            | "override"
+            | "priv"
+            | "typeof"
+            | "unsized"
+            | "virtual"
+            | "yield"
+    )
 }
 
 /// Returns the fields addressable by local model-level constraints.
@@ -593,7 +755,7 @@ fn validate_field_attribute(
         FieldAttributeIr::Decimal(value) => validate_decimal(value, errors),
         FieldAttributeIr::Element(value) => validate_element(value, errors),
         FieldAttributeIr::Reference(value) => {
-            validate_duplicate_type_paths("target", &value.target, errors);
+            validate_duplicate_literals("target", &value.target, errors);
             validate_duplicate_field_paths(
                 "target_field",
                 &value.target_field,

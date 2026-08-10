@@ -16,6 +16,7 @@ use syn::Error;
 use syn::Field;
 use syn::Fields;
 use syn::Ident;
+use syn::LitStr;
 use syn::Result;
 use syn::Type;
 use syn::Variant;
@@ -31,6 +32,8 @@ use super::attribute::parse_model_attributes;
 pub(crate) struct ModelInput {
     /// The name of the declared model type.
     pub(crate) ident: Ident,
+    /// Raw stable model-ID literals in source order.
+    pub(crate) id: Vec<LitStr>,
     /// Parsed model-level attributes in source order.
     pub(crate) attributes: Vec<ModelAttribute>,
     /// The supported structural form of the model.
@@ -126,7 +129,8 @@ impl ModelInput {
 
         Ok(Self {
             ident,
-            attributes,
+            id: attributes.id,
+            attributes: attributes.attributes,
             shape,
         })
     }
