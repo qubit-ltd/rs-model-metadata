@@ -152,8 +152,8 @@ struct AttributedModel {
     external: ExternalValue,
 }
 
-#[test]
 /// Verifies that the derive macro preserves the declared stable model ID.
+#[test]
 fn test_derive_emits_declared_model_id() {
     assert_eq!(metadata_of::<User>().id().as_str(), "test.derive.User");
 }
