@@ -99,7 +99,7 @@ let result = metadata_of::<Account>().resolve_field_path(path);
 
 公共构造器支持 const，因此高级用户可以手工构造静态元数据。它们会校验字段顺序、非空键集合和路径、递增范围，以及 decimal scale 不大于 precision 等本地不变量。对大多数场景而言，derive 更安全，因为它让声明紧邻模型。
 
-本 crate 没有全局模型注册表，也不会为查询分配元数据图。需要显式模型集合的消费者可以基于静态元数据切片构造调用方持有的 `MetadataRegistry`，并通过 `MetadataResolver` 查询；查找是线性且确定的。它不负责数据库映射、codec/generator/脱敏执行、校验文案或关系环校验。`Opaque` 表示类型有意不被解释，不能用来替代消费者所需的结构。
+本 crate 会从进程中已链接的分布式注册项惰性构建不可变全局 `ModelRegistry`。只有已链接的模型 crate 会参与；需要受控模型集合的工具仍可从显式注册项集合构造注册表。注册表构建会校验注册项一致性和重复 ID，但不会为查询分配元数据图，也不校验关系环。它不负责数据库映射、codec/generator/脱敏执行或校验文案。`Opaque` 表示类型有意不被解释，不能用来替代消费者所需的结构。
 
 ## 排障
 
@@ -109,7 +109,7 @@ let result = metadata_of::<Account>().resolve_field_path(path);
 | derive 拒绝外部字段类型 | 启用所需 feature、实现 `HasTypeShape`，或有意使用 `#[model(opaque)]`。 |
 | 字段意外可空 | 检查最外层 `TypeShape`；只有外层 `Option<T>` 可空。 |
 | 路径解析失败 | 验证每个字段段、中间具名 struct 及其元数据 resolver。 |
-| 工具找不到模型 | 为工具的显式模型集合构造调用方持有的 `MetadataRegistry`；本 crate 没有全局注册表。 |
+| 工具找不到模型 | 确认模型 crate 已链接且已注册，或从工具的显式注册项集合构造 `ModelRegistry`。 |
 
 ## 延伸阅读
 

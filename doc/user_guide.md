@@ -124,13 +124,15 @@ non-empty key sets and paths, monotonic ranges, and decimal scale no greater tha
 precision. Derive is normally the safer option because it keeps declarations by
 their model.
 
-The crate has no global model registry and does not allocate a metadata graph for
-queries. Consumers that need an explicit model set can create a caller-owned
-`MetadataRegistry` over a static metadata slice and query it through
-`MetadataResolver`; lookup is linear and deterministic. The crate does not map
-databases, execute codecs/generators/redaction, produce validation messages, or
-validate relationship cycles. `Opaque` means that a type is intentionally
-uninterpreted; it is not a replacement for required structure.
+The crate builds an immutable global `ModelRegistry` lazily from distributed
+registrations linked into the process. Only linked model crates participate;
+constructing a registry from an explicit registration set remains available for
+tools that need a controlled model collection. Registry construction checks
+registration consistency and duplicate IDs, but it does not allocate a metadata
+graph for queries or validate relationship cycles. The crate does not map
+databases, execute codecs/generators/redaction, or produce validation messages.
+`Opaque` means that a type is intentionally uninterpreted; it is not a
+replacement for required structure.
 
 ## Troubleshooting
 
@@ -140,7 +142,7 @@ uninterpreted; it is not a replacement for required structure.
 | Derive rejects an external field type | Enable a needed feature, implement `HasTypeShape`, or intentionally use `#[model(opaque)]`. |
 | A field is unexpectedly nullable | Inspect its outer `TypeShape`; only outer `Option<T>` is nullable. |
 | Path resolution fails | Verify every segment, intermediate named structs, and their metadata resolvers. |
-| A tool cannot find a model | Create a caller-owned `MetadataRegistry` over its explicit model collection; this crate has no global registry. |
+| A tool cannot find a model | Ensure the model crate is linked and registered, or construct a `ModelRegistry` from the tool's explicit registration collection. |
 
 ## Further Reading
 

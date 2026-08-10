@@ -69,7 +69,7 @@ derive crate 仍保留 `ModelMetadata` 兼容别名；新代码请使用 `Model`
 
 ## 已知限制
 
-- runtime crate 不会自动发现模型，也不提供全局注册表。需要模型集合的消费者可以构造调用方持有的静态 `MetadataRegistry`。
+- runtime crate 提供由进程中已链接的分布式注册项组成的不可变全局 `ModelRegistry`。未链接的模型 crate 会有意缺席；需要时调用方也可以从显式注册项集合构造注册表。
 - 不定义数据库映射、校验错误文案、序列化格式、codec、generator 或脱敏实现。
 - 跨模型图校验与关系环检查不属于本 crate 的本地元数据 API。
 - 用户自定义类型必须实现 `HasTypeShape`；结构确实不可用时，配套 derive 提供显式 `#[model(opaque)]` 逃生口。
