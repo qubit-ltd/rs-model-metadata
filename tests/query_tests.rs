@@ -8,6 +8,8 @@
 
 //! Integration tests for static metadata queries.
 
+mod query;
+
 use core::any::TypeId;
 use std::collections::HashMap;
 
@@ -21,6 +23,7 @@ use qubit_model_metadata::HasTypeMetadata;
 use qubit_model_metadata::HasTypeShape;
 use qubit_model_metadata::IndexMetadata;
 use qubit_model_metadata::KeyMetadata;
+use qubit_model_metadata::ModelId;
 use qubit_model_metadata::NamedTypeRef;
 use qubit_model_metadata::OwnershipMetadata;
 use qubit_model_metadata::PrimaryKeyFieldMetadata;
@@ -103,6 +106,7 @@ static ACCOUNT_FIELDS: [FieldMetadata; 5] = [
     FieldMetadata::new(4, "contact", "Contact", TypeRef::of::<Contact>(), &[]),
 ];
 static ACCOUNT_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::from_static("test.metadata.Account"),
     TypeIdentity::of::<Account>(),
     TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
     &ACCOUNT_ATTRIBUTES,
@@ -115,6 +119,7 @@ static CONTACT_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &[],
 )];
 static CONTACT_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::from_static("test.metadata.Contact"),
     TypeIdentity::of::<Contact>(),
     TypeKind::Struct(StructMetadata::new(&CONTACT_FIELDS)),
     &[],
@@ -127,6 +132,7 @@ static DETACHED_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &[],
 )];
 static DETACHED_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::from_static("test.metadata.Detached"),
     TypeIdentity::of::<Detached>(),
     TypeKind::Struct(StructMetadata::new(&DETACHED_FIELDS)),
     &[],

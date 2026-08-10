@@ -18,13 +18,17 @@
 
 //! Integration tests for the metadata resolver interface.
 
-use qubit_model_metadata::MetadataRegistry;
 use qubit_model_metadata::MetadataResolver;
+use qubit_model_metadata::ModelRegistration;
+use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::TypeIdentity;
 
 #[test]
 fn test_registry_implements_metadata_resolver() {
-    let registry = MetadataRegistry::new(&[]);
+    let registry = ModelRegistry::from_registrations(std::iter::empty::<
+        &'static ModelRegistration,
+    >())
+    .expect("an empty registry should be valid");
     let resolver: &dyn MetadataResolver = &registry;
 
     assert!(resolver.resolve(TypeIdentity::of::<u32>()).is_none());

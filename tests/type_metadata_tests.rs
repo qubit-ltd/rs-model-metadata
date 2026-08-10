@@ -14,6 +14,7 @@ use qubit_model_metadata::EnumVariantMetadata;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::IndexMetadata;
 use qubit_model_metadata::KeyMetadata;
+use qubit_model_metadata::ModelId;
 use qubit_model_metadata::NamedTypeRef;
 use qubit_model_metadata::OwnershipMetadata;
 use qubit_model_metadata::StructMetadata;
@@ -76,6 +77,7 @@ static NON_CONTIGUOUS_ENUM_VARIANTS: [EnumVariantMetadata; 1] =
 #[should_panic(expected = "index references an unknown model field")]
 fn test_type_metadata_rejects_constraints_for_missing_fields() {
     let _ = TypeMetadata::new(
+        ModelId::from_static("test.metadata.Account"),
         TypeIdentity::of::<Account>(),
         TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
         &INVALID_INDEX_ATTRIBUTES,
@@ -85,6 +87,7 @@ fn test_type_metadata_rejects_constraints_for_missing_fields() {
 #[test]
 fn test_type_metadata_exposes_keys_and_ownership() {
     let metadata = TypeMetadata::new(
+        ModelId::from_static("test.metadata.Account"),
         TypeIdentity::of::<Account>(),
         TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
         &QUERY_ATTRIBUTES,
@@ -99,6 +102,7 @@ fn test_type_metadata_exposes_keys_and_ownership() {
         Some(ownership)
             if ownership.owner().identity() == TypeIdentity::of::<Organization>()
     ));
+    assert_eq!(metadata.id().as_str(), "test.metadata.Account");
 }
 
 #[test]
