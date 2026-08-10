@@ -11,8 +11,8 @@ code.
 
 Use this crate when a Rust domain-model declaration must remain the source of
 truth for metadata consumed by validation, schema-oriented tools, or application
-code. `#[derive(Model)]` produces the static implementations consumed by
-`qubit-model-metadata`; it neither registers models globally nor validates data.
+code. `#[derive(Model)]` produces the static implementations and registrations
+consumed by `qubit-model-metadata`; it does not validate data.
 
 ## Conceptual Model
 
@@ -44,6 +44,7 @@ use qubit_model_derive::Model;
 use qubit_model_metadata::{AttributeQuery, metadata_of};
 
 #[derive(Model)]
+#[model(id = "example.Account")]
 struct Account {
     #[model(identifier(generated))]
     id: i64,
@@ -88,6 +89,7 @@ Model-level attributes describe the whole model:
 
 | Attribute | Meaning |
 | --- | --- |
+| `id = "example.Account"` | Required stable model ID; its final segment must match the Rust type name. |
 | `primary_key(fields(id), generated(id))` | Ordered primary key; a generated field must belong to it. |
 | `unique(name = "account", fields(org_id, username), ignore_case(username))` | Per-field uniqueness comparison. |
 | `index(name = "created_at", fields(created_at))` | Ordered index fields. |
@@ -119,23 +121,26 @@ ranges, unavailable type capabilities, and invalid local field references.
 
 ## Relations and Opaque Fields
 
-Relations name both their target type and target field:
+Relations name a stable target model ID and target field:
 
 ```rust
 use qubit_model_derive::Model;
 
 #[derive(Model)]
+#[model(id = "example.Organization")]
 struct Organization { #[model(identifier)] id: i64 }
 
 #[derive(Model)]
+#[model(id = "example.Membership")]
 struct Membership {
-    #[model(reference(target = Organization, target_field = id, must_exist = true))]
+    #[model(reference(target = "example.Organization", target_field = id, must_exist = true))]
     organization_id: i64,
 }
 ```
 
-These are local declarations: this release does not validate target-field type
-compatibility or relation cycles across a full model graph.
+The source crate does not need a Cargo dependency on `Organization`. Call
+`ModelRegistry::validate_graph()` from a linked complete model set to validate
+target existence, target-field compatibility, `same_as`, and required cycles.
 
 For an external type that intentionally lacks structural metadata, use `opaque`:
 
@@ -144,6 +149,7 @@ use qubit_model_derive::Model;
 
 struct ExternalToken;
 #[derive(Model)]
+#[model(id = "example.ImportRecord")]
 struct ImportRecord { #[model(opaque)] token: ExternalToken }
 ```
 

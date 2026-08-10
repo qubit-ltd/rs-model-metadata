@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
-`qubit-model-derive` 为 Rust 领域模型提供 `#[derive(Model)]`。它将模型声明转换为 `qubit-model-metadata` 暴露的静态强类型元数据，使校验、面向 schema 的工具和应用代码无需运行时注册表或基于字符串的类型推断即可查询模型结构。
+`qubit-model-derive` 为 Rust 领域模型提供 `#[derive(Model)]`。它将模型声明转换为 `qubit-model-metadata` 暴露的静态强类型元数据和自动注册项。
 
 ## 安装
 
@@ -32,6 +32,7 @@ use qubit_model_derive::Model;
 use qubit_model_metadata::metadata_of;
 
 #[derive(Model)]
+#[model(id = "example.Account")]
 struct Account {
     #[model(identifier)]
     id: i64,
@@ -46,7 +47,7 @@ fn main() {
 }
 ```
 
-derive 会生成不可变元数据和所需的 runtime trait。该查询可观察声明的主键与字段元数据，而不会在运行时解析 Rust 类型名称。
+derive 会生成不可变元数据、所需的 runtime trait 与一个自动注册项。该查询可观察声明的主键与字段元数据，而不会在运行时解析 Rust 类型名称。
 
 ## 为什么需要这个项目
 
@@ -56,6 +57,7 @@ Rust 模型通常不仅需要 Rust 类型：校验、持久化和 schema 工具�
 
 - 为具名字段 struct、unit struct、单字段 tuple newtype 与 fieldless enum 生成静态 `HasTypeShape` 和 `HasTypeMetadata` 实现。
 - 从受支持的 `#[model(...)]` 属性生成字段、类型、键、唯一性、索引、文本、集合、时间、decimal、reference、敏感信息、codec 与 generator 元数据。
+- 每个模型都必须声明稳定的 `#[model(id = "module.Type")]`；每次展开都会向不可变全局 `ModelRegistry` 贡献一个注册项。
 - 按 Cargo 包名解析 runtime 依赖。若本地将 `qubit-model-metadata` 重命名，展开代码会使用该本地依赖名；即使存在同名本地模块可能造成遮蔽，也仍然适用：
 
   ```toml
@@ -71,6 +73,7 @@ Rust 模型通常不仅需要 Rust 类型：校验、持久化和 schema 工具�
 struct ExternalToken;
 
 #[derive(Model)]
+#[model(id = "example.ImportRecord")]
 struct ImportRecord {
     #[model(opaque)]
     token: ExternalToken,
@@ -82,8 +85,7 @@ struct ImportRecord {
 ## 已知限制
 
 - 多字段 tuple struct、带数据的 enum variant、union 和泛型模型会被拒绝。
-- 宏执行本地声明与能力校验。阶段 D 的关系能力不在本版本范围内：不提供显式模型集合，也不执行跨模型的目标字段、类型相容性或关系环校验。
-- `same_as` 当前仅接受一个本地 Rust 字段；嵌套关系路径仍属于暂缓的模型集合校验工作。
+- 宏只校验单个模型。`reference(target = "module.Type", ...)` 使用稳定目标 ID，不要求对目标模型建立 Cargo 依赖；目标是否存在、目标字段、投影类型相容性、`same_as` 和强制引用环，只会由已链接模型集合显式调用 `ModelRegistry::validate_graph()` 时校验。
 - 不定义表/列映射、PostgreSQL 专属类型、JSON 导出格式，或 codec/generator 的策略 trait 实现。
 
 ## 延伸阅读

@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-`qubit-model-derive` supplies `#[derive(Model)]` for Rust domain models. It turns a model declaration into the static, strongly typed metadata exposed by `qubit-model-metadata`, so validation, schema-oriented tooling, and application code can query model structure without a runtime registry or string-based type inspection.
+`qubit-model-derive` supplies `#[derive(Model)]` for Rust domain models. It turns a model declaration into static, strongly typed metadata and an automatic registration exposed by `qubit-model-metadata`.
 
 ## Installation
 
@@ -33,6 +33,7 @@ use qubit_model_derive::Model;
 use qubit_model_metadata::metadata_of;
 
 #[derive(Model)]
+#[model(id = "example.Account")]
 struct Account {
     #[model(identifier)]
     id: i64,
@@ -47,7 +48,7 @@ fn main() {
 }
 ```
 
-The derive generates immutable metadata and the required runtime traits. The query observes the declared primary key and field metadata; it does not parse Rust type names at runtime.
+The derive generates immutable metadata, the required runtime traits, and one automatic registration. The query observes the declared primary key and field metadata; it does not parse Rust type names at runtime.
 
 ## Why This Project Exists
 
@@ -57,6 +58,7 @@ Rust models often need more than their Rust type: validation, persistence, and s
 
 - Derives static `HasTypeShape` and `HasTypeMetadata` implementations for named-field and unit structs, single-field tuple newtypes, and fieldless enums.
 - Generates field, type, key, uniqueness, index, text, collection, temporal, decimal, reference, sensitivity, codec, and generator metadata from supported `#[model(...)]` attributes.
+- Requires every model to declare a stable `#[model(id = "module.Type")]`; each expansion contributes one registration to the immutable global `ModelRegistry`.
 - Resolves the runtime package by Cargo package name. If `qubit-model-metadata` is renamed locally, the expansion uses that local dependency name, including when a same-named module would otherwise shadow it:
 
   ```toml
@@ -72,6 +74,7 @@ For an opaque field, use the marker only when structural inspection is intention
 struct ExternalToken;
 
 #[derive(Model)]
+#[model(id = "example.ImportRecord")]
 struct ImportRecord {
     #[model(opaque)]
     token: ExternalToken,
@@ -83,8 +86,7 @@ Without `opaque`, an external type must implement `HasTypeShape`; `opaque` canno
 ## Known Limits
 
 - Multi-field tuple structs, data-carrying enum variants, unions, and generic models are rejected.
-- The macro performs local declaration and capability validation. Phase D relationship work is out of scope: it does not provide an explicit model set or graph-wide validation of target fields, type compatibility, or relationship cycles.
-- `same_as` currently accepts one local Rust field only. Nested relation paths remain part of the deferred model-set validation work.
+- The macro validates one model only. `reference(target = "module.Type", ...)` accepts a stable target ID without requiring a Cargo dependency on that target model; target existence, fields, projection compatibility, `same_as`, and required-reference cycles are checked only by explicit `ModelRegistry::validate_graph()` on a linked model set.
 - It does not define table/column mappings, PostgreSQL-specific types, JSON export formats, or codec/generator strategy implementations.
 
 ## Learn More

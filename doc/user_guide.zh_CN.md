@@ -8,7 +8,7 @@
 
 ## 手册目标与读者
 
-当 Rust 领域模型声明需要成为校验、面向 schema 的工具或应用代码的元数据事实来源时，请使用本 crate。`#[derive(Model)]` 会生成 `qubit-model-metadata` 所消费的静态实现；它既不会全局注册模型，也不执行数据校验。
+当 Rust 领域模型声明需要成为校验、面向 schema 的工具或应用代码的元数据事实来源时，请使用本 crate。`#[derive(Model)]` 会生成 `qubit-model-metadata` 所消费的静态实现和注册项；它不执行数据校验。
 
 ## 概念模型
 
@@ -38,6 +38,7 @@ use qubit_model_derive::Model;
 use qubit_model_metadata::{AttributeQuery, metadata_of};
 
 #[derive(Model)]
+#[model(id = "example.Account")]
 struct Account {
     #[model(identifier(generated))]
     id: i64,
@@ -74,6 +75,7 @@ bigdecimal = "0.4"
 
 | 属性 | 含义 |
 | --- | --- |
+| `id = "example.Account"` | 必填的稳定模型 ID；最后一段必须与 Rust 类型名一致。 |
 | `primary_key(fields(id), generated(id))` | 有序主键；生成字段必须属于该主键。 |
 | `unique(name = "account", fields(org_id, username), ignore_case(username))` | 按字段保存的唯一性比较规则。 |
 | `index(name = "created_at", fields(created_at))` | 有序索引字段。 |
@@ -98,22 +100,25 @@ bigdecimal = "0.4"
 
 ## 关系与 Opaque 字段
 
-关系要同时声明目标类型和目标字段：
+关系要声明稳定目标模型 ID 和目标字段：
 
 ```rust
 use qubit_model_derive::Model;
 
 #[derive(Model)]
+#[model(id = "example.Organization")]
 struct Organization { #[model(identifier)] id: i64 }
 
 #[derive(Model)]
+#[model(id = "example.Membership")]
 struct Membership {
-    #[model(reference(target = Organization, target_field = id, must_exist = true))]
+    #[model(reference(target = "example.Organization", target_field = id, must_exist = true))]
     organization_id: i64,
 }
 ```
 
-这只是本地声明：本版本不校验完整模型图中的目标字段类型相容性或关系环。
+来源 crate 不需要依赖 `Organization`。在链接完整模型集合后调用
+`ModelRegistry::validate_graph()`，即可校验目标存在性、目标字段类型相容性、`same_as` 和强制引用环。
 
 对有意不提供结构元数据的外部类型，请使用 `opaque`：
 
@@ -122,6 +127,7 @@ use qubit_model_derive::Model;
 
 struct ExternalToken;
 #[derive(Model)]
+#[model(id = "example.ImportRecord")]
 struct ImportRecord { #[model(opaque)] token: ExternalToken }
 ```
 
