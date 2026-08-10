@@ -126,7 +126,9 @@ impl ModelRegistry {
             return;
         };
 
-        if reference.must_exist() && !source_field.is_nullable() {
+        let required_reference = reference.must_exist()
+            && !is_nullable_reference_field(source_field);
+        if required_reference {
             required_edges
                 .get_mut(&source)
                 .expect("all registered source models have adjacency entries")
@@ -149,7 +151,9 @@ impl ModelRegistry {
             source_field.field_type().strip_optional().type_name();
         let target_type =
             target_field.field_type().strip_optional().type_name();
-        if source_type != target_type {
+        if source_type != target_type
+            && !is_id_reference_projection(source_field, *target_field)
+        {
             errors.push(ModelGraphError::IncompatibleProjection {
                 source,
                 field: source_field.name(),
@@ -160,6 +164,27 @@ impl ModelRegistry {
             });
         }
     }
+}
+
+/// Returns whether a reference field is nullable, including fields whose
+/// metadata is intentionally opaque.
+fn is_nullable_reference_field(field: FieldMetadata) -> bool {
+    field.is_nullable()
+        || field.rust_type_name().starts_with("core::option::Option<")
+        || field.rust_type_name().starts_with("std::option::Option<")
+}
+
+/// Returns whether an opaque ID field projects to a target ID field.
+fn is_id_reference_projection(
+    source: FieldMetadata,
+    target: FieldMetadata,
+) -> bool {
+    target
+        .field_type()
+        .strip_optional()
+        .type_name()
+        .contains("qubit_id::id::Id")
+        && source.field_type().type_name().contains("qubit_id::id::Id")
 }
 
 /// Returns every direct-reference attribute declared on `field`.
