@@ -11,6 +11,7 @@ use thiserror::Error;
 use crate::model_id::ModelId;
 use crate::model_id::ModelIdError;
 use crate::model_registration::ModelRegistration;
+use crate::type_metadata::TypeIdentity;
 
 /// A configuration error encountered while constructing a model registry.
 #[derive(Debug, Error)]
@@ -57,6 +58,18 @@ pub enum ModelRegistryError {
     DuplicateId {
         /// The duplicated stable model identifier.
         id: ModelId,
+        /// The deterministically first conflicting registration.
+        first: &'static ModelRegistration,
+        /// The deterministically second conflicting registration.
+        second: &'static ModelRegistration,
+    },
+    /// Two registrations describe the same Rust type identity.
+    #[error(
+        "duplicate model type identity {identity:?}: first {first}; second {second}"
+    )]
+    DuplicateIdentity {
+        /// The duplicated runtime type identity.
+        identity: TypeIdentity,
         /// The deterministically first conflicting registration.
         first: &'static ModelRegistration,
         /// The deterministically second conflicting registration.

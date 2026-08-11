@@ -197,8 +197,7 @@ const fn validate_type_attributes(
             | AttributeMetadata::Reference(_)
             | AttributeMetadata::LookupRelation(_)
             | AttributeMetadata::Codec(_)
-            | AttributeMetadata::Generator(_)
-            | AttributeMetadata::Sensitive(_) => {
+            | AttributeMetadata::Generator(_) => {
                 panic!("field-level attributes are not valid at model scope")
             }
         }

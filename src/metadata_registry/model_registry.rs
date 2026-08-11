@@ -7,6 +7,7 @@
 //! Immutable lookup indexes over statically linked model registrations.
 
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use super::model_registry_error::ModelRegistryError;
@@ -24,6 +25,8 @@ pub struct ModelRegistry {
     registrations: Vec<&'static ModelRegistration>,
     /// Positions in `registrations`, indexed by stable model ID.
     indices: BTreeMap<ModelId, usize>,
+    /// Positions in `registrations`, indexed by Rust runtime type identity.
+    identity_indices: HashMap<TypeIdentity, usize>,
 }
 
 impl ModelRegistry {
@@ -80,12 +83,23 @@ impl ModelRegistry {
         }
 
         let mut indices = BTreeMap::new();
+        let mut identity_indices = HashMap::new();
         for (index, registration) in registrations.iter().enumerate() {
             indices.insert(registration.id(), index);
+            if let Some(first_index) = identity_indices
+                .insert(registration.metadata().identity(), index)
+            {
+                return Err(ModelRegistryError::DuplicateIdentity {
+                    identity: registration.metadata().identity(),
+                    first: registrations[first_index],
+                    second: registration,
+                });
+            }
         }
         Ok(Self {
             registrations,
             indices,
+            identity_indices,
         })
     }
 
@@ -138,9 +152,9 @@ impl ModelRegistry {
 impl MetadataResolver for ModelRegistry {
     /// Resolves a runtime type identity from this immutable model collection.
     fn resolve(&self, identity: TypeIdentity) -> Option<&'static TypeMetadata> {
-        self.registrations()
-            .map(ModelRegistration::metadata)
-            .find(|metadata| metadata.identity() == identity)
+        self.identity_indices
+            .get(&identity)
+            .map(|index| self.registrations[*index].metadata())
     }
 }
 

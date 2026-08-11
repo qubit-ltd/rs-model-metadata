@@ -10,7 +10,6 @@
 
 use crate::attribute::AttributeMetadata;
 use crate::attribute::ElementMetadata;
-use crate::attribute::SensitiveMetadata;
 use crate::attribute::StrategyRef;
 use crate::constraint::DecimalConstraint;
 use crate::constraint::MapConstraint;
@@ -297,22 +296,6 @@ impl FieldMetadata {
                 _ => None,
             })
     }
-
-    /// Returns the field's sensitive-data policy, if present.
-    ///
-    /// # Returns
-    ///
-    /// `Some` with the sensitive-data policy when one is present; otherwise
-    /// `None`.
-    #[must_use]
-    pub fn sensitive(self) -> Option<SensitiveMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Sensitive(metadata) => Some(*metadata),
-                _ => None,
-            })
-    }
 }
 
 /// Validates the attribute scopes and type capabilities stored on one field.
@@ -384,8 +367,7 @@ const fn validate_field_attributes(
             AttributeMetadata::Reference(_)
             | AttributeMetadata::LookupRelation(_)
             | AttributeMetadata::Codec(_)
-            | AttributeMetadata::Generator(_)
-            | AttributeMetadata::Sensitive(_) => {}
+            | AttributeMetadata::Generator(_) => {}
         }
         index += 1;
     }

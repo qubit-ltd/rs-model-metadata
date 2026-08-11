@@ -25,8 +25,6 @@ use qubit_model_metadata::PrimaryKeyFieldMetadata;
 use qubit_model_metadata::PrimaryKeyMetadata;
 use qubit_model_metadata::ReferenceMetadata;
 use qubit_model_metadata::RoundingMode;
-use qubit_model_metadata::SensitiveHandling;
-use qubit_model_metadata::SensitiveMetadata;
 use qubit_model_metadata::SequenceConstraint;
 use qubit_model_metadata::StrategyRef;
 use qubit_model_metadata::TemporalConstraint;
@@ -55,10 +53,6 @@ const VALID_INDEX: IndexMetadata =
 const KEY_FIELDS: [&str; 1] = ["username"];
 const VALID_KEY: KeyMetadata = KeyMetadata::new(Some("user"), &KEY_FIELDS);
 const STRATEGY: StrategyRef = StrategyRef::new("redact-email");
-const SENSITIVE: SensitiveMetadata =
-    SensitiveMetadata::new(SensitiveHandling::Mask);
-const TOKEN_SENSITIVE: SensitiveMetadata =
-    SensitiveMetadata::new(SensitiveHandling::Token);
 const ELEMENT_TEXT: AttributeMetadata =
     AttributeMetadata::Text(TextConstraint::new(
         None,
@@ -138,9 +132,6 @@ fn test_attribute_metadata_reports_every_kind() {
         )),
         AttributeMetadata::Codec(STRATEGY),
         AttributeMetadata::Generator(StrategyRef::new("generate-id")),
-        AttributeMetadata::Sensitive(SensitiveMetadata::new(
-            SensitiveHandling::Redact,
-        )),
     ];
     let expected = [
         AttributeKind::Text,
@@ -158,7 +149,6 @@ fn test_attribute_metadata_reports_every_kind() {
         AttributeKind::Ownership,
         AttributeKind::Codec,
         AttributeKind::Generator,
-        AttributeKind::Sensitive,
     ];
 
     for (attribute, expected_kind) in attributes.into_iter().zip(expected) {
@@ -203,8 +193,6 @@ fn test_metadata_accessors_return_declared_values() {
     assert!(!VALID_KEY.contains("missing"));
 
     assert_eq!(STRATEGY.name(), "redact-email");
-    assert_eq!(SENSITIVE.handling(), SensitiveHandling::Mask);
-    assert_eq!(TOKEN_SENSITIVE.handling(), SensitiveHandling::Token);
 }
 
 #[test]
@@ -212,13 +200,11 @@ fn test_metadata_accessors_return_runtime_values() {
     let generated = PrimaryKeyFieldMetadata::new("created_id", false);
     let unique =
         UniqueFieldMetadata::new("display_name", UniqueComparison::Exact);
-    let sensitive = SensitiveMetadata::new(SensitiveHandling::Redact);
 
     assert_eq!(generated.name(), "created_id");
     assert!(!generated.is_generated());
     assert_eq!(unique.name(), "display_name");
     assert_eq!(unique.comparison(), UniqueComparison::Exact);
-    assert_eq!(sensitive.handling(), SensitiveHandling::Redact);
 }
 
 #[test]

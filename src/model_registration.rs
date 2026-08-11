@@ -25,8 +25,11 @@ use linkme::distributed_slice;
 use crate::model_id::ModelId;
 use crate::type_metadata::TypeMetadata;
 
+mod has_model_registration;
 mod source_location;
 
+pub use self::has_model_registration::HasModelRegistration;
+pub use self::has_model_registration::registration_of;
 pub use self::source_location::SourceLocation;
 
 /// A statically linked model metadata declaration.

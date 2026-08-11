@@ -48,6 +48,7 @@ struct InvalidSameAsSource;
 struct CycleA;
 struct CycleB;
 struct SelfCycle;
+struct VecCycle;
 struct OptionalCycleA;
 struct OptionalCycleB;
 struct NestedInfo;
@@ -226,6 +227,30 @@ static SELF_CYCLE_METADATA: TypeMetadata = TypeMetadata::new(
     ModelId::new("test.graph.SelfCycle"),
     TypeIdentity::of::<SelfCycle>(),
     TypeKind::Struct(StructMetadata::new(&SELF_CYCLE_FIELDS)),
+    &[],
+);
+
+static VEC_CYCLE_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Reference(ReferenceMetadata::new(
+        ModelId::new("test.graph.VecCycle"),
+        FieldPath::new(&["id"]),
+        true,
+        None,
+    ))];
+static VEC_CYCLE_FIELDS: [FieldMetadata; 2] = [
+    FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &[]),
+    FieldMetadata::new(
+        1,
+        "related_ids",
+        "Vec<i64>",
+        TypeRef::of::<Vec<i64>>(),
+        &VEC_CYCLE_ATTRIBUTES,
+    ),
+];
+static VEC_CYCLE_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.graph.VecCycle"),
+    TypeIdentity::of::<VecCycle>(),
+    TypeKind::Struct(StructMetadata::new(&VEC_CYCLE_FIELDS)),
     &[],
 );
 
@@ -425,6 +450,13 @@ static SELF_CYCLE_REGISTRATION: ModelRegistration = ModelRegistration::new(
     "SelfCycle",
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 8, 1),
+);
+static VEC_CYCLE_REGISTRATION: ModelRegistration = ModelRegistration::new(
+    ModelId::new("test.graph.VecCycle"),
+    &VEC_CYCLE_METADATA,
+    "test::VecCycle",
+    "test::graph",
+    SourceLocation::new("vec_cycle.rs", 1, 1),
 );
 static OPTIONAL_CYCLE_A_REGISTRATION: ModelRegistration =
     ModelRegistration::new(
@@ -627,6 +659,14 @@ fn test_validate_graph_reports_a_canonical_self_cycle() {
             ],
         }],
     );
+}
+
+#[test]
+fn test_validate_graph_allows_empty_vector_reference_cycles() {
+    ModelRegistry::from_registrations([&VEC_CYCLE_REGISTRATION])
+        .expect("the registry should be valid")
+        .validate_graph()
+        .expect("an unconstrained vector can be empty");
 }
 
 #[test]

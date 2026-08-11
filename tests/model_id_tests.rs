@@ -9,6 +9,8 @@
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelIdError;
 
+const STATIC_MODEL_ID: ModelId = ModelId::new("test.model.StaticModel");
+
 #[test]
 fn test_model_id_accepts_nested_modules() {
     let id = ModelId::try_new("qubit.platform.metadata.dictionary.DictEntry")
@@ -89,4 +91,11 @@ fn test_model_id_errors_describe_each_invalid_reason() {
         assert_eq!(error, expected_error);
         assert_eq!(error.to_string(), expected_message);
     }
+}
+
+#[test]
+fn test_model_id_new_validates_static_values() {
+    assert_eq!(STATIC_MODEL_ID.as_str(), "test.model.StaticModel");
+    let panic = std::panic::catch_unwind(|| ModelId::new("test.invalid"));
+    assert!(panic.is_err());
 }

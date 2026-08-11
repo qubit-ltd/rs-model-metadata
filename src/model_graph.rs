@@ -164,7 +164,7 @@ impl ModelRegistry {
         let source_projection =
             project_relation_type(source_field.field_type());
         let required_reference =
-            reference.must_exist() && !source_projection.is_nullable();
+            reference.must_exist() && requires_reference_target(source_field);
         if required_reference {
             required_edges
                 .get_mut(&source)
@@ -276,8 +276,6 @@ impl ModelRegistry {
 /// A relation endpoint projected from a structural type.
 #[derive(Clone, Copy)]
 struct RelationProjection {
-    /// Whether the outer relation value may be absent.
-    nullable: bool,
     /// The leaf type identity, when the structure has one unambiguous value.
     identity: Option<TypeIdentity>,
     /// The leaf type name used in diagnostics.
@@ -285,12 +283,6 @@ struct RelationProjection {
 }
 
 impl RelationProjection {
-    /// Returns whether this projected relation is nullable.
-    #[must_use]
-    const fn is_nullable(self) -> bool {
-        self.nullable
-    }
-
     /// Returns whether two projected relation endpoints have the same leaf.
     #[must_use]
     fn is_compatible_with(self, other: Self) -> bool {
@@ -313,11 +305,9 @@ impl RelationProjection {
 /// ambiguous.
 fn project_relation_type(field_type: TypeRef) -> RelationProjection {
     let mut current = field_type;
-    let mut nullable = false;
     loop {
         match current.shape() {
             TypeShape::Optional(inner) => {
-                nullable = true;
                 current = inner;
             }
             TypeShape::Sequence(inner) | TypeShape::Set(inner) => {
@@ -328,19 +318,44 @@ fn project_relation_type(field_type: TypeRef) -> RelationProjection {
             }
             TypeShape::Map { .. } => {
                 return RelationProjection {
-                    nullable,
                     identity: None,
                     type_name: current.type_name(),
                 };
             }
             TypeShape::Scalar(_) | TypeShape::Named(_) | TypeShape::Opaque => {
                 return RelationProjection {
-                    nullable,
                     identity: Some(current.identity()),
                     type_name: current.identity().type_name(),
                 };
             }
         }
+    }
+}
+
+/// Returns whether every valid field value contains at least one reference.
+fn requires_reference_target(field: FieldMetadata) -> bool {
+    requires_shape_target(
+        field.field_type(),
+        field
+            .sequence_constraint()
+            .and_then(|value| value.min_items()),
+    )
+}
+
+/// Returns whether `field_type` necessarily contributes a leaf value.
+fn requires_shape_target(field_type: TypeRef, min_items: Option<u32>) -> bool {
+    match field_type.shape() {
+        TypeShape::Optional(_) | TypeShape::Set(_) | TypeShape::Map { .. } => {
+            false
+        }
+        TypeShape::Sequence(inner) => {
+            min_items.is_some_and(|value| value > 0)
+                && requires_shape_target(inner, None)
+        }
+        TypeShape::Array { element, length } => {
+            length > 0 && requires_shape_target(element, None)
+        }
+        TypeShape::Scalar(_) | TypeShape::Named(_) | TypeShape::Opaque => true,
     }
 }
 

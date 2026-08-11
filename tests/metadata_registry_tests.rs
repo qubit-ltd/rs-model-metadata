@@ -6,15 +6,23 @@
 
 //! Integration tests for immutable model registration lookup.
 
+use qubit_model_metadata::HasModelRegistration;
+use qubit_model_metadata::HasTypeMetadata;
+use qubit_model_metadata::HasTypeShape;
+use qubit_model_metadata::MetadataResolver;
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelRegistration;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelRegistryError;
+use qubit_model_metadata::NamedTypeRef;
 use qubit_model_metadata::SourceLocation;
 use qubit_model_metadata::StructMetadata;
+use qubit_model_metadata::TypeCapabilities;
 use qubit_model_metadata::TypeIdentity;
 use qubit_model_metadata::TypeKind;
 use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::TypeShape;
+use qubit_model_metadata::registration_of;
 
 struct Account;
 struct Organization;
@@ -47,6 +55,12 @@ static DUPLICATE_Z_METADATA: TypeMetadata = TypeMetadata::new(
 );
 static MISMATCH_METADATA: TypeMetadata = TypeMetadata::new(
     ModelId::new("test.metadata.Account"),
+    TypeIdentity::of::<Account>(),
+    TypeKind::Struct(StructMetadata::new(&[])),
+    &[],
+);
+static IDENTITY_DUPLICATE_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.metadata.IdentityDuplicate"),
     TypeIdentity::of::<Account>(),
     TypeKind::Struct(StructMetadata::new(&[])),
     &[],
@@ -87,6 +101,31 @@ static MISMATCH_REGISTRATION: ModelRegistration = ModelRegistration::new(
     "test::metadata",
     SourceLocation::new("mismatch.rs", 40, 4),
 );
+static IDENTITY_DUPLICATE_REGISTRATION: ModelRegistration =
+    ModelRegistration::new(
+        ModelId::new("test.metadata.IdentityDuplicate"),
+        &IDENTITY_DUPLICATE_METADATA,
+        "test::IdentityDuplicate",
+        "test::metadata",
+        SourceLocation::new("identity_duplicate.rs", 50, 1),
+    );
+
+impl HasTypeMetadata for Account {
+    fn type_metadata() -> &'static TypeMetadata {
+        &ACCOUNT_METADATA
+    }
+}
+
+impl HasTypeShape for Account {
+    const TYPE_SHAPE: TypeShape = TypeShape::Named(NamedTypeRef::of::<Self>());
+    const CAPABILITIES: TypeCapabilities = TypeCapabilities::NONE;
+}
+
+impl HasModelRegistration for Account {
+    fn model_registration() -> &'static ModelRegistration {
+        &ACCOUNT_REGISTRATION
+    }
+}
 
 #[test]
 fn test_from_registrations_sorts_and_looks_up_models() {
@@ -118,6 +157,46 @@ fn test_from_registrations_sorts_and_looks_up_models() {
     ));
     assert!(registry.get("test.metadata.Unknown").is_none());
     assert!(registry.registration("test.metadata.Unknown").is_none());
+}
+
+#[test]
+fn test_registration_of_exposes_explicit_model_catalog_entries() {
+    let registry =
+        ModelRegistry::from_registrations([registration_of::<Account>()])
+            .expect("the explicit model catalog should be valid");
+
+    assert!(core::ptr::eq(
+        registration_of::<Account>(),
+        &ACCOUNT_REGISTRATION
+    ));
+    assert!(core::ptr::eq(
+        registry
+            .resolve(TypeIdentity::of::<Account>())
+            .expect("the account identity should resolve"),
+        &ACCOUNT_METADATA,
+    ));
+}
+
+#[test]
+fn test_from_registrations_rejects_duplicate_type_identity() {
+    let error = ModelRegistry::from_registrations([
+        &ACCOUNT_REGISTRATION,
+        &IDENTITY_DUPLICATE_REGISTRATION,
+    ])
+    .expect_err("one Rust type identity cannot have two registrations");
+
+    match error {
+        ModelRegistryError::DuplicateIdentity {
+            identity,
+            first,
+            second,
+        } => {
+            assert_eq!(identity, TypeIdentity::of::<Account>());
+            assert!(core::ptr::eq(first, &ACCOUNT_REGISTRATION));
+            assert!(core::ptr::eq(second, &IDENTITY_DUPLICATE_REGISTRATION));
+        }
+        other => panic!("expected duplicate identity error, got {other:?}"),
+    }
 }
 
 #[test]

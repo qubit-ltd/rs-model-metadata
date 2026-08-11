@@ -23,8 +23,6 @@ use qubit_model_metadata::PrimaryKeyFieldMetadata;
 use qubit_model_metadata::PrimaryKeyMetadata;
 use qubit_model_metadata::ReferenceMetadata;
 use qubit_model_metadata::RoundingMode;
-use qubit_model_metadata::SensitiveHandling;
-use qubit_model_metadata::SensitiveMetadata;
 use qubit_model_metadata::SequenceConstraint;
 use qubit_model_metadata::StrategyRef;
 use qubit_model_metadata::TemporalConstraint;
@@ -121,7 +119,7 @@ static ELEMENT_DECIMAL_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Element(ElementMetadata::new(
         &DECIMAL_ELEMENT_ATTRIBUTES,
     ))];
-static RELATION_ATTRIBUTES: [AttributeMetadata; 5] = [
+static RELATION_ATTRIBUTES: [AttributeMetadata; 4] = [
     AttributeMetadata::Reference(ReferenceMetadata::new(
         ModelId::new("test.Target"),
         FieldPath::new(&["id"]),
@@ -134,9 +132,6 @@ static RELATION_ATTRIBUTES: [AttributeMetadata; 5] = [
     )),
     AttributeMetadata::Codec(StrategyRef::new("decode")),
     AttributeMetadata::Generator(StrategyRef::new("generate")),
-    AttributeMetadata::Sensitive(SensitiveMetadata::new(
-        SensitiveHandling::Mask,
-    )),
 ];
 static FIXED_SEQUENCE_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Sequence(SequenceConstraint::new(
@@ -231,10 +226,6 @@ fn test_field_metadata_exposes_all_typed_attribute_queries() {
     assert_eq!(
         relations.generator().map(|value| value.name()),
         Some("generate")
-    );
-    assert_eq!(
-        relations.sensitive().map(|value| value.handling()),
-        Some(SensitiveHandling::Mask)
     );
 }
 

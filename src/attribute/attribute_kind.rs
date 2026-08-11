@@ -40,6 +40,4 @@ pub enum AttributeKind {
     Codec,
     /// Generator strategies.
     Generator,
-    /// Sensitive-data metadata.
-    Sensitive,
 }

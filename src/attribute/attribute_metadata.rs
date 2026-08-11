@@ -11,7 +11,6 @@ use super::ElementMetadata;
 use super::IndexMetadata;
 use super::KeyMetadata;
 use super::PrimaryKeyMetadata;
-use super::SensitiveMetadata;
 use super::StrategyRef;
 use super::UniqueMetadata;
 use crate::constraint::DecimalConstraint;
@@ -57,8 +56,6 @@ pub enum AttributeMetadata {
     Codec(StrategyRef),
     /// A generator strategy name.
     Generator(StrategyRef),
-    /// Sensitive-data handling metadata.
-    Sensitive(SensitiveMetadata),
 }
 
 impl AttributeMetadata {
@@ -85,7 +82,6 @@ impl AttributeMetadata {
             Self::Ownership(_) => AttributeKind::Ownership,
             Self::Codec(_) => AttributeKind::Codec,
             Self::Generator(_) => AttributeKind::Generator,
-            Self::Sensitive(_) => AttributeKind::Sensitive,
         }
     }
 }
