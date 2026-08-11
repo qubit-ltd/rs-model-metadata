@@ -43,11 +43,11 @@ Query generated metadata with its typed API:
 use qubit_model_derive::Model;
 use qubit_model_metadata::{AttributeQuery, TypeShape, metadata_of};
 
-#[derive(Model)]
+#[Model(id = "example.Account")]
 struct Account {
-    #[model(identifier)]
+    #[field(identifier)]
     id: i64,
-    #[model(text(max_chars = 320), unique(ignore_case))]
+    #[field(text(max_chars = 320), unique(ignore_case))]
     email: String,
     tags: Option<Vec<String>>,
 }
@@ -139,7 +139,7 @@ replacement for required structure.
 | Symptom | Check |
 | --- | --- |
 | `metadata_of::<T>()` does not compile | Ensure `T` implements `HasTypeMetadata`, normally through `Model`. |
-| Derive rejects an external field type | Enable a needed feature, implement `HasTypeShape`, or intentionally use `#[model(opaque)]`. |
+| Model rejects an external field type | Enable a needed feature, implement `HasTypeShape`, or intentionally use `#[field(opaque)]`. |
 | A field is unexpectedly nullable | Inspect its outer `TypeShape`; only outer `Option<T>` is nullable. |
 | Path resolution fails | Verify every segment, intermediate named structs, and their metadata resolvers. |
 | A tool cannot find a model | Ensure the model crate is linked and registered, or construct a `ModelRegistry` from the tool's explicit registration collection. |

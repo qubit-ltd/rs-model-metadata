@@ -34,11 +34,11 @@ qubit-model-derive = "0.1.0"
 use qubit_model_derive::Model;
 use qubit_model_metadata::{TypeShape, metadata_of};
 
-#[derive(Model)]
+#[Model(id = "example.Account")]
 struct Account {
-    #[model(identifier)]
+    #[field(identifier)]
     id: i64,
-    #[model(text(min_chars = 3, max_chars = 320), unique(ignore_case))]
+    #[field(text(min_chars = 3, max_chars = 320), unique(ignore_case))]
     email: String,
 }
 
@@ -52,7 +52,8 @@ assert_eq!(email.text_constraint().and_then(|text| text.max_chars()), Some(320))
 
 查询只读取静态切片与函数指针，不会在运行时分配元数据图。
 
-derive crate 仍保留 `ModelMetadata` 兼容别名；新代码请使用 `Model`。
+`Model` 是属性宏：它生成默认的模型 trait 与静态元数据；字段元数据使用
+`#[field(...)]` 声明。
 
 ## 为什么需要这个项目
 
@@ -72,7 +73,7 @@ derive crate 仍保留 `ModelMetadata` 兼容别名；新代码请使用 `Model`
 - runtime crate 提供由进程中已链接的分布式注册项组成的不可变全局 `ModelRegistry`。未链接的模型 crate 会有意缺席；需要时调用方也可以从显式注册项集合构造注册表。
 - 不定义数据库映射、校验错误文案、序列化格式、codec、generator 或脱敏实现。
 - 跨模型图校验与关系环检查不属于本 crate 的本地元数据 API。
-- 用户自定义类型必须实现 `HasTypeShape`；结构确实不可用时，配套 derive 提供显式 `#[model(opaque)]` 逃生口。
+- 用户自定义类型必须实现 `HasTypeShape`；结构确实不可用时，配套宏提供显式 `#[field(opaque)]` 逃生口。
 
 ## 延伸阅读
 

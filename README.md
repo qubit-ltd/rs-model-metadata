@@ -28,17 +28,17 @@ Optional Cargo features add shape support for external scalar types:
 
 ## Quick Start
 
-For an account model, derive its static metadata once and query it through the runtime API:
+For an account model, declare its static metadata once and query it through the runtime API:
 
 ```rust
 use qubit_model_derive::Model;
 use qubit_model_metadata::{TypeShape, metadata_of};
 
-#[derive(Model)]
+#[Model(id = "example.Account")]
 struct Account {
-    #[model(identifier)]
+    #[field(identifier)]
     id: i64,
-    #[model(text(min_chars = 3, max_chars = 320), unique(ignore_case))]
+    #[field(text(min_chars = 3, max_chars = 320), unique(ignore_case))]
     email: String,
 }
 
@@ -52,8 +52,8 @@ assert_eq!(email.text_constraint().and_then(|text| text.max_chars()), Some(320))
 
 The query reads static slices and function pointers. It does not allocate a metadata graph at runtime.
 
-`ModelMetadata` remains available as a compatibility alias in the derive crate;
-new code should use `Model`.
+`Model` is an attribute macro. It generates the standard model traits and the
+static metadata implementation; `#[field(...)]` declares field metadata.
 
 ## Why This Project Exists
 
@@ -73,7 +73,7 @@ Domain-model consumers need more than Rust's memory representation: they need fi
 - The runtime crate provides an immutable global `ModelRegistry` over distributed registrations linked into the process. Unlinked model crates are intentionally absent, and callers can construct a registry from an explicit registration set when needed.
 - It does not define database mappings, validation error messages, serialization formats, codecs, generators, or redaction implementations.
 - Cross-model graph validation and relationship-cycle checks are outside this crate's local metadata API.
-- User-defined types must implement `HasTypeShape`; the companion derive supports an explicit `#[model(opaque)]` escape hatch when structure is intentionally unavailable.
+- User-defined types must implement `HasTypeShape`; the companion macro supports an explicit `#[field(opaque)]` escape hatch when structure is intentionally unavailable.
 
 ## Learn More
 
