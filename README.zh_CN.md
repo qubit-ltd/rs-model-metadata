@@ -64,7 +64,7 @@ Rust 模型通常不仅需要 Rust 类型：校验、持久化和 schema 工具�
   model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
   ```
 
-- 要求未知外部字段类型通过 `#[field(opaque)]` 显式选择退出结构解析。opaque 字段会保留 Rust 类型名并暴露 `TypeShape::Opaque`，而不要求外部类型实现 `HasTypeShape`。
+- 要求未知外部字段类型通过 `#[field(opaque)]` 显式选择退出结构解析。opaque 字段会保留可见的 `Option`、序列、Set、数组和 Map 外层，并将叶子暴露为 `TypeShape::Opaque`，而不要求外部类型实现 `HasTypeShape`。
 
 对确实不应进行结构解析的字段使用 opaque 标记：
 
@@ -83,13 +83,13 @@ struct ImportRecord {
 ## 已知限制
 
 - 多字段 tuple struct、带数据的 enum variant、union 和泛型模型会被拒绝。
-- 宏只校验单个模型。`reference(target = "module.Type", ...)` 使用稳定目标 ID，不要求对目标模型建立 Cargo 依赖；目标是否存在、目标字段、投影类型相容性、`same_as` 和强制引用环，只会由已链接模型集合显式调用 `ModelRegistry::validate_graph()` 时校验。
+- 宏只校验单个模型。`reference(target = "module.Type", ...)` 使用稳定目标 ID，不要求对目标模型建立 Cargo 依赖；目标是否存在、目标字段、投影类型相容性、`same_as`、LookupRelation、Ownership、强制引用环和 ownership 环，只会由已链接模型集合显式调用 `ModelRegistry::validate_graph()` 时校验。
 - 不定义表/列映射、PostgreSQL 专属类型、JSON 导出格式，或 codec/generator 的策略 trait 实现。
 
 ## 延伸阅读
 
 - [用户手册](doc/user_guide.zh_CN.md)
-- [模型元数据与 derive 设计](doc/model-metadata-and-derive-design.md)
+- [中文用户指南](doc/user_guide.zh_CN.md)
 - [API 文档](https://docs.rs/qubit-model-derive)
 - [English document](README.md)
 

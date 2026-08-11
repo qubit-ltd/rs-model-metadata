@@ -127,7 +127,7 @@ struct ExternalToken;
 struct ImportRecord { #[field(opaque)] token: ExternalToken }
 ```
 
-否则，外部字段类型必须实现 `HasTypeShape`。opaque 字段表现为 `TypeShape::Opaque`，并且不能配合依赖形状的 `text`、`sequence`、`map`、`time`、`decimal` 或 `money` 约束。
+否则，外部字段类型必须实现 `HasTypeShape`。opaque 字段会保留可见的标准容器外层，并将叶子表现为 `TypeShape::Opaque`；它不能配合依赖形状的 `text`、`sequence`、`map`、`time`、`decimal` 或 `money` 约束。
 
 ## 错误与诊断
 
@@ -140,6 +140,6 @@ struct ImportRecord { #[field(opaque)] token: ExternalToken }
 ## 延伸阅读
 
 - [runtime 元数据用户手册](../../rs-model-metadata/doc/user_guide.zh_CN.md)
-- [模型元数据与 derive 设计](model-metadata-and-derive-design.md)
+- [项目说明](../README.zh_CN.md)
 - [README](../README.zh_CN.md)
 - [English user guide](user_guide.md)

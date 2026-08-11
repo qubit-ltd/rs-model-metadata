@@ -64,7 +64,7 @@ Rust models often need more than their Rust type: validation, persistence, and s
   model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
   ```
 
-- Requires unknown external field types to opt in explicitly with `#[field(opaque)]`. An opaque field preserves its Rust type name and exposes `TypeShape::Opaque`, without requiring the external type to implement `HasTypeShape`.
+- Requires unknown external field types to opt in explicitly with `#[field(opaque)]`. An opaque field preserves visible `Option`, sequence, set, array, and map wrappers while exposing its leaf as `TypeShape::Opaque`, without requiring the external type to implement `HasTypeShape`.
 
 For an opaque field, use the marker only when structural inspection is intentionally unavailable:
 
@@ -83,13 +83,13 @@ Without `opaque`, an external type must implement `HasTypeShape`; `opaque` canno
 ## Known Limits
 
 - Multi-field tuple structs, data-carrying enum variants, unions, and generic models are rejected.
-- The macro validates one model only. `reference(target = "module.Type", ...)` accepts a stable target ID without requiring a Cargo dependency on that target model; target existence, fields, projection compatibility, `same_as`, and required-reference cycles are checked only by explicit `ModelRegistry::validate_graph()` on a linked model set.
+- The macro validates one model only. `reference(target = "module.Type", ...)` accepts a stable target ID without requiring a Cargo dependency on that target model; target existence, fields, projection compatibility, `same_as`, lookup relations, ownership, required-reference cycles, and ownership cycles are checked by explicit `ModelRegistry::validate_graph()` on a linked model set.
 - It does not define table/column mappings, PostgreSQL-specific types, JSON export formats, or codec/generator strategy implementations.
 
 ## Learn More
 
 - [User guide](doc/user_guide.md)
-- [Model metadata and derive design](doc/model-metadata-and-derive-design.md)
+- [User guide](doc/user_guide.md)
 - [API documentation](https://docs.rs/qubit-model-derive)
 - [中文文档](README.zh_CN.md)
 

@@ -149,7 +149,8 @@ struct ImportRecord { #[field(opaque)] token: ExternalToken }
 ```
 
 Otherwise an external field type must implement `HasTypeShape`. An opaque field
-is represented as `TypeShape::Opaque` and cannot combine with shape-dependent
+preserves visible standard container wrappers and represents its leaf as
+`TypeShape::Opaque`; it cannot combine with shape-dependent
 `text`, `sequence`, `map`, `time`, `decimal`, or `money` constraints.
 
 ## Errors and Diagnostics
@@ -170,6 +171,6 @@ formats, validation messages, codec/generator execution, or global discovery.
 ## Further Reading
 
 - [Runtime metadata user guide](../../rs-model-metadata/doc/user_guide.md)
-- [Model metadata and derive design](model-metadata-and-derive-design.md)
+- [README](../README.md)
 - [README](../README.md)
 - [中文用户手册](user_guide.zh_CN.md)
