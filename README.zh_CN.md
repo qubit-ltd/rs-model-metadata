@@ -73,12 +73,13 @@ assert_eq!(email.text_constraint().and_then(|text| text.max_chars()), Some(320))
 - runtime crate 提供由进程中已链接的分布式注册项组成的不可变全局 `ModelRegistry`。未链接的模型 crate 会有意缺席；需要时调用方也可以从显式注册项集合构造注册表。
 - 不定义数据库映射、校验错误文案、序列化格式、codec、generator 或脱敏实现。
 - 跨模型图校验与关系环检查不属于本 crate 的本地元数据 API。
-- 用户自定义类型必须实现 `HasTypeShape`；结构确实不可用时，配套宏提供显式 `#[field(opaque)]` 逃生口。
+- 用户自定义类型必须实现 `HasTypeShape`；结构确实不可用时，配套宏提供显式 `#[field(opaque)]` 逃生口。它会保留可见的 `Option`、序列、Set、数组和 Map 外层结构，只隐藏叶子类型。
 
 ## 延伸阅读
 
 - [用户手册](doc/user_guide.zh_CN.md)
-- [模型元数据与 derive 设计](../doc/model-metadata-and-derive-design.md)
+- [English user guide](doc/user_guide.md)
+- [中文用户指南](doc/user_guide.zh_CN.md)
 - [API 文档](https://docs.rs/qubit-model-metadata)
 - [English document](README.md)
 

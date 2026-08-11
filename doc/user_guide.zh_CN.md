@@ -59,7 +59,7 @@ assert!(matches!(
 
 ## 类型形状与可空性
 
-`TypeRef` 是可复制的小型句柄。`shape()` 返回递归 `TypeShape`：标量、命名模型、可选值、序列、Set、Map、固定数组或 `Opaque`。最外层形状决定能力与可空性。
+`TypeRef` 是可复制的小型句柄。`shape()` 返回递归 `TypeShape`：标量、命名模型、可选值、序列、Set、Map、固定数组或 `Opaque`。宏生成的 opaque 字段会保留可见的标准容器外层，只将叶子标为 `Opaque`；最外层形状决定能力、可空性和关系投影。
 
 ```rust
 use qubit_model_metadata::{TypeRef, TypeShape};
@@ -99,7 +99,7 @@ let result = metadata_of::<Account>().resolve_field_path(path);
 
 公共构造器支持 const，因此高级用户可以手工构造静态元数据。它们会校验字段顺序、非空键集合和路径、递增范围，以及 decimal scale 不大于 precision 等本地不变量。对大多数场景而言，derive 更安全，因为它让声明紧邻模型。
 
-本 crate 会从进程中已链接的分布式注册项惰性构建不可变全局 `ModelRegistry`。只有已链接的模型 crate 会参与；需要受控模型集合的工具仍可从显式注册项集合构造注册表。注册表构建会校验注册项一致性和重复 ID，但不会为查询分配元数据图，也不校验关系环。它不负责数据库映射、codec/generator/脱敏执行或校验文案。`Opaque` 表示类型有意不被解释，不能用来替代消费者所需的结构。
+本 crate 会从进程中已链接的分布式注册项惰性构建不可变全局 `ModelRegistry`。只有已链接的模型 crate 会参与；需要受控模型集合的工具仍可从显式注册项集合构造注册表。注册表构建会重新校验稳定 ID、注册项一致性和重复 ID；调用 `ModelRegistry::validate_graph()` 可校验 Reference、LookupRelation、Ownership、关系投影和相应的环。它不负责数据库映射、codec/generator/脱敏执行或校验文案。`Opaque` 表示叶子类型有意不被解释，不能用来替代消费者所需的结构。
 
 ## 排障
 
@@ -114,6 +114,6 @@ let result = metadata_of::<Account>().resolve_field_path(path);
 ## 延伸阅读
 
 - [derive 用户手册](../../rs-model-derive/doc/user_guide.zh_CN.md)
-- [模型元数据与 derive 设计](../../doc/model-metadata-and-derive-design.md)
+- [项目说明](../README.zh_CN.md)
 - [README](../README.zh_CN.md)
 - [English user guide](user_guide.md)

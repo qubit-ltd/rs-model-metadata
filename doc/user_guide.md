@@ -69,7 +69,9 @@ absence explicit in application code instead of assuming it cannot occur.
 
 `TypeRef` is a small copyable handle. `shape()` returns a recursive `TypeShape`:
 scalar, named model, optional value, sequence, set, map, fixed array, or
-`Opaque`. The outer shape controls capability and nullability.
+`Opaque`. For macro-produced opaque fields, visible standard wrappers such as
+`Option`, sequences, sets, arrays, and maps remain in the shape while only the
+leaf is `Opaque`; the outer shape controls nullability and relation projection.
 
 ```rust
 use qubit_model_metadata::{TypeRef, TypeShape};
@@ -114,7 +116,10 @@ let result = metadata_of::<Account>().resolve_field_path(path);
 
 The result can report a missing segment, a non-struct intermediate value, or a
 named type whose metadata cannot be resolved. Treat these as integration or
-configuration diagnostics, not as global graph validation.
+configuration diagnostics, not as global graph validation. Call
+`ModelRegistry::validate_graph()` after linking a complete model set to
+validate references, lookup relations, ownership targets, projection types,
+and the applicable cycles.
 
 ## Construction and Boundaries
 
@@ -147,6 +152,6 @@ replacement for required structure.
 ## Further Reading
 
 - [Derive user guide](../../rs-model-derive/doc/user_guide.md)
-- [Model metadata and derive design](../../doc/model-metadata-and-derive-design.md)
+- [README](../README.md)
 - [README](../README.md)
 - [中文用户手册](user_guide.zh_CN.md)

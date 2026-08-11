@@ -72,13 +72,13 @@ Domain-model consumers need more than Rust's memory representation: they need fi
 
 - The runtime crate provides an immutable global `ModelRegistry` over distributed registrations linked into the process. Unlinked model crates are intentionally absent, and callers can construct a registry from an explicit registration set when needed.
 - It does not define database mappings, validation error messages, serialization formats, codecs, generators, or redaction implementations.
-- Cross-model graph validation and relationship-cycle checks are outside this crate's local metadata API.
-- User-defined types must implement `HasTypeShape`; the companion macro supports an explicit `#[field(opaque)]` escape hatch when structure is intentionally unavailable.
+- `ModelRegistry::validate_graph()` validates direct references, lookup relations, ownership targets, compatible relation projections, required-reference cycles, and ownership cycles.
+- User-defined types must implement `HasTypeShape`; the companion macro supports `#[field(opaque)]`, which preserves visible `Option`, sequence, set, array, and map wrappers while leaving the leaf type uninterpreted.
 
 ## Learn More
 
 - [User guide](doc/user_guide.md)
-- [Model metadata and derive design](../doc/model-metadata-and-derive-design.md)
+- [User guide](doc/user_guide.md)
 - [API documentation](https://docs.rs/qubit-model-metadata)
 - [中文文档](README.zh_CN.md)
 
