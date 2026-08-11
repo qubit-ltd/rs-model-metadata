@@ -15,6 +15,7 @@ use crate::type_metadata::StructMetadata;
 /// The structural form of a named model type.
 #[must_use]
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub enum TypeKind {
     /// A type with named fields.
     Struct(StructMetadata),

@@ -8,6 +8,7 @@
 
 /// A reason a model ID does not follow the stable-ID protocol.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ModelIdError {
     /// The complete ID is empty.
     Empty,

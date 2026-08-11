@@ -10,6 +10,7 @@
 
 use core::any::type_name;
 
+use crate::type_metadata::TypeIdentity;
 use crate::type_metadata::TypeMetadata;
 use crate::type_shape::HasTypeShape;
 use crate::type_shape::TypeCapabilities;
@@ -19,6 +20,8 @@ use crate::type_shape::TypeShape;
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct TypeRef {
+    /// The runtime identity of the referenced Rust type.
+    identity: TypeIdentity,
     /// A function that returns the fully qualified name of the referenced
     /// type.
     type_name: fn() -> &'static str,
@@ -43,6 +46,7 @@ impl TypeRef {
     #[inline]
     pub const fn of<T: HasTypeShape>() -> Self {
         Self {
+            identity: TypeIdentity::of::<T>(),
             type_name: type_name::<T>,
             shape: type_shape_of::<T>,
             capabilities: T::CAPABILITIES,
@@ -65,8 +69,41 @@ impl TypeRef {
     #[inline]
     pub const fn opaque<T: 'static>() -> Self {
         Self {
+            identity: TypeIdentity::of::<T>(),
             type_name: type_name::<T>,
             shape: opaque_type_shape,
+            capabilities: TypeCapabilities::NONE,
+            element_capabilities: None,
+        }
+    }
+
+    /// Creates an opaque reference for `T` with a producer-supplied outer
+    /// structural shape.
+    ///
+    /// This is intended for metadata producers that can observe standard
+    /// container syntax while intentionally leaving their leaf type opaque.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The complete `'static` Rust type represented by the reference.
+    ///
+    /// # Parameters
+    ///
+    /// * `shape` - A function returning the visible structural shape whose
+    ///   opaque leaves are represented by [`TypeRef::opaque`].
+    ///
+    /// # Returns
+    ///
+    /// An opaque reference that retains `T`'s identity and visible container
+    /// structure.
+    #[inline]
+    pub const fn opaque_with_shape<T: 'static>(
+        shape: fn() -> TypeShape,
+    ) -> Self {
+        Self {
+            identity: TypeIdentity::of::<T>(),
+            type_name: type_name::<T>,
+            shape,
             capabilities: TypeCapabilities::NONE,
             element_capabilities: None,
         }
@@ -91,6 +128,17 @@ impl TypeRef {
     #[inline(always)]
     pub fn type_name(self) -> &'static str {
         (self.type_name)()
+    }
+
+    /// Returns the runtime identity of the referenced Rust type.
+    ///
+    /// # Returns
+    ///
+    /// The identity used to compare compatible structural leaf types.
+    #[must_use]
+    #[inline(always)]
+    pub const fn identity(self) -> TypeIdentity {
+        self.identity
     }
 
     /// Returns the capabilities supported by the referenced type's outermost

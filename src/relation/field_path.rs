@@ -15,6 +15,23 @@ pub struct FieldPath {
     segments: &'static [&'static str],
 }
 
+impl core::fmt::Display for FieldPath {
+    /// Formats this path with dot-separated field-name segments.
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        let mut segments = self.segments.iter();
+        if let Some(first) = segments.next() {
+            write!(formatter, "{first}")?;
+        }
+        for segment in segments {
+            write!(formatter, ".{segment}")?;
+        }
+        Ok(())
+    }
+}
+
 impl FieldPath {
     /// Creates a field path from statically allocated field-name segments.
     ///

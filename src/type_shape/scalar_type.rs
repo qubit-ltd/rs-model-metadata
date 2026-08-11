@@ -11,6 +11,7 @@
 /// A scalar type supported by the metadata system.
 #[must_use]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ScalarType {
     /// The Rust `bool` type.
     Bool,

@@ -23,7 +23,7 @@ use qubit_model_metadata::TypeMetadata;
 struct GlobalAccount;
 
 static GLOBAL_ACCOUNT_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.global.GlobalAccount"),
+    ModelId::new("test.global.GlobalAccount"),
     TypeIdentity::of::<GlobalAccount>(),
     TypeKind::Struct(StructMetadata::new(&[])),
     &[],
@@ -31,7 +31,7 @@ static GLOBAL_ACCOUNT_METADATA: TypeMetadata = TypeMetadata::new(
 
 #[linkme::distributed_slice(MODEL_REGISTRATIONS)]
 static GLOBAL_ACCOUNT_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.global.GlobalAccount"),
+    ModelId::new("test.global.GlobalAccount"),
     &GLOBAL_ACCOUNT_METADATA,
     "global_registry_tests::GlobalAccount",
     module_path!(),

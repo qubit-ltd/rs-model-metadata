@@ -120,7 +120,7 @@ static NON_CONTIGUOUS_ENUM_VARIANTS: [EnumVariantMetadata; 1] =
 #[should_panic(expected = "index references an unknown model field")]
 fn test_type_metadata_rejects_constraints_for_missing_fields() {
     let _ = TypeMetadata::new(
-        ModelId::from_static("test.metadata.Account"),
+        ModelId::new("test.metadata.Account"),
         TypeIdentity::of::<Account>(),
         TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
         &INVALID_INDEX_ATTRIBUTES,
@@ -131,7 +131,7 @@ fn test_type_metadata_rejects_constraints_for_missing_fields() {
 #[should_panic(expected = "primary key references an unknown model field")]
 fn test_type_metadata_rejects_unknown_primary_key_fields() {
     let _ = TypeMetadata::new(
-        ModelId::from_static("test.metadata.Account"),
+        ModelId::new("test.metadata.Account"),
         TypeIdentity::of::<Account>(),
         TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
         &INVALID_PRIMARY_KEY_ATTRIBUTES,
@@ -144,7 +144,7 @@ fn test_type_metadata_rejects_unknown_primary_key_fields() {
 )]
 fn test_type_metadata_rejects_unknown_unique_fields() {
     let _ = TypeMetadata::new(
-        ModelId::from_static("test.metadata.Account"),
+        ModelId::new("test.metadata.Account"),
         TypeIdentity::of::<Account>(),
         TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
         &INVALID_UNIQUE_ATTRIBUTES,
@@ -155,7 +155,7 @@ fn test_type_metadata_rejects_unknown_unique_fields() {
 #[should_panic(expected = "logical key references an unknown model field")]
 fn test_type_metadata_rejects_unknown_key_fields() {
     let _ = TypeMetadata::new(
-        ModelId::from_static("test.metadata.Account"),
+        ModelId::new("test.metadata.Account"),
         TypeIdentity::of::<Account>(),
         TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
         &INVALID_KEY_ATTRIBUTES,
@@ -166,7 +166,7 @@ fn test_type_metadata_rejects_unknown_key_fields() {
 #[should_panic(expected = "a model can have at most one primary key")]
 fn test_type_metadata_rejects_duplicate_primary_keys() {
     let _ = TypeMetadata::new(
-        ModelId::from_static("test.metadata.Account"),
+        ModelId::new("test.metadata.Account"),
         TypeIdentity::of::<Account>(),
         TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
         &DUPLICATE_PRIMARY_KEY_ATTRIBUTES,
@@ -177,7 +177,7 @@ fn test_type_metadata_rejects_duplicate_primary_keys() {
 #[should_panic(expected = "a model can have at most one ownership declaration")]
 fn test_type_metadata_rejects_duplicate_ownership_declarations() {
     let _ = TypeMetadata::new(
-        ModelId::from_static("test.metadata.Account"),
+        ModelId::new("test.metadata.Account"),
         TypeIdentity::of::<Account>(),
         TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
         &DUPLICATE_OWNERSHIP_ATTRIBUTES,
@@ -187,7 +187,7 @@ fn test_type_metadata_rejects_duplicate_ownership_declarations() {
 #[test]
 fn test_type_metadata_exposes_keys_and_ownership() {
     let metadata = TypeMetadata::new(
-        ModelId::from_static("test.metadata.Account"),
+        ModelId::new("test.metadata.Account"),
         TypeIdentity::of::<Account>(),
         TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
         &QUERY_ATTRIBUTES,
@@ -218,13 +218,13 @@ fn test_type_metadata_exposes_keys_and_ownership() {
 #[test]
 fn test_type_metadata_has_no_struct_fields_for_enum_or_newtype() {
     let enum_metadata = TypeMetadata::new(
-        ModelId::from_static("test.metadata.Status"),
+        ModelId::new("test.metadata.Status"),
         TypeIdentity::of::<Organization>(),
         TypeKind::Enum(EnumMetadata::new(&ENUM_VARIANTS)),
         &[],
     );
     let newtype_metadata = TypeMetadata::new(
-        ModelId::from_static("test.metadata.Organization"),
+        ModelId::new("test.metadata.Organization"),
         TypeIdentity::of::<Account>(),
         TypeKind::Newtype(NewtypeMetadata::new(ACCOUNT_FIELDS[0])),
         &[],

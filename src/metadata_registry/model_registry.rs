@@ -41,6 +41,20 @@ impl ModelRegistry {
         for registration in &registrations {
             let registration_id = registration.id();
             let metadata_id = registration.metadata().id();
+            ModelId::validate(registration_id.as_str()).map_err(|source| {
+                ModelRegistryError::InvalidRegistrationId {
+                    registration,
+                    id: registration_id,
+                    source,
+                }
+            })?;
+            ModelId::validate(metadata_id.as_str()).map_err(|source| {
+                ModelRegistryError::InvalidMetadataId {
+                    registration,
+                    id: metadata_id,
+                    source,
+                }
+            })?;
             if registration_id != metadata_id {
                 return Err(ModelRegistryError::MetadataIdMismatch {
                     registration,

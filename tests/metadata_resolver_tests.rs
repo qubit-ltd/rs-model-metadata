@@ -31,14 +31,14 @@ use qubit_model_metadata::TypeMetadata;
 struct RegisteredModel;
 
 static REGISTERED_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.resolver.RegisteredModel"),
+    ModelId::new("test.resolver.RegisteredModel"),
     TypeIdentity::of::<RegisteredModel>(),
     TypeKind::Struct(StructMetadata::new(&[])),
     &[],
 );
 
 static REGISTERED_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.resolver.RegisteredModel"),
+    ModelId::new("test.resolver.RegisteredModel"),
     &REGISTERED_METADATA,
     "RegisteredModel",
     "test::resolver",

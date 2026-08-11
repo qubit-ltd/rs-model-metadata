@@ -123,7 +123,7 @@ static ELEMENT_DECIMAL_ATTRIBUTES: [AttributeMetadata; 1] =
     ))];
 static RELATION_ATTRIBUTES: [AttributeMetadata; 5] = [
     AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.Target"),
+        ModelId::new("test.Target"),
         FieldPath::new(&["id"]),
         true,
         None,

@@ -23,11 +23,13 @@ use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::FieldPath;
 use qubit_model_metadata::HasTypeMetadata;
 use qubit_model_metadata::HasTypeShape;
+use qubit_model_metadata::LookupRelationMetadata;
 use qubit_model_metadata::ModelGraphError;
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelRegistration;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::NamedTypeRef;
+use qubit_model_metadata::OwnershipMetadata;
 use qubit_model_metadata::ReferenceMetadata;
 use qubit_model_metadata::SourceLocation;
 use qubit_model_metadata::StructMetadata;
@@ -51,6 +53,10 @@ struct OptionalCycleB;
 struct NestedInfo;
 struct NestedTarget;
 struct NestedSource;
+struct LookupSource;
+struct OwnedModel;
+struct OwnershipCycleA;
+struct OwnershipCycleB;
 
 static TARGET_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     0,
@@ -60,7 +66,7 @@ static TARGET_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &[],
 )];
 static TARGET_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.Target"),
+    ModelId::new("test.graph.Target"),
     TypeIdentity::of::<Target>(),
     TypeKind::Struct(StructMetadata::new(&TARGET_FIELDS)),
     &[],
@@ -68,7 +74,7 @@ static TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 
 static MISSING_TARGET_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.Missing"),
+        ModelId::new("test.graph.Missing"),
         FieldPath::new(&["id"]),
         true,
         Some(FieldPath::new(&["unknown"])),
@@ -81,7 +87,7 @@ static MISSING_TARGET_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &MISSING_TARGET_ATTRIBUTES,
 )];
 static MISSING_TARGET_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.MissingTargetSource"),
+    ModelId::new("test.graph.MissingTargetSource"),
     TypeIdentity::of::<MissingTargetSource>(),
     TypeKind::Struct(StructMetadata::new(&MISSING_TARGET_FIELDS)),
     &[],
@@ -89,7 +95,7 @@ static MISSING_TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 
 static MISSING_TARGET_FIELD_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.Target"),
+        ModelId::new("test.graph.Target"),
         FieldPath::new(&["unknown"]),
         true,
         None,
@@ -102,7 +108,7 @@ static MISSING_TARGET_FIELD_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &MISSING_TARGET_FIELD_ATTRIBUTES,
 )];
 static MISSING_TARGET_FIELD_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.MissingTargetFieldSource"),
+    ModelId::new("test.graph.MissingTargetFieldSource"),
     TypeIdentity::of::<MissingTargetFieldSource>(),
     TypeKind::Struct(StructMetadata::new(&MISSING_TARGET_FIELD_FIELDS)),
     &[],
@@ -110,7 +116,7 @@ static MISSING_TARGET_FIELD_METADATA: TypeMetadata = TypeMetadata::new(
 
 static INCOMPATIBLE_PROJECTION_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.Target"),
+        ModelId::new("test.graph.Target"),
         FieldPath::new(&["id"]),
         true,
         None,
@@ -124,7 +130,7 @@ static INCOMPATIBLE_PROJECTION_FIELDS: [FieldMetadata; 1] =
         &INCOMPATIBLE_PROJECTION_ATTRIBUTES,
     )];
 static INCOMPATIBLE_PROJECTION_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.IncompatibleProjectionSource"),
+    ModelId::new("test.graph.IncompatibleProjectionSource"),
     TypeIdentity::of::<IncompatibleProjectionSource>(),
     TypeKind::Struct(StructMetadata::new(&INCOMPATIBLE_PROJECTION_FIELDS)),
     &[],
@@ -132,7 +138,7 @@ static INCOMPATIBLE_PROJECTION_METADATA: TypeMetadata = TypeMetadata::new(
 
 static INVALID_SAME_AS_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.Target"),
+        ModelId::new("test.graph.Target"),
         FieldPath::new(&["id"]),
         true,
         Some(FieldPath::new(&["unknown"])),
@@ -145,7 +151,7 @@ static INVALID_SAME_AS_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &INVALID_SAME_AS_ATTRIBUTES,
 )];
 static INVALID_SAME_AS_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.InvalidSameAsSource"),
+    ModelId::new("test.graph.InvalidSameAsSource"),
     TypeIdentity::of::<InvalidSameAsSource>(),
     TypeKind::Struct(StructMetadata::new(&INVALID_SAME_AS_FIELDS)),
     &[],
@@ -153,7 +159,7 @@ static INVALID_SAME_AS_METADATA: TypeMetadata = TypeMetadata::new(
 
 static CYCLE_A_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.CycleB"),
+        ModelId::new("test.graph.CycleB"),
         FieldPath::new(&["id"]),
         true,
         None,
@@ -169,7 +175,7 @@ static CYCLE_A_FIELDS: [FieldMetadata; 2] = [
     ),
 ];
 static CYCLE_A_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.CycleA"),
+    ModelId::new("test.graph.CycleA"),
     TypeIdentity::of::<CycleA>(),
     TypeKind::Struct(StructMetadata::new(&CYCLE_A_FIELDS)),
     &[],
@@ -177,7 +183,7 @@ static CYCLE_A_METADATA: TypeMetadata = TypeMetadata::new(
 
 static CYCLE_B_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.CycleA"),
+        ModelId::new("test.graph.CycleA"),
         FieldPath::new(&["id"]),
         true,
         None,
@@ -193,7 +199,7 @@ static CYCLE_B_FIELDS: [FieldMetadata; 2] = [
     ),
 ];
 static CYCLE_B_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.CycleB"),
+    ModelId::new("test.graph.CycleB"),
     TypeIdentity::of::<CycleB>(),
     TypeKind::Struct(StructMetadata::new(&CYCLE_B_FIELDS)),
     &[],
@@ -201,7 +207,7 @@ static CYCLE_B_METADATA: TypeMetadata = TypeMetadata::new(
 
 static SELF_CYCLE_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.SelfCycle"),
+        ModelId::new("test.graph.SelfCycle"),
         FieldPath::new(&["id"]),
         true,
         None,
@@ -217,7 +223,7 @@ static SELF_CYCLE_FIELDS: [FieldMetadata; 2] = [
     ),
 ];
 static SELF_CYCLE_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.SelfCycle"),
+    ModelId::new("test.graph.SelfCycle"),
     TypeIdentity::of::<SelfCycle>(),
     TypeKind::Struct(StructMetadata::new(&SELF_CYCLE_FIELDS)),
     &[],
@@ -225,7 +231,7 @@ static SELF_CYCLE_METADATA: TypeMetadata = TypeMetadata::new(
 
 static OPTIONAL_CYCLE_A_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.OptionalCycleB"),
+        ModelId::new("test.graph.OptionalCycleB"),
         FieldPath::new(&["id"]),
         true,
         None,
@@ -241,7 +247,7 @@ static OPTIONAL_CYCLE_A_FIELDS: [FieldMetadata; 2] = [
     ),
 ];
 static OPTIONAL_CYCLE_A_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.OptionalCycleA"),
+    ModelId::new("test.graph.OptionalCycleA"),
     TypeIdentity::of::<OptionalCycleA>(),
     TypeKind::Struct(StructMetadata::new(&OPTIONAL_CYCLE_A_FIELDS)),
     &[],
@@ -249,7 +255,7 @@ static OPTIONAL_CYCLE_A_METADATA: TypeMetadata = TypeMetadata::new(
 
 static OPTIONAL_CYCLE_B_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.OptionalCycleA"),
+        ModelId::new("test.graph.OptionalCycleA"),
         FieldPath::new(&["id"]),
         true,
         None,
@@ -265,7 +271,7 @@ static OPTIONAL_CYCLE_B_FIELDS: [FieldMetadata; 2] = [
     ),
 ];
 static OPTIONAL_CYCLE_B_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.OptionalCycleB"),
+    ModelId::new("test.graph.OptionalCycleB"),
     TypeIdentity::of::<OptionalCycleB>(),
     TypeKind::Struct(StructMetadata::new(&OPTIONAL_CYCLE_B_FIELDS)),
     &[],
@@ -279,7 +285,7 @@ static NESTED_INFO_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &[],
 )];
 static NESTED_INFO_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.NestedInfo"),
+    ModelId::new("test.graph.NestedInfo"),
     TypeIdentity::of::<NestedInfo>(),
     TypeKind::Struct(StructMetadata::new(&NESTED_INFO_FIELDS)),
     &[],
@@ -292,14 +298,14 @@ static NESTED_TARGET_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &[],
 )];
 static NESTED_TARGET_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.NestedTarget"),
+    ModelId::new("test.graph.NestedTarget"),
     TypeIdentity::of::<NestedTarget>(),
     TypeKind::Struct(StructMetadata::new(&NESTED_TARGET_FIELDS)),
     &[],
 );
 static NESTED_SOURCE_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
-        ModelId::from_static("test.graph.NestedTarget"),
+        ModelId::new("test.graph.NestedTarget"),
         FieldPath::new(&["info", "id"]),
         true,
         None,
@@ -312,21 +318,65 @@ static NESTED_SOURCE_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     &NESTED_SOURCE_ATTRIBUTES,
 )];
 static NESTED_SOURCE_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.graph.NestedSource"),
+    ModelId::new("test.graph.NestedSource"),
     TypeIdentity::of::<NestedSource>(),
     TypeKind::Struct(StructMetadata::new(&NESTED_SOURCE_FIELDS)),
     &[],
 );
+static LOOKUP_SOURCE_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::LookupRelation(
+        LookupRelationMetadata::new(
+            NamedTypeRef::of::<Target>(),
+            FieldPath::new(&["id"]),
+        ),
+    )];
+static LOOKUP_SOURCE_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
+    0,
+    "target_id",
+    "i64",
+    TypeRef::of::<i64>(),
+    &LOOKUP_SOURCE_ATTRIBUTES,
+)];
+static LOOKUP_SOURCE_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.graph.LookupSource"),
+    TypeIdentity::of::<LookupSource>(),
+    TypeKind::Struct(StructMetadata::new(&LOOKUP_SOURCE_FIELDS)),
+    &[],
+);
+static OWNED_MODEL_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.graph.OwnedModel"),
+    TypeIdentity::of::<OwnedModel>(),
+    TypeKind::Struct(StructMetadata::new(&[])),
+    &[AttributeMetadata::Ownership(OwnershipMetadata::new(
+        NamedTypeRef::of::<Target>(),
+    ))],
+);
+static OWNERSHIP_CYCLE_A_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.graph.OwnershipCycleA"),
+    TypeIdentity::of::<OwnershipCycleA>(),
+    TypeKind::Struct(StructMetadata::new(&[])),
+    &[AttributeMetadata::Ownership(OwnershipMetadata::new(
+        NamedTypeRef::of::<OwnershipCycleB>(),
+    ))],
+);
+static OWNERSHIP_CYCLE_B_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.graph.OwnershipCycleB"),
+    TypeIdentity::of::<OwnershipCycleB>(),
+    TypeKind::Struct(StructMetadata::new(&[])),
+    &[AttributeMetadata::Ownership(OwnershipMetadata::new(
+        NamedTypeRef::of::<OwnershipCycleA>(),
+    ))],
+);
 
 static TARGET_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.graph.Target"),
+    ModelId::new("test.graph.Target"),
     &TARGET_METADATA,
     "Target",
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 1, 1),
 );
 static MISSING_TARGET_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.graph.MissingTargetSource"),
+    ModelId::new("test.graph.MissingTargetSource"),
     &MISSING_TARGET_METADATA,
     "MissingTargetSource",
     "test::graph",
@@ -334,7 +384,7 @@ static MISSING_TARGET_REGISTRATION: ModelRegistration = ModelRegistration::new(
 );
 static MISSING_TARGET_FIELD_REGISTRATION: ModelRegistration =
     ModelRegistration::new(
-        ModelId::from_static("test.graph.MissingTargetFieldSource"),
+        ModelId::new("test.graph.MissingTargetFieldSource"),
         &MISSING_TARGET_FIELD_METADATA,
         "MissingTargetFieldSource",
         "test::graph",
@@ -342,35 +392,35 @@ static MISSING_TARGET_FIELD_REGISTRATION: ModelRegistration =
     );
 static INCOMPATIBLE_PROJECTION_REGISTRATION: ModelRegistration =
     ModelRegistration::new(
-        ModelId::from_static("test.graph.IncompatibleProjectionSource"),
+        ModelId::new("test.graph.IncompatibleProjectionSource"),
         &INCOMPATIBLE_PROJECTION_METADATA,
         "IncompatibleProjectionSource",
         "test::graph",
         SourceLocation::new("model_graph_tests.rs", 4, 1),
     );
 static INVALID_SAME_AS_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.graph.InvalidSameAsSource"),
+    ModelId::new("test.graph.InvalidSameAsSource"),
     &INVALID_SAME_AS_METADATA,
     "InvalidSameAsSource",
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 5, 1),
 );
 static CYCLE_A_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.graph.CycleA"),
+    ModelId::new("test.graph.CycleA"),
     &CYCLE_A_METADATA,
     "CycleA",
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 6, 1),
 );
 static CYCLE_B_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.graph.CycleB"),
+    ModelId::new("test.graph.CycleB"),
     &CYCLE_B_METADATA,
     "CycleB",
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 7, 1),
 );
 static SELF_CYCLE_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.graph.SelfCycle"),
+    ModelId::new("test.graph.SelfCycle"),
     &SELF_CYCLE_METADATA,
     "SelfCycle",
     "test::graph",
@@ -378,7 +428,7 @@ static SELF_CYCLE_REGISTRATION: ModelRegistration = ModelRegistration::new(
 );
 static OPTIONAL_CYCLE_A_REGISTRATION: ModelRegistration =
     ModelRegistration::new(
-        ModelId::from_static("test.graph.OptionalCycleA"),
+        ModelId::new("test.graph.OptionalCycleA"),
         &OPTIONAL_CYCLE_A_METADATA,
         "OptionalCycleA",
         "test::graph",
@@ -386,28 +436,91 @@ static OPTIONAL_CYCLE_A_REGISTRATION: ModelRegistration =
     );
 static OPTIONAL_CYCLE_B_REGISTRATION: ModelRegistration =
     ModelRegistration::new(
-        ModelId::from_static("test.graph.OptionalCycleB"),
+        ModelId::new("test.graph.OptionalCycleB"),
         &OPTIONAL_CYCLE_B_METADATA,
         "OptionalCycleB",
         "test::graph",
         SourceLocation::new("model_graph_tests.rs", 10, 1),
     );
 static NESTED_TARGET_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.graph.NestedTarget"),
+    ModelId::new("test.graph.NestedTarget"),
     &NESTED_TARGET_METADATA,
     "NestedTarget",
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 11, 1),
 );
 static NESTED_SOURCE_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.graph.NestedSource"),
+    ModelId::new("test.graph.NestedSource"),
     &NESTED_SOURCE_METADATA,
     "NestedSource",
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 12, 1),
 );
+static LOOKUP_SOURCE_REGISTRATION: ModelRegistration = ModelRegistration::new(
+    ModelId::new("test.graph.LookupSource"),
+    &LOOKUP_SOURCE_METADATA,
+    "LookupSource",
+    "test::graph",
+    SourceLocation::new("model_graph_tests.rs", 13, 1),
+);
+static OWNED_MODEL_REGISTRATION: ModelRegistration = ModelRegistration::new(
+    ModelId::new("test.graph.OwnedModel"),
+    &OWNED_MODEL_METADATA,
+    "OwnedModel",
+    "test::graph",
+    SourceLocation::new("model_graph_tests.rs", 14, 1),
+);
+static OWNERSHIP_CYCLE_A_REGISTRATION: ModelRegistration =
+    ModelRegistration::new(
+        ModelId::new("test.graph.OwnershipCycleA"),
+        &OWNERSHIP_CYCLE_A_METADATA,
+        "OwnershipCycleA",
+        "test::graph",
+        SourceLocation::new("model_graph_tests.rs", 15, 1),
+    );
+static OWNERSHIP_CYCLE_B_REGISTRATION: ModelRegistration =
+    ModelRegistration::new(
+        ModelId::new("test.graph.OwnershipCycleB"),
+        &OWNERSHIP_CYCLE_B_METADATA,
+        "OwnershipCycleB",
+        "test::graph",
+        SourceLocation::new("model_graph_tests.rs", 16, 1),
+    );
+
+impl HasTypeMetadata for Target {
+    fn type_metadata() -> &'static TypeMetadata {
+        &TARGET_METADATA
+    }
+}
+
+impl HasTypeMetadata for OwnershipCycleA {
+    fn type_metadata() -> &'static TypeMetadata {
+        &OWNERSHIP_CYCLE_A_METADATA
+    }
+}
+
+impl HasTypeMetadata for OwnershipCycleB {
+    fn type_metadata() -> &'static TypeMetadata {
+        &OWNERSHIP_CYCLE_B_METADATA
+    }
+}
 
 impl HasTypeShape for NestedInfo {
+    const TYPE_SHAPE: TypeShape = TypeShape::Named(NamedTypeRef::of::<Self>());
+    const CAPABILITIES: TypeCapabilities = TypeCapabilities::NONE;
+}
+
+impl HasTypeShape for Target {
+    const TYPE_SHAPE: TypeShape = TypeShape::Named(NamedTypeRef::of::<Self>());
+    const CAPABILITIES: TypeCapabilities = TypeCapabilities::NONE;
+}
+
+impl HasTypeShape for OwnershipCycleA {
+    const TYPE_SHAPE: TypeShape = TypeShape::Named(NamedTypeRef::of::<Self>());
+    const CAPABILITIES: TypeCapabilities = TypeCapabilities::NONE;
+}
+
+impl HasTypeShape for OwnershipCycleB {
     const TYPE_SHAPE: TypeShape = TypeShape::Named(NamedTypeRef::of::<Self>());
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::NONE;
 }
@@ -441,39 +554,37 @@ fn test_validate_graph_aggregates_direct_reference_errors_and_required_cycles()
     let expected = [
         ModelGraphError::RequiredReferenceCycle {
             cycle: vec![
-                ModelId::from_static("test.graph.CycleA"),
-                ModelId::from_static("test.graph.CycleB"),
-                ModelId::from_static("test.graph.CycleA"),
+                ModelId::new("test.graph.CycleA"),
+                ModelId::new("test.graph.CycleB"),
+                ModelId::new("test.graph.CycleA"),
             ],
         },
         ModelGraphError::IncompatibleProjection {
-            source: ModelId::from_static(
-                "test.graph.IncompatibleProjectionSource",
-            ),
+            source: ModelId::new("test.graph.IncompatibleProjectionSource"),
             field: "target_id",
             source_type: "alloc::string::String",
-            target: ModelId::from_static("test.graph.Target"),
+            target: ModelId::new("test.graph.Target"),
             target_field: FieldPath::new(&["id"]),
             target_type: "i64",
         },
         ModelGraphError::InvalidSameAs {
-            source: ModelId::from_static("test.graph.InvalidSameAsSource"),
+            source: ModelId::new("test.graph.InvalidSameAsSource"),
             field: "target_id",
             same_as: FieldPath::new(&["unknown"]),
         },
         ModelGraphError::MissingTargetField {
-            source: ModelId::from_static("test.graph.MissingTargetFieldSource"),
+            source: ModelId::new("test.graph.MissingTargetFieldSource"),
             field: "target_id",
-            target: ModelId::from_static("test.graph.Target"),
+            target: ModelId::new("test.graph.Target"),
             target_field: FieldPath::new(&["unknown"]),
         },
         ModelGraphError::MissingTarget {
-            source: ModelId::from_static("test.graph.MissingTargetSource"),
+            source: ModelId::new("test.graph.MissingTargetSource"),
             field: "target_id",
-            target: ModelId::from_static("test.graph.Missing"),
+            target: ModelId::new("test.graph.Missing"),
         },
         ModelGraphError::InvalidSameAs {
-            source: ModelId::from_static("test.graph.MissingTargetSource"),
+            source: ModelId::new("test.graph.MissingTargetSource"),
             field: "target_id",
             same_as: FieldPath::new(&["unknown"]),
         },
@@ -511,8 +622,8 @@ fn test_validate_graph_reports_a_canonical_self_cycle() {
         errors.errors(),
         [ModelGraphError::RequiredReferenceCycle {
             cycle: vec![
-                ModelId::from_static("test.graph.SelfCycle"),
-                ModelId::from_static("test.graph.SelfCycle"),
+                ModelId::new("test.graph.SelfCycle"),
+                ModelId::new("test.graph.SelfCycle"),
             ],
         }],
     );
@@ -543,4 +654,41 @@ fn test_validate_graph_resolves_nested_target_paths_and_optional_projections() {
     registry
         .validate_graph()
         .expect("the nested target path should resolve through named metadata");
+}
+
+#[test]
+fn test_validate_graph_validates_lookup_relations_and_acyclic_ownership() {
+    let registry = ModelRegistry::from_registrations([
+        &TARGET_REGISTRATION,
+        &LOOKUP_SOURCE_REGISTRATION,
+        &OWNED_MODEL_REGISTRATION,
+    ])
+    .expect("the lookup and ownership registrations should be valid");
+
+    registry
+        .validate_graph()
+        .expect("lookup relation and acyclic ownership should be valid");
+}
+
+#[test]
+fn test_validate_graph_reports_ownership_cycles() {
+    let registry = ModelRegistry::from_registrations([
+        &OWNERSHIP_CYCLE_A_REGISTRATION,
+        &OWNERSHIP_CYCLE_B_REGISTRATION,
+    ])
+    .expect("the ownership registrations should be structurally valid");
+
+    assert_eq!(
+        registry
+            .validate_graph()
+            .expect_err("cyclic ownership must be rejected")
+            .errors(),
+        [ModelGraphError::OwnershipCycle {
+            cycle: vec![
+                ModelId::new("test.graph.OwnershipCycleA"),
+                ModelId::new("test.graph.OwnershipCycleB"),
+                ModelId::new("test.graph.OwnershipCycleA"),
+            ],
+        }]
+    );
 }

@@ -9,11 +9,37 @@
 use thiserror::Error;
 
 use crate::model_id::ModelId;
+use crate::model_id::ModelIdError;
 use crate::model_registration::ModelRegistration;
 
 /// A configuration error encountered while constructing a model registry.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ModelRegistryError {
+    /// A registration contains an ID that violates the stable-ID protocol.
+    #[error(
+        "model registration ID {id:?} is invalid for {registration}: {source}"
+    )]
+    InvalidRegistrationId {
+        /// The registration containing the invalid ID.
+        registration: &'static ModelRegistration,
+        /// The invalid identifier stored by the registration.
+        id: ModelId,
+        /// The validation failure.
+        #[source]
+        source: ModelIdError,
+    },
+    /// A registration's metadata contains an invalid stable ID.
+    #[error("model metadata ID {id:?} is invalid for {registration}: {source}")]
+    InvalidMetadataId {
+        /// The registration whose metadata contains the invalid ID.
+        registration: &'static ModelRegistration,
+        /// The invalid identifier stored by the metadata.
+        id: ModelId,
+        /// The validation failure.
+        #[source]
+        source: ModelIdError,
+    },
     /// A registration's ID differs from the ID stored in its metadata.
     #[error(
         "model registration ID {registration_id:?} does not match metadata ID {metadata_id:?} for {registration}"

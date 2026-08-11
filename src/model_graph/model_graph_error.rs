@@ -13,6 +13,7 @@ use crate::relation::FieldPath;
 
 /// A validation error found in a model registry's direct-reference graph.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ModelGraphError {
     /// A direct reference targets no registered model.
     MissingTarget {
@@ -59,9 +60,66 @@ pub enum ModelGraphError {
         /// The invalid path in the source model.
         same_as: FieldPath,
     },
+    /// A direct reference's `same_as` field has an incompatible projection.
+    IncompatibleSameAs {
+        /// The model declaring the reference.
+        source: ModelId,
+        /// The source field declaring the reference.
+        field: &'static str,
+        /// The declared same-as field path.
+        same_as: FieldPath,
+    },
+    /// A lookup relation targets no registered model.
+    MissingLookupTarget {
+        /// The model declaring the lookup relation.
+        source: ModelId,
+        /// The source field declaring the lookup relation.
+        field: &'static str,
+        /// The model ID from the resolved named target metadata.
+        target: ModelId,
+    },
+    /// A lookup relation targets a model without the requested field path.
+    MissingLookupTargetField {
+        /// The model declaring the lookup relation.
+        source: ModelId,
+        /// The source field declaring the lookup relation.
+        field: &'static str,
+        /// The registered target model ID.
+        target: ModelId,
+        /// The absent target field path.
+        target_field: FieldPath,
+    },
+    /// A lookup relation has incompatible source and target projections.
+    IncompatibleLookupProjection {
+        /// The model declaring the lookup relation.
+        source: ModelId,
+        /// The source field declaring the lookup relation.
+        field: &'static str,
+        /// The source projection type.
+        source_type: &'static str,
+        /// The registered target model ID.
+        target: ModelId,
+        /// The resolved target field path.
+        target_field: FieldPath,
+        /// The target projection type.
+        target_type: &'static str,
+    },
+    /// A model declares an owner that is absent from the registry.
+    MissingOwner {
+        /// The model declaring ownership.
+        source: ModelId,
+        /// The model ID from the resolved owner metadata.
+        owner: ModelId,
+    },
     /// Non-null, required direct references form an unsatisfiable cycle.
     RequiredReferenceCycle {
         /// The closed cycle, beginning and ending with its smallest model ID.
+        cycle: Vec<ModelId>,
+    },
+    /// Ownership declarations form a cyclic hierarchy.
+    OwnershipCycle {
+        /// The closed ownership cycle, beginning and ending with its smallest
+        /// model ID.
         cycle: Vec<ModelId>,
     },
 }
@@ -89,7 +147,7 @@ impl fmt::Display for ModelGraphError {
                 formatter,
                 "reference {}.{field} targets missing field {} on {}",
                 source.as_str(),
-                DisplayFieldPath(*target_field),
+                target_field,
                 target.as_str()
             ),
             Self::IncompatibleProjection {
@@ -103,7 +161,7 @@ impl fmt::Display for ModelGraphError {
                 formatter,
                 "reference {}.{field} projects {source_type}, but {} on {} has type {target_type}",
                 source.as_str(),
-                DisplayFieldPath(*target_field),
+                target_field,
                 target.as_str()
             ),
             Self::InvalidSameAs {
@@ -114,10 +172,66 @@ impl fmt::Display for ModelGraphError {
                 formatter,
                 "reference {}.{field} has invalid same_as path {}",
                 source.as_str(),
-                DisplayFieldPath(*same_as)
+                same_as
+            ),
+            Self::IncompatibleSameAs {
+                source,
+                field,
+                same_as,
+            } => write!(
+                formatter,
+                "reference {}.{field} has incompatible same_as path {same_as}",
+                source.as_str()
+            ),
+            Self::MissingLookupTarget {
+                source,
+                field,
+                target,
+            } => write!(
+                formatter,
+                "lookup relation {}.{field} targets missing model {}",
+                source.as_str(),
+                target.as_str()
+            ),
+            Self::MissingLookupTargetField {
+                source,
+                field,
+                target,
+                target_field,
+            } => write!(
+                formatter,
+                "lookup relation {}.{field} targets missing field {target_field} on {}",
+                source.as_str(),
+                target.as_str()
+            ),
+            Self::IncompatibleLookupProjection {
+                source,
+                field,
+                source_type,
+                target,
+                target_field,
+                target_type,
+            } => write!(
+                formatter,
+                "lookup relation {}.{field} projects {source_type}, but {target_field} on {} has type {target_type}",
+                source.as_str(),
+                target.as_str()
+            ),
+            Self::MissingOwner { source, owner } => write!(
+                formatter,
+                "model {} declares missing owner {}",
+                source.as_str(),
+                owner.as_str()
             ),
             Self::RequiredReferenceCycle { cycle } => {
                 write!(formatter, "required reference cycle")?;
+                for id in cycle {
+                    write!(formatter, " {}", id.as_str())?;
+                }
+                Ok(())
+            }
+            Self::OwnershipCycle { cycle } => {
+                write!(formatter, "ownership cycle")?;
                 for id in cycle {
                     write!(formatter, " {}", id.as_str())?;
                 }
@@ -128,20 +242,3 @@ impl fmt::Display for ModelGraphError {
 }
 
 impl std::error::Error for ModelGraphError {}
-
-/// Formats a static field path with dot-separated segments.
-struct DisplayFieldPath(FieldPath);
-
-impl fmt::Display for DisplayFieldPath {
-    /// Formats the wrapped path in dot-separated order.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut segments = self.0.segments().iter();
-        if let Some(first) = segments.next() {
-            write!(formatter, "{first}")?;
-        }
-        for segment in segments {
-            write!(formatter, ".{segment}")?;
-        }
-        Ok(())
-    }
-}

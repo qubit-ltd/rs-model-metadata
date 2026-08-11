@@ -17,13 +17,26 @@ pub use self::model_id_error::ModelIdError;
 pub struct ModelId(&'static str);
 
 impl ModelId {
-    /// Creates a model ID from a trusted static value.
+    /// Validates a model-ID string without allocating.
     ///
-    /// The caller must validate `value` before calling this function. Use
-    /// [`ModelId::try_from_static`] for untrusted values.
+    /// # Errors
+    ///
+    /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
+    /// protocol.
+    #[inline]
+    pub fn validate(value: &str) -> Result<(), ModelIdError> {
+        validate_model_id(value)
+    }
+
+    /// Creates a model ID from a static value already validated by its
+    /// metadata producer.
+    ///
+    /// # Panics
+    ///
+    /// Use [`ModelId::try_new`] when the value has not already been validated.
     #[must_use]
     #[inline(always)]
-    pub const fn from_static(value: &'static str) -> Self {
+    pub const fn new(value: &'static str) -> Self {
         Self(value)
     }
 
@@ -32,8 +45,8 @@ impl ModelId {
     /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
     /// protocol.
     #[inline]
-    pub fn try_from_static(value: &'static str) -> Result<Self, ModelIdError> {
-        validate_model_id(value)?;
+    pub fn try_new(value: &'static str) -> Result<Self, ModelIdError> {
+        Self::validate(value)?;
         Ok(Self(value))
     }
 

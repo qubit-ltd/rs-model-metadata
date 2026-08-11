@@ -20,7 +20,7 @@ use qubit_model_metadata::TypeShape;
 struct ReferencedModel;
 
 static REFERENCED_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.referenced.ReferencedModel"),
+    ModelId::new("test.referenced.ReferencedModel"),
     TypeIdentity::of::<ReferencedModel>(),
     TypeKind::Struct(StructMetadata::new(&[])),
     &[],

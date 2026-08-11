@@ -24,17 +24,19 @@ use std::collections::BTreeSet;
 use crate::attribute::AttributeMetadata;
 use crate::field_metadata::FieldMetadata;
 use crate::metadata_registry::ModelRegistry;
+use crate::metadata_resolver::MetadataResolver;
 use crate::model_id::ModelId;
 use crate::relation::FieldPath;
+use crate::type_metadata::TypeIdentity;
 use crate::type_metadata::TypeMetadata;
+use crate::type_shape::TypeRef;
+use crate::type_shape::TypeShape;
 
 mod model_graph_error;
 mod model_graph_errors;
 
 pub use self::model_graph_error::ModelGraphError;
 pub use self::model_graph_errors::ModelGraphErrors;
-
-const OPAQUE_ID_TYPE_NAME: &str = concat!("qubit_id", "::id::Id");
 
 impl ModelRegistry {
     /// Validates direct references among all registered models.
@@ -51,6 +53,7 @@ impl ModelRegistry {
     pub fn validate_graph(&self) -> Result<(), ModelGraphErrors> {
         let mut errors = Vec::new();
         let mut required_edges = self.empty_required_edges();
+        let mut ownership_edges = self.empty_required_edges();
 
         for registration in self.registrations() {
             let source = registration.id();
@@ -66,10 +69,27 @@ impl ModelRegistry {
                         &mut required_edges,
                     );
                 }
+                for lookup in lookup_relations(*field) {
+                    self.validate_lookup_relation(
+                        source,
+                        *field,
+                        lookup,
+                        &mut errors,
+                    );
+                }
+            }
+            for ownership in ownership_relations(metadata) {
+                self.validate_ownership(
+                    source,
+                    ownership,
+                    &mut errors,
+                    &mut ownership_edges,
+                );
             }
         }
 
         errors.extend(find_required_reference_cycles(&required_edges));
+        errors.extend(find_ownership_cycles(&ownership_edges));
         errors.sort_unstable_by(compare_graph_errors);
         if errors.is_empty() {
             Ok(())
@@ -108,14 +128,27 @@ impl ModelRegistry {
         errors: &mut Vec<ModelGraphError>,
         required_edges: &mut BTreeMap<ModelId, Vec<ModelId>>,
     ) {
-        if let Some(same_as) = reference.same_as()
-            && resolve_field_path(source_metadata, same_as).is_none()
-        {
-            errors.push(ModelGraphError::InvalidSameAs {
-                source,
-                field: source_field.name(),
-                same_as,
-            });
+        if let Some(same_as) = reference.same_as() {
+            match resolve_field_path(source_metadata, same_as) {
+                None => errors.push(ModelGraphError::InvalidSameAs {
+                    source,
+                    field: source_field.name(),
+                    same_as,
+                }),
+                Some(same_as_field)
+                    if !project_relation_type(source_field.field_type())
+                        .is_compatible_with(project_relation_type(
+                            same_as_field.field_type(),
+                        )) =>
+                {
+                    errors.push(ModelGraphError::IncompatibleSameAs {
+                        source,
+                        field: source_field.name(),
+                        same_as,
+                    });
+                }
+                Some(_) => {}
+            }
         }
 
         let target = reference.target();
@@ -128,8 +161,10 @@ impl ModelRegistry {
             return;
         };
 
-        let required_reference = reference.must_exist()
-            && !is_nullable_reference_field(source_field);
+        let source_projection =
+            project_relation_type(source_field.field_type());
+        let required_reference =
+            reference.must_exist() && !source_projection.is_nullable();
         if required_reference {
             required_edges
                 .get_mut(&source)
@@ -149,47 +184,164 @@ impl ModelRegistry {
             return;
         };
 
-        let source_type =
-            source_field.field_type().strip_optional().type_name();
-        let target_type =
-            target_field.field_type().strip_optional().type_name();
-        if source_type != target_type
-            && !is_id_reference_projection(source_field, *target_field)
-        {
+        let target_projection =
+            project_relation_type(target_field.field_type());
+        if !source_projection.is_compatible_with(target_projection) {
             errors.push(ModelGraphError::IncompatibleProjection {
                 source,
                 field: source_field.name(),
-                source_type,
+                source_type: source_projection.type_name(),
                 target,
                 target_field: reference.target_field(),
-                target_type,
+                target_type: target_projection.type_name(),
             });
         }
     }
+
+    /// Validates one lookup-relation attribute.
+    fn validate_lookup_relation(
+        &self,
+        source: ModelId,
+        source_field: FieldMetadata,
+        lookup: crate::relation::LookupRelationMetadata,
+        errors: &mut Vec<ModelGraphError>,
+    ) {
+        let target_reference = lookup.target();
+        let Some(target_metadata) = self.resolve(target_reference.identity())
+        else {
+            let target = target_reference
+                .metadata()
+                .map(TypeMetadata::id)
+                .unwrap_or(source);
+            errors.push(ModelGraphError::MissingLookupTarget {
+                source,
+                field: source_field.name(),
+                target,
+            });
+            return;
+        };
+        let target = target_metadata.id();
+        let Some(target_field) =
+            resolve_field_path(target_metadata, lookup.target_field())
+        else {
+            errors.push(ModelGraphError::MissingLookupTargetField {
+                source,
+                field: source_field.name(),
+                target,
+                target_field: lookup.target_field(),
+            });
+            return;
+        };
+        let source_projection =
+            project_relation_type(source_field.field_type());
+        let target_projection =
+            project_relation_type(target_field.field_type());
+        if !source_projection.is_compatible_with(target_projection) {
+            errors.push(ModelGraphError::IncompatibleLookupProjection {
+                source,
+                field: source_field.name(),
+                source_type: source_projection.type_name(),
+                target,
+                target_field: lookup.target_field(),
+                target_type: target_projection.type_name(),
+            });
+        }
+    }
+
+    /// Validates one ownership attribute and records its hierarchy edge.
+    fn validate_ownership(
+        &self,
+        source: ModelId,
+        ownership: crate::relation::OwnershipMetadata,
+        errors: &mut Vec<ModelGraphError>,
+        ownership_edges: &mut BTreeMap<ModelId, Vec<ModelId>>,
+    ) {
+        let owner_reference = ownership.owner();
+        let Some(owner_metadata) = self.resolve(owner_reference.identity())
+        else {
+            let owner = owner_reference
+                .metadata()
+                .map(TypeMetadata::id)
+                .unwrap_or(source);
+            errors.push(ModelGraphError::MissingOwner { source, owner });
+            return;
+        };
+        ownership_edges
+            .get_mut(&source)
+            .expect("all registered source models have adjacency entries")
+            .push(owner_metadata.id());
+    }
 }
 
-/// Returns whether a reference field is nullable, including fields whose
-/// metadata is intentionally opaque.
-fn is_nullable_reference_field(field: FieldMetadata) -> bool {
-    field.is_nullable()
-        || field.rust_type_name().starts_with("core::option::Option<")
-        || field.rust_type_name().starts_with("std::option::Option<")
+/// A relation endpoint projected from a structural type.
+#[derive(Clone, Copy)]
+struct RelationProjection {
+    /// Whether the outer relation value may be absent.
+    nullable: bool,
+    /// The leaf type identity, when the structure has one unambiguous value.
+    identity: Option<TypeIdentity>,
+    /// The leaf type name used in diagnostics.
+    type_name: &'static str,
 }
 
-/// Returns whether an opaque ID field projects to a target ID field.
-fn is_id_reference_projection(
-    source: FieldMetadata,
-    target: FieldMetadata,
-) -> bool {
-    target
-        .field_type()
-        .strip_optional()
-        .type_name()
-        .contains(OPAQUE_ID_TYPE_NAME)
-        && source
-            .field_type()
-            .type_name()
-            .contains(OPAQUE_ID_TYPE_NAME)
+impl RelationProjection {
+    /// Returns whether this projected relation is nullable.
+    #[must_use]
+    const fn is_nullable(self) -> bool {
+        self.nullable
+    }
+
+    /// Returns whether two projected relation endpoints have the same leaf.
+    #[must_use]
+    fn is_compatible_with(self, other: Self) -> bool {
+        self.identity
+            .zip(other.identity)
+            .is_some_and(|(left, right)| left == right)
+    }
+
+    /// Returns the diagnostic name for this projected endpoint.
+    #[must_use]
+    const fn type_name(self) -> &'static str {
+        self.type_name
+    }
+}
+
+/// Projects a relation field through supported wrappers to its leaf type.
+///
+/// Optional, sequence, set, and array wrappers preserve a single leaf type;
+/// map values deliberately do not because their relationship endpoint is
+/// ambiguous.
+fn project_relation_type(field_type: TypeRef) -> RelationProjection {
+    let mut current = field_type;
+    let mut nullable = false;
+    loop {
+        match current.shape() {
+            TypeShape::Optional(inner) => {
+                nullable = true;
+                current = inner;
+            }
+            TypeShape::Sequence(inner) | TypeShape::Set(inner) => {
+                current = inner;
+            }
+            TypeShape::Array { element, .. } => {
+                current = element;
+            }
+            TypeShape::Map { .. } => {
+                return RelationProjection {
+                    nullable,
+                    identity: None,
+                    type_name: current.type_name(),
+                };
+            }
+            TypeShape::Scalar(_) | TypeShape::Named(_) | TypeShape::Opaque => {
+                return RelationProjection {
+                    nullable,
+                    identity: Some(current.identity()),
+                    type_name: current.identity().type_name(),
+                };
+            }
+        }
+    }
 }
 
 /// Returns every direct-reference attribute declared on `field`.
@@ -209,6 +361,32 @@ fn direct_references(
         .iter()
         .filter_map(|attribute| match attribute {
             AttributeMetadata::Reference(reference) => Some(*reference),
+            _ => None,
+        })
+}
+
+/// Returns every lookup-relation attribute declared on `field`.
+fn lookup_relations(
+    field: FieldMetadata,
+) -> impl Iterator<Item = crate::relation::LookupRelationMetadata> {
+    field
+        .attributes()
+        .iter()
+        .filter_map(|attribute| match attribute {
+            AttributeMetadata::LookupRelation(lookup) => Some(*lookup),
+            _ => None,
+        })
+}
+
+/// Returns every ownership relation declared on `metadata`.
+fn ownership_relations(
+    metadata: &'static TypeMetadata,
+) -> impl Iterator<Item = crate::relation::OwnershipMetadata> {
+    metadata
+        .attributes()
+        .iter()
+        .filter_map(|attribute| match attribute {
+            AttributeMetadata::Ownership(ownership) => Some(*ownership),
             _ => None,
         })
 }
@@ -265,6 +443,22 @@ fn find_required_reference_cycles(
         .into_iter()
         .filter_map(|component| canonical_cycle(&component, &edges))
         .map(|cycle| ModelGraphError::RequiredReferenceCycle { cycle })
+        .collect()
+}
+
+/// Finds one canonical ownership cycle for every cyclic hierarchy component.
+fn find_ownership_cycles(
+    edges: &BTreeMap<ModelId, Vec<ModelId>>,
+) -> Vec<ModelGraphError> {
+    let mut edges = edges.clone();
+    for targets in edges.values_mut() {
+        targets.sort_unstable();
+        targets.dedup();
+    }
+    strongly_connected_components(&edges)
+        .into_iter()
+        .filter_map(|component| canonical_cycle(&component, &edges))
+        .map(|cycle| ModelGraphError::OwnershipCycle { cycle })
         .collect()
 }
 
@@ -486,9 +680,36 @@ fn graph_error_sort_key(
         ModelGraphError::InvalidSameAs { source, field, .. } => {
             (Some(*source), Some(*field), 3, None)
         }
+        ModelGraphError::IncompatibleSameAs { source, field, .. } => {
+            (Some(*source), Some(*field), 4, None)
+        }
+        ModelGraphError::MissingLookupTarget {
+            source,
+            field,
+            target,
+        } => (Some(*source), Some(*field), 5, Some(*target)),
+        ModelGraphError::MissingLookupTargetField {
+            source,
+            field,
+            target,
+            ..
+        } => (Some(*source), Some(*field), 6, Some(*target)),
+        ModelGraphError::IncompatibleLookupProjection {
+            source,
+            field,
+            target,
+            ..
+        } => (Some(*source), Some(*field), 7, Some(*target)),
+        ModelGraphError::MissingOwner { source, owner } => {
+            (Some(*source), None, 8, Some(*owner))
+        }
         ModelGraphError::RequiredReferenceCycle { cycle } => {
             let source = cycle.first().copied();
-            (source, None, 4, source)
+            (source, None, 9, source)
+        }
+        ModelGraphError::OwnershipCycle { cycle } => {
+            let source = cycle.first().copied();
+            (source, None, 10, source)
         }
     }
 }

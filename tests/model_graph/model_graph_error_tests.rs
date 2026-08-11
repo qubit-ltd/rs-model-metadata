@@ -12,8 +12,8 @@ use qubit_model_metadata::ModelId;
 
 #[test]
 fn test_model_graph_errors_describe_each_variant() {
-    let source = ModelId::from_static("test.Source");
-    let target = ModelId::from_static("test.Target");
+    let source = ModelId::new("test.Source");
+    let target = ModelId::new("test.Target");
     let cases = [
         (
             ModelGraphError::MissingTarget {

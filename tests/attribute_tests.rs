@@ -124,7 +124,7 @@ fn test_attribute_metadata_reports_every_kind() {
         AttributeMetadata::Index(VALID_INDEX),
         AttributeMetadata::Key(VALID_KEY),
         AttributeMetadata::Reference(ReferenceMetadata::new(
-            ModelId::from_static("test.Target"),
+            ModelId::new("test.Target"),
             FieldPath::new(&["id"]),
             true,
             None,

@@ -22,66 +22,66 @@ struct DuplicateA;
 struct DuplicateZ;
 
 static ACCOUNT_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.metadata.Account"),
+    ModelId::new("test.metadata.Account"),
     TypeIdentity::of::<Account>(),
     TypeKind::Struct(StructMetadata::new(&[])),
     &[],
 );
 static ORGANIZATION_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.metadata.Organization"),
+    ModelId::new("test.metadata.Organization"),
     TypeIdentity::of::<Organization>(),
     TypeKind::Struct(StructMetadata::new(&[])),
     &[],
 );
 static DUPLICATE_A_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.metadata.Duplicate"),
+    ModelId::new("test.metadata.Duplicate"),
     TypeIdentity::of::<DuplicateA>(),
     TypeKind::Struct(StructMetadata::new(&[])),
     &[],
 );
 static DUPLICATE_Z_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.metadata.Duplicate"),
+    ModelId::new("test.metadata.Duplicate"),
     TypeIdentity::of::<DuplicateZ>(),
     TypeKind::Struct(StructMetadata::new(&[])),
     &[],
 );
 static MISMATCH_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::from_static("test.metadata.Account"),
+    ModelId::new("test.metadata.Account"),
     TypeIdentity::of::<Account>(),
     TypeKind::Struct(StructMetadata::new(&[])),
     &[],
 );
 
 static ACCOUNT_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.metadata.Account"),
+    ModelId::new("test.metadata.Account"),
     &ACCOUNT_METADATA,
     "test::Account",
     "test::metadata",
     SourceLocation::new("account.rs", 10, 1),
 );
 static ORGANIZATION_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.metadata.Organization"),
+    ModelId::new("test.metadata.Organization"),
     &ORGANIZATION_METADATA,
     "test::Organization",
     "test::metadata",
     SourceLocation::new("organization.rs", 20, 1),
 );
 static DUPLICATE_Z_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.metadata.Duplicate"),
+    ModelId::new("test.metadata.Duplicate"),
     &DUPLICATE_Z_METADATA,
     "z::Model",
     "z::module",
     SourceLocation::new("z.rs", 30, 3),
 );
 static DUPLICATE_A_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.metadata.Duplicate"),
+    ModelId::new("test.metadata.Duplicate"),
     &DUPLICATE_A_METADATA,
     "a::Model",
     "a::module",
     SourceLocation::new("a.rs", 20, 2),
 );
 static MISMATCH_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::from_static("test.metadata.Mismatch"),
+    ModelId::new("test.metadata.Mismatch"),
     &MISMATCH_METADATA,
     "test::Mismatch",
     "test::metadata",

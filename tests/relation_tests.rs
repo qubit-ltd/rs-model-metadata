@@ -38,7 +38,7 @@ fn test_field_path_reports_empty_segments() {
 
 #[test]
 fn test_relation_metadata_preserves_targets_paths_and_policies() {
-    let target = ModelId::from_static("test.metadata.Target");
+    let target = ModelId::new("test.metadata.Target");
     let named_target = NamedTypeRef::unresolved(TypeIdentity::of::<Target>());
     let target_field = FieldPath::new(&["id"]);
     let same_as = FieldPath::new(&["account_id"]);
@@ -61,7 +61,7 @@ fn test_relation_metadata_preserves_targets_paths_and_policies() {
 #[test]
 #[should_panic(expected = "reference target field path cannot be empty")]
 fn test_reference_rejects_empty_target_path() {
-    let target = ModelId::from_static("test.metadata.Target");
+    let target = ModelId::new("test.metadata.Target");
     let _ = ReferenceMetadata::new(target, EMPTY_PATH, true, None);
 }
 
@@ -70,7 +70,7 @@ fn test_reference_rejects_empty_target_path() {
     expected = "reference target field path cannot contain empty segments"
 )]
 fn test_reference_rejects_empty_target_path_segments() {
-    let target = ModelId::from_static("test.metadata.Target");
+    let target = ModelId::new("test.metadata.Target");
     let _ = ReferenceMetadata::new(target, EMPTY_SEGMENT_PATH, true, None);
 }
 

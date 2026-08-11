@@ -14,7 +14,7 @@ use qubit_model_metadata::ReferenceMetadata;
 
 #[test]
 fn test_reference_metadata_preserves_direct_reference_details() {
-    let target = ModelId::from_static("test.metadata.Target");
+    let target = ModelId::new("test.metadata.Target");
     let target_field = FieldPath::new(&["id"]);
     let same_as = FieldPath::new(&["account_id"]);
     let reference =

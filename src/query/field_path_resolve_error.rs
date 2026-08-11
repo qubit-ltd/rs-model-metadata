@@ -10,6 +10,7 @@
 
 /// A typed reason why a field path cannot be resolved.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FieldPathResolveError {
     /// The supplied path contains no segments.
     EmptyPath,
