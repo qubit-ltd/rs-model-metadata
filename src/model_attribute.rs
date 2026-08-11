@@ -8,6 +8,7 @@
 
 //! Expansion of the `Model` attribute macro.
 
+use heck::ToShoutySnakeCase;
 use proc_macro_crate::FoundCrate;
 use proc_macro_crate::crate_name;
 use proc_macro2::Span;
@@ -22,10 +23,12 @@ use syn::DeriveInput;
 use syn::Error;
 use syn::Fields;
 use syn::Ident;
+use syn::Index;
 use syn::LitStr;
 use syn::Meta;
 use syn::Result;
 use syn::Token;
+use syn::WhereClause;
 use syn::parse::Parser;
 use syn::parse_quote;
 use syn::parse2;
@@ -291,16 +294,13 @@ fn expand_display(
     let (impl_generics, type_generics, where_clause) =
         input.generics.split_for_impl();
     match &input.data {
-        Data::Struct(_) => Ok(quote! {
-            impl #impl_generics ::core::fmt::Display for #name #type_generics #where_clause {
-                fn fmt(
-                    &self,
-                    formatter: &mut ::core::fmt::Formatter<'_>,
-                ) -> ::core::fmt::Result {
-                    ::core::fmt::Debug::fmt(self, formatter)
-                }
-            }
-        }),
+        Data::Struct(data) => expand_struct_display(
+            name,
+            impl_generics,
+            type_generics,
+            where_clause,
+            &data.fields,
+        ),
         Data::Enum(data) => {
             let mut arms = Vec::with_capacity(data.variants.len());
             for variant in &data.variants {
@@ -331,12 +331,45 @@ fn expand_display(
 
 /// Converts an UpperCamelCase Rust identifier to SCREAMING_SNAKE_CASE.
 fn shouting_snake_case(value: &str) -> String {
-    let mut output = String::with_capacity(value.len());
-    for (index, character) in value.char_indices() {
-        if character.is_uppercase() && index != 0 {
-            output.push('_');
+    value.to_shouty_snake_case()
+}
+
+/// Generates a Debug-shaped `Display` implementation without requiring Debug.
+fn expand_struct_display(
+    name: &Ident,
+    impl_generics: impl ToTokens,
+    type_generics: impl ToTokens,
+    where_clause: Option<&WhereClause>,
+    fields: &Fields,
+) -> Result<TokenStream> {
+    let body = match fields {
+        Fields::Named(fields) => {
+            let names =
+                fields.named.iter().filter_map(|field| field.ident.as_ref());
+            quote! {
+                let mut debug = formatter.debug_struct(stringify!(#name));
+                #(debug.field(stringify!(#names), &self.#names);)*
+                debug.finish()
+            }
         }
-        output.extend(character.to_uppercase());
-    }
-    output
+        Fields::Unnamed(fields) => {
+            let indexes = (0..fields.unnamed.len()).map(Index::from);
+            quote! {
+                let mut debug = formatter.debug_tuple(stringify!(#name));
+                #(debug.field(&self.#indexes);)*
+                debug.finish()
+            }
+        }
+        Fields::Unit => quote!(formatter.write_str(stringify!(#name))),
+    };
+    Ok(quote! {
+        impl #impl_generics ::core::fmt::Display for #name #type_generics #where_clause {
+            fn fmt(
+                &self,
+                formatter: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                #body
+            }
+        }
+    })
 }

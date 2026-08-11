@@ -27,6 +27,7 @@ name = "qubit_model_derive"
 proc-macro = true
 
 [dependencies]
+heck = "0.5"
 proc-macro-crate = "3"
 proc-macro2 = "1"
 qubit-redact-derive-core = { path = "../../rust-common/rs-redact-derive/core" }

@@ -37,6 +37,11 @@ struct Relaxed {
     value: f64,
 }
 
+#[Model(id = "test.attribute.DisplayWithoutDebug", no_debug)]
+struct DisplayWithoutDebug {
+    value: String,
+}
+
 #[Model(id = "test.attribute.Credential")]
 struct Credential {
     username: String,
@@ -99,6 +104,20 @@ fn test_model_attribute_honors_disabled_capabilities() {
 
     assert_eq!(cloned.value, 1.5);
     assert_eq!(format!("{value:?}"), "Relaxed { value: 1.5 }");
+}
+
+/// Verifies Display remains available when the independent Debug default is
+/// off.
+#[test]
+fn test_model_attribute_supports_display_without_debug() {
+    let value = DisplayWithoutDebug {
+        value: "safe".to_owned(),
+    };
+
+    assert_eq!(
+        format!("{value}"),
+        r#"DisplayWithoutDebug { value: "safe" }"#
+    );
 }
 
 /// Verifies field redaction controls formatting and serialization safely.
