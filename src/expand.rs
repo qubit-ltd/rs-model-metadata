@@ -23,7 +23,6 @@ use syn::Type;
 use syn::TypePath;
 
 use crate::attribute::RoundingMode;
-use crate::attribute::SensitiveHandling;
 use crate::attribute::SequenceAttribute;
 use crate::attribute::TemporalNormalization;
 use crate::attribute::TemporalPrecision;
@@ -95,6 +94,12 @@ pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
             impl #runtime::HasTypeMetadata for #ident {
                 fn type_metadata() -> &'static #runtime::TypeMetadata {
                     &MODEL_METADATA
+                }
+            }
+
+            impl #runtime::HasModelRegistration for #ident {
+                fn model_registration() -> &'static #runtime::ModelRegistration {
+                    &MODEL_REGISTRATION
                 }
             }
         };
@@ -544,7 +549,6 @@ fn expand_capability_assertions(
                 }
                 FieldAttributeIr::Reference(_)
                 | FieldAttributeIr::LookupRelation(_)
-                | FieldAttributeIr::Sensitive(_)
                 | FieldAttributeIr::Codec(_)
                 | FieldAttributeIr::Generator(_) => return None,
             };
@@ -676,7 +680,6 @@ fn expand_field_attributes(
             FieldAttributeIr::Element(value) => expand_element(value, runtime),
             FieldAttributeIr::Reference(value) => expand_reference(value, runtime),
             FieldAttributeIr::LookupRelation(value) => expand_lookup_relation(value, runtime),
-            FieldAttributeIr::Sensitive(value) => expand_sensitive(value, runtime),
             FieldAttributeIr::Codec(value) => expand_strategy(value, runtime, true),
             FieldAttributeIr::Generator(value) => expand_strategy(value, runtime, false),
         })
@@ -945,35 +948,6 @@ fn expand_lookup_relation(
                 #runtime::FieldPath::new(&[#(#target_field),*]),
             )
         )
-    }
-}
-
-/// Generates one sensitive-data handling attribute.
-fn expand_sensitive(
-    value: &crate::attribute::SensitiveAttribute,
-    runtime: &TokenStream,
-) -> TokenStream {
-    let handling = value.handling.first();
-    let handling_value = match handling.map(|occurrence| occurrence.value) {
-        None | Some(SensitiveHandling::Redact) => {
-            quote!(#runtime::SensitiveHandling::Redact)
-        }
-        Some(SensitiveHandling::Mask) => {
-            quote!(#runtime::SensitiveHandling::Mask)
-        }
-        Some(SensitiveHandling::Token) => {
-            quote!(#runtime::SensitiveHandling::Token)
-        }
-    };
-    let handling = if let Some(handling) = handling {
-        let handling_span = handling.span;
-        quote_spanned!(handling_span=> #handling_value)
-    } else {
-        handling_value
-    };
-    let span = value.span;
-    quote_spanned! {span=>
-        #runtime::AttributeMetadata::Sensitive(#runtime::SensitiveMetadata::new(#handling))
     }
 }
 

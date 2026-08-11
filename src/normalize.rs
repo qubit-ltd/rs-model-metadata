@@ -25,7 +25,6 @@ use super::attribute::LookupRelationAttribute;
 use super::attribute::MapAttribute;
 use super::attribute::ModelAttribute;
 use super::attribute::ReferenceAttribute;
-use super::attribute::SensitiveAttribute;
 use super::attribute::SequenceAttribute;
 use super::attribute::StrategyAttribute;
 use super::attribute::TemporalAttribute;
@@ -168,8 +167,6 @@ pub(crate) enum FieldAttributeIr {
     Reference(ReferenceAttribute),
     /// A lookup relation to another model.
     LookupRelation(LookupRelationAttribute),
-    /// Sensitive-data handling.
-    Sensitive(SensitiveAttribute),
     /// A codec strategy.
     Codec(StrategyAttribute),
     /// A generator strategy.
@@ -461,9 +458,6 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
             FieldAttribute::LookupRelation(attribute) => {
                 field_attributes
                     .push(FieldAttributeIr::LookupRelation(attribute));
-            }
-            FieldAttribute::Sensitive(attribute) => {
-                field_attributes.push(FieldAttributeIr::Sensitive(attribute));
             }
             FieldAttribute::Codec(attribute) => {
                 field_attributes.push(FieldAttributeIr::Codec(attribute));

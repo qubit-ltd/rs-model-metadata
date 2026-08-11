@@ -139,8 +139,6 @@ pub(crate) enum FieldAttribute {
     Reference(ReferenceAttribute),
     /// A relation resolved by looking up another model.
     LookupRelation(LookupRelationAttribute),
-    /// Sensitive-data handling.
-    Sensitive(SensitiveAttribute),
     /// A codec strategy.
     Codec(StrategyAttribute),
     /// A generator strategy.
@@ -327,25 +325,6 @@ pub(crate) struct LookupRelationAttribute {
     pub(crate) span: Span,
 }
 
-/// Parsed sensitive-data handling.
-pub(crate) struct SensitiveAttribute {
-    /// Handling-policy occurrences in source order.
-    pub(crate) handling: Vec<SpannedValue<SensitiveHandling>>,
-    /// The span of the complete attribute item.
-    pub(crate) span: Span,
-}
-
-/// Parsed sensitive-data handling policy.
-#[derive(Clone, Copy)]
-pub(crate) enum SensitiveHandling {
-    /// Redact the complete value.
-    Redact,
-    /// Mask part of the value.
-    Mask,
-    /// Apply the policy for authentication tokens and verification codes.
-    Token,
-}
-
 /// Parsed external strategy name.
 pub(crate) struct StrategyAttribute {
     /// Stable logical strategy-name occurrences in source order.
@@ -500,8 +479,6 @@ fn parse_field_attribute(
     } else if meta.path.is_ident("lookup_relation") {
         parsed
             .push(FieldAttribute::LookupRelation(parse_lookup_relation(meta)?));
-    } else if meta.path.is_ident("sensitive") {
-        parsed.push(FieldAttribute::Sensitive(parse_sensitive(meta)?));
     } else if meta.path.is_ident("codec") {
         parsed.push(FieldAttribute::Codec(parse_strategy(meta)?));
     } else if meta.path.is_ident("generator") {
@@ -951,33 +928,6 @@ fn parse_lookup_relation(
     })
 }
 
-/// Parses sensitive-data handling, defaulting to complete redaction.
-fn parse_sensitive(meta: ParseNestedMeta<'_>) -> Result<SensitiveAttribute> {
-    let span = meta.path.span();
-    let mut handling = Vec::new();
-    if meta.input.peek(Paren) {
-        meta.parse_nested_meta(|nested| {
-            let value = if nested.path.is_ident("redact") {
-                SensitiveHandling::Redact
-            } else if nested.path.is_ident("mask") {
-                SensitiveHandling::Mask
-            } else if nested.path.is_ident("token") {
-                SensitiveHandling::Token
-            } else {
-                return Err(
-                    nested.error("expected `redact`, `mask`, or `token`")
-                );
-            };
-            handling.push(SpannedValue {
-                value,
-                span: nested.path.span(),
-            });
-            Ok(())
-        })?;
-    }
-    Ok(SensitiveAttribute { handling, span })
-}
-
 /// Parses a strategy as `codec = "name"` or `codec(name = "name")`.
 fn parse_strategy(meta: ParseNestedMeta<'_>) -> Result<StrategyAttribute> {
     let span = meta.path.span();
@@ -1110,7 +1060,6 @@ fn is_field_attribute_path(path: &Path) -> bool {
         || path.is_ident("element")
         || path.is_ident("reference")
         || path.is_ident("lookup_relation")
-        || path.is_ident("sensitive")
         || path.is_ident("codec")
         || path.is_ident("generator")
         || path.is_ident("opaque")

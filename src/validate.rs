@@ -779,13 +779,6 @@ fn validate_field_attribute(
                 errors,
             );
         }
-        FieldAttributeIr::Sensitive(value) => {
-            validate_duplicate_values(
-                "sensitive handling",
-                &value.handling,
-                errors,
-            );
-        }
         FieldAttributeIr::Codec(value) => {
             validate_duplicate_literals("codec strategy", &value.name, errors);
             validate_strategy_name("codec", &value.name, errors);
@@ -1126,7 +1119,6 @@ fn field_attribute_name(attribute: &FieldAttributeIr) -> &'static str {
         FieldAttributeIr::Element(_) => "element",
         FieldAttributeIr::Reference(_) => "reference",
         FieldAttributeIr::LookupRelation(_) => "lookup_relation",
-        FieldAttributeIr::Sensitive(_) => "sensitive",
         FieldAttributeIr::Codec(_) => "codec",
         FieldAttributeIr::Generator(_) => "generator",
     }
@@ -1143,7 +1135,6 @@ fn field_attribute_span(attribute: &FieldAttributeIr) -> Span {
         FieldAttributeIr::Element(value) => value.span,
         FieldAttributeIr::Reference(value) => value.span,
         FieldAttributeIr::LookupRelation(value) => value.span,
-        FieldAttributeIr::Sensitive(value) => value.span,
         FieldAttributeIr::Codec(value) | FieldAttributeIr::Generator(value) => {
             value.span
         }

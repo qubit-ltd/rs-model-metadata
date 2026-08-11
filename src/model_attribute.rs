@@ -8,7 +8,6 @@
 
 //! Expansion of the `Model` attribute macro.
 
-use heck::ToShoutySnakeCase;
 use proc_macro_crate::FoundCrate;
 use proc_macro_crate::crate_name;
 use proc_macro2::Span;
@@ -34,6 +33,8 @@ use syn::parse_quote;
 use syn::parse2;
 use syn::punctuated::Punctuated;
 
+use crate::attribute_support::has_must_use;
+use crate::attribute_support::serialized_variant_name;
 use crate::derive_model_impl::derive_model_tokens;
 use crate::model_options::DisabledCapabilities;
 use crate::model_options::ModelOptions;
@@ -41,18 +42,59 @@ use crate::runtime_path::runtime_path;
 
 /// Expands one model declaration and converts failures to compiler diagnostics.
 pub(crate) fn expand(args: TokenStream, input: TokenStream) -> TokenStream {
-    match expand_result(args, input) {
+    match expand_result(args, input, false) {
+        Ok(tokens) => tokens,
+        Err(error) => error.into_compile_error(),
+    }
+}
+
+/// Expands the public `Enum` attribute macro.
+pub(crate) fn expand_enum(
+    args: TokenStream,
+    input: TokenStream,
+) -> TokenStream {
+    match expand_result(args, input, true) {
         Ok(tokens) => tokens,
         Err(error) => error.into_compile_error(),
     }
 }
 
 /// Expands one model declaration with default traits and metadata.
-fn expand_result(args: TokenStream, input: TokenStream) -> Result<TokenStream> {
+fn expand_result(
+    args: TokenStream,
+    input: TokenStream,
+    enum_declaration: bool,
+) -> Result<TokenStream> {
     let attributes =
         Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     let options = ModelOptions::parse(attributes)?;
     let mut item: DeriveInput = parse2(input)?;
+    match (&item.data, enum_declaration) {
+        (Data::Struct(_), false) => {}
+        (Data::Enum(data), true)
+            if data
+                .variants
+                .iter()
+                .all(|variant| matches!(variant.fields, Fields::Unit)) => {}
+        (Data::Enum(_), false) => {
+            return Err(Error::new_spanned(
+                &item.ident,
+                "#[Model] only supports structs; use #[Enum] for fieldless enums",
+            ));
+        }
+        (Data::Enum(_), true) | (Data::Struct(_), true) => {
+            return Err(Error::new_spanned(
+                &item.ident,
+                "#[Enum] only supports fieldless enums",
+            ));
+        }
+        (Data::Union(union), _) => {
+            return Err(Error::new_spanned(
+                union.union_token,
+                "model declaration attributes do not support unions",
+            ));
+        }
+    }
     let serde = dependency_path(
         "serde",
         "Model attribute requires the `serde` dependency",
@@ -75,6 +117,9 @@ fn expand_result(args: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let derives =
         default_derives(&item.data, &serde, &options.disabled, redacted)?;
     item.attrs.push(derives);
+    if enum_declaration && !has_must_use(&item.attrs) {
+        item.attrs.push(parse_quote!(#[must_use]));
+    }
     if (!redacted && !options.disabled.serialize)
         || !options.disabled.deserialize
     {
@@ -94,6 +139,10 @@ fn expand_result(args: TokenStream, input: TokenStream) -> Result<TokenStream> {
     }
     let metadata =
         derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
+    let enum_names = enum_declaration
+        .then(|| expand_enum_names(&item))
+        .transpose()?
+        .unwrap_or_default();
     let display = (!redacted && !options.disabled.display)
         .then(|| expand_display(&item, rename_all))
         .transpose()?
@@ -111,7 +160,7 @@ fn expand_result(args: TokenStream, input: TokenStream) -> Result<TokenStream> {
         })
         .transpose()?;
 
-    Ok(quote!(#item #metadata #display #redaction))
+    Ok(quote!(#item #metadata #enum_names #display #redaction))
 }
 
 /// Resolves one dependency path in the consuming crate.
@@ -308,8 +357,7 @@ fn expand_display(
                     return Ok(TokenStream::new());
                 }
                 let variant_name = &variant.ident;
-                let displayed = shouting_snake_case(&variant.ident.to_string());
-                arms.push(quote!(Self::#variant_name => formatter.write_str(#displayed)));
+                arms.push(quote!(Self::#variant_name => formatter.write_str(self.name())));
             }
             let _ = rename_all;
             Ok(quote! {
@@ -329,9 +377,49 @@ fn expand_display(
     }
 }
 
-/// Converts an UpperCamelCase Rust identifier to SCREAMING_SNAKE_CASE.
-fn shouting_snake_case(value: &str) -> String {
-    value.to_shouty_snake_case()
+/// Generates canonical name conversion methods for a fieldless enum.
+fn expand_enum_names(input: &DeriveInput) -> Result<TokenStream> {
+    let Data::Enum(data) = &input.data else {
+        return Ok(TokenStream::new());
+    };
+    let name = &input.ident;
+    let (impl_generics, type_generics, where_clause) =
+        input.generics.split_for_impl();
+    let mut variants = Vec::with_capacity(data.variants.len());
+    let mut names = Vec::with_capacity(data.variants.len());
+    for variant in &data.variants {
+        let serialized = serialized_variant_name(variant)?;
+        if names.iter().any(|name: &String| name == &serialized) {
+            return Err(Error::new_spanned(
+                &variant.ident,
+                format!("duplicate serialized enum name {serialized:?}"),
+            ));
+        }
+        variants.push(&variant.ident);
+        names.push(serialized);
+    }
+    let names = names
+        .iter()
+        .map(|name| LitStr::new(name, Span::call_site()))
+        .collect::<Vec<_>>();
+    Ok(quote! {
+        impl #impl_generics #name #type_generics #where_clause {
+            #[must_use]
+            pub const fn name(&self) -> &'static str {
+                match self {
+                    #(Self::#variants => #names,)*
+                }
+            }
+
+            #[must_use]
+            pub fn from_name(name: &str) -> Option<Self> {
+                match name {
+                    #(#names => Some(Self::#variants),)*
+                    _ => None,
+                }
+            }
+        }
+    })
 }
 
 /// Generates a Debug-shaped `Display` implementation without requiring Debug.

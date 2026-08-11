@@ -13,9 +13,10 @@ use std::hash::Hash;
 use std::hash::Hasher;
 
 use model_runtime::metadata_of;
+use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 
-#[Model(id = "test.attribute.Status")]
+#[Enum(id = "test.attribute.Status")]
 enum Status {
     Draft,
     InReview,
@@ -50,9 +51,9 @@ struct Credential {
     password: String,
 }
 
-/// Verifies default enum traits, canonical display text, and metadata.
+/// Verifies default enum traits, canonical names, display text, and metadata.
 #[test]
-fn test_model_attribute_supplies_enum_defaults() {
+fn test_enum_attribute_supplies_enum_defaults() {
     let status = Status::InReview;
     let copied = status;
     let cloned = status;
@@ -61,6 +62,9 @@ fn test_model_attribute_supplies_enum_defaults() {
     assert!(Status::Draft < Status::InReview);
     assert_eq!(format!("{status:?}"), "InReview");
     assert_eq!(format!("{status}"), "IN_REVIEW");
+    assert_eq!(status.name(), "IN_REVIEW");
+    assert_eq!(Status::from_name("IN_REVIEW"), Some(Status::InReview));
+    assert_eq!(Status::from_name("missing"), None);
     assert_eq!(
         serde_json::to_string(&status).expect("status should serialize"),
         "\"IN_REVIEW\""

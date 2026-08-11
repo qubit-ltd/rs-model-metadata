@@ -24,7 +24,6 @@ struct MigratedConstraints {
     values: Vec<bigdecimal::BigDecimal>,
     #[field(text(format = mobile))]
     mobile: String,
-    #[field(sensitive(token))]
     verification_code: String,
 }
 
@@ -42,7 +41,6 @@ fn main() {}
     redact,
 )]
 struct SensitiveMigration {
-    #[field(sensitive(token))]
     #[redact(level = "secret")]
     verification_code: String,
 }

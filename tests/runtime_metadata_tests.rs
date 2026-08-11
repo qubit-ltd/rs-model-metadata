@@ -14,10 +14,10 @@ use model_runtime::AttributeKind;
 use model_runtime::AttributeMetadata;
 use model_runtime::AttributeQuery;
 use model_runtime::DecimalSemantic;
+use model_runtime::HasModelRegistration;
 use model_runtime::HasTypeShape;
 use model_runtime::ModelRegistry;
 use model_runtime::RoundingMode;
-use model_runtime::SensitiveHandling;
 use model_runtime::TemporalNormalization;
 use model_runtime::TemporalPrecision;
 use model_runtime::TextFormat;
@@ -27,6 +27,7 @@ use model_runtime::TypeKind;
 use model_runtime::TypeShape;
 use model_runtime::UniqueComparison;
 use model_runtime::metadata_of;
+use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 
 #[allow(dead_code)]
@@ -64,11 +65,19 @@ struct PhoneLoginParams {
     mobile: Option<Phone>,
 }
 
-#[Model(id = "test.derive.Status")]
+#[Enum(id = "test.derive.Status")]
 #[allow(dead_code)]
 enum Status {
     Draft,
     Published,
+}
+
+#[Enum(id = "test.derive.SerializedStatus")]
+enum SerializedStatus {
+    #[serde(rename = "reviewing")]
+    Reviewing,
+    #[serde(rename(serialize = "invalid-state"))]
+    Invalid,
 }
 
 #[allow(dead_code)]
@@ -145,13 +154,8 @@ struct AttributedModel {
     decimal_values: Vec<bigdecimal::BigDecimal>,
     #[field(text(format = mobile))]
     mobile: String,
-    #[field(
-        sensitive(mask),
-        codec = "encrypted",
-        generator(name = "account_balance")
-    )]
+    #[field(codec = "encrypted", generator(name = "account_balance"))]
     secret: String,
-    #[field(sensitive(token))]
     verification_code: String,
     #[field(opaque)]
     external: ExternalValue,
@@ -270,8 +274,23 @@ fn test_derive_emits_fieldless_enum_metadata() {
 
     assert!(matches!(metadata.kind(), TypeKind::Enum(enum_metadata)
         if enum_metadata.variants().len() == 2
-            && enum_metadata.variants()[0].name() == "Draft"
+            && enum_metadata.variants()[0].name() == "DRAFT"
             && enum_metadata.variants()[1].ordinal() == 1));
+}
+
+#[test]
+fn test_enum_name_methods_follow_serde_serialization_names() {
+    assert_eq!(SerializedStatus::Reviewing.name(), "reviewing");
+    assert_eq!(
+        SerializedStatus::from_name("reviewing"),
+        Some(SerializedStatus::Reviewing)
+    );
+    assert_eq!(SerializedStatus::Invalid.name(), "invalid-state");
+    assert_eq!(
+        SerializedStatus::from_name("invalid-state"),
+        Some(SerializedStatus::Invalid)
+    );
+    assert_eq!(SerializedStatus::from_name("invalid"), None);
 }
 
 #[test]
@@ -426,7 +445,7 @@ fn test_migrated_element_and_mobile_constraints_expand() {
 }
 
 #[test]
-fn test_reference_sensitive_and_strategy_attributes_expand() {
+fn test_reference_and_strategy_attributes_expand() {
     let metadata = metadata_of::<AttributedModel>();
     let reference = metadata
         .field("organization_id")
@@ -454,19 +473,6 @@ fn test_reference_sensitive_and_strategy_attributes_expand() {
 
     let secret = metadata.field("secret").expect("secret metadata");
     assert!(matches!(
-        secret.attribute(AttributeKind::Sensitive),
-        Some(AttributeMetadata::Sensitive(sensitive))
-            if sensitive.handling() == SensitiveHandling::Mask
-    ));
-    assert!(matches!(
-        metadata
-            .field("verification_code")
-            .expect("verification_code metadata")
-            .attribute(AttributeKind::Sensitive),
-        Some(AttributeMetadata::Sensitive(sensitive))
-            if sensitive.handling() == SensitiveHandling::Token
-    ));
-    assert!(matches!(
         secret.attribute(AttributeKind::Codec),
         Some(AttributeMetadata::Codec(codec)) if codec.name() == "encrypted"
     ));
@@ -493,6 +499,17 @@ fn test_derive_registers_every_supported_shape_and_legacy_macro() {
         assert_eq!(registration.metadata().id().as_str(), id);
         assert_eq!(registration.rust_type_name(), rust_type_name);
     }
+}
+
+#[test]
+fn test_derive_exposes_explicit_model_registration() {
+    let registration = Status::model_registration();
+
+    assert_eq!(registration.id().as_str(), "test.derive.Status");
+    assert!(core::ptr::eq(
+        registration.metadata(),
+        metadata_of::<Status>(),
+    ));
 }
 
 #[test]

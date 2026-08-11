@@ -12,6 +12,7 @@ documentation = "https://docs.rs/qubit-model-derive"
 readme = "README.md"
 keywords = ["derive", "macro", "metadata", "model", "qubit"]
 categories = ["development-tools::procedural-macro-helpers"]
+publish = false
 include = [
     "/Cargo.toml",
     "/LICENSE",
@@ -30,7 +31,7 @@ proc-macro = true
 heck = "0.5"
 proc-macro-crate = "3"
 proc-macro2 = "1"
-qubit-redact-derive-core = { path = "../../rust-common/rs-redact-derive/core" }
+qubit-redact-derive-core = { version = "0.4.1", path = "../../rust-common/rs-redact-derive/core" }
 quote = "1"
 syn = { version = "2", features = ["full"] }
 

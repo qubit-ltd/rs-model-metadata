@@ -27,6 +27,7 @@ use super::attribute::FieldAttribute;
 use super::attribute::ModelAttribute;
 use super::attribute::parse_field_attributes;
 use super::attribute::parse_model_attributes;
+use super::attribute_support::serialized_variant_name;
 
 /// The parsed input required to generate model metadata.
 pub(crate) struct ModelInput {
@@ -226,11 +227,11 @@ impl ModelInput {
             variants
                 .into_iter()
                 .enumerate()
-                .map(|(ordinal, variant)| ModelVariant {
-                    ordinal,
-                    name: variant.ident.unraw().to_string(),
+                .map(|(ordinal, variant)| {
+                    let name = serialized_variant_name(&variant)?;
+                    Ok(ModelVariant { ordinal, name })
                 })
-                .collect(),
+                .collect::<Result<Vec<_>>>()?,
         ))
     }
 }

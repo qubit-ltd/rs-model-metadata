@@ -1,5 +1,5 @@
-error: Model derive only supports fieldless enums
-  --> tests/ui/fail/data_enum.rs:11:10
+error: #[Enum] only supports fieldless enums
+  --> tests/ui/fail/data_enum.rs:10:6
    |
-11 |     Value(i64),
-   |          ^^^^^
+10 | enum Invalid {
+   |      ^^^^^^^

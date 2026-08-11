@@ -27,7 +27,7 @@ struct Unit;
 #[qubit_model_derive::Model(id = "test.derive.Newtype", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Newtype(#[field(text(max_chars = 8))] String);
 
-#[qubit_model_derive::Model(id = "test.derive.Fieldless", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+#[qubit_model_derive::Enum(id = "test.derive.Fieldless", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 enum Fieldless {
     First,
     Second,

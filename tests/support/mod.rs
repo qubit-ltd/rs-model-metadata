@@ -12,6 +12,8 @@
 
 #[path = "../../src/attribute.rs"]
 pub(crate) mod attribute;
+#[path = "../../src/attribute_support.rs"]
+pub(crate) mod attribute_support;
 #[path = "../../src/input.rs"]
 pub(crate) mod input;
 #[path = "../../src/normalize.rs"]
