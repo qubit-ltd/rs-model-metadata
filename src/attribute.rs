@@ -30,6 +30,7 @@ use syn::meta::ParseNestedMeta;
 use syn::parse::ParseStream;
 use syn::parse_str;
 use syn::spanned::Spanned;
+use syn::token::Paren;
 
 /// A field name together with the source span that declared it.
 pub(crate) struct FieldName {
@@ -436,7 +437,7 @@ fn parse_model_attribute(
         {
             return Err(meta.error("duplicate `textual` model capability"));
         }
-        if meta.input.peek(syn::token::Paren) || meta.input.peek(Token![=]) {
+        if meta.input.peek(Paren) || meta.input.peek(Token![=]) {
             return Err(meta.error("`textual` does not accept arguments"));
         }
         parsed.push(ModelAttribute::Textual);
@@ -619,7 +620,7 @@ fn parse_ownership(meta: ParseNestedMeta<'_>) -> Result<OwnershipAttribute> {
 fn parse_identifier(meta: ParseNestedMeta<'_>) -> Result<IdentifierAttribute> {
     let span = meta.path.span();
     let mut generated = Vec::new();
-    if meta.input.peek(syn::token::Paren) {
+    if meta.input.peek(Paren) {
         meta.parse_nested_meta(|nested| {
             if nested.path.is_ident("generated") {
                 generated.push(nested.path.span());
@@ -638,7 +639,7 @@ fn parse_field_unique(
 ) -> Result<FieldUniqueAttribute> {
     let span = meta.path.span();
     let mut ignore_case = Vec::new();
-    if meta.input.peek(syn::token::Paren) {
+    if meta.input.peek(Paren) {
         meta.parse_nested_meta(|nested| {
             if nested.path.is_ident("ignore_case") {
                 ignore_case.push(nested.path.span());
@@ -954,7 +955,7 @@ fn parse_lookup_relation(
 fn parse_sensitive(meta: ParseNestedMeta<'_>) -> Result<SensitiveAttribute> {
     let span = meta.path.span();
     let mut handling = Vec::new();
-    if meta.input.peek(syn::token::Paren) {
+    if meta.input.peek(Paren) {
         meta.parse_nested_meta(|nested| {
             let value = if nested.path.is_ident("redact") {
                 SensitiveHandling::Redact

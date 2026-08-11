@@ -80,6 +80,13 @@ struct Organization {
 struct ExternalValue;
 
 #[allow(dead_code)]
+#[Model(id = "test.derive.OpaqueContainer")]
+struct OpaqueContainer {
+    #[field(opaque)]
+    external_values: Option<Vec<i128>>,
+}
+
+#[allow(dead_code)]
 #[Model(
     id = "test.derive.AttributedModel",
     no_clone,
@@ -167,6 +174,21 @@ fn test_derive_emits_declared_fields_and_nullable_shape() {
             .expect("nickname metadata")
             .is_nullable()
     );
+}
+
+#[test]
+fn test_derive_preserves_opaque_container_shape() {
+    let field = metadata_of::<OpaqueContainer>()
+        .field("external_values")
+        .expect("opaque container field metadata");
+
+    assert!(field.is_nullable());
+    assert!(matches!(
+        field.field_type().shape(),
+        TypeShape::Optional(inner)
+            if matches!(inner.shape(), TypeShape::Sequence(element)
+                if matches!(element.shape(), TypeShape::Opaque))
+    ));
 }
 
 #[test]

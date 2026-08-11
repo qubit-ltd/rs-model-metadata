@@ -15,9 +15,12 @@ use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
 use quote::quote_spanned;
+use syn::GenericArgument;
 use syn::Ident;
 use syn::LitStr;
+use syn::PathArguments;
 use syn::Type;
+use syn::TypePath;
 
 use crate::attribute::RoundingMode;
 use crate::attribute::SensitiveHandling;
@@ -111,7 +114,7 @@ fn expand_registration(
         #[linkme(crate = #runtime::__private::linkme)]
         static MODEL_REGISTRATION: #runtime::ModelRegistration =
             #runtime::ModelRegistration::new(
-                #runtime::ModelId::from_static(#id),
+                #runtime::ModelId::new(#id),
                 &MODEL_METADATA,
                 stringify!(#ident),
                 module_path!(),
@@ -166,7 +169,7 @@ fn expand_type_kind(
                 #(#unique_capability_assertions)*
                 static FIELDS: [#runtime::FieldMetadata; #count] = [#(#fields),*];
                 static MODEL_METADATA: #runtime::TypeMetadata = #runtime::TypeMetadata::new(
-                    #runtime::ModelId::from_static(#id),
+                    #runtime::ModelId::new(#id),
                     #runtime::TypeIdentity::of::<#ident>(),
                     #runtime::TypeKind::Struct(#runtime::StructMetadata::new(&FIELDS)),
                     &[#(#attributes),*],
@@ -176,7 +179,7 @@ fn expand_type_kind(
         ModelShapeIr::UnitStruct => quote! {
             #(#unique_capability_assertions)*
             static MODEL_METADATA: #runtime::TypeMetadata = #runtime::TypeMetadata::new(
-                #runtime::ModelId::from_static(#id),
+                #runtime::ModelId::new(#id),
                 #runtime::TypeIdentity::of::<#ident>(),
                 #runtime::TypeKind::Struct(#runtime::StructMetadata::new(&[])),
                 &[#(#attributes),*],
@@ -188,7 +191,7 @@ fn expand_type_kind(
                 #(#unique_capability_assertions)*
                 static FIELDS: [#runtime::FieldMetadata; 1] = [#field];
                 static MODEL_METADATA: #runtime::TypeMetadata = #runtime::TypeMetadata::new(
-                    #runtime::ModelId::from_static(#id),
+                    #runtime::ModelId::new(#id),
                     #runtime::TypeIdentity::of::<#ident>(),
                     #runtime::TypeKind::Newtype(#runtime::NewtypeMetadata::new(FIELDS[0])),
                     &[#(#attributes),*],
@@ -202,7 +205,7 @@ fn expand_type_kind(
                 #(#unique_capability_assertions)*
                 static VARIANTS: [#runtime::EnumVariantMetadata; #count] = [#(#variants),*];
                 static MODEL_METADATA: #runtime::TypeMetadata = #runtime::TypeMetadata::new(
-                    #runtime::ModelId::from_static(#id),
+                    #runtime::ModelId::new(#id),
                     #runtime::TypeIdentity::of::<#ident>(),
                     #runtime::TypeKind::Enum(#runtime::EnumMetadata::new(&VARIANTS)),
                     &[#(#attributes),*],
@@ -377,7 +380,8 @@ fn expand_field(field: &FieldIr, runtime: &TokenStream) -> TokenStream {
     let attributes = expand_field_attributes(&field.attributes, runtime);
     let capability_assertions = expand_capability_assertions(field, runtime);
     let field_type = if let Some(span) = field.opaque.first().copied() {
-        quote_spanned!(span=> #runtime::TypeRef::opaque::<#ty>())
+        let opaque_shape = expand_opaque_shape(ty, runtime);
+        quote_spanned!(span=> #runtime::TypeRef::opaque_with_shape::<#ty>(|| #opaque_shape))
     } else {
         quote!(#runtime::TypeRef::of::<#ty>())
     };
@@ -392,6 +396,89 @@ fn expand_field(field: &FieldIr, runtime: &TokenStream) -> TokenStream {
             &[#(#attributes),*],
         )
     }}
+}
+
+/// Generates the visible container structure for an opaque field type.
+///
+/// # Parameters
+///
+/// * `ty` - The source-level field type whose opaque leaves are retained.
+/// * `runtime` - The resolved runtime crate path used by generated tokens.
+///
+/// # Returns
+///
+/// A `TypeShape` expression that preserves recognized standard containers and
+/// uses `TypeRef::opaque` for uninterpreted leaves.
+fn expand_opaque_shape(ty: &Type, runtime: &TokenStream) -> TokenStream {
+    match ty {
+        Type::Array(array) => {
+            let element = expand_opaque_type_ref(&array.elem, runtime);
+            let length = &array.len;
+            quote!(#runtime::TypeShape::Array {
+                element: #element,
+                length: #length,
+            })
+        }
+        Type::Path(path) => expand_opaque_path_shape(path, runtime),
+        _ => quote!(#runtime::TypeShape::Opaque),
+    }
+}
+
+/// Generates the visible shape for a path type, when its final segment is a
+/// supported standard container.
+fn expand_opaque_path_shape(
+    path: &TypePath,
+    runtime: &TokenStream,
+) -> TokenStream {
+    let Some(segment) = path.path.segments.last() else {
+        return quote!(#runtime::TypeShape::Opaque);
+    };
+    let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return quote!(#runtime::TypeShape::Opaque);
+    };
+    let type_arguments = arguments
+        .args
+        .iter()
+        .filter_map(|argument| {
+            if let GenericArgument::Type(ty) = argument {
+                Some(ty)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    match (
+        segment.ident.to_string().as_str(),
+        type_arguments.as_slice(),
+    ) {
+        ("Option", [inner]) => {
+            let inner = expand_opaque_type_ref(inner, runtime);
+            quote!(#runtime::TypeShape::Optional(#inner))
+        }
+        ("Vec", [inner]) => {
+            let inner = expand_opaque_type_ref(inner, runtime);
+            quote!(#runtime::TypeShape::Sequence(#inner))
+        }
+        ("HashSet" | "BTreeSet", [inner]) => {
+            let inner = expand_opaque_type_ref(inner, runtime);
+            quote!(#runtime::TypeShape::Set(#inner))
+        }
+        ("HashMap" | "BTreeMap", [key, value]) => {
+            let key = expand_opaque_type_ref(key, runtime);
+            let value = expand_opaque_type_ref(value, runtime);
+            quote!(#runtime::TypeShape::Map {
+                key: #key,
+                value: #value,
+            })
+        }
+        _ => quote!(#runtime::TypeShape::Opaque),
+    }
+}
+
+/// Generates a TypeRef for an opaque nested container or opaque leaf.
+fn expand_opaque_type_ref(ty: &Type, runtime: &TokenStream) -> TokenStream {
+    let shape = expand_opaque_shape(ty, runtime);
+    quote!(#runtime::TypeRef::opaque_with_shape::<#ty>(|| #shape))
 }
 
 /// Generates const assertions for capabilities that must be resolved through
@@ -827,7 +914,7 @@ fn expand_reference(
     let span = value.span;
     quote_spanned! {span=>
         #runtime::AttributeMetadata::Reference(#runtime::ReferenceMetadata::new(
-            #runtime::ModelId::from_static(#target),
+            #runtime::ModelId::new(#target),
             #runtime::FieldPath::new(&[#(#target_field),*]),
             #must_exist,
             #same_as,
