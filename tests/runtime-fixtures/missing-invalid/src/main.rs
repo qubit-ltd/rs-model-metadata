@@ -6,10 +6,9 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 
-#[derive(ModelMetadata)]
-#[model(id = "test.derive.Invalid", primary_key(fields(value)))]
+#[Model(id = "test.derive.Invalid", primary_key(fields(value)))]
 struct Invalid;
 
 fn main() {}

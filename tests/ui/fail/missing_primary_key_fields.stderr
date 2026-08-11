@@ -1,11 +1,11 @@
 error: `primary_key` requires at least one field
-  --> tests/ui/fail/missing_primary_key_fields.rs:12:37
+  --> tests/ui/fail/missing_primary_key_fields.rs:18:21
    |
-12 | #[model(id = "test.derive.Invalid", primary_key(generated(id)))]
-   |                                     ^^^^^^^^^^^
+18 |     no_deserialize, primary_key(generated(id)))]
+   |                     ^^^^^^^^^^^
 
 error: generated field `id` is not part of this primary key
-  --> tests/ui/fail/missing_primary_key_fields.rs:12:59
+  --> tests/ui/fail/missing_primary_key_fields.rs:18:43
    |
-12 | #[model(id = "test.derive.Invalid", primary_key(generated(id)))]
-   |                                                           ^^
+18 |     no_deserialize, primary_key(generated(id)))]
+   |                                           ^^

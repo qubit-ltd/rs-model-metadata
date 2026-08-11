@@ -1,8 +1,8 @@
 error[E0080]: evaluation panicked: text attributes require a text-capable field
-  --> tests/ui/fail/capability_mismatch.rs:11:10
+  --> tests/ui/fail/capability_mismatch.rs:11:1
    |
-11 | #[derive(qubit_model_derive::ModelMetadata)]
-   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_::FIELDS` failed inside this call
+11 | #[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_::FIELDS` failed inside this call
    |
 note: inside `FieldMetadata::new`
   --> $MODEL_RUNTIME/src/field_metadata.rs
@@ -12,7 +12,8 @@ note: inside `FieldMetadata::new`
 note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
   --> $RUST/core/src/panic.rs
    |
-   = note: the failure occurred here
+   |           $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
    |
   ::: $MODEL_RUNTIME/src/field_metadata.rs
    |
@@ -24,39 +25,39 @@ note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
    | |_____________- in this macro invocation
 
 error[E0080]: evaluation panicked: `text` requires a text-capable field
-  --> tests/ui/fail/capability_mismatch.rs:14:13
+  --> tests/ui/fail/capability_mismatch.rs:13:13
    |
-14 |     #[model(text(max_chars = 8))]
+13 |     #[field(text(max_chars = 8))]
    |             ^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `sequence` requires a sequence-capable field
-  --> tests/ui/fail/capability_mismatch.rs:16:13
+  --> tests/ui/fail/capability_mismatch.rs:15:13
    |
-16 |     #[model(sequence(max_items = 8))]
+15 |     #[field(sequence(max_items = 8))]
    |             ^^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `map` requires a map-capable field
-  --> tests/ui/fail/capability_mismatch.rs:18:13
+  --> tests/ui/fail/capability_mismatch.rs:17:13
    |
-18 |     #[model(map(max_entries = 8))]
+17 |     #[field(map(max_entries = 8))]
    |             ^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `time` requires a temporal-capable field
-  --> tests/ui/fail/capability_mismatch.rs:20:13
+  --> tests/ui/fail/capability_mismatch.rs:19:13
    |
-20 |     #[model(time(precision = second))]
+19 |     #[field(time(precision = second))]
    |             ^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `decimal` requires a decimal-capable field
-  --> tests/ui/fail/capability_mismatch.rs:22:13
+  --> tests/ui/fail/capability_mismatch.rs:21:13
    |
-22 |     #[model(decimal(scale = 2))]
+21 |     #[field(decimal(scale = 2))]
    |             ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 note: erroneous constant encountered
-  --> tests/ui/fail/capability_mismatch.rs:11:10
+  --> tests/ui/fail/capability_mismatch.rs:11:1
    |
-11 | #[derive(qubit_model_derive::ModelMetadata)]
-   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+11 | #[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = note: this note originates in the derive macro `qubit_model_derive::ModelMetadata` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this note originates in the attribute macro `qubit_model_derive::Model` (in Nightly builds, run with -Z macro-backtrace for more info)

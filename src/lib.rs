@@ -12,44 +12,38 @@ mod attribute;
 mod derive_model_impl;
 mod expand;
 mod input;
+mod model_attribute;
+mod model_options;
 mod normalize;
 mod runtime_path;
 mod validate;
 
-use derive_model_impl::derive_model_tokens;
 use proc_macro::TokenStream;
 
-/// Derives static model metadata for supported Rust model declarations.
+/// Declares a model and derives its standard capabilities and metadata.
 ///
 /// The macro accepts named and unit structs, single-field tuple newtypes, and
 /// fieldless enums. It emits compile errors for unsupported declaration shapes
-/// or when the runtime metadata crate cannot be resolved from the consuming
+/// or when required runtime dependencies cannot be resolved from the consuming
 /// crate's dependencies.
 ///
 /// # Parameters
 ///
+/// - `args`: The type-level model arguments, including the required `id`.
 /// - `input`: The token stream containing the model declaration and its
-///   `#[model(...)]` attributes.
+///   `#[field(...)]` attributes.
 ///
 /// # Returns
 ///
-/// Returns generated implementations and static metadata, or compile-error
-/// tokens when the declaration is invalid.
+/// Returns the rewritten declaration, generated implementations, and static
+/// metadata, or compile-error tokens when the declaration is invalid.
 ///
 /// # Errors
 ///
 /// Diagnostics are returned as compile-error tokens for unsupported model
 /// shapes, invalid attributes, and missing runtime dependencies.
-#[proc_macro_derive(Model, attributes(model))]
-pub fn derive_model(input: TokenStream) -> TokenStream {
-    derive_model_tokens(input.into(), runtime_path::runtime_path()).into()
-}
-
-/// Derives static model metadata using the legacy macro name.
-///
-/// Use [`Model`] for new code. This compatibility entry point remains
-/// available for existing users of the pre-`Model` API.
-#[proc_macro_derive(ModelMetadata, attributes(model))]
-pub fn derive_model_metadata(input: TokenStream) -> TokenStream {
-    derive_model_tokens(input.into(), runtime_path::runtime_path()).into()
+#[proc_macro_attribute /* required by the style checker */]
+#[allow(non_snake_case)]
+pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream {
+    model_attribute::expand(args.into(), input.into()).into()
 }

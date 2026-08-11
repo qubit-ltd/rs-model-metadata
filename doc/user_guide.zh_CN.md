@@ -4,18 +4,18 @@
 
 适用于 `qubit-model-derive` 0.1.0 与 `qubit-model-metadata` 0.1.0。
 
-`ModelMetadata` 仍作为兼容别名保留；新代码请使用 `Model`。
+`Model` 是唯一支持的属性宏；旧 derive 别名已移除。
 
 ## 手册目标与读者
 
-当 Rust 领域模型声明需要成为校验、面向 schema 的工具或应用代码的元数据事实来源时，请使用本 crate。`#[derive(Model)]` 会生成 `qubit-model-metadata` 所消费的静态实现和注册项；它不执行数据校验。
+当 Rust 领域模型声明需要成为校验、面向 schema 的工具或应用代码的元数据事实来源时，请使用本 crate。`#[Model(...)]` 会生成 `qubit-model-metadata` 所消费的静态实现和注册项；它不执行数据校验。
 
 ## 概念模型
 
-derive 宏在编译期读取受支持的声明及其 `#[model(...)]` 属性，并生成 `HasTypeShape` 与 `HasTypeMetadata`；runtime crate 以强类型查询公开最终的不可变元数据。
+derive 宏在编译期读取受支持的声明及其 `#[field(...)]` 属性，并生成 `HasTypeShape` 与 `HasTypeMetadata`；runtime crate 以强类型查询公开最终的不可变元数据。
 
 ```text
-Rust 模型 + #[model(...)]
+Rust 模型 + #[field(...)]
             │ 编译期
             ▼
 Model derive ──► 静态 runtime 元数据 ──► metadata_of::<T>()
@@ -37,12 +37,11 @@ qubit-model-metadata = "0.1.0"
 use qubit_model_derive::Model;
 use qubit_model_metadata::{AttributeQuery, metadata_of};
 
-#[derive(Model)]
-#[model(id = "example.Account")]
+#[Model(id = "example.Account")]
 struct Account {
-    #[model(identifier(generated))]
+    #[field(identifier(generated))]
     id: i64,
-    #[model(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
+    #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
     email: String,
 }
 
@@ -105,14 +104,12 @@ bigdecimal = "0.4"
 ```rust
 use qubit_model_derive::Model;
 
-#[derive(Model)]
-#[model(id = "example.Organization")]
-struct Organization { #[model(identifier)] id: i64 }
+#[Model(id = "example.Organization")]
+struct Organization { #[field(identifier)] id: i64 }
 
-#[derive(Model)]
-#[model(id = "example.Membership")]
+#[Model(id = "example.Membership")]
 struct Membership {
-    #[model(reference(target = "example.Organization", target_field = id, must_exist = true))]
+    #[field(reference(target = "example.Organization", target_field = id, must_exist = true))]
     organization_id: i64,
 }
 ```
@@ -126,9 +123,8 @@ struct Membership {
 use qubit_model_derive::Model;
 
 struct ExternalToken;
-#[derive(Model)]
-#[model(id = "example.ImportRecord")]
-struct ImportRecord { #[model(opaque)] token: ExternalToken }
+#[Model(id = "example.ImportRecord")]
+struct ImportRecord { #[field(opaque)] token: ExternalToken }
 ```
 
 否则，外部字段类型必须实现 `HasTypeShape`。opaque 字段表现为 `TypeShape::Opaque`，并且不能配合依赖形状的 `text`、`sequence`、`map`、`time`、`decimal` 或 `money` 约束。

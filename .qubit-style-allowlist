@@ -1,5 +1,4 @@
-# Parsing nodes and normalized IR are intentionally kept next to their
-# phase-specific parsers and validators.
-multiple-public-types | src/attribute.rs | Parsed macro syntax nodes form one private attribute grammar.
-multiple-public-types | src/input.rs | Parsed model syntax nodes form one private derive input grammar.
-multiple-public-types | src/normalize.rs | Normalized IR nodes form one private semantic representation.
+multiple-public-types | src/model_options.rs | Model capability options and their normalized disabled-state representation are parsed together.
+multiple-public-types | src/attribute.rs | Attribute parsing AST is intentionally grouped for recursive parsing.
+multiple-public-types | src/input.rs | Parsed declaration model types form one syntax tree.
+multiple-public-types | src/normalize.rs | Normalized metadata IR types form one recursive representation.

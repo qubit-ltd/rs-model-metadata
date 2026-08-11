@@ -1,5 +1,5 @@
 error: this model-level `model` attribute cannot be used on a field
-  --> tests/ui/fail/wrong_scope.rs:12:13
+  --> tests/ui/fail/wrong_scope.rs:11:13
    |
-12 |     #[model(primary_key(fields(value)))]
+11 |     #[field(primary_key(fields(value)))]
    |             ^^^^^^^^^^^

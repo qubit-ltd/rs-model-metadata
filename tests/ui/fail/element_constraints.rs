@@ -8,14 +8,13 @@
 
 #![allow(dead_code)]
 
-#[derive(qubit_model_derive::ModelMetadata)]
-#[model(id = "test.derive.Invalid")]
+#[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Invalid {
-    #[model(element(text(repertoire = ascii)))]
+    #[field(element(text(repertoire = ascii)))]
     scalar: String,
-    #[model(element(decimal(scale = 2)))]
+    #[field(element(decimal(scale = 2)))]
     strings: Vec<String>,
-    #[model(element(text(repertoire = ascii)))]
+    #[field(element(text(repertoire = ascii)))]
     set: std::collections::HashSet<String>,
 }
 

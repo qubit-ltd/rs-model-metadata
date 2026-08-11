@@ -1,5 +1,5 @@
 error: duplicate model ID
-  --> tests/ui/fail/model_id_duplicate.rs:11:14
+  --> tests/ui/fail/model_id_duplicate.rs:10:10
    |
-11 | #[model(id = "test.derive.Duplicate")]
-   |              ^^^^^^^^^^^^^^^^^^^^^^^
+10 |     id = "test.derive.Duplicate",
+   |          ^^^^^^^^^^^^^^^^^^^^^^^

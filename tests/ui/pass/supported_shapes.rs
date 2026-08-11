@@ -10,29 +10,24 @@
 
 use std::collections::HashMap;
 
-use qubit_model_derive::ModelMetadata;
 
-#[derive(ModelMetadata)]
-#[model(id = "test.derive.Named")]
+#[qubit_model_derive::Model(id = "test.derive.Named", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Named {
-    #[model(sequence(min_items = 1, max_items = 3, unique_items))]
+    #[field(sequence(min_items = 1, max_items = 3, unique_items))]
     values: Option<Vec<String>>,
-    #[model(map(min_entries = 1, max_entries = 2))]
+    #[field(map(min_entries = 1, max_entries = 2))]
     labels: HashMap<String, String>,
-    #[model(sequence(unique_items))]
+    #[field(sequence(unique_items))]
     fixed_unique_values: [String; 3],
 }
 
-#[derive(ModelMetadata)]
-#[model(id = "test.derive.Unit")]
+#[qubit_model_derive::Model(id = "test.derive.Unit", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Unit;
 
-#[derive(ModelMetadata)]
-#[model(id = "test.derive.Newtype")]
-struct Newtype(#[model(text(max_chars = 8))] String);
+#[qubit_model_derive::Model(id = "test.derive.Newtype", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+struct Newtype(#[field(text(max_chars = 8))] String);
 
-#[derive(ModelMetadata)]
-#[model(id = "test.derive.Fieldless")]
+#[qubit_model_derive::Model(id = "test.derive.Fieldless", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 enum Fieldless {
     First,
     Second,

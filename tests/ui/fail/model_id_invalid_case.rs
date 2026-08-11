@@ -4,10 +4,8 @@
 //    SPDX-License-Identifier: Apache-2.0
 // =============================================================================
 
-use qubit_model_derive::ModelMetadata;
 
-#[derive(ModelMetadata)]
-#[model(id = "test.Derive.InvalidCase")]
+#[qubit_model_derive::Model(id = "test.Derive.InvalidCase", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct InvalidCase {
     value: String,
 }

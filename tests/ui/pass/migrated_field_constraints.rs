@@ -8,37 +8,41 @@
 
 #![allow(dead_code)]
 
-#[derive(qubit_model_derive::ModelMetadata)]
-#[model(id = "test.derive.Target")]
+#[qubit_model_derive::Model(id = "test.derive.Target", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Target {
     id: i64,
 }
 
-#[derive(qubit_model_derive::ModelMetadata)]
-#[model(id = "test.derive.MigratedConstraints")]
+#[qubit_model_derive::Model(id = "test.derive.MigratedConstraints", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct MigratedConstraints {
     target: Target,
-    #[model(reference(target = "test.derive.Target", target_field = id, same_as = "target.id"))]
+    #[field(reference(target = "test.derive.Target", target_field = id, same_as = "target.id"))]
     target_id: i64,
-    #[model(element(text(repertoire = ascii)))]
+    #[field(element(text(repertoire = ascii)))]
     codes: [String; 2],
-    #[model(element(decimal(scale = 2)))]
+    #[field(element(decimal(scale = 2)))]
     values: Vec<bigdecimal::BigDecimal>,
-    #[model(text(format = mobile))]
+    #[field(text(format = mobile))]
     mobile: String,
-    #[model(sensitive(token))]
+    #[field(sensitive(token))]
     verification_code: String,
 }
 
 fn main() {}
 
-#[derive(
-    qubit_model_derive::ModelMetadata,
-    qubit_redact_derive::Redact,
+#[qubit_model_derive::Model(
+    id = "test.derive.SensitiveMigration",
+    no_clone,
+    no_debug,
+    no_display,
+    no_partial_eq,
+    no_hash,
+    no_serialize,
+    no_deserialize,
+    redact,
 )]
-#[model(id = "test.derive.SensitiveMigration")]
 struct SensitiveMigration {
-    #[model(sensitive(token))]
+    #[field(sensitive(token))]
     #[redact(level = "secret")]
     verification_code: String,
 }

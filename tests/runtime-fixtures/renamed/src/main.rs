@@ -7,12 +7,11 @@
 // =============================================================================
 
 use ::model_runtime::metadata_of;
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 
 mod model_runtime {}
 
-#[derive(ModelMetadata)]
-#[model(id = "test.derive.Renamed")]
+#[Model(id = "test.derive.Renamed")]
 struct Renamed {
     value: String,
 }

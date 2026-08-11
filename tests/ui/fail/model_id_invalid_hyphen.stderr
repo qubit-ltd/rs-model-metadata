@@ -1,5 +1,5 @@
 error: model ID module segments must use ASCII snake_case
-  --> tests/ui/fail/model_id_invalid_hyphen.rs:10:14
-   |
-10 | #[model(id = "test.derive-bad.InvalidHyphen")]
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ --> tests/ui/fail/model_id_invalid_hyphen.rs:8:34
+  |
+8 | #[qubit_model_derive::Model(id = "test.derive-bad.InvalidHyphen", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serializ...
+  |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

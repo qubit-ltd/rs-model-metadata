@@ -4,24 +4,23 @@
 
 Applies to `qubit-model-derive` 0.1.0 and `qubit-model-metadata` 0.1.0.
 
-`ModelMetadata` remains available as a compatibility alias; use `Model` in new
-code.
+`Model` is the supported attribute macro; legacy derive aliases are unavailable.
 
 ## Purpose and Audience
 
 Use this crate when a Rust domain-model declaration must remain the source of
 truth for metadata consumed by validation, schema-oriented tools, or application
-code. `#[derive(Model)]` produces the static implementations and registrations
+code. `#[Model(...)]` produces the static implementations and registrations
 consumed by `qubit-model-metadata`; it does not validate data.
 
 ## Conceptual Model
 
-The derive macro reads a supported declaration and `#[model(...)]` attributes at
+The attribute macro reads a supported declaration and `#[field(...)]` attributes at
 compile time. It emits `HasTypeShape` and `HasTypeMetadata`; the runtime crate
 exposes the resulting immutable metadata through typed queries.
 
 ```text
-Rust model + #[model(...)]
+Rust model + #[field(...)]
             │ compile time
             ▼
 Model derive ──► static runtime metadata ──► metadata_of::<T>()
@@ -43,12 +42,11 @@ Declare metadata next to the model, then query its normalized result:
 use qubit_model_derive::Model;
 use qubit_model_metadata::{AttributeQuery, metadata_of};
 
-#[derive(Model)]
-#[model(id = "example.Account")]
+#[Model(id = "example.Account")]
 struct Account {
-    #[model(identifier(generated))]
+    #[field(identifier(generated))]
     id: i64,
-    #[model(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
+    #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
     email: String,
 }
 
@@ -126,14 +124,12 @@ Relations name a stable target model ID and target field:
 ```rust
 use qubit_model_derive::Model;
 
-#[derive(Model)]
-#[model(id = "example.Organization")]
-struct Organization { #[model(identifier)] id: i64 }
+#[Model(id = "example.Organization")]
+struct Organization { #[field(identifier)] id: i64 }
 
-#[derive(Model)]
-#[model(id = "example.Membership")]
+#[Model(id = "example.Membership")]
 struct Membership {
-    #[model(reference(target = "example.Organization", target_field = id, must_exist = true))]
+    #[field(reference(target = "example.Organization", target_field = id, must_exist = true))]
     organization_id: i64,
 }
 ```
@@ -148,9 +144,8 @@ For an external type that intentionally lacks structural metadata, use `opaque`:
 use qubit_model_derive::Model;
 
 struct ExternalToken;
-#[derive(Model)]
-#[model(id = "example.ImportRecord")]
-struct ImportRecord { #[model(opaque)] token: ExternalToken }
+#[Model(id = "example.ImportRecord")]
+struct ImportRecord { #[field(opaque)] token: ExternalToken }
 ```
 
 Otherwise an external field type must implement `HasTypeShape`. An opaque field

@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-`qubit-model-derive` supplies `#[derive(Model)]` for Rust domain models. It turns a model declaration into static, strongly typed metadata and an automatic registration exposed by `qubit-model-metadata`.
+`qubit-model-derive` supplies `#[Model(...)]` for Rust domain models. It turns a model declaration into static, strongly typed metadata and an automatic registration exposed by `qubit-model-metadata`.
 
 ## Installation
 
@@ -21,8 +21,7 @@ qubit-model-metadata = "0.1"
 
 The runtime crate is required: an expansion without a `qubit-model-metadata` dependency emits a compile error explaining the missing dependency.
 
-`ModelMetadata` remains available as a compatibility alias for existing users;
-new code should use `Model`.
+`Model` is the supported attribute macro; legacy derive aliases are unavailable.
 
 ## Quick Start
 
@@ -32,12 +31,11 @@ For an account model, derive metadata once and query it wherever the application
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata_of;
 
-#[derive(Model)]
-#[model(id = "example.Account")]
+#[Model(id = "example.Account")]
 struct Account {
-    #[model(identifier)]
+    #[field(identifier)]
     id: i64,
-    #[model(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
+    #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
     email: String,
 }
 
@@ -57,8 +55,8 @@ Rust models often need more than their Rust type: validation, persistence, and s
 ## What It Provides
 
 - Derives static `HasTypeShape` and `HasTypeMetadata` implementations for named-field and unit structs, single-field tuple newtypes, and fieldless enums.
-- Generates field, type, key, uniqueness, index, text, collection, temporal, decimal, reference, sensitivity, codec, and generator metadata from supported `#[model(...)]` attributes.
-- Requires every model to declare a stable `#[model(id = "module.Type")]`; each expansion contributes one registration to the immutable global `ModelRegistry`.
+- Generates field, type, key, uniqueness, index, text, collection, temporal, decimal, reference, sensitivity, codec, and generator metadata from supported `#[field(...)]` attributes.
+- Requires every model to declare a stable `#[field(id = "module.Type")]`; each expansion contributes one registration to the immutable global `ModelRegistry`.
 - Resolves the runtime package by Cargo package name. If `qubit-model-metadata` is renamed locally, the expansion uses that local dependency name, including when a same-named module would otherwise shadow it:
 
   ```toml
@@ -66,17 +64,16 @@ Rust models often need more than their Rust type: validation, persistence, and s
   model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
   ```
 
-- Requires unknown external field types to opt in explicitly with `#[model(opaque)]`. An opaque field preserves its Rust type name and exposes `TypeShape::Opaque`, without requiring the external type to implement `HasTypeShape`.
+- Requires unknown external field types to opt in explicitly with `#[field(opaque)]`. An opaque field preserves its Rust type name and exposes `TypeShape::Opaque`, without requiring the external type to implement `HasTypeShape`.
 
 For an opaque field, use the marker only when structural inspection is intentionally unavailable:
 
 ```rust
 struct ExternalToken;
 
-#[derive(Model)]
-#[model(id = "example.ImportRecord")]
+#[Model(id = "example.ImportRecord")]
 struct ImportRecord {
-    #[model(opaque)]
+    #[field(opaque)]
     token: ExternalToken,
 }
 ```

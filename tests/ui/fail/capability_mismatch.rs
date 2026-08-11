@@ -8,18 +8,17 @@
 
 #![allow(dead_code)]
 
-#[derive(qubit_model_derive::ModelMetadata)]
-#[model(id = "test.derive.Invalid")]
+#[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Invalid {
-    #[model(text(max_chars = 8))]
+    #[field(text(max_chars = 8))]
     text: i64,
-    #[model(sequence(max_items = 8))]
+    #[field(sequence(max_items = 8))]
     sequence: String,
-    #[model(map(max_entries = 8))]
+    #[field(map(max_entries = 8))]
     map: Vec<String>,
-    #[model(time(precision = second))]
+    #[field(time(precision = second))]
     time: String,
-    #[model(decimal(scale = 2))]
+    #[field(decimal(scale = 2))]
     decimal: i64,
 }
 

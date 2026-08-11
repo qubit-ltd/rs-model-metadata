@@ -1,0 +1,342 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
+//! Expansion of the `Model` attribute macro.
+
+use proc_macro_crate::FoundCrate;
+use proc_macro_crate::crate_name;
+use proc_macro2::Span;
+use proc_macro2::TokenStream;
+use qubit_redact_derive_core::RedactOptions;
+use qubit_redact_derive_core::expand_with_options;
+use quote::ToTokens;
+use quote::quote;
+use syn::Attribute;
+use syn::Data;
+use syn::DeriveInput;
+use syn::Error;
+use syn::Fields;
+use syn::Ident;
+use syn::LitStr;
+use syn::Meta;
+use syn::Result;
+use syn::Token;
+use syn::parse::Parser;
+use syn::parse_quote;
+use syn::parse2;
+use syn::punctuated::Punctuated;
+
+use crate::derive_model_impl::derive_model_tokens;
+use crate::model_options::DisabledCapabilities;
+use crate::model_options::ModelOptions;
+use crate::runtime_path::runtime_path;
+
+/// Expands one model declaration and converts failures to compiler diagnostics.
+pub(crate) fn expand(args: TokenStream, input: TokenStream) -> TokenStream {
+    match expand_result(args, input) {
+        Ok(tokens) => tokens,
+        Err(error) => error.into_compile_error(),
+    }
+}
+
+/// Expands one model declaration with default traits and metadata.
+fn expand_result(args: TokenStream, input: TokenStream) -> Result<TokenStream> {
+    let attributes =
+        Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
+    let options = ModelOptions::parse(attributes)?;
+    let mut item: DeriveInput = parse2(input)?;
+    let serde = dependency_path(
+        "serde",
+        "Model attribute requires the `serde` dependency",
+    )?;
+    let rename_all = rename_all_rule(&item.data)?;
+    let mut metadata_input = item.clone();
+    let metadata_attributes = &options.metadata;
+    let redacted = options.redact || has_redact_fields(&item.data);
+    let mut redaction_input = item.clone();
+
+    metadata_input
+        .attrs
+        .push(parse_quote!(#[model(#(#metadata_attributes),*)]));
+    rename_field_attributes(&mut metadata_input.data);
+    remove_field_attributes(&mut item.data);
+    if redacted {
+        remove_redact_field_attributes(&mut item.data);
+    }
+
+    let derives =
+        default_derives(&item.data, &serde, &options.disabled, redacted)?;
+    item.attrs.push(derives);
+    if (!redacted && !options.disabled.serialize)
+        || !options.disabled.deserialize
+    {
+        item.attrs
+            .push(parse_quote!(#[serde(rename_all = #rename_all)]));
+    }
+
+    if redacted
+        && !redaction_input
+            .attrs
+            .iter()
+            .any(|attribute| attribute.path().is_ident("serde"))
+    {
+        redaction_input
+            .attrs
+            .push(parse_quote!(#[serde(rename_all = #rename_all)]));
+    }
+    let metadata =
+        derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
+    let display = (!redacted && !options.disabled.display)
+        .then(|| expand_display(&item, rename_all))
+        .transpose()?
+        .unwrap_or_default();
+    let redaction = redacted
+        .then(|| {
+            expand_with_options(
+                &redaction_input,
+                RedactOptions {
+                    debug: !options.disabled.debug,
+                    display: !options.disabled.display,
+                    serde: !options.disabled.serialize,
+                },
+            )
+        })
+        .transpose()?;
+
+    Ok(quote!(#item #metadata #display #redaction))
+}
+
+/// Resolves one dependency path in the consuming crate.
+fn dependency_path(package: &str, diagnostic: &str) -> Result<TokenStream> {
+    match crate_name(package) {
+        Ok(FoundCrate::Itself) => Ok(quote!(crate)),
+        Ok(FoundCrate::Name(name)) => {
+            let ident = Ident::new(&name, Span::call_site());
+            Ok(quote!(::#ident))
+        }
+        Err(_) => Err(Error::new(Span::call_site(), diagnostic)),
+    }
+}
+
+/// Returns the enforced Serde rename rule for one supported item shape.
+fn rename_all_rule(data: &Data) -> Result<LitStr> {
+    match data {
+        Data::Enum(_) => {
+            Ok(LitStr::new("SCREAMING_SNAKE_CASE", Span::call_site()))
+        }
+        Data::Struct(_) => Ok(LitStr::new("snake_case", Span::call_site())),
+        Data::Union(union) => Err(Error::new_spanned(
+            union.union_token,
+            "Model attribute does not support unions",
+        )),
+    }
+}
+
+/// Builds the standard derives selected by the declaration shape.
+fn default_derives(
+    data: &Data,
+    serde: &TokenStream,
+    disabled: &DisabledCapabilities,
+    redacted: bool,
+) -> Result<Attribute> {
+    match data {
+        Data::Enum(_) => enum_derives(serde, disabled, redacted),
+        Data::Struct(_) => struct_derives(serde, disabled, redacted),
+        Data::Union(union) => Err(Error::new_spanned(
+            union.union_token,
+            "Model attribute does not support unions",
+        )),
+    }
+}
+
+/// Builds the defaults for a fieldless enum.
+fn enum_derives(
+    serde: &TokenStream,
+    disabled: &DisabledCapabilities,
+    redacted: bool,
+) -> Result<Attribute> {
+    let mut derives = Vec::new();
+    if !disabled.clone {
+        derives.push(quote!(Clone));
+    }
+    if !disabled.copy && !disabled.clone {
+        derives.push(quote!(Copy));
+    }
+    if !disabled.debug && !redacted {
+        derives.push(quote!(Debug));
+    }
+    if !disabled.eq {
+        derives.push(quote!(Eq));
+    }
+    if !disabled.partial_eq {
+        derives.push(quote!(PartialEq));
+    }
+    if !disabled.partial_ord {
+        derives.push(quote!(PartialOrd));
+    }
+    if !disabled.ord {
+        derives.push(quote!(Ord));
+    }
+    if !disabled.hash {
+        derives.push(quote!(Hash));
+    }
+    if !disabled.serialize && !redacted {
+        derives.push(quote!(#serde::Serialize));
+    }
+    if !disabled.deserialize {
+        derives.push(quote!(#serde::Deserialize));
+    }
+
+    Ok(parse_quote!(#[derive(#(#derives),*)]))
+}
+
+/// Builds the defaults for a struct.
+fn struct_derives(
+    serde: &TokenStream,
+    disabled: &DisabledCapabilities,
+    redacted: bool,
+) -> Result<Attribute> {
+    if disabled.copy {
+        return Err(Error::new(
+            Span::call_site(),
+            "`no_copy` is only supported on enums",
+        ));
+    }
+    let mut derives = Vec::new();
+    if !disabled.clone {
+        derives.push(quote!(Clone));
+    }
+    if !disabled.debug && !redacted {
+        derives.push(quote!(Debug));
+    }
+    if !disabled.eq {
+        derives.push(quote!(Eq));
+    }
+    if !disabled.partial_eq {
+        derives.push(quote!(PartialEq));
+    }
+    if !disabled.hash {
+        derives.push(quote!(Hash));
+    }
+    if !disabled.serialize && !redacted {
+        derives.push(quote!(#serde::Serialize));
+    }
+    if !disabled.deserialize {
+        derives.push(quote!(#serde::Deserialize));
+    }
+
+    Ok(parse_quote!(#[derive(#(#derives),*)]))
+}
+
+/// Rewrites field helper attributes for the metadata-only derive input.
+fn rename_field_attributes(data: &mut Data) {
+    visit_fields(data, |attributes| {
+        for attribute in attributes {
+            if attribute.path().is_ident("field")
+                && let Meta::List(list) = &mut attribute.meta
+            {
+                list.path = parse_quote!(model);
+            }
+        }
+    });
+}
+
+/// Removes field helper attributes from the item returned to the compiler.
+fn remove_field_attributes(data: &mut Data) {
+    visit_fields(data, |attributes| {
+        attributes.retain(|attribute| !attribute.path().is_ident("field"));
+    });
+}
+
+/// Removes redaction helper attributes after their expansion is complete.
+fn remove_redact_field_attributes(data: &mut Data) {
+    visit_fields(data, |attributes| {
+        attributes.retain(|attribute| !attribute.path().is_ident("redact"));
+    });
+}
+
+/// Returns whether any struct field declares a redaction rule.
+fn has_redact_fields(data: &Data) -> bool {
+    let Data::Struct(data) = data else {
+        return false;
+    };
+    data.fields.iter().any(|field| {
+        field
+            .attrs
+            .iter()
+            .any(|attribute| attribute.path().is_ident("redact"))
+    })
+}
+
+/// Visits all struct fields in a declaration.
+fn visit_fields(data: &mut Data, mut visit: impl FnMut(&mut Vec<Attribute>)) {
+    if let Data::Struct(data) = data {
+        for field in &mut data.fields {
+            visit(&mut field.attrs);
+        }
+    }
+}
+
+/// Generates the non-redacted display implementation.
+fn expand_display(
+    input: &DeriveInput,
+    rename_all: LitStr,
+) -> Result<TokenStream> {
+    let name = &input.ident;
+    let (impl_generics, type_generics, where_clause) =
+        input.generics.split_for_impl();
+    match &input.data {
+        Data::Struct(_) => Ok(quote! {
+            impl #impl_generics ::core::fmt::Display for #name #type_generics #where_clause {
+                fn fmt(
+                    &self,
+                    formatter: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    ::core::fmt::Debug::fmt(self, formatter)
+                }
+            }
+        }),
+        Data::Enum(data) => {
+            let mut arms = Vec::with_capacity(data.variants.len());
+            for variant in &data.variants {
+                if !matches!(variant.fields, Fields::Unit) {
+                    return Ok(TokenStream::new());
+                }
+                let variant_name = &variant.ident;
+                let displayed = shouting_snake_case(&variant.ident.to_string());
+                arms.push(quote!(Self::#variant_name => formatter.write_str(#displayed)));
+            }
+            let _ = rename_all;
+            Ok(quote! {
+                impl #impl_generics ::core::fmt::Display for #name #type_generics #where_clause {
+                    fn fmt(
+                        &self,
+                        formatter: &mut ::core::fmt::Formatter<'_>,
+                    ) -> ::core::fmt::Result {
+                        match self {
+                            #(#arms,)*
+                        }
+                    }
+                }
+            })
+        }
+        Data::Union(_) => Ok(TokenStream::new()),
+    }
+}
+
+/// Converts an UpperCamelCase Rust identifier to SCREAMING_SNAKE_CASE.
+fn shouting_snake_case(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    for (index, character) in value.char_indices() {
+        if character.is_uppercase() && index != 0 {
+            output.push('_');
+        }
+        output.extend(character.to_uppercase());
+    }
+    output
+}

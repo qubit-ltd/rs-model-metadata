@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 qubit-model-derive = { path = "../../../../" }
 qubit-model-metadata = { path = "../../../../../rs-model-metadata" }
+serde = { version = "1", features = ["derive"] }
 
 [features]
 duplicate-fixture = []

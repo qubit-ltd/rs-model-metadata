@@ -5,36 +5,33 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for the shared implementation behind both public derive entry points.
+//! Tests for the public `Model` attribute expansion.
 
 use model_runtime::metadata_of;
 use qubit_model_derive::Model;
-use qubit_model_derive::ModelMetadata;
 
 #[allow(dead_code)]
-#[derive(Model)]
-#[model(id = "test.derive.CurrentModel")]
+#[Model(id = "test.derive.CurrentModel")]
 struct CurrentModel {
     value: String,
 }
 
 #[allow(dead_code)]
-#[derive(ModelMetadata)]
-#[model(id = "test.derive.LegacyModel")]
-struct LegacyModel {
+#[Model(id = "test.derive.SecondModel")]
+struct SecondModel {
     value: String,
 }
 
 #[test]
-fn test_public_derives_share_model_metadata_expansion() {
+fn test_model_attributes_share_metadata_expansion() {
     let current = metadata_of::<CurrentModel>();
-    let legacy = metadata_of::<LegacyModel>();
+    let second = metadata_of::<SecondModel>();
 
     assert_eq!(current.fields().count(), 1);
-    assert_eq!(legacy.fields().count(), 1);
+    assert_eq!(second.fields().count(), 1);
     assert_eq!(
         current.field("value").expect("current field").name(),
         "value"
     );
-    assert_eq!(legacy.field("value").expect("legacy field").name(), "value");
+    assert_eq!(second.field("value").expect("second field").name(), "value");
 }

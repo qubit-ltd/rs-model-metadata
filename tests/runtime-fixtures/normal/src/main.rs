@@ -6,11 +6,10 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use qubit_model_derive::ModelMetadata;
 use qubit_model_metadata::metadata_of;
+use qubit_model_derive::Model;
 
-#[derive(ModelMetadata)]
-#[model(id = "test.derive.Normal")]
+#[Model(id = "test.derive.Normal")]
 struct Normal {
     value: String,
 }

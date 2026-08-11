@@ -1,5 +1,5 @@
 error: unknown field-level `model` attribute
-  --> tests/ui/fail/unknown_attribute.rs:12:13
+  --> tests/ui/fail/unknown_attribute.rs:11:13
    |
-12 |     #[model(unknown)]
+11 |     #[field(unknown)]
    |             ^^^^^^^

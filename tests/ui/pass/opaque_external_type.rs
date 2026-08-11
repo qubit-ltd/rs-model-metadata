@@ -10,12 +10,10 @@
 
 use std::path::PathBuf;
 
-use qubit_model_derive::ModelMetadata;
 
-#[derive(ModelMetadata)]
-#[model(id = "test.derive.ModelWithOpaqueExternalField")]
+#[qubit_model_derive::Model(id = "test.derive.ModelWithOpaqueExternalField", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct ModelWithOpaqueExternalField {
-    #[model(opaque)]
+    #[field(opaque)]
     external: PathBuf,
 }
 

@@ -8,3 +8,4 @@ publish = false
 
 [dependencies]
 qubit-model-derive = { path = "../../../" }
+serde = { version = "1", features = ["derive"] }

@@ -8,18 +8,35 @@
 
 #![allow(dead_code)]
 
-#[derive(qubit_model_derive::Model)]
-#[model(id = "test.derive.Phone", textual)]
+#[qubit_model_derive::Model(
+    id = "test.derive.Phone",
+    textual,
+    no_clone,
+    no_debug,
+    no_display,
+    no_partial_eq,
+    no_hash,
+    no_serialize,
+    no_deserialize,
+)]
 struct Phone {
     country_area: Option<String>,
     city_area: Option<String>,
     number: String,
 }
 
-#[derive(qubit_model_derive::Model)]
-#[model(id = "test.derive.LoginParams")]
+#[qubit_model_derive::Model(
+    id = "test.derive.LoginParams",
+    no_clone,
+    no_debug,
+    no_display,
+    no_partial_eq,
+    no_hash,
+    no_serialize,
+    no_deserialize,
+)]
 struct LoginParams {
-    #[model(text(format = mobile))]
+    #[field(text(format = mobile))]
     mobile: Option<Phone>,
 }
 

@@ -1,8 +1,8 @@
 error[E0080]: evaluation panicked: element attributes require a sequence field
-  --> tests/ui/fail/element_constraints.rs:11:10
+  --> tests/ui/fail/element_constraints.rs:11:1
    |
-11 | #[derive(qubit_model_derive::ModelMetadata)]
-   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_::FIELDS` failed inside this call
+11 | #[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_::FIELDS` failed inside this call
    |
 note: inside `FieldMetadata::new`
   --> $MODEL_RUNTIME/src/field_metadata.rs
@@ -12,7 +12,8 @@ note: inside `FieldMetadata::new`
 note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
   --> $RUST/core/src/panic.rs
    |
-   = note: the failure occurred here
+   |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
    |
   ::: $MODEL_RUNTIME/src/field_metadata.rs
    |
@@ -20,27 +21,27 @@ note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
    |                     ----------------------------------------------------- in this macro invocation
 
 error[E0080]: evaluation panicked: `element` requires a sequence field
-  --> tests/ui/fail/element_constraints.rs:14:13
+  --> tests/ui/fail/element_constraints.rs:13:13
    |
-14 |     #[model(element(text(repertoire = ascii)))]
+13 |     #[field(element(text(repertoire = ascii)))]
    |             ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `element(decimal(...))` requires a decimal-capable element
-  --> tests/ui/fail/element_constraints.rs:16:21
+  --> tests/ui/fail/element_constraints.rs:15:21
    |
-16 |     #[model(element(decimal(scale = 2)))]
+15 |     #[field(element(decimal(scale = 2)))]
    |                     ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `element` requires a sequence field
-  --> tests/ui/fail/element_constraints.rs:18:13
+  --> tests/ui/fail/element_constraints.rs:17:13
    |
-18 |     #[model(element(text(repertoire = ascii)))]
+17 |     #[field(element(text(repertoire = ascii)))]
    |             ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 note: erroneous constant encountered
-  --> tests/ui/fail/element_constraints.rs:11:10
+  --> tests/ui/fail/element_constraints.rs:11:1
    |
-11 | #[derive(qubit_model_derive::ModelMetadata)]
-   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+11 | #[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = note: this note originates in the derive macro `qubit_model_derive::ModelMetadata` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this note originates in the attribute macro `qubit_model_derive::Model` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,5 +1,5 @@
 error: Model derive does not support generic models
-  --> tests/ui/fail/generic_model.rs:11:15
+  --> tests/ui/fail/generic_model.rs:10:15
    |
-11 | struct Invalid<T> {
+10 | struct Invalid<T> {
    |               ^

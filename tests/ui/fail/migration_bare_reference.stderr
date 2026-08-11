@@ -1,5 +1,5 @@
 error: bare `reference` is not supported; specify `target = "module.Type"` and `target_field = field`
-  --> tests/ui/fail/migration_bare_reference.rs:12:13
+  --> tests/ui/fail/migration_bare_reference.rs:11:13
    |
-12 |     #[model(reference)]
+11 |     #[field(reference)]
    |             ^^^^^^^^^

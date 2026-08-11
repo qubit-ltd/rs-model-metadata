@@ -4,10 +4,8 @@
 //    SPDX-License-Identifier: Apache-2.0
 // =============================================================================
 
-use qubit_model_derive::ModelMetadata;
 
-#[derive(ModelMetadata)]
-#[model(id = 42)]
+#[qubit_model_derive::Model(id = 42)]
 struct NonString {
     value: String,
 }

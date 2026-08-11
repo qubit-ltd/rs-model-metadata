@@ -4,9 +4,8 @@
 //    SPDX-License-Identifier: Apache-2.0
 // =============================================================================
 
-use qubit_model_derive::ModelMetadata;
 
-#[derive(ModelMetadata)]
+#[qubit_model_derive::Model]
 struct Missing {
     value: String,
 }

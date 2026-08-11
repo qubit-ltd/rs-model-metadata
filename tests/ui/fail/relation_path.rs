@@ -6,17 +6,15 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-#[derive(qubit_model_derive::ModelMetadata)]
-#[model(id = "test.derive.Organization")]
+#[qubit_model_derive::Model(id = "test.derive.Organization", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Organization {
     id: i64,
 }
 
-#[derive(qubit_model_derive::ModelMetadata)]
-#[model(id = "test.derive.Invalid")]
+#[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Invalid {
     nested: String,
-    #[model(reference(target = "test.derive.Organization", target_field = id, same_as = "missing.id"))]
+    #[field(reference(target = "test.derive.Organization", target_field = id, same_as = "missing.id"))]
     organization_id: i64,
 }
 

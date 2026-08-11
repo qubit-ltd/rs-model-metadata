@@ -1,12 +1,10 @@
-use qubit_model_derive::ModelMetadata;
+use qubit_model_derive::Model;
 
-#[derive(ModelMetadata)]
-#[model(id = "test.linked.Target")]
+#[Model(id = "test.linked.Target")]
 pub struct Target {
     pub id: i64,
 }
 
-#[derive(ModelMetadata)]
+#[qubit_model_derive::Model(id = "test.linked.Duplicate")]
 #[cfg(feature = "duplicate-fixture")]
-#[model(id = "test.linked.Duplicate")]
 pub struct Duplicate;

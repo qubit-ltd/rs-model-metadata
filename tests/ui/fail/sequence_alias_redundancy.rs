@@ -12,10 +12,9 @@ use std::collections::HashSet;
 
 type SetAlias = HashSet<String>;
 
-#[derive(qubit_model_derive::ModelMetadata)]
-#[model(id = "test.derive.Invalid")]
+#[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Invalid {
-    #[model(sequence(unique_items))]
+    #[field(sequence(unique_items))]
     values: SetAlias,
 }
 

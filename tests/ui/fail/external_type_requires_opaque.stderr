@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `PathBuf: HasTypeShape` is not satisfied
-  --> tests/ui/fail/external_type_requires_opaque.rs:16:15
+  --> tests/ui/fail/external_type_requires_opaque.rs:15:15
    |
-16 |     external: PathBuf,
+15 |     external: PathBuf,
    |               ^^^^^^^ the trait `HasTypeShape` is not implemented for `PathBuf`
    |
    = help: the following other types implement trait `HasTypeShape`:

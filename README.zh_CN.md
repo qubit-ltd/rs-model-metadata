@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
-`qubit-model-derive` 为 Rust 领域模型提供 `#[derive(Model)]`。它将模型声明转换为 `qubit-model-metadata` 暴露的静态强类型元数据和自动注册项。
+`qubit-model-derive` 为 Rust 领域模型提供 `#[Model(...)]`。它将模型声明转换为 `qubit-model-metadata` 暴露的静态强类型元数据和自动注册项。
 
 ## 安装
 
@@ -21,7 +21,7 @@ qubit-model-metadata = "0.1"
 
 runtime crate 是必需依赖：若展开位置没有 `qubit-model-metadata` 依赖，宏会发出 `compile_error!`，说明缺少该依赖。
 
-为兼容已有用户，`ModelMetadata` 仍作为别名保留；新代码应使用 `Model`。
+`Model` 是唯一支持的属性宏；旧 derive 别名已移除。
 
 ## 快速开始
 
@@ -31,12 +31,11 @@ runtime crate 是必需依赖：若展开位置没有 `qubit-model-metadata` 依
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata_of;
 
-#[derive(Model)]
-#[model(id = "example.Account")]
+#[Model(id = "example.Account")]
 struct Account {
-    #[model(identifier)]
+    #[field(identifier)]
     id: i64,
-    #[model(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
+    #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
     email: String,
 }
 
@@ -56,8 +55,8 @@ Rust 模型通常不仅需要 Rust 类型：校验、持久化和 schema 工具�
 ## 提供的能力
 
 - 为具名字段 struct、unit struct、单字段 tuple newtype 与 fieldless enum 生成静态 `HasTypeShape` 和 `HasTypeMetadata` 实现。
-- 从受支持的 `#[model(...)]` 属性生成字段、类型、键、唯一性、索引、文本、集合、时间、decimal、reference、敏感信息、codec 与 generator 元数据。
-- 每个模型都必须声明稳定的 `#[model(id = "module.Type")]`；每次展开都会向不可变全局 `ModelRegistry` 贡献一个注册项。
+- 从受支持的 `#[field(...)]` 属性生成字段、类型、键、唯一性、索引、文本、集合、时间、decimal、reference、敏感信息、codec 与 generator 元数据。
+- 每个模型都必须声明稳定的 `#[field(id = "module.Type")]`；每次展开都会向不可变全局 `ModelRegistry` 贡献一个注册项。
 - 按 Cargo 包名解析 runtime 依赖。若本地将 `qubit-model-metadata` 重命名，展开代码会使用该本地依赖名；即使存在同名本地模块可能造成遮蔽，也仍然适用：
 
   ```toml
@@ -65,17 +64,16 @@ Rust 模型通常不仅需要 Rust 类型：校验、持久化和 schema 工具�
   model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
   ```
 
-- 要求未知外部字段类型通过 `#[model(opaque)]` 显式选择退出结构解析。opaque 字段会保留 Rust 类型名并暴露 `TypeShape::Opaque`，而不要求外部类型实现 `HasTypeShape`。
+- 要求未知外部字段类型通过 `#[field(opaque)]` 显式选择退出结构解析。opaque 字段会保留 Rust 类型名并暴露 `TypeShape::Opaque`，而不要求外部类型实现 `HasTypeShape`。
 
 对确实不应进行结构解析的字段使用 opaque 标记：
 
 ```rust
 struct ExternalToken;
 
-#[derive(Model)]
-#[model(id = "example.ImportRecord")]
+#[Model(id = "example.ImportRecord")]
 struct ImportRecord {
-    #[model(opaque)]
+    #[field(opaque)]
     token: ExternalToken,
 }
 ```

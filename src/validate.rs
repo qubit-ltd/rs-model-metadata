@@ -67,7 +67,7 @@ fn validate_model_id(model: &ModelIr, errors: &mut Option<Error>) {
             errors,
             Error::new(
                 model.ident.span(),
-                "missing required model ID; add `#[model(id = \"module.Type\")]`",
+                "missing required model ID; add `#[Model(id = \"module.Type\")]`",
             ),
         );
         return;

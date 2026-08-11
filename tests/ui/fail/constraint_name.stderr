@@ -1,17 +1,17 @@
 error: duplicate `index` constraint name `by_value`
-  --> tests/ui/fail/constraint_name.rs:13:18
+  --> tests/ui/fail/constraint_name.rs:19:18
    |
-13 |     index(name = "by_value", fields(other)),
+19 |     index(name = "by_value", fields(other)),
    |                  ^^^^^^^^^^
 
 error: `key` constraint name cannot be empty
-  --> tests/ui/fail/constraint_name.rs:14:16
+  --> tests/ui/fail/constraint_name.rs:20:16
    |
-14 |     key(name = "", fields(value))
+20 |     key(name = "", fields(value))
    |                ^^
 
 error: `codec` strategy name cannot be empty
-  --> tests/ui/fail/constraint_name.rs:17:21
+  --> tests/ui/fail/constraint_name.rs:23:21
    |
-17 |     #[model(codec = "")]
+23 |     #[field(codec = "")]
    |                     ^^

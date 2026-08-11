@@ -1,5 +1,5 @@
 error: `textual` does not accept arguments
-  --> tests/ui/fail/textual_capability.rs:10:42
+  --> tests/ui/fail/textual_capability.rs:11:5
    |
-10 | #[model(id = "test.derive.InvalidPhone", textual(unexpected))]
-   |                                          ^^^^^^^
+11 |     textual(unexpected),
+   |     ^^^^^^^
