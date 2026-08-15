@@ -53,10 +53,7 @@ pub(crate) fn derive_model_tokens(
             Some(error) => {
                 let diagnostics = error.into_compile_error();
                 let independent_diagnostics =
-                    expand::expand_independent_diagnostics(
-                        &model,
-                        &runtime_path,
-                    );
+                    expand::expand_independent_diagnostics(&model, &runtime_path);
                 quote!(#diagnostics #independent_diagnostics)
             }
             None => expand::expand(&model, &runtime_path),

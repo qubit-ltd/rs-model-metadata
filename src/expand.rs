@@ -61,8 +61,7 @@ pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
         .id
         .first()
         .expect("validated model input requires one model ID");
-    let kind =
-        expand_type_kind(&input.shape, &input.attributes, ident, id, runtime);
+    let kind = expand_type_kind(&input.shape, &input.attributes, ident, id, runtime);
     let registration = expand_registration(ident, id, runtime);
     let capabilities = match &input.shape {
         ModelShapeIr::Newtype(field) if field.opaque.is_empty() => {
@@ -107,11 +106,7 @@ pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
 }
 
 /// Generates the distributed registration for one statically derived model.
-fn expand_registration(
-    ident: &Ident,
-    id: &LitStr,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_registration(ident: &Ident, id: &LitStr, runtime: &TokenStream) -> TokenStream {
     quote! {
         #[#runtime::__private::linkme::distributed_slice(
             #runtime::MODEL_REGISTRATIONS
@@ -134,11 +129,8 @@ pub(crate) fn expand_independent_diagnostics(
     input: &ModelIr,
     runtime: &TokenStream,
 ) -> TokenStream {
-    let unique_assertions = expand_unique_capability_assertions(
-        &input.shape,
-        &input.attributes,
-        runtime,
-    );
+    let unique_assertions =
+        expand_unique_capability_assertions(&input.shape, &input.attributes, runtime);
     let field_assertions = model_fields(&input.shape)
         .iter()
         .flat_map(|field| expand_capability_assertions(field, runtime))
@@ -236,8 +228,7 @@ fn expand_unique_capability_assertions(
         })
         .flat_map(|unique| &unique.ignore_case)
         .filter_map(|reference| {
-            let field =
-                fields.iter().find(|field| field.name == reference.name)?;
+            let field = fields.iter().find(|field| field.name == reference.name)?;
             let ty = &field.ty;
             let span = reference.span;
             Some(quote_spanned! {span=>
@@ -280,10 +271,7 @@ fn expand_model_attributes(
 }
 
 /// Generates one model-level primary-key attribute.
-fn expand_primary_key(
-    primary_key: &PrimaryKeyIr,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_primary_key(primary_key: &PrimaryKeyIr, runtime: &TokenStream) -> TokenStream {
     let fields = primary_key.fields.iter().map(|field| {
         let name = LitStr::new(&field.name, field.span);
         let generated = primary_key
@@ -330,11 +318,7 @@ fn expand_unique(unique: &UniqueIr, runtime: &TokenStream) -> TokenStream {
 }
 
 /// Generates an index or logical-key attribute from ordered field names.
-fn expand_named_fields(
-    value: &NamedFieldsIr,
-    runtime: &TokenStream,
-    index: bool,
-) -> TokenStream {
+fn expand_named_fields(value: &NamedFieldsIr, runtime: &TokenStream, index: bool) -> TokenStream {
     let name = expand_optional_name(value.name.first());
     let fields = value
         .fields
@@ -367,10 +351,7 @@ fn expand_optional_name(name: Option<&LitStr>) -> TokenStream {
 }
 
 /// Generates field metadata values in declaration order.
-fn expand_fields(
-    fields: &[FieldIr],
-    runtime: &TokenStream,
-) -> Vec<TokenStream> {
+fn expand_fields(fields: &[FieldIr], runtime: &TokenStream) -> Vec<TokenStream> {
     fields
         .iter()
         .map(|field| expand_field(field, runtime))
@@ -431,10 +412,7 @@ fn expand_opaque_shape(ty: &Type, runtime: &TokenStream) -> TokenStream {
 
 /// Generates the visible shape for a path type, when its final segment is a
 /// supported standard container.
-fn expand_opaque_path_shape(
-    path: &TypePath,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_opaque_path_shape(path: &TypePath, runtime: &TokenStream) -> TokenStream {
     let Some(segment) = path.path.segments.last() else {
         return quote!(#runtime::TypeShape::Opaque);
     };
@@ -488,10 +466,7 @@ fn expand_opaque_type_ref(ty: &Type, runtime: &TokenStream) -> TokenStream {
 
 /// Generates const assertions for capabilities that must be resolved through
 /// Rust's type system.
-fn expand_capability_assertions(
-    field: &FieldIr,
-    runtime: &TokenStream,
-) -> Vec<TokenStream> {
+fn expand_capability_assertions(field: &FieldIr, runtime: &TokenStream) -> Vec<TokenStream> {
     if !field.opaque.is_empty() {
         return Vec::new();
     }
@@ -518,23 +493,17 @@ fn expand_capability_assertions(
                     "`map` requires a map-capable field",
                     runtime,
                 ),
-                FieldAttributeIr::Temporal(value) => {
-                    expand_capability_assertion(
-                        ty,
-                        value.span,
-                        quote!(#runtime::TypeCapabilities::TEMPORAL),
-                        "`time` requires a temporal-capable field",
-                        runtime,
-                    )
-                }
+                FieldAttributeIr::Temporal(value) => expand_capability_assertion(
+                    ty,
+                    value.span,
+                    quote!(#runtime::TypeCapabilities::TEMPORAL),
+                    "`time` requires a temporal-capable field",
+                    runtime,
+                ),
                 FieldAttributeIr::Decimal(value) => {
                     let message = match value.semantic {
-                        DecimalSemantic::Number => {
-                            "`decimal` requires a decimal-capable field"
-                        }
-                        DecimalSemantic::Money => {
-                            "`money` requires a decimal-capable field"
-                        }
+                        DecimalSemantic::Number => "`decimal` requires a decimal-capable field",
+                        DecimalSemantic::Money => "`money` requires a decimal-capable field",
                     };
                     expand_capability_assertion(
                         ty,
@@ -587,8 +556,7 @@ fn expand_sequence_capability_assertion(
             }
         }
     });
-    let repeats_length =
-        !value.min_items.is_empty() || !value.max_items.is_empty();
+    let repeats_length = !value.min_items.is_empty() || !value.max_items.is_empty();
     quote_spanned! {span=>
         const _: () = {
             let capabilities = <#ty as #runtime::HasTypeShape>::CAPABILITIES;
@@ -687,10 +655,7 @@ fn expand_field_attributes(
 }
 
 /// Generates one text constraint attribute.
-fn expand_text(
-    value: &crate::attribute::TextAttribute,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_text(value: &crate::attribute::TextAttribute, runtime: &TokenStream) -> TokenStream {
     let min_chars = expand_optional_u32(value.min_chars.first());
     let max_chars = expand_optional_u32(value.max_chars.first());
     let min_bytes = expand_optional_u32(value.min_bytes.first());
@@ -763,15 +728,14 @@ fn expand_temporal(
         precision_value
     };
     let normalization = value.normalization.first();
-    let normalization_value =
-        match normalization.map(|occurrence| occurrence.value) {
-            None | Some(TemporalNormalization::Preserve) => {
-                quote!(#runtime::TemporalNormalization::Preserve)
-            }
-            Some(TemporalNormalization::Utc) => {
-                quote!(#runtime::TemporalNormalization::Utc)
-            }
-        };
+    let normalization_value = match normalization.map(|occurrence| occurrence.value) {
+        None | Some(TemporalNormalization::Preserve) => {
+            quote!(#runtime::TemporalNormalization::Preserve)
+        }
+        Some(TemporalNormalization::Utc) => {
+            quote!(#runtime::TemporalNormalization::Utc)
+        }
+    };
     let normalization = if let Some(normalization) = normalization {
         let normalization_span = normalization.span;
         quote_spanned!(normalization_span=> #normalization_value)
@@ -788,10 +752,7 @@ fn expand_temporal(
 }
 
 /// Generates one normalized decimal constraint attribute.
-fn expand_decimal(
-    value: &crate::normalize::DecimalIr,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_decimal(value: &crate::normalize::DecimalIr, runtime: &TokenStream) -> TokenStream {
     let precision = expand_optional_u16(value.value.precision.first());
     let scale = expand_u16_or_default(value.value.scale.first());
     let rounding = value.value.rounding.first();
@@ -840,9 +801,7 @@ fn expand_element(value: &ElementIr, runtime: &TokenStream) -> TokenStream {
 
 /// Generates an `Option<u32>` expression without relying on `Option<T>` token
 /// flattening.
-fn expand_optional_u32(
-    value: Option<&crate::attribute::SpannedValue<u32>>,
-) -> TokenStream {
+fn expand_optional_u32(value: Option<&crate::attribute::SpannedValue<u32>>) -> TokenStream {
     match value {
         Some(value) => {
             let number = value.value;
@@ -855,9 +814,7 @@ fn expand_optional_u32(
 
 /// Generates an `Option<u16>` expression without relying on `Option<T>` token
 /// flattening.
-fn expand_optional_u16(
-    value: Option<&crate::attribute::SpannedValue<u16>>,
-) -> TokenStream {
+fn expand_optional_u16(value: Option<&crate::attribute::SpannedValue<u16>>) -> TokenStream {
     match value {
         Some(value) => {
             let number = value.value;
@@ -870,9 +827,7 @@ fn expand_optional_u16(
 
 /// Generates a required `u16` expression, using zero for syntax deferred to
 /// validation.
-fn expand_u16_or_default(
-    value: Option<&crate::attribute::SpannedValue<u16>>,
-) -> TokenStream {
+fn expand_u16_or_default(value: Option<&crate::attribute::SpannedValue<u16>>) -> TokenStream {
     match value {
         Some(value) => {
             let number = value.value;
@@ -971,10 +926,7 @@ fn expand_strategy(
 }
 
 /// Generates enum-variant metadata values in declaration order.
-fn expand_variants(
-    variants: &[ModelVariant],
-    runtime: &TokenStream,
-) -> Vec<TokenStream> {
+fn expand_variants(variants: &[ModelVariant], runtime: &TokenStream) -> Vec<TokenStream> {
     variants
         .iter()
         .map(|variant| {

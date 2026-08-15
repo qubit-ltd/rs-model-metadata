@@ -140,13 +140,11 @@ fn test_model_attribute_enables_redaction_for_marked_fields() {
         format!("{value}"),
         r#"Credential { username: "alice", password: "<redacted>" }"#
     );
-    let serialized =
-        serde_json::to_string(&value).expect("credential should serialize");
+    let serialized = serde_json::to_string(&value).expect("credential should serialize");
     assert!(!serialized.contains("raw-secret"));
 
-    let deserialized: Credential = serde_json::from_str(
-        r#"{"username":"alice","password":"input-secret"}"#,
-    )
-    .expect("credential should deserialize");
+    let deserialized: Credential =
+        serde_json::from_str(r#"{"username":"alice","password":"input-secret"}"#)
+            .expect("credential should deserialize");
     assert_eq!(deserialized.password, "input-secret");
 }

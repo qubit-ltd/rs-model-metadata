@@ -485,17 +485,17 @@ fn test_reference_and_strategy_attributes_expand() {
 
 #[test]
 fn test_derive_registers_every_supported_shape_and_legacy_macro() {
-    let registry = ModelRegistry::try_global()
-        .expect("the test models should register without duplicate IDs");
+    let registry =
+        ModelRegistry::try_global().expect("the test models should register without duplicate IDs");
     for (id, rust_type_name) in [
         ("test.derive.User", "User"),
         ("test.derive.Empty", "Empty"),
         ("test.derive.UserId", "UserId"),
         ("test.derive.Status", "Status"),
     ] {
-        let registration = registry.registration(id).unwrap_or_else(|| {
-            panic!("the model with ID {id} should be registered")
-        });
+        let registration = registry
+            .registration(id)
+            .unwrap_or_else(|| panic!("the model with ID {id} should be registered"));
         assert_eq!(registration.metadata().id().as_str(), id);
         assert_eq!(registration.rust_type_name(), rust_type_name);
     }
