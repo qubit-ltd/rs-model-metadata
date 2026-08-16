@@ -53,7 +53,9 @@ pub(crate) struct DisabledCapabilities {
 
 impl ModelOptions {
     /// Separates model metadata arguments from capability controls.
-    pub(crate) fn parse(attributes: impl IntoIterator<Item = Meta>) -> Result<Self> {
+    pub(crate) fn parse(
+        attributes: impl IntoIterator<Item = Meta>,
+    ) -> Result<Self> {
         let mut options = Self {
             metadata: Vec::new(),
             redact: false,
@@ -104,10 +106,18 @@ fn parse_control(attribute: &Meta, options: &mut ModelOptions) -> Result<bool> {
     let name = ident.to_string();
     let consumed = match name.as_str() {
         "redact" => set_once(&mut options.redact, ident.span(), "redact")?,
-        "no_clone" => set_once(&mut options.disabled.clone, ident.span(), "no_clone")?,
-        "no_copy" => set_once(&mut options.disabled.copy, ident.span(), "no_copy")?,
-        "no_debug" => set_once(&mut options.disabled.debug, ident.span(), "no_debug")?,
-        "no_display" => set_once(&mut options.disabled.display, ident.span(), "no_display")?,
+        "no_clone" => {
+            set_once(&mut options.disabled.clone, ident.span(), "no_clone")?
+        }
+        "no_copy" => {
+            set_once(&mut options.disabled.copy, ident.span(), "no_copy")?
+        }
+        "no_debug" => {
+            set_once(&mut options.disabled.debug, ident.span(), "no_debug")?
+        }
+        "no_display" => {
+            set_once(&mut options.disabled.display, ident.span(), "no_display")?
+        }
         "no_eq" => set_once(&mut options.disabled.eq, ident.span(), "no_eq")?,
         "no_partial_eq" => set_once(
             &mut options.disabled.partial_eq,
@@ -119,8 +129,12 @@ fn parse_control(attribute: &Meta, options: &mut ModelOptions) -> Result<bool> {
             ident.span(),
             "no_partial_ord",
         )?,
-        "no_ord" => set_once(&mut options.disabled.ord, ident.span(), "no_ord")?,
-        "no_hash" => set_once(&mut options.disabled.hash, ident.span(), "no_hash")?,
+        "no_ord" => {
+            set_once(&mut options.disabled.ord, ident.span(), "no_ord")?
+        }
+        "no_hash" => {
+            set_once(&mut options.disabled.hash, ident.span(), "no_hash")?
+        }
         "no_serialize" => set_once(
             &mut options.disabled.serialize,
             ident.span(),

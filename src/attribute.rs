@@ -336,7 +336,9 @@ pub(crate) struct StrategyAttribute {
 /// Parses every model-level `#[model(...)]` item in source order.
 ///
 /// Returns an error when an item is unknown or its value cannot be parsed.
-pub(crate) fn parse_model_attributes(attributes: &[Attribute]) -> Result<ModelAttributes> {
+pub(crate) fn parse_model_attributes(
+    attributes: &[Attribute],
+) -> Result<ModelAttributes> {
     let mut parsed = Vec::new();
     let mut id = Vec::new();
     let mut errors = None;
@@ -346,7 +348,9 @@ pub(crate) fn parse_model_attributes(attributes: &[Attribute]) -> Result<ModelAt
     {
         let result = attribute.parse_nested_meta(|meta| {
             let input = meta.input;
-            if let Err(error) = parse_model_attribute(meta, &mut id, &mut parsed) {
+            if let Err(error) =
+                parse_model_attribute(meta, &mut id, &mut parsed)
+            {
                 combine_error(&mut errors, error);
                 discard_nested_meta_input(input)?;
             }
@@ -369,7 +373,9 @@ pub(crate) fn parse_model_attributes(attributes: &[Attribute]) -> Result<ModelAt
 /// Parses every field-level `#[model(...)]` item in source order.
 ///
 /// Returns an error when an item is unknown or its value cannot be parsed.
-pub(crate) fn parse_field_attributes(attributes: &[Attribute]) -> Result<Vec<FieldAttribute>> {
+pub(crate) fn parse_field_attributes(
+    attributes: &[Attribute],
+) -> Result<Vec<FieldAttribute>> {
     let mut parsed = Vec::new();
     let mut errors = None;
     for attribute in attributes
@@ -425,11 +431,17 @@ fn parse_model_attribute(
     } else if meta.path.is_ident("ownership") {
         parsed.push(ModelAttribute::Ownership(parse_ownership(meta)?));
     } else if meta.path.is_ident("nullable") {
-        return Err(meta.error("`nullable` is not supported; use `Option<T>` for nullability"));
+        return Err(meta.error(
+            "`nullable` is not supported; use `Option<T>` for nullability",
+        ));
     } else if meta.path.is_ident("computed") {
-        return Err(meta.error("`computed` is not supported; declare a real Rust field instead"));
+        return Err(meta.error(
+            "`computed` is not supported; declare a real Rust field instead",
+        ));
     } else if is_field_attribute_path(&meta.path) {
-        return Err(meta.error("this field-level `model` attribute cannot be used on a model"));
+        return Err(meta.error(
+            "this field-level `model` attribute cannot be used on a model",
+        ));
     } else {
         return Err(meta.error("unknown model-level `model` attribute"));
     }
@@ -465,7 +477,8 @@ fn parse_field_attribute(
     } else if meta.path.is_ident("reference") {
         parsed.push(FieldAttribute::Reference(parse_reference(meta)?));
     } else if meta.path.is_ident("lookup_relation") {
-        parsed.push(FieldAttribute::LookupRelation(parse_lookup_relation(meta)?));
+        parsed
+            .push(FieldAttribute::LookupRelation(parse_lookup_relation(meta)?));
     } else if meta.path.is_ident("codec") {
         parsed.push(FieldAttribute::Codec(parse_strategy(meta)?));
     } else if meta.path.is_ident("generator") {
@@ -473,11 +486,17 @@ fn parse_field_attribute(
     } else if meta.path.is_ident("opaque") {
         parsed.push(FieldAttribute::Opaque(span));
     } else if meta.path.is_ident("nullable") {
-        return Err(meta.error("`nullable` is not supported; use `Option<T>` for nullability"));
+        return Err(meta.error(
+            "`nullable` is not supported; use `Option<T>` for nullability",
+        ));
     } else if meta.path.is_ident("computed") {
-        return Err(meta.error("`computed` is not supported; declare a real Rust field instead"));
+        return Err(meta.error(
+            "`computed` is not supported; declare a real Rust field instead",
+        ));
     } else if is_model_attribute_path(&meta.path) {
-        return Err(meta.error("this model-level `model` attribute cannot be used on a field"));
+        return Err(meta.error(
+            "this model-level `model` attribute cannot be used on a field",
+        ));
     } else {
         return Err(meta.error("unknown field-level `model` attribute"));
     }
@@ -495,7 +514,9 @@ fn parse_primary_key(meta: ParseNestedMeta<'_>) -> Result<PrimaryKeyAttribute> {
         } else if nested.path.is_ident("generated") {
             generated.extend(parse_field_names(nested)?);
         } else {
-            return Err(nested.error("expected `fields(...)` or `generated(...)`"));
+            return Err(
+                nested.error("expected `fields(...)` or `generated(...)`")
+            );
         }
         Ok(())
     })?;
@@ -520,7 +541,9 @@ fn parse_unique(meta: ParseNestedMeta<'_>) -> Result<UniqueAttribute> {
         } else if nested.path.is_ident("ignore_case") {
             ignore_case.extend(parse_field_names(nested)?);
         } else {
-            return Err(nested.error("expected `name`, `fields(...)`, or `ignore_case(...)`"));
+            return Err(nested.error(
+                "expected `name`, `fields(...)`, or `ignore_case(...)`",
+            ));
         }
         Ok(())
     })?;
@@ -533,7 +556,9 @@ fn parse_unique(meta: ParseNestedMeta<'_>) -> Result<UniqueAttribute> {
 }
 
 /// Parses `index(...)` or `key(...)` values.
-fn parse_named_fields(meta: ParseNestedMeta<'_>) -> Result<NamedFieldsAttribute> {
+fn parse_named_fields(
+    meta: ParseNestedMeta<'_>,
+) -> Result<NamedFieldsAttribute> {
     let span = meta.path.span();
     let mut name = Vec::new();
     let mut fields = Vec::new();
@@ -586,7 +611,9 @@ fn parse_identifier(meta: ParseNestedMeta<'_>) -> Result<IdentifierAttribute> {
 }
 
 /// Parses field `unique` and its optional `ignore_case` marker.
-fn parse_field_unique(meta: ParseNestedMeta<'_>) -> Result<FieldUniqueAttribute> {
+fn parse_field_unique(
+    meta: ParseNestedMeta<'_>,
+) -> Result<FieldUniqueAttribute> {
     let span = meta.path.span();
     let mut ignore_case = Vec::new();
     if meta.input.peek(Paren) {
@@ -645,7 +672,9 @@ fn parse_text(meta: ParseNestedMeta<'_>) -> Result<TextAttribute> {
                 "uri" => TextFormat::Uri,
                 "uuid" => TextFormat::Uuid,
                 _ => {
-                    return Err(nested.error("expected `email`, `mobile`, `uri`, or `uuid`"));
+                    return Err(nested.error(
+                        "expected `email`, `mobile`, `uri`, or `uuid`",
+                    ));
                 }
             };
             value.format.push(SpannedValue {
@@ -787,12 +816,16 @@ fn parse_element(meta: ParseNestedMeta<'_>) -> Result<ElementAttribute> {
     let mut attributes = Vec::new();
     meta.parse_nested_meta(|nested| {
         if nested.path.is_ident("text") {
-            attributes.push(ElementConstraintAttribute::Text(parse_text(nested)?));
+            attributes
+                .push(ElementConstraintAttribute::Text(parse_text(nested)?));
         } else if nested.path.is_ident("decimal") {
-            attributes.push(ElementConstraintAttribute::Decimal(parse_decimal(nested)?));
+            attributes.push(ElementConstraintAttribute::Decimal(
+                parse_decimal(nested)?,
+            ));
         } else {
             discard_nested_meta_input(nested.input)?;
-            return Err(nested.error("element only supports `text(...)` or `decimal(...)`"));
+            return Err(nested
+                .error("element only supports `text(...)` or `decimal(...)`"));
         }
         Ok(())
     })?;
@@ -854,7 +887,9 @@ fn parse_reference(meta: ParseNestedMeta<'_>) -> Result<ReferenceAttribute> {
 }
 
 /// Parses a lookup-relation declaration.
-fn parse_lookup_relation(meta: ParseNestedMeta<'_>) -> Result<LookupRelationAttribute> {
+fn parse_lookup_relation(
+    meta: ParseNestedMeta<'_>,
+) -> Result<LookupRelationAttribute> {
     let span = meta.path.span();
     if meta.input.is_empty() {
         return Err(Error::new(
@@ -875,7 +910,10 @@ fn parse_lookup_relation(meta: ParseNestedMeta<'_>) -> Result<LookupRelationAttr
         Ok(())
     })?;
     if target.is_empty() {
-        return Err(Error::new(span, "lookup_relation requires `target = Type`"));
+        return Err(Error::new(
+            span,
+            "lookup_relation requires `target = Type`",
+        ));
     }
     if target_field.is_empty() {
         return Err(Error::new(
@@ -898,7 +936,8 @@ fn parse_strategy(meta: ParseNestedMeta<'_>) -> Result<StrategyAttribute> {
         name.push(parse_string(&meta)?);
     } else {
         meta.parse_nested_meta(|nested| {
-            if nested.path.is_ident("name") || nested.path.is_ident("strategy") {
+            if nested.path.is_ident("name") || nested.path.is_ident("strategy")
+            {
                 name.push(parse_string(&nested)?);
                 Ok(())
             } else {
@@ -951,8 +990,9 @@ fn parse_field_path_segment(name: &str, span: Span) -> Result<FieldName> {
     if name.is_empty() {
         return Err(Error::new(span, "field path contains an empty segment"));
     }
-    let ident = parse_str::<Ident>(name)
-        .map_err(|_| Error::new(span, "field path segments must be Rust identifiers"))?;
+    let ident = parse_str::<Ident>(name).map_err(|_| {
+        Error::new(span, "field path segments must be Rust identifiers")
+    })?;
     Ok(FieldName {
         name: ident.unraw().to_string(),
         span,
@@ -1002,7 +1042,9 @@ fn parse_string(meta: &ParseNestedMeta<'_>) -> Result<LitStr> {
 /// Returns whether a path names an attribute whose valid scope is a model
 /// declaration.
 fn is_model_attribute_path(path: &Path) -> bool {
-    path.is_ident("primary_key") || path.is_ident("key") || path.is_ident("ownership")
+    path.is_ident("primary_key")
+        || path.is_ident("key")
+        || path.is_ident("ownership")
 }
 
 /// Returns whether a path names an attribute whose valid scope is a field

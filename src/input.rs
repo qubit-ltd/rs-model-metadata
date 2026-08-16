@@ -82,7 +82,9 @@ impl ModelInput {
     /// variant with fields, or a generic model.
     pub(crate) fn parse(input: DeriveInput) -> Result<Self> {
         let mut errors = None;
-        if !input.generics.params.is_empty() || input.generics.where_clause.is_some() {
+        if !input.generics.params.is_empty()
+            || input.generics.where_clause.is_some()
+        {
             combine_error(
                 &mut errors,
                 Error::new(
@@ -101,7 +103,9 @@ impl ModelInput {
         let ident = input.ident;
         let shape = match match input.data {
             Data::Struct(data) => Self::parse_struct(data.fields),
-            Data::Enum(data) => Self::parse_enum(data.variants.into_iter().collect()),
+            Data::Enum(data) => {
+                Self::parse_enum(data.variants.into_iter().collect())
+            }
             Data::Union(data) => Err(Error::new_spanned(
                 data.union_token,
                 "Model derive does not support unions",
@@ -153,11 +157,10 @@ impl ModelInput {
             Fields::Unit => Ok(ModelShape::UnitStruct),
             Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
                 let span = fields.span();
-                let field = fields
-                    .unnamed
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| Error::new(span, "tuple newtype field is missing"))?;
+                let field =
+                    fields.unnamed.into_iter().next().ok_or_else(|| {
+                        Error::new(span, "tuple newtype field is missing")
+                    })?;
                 Ok(ModelShape::Newtype(Box::new(ModelField {
                     ordinal: 0,
                     name: "0".to_owned(),
@@ -178,7 +181,9 @@ impl ModelInput {
         let attributes = parse_field_attributes(&field.attrs)?;
         let name = field
             .ident
-            .ok_or_else(|| Error::new(span, "named struct field is missing an identifier"))?
+            .ok_or_else(|| {
+                Error::new(span, "named struct field is missing an identifier")
+            })?
             .unraw()
             .to_string();
 

@@ -49,7 +49,10 @@ pub(crate) fn expand(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 /// Expands the public `Enum` attribute macro.
-pub(crate) fn expand_enum(args: TokenStream, input: TokenStream) -> TokenStream {
+pub(crate) fn expand_enum(
+    args: TokenStream,
+    input: TokenStream,
+) -> TokenStream {
     match expand_result(args, input, true) {
         Ok(tokens) => tokens,
         Err(error) => error.into_compile_error(),
@@ -62,7 +65,8 @@ fn expand_result(
     input: TokenStream,
     enum_declaration: bool,
 ) -> Result<TokenStream> {
-    let attributes = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
+    let attributes =
+        Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     let options = ModelOptions::parse(attributes)?;
     let mut item: DeriveInput = parse2(input)?;
     match (&item.data, enum_declaration) {
@@ -91,7 +95,10 @@ fn expand_result(
             ));
         }
     }
-    let serde = dependency_path("serde", "Model attribute requires the `serde` dependency")?;
+    let serde = dependency_path(
+        "serde",
+        "Model attribute requires the `serde` dependency",
+    )?;
     let rename_all = rename_all_rule(&item.data)?;
     let mut metadata_input = item.clone();
     let metadata_attributes = &options.metadata;
@@ -107,12 +114,15 @@ fn expand_result(
         remove_redact_field_attributes(&mut item.data);
     }
 
-    let derives = default_derives(&item.data, &serde, &options.disabled, redacted)?;
+    let derives =
+        default_derives(&item.data, &serde, &options.disabled, redacted)?;
     item.attrs.push(derives);
     if enum_declaration && !has_must_use(&item.attrs) {
         item.attrs.push(parse_quote!(#[must_use]));
     }
-    if (!redacted && !options.disabled.serialize) || !options.disabled.deserialize {
+    if (!redacted && !options.disabled.serialize)
+        || !options.disabled.deserialize
+    {
         item.attrs
             .push(parse_quote!(#[serde(rename_all = #rename_all)]));
     }
@@ -127,7 +137,8 @@ fn expand_result(
             .attrs
             .push(parse_quote!(#[serde(rename_all = #rename_all)]));
     }
-    let metadata = derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
+    let metadata =
+        derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
     let enum_names = enum_declaration
         .then(|| expand_enum_names(&item))
         .transpose()?
@@ -167,7 +178,9 @@ fn dependency_path(package: &str, diagnostic: &str) -> Result<TokenStream> {
 /// Returns the enforced Serde rename rule for one supported item shape.
 fn rename_all_rule(data: &Data) -> Result<LitStr> {
     match data {
-        Data::Enum(_) => Ok(LitStr::new("SCREAMING_SNAKE_CASE", Span::call_site())),
+        Data::Enum(_) => {
+            Ok(LitStr::new("SCREAMING_SNAKE_CASE", Span::call_site()))
+        }
         Data::Struct(_) => Ok(LitStr::new("snake_case", Span::call_site())),
         Data::Union(union) => Err(Error::new_spanned(
             union.union_token,
@@ -322,9 +335,13 @@ fn visit_fields(data: &mut Data, mut visit: impl FnMut(&mut Vec<Attribute>)) {
 }
 
 /// Generates the non-redacted display implementation.
-fn expand_display(input: &DeriveInput, rename_all: LitStr) -> Result<TokenStream> {
+fn expand_display(
+    input: &DeriveInput,
+    rename_all: LitStr,
+) -> Result<TokenStream> {
     let name = &input.ident;
-    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
+    let (impl_generics, type_generics, where_clause) =
+        input.generics.split_for_impl();
     match &input.data {
         Data::Struct(data) => expand_struct_display(
             name,
@@ -366,7 +383,8 @@ fn expand_enum_names(input: &DeriveInput) -> Result<TokenStream> {
         return Ok(TokenStream::new());
     };
     let name = &input.ident;
-    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
+    let (impl_generics, type_generics, where_clause) =
+        input.generics.split_for_impl();
     let mut variants = Vec::with_capacity(data.variants.len());
     let mut names = Vec::with_capacity(data.variants.len());
     for variant in &data.variants {
@@ -416,7 +434,8 @@ fn expand_struct_display(
 ) -> Result<TokenStream> {
     let body = match fields {
         Fields::Named(fields) => {
-            let names = fields.named.iter().filter_map(|field| field.ident.as_ref());
+            let names =
+                fields.named.iter().filter_map(|field| field.ident.as_ref());
             quote! {
                 let mut debug = formatter.debug_struct(stringify!(#name));
                 #(debug.field(stringify!(#names), &self.#names);)*
