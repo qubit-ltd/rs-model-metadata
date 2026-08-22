@@ -12,8 +12,6 @@ use proc_macro_crate::FoundCrate;
 use proc_macro_crate::crate_name;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
-use qubit_redact_derive_core::RedactOptions;
-use qubit_redact_derive_core::expand_with_options;
 use quote::ToTokens;
 use quote::quote;
 use syn::Attribute;
@@ -103,16 +101,12 @@ fn expand_result(
     let mut metadata_input = item.clone();
     let metadata_attributes = &options.metadata;
     let redacted = options.redact || has_redact_fields(&item.data);
-    let mut redaction_input = item.clone();
 
     metadata_input
         .attrs
         .push(parse_quote!(#[model(#(#metadata_attributes),*)]));
     rename_field_attributes(&mut metadata_input.data);
     remove_field_attributes(&mut item.data);
-    if redacted {
-        remove_redact_field_attributes(&mut item.data);
-    }
 
     let derives =
         default_derives(&item.data, &serde, &options.disabled, redacted)?;
@@ -127,15 +121,21 @@ fn expand_result(
             .push(parse_quote!(#[serde(rename_all = #rename_all)]));
     }
 
-    if redacted
-        && !redaction_input
-            .attrs
-            .iter()
-            .any(|attribute| attribute.path().is_ident("serde"))
-    {
-        redaction_input
-            .attrs
-            .push(parse_quote!(#[serde(rename_all = #rename_all)]));
+    if redacted {
+        let redact = dependency_path(
+            "qubit-redact",
+            "Model redaction requires the `qubit-redact` dependency",
+        )?;
+        item.attrs.push(parse_quote!(#[derive(#redact::Redact)]));
+        if !options.disabled.serialize {
+            item.attrs.push(parse_quote!(#[redact(serde)]));
+        }
+        if !options.disabled.debug {
+            item.attrs.push(parse_quote!(#[redact(debug)]));
+        }
+        if !options.disabled.display {
+            item.attrs.push(parse_quote!(#[redact(display)]));
+        }
     }
     let metadata =
         derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
@@ -147,20 +147,7 @@ fn expand_result(
         .then(|| expand_display(&item, rename_all))
         .transpose()?
         .unwrap_or_default();
-    let redaction = redacted
-        .then(|| {
-            expand_with_options(
-                &redaction_input,
-                RedactOptions {
-                    debug: !options.disabled.debug,
-                    display: !options.disabled.display,
-                    serde: !options.disabled.serialize,
-                },
-            )
-        })
-        .transpose()?;
-
-    Ok(quote!(#item #metadata #enum_names #display #redaction))
+    Ok(quote!(#item #metadata #enum_names #display))
 }
 
 /// Resolves one dependency path in the consuming crate.
@@ -302,13 +289,6 @@ fn rename_field_attributes(data: &mut Data) {
 fn remove_field_attributes(data: &mut Data) {
     visit_fields(data, |attributes| {
         attributes.retain(|attribute| !attribute.path().is_ident("field"));
-    });
-}
-
-/// Removes redaction helper attributes after their expansion is complete.
-fn remove_redact_field_attributes(data: &mut Data) {
-    visit_fields(data, |attributes| {
-        attributes.retain(|attribute| !attribute.path().is_ident("redact"));
     });
 }
 
