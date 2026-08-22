@@ -7,7 +7,9 @@
       "src/query.rs",
       "src/relation.rs",
       "src/type_metadata.rs",
-      "src/type_shape.rs"
+      "src/type_shape.rs",
+      "src/model_id/model_id_buf.rs",
+      "src/model_graph/model_graph_error.rs"
     ]
   }
 }
