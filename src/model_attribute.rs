@@ -99,10 +99,6 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
     if enum_declaration && !has_must_use(&item.attrs) {
         item.attrs.push(parse_quote!(#[must_use]));
     }
-    if (!redacted && !options.disabled.serialize) || !options.disabled.deserialize {
-        item.attrs.push(parse_quote!(#[serde(rename_all = #rename_all)]));
-    }
-
     if redacted {
         let redact = dependency_path("qubit-redact", "Model redaction requires the `qubit-redact` dependency")?;
         item.attrs.push(parse_quote!(#[derive(#redact::Redact)]));
@@ -115,6 +111,9 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
         if !options.disabled.display {
             item.attrs.push(parse_quote!(#[redact(display)]));
         }
+    }
+    if !options.disabled.serialize || !options.disabled.deserialize {
+        item.attrs.push(parse_quote!(#[serde(rename_all = #rename_all)]));
     }
     let metadata = derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
     let enum_names = enum_declaration

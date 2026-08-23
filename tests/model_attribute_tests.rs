@@ -22,6 +22,11 @@ enum Status {
     InReview,
 }
 
+#[Enum(id = "test.attribute.RedactedStatus", redact, no_deserialize)]
+enum RedactedStatus {
+    InReview,
+}
+
 #[Model(id = "test.attribute.User")]
 struct User {
     first_name: String,
@@ -68,6 +73,16 @@ fn test_enum_attribute_supplies_enum_defaults() {
     let mut hasher = DefaultHasher::new();
     status.hash(&mut hasher);
     let _hash = hasher.finish();
+}
+
+/// Verifies redacted serialization keeps enum naming when deserialization is
+/// disabled independently.
+#[test]
+fn test_redacted_enum_without_deserialize_keeps_screaming_snake_case() {
+    assert_eq!(
+        serde_json::to_string(&RedactedStatus::InReview).expect("redacted status should serialize"),
+        "\"IN_REVIEW\"",
+    );
 }
 
 /// Verifies default struct traits, structured display text, and Serde naming.
