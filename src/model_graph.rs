@@ -60,31 +60,14 @@ impl ModelRegistry {
             let metadata = registration.metadata();
             for field in metadata.fields() {
                 for reference in direct_references(*field) {
-                    self.validate_reference(
-                        source,
-                        metadata,
-                        *field,
-                        reference,
-                        &mut errors,
-                        &mut required_edges,
-                    );
+                    self.validate_reference(source, metadata, *field, reference, &mut errors, &mut required_edges);
                 }
                 for lookup in lookup_relations(*field) {
-                    self.validate_lookup_relation(
-                        source,
-                        *field,
-                        lookup,
-                        &mut errors,
-                    );
+                    self.validate_lookup_relation(source, *field, lookup, &mut errors);
                 }
             }
             for ownership in ownership_relations(metadata) {
-                self.validate_ownership(
-                    source,
-                    ownership,
-                    &mut errors,
-                    &mut ownership_edges,
-                );
+                self.validate_ownership(source, ownership, &mut errors, &mut ownership_edges);
             }
         }
 
@@ -137,9 +120,7 @@ impl ModelRegistry {
                 }),
                 Some(same_as_field)
                     if !project_relation_type(source_field.field_type())
-                        .is_compatible_with(project_relation_type(
-                            same_as_field.field_type(),
-                        )) =>
+                        .is_compatible_with(project_relation_type(same_as_field.field_type())) =>
                 {
                     errors.push(ModelGraphError::IncompatibleSameAs {
                         source,
@@ -161,10 +142,8 @@ impl ModelRegistry {
             return;
         };
 
-        let source_projection =
-            project_relation_type(source_field.field_type());
-        let required_reference =
-            reference.must_exist() && requires_reference_target(source_field);
+        let source_projection = project_relation_type(source_field.field_type());
+        let required_reference = reference.must_exist() && requires_reference_target(source_field);
         if required_reference {
             required_edges
                 .get_mut(&source)
@@ -172,20 +151,26 @@ impl ModelRegistry {
                 .push(target);
         }
 
-        let Some(target_field) =
-            resolve_field_path(target_metadata, reference.target_field())
-        else {
+        let target_path = reference.target_field();
+        if is_info_method_projection(target_path) {
+            return;
+        }
+
+        let Some(target_field) = resolve_field_path(target_metadata, target_path) else {
             errors.push(ModelGraphError::MissingTargetField {
                 source,
                 field: source_field.name(),
                 target,
-                target_field: reference.target_field(),
+                target_field: target_path,
             });
             return;
         };
 
-        let target_projection =
-            project_relation_type(target_field.field_type());
+        if source_projection.identity == Some(target_metadata.identity()) {
+            return;
+        }
+
+        let target_projection = project_relation_type(target_field.field_type());
         if !source_projection.is_compatible_with(target_projection) {
             errors.push(ModelGraphError::IncompatibleProjection {
                 source,
@@ -207,12 +192,8 @@ impl ModelRegistry {
         errors: &mut Vec<ModelGraphError>,
     ) {
         let target_reference = lookup.target();
-        let Some(target_metadata) = self.resolve(target_reference.identity())
-        else {
-            let target = target_reference
-                .metadata()
-                .map(TypeMetadata::id)
-                .unwrap_or(source);
+        let Some(target_metadata) = self.resolve(target_reference.identity()) else {
+            let target = target_reference.metadata().map(TypeMetadata::id).unwrap_or(source);
             errors.push(ModelGraphError::MissingLookupTarget {
                 source,
                 field: source_field.name(),
@@ -221,9 +202,7 @@ impl ModelRegistry {
             return;
         };
         let target = target_metadata.id();
-        let Some(target_field) =
-            resolve_field_path(target_metadata, lookup.target_field())
-        else {
+        let Some(target_field) = resolve_field_path(target_metadata, lookup.target_field()) else {
             errors.push(ModelGraphError::MissingLookupTargetField {
                 source,
                 field: source_field.name(),
@@ -232,10 +211,8 @@ impl ModelRegistry {
             });
             return;
         };
-        let source_projection =
-            project_relation_type(source_field.field_type());
-        let target_projection =
-            project_relation_type(target_field.field_type());
+        let source_projection = project_relation_type(source_field.field_type());
+        let target_projection = project_relation_type(target_field.field_type());
         if !source_projection.is_compatible_with(target_projection) {
             errors.push(ModelGraphError::IncompatibleLookupProjection {
                 source,
@@ -257,12 +234,8 @@ impl ModelRegistry {
         ownership_edges: &mut BTreeMap<ModelId, Vec<ModelId>>,
     ) {
         let owner_reference = ownership.owner();
-        let Some(owner_metadata) = self.resolve(owner_reference.identity())
-        else {
-            let owner = owner_reference
-                .metadata()
-                .map(TypeMetadata::id)
-                .unwrap_or(source);
+        let Some(owner_metadata) = self.resolve(owner_reference.identity()) else {
+            let owner = owner_reference.metadata().map(TypeMetadata::id).unwrap_or(source);
             errors.push(ModelGraphError::MissingOwner { source, owner });
             return;
         };
@@ -271,6 +244,12 @@ impl ModelRegistry {
             .expect("all registered source models have adjacency entries")
             .push(owner_metadata.id());
     }
+}
+
+/// Returns whether `path` denotes the conventional `info()` relation
+/// projection supplied by a model trait rather than a stored field.
+fn is_info_method_projection(path: FieldPath) -> bool {
+    path.segments() == ["info"]
 }
 
 /// A relation endpoint projected from a structural type.
@@ -336,25 +315,16 @@ fn project_relation_type(field_type: TypeRef) -> RelationProjection {
 fn requires_reference_target(field: FieldMetadata) -> bool {
     requires_shape_target(
         field.field_type(),
-        field
-            .sequence_constraint()
-            .and_then(|value| value.min_items()),
+        field.sequence_constraint().and_then(|value| value.min_items()),
     )
 }
 
 /// Returns whether `field_type` necessarily contributes a leaf value.
 fn requires_shape_target(field_type: TypeRef, min_items: Option<u32>) -> bool {
     match field_type.shape() {
-        TypeShape::Optional(_) | TypeShape::Set(_) | TypeShape::Map { .. } => {
-            false
-        }
-        TypeShape::Sequence(inner) => {
-            min_items.is_some_and(|value| value > 0)
-                && requires_shape_target(inner, None)
-        }
-        TypeShape::Array { element, length } => {
-            length > 0 && requires_shape_target(element, None)
-        }
+        TypeShape::Optional(_) | TypeShape::Set(_) | TypeShape::Map { .. } => false,
+        TypeShape::Sequence(inner) => min_items.is_some_and(|value| value > 0) && requires_shape_target(inner, None),
+        TypeShape::Array { element, length } => length > 0 && requires_shape_target(element, None),
         TypeShape::Scalar(_) | TypeShape::Named(_) | TypeShape::Opaque => true,
     }
 }
@@ -368,42 +338,27 @@ fn requires_shape_target(field_type: TypeRef, min_items: Option<u32>) -> bool {
 /// # Returns
 ///
 /// An iterator over the field's direct-reference attributes.
-fn direct_references(
-    field: FieldMetadata,
-) -> impl Iterator<Item = crate::relation::ReferenceMetadata> {
-    field
-        .attributes()
-        .iter()
-        .filter_map(|attribute| match attribute {
-            AttributeMetadata::Reference(reference) => Some(*reference),
-            _ => None,
-        })
+fn direct_references(field: FieldMetadata) -> impl Iterator<Item = crate::relation::ReferenceMetadata> {
+    field.attributes().iter().filter_map(|attribute| match attribute {
+        AttributeMetadata::Reference(reference) => Some(*reference),
+        _ => None,
+    })
 }
 
 /// Returns every lookup-relation attribute declared on `field`.
-fn lookup_relations(
-    field: FieldMetadata,
-) -> impl Iterator<Item = crate::relation::LookupRelationMetadata> {
-    field
-        .attributes()
-        .iter()
-        .filter_map(|attribute| match attribute {
-            AttributeMetadata::LookupRelation(lookup) => Some(*lookup),
-            _ => None,
-        })
+fn lookup_relations(field: FieldMetadata) -> impl Iterator<Item = crate::relation::LookupRelationMetadata> {
+    field.attributes().iter().filter_map(|attribute| match attribute {
+        AttributeMetadata::LookupRelation(lookup) => Some(*lookup),
+        _ => None,
+    })
 }
 
 /// Returns every ownership relation declared on `metadata`.
-fn ownership_relations(
-    metadata: &'static TypeMetadata,
-) -> impl Iterator<Item = crate::relation::OwnershipMetadata> {
-    metadata
-        .attributes()
-        .iter()
-        .filter_map(|attribute| match attribute {
-            AttributeMetadata::Ownership(ownership) => Some(*ownership),
-            _ => None,
-        })
+fn ownership_relations(metadata: &'static TypeMetadata) -> impl Iterator<Item = crate::relation::OwnershipMetadata> {
+    metadata.attributes().iter().filter_map(|attribute| match attribute {
+        AttributeMetadata::Ownership(ownership) => Some(*ownership),
+        _ => None,
+    })
 }
 
 /// Resolves a static field path through named target-model metadata.
@@ -417,10 +372,7 @@ fn ownership_relations(
 ///
 /// `Some` with the final field when every segment resolves through named
 /// metadata; otherwise `None`.
-fn resolve_field_path(
-    metadata: &'static TypeMetadata,
-    path: FieldPath,
-) -> Option<&'static FieldMetadata> {
+fn resolve_field_path(metadata: &'static TypeMetadata, path: FieldPath) -> Option<&'static FieldMetadata> {
     let mut metadata = metadata;
     let mut segments = path.segments().iter();
     let mut segment = *segments.next()?;
@@ -444,9 +396,7 @@ fn resolve_field_path(
 ///
 /// Cycle errors in component-discovery order. The caller performs final error
 /// ordering together with non-cycle graph errors.
-fn find_required_reference_cycles(
-    edges: &BTreeMap<ModelId, Vec<ModelId>>,
-) -> Vec<ModelGraphError> {
+fn find_required_reference_cycles(edges: &BTreeMap<ModelId, Vec<ModelId>>) -> Vec<ModelGraphError> {
     let mut edges = edges.clone();
     for targets in edges.values_mut() {
         targets.sort_unstable();
@@ -462,9 +412,7 @@ fn find_required_reference_cycles(
 }
 
 /// Finds one canonical ownership cycle for every cyclic hierarchy component.
-fn find_ownership_cycles(
-    edges: &BTreeMap<ModelId, Vec<ModelId>>,
-) -> Vec<ModelGraphError> {
+fn find_ownership_cycles(edges: &BTreeMap<ModelId, Vec<ModelId>>) -> Vec<ModelGraphError> {
     let mut edges = edges.clone();
     for targets in edges.values_mut() {
         targets.sort_unstable();
@@ -486,9 +434,7 @@ fn find_ownership_cycles(
 /// # Returns
 ///
 /// Every strongly connected component, with each component sorted by model ID.
-fn strongly_connected_components(
-    edges: &BTreeMap<ModelId, Vec<ModelId>>,
-) -> Vec<Vec<ModelId>> {
+fn strongly_connected_components(edges: &BTreeMap<ModelId, Vec<ModelId>>) -> Vec<Vec<ModelId>> {
     let mut next_index = 0;
     let mut indices = BTreeMap::new();
     let mut lowlinks = BTreeMap::new();
@@ -546,8 +492,7 @@ fn visit_component(
     for target in &edges[&node] {
         if !indices.contains_key(target) {
             visit_component(
-                *target, edges, next_index, indices, lowlinks, stack, on_stack,
-                components,
+                *target, edges, next_index, indices, lowlinks, stack, on_stack, components,
             );
             let target_lowlink = lowlinks[target];
             let node_lowlink = lowlinks[&node];
@@ -565,9 +510,7 @@ fn visit_component(
 
     let mut component = Vec::new();
     loop {
-        let member = stack
-            .pop()
-            .expect("Tarjan root must have a matching node on the stack");
+        let member = stack.pop().expect("Tarjan root must have a matching node on the stack");
         on_stack.remove(&member);
         component.push(member);
         if member == node {
@@ -589,10 +532,7 @@ fn visit_component(
 ///
 /// `Some` with a cycle beginning and ending at the component's smallest ID,
 /// or `None` when the component is acyclic.
-fn canonical_cycle(
-    component: &[ModelId],
-    edges: &BTreeMap<ModelId, Vec<ModelId>>,
-) -> Option<Vec<ModelId>> {
+fn canonical_cycle(component: &[ModelId], edges: &BTreeMap<ModelId, Vec<ModelId>>) -> Option<Vec<ModelId>> {
     let start = *component.first()?;
     if component.len() == 1 {
         return edges[&start].contains(&start).then(|| vec![start, start]);
@@ -601,8 +541,7 @@ fn canonical_cycle(
     let allowed: BTreeSet<_> = component.iter().copied().collect();
     let mut path = vec![start];
     let mut visited = BTreeSet::from([start]);
-    find_cycle_from(start, start, &allowed, edges, &mut visited, &mut path)
-        .then_some(path)
+    find_cycle_from(start, start, &allowed, edges, &mut visited, &mut path).then_some(path)
 }
 
 /// Extends `path` until it returns to `start` through the selected SCC.
@@ -655,10 +594,7 @@ fn find_cycle_from(
 /// # Returns
 ///
 /// The ordering required for deterministic aggregated validation output.
-fn compare_graph_errors(
-    left: &ModelGraphError,
-    right: &ModelGraphError,
-) -> core::cmp::Ordering {
+fn compare_graph_errors(left: &ModelGraphError, right: &ModelGraphError) -> core::cmp::Ordering {
     graph_error_sort_key(left).cmp(&graph_error_sort_key(right))
 }
 
@@ -671,53 +607,27 @@ fn compare_graph_errors(
 /// # Returns
 ///
 /// Its source ID, field, kind, and target ID comparison tuple.
-fn graph_error_sort_key(
-    error: &ModelGraphError,
-) -> (Option<ModelId>, Option<&'static str>, u8, Option<ModelId>) {
+fn graph_error_sort_key(error: &ModelGraphError) -> (Option<ModelId>, Option<&'static str>, u8, Option<ModelId>) {
     match error {
-        ModelGraphError::MissingTarget {
-            source,
-            field,
-            target,
-        } => (Some(*source), Some(*field), 0, Some(*target)),
+        ModelGraphError::MissingTarget { source, field, target } => (Some(*source), Some(*field), 0, Some(*target)),
         ModelGraphError::MissingTargetField {
-            source,
-            field,
-            target,
-            ..
+            source, field, target, ..
         } => (Some(*source), Some(*field), 1, Some(*target)),
         ModelGraphError::IncompatibleProjection {
-            source,
-            field,
-            target,
-            ..
+            source, field, target, ..
         } => (Some(*source), Some(*field), 2, Some(*target)),
-        ModelGraphError::InvalidSameAs { source, field, .. } => {
-            (Some(*source), Some(*field), 3, None)
+        ModelGraphError::InvalidSameAs { source, field, .. } => (Some(*source), Some(*field), 3, None),
+        ModelGraphError::IncompatibleSameAs { source, field, .. } => (Some(*source), Some(*field), 4, None),
+        ModelGraphError::MissingLookupTarget { source, field, target } => {
+            (Some(*source), Some(*field), 5, Some(*target))
         }
-        ModelGraphError::IncompatibleSameAs { source, field, .. } => {
-            (Some(*source), Some(*field), 4, None)
-        }
-        ModelGraphError::MissingLookupTarget {
-            source,
-            field,
-            target,
-        } => (Some(*source), Some(*field), 5, Some(*target)),
         ModelGraphError::MissingLookupTargetField {
-            source,
-            field,
-            target,
-            ..
+            source, field, target, ..
         } => (Some(*source), Some(*field), 6, Some(*target)),
         ModelGraphError::IncompatibleLookupProjection {
-            source,
-            field,
-            target,
-            ..
+            source, field, target, ..
         } => (Some(*source), Some(*field), 7, Some(*target)),
-        ModelGraphError::MissingOwner { source, owner } => {
-            (Some(*source), None, 8, Some(*owner))
-        }
+        ModelGraphError::MissingOwner { source, owner } => (Some(*source), None, 8, Some(*owner)),
         ModelGraphError::RequiredReferenceCycle { cycle } => {
             let source = cycle.first().copied();
             (source, None, 9, source)
