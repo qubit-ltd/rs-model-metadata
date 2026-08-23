@@ -57,6 +57,10 @@ Rust models often need more than their Rust type: validation, persistence, and s
 - Derives static `HasTypeShape` and `HasTypeMetadata` implementations for named-field and unit structs, single-field tuple newtypes, and fieldless enums.
 - Generates field, type, key, uniqueness, index, text, collection, temporal, decimal, reference, sensitivity, codec, and generator metadata from supported `#[field(...)]` attributes.
 - Requires every model to declare a stable `#[field(id = "module.Type")]`; each expansion contributes one registration to the immutable global `ModelRegistry`.
+- Delegates redaction to `qubit-redact` when `#[Model(..., redact)]` or any
+  `#[redact(...)]` field is present. The model macro derives the borrowing
+  `Redact` contract and, unless individually disabled, policy-aware `Debug`,
+  `Display`, and structured `Serialize` implementations.
 - Resolves the runtime package by Cargo package name. If `qubit-model-metadata` is renamed locally, the expansion uses that local dependency name, including when a same-named module would otherwise shadow it:
 
   ```toml
@@ -89,7 +93,7 @@ Without `opaque`, an external type must implement `HasTypeShape`; `opaque` canno
 ## Learn More
 
 - [User guide](doc/user_guide.md)
-- [User guide](doc/user_guide.md)
+- [Redaction runtime guide](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.md)
 - [API documentation](https://docs.rs/qubit-model-derive)
 - [中文文档](README.zh_CN.md)
 

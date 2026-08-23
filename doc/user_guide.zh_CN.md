@@ -97,6 +97,43 @@ bigdecimal = "0.4"
 
 宏会拒绝错误作用域、重复或冲突声明、无效范围、不可用类型能力和无效本地字段引用。
 
+## 脱敏委托
+
+模型进入诊断或结构化序列化脱敏边界时，需要添加 `qubit-redact`：
+
+```toml
+[dependencies]
+qubit-redact = { version = "0.5", features = ["serde", "derive"] }
+```
+
+`#[Model(..., redact)]` 会显式启用脱敏 derive；任意字段上的 `#[redact(...)]` 也会自动
+启用。模型宏直接委托给 `qubit-redact-derive` 的字段语义，不再维护第二套脱敏实现：
+
+```rust
+use qubit_model_derive::Model;
+use qubit_redact::Redactor;
+
+#[Model(id = "example.Credential")]
+struct Credential {
+    username: String,
+    #[field(opaque)]
+    #[redact(level = "secret")]
+    password: String,
+}
+
+let value = Credential {
+    username: "alice".to_owned(),
+    password: "raw-secret".to_owned(),
+};
+let output = Redactor::standard().redact(&value);
+assert!(!output.text().as_str().contains("raw-secret"));
+assert!(!serde_json::to_string(&value).unwrap().contains("raw-secret"));
+```
+
+生成的 `Debug`、`Display` 和 `Serialize` 与 `qubit-redact` 使用相同的字段模式和全局
+disabled-policy 行为。直接 Serde 没有 summary 通道；需要完整性或审计原因时使用
+`Redactor::redact`。
+
 ## 关系与 Opaque 字段
 
 关系要声明稳定目标模型 ID 和目标字段：
@@ -141,5 +178,5 @@ struct ImportRecord { #[field(opaque)] token: ExternalToken }
 
 - [runtime 元数据用户手册](../../rs-model-metadata/doc/user_guide.zh_CN.md)
 - [项目说明](../README.zh_CN.md)
-- [README](../README.zh_CN.md)
+- [脱敏运行时手册](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.zh_CN.md)
 - [English user guide](user_guide.md)

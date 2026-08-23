@@ -57,6 +57,9 @@ Rust 模型通常不仅需要 Rust 类型：校验、持久化和 schema 工具�
 - 为具名字段 struct、unit struct、单字段 tuple newtype 与 fieldless enum 生成静态 `HasTypeShape` 和 `HasTypeMetadata` 实现。
 - 从受支持的 `#[field(...)]` 属性生成字段、类型、键、唯一性、索引、文本、集合、时间、decimal、reference、敏感信息、codec 与 generator 元数据。
 - 每个模型都必须声明稳定的 `#[field(id = "module.Type")]`；每次展开都会向不可变全局 `ModelRegistry` 贡献一个注册项。
+- 使用 `#[Model(..., redact)]` 或任意字段 `#[redact(...)]` 时委托给
+  `qubit-redact`。模型宏会派生借用式 `Redact` 契约，并在未单独禁用时生成策略感知的
+  `Debug`、`Display` 与结构化 `Serialize` 实现。
 - 按 Cargo 包名解析 runtime 依赖。若本地将 `qubit-model-metadata` 重命名，展开代码会使用该本地依赖名；即使存在同名本地模块可能造成遮蔽，也仍然适用：
 
   ```toml
@@ -89,7 +92,7 @@ struct ImportRecord {
 ## 延伸阅读
 
 - [用户手册](doc/user_guide.zh_CN.md)
-- [中文用户指南](doc/user_guide.zh_CN.md)
+- [脱敏运行时手册](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.zh_CN.md)
 - [API 文档](https://docs.rs/qubit-model-derive)
 - [English document](README.md)
 

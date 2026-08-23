@@ -117,6 +117,47 @@ half_up|half_even|down|up`, and cannot be combined.
 The macro rejects wrong scopes, duplicate or conflicting declarations, invalid
 ranges, unavailable type capabilities, and invalid local field references.
 
+## Redaction Delegation
+
+Add `qubit-redact` when a model participates in a diagnostic or structured
+serialization redaction boundary:
+
+```toml
+[dependencies]
+qubit-redact = { version = "0.5", features = ["serde", "derive"] }
+```
+
+`#[Model(..., redact)]` enables the redaction derive explicitly. A field-level
+`#[redact(...)]` enables it automatically. The model macro delegates field
+semantics to `qubit-redact-derive` instead of maintaining a second redaction
+implementation:
+
+```rust
+use qubit_model_derive::Model;
+use qubit_redact::Redactor;
+
+#[Model(id = "example.Credential")]
+struct Credential {
+    username: String,
+    #[field(opaque)]
+    #[redact(level = "secret")]
+    password: String,
+}
+
+let value = Credential {
+    username: "alice".to_owned(),
+    password: "raw-secret".to_owned(),
+};
+let output = Redactor::standard().redact(&value);
+assert!(!output.text().as_str().contains("raw-secret"));
+assert!(!serde_json::to_string(&value).unwrap().contains("raw-secret"));
+```
+
+The generated `Debug`, `Display`, and `Serialize` implementations follow the
+same field modes and global disabled-policy behavior as `qubit-redact`. Direct
+Serde has no summary channel; use `Redactor::redact` when completion or audit
+reasons matter.
+
 ## Relations and Opaque Fields
 
 Relations name a stable target model ID and target field:
@@ -172,5 +213,5 @@ formats, validation messages, codec/generator execution, or global discovery.
 
 - [Runtime metadata user guide](../../rs-model-metadata/doc/user_guide.md)
 - [README](../README.md)
-- [README](../README.md)
+- [Redaction runtime guide](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.md)
 - [中文用户手册](user_guide.zh_CN.md)
