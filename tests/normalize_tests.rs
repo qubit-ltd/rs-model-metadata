@@ -26,9 +26,7 @@ fn test_primary_key_ir_retains_generated_field_references_before_validation() {
             id: i64,
         }
     };
-    let model = normalize::normalize(
-        input::ModelInput::parse(input).expect("parsed model"),
-    );
+    let model = normalize::normalize(input::ModelInput::parse(input).expect("parsed model"));
     let primary_key = model
         .attributes
         .iter()
@@ -56,9 +54,7 @@ fn test_unique_ir_retains_ignore_case_field_references_before_validation() {
             username: String,
         }
     };
-    let model = normalize::normalize(
-        input::ModelInput::parse(input).expect("parsed model"),
-    );
+    let model = normalize::normalize(input::ModelInput::parse(input).expect("parsed model"));
     let unique = model
         .attributes
         .iter()
@@ -86,9 +82,7 @@ fn test_attribute_ir_retains_repeated_single_value_occurrences() {
             username: String,
         }
     };
-    let model = normalize::normalize(
-        input::ModelInput::parse(input).expect("parsed model"),
-    );
+    let model = normalize::normalize(input::ModelInput::parse(input).expect("parsed model"));
     let ModelShapeIr::NamedStruct(fields) = &model.shape else {
         panic!("expected named struct IR");
     };

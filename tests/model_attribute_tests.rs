@@ -27,13 +27,7 @@ struct User {
     first_name: String,
 }
 
-#[Model(
-    id = "test.attribute.Relaxed",
-    no_display,
-    no_eq,
-    no_hash,
-    no_serialize
-)]
+#[Model(id = "test.attribute.Relaxed", no_display, no_eq, no_hash, no_serialize)]
 struct Relaxed {
     value: f64,
 }
@@ -69,10 +63,7 @@ fn test_enum_attribute_supplies_enum_defaults() {
         serde_json::to_string(&status).expect("status should serialize"),
         "\"IN_REVIEW\""
     );
-    assert_eq!(
-        metadata_of::<Status>().id().as_str(),
-        "test.attribute.Status"
-    );
+    assert_eq!(metadata_of::<Status>().id().as_str(), "test.attribute.Status");
 
     let mut hasher = DefaultHasher::new();
     status.hash(&mut hasher);
@@ -118,10 +109,7 @@ fn test_model_attribute_supports_display_without_debug() {
         value: "safe".to_owned(),
     };
 
-    assert_eq!(
-        format!("{value}"),
-        r#"DisplayWithoutDebug { value: "safe" }"#
-    );
+    assert_eq!(format!("{value}"), r#"DisplayWithoutDebug { value: "safe" }"#);
 }
 
 /// Verifies field redaction controls formatting and serialization safely.
@@ -140,13 +128,10 @@ fn test_model_attribute_enables_redaction_for_marked_fields() {
         format!("{value}"),
         r#"Credential { username: "alice", password: "<redacted>" }"#
     );
-    let serialized =
-        serde_json::to_string(&value).expect("credential should serialize");
+    let serialized = serde_json::to_string(&value).expect("credential should serialize");
     assert!(!serialized.contains("raw-secret"));
 
-    let deserialized: Credential = serde_json::from_str(
-        r#"{"username":"alice","password":"input-secret"}"#,
-    )
-    .expect("credential should deserialize");
+    let deserialized: Credential = serde_json::from_str(r#"{"username":"alice","password":"input-secret"}"#)
+        .expect("credential should deserialize");
     assert_eq!(deserialized.password, "input-secret");
 }

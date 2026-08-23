@@ -29,10 +29,7 @@ use crate::validate;
 ///
 /// Returns generated metadata tokens or compile-error tokens that preserve
 /// syntax, validation, and runtime-resolution diagnostics.
-pub(crate) fn derive_model_tokens(
-    input: TokenStream,
-    runtime_path: Result<TokenStream>,
-) -> TokenStream {
+pub(crate) fn derive_model_tokens(input: TokenStream, runtime_path: Result<TokenStream>) -> TokenStream {
     let derive_input = match parse2(input) {
         Ok(derive_input) => derive_input,
         Err(error) => return error.into_compile_error(),
@@ -52,11 +49,7 @@ pub(crate) fn derive_model_tokens(
         Ok(match validation_error {
             Some(error) => {
                 let diagnostics = error.into_compile_error();
-                let independent_diagnostics =
-                    expand::expand_independent_diagnostics(
-                        &model,
-                        &runtime_path,
-                    );
+                let independent_diagnostics = expand::expand_independent_diagnostics(&model, &runtime_path);
                 quote!(#diagnostics #independent_diagnostics)
             }
             None => expand::expand(&model, &runtime_path),

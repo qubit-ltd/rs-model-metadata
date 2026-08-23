@@ -83,9 +83,7 @@ fn validate_model_id(model: &ModelIr, errors: &mut Option<Error>) {
 }
 
 /// Validates the byte-level stable-ID grammar shared with the runtime crate.
-fn validate_model_id_format(
-    value: &str,
-) -> core::result::Result<(), &'static str> {
+fn validate_model_id_format(value: &str) -> core::result::Result<(), &'static str> {
     if value.is_empty() {
         return Err("model ID cannot be empty");
     }
@@ -104,16 +102,12 @@ fn validate_model_id_format(
 }
 
 /// Validates one ASCII snake-case module segment.
-fn validate_model_id_module_segment(
-    segment: &str,
-) -> core::result::Result<(), &'static str> {
+fn validate_model_id_module_segment(segment: &str) -> core::result::Result<(), &'static str> {
     if is_rust_keyword(segment) {
         return Err("model ID module segments cannot be Rust keywords");
     }
     let bytes = segment.as_bytes();
-    if !matches!(bytes.first(), Some(b'a'..=b'z'))
-        || matches!(bytes.last(), Some(b'_'))
-    {
+    if !matches!(bytes.first(), Some(b'a'..=b'z')) || matches!(bytes.last(), Some(b'_')) {
         return Err("model ID module segments must use ASCII snake_case");
     }
     let mut previous_underscore = false;
@@ -129,24 +123,16 @@ fn validate_model_id_module_segment(
 }
 
 /// Validates one ASCII UpperCamelCase final type segment.
-fn validate_model_id_type_segment(
-    segment: &str,
-) -> core::result::Result<(), &'static str> {
+fn validate_model_id_type_segment(segment: &str) -> core::result::Result<(), &'static str> {
     let bytes = segment.as_bytes();
-    if !matches!(bytes.first(), Some(b'A'..=b'Z'))
-        || !bytes[1..].iter().all(u8::is_ascii_alphanumeric)
-    {
+    if !matches!(bytes.first(), Some(b'A'..=b'Z')) || !bytes[1..].iter().all(u8::is_ascii_alphanumeric) {
         return Err("model ID type segment must use ASCII UpperCamelCase");
     }
     Ok(())
 }
 
 /// Validates that the ID's final segment matches the derived Rust type name.
-fn validate_model_id_type_name(
-    id: &LitStr,
-    ident: &Ident,
-    errors: &mut Option<Error>,
-) {
+fn validate_model_id_type_name(id: &LitStr, ident: &Ident, errors: &mut Option<Error>) {
     let id_value = id.value();
     let actual_type_name = id_value.rsplit('.').next().unwrap_or_default();
     let expected_type_name = ident.unraw().to_string();
@@ -155,9 +141,7 @@ fn validate_model_id_type_name(
             errors,
             Error::new(
                 id.span(),
-                format!(
-                    "model ID type segment `{actual_type_name}` must match derived type `{expected_type_name}`"
-                ),
+                format!("model ID type segment `{actual_type_name}` must match derived type `{expected_type_name}`"),
             ),
         );
     }
@@ -265,20 +249,10 @@ fn validate_model_attributes(model: &ModelIr, errors: &mut Option<Error>) {
                 validate_unique(value, model_fields(model), errors);
             }
             ModelAttributeIr::Index(value) => {
-                validate_named_fields(
-                    "index",
-                    value,
-                    model_fields(model),
-                    errors,
-                );
+                validate_named_fields("index", value, model_fields(model), errors);
             }
             ModelAttributeIr::Key(value) => {
-                validate_named_fields(
-                    "key",
-                    value,
-                    model_fields(model),
-                    errors,
-                );
+                validate_named_fields("key", value, model_fields(model), errors);
             }
             ModelAttributeIr::Ownership(value) => {
                 validate_duplicate_type_paths("owner", &value.owner, errors);
@@ -289,10 +263,7 @@ fn validate_model_attributes(model: &ModelIr, errors: &mut Option<Error>) {
 
 /// Validates that explicitly named constraints are non-blank and unique within
 /// their constraint category.
-fn validate_named_constraint_identifiers(
-    model: &ModelIr,
-    errors: &mut Option<Error>,
-) {
+fn validate_named_constraint_identifiers(model: &ModelIr, errors: &mut Option<Error>) {
     for (index, attribute) in model.attributes.iter().enumerate() {
         let Some((kind, name)) = named_constraint_identifier(attribute) else {
             continue;
@@ -300,28 +271,19 @@ fn validate_named_constraint_identifiers(
         if name.value().trim().is_empty() {
             push_error(
                 errors,
-                Error::new(
-                    name.span(),
-                    format!("`{kind}` constraint name cannot be empty"),
-                ),
+                Error::new(name.span(), format!("`{kind}` constraint name cannot be empty")),
             );
         }
         if model.attributes[..index].iter().any(|previous| {
-            named_constraint_identifier(previous).is_some_and(
-                |(previous_kind, previous_name)| {
-                    previous_kind == kind
-                        && previous_name.value() == name.value()
-                },
-            )
+            named_constraint_identifier(previous).is_some_and(|(previous_kind, previous_name)| {
+                previous_kind == kind && previous_name.value() == name.value()
+            })
         }) {
             push_error(
                 errors,
                 Error::new(
                     name.span(),
-                    format!(
-                        "duplicate `{kind}` constraint name `{}`",
-                        name.value()
-                    ),
+                    format!("duplicate `{kind}` constraint name `{}`", name.value()),
                 ),
             );
         }
@@ -329,31 +291,18 @@ fn validate_named_constraint_identifiers(
 }
 
 /// Returns an explicitly declared model-constraint name and its category.
-fn named_constraint_identifier(
-    attribute: &ModelAttributeIr,
-) -> Option<(&'static str, &LitStr)> {
+fn named_constraint_identifier(attribute: &ModelAttributeIr) -> Option<(&'static str, &LitStr)> {
     match attribute {
-        ModelAttributeIr::Unique(value) => {
-            value.name.first().map(|name| ("unique", name))
-        }
-        ModelAttributeIr::Index(value) => {
-            value.name.first().map(|name| ("index", name))
-        }
-        ModelAttributeIr::Key(value) => {
-            value.name.first().map(|name| ("key", name))
-        }
-        ModelAttributeIr::PrimaryKey(_) | ModelAttributeIr::Ownership(_) => {
-            None
-        }
+        ModelAttributeIr::Unique(value) => value.name.first().map(|name| ("unique", name)),
+        ModelAttributeIr::Index(value) => value.name.first().map(|name| ("index", name)),
+        ModelAttributeIr::Key(value) => value.name.first().map(|name| ("key", name)),
+        ModelAttributeIr::PrimaryKey(_) | ModelAttributeIr::Ownership(_) => None,
     }
 }
 
 /// Rejects duplicate model primary keys and model/shorthand primary-key
 /// conflicts.
-fn validate_primary_key_declarations(
-    model: &ModelIr,
-    errors: &mut Option<Error>,
-) {
+fn validate_primary_key_declarations(model: &ModelIr, errors: &mut Option<Error>) {
     let primary_keys = model
         .attributes
         .iter()
@@ -369,10 +318,7 @@ fn validate_primary_key_declarations(
         .filter(|(index, _)| *index < model.model_attribute_count)
         .collect::<Vec<_>>();
     for (_, value) in model_primary_keys.iter().skip(1) {
-        push_error(
-            errors,
-            Error::new(value.span, "duplicate `primary_key` attribute"),
-        );
+        push_error(errors, Error::new(value.span, "duplicate `primary_key` attribute"));
     }
     if !model_primary_keys.is_empty() {
         for (_, value) in primary_keys
@@ -392,18 +338,12 @@ fn validate_primary_key_declarations(
 }
 
 /// Rejects more than one ownership declaration for a model.
-fn validate_ownership_declarations(
-    model: &ModelIr,
-    errors: &mut Option<Error>,
-) {
+fn validate_ownership_declarations(model: &ModelIr, errors: &mut Option<Error>) {
     let mut seen = false;
     for attribute in &model.attributes {
         if let ModelAttributeIr::Ownership(value) = attribute {
             if seen {
-                push_error(
-                    errors,
-                    Error::new(value.span, "duplicate `ownership` attribute"),
-                );
+                push_error(errors, Error::new(value.span, "duplicate `ownership` attribute"));
             }
             seen = true;
         }
@@ -421,10 +361,7 @@ fn validate_repeated_constraints(model: &ModelIr, errors: &mut Option<Error>) {
                 errors,
                 Error::new(
                     model_attribute_span(attribute),
-                    format!(
-                        "duplicate `{}` constraint",
-                        model_attribute_name(attribute)
-                    ),
+                    format!("duplicate `{}` constraint", model_attribute_name(attribute)),
                 ),
             );
         }
@@ -433,10 +370,7 @@ fn validate_repeated_constraints(model: &ModelIr, errors: &mut Option<Error>) {
 
 /// Returns whether two repeatable model attributes describe the same
 /// constraint.
-fn same_repeatable_constraint(
-    left: &ModelAttributeIr,
-    right: &ModelAttributeIr,
-) -> bool {
+fn same_repeatable_constraint(left: &ModelAttributeIr, right: &ModelAttributeIr) -> bool {
     match (left, right) {
         (ModelAttributeIr::Unique(left), ModelAttributeIr::Unique(right)) => {
             optional_names_equal(&left.name, &right.name)
@@ -471,11 +405,7 @@ fn optional_names_equal(left: &[LitStr], right: &[LitStr]) -> bool {
 }
 
 /// Validates a primary key's required, unique, existing, and generated fields.
-fn validate_primary_key(
-    value: &PrimaryKeyIr,
-    fields: &[FieldIr],
-    errors: &mut Option<Error>,
-) {
+fn validate_primary_key(value: &PrimaryKeyIr, fields: &[FieldIr], errors: &mut Option<Error>) {
     if value.fields.is_empty() {
         push_error(
             errors,
@@ -483,24 +413,15 @@ fn validate_primary_key(
         );
     }
     for (index, field) in value.fields.iter().enumerate() {
-        if value.fields[..index]
-            .iter()
-            .any(|previous| previous.name == field.name)
-        {
+        if value.fields[..index].iter().any(|previous| previous.name == field.name) {
             push_error(
                 errors,
-                Error::new(
-                    field.span,
-                    format!("duplicate primary-key field `{}`", field.name),
-                ),
+                Error::new(field.span, format!("duplicate primary-key field `{}`", field.name)),
             );
         } else if !field_exists(fields, &field.name) {
             push_error(
                 errors,
-                Error::new(
-                    field.span,
-                    format!("unknown model field `{}`", field.name),
-                ),
+                Error::new(field.span, format!("unknown model field `{}`", field.name)),
             );
         }
     }
@@ -511,10 +432,7 @@ fn validate_primary_key(
         {
             push_error(
                 errors,
-                Error::new(
-                    field.span,
-                    format!("duplicate generated field `{}`", field.name),
-                ),
+                Error::new(field.span, format!("duplicate generated field `{}`", field.name)),
             );
         } else if !field_exists(fields, &field.name) {
             push_unknown_field(errors, field);
@@ -523,10 +441,7 @@ fn validate_primary_key(
                 errors,
                 Error::new(
                     field.span,
-                    format!(
-                        "generated field `{}` is not part of this primary key",
-                        field.name
-                    ),
+                    format!("generated field `{}` is not part of this primary key", field.name),
                 ),
             );
         }
@@ -534,37 +449,21 @@ fn validate_primary_key(
 }
 
 /// Validates a unique constraint's name, field set, and ignore-case references.
-fn validate_unique(
-    value: &UniqueIr,
-    fields: &[FieldIr],
-    errors: &mut Option<Error>,
-) {
+fn validate_unique(value: &UniqueIr, fields: &[FieldIr], errors: &mut Option<Error>) {
     validate_duplicate_literals("name", &value.name, errors);
     if value.fields.is_empty() {
-        push_error(
-            errors,
-            Error::new(value.span, "`unique` requires at least one field"),
-        );
+        push_error(errors, Error::new(value.span, "`unique` requires at least one field"));
     }
     for (index, field) in value.fields.iter().enumerate() {
-        if value.fields[..index]
-            .iter()
-            .any(|previous| previous.name == field.name)
-        {
+        if value.fields[..index].iter().any(|previous| previous.name == field.name) {
             push_error(
                 errors,
-                Error::new(
-                    field.span,
-                    format!("duplicate unique field `{}`", field.name),
-                ),
+                Error::new(field.span, format!("duplicate unique field `{}`", field.name)),
             );
         } else if !field_exists(fields, &field.name) {
             push_error(
                 errors,
-                Error::new(
-                    field.span,
-                    format!("unknown model field `{}`", field.name),
-                ),
+                Error::new(field.span, format!("unknown model field `{}`", field.name)),
             );
         }
     }
@@ -575,10 +474,7 @@ fn validate_unique(
         {
             push_error(
                 errors,
-                Error::new(
-                    field.span,
-                    format!("duplicate ignore-case field `{}`", field.name),
-                ),
+                Error::new(field.span, format!("duplicate ignore-case field `{}`", field.name)),
             );
             continue;
         }
@@ -586,11 +482,7 @@ fn validate_unique(
             push_unknown_field(errors, field);
             continue;
         }
-        if !value
-            .fields
-            .iter()
-            .any(|unique_field| unique_field.name == field.name)
-        {
+        if !value.fields.iter().any(|unique_field| unique_field.name == field.name) {
             push_error(
                 errors,
                 Error::new(
@@ -606,47 +498,26 @@ fn validate_unique(
 }
 
 /// Validates an index or logical key's name and ordered field set.
-fn validate_named_fields(
-    kind: &str,
-    value: &NamedFieldsIr,
-    fields: &[FieldIr],
-    errors: &mut Option<Error>,
-) {
+fn validate_named_fields(kind: &str, value: &NamedFieldsIr, fields: &[FieldIr], errors: &mut Option<Error>) {
     validate_duplicate_literals("name", &value.name, errors);
     if value.fields.is_empty() {
         push_error(
             errors,
-            Error::new(
-                value.span,
-                format!("`{kind}` requires at least one field"),
-            ),
+            Error::new(value.span, format!("`{kind}` requires at least one field")),
         );
     }
     for (index, (name, span)) in value.fields.iter().enumerate() {
-        if value.fields[..index]
-            .iter()
-            .any(|(previous, _)| previous == name)
-        {
-            push_error(
-                errors,
-                Error::new(*span, format!("duplicate {kind} field `{name}`")),
-            );
+        if value.fields[..index].iter().any(|(previous, _)| previous == name) {
+            push_error(errors, Error::new(*span, format!("duplicate {kind} field `{name}`")));
         } else if !field_exists(fields, name) {
-            push_error(
-                errors,
-                Error::new(*span, format!("unknown model field `{name}`")),
-            );
+            push_error(errors, Error::new(*span, format!("unknown model field `{name}`")));
         }
     }
 }
 
 /// Validates duplicate field attributes, capability rules, ranges, and relation
 /// paths.
-fn validate_field(
-    field: &FieldIr,
-    fields: &[FieldIr],
-    errors: &mut Option<Error>,
-) {
+fn validate_field(field: &FieldIr, fields: &[FieldIr], errors: &mut Option<Error>) {
     for span in field.opaque.iter().skip(1) {
         push_error(errors, Error::new(*span, "duplicate `opaque` attribute"));
     }
@@ -659,10 +530,7 @@ fn validate_field(
                 errors,
                 Error::new(
                     field_attribute_span(attribute),
-                    format!(
-                        "`opaque` cannot be combined with `{}`",
-                        field_attribute_name(attribute)
-                    ),
+                    format!("`opaque` cannot be combined with `{}`", field_attribute_name(attribute)),
                 ),
             );
         }
@@ -671,11 +539,7 @@ fn validate_field(
 }
 
 /// Reports duplicate or mutually exclusive pairs of canonical field attributes.
-fn validate_field_attribute_pair(
-    previous: &FieldAttributeIr,
-    current: &FieldAttributeIr,
-    errors: &mut Option<Error>,
-) {
+fn validate_field_attribute_pair(previous: &FieldAttributeIr, current: &FieldAttributeIr, errors: &mut Option<Error>) {
     let previous_name = field_attribute_name(previous);
     let current_name = field_attribute_name(current);
     if previous_name == current_name {
@@ -686,9 +550,7 @@ fn validate_field_attribute_pair(
                 format!("duplicate `{current_name}` attribute"),
             ),
         );
-    } else if matches!(previous, FieldAttributeIr::Decimal(_))
-        && matches!(current, FieldAttributeIr::Decimal(_))
-    {
+    } else if matches!(previous, FieldAttributeIr::Decimal(_)) && matches!(current, FieldAttributeIr::Decimal(_)) {
         push_error(
             errors,
             Error::new(
@@ -711,31 +573,13 @@ fn validate_field_attribute(
         FieldAttributeIr::Sequence(value) => {
             validate_duplicate_values("min_items", &value.min_items, errors);
             validate_duplicate_values("max_items", &value.max_items, errors);
-            validate_duplicate_spans(
-                "unique_items",
-                &value.unique_items,
-                errors,
-            );
-            validate_min_max(
-                "min_items",
-                &value.min_items,
-                "max_items",
-                &value.max_items,
-                errors,
-            );
+            validate_duplicate_spans("unique_items", &value.unique_items, errors);
+            validate_min_max("min_items", &value.min_items, "max_items", &value.max_items, errors);
             validate_sequence_shape(value, &field.ty, errors);
         }
         FieldAttributeIr::Map(value) => {
-            validate_duplicate_values(
-                "min_entries",
-                &value.min_entries,
-                errors,
-            );
-            validate_duplicate_values(
-                "max_entries",
-                &value.max_entries,
-                errors,
-            );
+            validate_duplicate_values("min_entries", &value.min_entries, errors);
+            validate_duplicate_values("max_entries", &value.max_entries, errors);
             validate_min_max(
                 "min_entries",
                 &value.min_entries,
@@ -746,21 +590,13 @@ fn validate_field_attribute(
         }
         FieldAttributeIr::Temporal(value) => {
             validate_duplicate_values("precision", &value.precision, errors);
-            validate_duplicate_values(
-                "normalization",
-                &value.normalization,
-                errors,
-            );
+            validate_duplicate_values("normalization", &value.normalization, errors);
         }
         FieldAttributeIr::Decimal(value) => validate_decimal(value, errors),
         FieldAttributeIr::Element(value) => validate_element(value, errors),
         FieldAttributeIr::Reference(value) => {
             validate_duplicate_literals("target", &value.target, errors);
-            validate_duplicate_field_paths(
-                "target_field",
-                &value.target_field,
-                errors,
-            );
+            validate_duplicate_field_paths("target_field", &value.target_field, errors);
             validate_duplicate_values("must_exist", &value.must_exist, errors);
             validate_duplicate_field_paths("same_as", &value.same_as, errors);
             for path in &value.same_as {
@@ -773,22 +609,14 @@ fn validate_field_attribute(
         }
         FieldAttributeIr::LookupRelation(value) => {
             validate_duplicate_type_paths("target", &value.target, errors);
-            validate_duplicate_field_paths(
-                "target_field",
-                &value.target_field,
-                errors,
-            );
+            validate_duplicate_field_paths("target_field", &value.target_field, errors);
         }
         FieldAttributeIr::Codec(value) => {
             validate_duplicate_literals("codec strategy", &value.name, errors);
             validate_strategy_name("codec", &value.name, errors);
         }
         FieldAttributeIr::Generator(value) => {
-            validate_duplicate_literals(
-                "generator strategy",
-                &value.name,
-                errors,
-            );
+            validate_duplicate_literals("generator strategy", &value.name, errors);
             validate_strategy_name("generator", &value.name, errors);
         }
     }
@@ -808,20 +636,8 @@ fn validate_text(value: &TextAttribute, errors: &mut Option<Error>) {
     validate_duplicate_values("repertoire", &value.repertoire, errors);
     validate_duplicate_spans("non_blank", &value.non_blank, errors);
     validate_duplicate_values("format", &value.format, errors);
-    validate_min_max(
-        "min_chars",
-        &value.min_chars,
-        "max_chars",
-        &value.max_chars,
-        errors,
-    );
-    validate_min_max(
-        "min_bytes",
-        &value.min_bytes,
-        "max_bytes",
-        &value.max_bytes,
-        errors,
-    );
+    validate_min_max("min_chars", &value.min_chars, "max_chars", &value.max_chars, errors);
+    validate_min_max("min_bytes", &value.min_bytes, "max_bytes", &value.max_bytes, errors);
 }
 
 /// Validates element constraint uniqueness and retained arguments.
@@ -847,9 +663,7 @@ fn validate_element(value: &ElementIr, errors: &mut Option<Error>) {
         }
         match attribute {
             ElementConstraintIr::Text(value) => validate_text(value, errors),
-            ElementConstraintIr::Decimal(value) => {
-                validate_decimal(value, errors)
-            }
+            ElementConstraintIr::Decimal(value) => validate_decimal(value, errors),
         }
     }
 }
@@ -871,20 +685,13 @@ fn element_constraint_span(value: &ElementConstraintIr) -> Span {
 }
 
 /// Rejects an empty logical codec or generator name.
-fn validate_strategy_name(
-    kind: &str,
-    names: &[LitStr],
-    errors: &mut Option<Error>,
-) {
+fn validate_strategy_name(kind: &str, names: &[LitStr], errors: &mut Option<Error>) {
     if let Some(name) = names.first()
         && name.value().trim().is_empty()
     {
         push_error(
             errors,
-            Error::new(
-                name.span(),
-                format!("`{kind}` strategy name cannot be empty"),
-            ),
+            Error::new(name.span(), format!("`{kind}` strategy name cannot be empty")),
         );
     }
 }
@@ -894,19 +701,13 @@ fn validate_decimal(value: &DecimalIr, errors: &mut Option<Error>) {
     validate_duplicate_values("precision", &value.value.precision, errors);
     validate_duplicate_values("scale", &value.value.scale, errors);
     validate_duplicate_values("rounding", &value.value.rounding, errors);
-    if matches!(value.semantic, DecimalSemantic::Money)
-        && value.value.scale.is_empty()
-    {
+    if matches!(value.semantic, DecimalSemantic::Money) && value.value.scale.is_empty() {
         push_error(
             errors,
-            Error::new(
-                value.value.span,
-                "`money` requires an explicit `scale`",
-            ),
+            Error::new(value.value.span, "`money` requires an explicit `scale`"),
         );
     }
-    if let (Some(precision), Some(scale)) =
-        (value.value.precision.first(), value.value.scale.first())
+    if let (Some(precision), Some(scale)) = (value.value.precision.first(), value.value.scale.first())
         && scale.value > precision.value
     {
         push_error(
@@ -918,30 +719,20 @@ fn validate_decimal(value: &DecimalIr, errors: &mut Option<Error>) {
 
 /// Validates the fixed-length-array redundancy rule when the array syntax is
 /// explicit.
-fn validate_sequence_shape(
-    value: &crate::attribute::SequenceAttribute,
-    ty: &Type,
-    errors: &mut Option<Error>,
-) {
+fn validate_sequence_shape(value: &crate::attribute::SequenceAttribute, ty: &Type, errors: &mut Option<Error>) {
     if !is_syntactic_array(ty) {
         return;
     }
     for occurrence in &value.min_items {
         push_error(
             errors,
-            Error::new(
-                occurrence.span,
-                "array length is fixed by its type; remove `min_items`",
-            ),
+            Error::new(occurrence.span, "array length is fixed by its type; remove `min_items`"),
         );
     }
     for occurrence in &value.max_items {
         push_error(
             errors,
-            Error::new(
-                occurrence.span,
-                "array length is fixed by its type; remove `max_items`",
-            ),
+            Error::new(occurrence.span, "array length is fixed by its type; remove `max_items`"),
         );
     }
 }
@@ -991,83 +782,45 @@ fn validate_min_max(
     {
         push_error(
             errors,
-            Error::new(
-                min.span,
-                format!("`{min_name}` cannot exceed `{max_name}`"),
-            ),
+            Error::new(min.span, format!("`{min_name}` cannot exceed `{max_name}`")),
         );
     }
 }
 
 /// Reports every occurrence after the first for a single-valued spanned
 /// argument.
-fn validate_duplicate_values<T>(
-    name: &str,
-    values: &[SpannedValue<T>],
-    errors: &mut Option<Error>,
-) {
+fn validate_duplicate_values<T>(name: &str, values: &[SpannedValue<T>], errors: &mut Option<Error>) {
     for value in values.iter().skip(1) {
-        push_error(
-            errors,
-            Error::new(value.span, format!("duplicate `{name}` argument")),
-        );
+        push_error(errors, Error::new(value.span, format!("duplicate `{name}` argument")));
     }
 }
 
 /// Reports every marker occurrence after the first.
-fn validate_duplicate_spans(
-    name: &str,
-    spans: &[Span],
-    errors: &mut Option<Error>,
-) {
+fn validate_duplicate_spans(name: &str, spans: &[Span], errors: &mut Option<Error>) {
     for span in spans.iter().skip(1) {
-        push_error(
-            errors,
-            Error::new(*span, format!("duplicate `{name}` argument")),
-        );
+        push_error(errors, Error::new(*span, format!("duplicate `{name}` argument")));
     }
 }
 
 /// Reports every string literal occurrence after the first.
-fn validate_duplicate_literals(
-    name: &str,
-    values: &[LitStr],
-    errors: &mut Option<Error>,
-) {
+fn validate_duplicate_literals(name: &str, values: &[LitStr], errors: &mut Option<Error>) {
     for value in values.iter().skip(1) {
-        push_error(
-            errors,
-            Error::new(value.span(), format!("duplicate `{name}` argument")),
-        );
+        push_error(errors, Error::new(value.span(), format!("duplicate `{name}` argument")));
     }
 }
 
 /// Reports every type-path occurrence after the first.
-fn validate_duplicate_type_paths(
-    name: &str,
-    values: &[TypePath],
-    errors: &mut Option<Error>,
-) {
+fn validate_duplicate_type_paths(name: &str, values: &[TypePath], errors: &mut Option<Error>) {
     for value in values.iter().skip(1) {
-        push_error(
-            errors,
-            Error::new(value.span(), format!("duplicate `{name}` argument")),
-        );
+        push_error(errors, Error::new(value.span(), format!("duplicate `{name}` argument")));
     }
 }
 
 /// Reports every field-path occurrence after the first.
-fn validate_duplicate_field_paths(
-    name: &str,
-    values: &[Vec<FieldName>],
-    errors: &mut Option<Error>,
-) {
+fn validate_duplicate_field_paths(name: &str, values: &[Vec<FieldName>], errors: &mut Option<Error>) {
     for value in values.iter().skip(1) {
         if let Some(first) = value.first() {
-            push_error(
-                errors,
-                Error::new(first.span, format!("duplicate `{name}` argument")),
-            );
+            push_error(errors, Error::new(first.span, format!("duplicate `{name}` argument")));
         }
     }
 }
@@ -1101,9 +854,7 @@ fn model_attribute_span(attribute: &ModelAttributeIr) -> Span {
     match attribute {
         ModelAttributeIr::PrimaryKey(value) => value.span,
         ModelAttributeIr::Unique(value) => value.span,
-        ModelAttributeIr::Index(value) | ModelAttributeIr::Key(value) => {
-            value.span
-        }
+        ModelAttributeIr::Index(value) | ModelAttributeIr::Key(value) => value.span,
         ModelAttributeIr::Ownership(value) => value.span,
     }
 }
@@ -1135,9 +886,7 @@ fn field_attribute_span(attribute: &FieldAttributeIr) -> Span {
         FieldAttributeIr::Element(value) => value.span,
         FieldAttributeIr::Reference(value) => value.span,
         FieldAttributeIr::LookupRelation(value) => value.span,
-        FieldAttributeIr::Codec(value) | FieldAttributeIr::Generator(value) => {
-            value.span
-        }
+        FieldAttributeIr::Codec(value) | FieldAttributeIr::Generator(value) => value.span,
     }
 }
 

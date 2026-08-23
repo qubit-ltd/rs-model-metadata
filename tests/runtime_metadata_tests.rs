@@ -172,12 +172,7 @@ fn test_derive_emits_declared_fields_and_nullable_shape() {
     let metadata = metadata_of::<User>();
 
     assert_eq!(metadata.fields().count(), 2);
-    assert!(
-        metadata
-            .field("nickname")
-            .expect("nickname metadata")
-            .is_nullable()
-    );
+    assert!(metadata.field("nickname").expect("nickname metadata").is_nullable());
 }
 
 #[test]
@@ -210,10 +205,7 @@ fn test_shorthand_normalizes_to_type_constraints() {
     );
     assert!(primary_key.fields()[0].is_generated());
 
-    let unique = metadata
-        .unique_constraints()
-        .next()
-        .expect("unique metadata");
+    let unique = metadata.unique_constraints().next().expect("unique metadata");
     assert_eq!(
         unique
             .fields()
@@ -247,18 +239,12 @@ fn test_derive_emits_newtype_metadata() {
 
 #[test]
 fn test_derive_newtype_inherits_inner_type_capabilities() {
-    assert_eq!(
-        <DisplayName as HasTypeShape>::CAPABILITIES,
-        TypeCapabilities::TEXT
-    );
+    assert_eq!(<DisplayName as HasTypeShape>::CAPABILITIES, TypeCapabilities::TEXT);
 }
 
 #[test]
 fn test_textual_named_model_accepts_mobile_constraints() {
-    assert_eq!(
-        <Phone as HasTypeShape>::CAPABILITIES,
-        TypeCapabilities::TEXT
-    );
+    assert_eq!(<Phone as HasTypeShape>::CAPABILITIES, TypeCapabilities::TEXT);
     assert!(matches!(
         metadata_of::<PhoneLoginParams>()
             .field("mobile")
@@ -306,19 +292,10 @@ fn test_model_attributes_expand_in_canonical_form() {
             .collect::<Vec<_>>(),
         [("id", true)]
     );
-    let unique = metadata
-        .unique_constraints()
-        .next()
-        .expect("unique metadata");
+    let unique = metadata.unique_constraints().next().expect("unique metadata");
     assert_eq!(unique.name(), Some("organization_username"));
-    assert_eq!(
-        unique.comparison_of("organization_id"),
-        Some(UniqueComparison::Exact)
-    );
-    assert_eq!(
-        unique.comparison_of("username"),
-        Some(UniqueComparison::IgnoreCase)
-    );
+    assert_eq!(unique.comparison_of("organization_id"), Some(UniqueComparison::Exact));
+    assert_eq!(unique.comparison_of("username"), Some(UniqueComparison::IgnoreCase));
     let index = metadata.indexes().next().expect("index metadata");
     assert_eq!(index.name(), Some("created_at_index"));
     assert_eq!(index.fields(), &["created_at"]);
@@ -485,17 +462,16 @@ fn test_reference_and_strategy_attributes_expand() {
 
 #[test]
 fn test_derive_registers_every_supported_shape_and_legacy_macro() {
-    let registry = ModelRegistry::try_global()
-        .expect("the test models should register without duplicate IDs");
+    let registry = ModelRegistry::try_global().expect("the test models should register without duplicate IDs");
     for (id, rust_type_name) in [
         ("test.derive.User", "User"),
         ("test.derive.Empty", "Empty"),
         ("test.derive.UserId", "UserId"),
         ("test.derive.Status", "Status"),
     ] {
-        let registration = registry.registration(id).unwrap_or_else(|| {
-            panic!("the model with ID {id} should be registered")
-        });
+        let registration = registry
+            .registration(id)
+            .unwrap_or_else(|| panic!("the model with ID {id} should be registered"));
         assert_eq!(registration.metadata().id().as_str(), id);
         assert_eq!(registration.rust_type_name(), rust_type_name);
     }
@@ -506,10 +482,7 @@ fn test_derive_exposes_explicit_model_registration() {
     let registration = Status::model_registration();
 
     assert_eq!(registration.id().as_str(), "test.derive.Status");
-    assert!(core::ptr::eq(
-        registration.metadata(),
-        metadata_of::<Status>(),
-    ));
+    assert!(core::ptr::eq(registration.metadata(), metadata_of::<Status>(),));
 }
 
 #[test]
@@ -519,8 +492,5 @@ fn test_opaque_field_does_not_require_has_type_shape() {
         .expect("external metadata");
 
     assert!(matches!(field.field_type().shape(), TypeShape::Opaque));
-    assert_eq!(
-        field.field_type().type_name(),
-        core::any::type_name::<ExternalValue>()
-    );
+    assert_eq!(field.field_type().type_name(), core::any::type_name::<ExternalValue>());
 }

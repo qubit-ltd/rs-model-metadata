@@ -57,12 +57,8 @@ use crate::normalize::UniqueIr;
 /// Returns generated Rust tokens for the validated normalized model.
 pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
     let ident = &input.ident;
-    let id = input
-        .id
-        .first()
-        .expect("validated model input requires one model ID");
-    let kind =
-        expand_type_kind(&input.shape, &input.attributes, ident, id, runtime);
+    let id = input.id.first().expect("validated model input requires one model ID");
+    let kind = expand_type_kind(&input.shape, &input.attributes, ident, id, runtime);
     let registration = expand_registration(ident, id, runtime);
     let capabilities = match &input.shape {
         ModelShapeIr::Newtype(field) if field.opaque.is_empty() => {
@@ -107,11 +103,7 @@ pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
 }
 
 /// Generates the distributed registration for one statically derived model.
-fn expand_registration(
-    ident: &Ident,
-    id: &LitStr,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_registration(ident: &Ident, id: &LitStr, runtime: &TokenStream) -> TokenStream {
     quote! {
         #[#runtime::__private::linkme::distributed_slice(
             #runtime::MODEL_REGISTRATIONS
@@ -130,15 +122,8 @@ fn expand_registration(
 
 /// Generates type-system diagnostics that remain meaningful even when local
 /// semantic validation has already rejected the model.
-pub(crate) fn expand_independent_diagnostics(
-    input: &ModelIr,
-    runtime: &TokenStream,
-) -> TokenStream {
-    let unique_assertions = expand_unique_capability_assertions(
-        &input.shape,
-        &input.attributes,
-        runtime,
-    );
+pub(crate) fn expand_independent_diagnostics(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
+    let unique_assertions = expand_unique_capability_assertions(&input.shape, &input.attributes, runtime);
     let field_assertions = model_fields(&input.shape)
         .iter()
         .flat_map(|field| expand_capability_assertions(field, runtime))
@@ -163,8 +148,7 @@ fn expand_type_kind(
     id: &LitStr,
     runtime: &TokenStream,
 ) -> TokenStream {
-    let unique_capability_assertions =
-        expand_unique_capability_assertions(shape, attributes, runtime);
+    let unique_capability_assertions = expand_unique_capability_assertions(shape, attributes, runtime);
     let attributes = expand_model_attributes(attributes, runtime);
     match shape {
         ModelShapeIr::NamedStruct(fields) => {
@@ -236,8 +220,7 @@ fn expand_unique_capability_assertions(
         })
         .flat_map(|unique| &unique.ignore_case)
         .filter_map(|reference| {
-            let field =
-                fields.iter().find(|field| field.name == reference.name)?;
+            let field = fields.iter().find(|field| field.name == reference.name)?;
             let ty = &field.ty;
             let span = reference.span;
             Some(quote_spanned! {span=>
@@ -252,10 +235,7 @@ fn expand_unique_capability_assertions(
 }
 
 /// Generates canonical model-level runtime attributes in IR order.
-fn expand_model_attributes(
-    attributes: &[ModelAttributeIr],
-    runtime: &TokenStream,
-) -> Vec<TokenStream> {
+fn expand_model_attributes(attributes: &[ModelAttributeIr], runtime: &TokenStream) -> Vec<TokenStream> {
     attributes
         .iter()
         .map(|attribute| match attribute {
@@ -264,10 +244,7 @@ fn expand_model_attributes(
             ModelAttributeIr::Index(index) => expand_named_fields(index, runtime, true),
             ModelAttributeIr::Key(key) => expand_named_fields(key, runtime, false),
             ModelAttributeIr::Ownership(ownership) => {
-                let owner = ownership
-                    .owner
-                    .first()
-                    .expect("ownership parser requires an owner");
+                let owner = ownership.owner.first().expect("ownership parser requires an owner");
                 let span = ownership.span;
                 quote_spanned! {span=>
                     #runtime::AttributeMetadata::Ownership(#runtime::OwnershipMetadata::new(
@@ -280,10 +257,7 @@ fn expand_model_attributes(
 }
 
 /// Generates one model-level primary-key attribute.
-fn expand_primary_key(
-    primary_key: &PrimaryKeyIr,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_primary_key(primary_key: &PrimaryKeyIr, runtime: &TokenStream) -> TokenStream {
     let fields = primary_key.fields.iter().map(|field| {
         let name = LitStr::new(&field.name, field.span);
         let generated = primary_key
@@ -307,10 +281,7 @@ fn expand_unique(unique: &UniqueIr, runtime: &TokenStream) -> TokenStream {
     let name = expand_optional_name(unique.name.first());
     let fields = unique.fields.iter().map(|field| {
         let name = LitStr::new(&field.name, field.span);
-        let ignore_case = unique
-            .ignore_case
-            .iter()
-            .any(|candidate| candidate.name == field.name);
+        let ignore_case = unique.ignore_case.iter().any(|candidate| candidate.name == field.name);
         let comparison = if ignore_case {
             quote!(#runtime::UniqueComparison::IgnoreCase)
         } else {
@@ -330,16 +301,9 @@ fn expand_unique(unique: &UniqueIr, runtime: &TokenStream) -> TokenStream {
 }
 
 /// Generates an index or logical-key attribute from ordered field names.
-fn expand_named_fields(
-    value: &NamedFieldsIr,
-    runtime: &TokenStream,
-    index: bool,
-) -> TokenStream {
+fn expand_named_fields(value: &NamedFieldsIr, runtime: &TokenStream, index: bool) -> TokenStream {
     let name = expand_optional_name(value.name.first());
-    let fields = value
-        .fields
-        .iter()
-        .map(|(name, span)| LitStr::new(name, *span));
+    let fields = value.fields.iter().map(|(name, span)| LitStr::new(name, *span));
     let span = value.span;
     if index {
         quote_spanned! {span=>
@@ -367,14 +331,8 @@ fn expand_optional_name(name: Option<&LitStr>) -> TokenStream {
 }
 
 /// Generates field metadata values in declaration order.
-fn expand_fields(
-    fields: &[FieldIr],
-    runtime: &TokenStream,
-) -> Vec<TokenStream> {
-    fields
-        .iter()
-        .map(|field| expand_field(field, runtime))
-        .collect()
+fn expand_fields(fields: &[FieldIr], runtime: &TokenStream) -> Vec<TokenStream> {
+    fields.iter().map(|field| expand_field(field, runtime)).collect()
 }
 
 /// Generates one static field metadata value and its canonical attributes.
@@ -431,10 +389,7 @@ fn expand_opaque_shape(ty: &Type, runtime: &TokenStream) -> TokenStream {
 
 /// Generates the visible shape for a path type, when its final segment is a
 /// supported standard container.
-fn expand_opaque_path_shape(
-    path: &TypePath,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_opaque_path_shape(path: &TypePath, runtime: &TokenStream) -> TokenStream {
     let Some(segment) = path.path.segments.last() else {
         return quote!(#runtime::TypeShape::Opaque);
     };
@@ -452,10 +407,7 @@ fn expand_opaque_path_shape(
             }
         })
         .collect::<Vec<_>>();
-    match (
-        segment.ident.to_string().as_str(),
-        type_arguments.as_slice(),
-    ) {
+    match (segment.ident.to_string().as_str(), type_arguments.as_slice()) {
         ("Option", [inner]) => {
             let inner = expand_opaque_type_ref(inner, runtime);
             quote!(#runtime::TypeShape::Optional(#inner))
@@ -488,10 +440,7 @@ fn expand_opaque_type_ref(ty: &Type, runtime: &TokenStream) -> TokenStream {
 
 /// Generates const assertions for capabilities that must be resolved through
 /// Rust's type system.
-fn expand_capability_assertions(
-    field: &FieldIr,
-    runtime: &TokenStream,
-) -> Vec<TokenStream> {
+fn expand_capability_assertions(field: &FieldIr, runtime: &TokenStream) -> Vec<TokenStream> {
     if !field.opaque.is_empty() {
         return Vec::new();
     }
@@ -508,9 +457,7 @@ fn expand_capability_assertions(
                     "`text` requires a text-capable field",
                     runtime,
                 ),
-                FieldAttributeIr::Sequence(value) => {
-                    expand_sequence_capability_assertion(ty, value, runtime)
-                }
+                FieldAttributeIr::Sequence(value) => expand_sequence_capability_assertion(ty, value, runtime),
                 FieldAttributeIr::Map(value) => expand_capability_assertion(
                     ty,
                     value.span,
@@ -518,23 +465,17 @@ fn expand_capability_assertions(
                     "`map` requires a map-capable field",
                     runtime,
                 ),
-                FieldAttributeIr::Temporal(value) => {
-                    expand_capability_assertion(
-                        ty,
-                        value.span,
-                        quote!(#runtime::TypeCapabilities::TEMPORAL),
-                        "`time` requires a temporal-capable field",
-                        runtime,
-                    )
-                }
+                FieldAttributeIr::Temporal(value) => expand_capability_assertion(
+                    ty,
+                    value.span,
+                    quote!(#runtime::TypeCapabilities::TEMPORAL),
+                    "`time` requires a temporal-capable field",
+                    runtime,
+                ),
                 FieldAttributeIr::Decimal(value) => {
                     let message = match value.semantic {
-                        DecimalSemantic::Number => {
-                            "`decimal` requires a decimal-capable field"
-                        }
-                        DecimalSemantic::Money => {
-                            "`money` requires a decimal-capable field"
-                        }
+                        DecimalSemantic::Number => "`decimal` requires a decimal-capable field",
+                        DecimalSemantic::Money => "`money` requires a decimal-capable field",
                     };
                     expand_capability_assertion(
                         ty,
@@ -544,9 +485,7 @@ fn expand_capability_assertions(
                         runtime,
                     )
                 }
-                FieldAttributeIr::Element(value) => {
-                    expand_element_capability_assertion(ty, value, runtime)
-                }
+                FieldAttributeIr::Element(value) => expand_element_capability_assertion(ty, value, runtime),
                 FieldAttributeIr::Reference(_)
                 | FieldAttributeIr::LookupRelation(_)
                 | FieldAttributeIr::Codec(_)
@@ -574,11 +513,7 @@ fn expand_capability_assertion(
 }
 
 /// Generates the authoritative sequence capability and redundancy checks.
-fn expand_sequence_capability_assertion(
-    ty: &Type,
-    value: &SequenceAttribute,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_sequence_capability_assertion(ty: &Type, value: &SequenceAttribute, runtime: &TokenStream) -> TokenStream {
     let span = value.span;
     let unique_items_check = value.unique_items.first().map(|span| {
         quote_spanned! {*span=>
@@ -587,8 +522,7 @@ fn expand_sequence_capability_assertion(
             }
         }
     });
-    let repeats_length =
-        !value.min_items.is_empty() || !value.max_items.is_empty();
+    let repeats_length = !value.min_items.is_empty() || !value.max_items.is_empty();
     quote_spanned! {span=>
         const _: () = {
             let capabilities = <#ty as #runtime::HasTypeShape>::CAPABILITIES;
@@ -605,11 +539,7 @@ fn expand_sequence_capability_assertion(
 }
 
 /// Generates capability assertions for a field's element constraints.
-fn expand_element_capability_assertion(
-    ty: &Type,
-    value: &ElementIr,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_element_capability_assertion(ty: &Type, value: &ElementIr, runtime: &TokenStream) -> TokenStream {
     let checks = value.attributes.iter().map(|attribute| match attribute {
         ElementConstraintIr::Text(value) => {
             let span = value.span;
@@ -643,10 +573,7 @@ fn expand_element_capability_assertion(
 }
 
 /// Generates canonical field-level runtime attributes in IR order.
-fn expand_field_attributes(
-    attributes: &[FieldAttributeIr],
-    runtime: &TokenStream,
-) -> Vec<TokenStream> {
+fn expand_field_attributes(attributes: &[FieldAttributeIr], runtime: &TokenStream) -> Vec<TokenStream> {
     attributes
         .iter()
         .map(|attribute| match attribute {
@@ -687,10 +614,7 @@ fn expand_field_attributes(
 }
 
 /// Generates one text constraint attribute.
-fn expand_text(
-    value: &crate::attribute::TextAttribute,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_text(value: &crate::attribute::TextAttribute, runtime: &TokenStream) -> TokenStream {
     let min_chars = expand_optional_u32(value.min_chars.first());
     let max_chars = expand_optional_u32(value.max_chars.first());
     let min_bytes = expand_optional_u32(value.min_bytes.first());
@@ -737,10 +661,7 @@ fn expand_text(
 }
 
 /// Generates one temporal constraint attribute.
-fn expand_temporal(
-    value: &crate::attribute::TemporalAttribute,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_temporal(value: &crate::attribute::TemporalAttribute, runtime: &TokenStream) -> TokenStream {
     let precision = value.precision.first();
     let precision_value = match precision.map(|occurrence| occurrence.value) {
         None | Some(TemporalPrecision::Second) => {
@@ -763,15 +684,14 @@ fn expand_temporal(
         precision_value
     };
     let normalization = value.normalization.first();
-    let normalization_value =
-        match normalization.map(|occurrence| occurrence.value) {
-            None | Some(TemporalNormalization::Preserve) => {
-                quote!(#runtime::TemporalNormalization::Preserve)
-            }
-            Some(TemporalNormalization::Utc) => {
-                quote!(#runtime::TemporalNormalization::Utc)
-            }
-        };
+    let normalization_value = match normalization.map(|occurrence| occurrence.value) {
+        None | Some(TemporalNormalization::Preserve) => {
+            quote!(#runtime::TemporalNormalization::Preserve)
+        }
+        Some(TemporalNormalization::Utc) => {
+            quote!(#runtime::TemporalNormalization::Utc)
+        }
+    };
     let normalization = if let Some(normalization) = normalization {
         let normalization_span = normalization.span;
         quote_spanned!(normalization_span=> #normalization_value)
@@ -788,10 +708,7 @@ fn expand_temporal(
 }
 
 /// Generates one normalized decimal constraint attribute.
-fn expand_decimal(
-    value: &crate::normalize::DecimalIr,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_decimal(value: &crate::normalize::DecimalIr, runtime: &TokenStream) -> TokenStream {
     let precision = expand_optional_u16(value.value.precision.first());
     let scale = expand_u16_or_default(value.value.scale.first());
     let rounding = value.value.rounding.first();
@@ -840,9 +757,7 @@ fn expand_element(value: &ElementIr, runtime: &TokenStream) -> TokenStream {
 
 /// Generates an `Option<u32>` expression without relying on `Option<T>` token
 /// flattening.
-fn expand_optional_u32(
-    value: Option<&crate::attribute::SpannedValue<u32>>,
-) -> TokenStream {
+fn expand_optional_u32(value: Option<&crate::attribute::SpannedValue<u32>>) -> TokenStream {
     match value {
         Some(value) => {
             let number = value.value;
@@ -855,9 +770,7 @@ fn expand_optional_u32(
 
 /// Generates an `Option<u16>` expression without relying on `Option<T>` token
 /// flattening.
-fn expand_optional_u16(
-    value: Option<&crate::attribute::SpannedValue<u16>>,
-) -> TokenStream {
+fn expand_optional_u16(value: Option<&crate::attribute::SpannedValue<u16>>) -> TokenStream {
     match value {
         Some(value) => {
             let number = value.value;
@@ -870,9 +783,7 @@ fn expand_optional_u16(
 
 /// Generates a required `u16` expression, using zero for syntax deferred to
 /// validation.
-fn expand_u16_or_default(
-    value: Option<&crate::attribute::SpannedValue<u16>>,
-) -> TokenStream {
+fn expand_u16_or_default(value: Option<&crate::attribute::SpannedValue<u16>>) -> TokenStream {
     match value {
         Some(value) => {
             let number = value.value;
@@ -884,14 +795,8 @@ fn expand_u16_or_default(
 }
 
 /// Generates one direct-reference attribute and its static field paths.
-fn expand_reference(
-    value: &crate::attribute::ReferenceAttribute,
-    runtime: &TokenStream,
-) -> TokenStream {
-    let target = value
-        .target
-        .first()
-        .expect("reference parser requires a target");
+fn expand_reference(value: &crate::attribute::ReferenceAttribute, runtime: &TokenStream) -> TokenStream {
+    let target = value.target.first().expect("reference parser requires a target");
     let target_field = value
         .target_field
         .first()
@@ -907,9 +812,7 @@ fn expand_reference(
     };
     let same_as = match value.same_as.first() {
         Some(fields) => {
-            let fields = fields
-                .iter()
-                .map(|field| LitStr::new(&field.name, field.span));
+            let fields = fields.iter().map(|field| LitStr::new(&field.name, field.span));
             quote!(Some(#runtime::FieldPath::new(&[#(#fields),*])))
         }
         None => quote!(None),
@@ -926,14 +829,8 @@ fn expand_reference(
 }
 
 /// Generates one lookup-relation attribute and its static target field path.
-fn expand_lookup_relation(
-    value: &crate::attribute::LookupRelationAttribute,
-    runtime: &TokenStream,
-) -> TokenStream {
-    let target = value
-        .target
-        .first()
-        .expect("lookup_relation parser requires a target");
+fn expand_lookup_relation(value: &crate::attribute::LookupRelationAttribute, runtime: &TokenStream) -> TokenStream {
+    let target = value.target.first().expect("lookup_relation parser requires a target");
     let target_field = value
         .target_field
         .first()
@@ -952,11 +849,7 @@ fn expand_lookup_relation(
 }
 
 /// Generates one codec or generator strategy attribute.
-fn expand_strategy(
-    value: &crate::attribute::StrategyAttribute,
-    runtime: &TokenStream,
-    codec: bool,
-) -> TokenStream {
+fn expand_strategy(value: &crate::attribute::StrategyAttribute, runtime: &TokenStream, codec: bool) -> TokenStream {
     let name = value.name.first().expect("strategy parser requires a name");
     let span = value.span;
     if codec {
@@ -971,10 +864,7 @@ fn expand_strategy(
 }
 
 /// Generates enum-variant metadata values in declaration order.
-fn expand_variants(
-    variants: &[ModelVariant],
-    runtime: &TokenStream,
-) -> Vec<TokenStream> {
+fn expand_variants(variants: &[ModelVariant], runtime: &TokenStream) -> Vec<TokenStream> {
     variants
         .iter()
         .map(|variant| {

@@ -29,9 +29,6 @@ fn test_model_attributes_share_metadata_expansion() {
 
     assert_eq!(current.fields().count(), 1);
     assert_eq!(second.fields().count(), 1);
-    assert_eq!(
-        current.field("value").expect("current field").name(),
-        "value"
-    );
+    assert_eq!(current.field("value").expect("current field").name(), "value");
     assert_eq!(second.field("value").expect("second field").name(), "value");
 }
