@@ -128,11 +128,7 @@ impl fmt::Display for ModelGraphError {
     /// Formats this graph-validation error with its model IDs and field paths.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingTarget {
-                source,
-                field,
-                target,
-            } => write!(
+            Self::MissingTarget { source, field, target } => write!(
                 formatter,
                 "reference {}.{field} targets missing model {}",
                 source.as_str(),
@@ -164,30 +160,18 @@ impl fmt::Display for ModelGraphError {
                 target_field,
                 target.as_str()
             ),
-            Self::InvalidSameAs {
-                source,
-                field,
-                same_as,
-            } => write!(
+            Self::InvalidSameAs { source, field, same_as } => write!(
                 formatter,
                 "reference {}.{field} has invalid same_as path {}",
                 source.as_str(),
                 same_as
             ),
-            Self::IncompatibleSameAs {
-                source,
-                field,
-                same_as,
-            } => write!(
+            Self::IncompatibleSameAs { source, field, same_as } => write!(
                 formatter,
                 "reference {}.{field} has incompatible same_as path {same_as}",
                 source.as_str()
             ),
-            Self::MissingLookupTarget {
-                source,
-                field,
-                target,
-            } => write!(
+            Self::MissingLookupTarget { source, field, target } => write!(
                 formatter,
                 "lookup relation {}.{field} targets missing model {}",
                 source.as_str(),

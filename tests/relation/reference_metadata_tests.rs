@@ -17,8 +17,7 @@ fn test_reference_metadata_preserves_direct_reference_details() {
     let target = ModelId::new("test.metadata.Target");
     let target_field = FieldPath::new(&["id"]);
     let same_as = FieldPath::new(&["account_id"]);
-    let reference =
-        ReferenceMetadata::new(target, target_field, true, Some(same_as));
+    let reference = ReferenceMetadata::new(target, target_field, true, Some(same_as));
 
     assert_eq!(reference.target(), target);
     assert_eq!(reference.target_field(), target_field);

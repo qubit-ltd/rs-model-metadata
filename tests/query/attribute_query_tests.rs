@@ -36,23 +36,16 @@ fn test_attribute_query_returns_no_match_for_empty_attributes() {
 
 #[test]
 fn test_attribute_query_reads_field_attributes() {
-    static ATTRIBUTES: [AttributeMetadata; 1] =
-        [AttributeMetadata::Text(TextConstraint::new(
-            None,
-            Some(16),
-            None,
-            None,
-            TextRepertoire::Ascii,
-            false,
-            None,
-        ))];
-    let field = FieldMetadata::new(
-        0,
-        "name",
-        "String",
-        TypeRef::of::<String>(),
-        &ATTRIBUTES,
-    );
+    static ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(TextConstraint::new(
+        None,
+        Some(16),
+        None,
+        None,
+        TextRepertoire::Ascii,
+        false,
+        None,
+    ))];
+    let field = FieldMetadata::new(0, "name", "String", TypeRef::of::<String>(), &ATTRIBUTES);
 
     assert!(matches!(
         field.attribute(AttributeKind::Text),

@@ -101,14 +101,13 @@ static MISMATCH_REGISTRATION: ModelRegistration = ModelRegistration::new(
     "test::metadata",
     SourceLocation::new("mismatch.rs", 40, 4),
 );
-static IDENTITY_DUPLICATE_REGISTRATION: ModelRegistration =
-    ModelRegistration::new(
-        ModelId::new("test.metadata.IdentityDuplicate"),
-        &IDENTITY_DUPLICATE_METADATA,
-        "test::IdentityDuplicate",
-        "test::metadata",
-        SourceLocation::new("identity_duplicate.rs", 50, 1),
-    );
+static IDENTITY_DUPLICATE_REGISTRATION: ModelRegistration = ModelRegistration::new(
+    ModelId::new("test.metadata.IdentityDuplicate"),
+    &IDENTITY_DUPLICATE_METADATA,
+    "test::IdentityDuplicate",
+    "test::metadata",
+    SourceLocation::new("identity_duplicate.rs", 50, 1),
+);
 
 impl HasTypeMetadata for Account {
     fn type_metadata() -> &'static TypeMetadata {
@@ -129,20 +128,14 @@ impl HasModelRegistration for Account {
 
 #[test]
 fn test_from_registrations_sorts_and_looks_up_models() {
-    let registry = ModelRegistry::from_registrations([
-        &ORGANIZATION_REGISTRATION,
-        &ACCOUNT_REGISTRATION,
-    ])
-    .expect("the registrations should be valid and unique");
+    let registry = ModelRegistry::from_registrations([&ORGANIZATION_REGISTRATION, &ACCOUNT_REGISTRATION])
+        .expect("the registrations should be valid and unique");
 
     let registrations: Vec<_> = registry
         .registrations()
         .map(|registration| registration.id().as_str())
         .collect();
-    assert_eq!(
-        registrations,
-        ["test.metadata.Account", "test.metadata.Organization"]
-    );
+    assert_eq!(registrations, ["test.metadata.Account", "test.metadata.Organization"]);
     assert!(core::ptr::eq(
         registry
             .get("test.metadata.Account")
@@ -161,14 +154,10 @@ fn test_from_registrations_sorts_and_looks_up_models() {
 
 #[test]
 fn test_registration_of_exposes_explicit_model_catalog_entries() {
-    let registry =
-        ModelRegistry::from_registrations([registration_of::<Account>()])
-            .expect("the explicit model catalog should be valid");
+    let registry = ModelRegistry::from_registrations([registration_of::<Account>()])
+        .expect("the explicit model catalog should be valid");
 
-    assert!(core::ptr::eq(
-        registration_of::<Account>(),
-        &ACCOUNT_REGISTRATION
-    ));
+    assert!(core::ptr::eq(registration_of::<Account>(), &ACCOUNT_REGISTRATION));
     assert!(core::ptr::eq(
         registry
             .resolve(TypeIdentity::of::<Account>())
@@ -179,11 +168,8 @@ fn test_registration_of_exposes_explicit_model_catalog_entries() {
 
 #[test]
 fn test_from_registrations_rejects_duplicate_type_identity() {
-    let error = ModelRegistry::from_registrations([
-        &ACCOUNT_REGISTRATION,
-        &IDENTITY_DUPLICATE_REGISTRATION,
-    ])
-    .expect_err("one Rust type identity cannot have two registrations");
+    let error = ModelRegistry::from_registrations([&ACCOUNT_REGISTRATION, &IDENTITY_DUPLICATE_REGISTRATION])
+        .expect_err("one Rust type identity cannot have two registrations");
 
     match error {
         ModelRegistryError::DuplicateIdentity {
@@ -201,11 +187,8 @@ fn test_from_registrations_rejects_duplicate_type_identity() {
 
 #[test]
 fn test_from_registrations_reports_duplicate_id_in_stable_order() {
-    let error = ModelRegistry::from_registrations([
-        &DUPLICATE_Z_REGISTRATION,
-        &DUPLICATE_A_REGISTRATION,
-    ])
-    .expect_err("duplicate model IDs must be rejected");
+    let error = ModelRegistry::from_registrations([&DUPLICATE_Z_REGISTRATION, &DUPLICATE_A_REGISTRATION])
+        .expect_err("duplicate model IDs must be rejected");
 
     match error {
         ModelRegistryError::DuplicateId { id, first, second } => {

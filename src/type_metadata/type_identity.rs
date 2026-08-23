@@ -78,14 +78,8 @@ impl core::fmt::Debug for TypeIdentity {
     /// # Returns
     ///
     /// `Ok(())` when formatting succeeds; otherwise, the formatter's error.
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        formatter
-            .debug_tuple("TypeIdentity")
-            .field(&self.type_name())
-            .finish()
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.debug_tuple("TypeIdentity").field(&self.type_name()).finish()
     }
 }
 

@@ -65,25 +65,18 @@ impl ElementMetadata {
 ///
 /// Panics when an attribute is not a text or decimal constraint or when either
 /// constraint kind appears more than once.
-const fn validate_element_metadata_attributes(
-    attributes: &'static [AttributeMetadata],
-) {
+const fn validate_element_metadata_attributes(attributes: &'static [AttributeMetadata]) {
     let mut index = 0;
     while index < attributes.len() {
         match attributes[index] {
             AttributeMetadata::Text(_) | AttributeMetadata::Decimal(_) => {}
-            _ => panic!(
-                "element metadata only supports text and decimal attributes"
-            ),
+            _ => panic!("element metadata only supports text and decimal attributes"),
         }
         let mut previous = 0;
         while previous < index {
             match (attributes[previous], attributes[index]) {
                 (AttributeMetadata::Text(_), AttributeMetadata::Text(_))
-                | (
-                    AttributeMetadata::Decimal(_),
-                    AttributeMetadata::Decimal(_),
-                ) => {
+                | (AttributeMetadata::Decimal(_), AttributeMetadata::Decimal(_)) => {
                     panic!("element metadata attributes must be unique")
                 }
                 _ => {}

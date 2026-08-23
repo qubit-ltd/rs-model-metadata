@@ -38,10 +38,7 @@ impl EnumMetadata {
         let mut index = 0;
         while index < variants.len() {
             let variant = variants[index];
-            assert!(
-                !variant.name().is_empty(),
-                "enum variant names cannot be empty"
-            );
+            assert!(!variant.name().is_empty(), "enum variant names cannot be empty");
             if variant.ordinal() != index {
                 panic!("enum variant ordinals must match declaration order");
             }
@@ -101,10 +98,7 @@ impl EnumMetadata {
     /// `Some` with the matching variant, or `None` when the ordinal is out of
     /// range.
     #[must_use]
-    pub const fn variant_at(
-        self,
-        ordinal: usize,
-    ) -> Option<EnumVariantMetadata> {
+    pub const fn variant_at(self, ordinal: usize) -> Option<EnumVariantMetadata> {
         if ordinal < self.variants.len() {
             Some(self.variants[ordinal])
         } else {

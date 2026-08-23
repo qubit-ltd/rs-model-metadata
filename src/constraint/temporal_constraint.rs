@@ -31,10 +31,7 @@ impl TemporalConstraint {
     /// Temporal constraints containing the supplied precision and policy.
     #[must_use]
     #[inline(always)]
-    pub const fn new(
-        precision: TemporalPrecision,
-        normalization: TemporalNormalization,
-    ) -> Self {
+    pub const fn new(precision: TemporalPrecision, normalization: TemporalNormalization) -> Self {
         Self {
             precision,
             normalization,

@@ -35,10 +35,7 @@ impl IndexMetadata {
     ///
     /// An index definition containing the supplied fields.
     #[must_use]
-    pub const fn new(
-        name: Option<&'static str>,
-        fields: &'static [&'static str],
-    ) -> Self {
+    pub const fn new(name: Option<&'static str>, fields: &'static [&'static str]) -> Self {
         validate_optional_logical_name(name);
         assert!(!fields.is_empty(), "index requires at least one field");
         validate_named_fields(fields);

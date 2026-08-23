@@ -47,48 +47,30 @@ struct Contact;
 struct Detached;
 struct UnresolvedTarget;
 
-static USERNAME_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Text(TextConstraint::new(
-        None,
-        Some(32),
-        None,
-        None,
-        TextRepertoire::Unicode,
-        false,
-        None,
-    ))];
-static ACCOUNT_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
-    [PrimaryKeyFieldMetadata::new("id", true)];
+static USERNAME_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(TextConstraint::new(
+    None,
+    Some(32),
+    None,
+    None,
+    TextRepertoire::Unicode,
+    false,
+    None,
+))];
+static ACCOUNT_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] = [PrimaryKeyFieldMetadata::new("id", true)];
 static ACCOUNT_UNIQUE_FIELDS: [UniqueFieldMetadata; 1] =
-    [UniqueFieldMetadata::new(
-        "username",
-        UniqueComparison::IgnoreCase,
-    )];
+    [UniqueFieldMetadata::new("username", UniqueComparison::IgnoreCase)];
 static ACCOUNT_INDEX_FIELDS: [&str; 1] = ["username"];
 static ACCOUNT_KEY_FIELDS: [&str; 1] = ["username"];
 static ACCOUNT_ATTRIBUTES: [AttributeMetadata; 5] = [
-    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
-        &ACCOUNT_PRIMARY_KEY_FIELDS,
-    )),
-    AttributeMetadata::Unique(UniqueMetadata::new(
-        None,
-        &ACCOUNT_UNIQUE_FIELDS,
-    )),
+    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(&ACCOUNT_PRIMARY_KEY_FIELDS)),
+    AttributeMetadata::Unique(UniqueMetadata::new(None, &ACCOUNT_UNIQUE_FIELDS)),
     AttributeMetadata::Index(IndexMetadata::new(None, &ACCOUNT_INDEX_FIELDS)),
     AttributeMetadata::Key(KeyMetadata::new(None, &ACCOUNT_KEY_FIELDS)),
-    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::of::<
-        Account,
-    >())),
+    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::of::<Account>())),
 ];
 static ACCOUNT_FIELDS: [FieldMetadata; 5] = [
     FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &[]),
-    FieldMetadata::new(
-        1,
-        "username",
-        "String",
-        TypeRef::of::<String>(),
-        &USERNAME_ATTRIBUTES,
-    ),
+    FieldMetadata::new(1, "username", "String", TypeRef::of::<String>(), &USERNAME_ATTRIBUTES),
     FieldMetadata::new(
         2,
         "aliases",
@@ -111,13 +93,7 @@ static ACCOUNT_METADATA: TypeMetadata = TypeMetadata::new(
     TypeKind::Struct(StructMetadata::new(&ACCOUNT_FIELDS)),
     &ACCOUNT_ATTRIBUTES,
 );
-static CONTACT_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
-    0,
-    "email",
-    "String",
-    TypeRef::of::<String>(),
-    &[],
-)];
+static CONTACT_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(0, "email", "String", TypeRef::of::<String>(), &[])];
 static CONTACT_METADATA: TypeMetadata = TypeMetadata::new(
     ModelId::new("test.metadata.Contact"),
     TypeIdentity::of::<Contact>(),
@@ -172,8 +148,7 @@ impl HasTypeMetadata for Detached {
 }
 
 impl HasTypeShape for UnresolvedTarget {
-    const TYPE_SHAPE: TypeShape =
-        TypeShape::Named(NamedTypeRef::unresolved(TypeIdentity::of::<Self>()));
+    const TYPE_SHAPE: TypeShape = TypeShape::Named(NamedTypeRef::unresolved(TypeIdentity::of::<Self>()));
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::NONE;
 }
 
@@ -191,17 +166,11 @@ fn test_field_and_unique_constraint_queries_are_typed() {
     let username = metadata.field("username").expect("username metadata");
 
     assert_eq!(
-        metadata
-            .fields()
-            .map(|field| field.name())
-            .collect::<Vec<_>>(),
+        metadata.fields().map(|field| field.name()).collect::<Vec<_>>(),
         vec!["id", "username", "aliases", "labels", "contact"]
     );
     assert!(!username.is_nullable());
-    assert_eq!(
-        username.text_constraint().and_then(|text| text.max_chars()),
-        Some(32)
-    );
+    assert_eq!(username.text_constraint().and_then(|text| text.max_chars()), Some(32));
     assert_eq!(
         metadata
             .unique_constraints()
@@ -222,9 +191,7 @@ fn test_primary_key_index_and_generic_attribute_queries_are_typed() {
         Some(&ACCOUNT_KEY_FIELDS[..])
     );
     assert_eq!(
-        metadata
-            .ownership()
-            .map(|ownership| ownership.owner().identity()),
+        metadata.ownership().map(|ownership| ownership.owner().identity()),
         Some(TypeIdentity::of::<Account>())
     );
     assert!(matches!(
@@ -236,28 +203,20 @@ fn test_primary_key_index_and_generic_attribute_queries_are_typed() {
 
 #[test]
 fn test_vec_of_option_is_not_nullable_field() {
-    let field = metadata_of::<Account>()
-        .field("aliases")
-        .expect("aliases metadata");
+    let field = metadata_of::<Account>().field("aliases").expect("aliases metadata");
 
     assert!(!field.is_nullable());
-    assert!(
-        matches!(field.field_type().shape(), TypeShape::Sequence(element)
-        if matches!(element.shape(), TypeShape::Optional(_)))
-    );
+    assert!(matches!(field.field_type().shape(), TypeShape::Sequence(element)
+        if matches!(element.shape(), TypeShape::Optional(_))));
 }
 
 #[test]
 fn test_map_field_preserves_key_and_value_shapes() {
-    let field = metadata_of::<Account>()
-        .field("labels")
-        .expect("labels metadata");
+    let field = metadata_of::<Account>().field("labels").expect("labels metadata");
 
-    assert!(
-        matches!(field.field_type().shape(), TypeShape::Map { key, value }
+    assert!(matches!(field.field_type().shape(), TypeShape::Map { key, value }
         if key.type_name() == core::any::type_name::<String>()
-            && value.type_name() == core::any::type_name::<String>())
-    );
+            && value.type_name() == core::any::type_name::<String>()));
 }
 
 #[test]
@@ -299,9 +258,7 @@ fn test_resolve_field_path_reports_unresolvable_named_type() {
 
     assert!(matches!(
         metadata_of::<Detached>().resolve_field_path(path),
-        Err(FieldPathResolveError::NamedMetadataUnavailable {
-            segment: "target"
-        })
+        Err(FieldPathResolveError::NamedMetadataUnavailable { segment: "target" })
     ));
 }
 

@@ -25,8 +25,7 @@ static ACCOUNT_METADATA: TypeMetadata = TypeMetadata::new(
 
 #[test]
 fn test_model_registration_exposes_declaration_details() {
-    let source =
-        SourceLocation::new("tests/model_registration_tests.rs", 27, 3);
+    let source = SourceLocation::new("tests/model_registration_tests.rs", 27, 3);
     let registration = ModelRegistration::new(
         ModelId::new("test.registration.Account"),
         &ACCOUNT_METADATA,
@@ -37,10 +36,7 @@ fn test_model_registration_exposes_declaration_details() {
 
     assert_eq!(registration.id(), ACCOUNT_METADATA.id());
     assert!(core::ptr::eq(registration.metadata(), &ACCOUNT_METADATA));
-    assert_eq!(
-        registration.rust_type_name(),
-        "model_registration_tests::Account"
-    );
+    assert_eq!(registration.rust_type_name(), "model_registration_tests::Account");
     assert_eq!(registration.rust_module_path(), "model_registration_tests");
     assert_eq!(registration.source(), source);
     assert_eq!(

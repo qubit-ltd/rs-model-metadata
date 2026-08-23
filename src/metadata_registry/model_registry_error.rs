@@ -18,9 +18,7 @@ use crate::type_metadata::TypeIdentity;
 #[non_exhaustive]
 pub enum ModelRegistryError {
     /// A registration contains an ID that violates the stable-ID protocol.
-    #[error(
-        "model registration ID {id:?} is invalid for {registration}: {source}"
-    )]
+    #[error("model registration ID {id:?} is invalid for {registration}: {source}")]
     InvalidRegistrationId {
         /// The registration containing the invalid ID.
         registration: &'static ModelRegistration,
@@ -42,9 +40,7 @@ pub enum ModelRegistryError {
         source: ModelIdError,
     },
     /// A registration's ID differs from the ID stored in its metadata.
-    #[error(
-        "model registration ID {registration_id:?} does not match metadata ID {metadata_id:?} for {registration}"
-    )]
+    #[error("model registration ID {registration_id:?} does not match metadata ID {metadata_id:?} for {registration}")]
     MetadataIdMismatch {
         /// The registration with the inconsistent identifier.
         registration: &'static ModelRegistration,
@@ -64,9 +60,7 @@ pub enum ModelRegistryError {
         second: &'static ModelRegistration,
     },
     /// Two registrations describe the same Rust type identity.
-    #[error(
-        "duplicate model type identity {identity:?}: first {first}; second {second}"
-    )]
+    #[error("duplicate model type identity {identity:?}: first {first}; second {second}")]
     DuplicateIdentity {
         /// The duplicated runtime type identity.
         identity: TypeIdentity,

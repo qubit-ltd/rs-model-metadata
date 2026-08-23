@@ -35,15 +35,9 @@ impl KeyMetadata {
     ///
     /// A logical-key definition containing the supplied fields.
     #[must_use]
-    pub const fn new(
-        name: Option<&'static str>,
-        fields: &'static [&'static str],
-    ) -> Self {
+    pub const fn new(name: Option<&'static str>, fields: &'static [&'static str]) -> Self {
         validate_optional_logical_name(name);
-        assert!(
-            !fields.is_empty(),
-            "logical key requires at least one field"
-        );
+        assert!(!fields.is_empty(), "logical key requires at least one field");
         validate_named_fields(fields);
         Self { name, fields }
     }

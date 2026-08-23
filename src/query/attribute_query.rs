@@ -35,13 +35,8 @@ pub trait AttributeQuery {
     /// `Some` with the first matching attribute, or `None` when no attribute
     /// has the requested kind.
     #[must_use]
-    fn attribute(
-        &self,
-        kind: AttributeKind,
-    ) -> Option<&'static AttributeMetadata> {
-        self.attributes()
-            .iter()
-            .find(|attribute| attribute.kind() == kind)
+    fn attribute(&self, kind: AttributeKind) -> Option<&'static AttributeMetadata> {
+        self.attributes().iter().find(|attribute| attribute.kind() == kind)
     }
 
     /// Returns an iterator over every attribute with `kind` in declaration
@@ -56,10 +51,7 @@ pub trait AttributeQuery {
     /// An iterator over matching attributes in declaration order. The
     /// iterator is empty when no attribute has the requested kind.
     #[must_use]
-    fn attributes_of(
-        &self,
-        kind: AttributeKind,
-    ) -> impl Iterator<Item = &'static AttributeMetadata> {
+    fn attributes_of(&self, kind: AttributeKind) -> impl Iterator<Item = &'static AttributeMetadata> {
         self.attributes()
             .iter()
             .filter(move |attribute| attribute.kind() == kind)

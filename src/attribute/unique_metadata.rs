@@ -37,15 +37,9 @@ impl UniqueMetadata {
     ///
     /// A unique-constraint definition containing the supplied fields.
     #[must_use]
-    pub const fn new(
-        name: Option<&'static str>,
-        fields: &'static [UniqueFieldMetadata],
-    ) -> Self {
+    pub const fn new(name: Option<&'static str>, fields: &'static [UniqueFieldMetadata]) -> Self {
         validate_optional_logical_name(name);
-        assert!(
-            !fields.is_empty(),
-            "unique constraint requires at least one field"
-        );
+        assert!(!fields.is_empty(), "unique constraint requires at least one field");
         validate_unique_fields(fields);
         Self { name, fields }
     }

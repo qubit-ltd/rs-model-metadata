@@ -97,9 +97,7 @@ impl TypeRef {
     /// An opaque reference that retains `T`'s identity and visible container
     /// structure.
     #[inline]
-    pub const fn opaque_with_shape<T: 'static>(
-        shape: fn() -> TypeShape,
-    ) -> Self {
+    pub const fn opaque_with_shape<T: 'static>(shape: fn() -> TypeShape) -> Self {
         Self {
             identity: TypeIdentity::of::<T>(),
             type_name: type_name::<T>,

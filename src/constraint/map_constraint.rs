@@ -31,13 +31,8 @@ impl MapConstraint {
     ///
     /// Map constraints containing the supplied entry limits.
     #[must_use]
-    pub const fn new(
-        min_entries: Option<u32>,
-        max_entries: Option<u32>,
-    ) -> Self {
-        if let (Some(min_entries), Some(max_entries)) =
-            (min_entries, max_entries)
-        {
+    pub const fn new(min_entries: Option<u32>, max_entries: Option<u32>) -> Self {
+        if let (Some(min_entries), Some(max_entries)) = (min_entries, max_entries) {
             assert!(
                 min_entries <= max_entries,
                 "minimum entry count cannot exceed maximum entry count"

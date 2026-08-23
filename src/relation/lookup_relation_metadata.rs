@@ -40,10 +40,7 @@ impl LookupRelationMetadata {
     #[inline]
     pub const fn new(target: NamedTypeRef, target_field: FieldPath) -> Self {
         validate_target_field_path(target_field);
-        Self {
-            target,
-            target_field,
-        }
+        Self { target, target_field }
     }
 
     /// Returns the named target model.
@@ -77,9 +74,7 @@ const fn validate_target_field_path(path: FieldPath) {
     let mut index = 0;
     while index < segments.len() {
         if segments[index].is_empty() {
-            panic!(
-                "lookup relation target field path cannot contain empty segments"
-            );
+            panic!("lookup relation target field path cannot contain empty segments");
         }
         index += 1;
     }

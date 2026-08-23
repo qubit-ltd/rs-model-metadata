@@ -62,14 +62,10 @@ impl TypeMetadata {
     /// `Some` with the primary-key metadata when declared; otherwise `None`.
     #[must_use]
     pub fn primary_key(&self) -> Option<PrimaryKeyMetadata> {
-        self.attributes()
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::PrimaryKey(primary_key) => {
-                    Some(*primary_key)
-                }
-                _ => None,
-            })
+        self.attributes().iter().find_map(|attribute| match attribute {
+            AttributeMetadata::PrimaryKey(primary_key) => Some(*primary_key),
+            _ => None,
+        })
     }
 
     /// Returns model unique constraints in declaration order.
@@ -80,12 +76,10 @@ impl TypeMetadata {
     /// The iterator is empty when none are declared.
     #[must_use = "iterate over the declared unique constraints to inspect them"]
     pub fn unique_constraints(&self) -> impl Iterator<Item = UniqueMetadata> {
-        self.attributes()
-            .iter()
-            .filter_map(|attribute| match attribute {
-                AttributeMetadata::Unique(unique) => Some(*unique),
-                _ => None,
-            })
+        self.attributes().iter().filter_map(|attribute| match attribute {
+            AttributeMetadata::Unique(unique) => Some(*unique),
+            _ => None,
+        })
     }
 
     /// Returns model indexes in declaration order.
@@ -96,12 +90,10 @@ impl TypeMetadata {
     /// iterator is empty when none are declared.
     #[must_use = "iterate over the declared indexes to inspect them"]
     pub fn indexes(&self) -> impl Iterator<Item = IndexMetadata> {
-        self.attributes()
-            .iter()
-            .filter_map(|attribute| match attribute {
-                AttributeMetadata::Index(index) => Some(*index),
-                _ => None,
-            })
+        self.attributes().iter().filter_map(|attribute| match attribute {
+            AttributeMetadata::Index(index) => Some(*index),
+            _ => None,
+        })
     }
 
     /// Returns model logical keys in declaration order.
@@ -112,12 +104,10 @@ impl TypeMetadata {
     /// iterator is empty when none are declared.
     #[must_use = "iterate over the declared logical keys to inspect them"]
     pub fn keys(&self) -> impl Iterator<Item = KeyMetadata> {
-        self.attributes()
-            .iter()
-            .filter_map(|attribute| match attribute {
-                AttributeMetadata::Key(key) => Some(*key),
-                _ => None,
-            })
+        self.attributes().iter().filter_map(|attribute| match attribute {
+            AttributeMetadata::Key(key) => Some(*key),
+            _ => None,
+        })
     }
 
     /// Returns the model ownership declaration, if present.
@@ -127,12 +117,10 @@ impl TypeMetadata {
     /// `Some` with the ownership metadata when declared; otherwise `None`.
     #[must_use]
     pub fn ownership(&self) -> Option<OwnershipMetadata> {
-        self.attributes()
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Ownership(ownership) => Some(*ownership),
-                _ => None,
-            })
+        self.attributes().iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Ownership(ownership) => Some(*ownership),
+            _ => None,
+        })
     }
 
     /// Resolves a statically declared field path through named struct metadata.
@@ -158,14 +146,9 @@ impl TypeMetadata {
     /// [`FieldPathResolveError::IntermediateNotStruct`] when traversal would
     /// pass through a non-struct type.
     #[must_use = "inspect the resolved field or handle the resolution error"]
-    pub fn resolve_field_path(
-        &self,
-        path: FieldPath,
-    ) -> Result<&'static FieldMetadata, FieldPathResolveError> {
+    pub fn resolve_field_path(&self, path: FieldPath) -> Result<&'static FieldMetadata, FieldPathResolveError> {
         let segments = path.segments();
-        let (first, remaining) = segments
-            .split_first()
-            .ok_or(FieldPathResolveError::EmptyPath)?;
+        let (first, remaining) = segments.split_first().ok_or(FieldPathResolveError::EmptyPath)?;
         self.resolve_field_path_from(first, remaining)
     }
 
@@ -195,29 +178,22 @@ impl TypeMetadata {
         let field = self
             .field(segment)
             .ok_or(FieldPathResolveError::FieldNotFound { segment })?;
-        let Some((next_segment, next_remaining)) = remaining.split_first()
-        else {
+        let Some((next_segment, next_remaining)) = remaining.split_first() else {
             return Ok(field);
         };
 
         let named = match field.field_type().strip_optional().shape() {
             TypeShape::Named(named) => named,
             _ => {
-                return Err(FieldPathResolveError::IntermediateNotStruct {
-                    segment,
-                });
+                return Err(FieldPathResolveError::IntermediateNotStruct { segment });
             }
         };
-        let metadata = named.metadata().ok_or(
-            FieldPathResolveError::NamedMetadataUnavailable { segment },
-        )?;
+        let metadata = named
+            .metadata()
+            .ok_or(FieldPathResolveError::NamedMetadataUnavailable { segment })?;
         match metadata.kind() {
-            TypeKind::Struct(_) => {
-                metadata.resolve_field_path_from(next_segment, next_remaining)
-            }
-            TypeKind::Enum(_) | TypeKind::Newtype(_) => {
-                Err(FieldPathResolveError::IntermediateNotStruct { segment })
-            }
+            TypeKind::Struct(_) => metadata.resolve_field_path_from(next_segment, next_remaining),
+            TypeKind::Enum(_) | TypeKind::Newtype(_) => Err(FieldPathResolveError::IntermediateNotStruct { segment }),
         }
     }
 }

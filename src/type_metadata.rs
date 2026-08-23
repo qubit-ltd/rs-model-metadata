@@ -151,10 +151,7 @@ impl TypeMetadata {
 ///
 /// Panics when a field-level attribute is used at model scope, a singleton
 /// declaration is duplicated, or an attribute references an unknown field.
-const fn validate_type_attributes(
-    kind: TypeKind,
-    attributes: &'static [AttributeMetadata],
-) {
+const fn validate_type_attributes(kind: TypeKind, attributes: &'static [AttributeMetadata]) {
     let fields = match kind {
         TypeKind::Struct(metadata) => metadata.fields(),
         TypeKind::Enum(_) | TypeKind::Newtype(_) => &[],
@@ -166,21 +163,12 @@ const fn validate_type_attributes(
         match attributes[index] {
             AttributeMetadata::PrimaryKey(primary_key) => {
                 primary_key_count += 1;
-                assert!(
-                    primary_key_count == 1,
-                    "a model can have at most one primary key"
-                );
+                assert!(primary_key_count == 1, "a model can have at most one primary key");
                 validate_primary_key_fields(primary_key, fields);
             }
-            AttributeMetadata::Unique(unique) => {
-                validate_unique_fields(unique, fields)
-            }
-            AttributeMetadata::Index(index_metadata) => {
-                validate_index_fields(index_metadata.fields(), fields)
-            }
-            AttributeMetadata::Key(key) => {
-                validate_key_fields(key.fields(), fields)
-            }
+            AttributeMetadata::Unique(unique) => validate_unique_fields(unique, fields),
+            AttributeMetadata::Index(index_metadata) => validate_index_fields(index_metadata.fields(), fields),
+            AttributeMetadata::Key(key) => validate_key_fields(key.fields(), fields),
             AttributeMetadata::Ownership(_) => {
                 ownership_count += 1;
                 assert!(
@@ -240,10 +228,7 @@ const fn validate_primary_key_fields(
 /// # Panics
 ///
 /// Panics when the unique constraint references an unknown model field.
-const fn validate_unique_fields(
-    unique: crate::attribute::UniqueMetadata,
-    fields: &'static [FieldMetadata],
-) {
+const fn validate_unique_fields(unique: crate::attribute::UniqueMetadata, fields: &'static [FieldMetadata]) {
     let fields_to_validate = unique.fields();
     let mut index = 0;
     while index < fields_to_validate.len() {
@@ -265,10 +250,7 @@ const fn validate_unique_fields(
 /// # Panics
 ///
 /// Panics when the index references an unknown model field.
-const fn validate_index_fields(
-    names: &'static [&'static str],
-    fields: &'static [FieldMetadata],
-) {
+const fn validate_index_fields(names: &'static [&'static str], fields: &'static [FieldMetadata]) {
     let mut index = 0;
     while index < names.len() {
         assert!(
@@ -289,10 +271,7 @@ const fn validate_index_fields(
 /// # Panics
 ///
 /// Panics when the logical key references an unknown model field.
-const fn validate_key_fields(
-    names: &'static [&'static str],
-    fields: &'static [FieldMetadata],
-) {
+const fn validate_key_fields(names: &'static [&'static str], fields: &'static [FieldMetadata]) {
     let mut index = 0;
     while index < names.len() {
         assert!(
@@ -313,10 +292,7 @@ const fn validate_key_fields(
 /// # Returns
 ///
 /// `true` when a field with `name` is present; otherwise, `false`.
-const fn contains_field(
-    fields: &'static [FieldMetadata],
-    name: &'static str,
-) -> bool {
+const fn contains_field(fields: &'static [FieldMetadata], name: &'static str) -> bool {
     let mut index = 0;
     while index < fields.len() {
         if str_eq(fields[index].name(), name) {

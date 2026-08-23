@@ -113,25 +113,18 @@ const fn validate_model_id(value: &str) -> Result<(), ModelIdError> {
 }
 
 /// Validates one ASCII snake-case module segment.
-const fn validate_module_segment(
-    bytes: &[u8],
-    start: usize,
-    end: usize,
-) -> Result<(), ModelIdError> {
+const fn validate_module_segment(bytes: &[u8], start: usize, end: usize) -> Result<(), ModelIdError> {
     if is_rust_keyword(bytes, start, end) {
         return Err(ModelIdError::KeywordModuleSegment);
     }
-    if !(bytes[start] >= b'a' && bytes[start] <= b'z') || bytes[end - 1] == b'_'
-    {
+    if !(bytes[start] >= b'a' && bytes[start] <= b'z') || bytes[end - 1] == b'_' {
         return Err(ModelIdError::InvalidModuleSegment);
     }
     let mut previous_underscore = false;
     let mut index = start + 1;
     while index < end {
         let byte = bytes[index];
-        if !((byte >= b'a' && byte <= b'z')
-            || (byte >= b'0' && byte <= b'9')
-            || byte == b'_')
+        if !((byte >= b'a' && byte <= b'z') || (byte >= b'0' && byte <= b'9') || byte == b'_')
             || (byte == b'_' && previous_underscore)
         {
             return Err(ModelIdError::InvalidModuleSegment);
@@ -143,21 +136,14 @@ const fn validate_module_segment(
 }
 
 /// Validates the final ASCII UpperCamelCase type segment.
-const fn validate_type_segment(
-    bytes: &[u8],
-    start: usize,
-    end: usize,
-) -> Result<(), ModelIdError> {
+const fn validate_type_segment(bytes: &[u8], start: usize, end: usize) -> Result<(), ModelIdError> {
     if !(bytes[start] >= b'A' && bytes[start] <= b'Z') {
         return Err(ModelIdError::InvalidTypeSegment);
     }
     let mut index = start + 1;
     while index < end {
         let byte = bytes[index];
-        if !((byte >= b'a' && byte <= b'z')
-            || (byte >= b'A' && byte <= b'Z')
-            || (byte >= b'0' && byte <= b'9'))
-        {
+        if !((byte >= b'a' && byte <= b'z') || (byte >= b'A' && byte <= b'Z') || (byte >= b'0' && byte <= b'9')) {
             return Err(ModelIdError::InvalidTypeSegment);
         }
         index += 1;
@@ -220,12 +206,7 @@ const fn is_rust_keyword(bytes: &[u8], start: usize, end: usize) -> bool {
 }
 
 /// Returns whether a byte range equals a static keyword.
-const fn segment_equals(
-    bytes: &[u8],
-    start: usize,
-    end: usize,
-    keyword: &[u8],
-) -> bool {
+const fn segment_equals(bytes: &[u8], start: usize, end: usize, keyword: &[u8]) -> bool {
     if end - start != keyword.len() {
         return false;
     }

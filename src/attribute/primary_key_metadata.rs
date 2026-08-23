@@ -32,10 +32,7 @@ impl PrimaryKeyMetadata {
     /// A primary-key definition containing the supplied fields.
     #[must_use]
     pub const fn new(fields: &'static [PrimaryKeyFieldMetadata]) -> Self {
-        assert!(
-            !fields.is_empty(),
-            "primary key requires at least one field"
-        );
+        assert!(!fields.is_empty(), "primary key requires at least one field");
         validate_primary_key_fields(fields);
         Self { fields }
     }

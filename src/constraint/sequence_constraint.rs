@@ -35,11 +35,7 @@ impl SequenceConstraint {
     /// Sequence constraints containing the supplied limits and uniqueness
     /// policy.
     #[must_use]
-    pub const fn new(
-        min_items: Option<u32>,
-        max_items: Option<u32>,
-        unique_items: bool,
-    ) -> Self {
+    pub const fn new(min_items: Option<u32>, max_items: Option<u32>, unique_items: bool) -> Self {
         if let (Some(min_items), Some(max_items)) = (min_items, max_items) {
             assert!(
                 min_items <= max_items,

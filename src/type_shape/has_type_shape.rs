@@ -100,15 +100,13 @@ impl HasTypeShape for bigdecimal::BigDecimal {
 impl<T: HasTypeShape> HasTypeShape for Option<T> {
     const TYPE_SHAPE: TypeShape = TypeShape::Optional(TypeRef::of::<T>());
     const CAPABILITIES: TypeCapabilities = T::CAPABILITIES;
-    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> =
-        T::ELEMENT_CAPABILITIES;
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> = T::ELEMENT_CAPABILITIES;
 }
 
 impl<T: HasTypeShape> HasTypeShape for Vec<T> {
     const TYPE_SHAPE: TypeShape = TypeShape::Sequence(TypeRef::of::<T>());
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::SEQUENCE;
-    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> =
-        Some(T::CAPABILITIES);
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> = Some(T::CAPABILITIES);
 }
 
 impl<T: HasTypeShape> HasTypeShape for HashSet<T> {
@@ -142,8 +140,6 @@ impl<T: HasTypeShape, const N: usize> HasTypeShape for [T; N] {
         element: TypeRef::of::<T>(),
         length: N,
     };
-    const CAPABILITIES: TypeCapabilities =
-        TypeCapabilities::SEQUENCE.union(TypeCapabilities::ARRAY);
-    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> =
-        Some(T::CAPABILITIES);
+    const CAPABILITIES: TypeCapabilities = TypeCapabilities::SEQUENCE.union(TypeCapabilities::ARRAY);
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> = Some(T::CAPABILITIES);
 }

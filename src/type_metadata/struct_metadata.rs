@@ -68,10 +68,7 @@ const fn validate_struct_fields(fields: &'static [FieldMetadata]) {
             fields[index].ordinal() == index,
             "field ordinals must match declaration order"
         );
-        assert!(
-            !fields[index].name().is_empty(),
-            "field names cannot be empty"
-        );
+        assert!(!fields[index].name().is_empty(), "field names cannot be empty");
         let mut previous = 0;
         while previous < index {
             assert!(

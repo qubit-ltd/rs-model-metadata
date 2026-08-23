@@ -38,8 +38,5 @@ impl HasTypeMetadata for TestModel {
 
 #[test]
 fn test_has_type_metadata_returns_static_metadata() {
-    assert_eq!(
-        TestModel::type_metadata().id().as_str(),
-        "test.model.TestModel"
-    );
+    assert_eq!(TestModel::type_metadata().id().as_str(), "test.model.TestModel");
 }

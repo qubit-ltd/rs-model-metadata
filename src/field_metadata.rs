@@ -148,12 +148,10 @@ impl FieldMetadata {
     /// `Some` with the text constraint when one is present; otherwise `None`.
     #[must_use]
     pub fn text_constraint(self) -> Option<TextConstraint> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Text(constraint) => Some(*constraint),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Text(constraint) => Some(*constraint),
+            _ => None,
+        })
     }
 
     /// Returns the field's direct reference metadata, if present.
@@ -164,12 +162,10 @@ impl FieldMetadata {
     /// `None`.
     #[must_use]
     pub fn reference(self) -> Option<ReferenceMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Reference(reference) => Some(*reference),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Reference(reference) => Some(*reference),
+            _ => None,
+        })
     }
 
     /// Returns the field's sequence constraints, if present.
@@ -180,12 +176,10 @@ impl FieldMetadata {
     /// `None`.
     #[must_use]
     pub fn sequence_constraint(self) -> Option<SequenceConstraint> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Sequence(constraint) => Some(*constraint),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Sequence(constraint) => Some(*constraint),
+            _ => None,
+        })
     }
 
     /// Returns the field's map constraints, if present.
@@ -195,12 +189,10 @@ impl FieldMetadata {
     /// `Some` with the map constraint when one is present; otherwise `None`.
     #[must_use]
     pub fn map_constraint(self) -> Option<MapConstraint> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Map(constraint) => Some(*constraint),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Map(constraint) => Some(*constraint),
+            _ => None,
+        })
     }
 
     /// Returns the field's temporal constraints, if present.
@@ -211,12 +203,10 @@ impl FieldMetadata {
     /// `None`.
     #[must_use]
     pub fn temporal_constraint(self) -> Option<TemporalConstraint> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Temporal(constraint) => Some(*constraint),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Temporal(constraint) => Some(*constraint),
+            _ => None,
+        })
     }
 
     /// Returns the field's decimal constraints, if present.
@@ -227,12 +217,10 @@ impl FieldMetadata {
     /// `None`.
     #[must_use]
     pub fn decimal_constraint(self) -> Option<DecimalConstraint> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Decimal(constraint) => Some(*constraint),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Decimal(constraint) => Some(*constraint),
+            _ => None,
+        })
     }
 
     /// Returns constraints applied to each sequence element.
@@ -243,12 +231,10 @@ impl FieldMetadata {
     /// `None`.
     #[must_use]
     pub fn element_metadata(self) -> Option<ElementMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Element(metadata) => Some(*metadata),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Element(metadata) => Some(*metadata),
+            _ => None,
+        })
     }
 
     /// Returns the field's lookup relation, if present.
@@ -258,12 +244,10 @@ impl FieldMetadata {
     /// `Some` with the lookup relation when one is present; otherwise `None`.
     #[must_use]
     pub fn lookup_relation(self) -> Option<LookupRelationMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::LookupRelation(relation) => Some(*relation),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::LookupRelation(relation) => Some(*relation),
+            _ => None,
+        })
     }
 
     /// Returns the field's codec strategy reference, if present.
@@ -273,12 +257,10 @@ impl FieldMetadata {
     /// `Some` with the codec strategy when one is present; otherwise `None`.
     #[must_use]
     pub fn codec(self) -> Option<StrategyRef> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Codec(strategy) => Some(*strategy),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Codec(strategy) => Some(*strategy),
+            _ => None,
+        })
     }
 
     /// Returns the field's generator strategy reference, if present.
@@ -289,12 +271,10 @@ impl FieldMetadata {
     /// `None`.
     #[must_use]
     pub fn generator(self) -> Option<StrategyRef> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                AttributeMetadata::Generator(strategy) => Some(*strategy),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            AttributeMetadata::Generator(strategy) => Some(*strategy),
+            _ => None,
+        })
     }
 }
 
@@ -310,10 +290,7 @@ impl FieldMetadata {
 /// Panics when an attribute requires an unsupported capability, specifies a
 /// length for an array with a fixed type-level length, or is valid only at
 /// model scope.
-const fn validate_field_attributes(
-    attributes: &'static [AttributeMetadata],
-    field_type: TypeRef,
-) {
+const fn validate_field_attributes(attributes: &'static [AttributeMetadata], field_type: TypeRef) {
     let capabilities = field_type.capabilities();
     let mut index = 0;
     while index < attributes.len() {
@@ -329,8 +306,7 @@ const fn validate_field_attributes(
                 );
                 assert!(
                     !has_capability(capabilities, TypeCapabilities::ARRAY)
-                        || (constraint.min_items().is_none()
-                            && constraint.max_items().is_none()),
+                        || (constraint.min_items().is_none() && constraint.max_items().is_none()),
                     "array length is fixed by its type"
                 );
             }
@@ -347,15 +323,10 @@ const fn validate_field_attributes(
                 "decimal attributes require a decimal-capable field"
             ),
             AttributeMetadata::Element(metadata) => {
-                let Some(element_capabilities) =
-                    field_type.element_capabilities()
-                else {
+                let Some(element_capabilities) = field_type.element_capabilities() else {
                     panic!("element attributes require a sequence field");
                 };
-                validate_element_attributes(
-                    metadata.attributes(),
-                    element_capabilities,
-                );
+                validate_element_attributes(metadata.attributes(), element_capabilities);
             }
             AttributeMetadata::PrimaryKey(_)
             | AttributeMetadata::Unique(_)
@@ -384,10 +355,7 @@ const fn validate_field_attributes(
 ///
 /// Panics when an element attribute is outside the migrated text and decimal
 /// constraint set or is incompatible with the element type.
-const fn validate_element_attributes(
-    attributes: &'static [AttributeMetadata],
-    capabilities: TypeCapabilities,
-) {
+const fn validate_element_attributes(attributes: &'static [AttributeMetadata], capabilities: TypeCapabilities) {
     let mut index = 0;
     while index < attributes.len() {
         match attributes[index] {
@@ -399,9 +367,7 @@ const fn validate_element_attributes(
                 has_capability(capabilities, TypeCapabilities::DECIMAL),
                 "decimal attributes require a decimal-capable element"
             ),
-            _ => panic!(
-                "element metadata only supports text and decimal attributes"
-            ),
+            _ => panic!("element metadata only supports text and decimal attributes"),
         }
         index += 1;
     }
@@ -418,9 +384,6 @@ const fn validate_element_attributes(
 ///
 /// `true` when every bit in `required` is present in `capabilities`.
 #[inline]
-const fn has_capability(
-    capabilities: TypeCapabilities,
-    required: TypeCapabilities,
-) -> bool {
+const fn has_capability(capabilities: TypeCapabilities, required: TypeCapabilities) -> bool {
     capabilities.bits() & required.bits() == required.bits()
 }

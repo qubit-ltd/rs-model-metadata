@@ -17,10 +17,7 @@ pub struct FieldPath {
 
 impl core::fmt::Display for FieldPath {
     /// Formats this path with dot-separated field-name segments.
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut segments = self.segments.iter();
         if let Some(first) = segments.next() {
             write!(formatter, "{first}")?;

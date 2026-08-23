@@ -12,8 +12,7 @@ use qubit_model_metadata::TypeRef;
 
 #[test]
 fn test_newtype_metadata_exposes_its_inner_field() {
-    let field =
-        FieldMetadata::new(0, "value", "i32", TypeRef::of::<i32>(), &[]);
+    let field = FieldMetadata::new(0, "value", "i32", TypeRef::of::<i32>(), &[]);
     let metadata = NewtypeMetadata::new(field);
 
     assert_eq!(metadata.field().name(), "value");

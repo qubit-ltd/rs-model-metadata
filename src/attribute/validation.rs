@@ -14,9 +14,7 @@ use super::UniqueFieldMetadata;
 /// # Parameters
 ///
 /// * `fields` - The primary-key fields to validate.
-pub(super) const fn validate_primary_key_fields(
-    fields: &'static [PrimaryKeyFieldMetadata],
-) {
+pub(super) const fn validate_primary_key_fields(fields: &'static [PrimaryKeyFieldMetadata]) {
     let mut index = 0;
     while index < fields.len() {
         assert!(
@@ -40,15 +38,10 @@ pub(super) const fn validate_primary_key_fields(
 /// # Parameters
 ///
 /// * `fields` - The unique-constraint fields to validate.
-pub(super) const fn validate_unique_fields(
-    fields: &'static [UniqueFieldMetadata],
-) {
+pub(super) const fn validate_unique_fields(fields: &'static [UniqueFieldMetadata]) {
     let mut index = 0;
     while index < fields.len() {
-        assert!(
-            !fields[index].name().is_empty(),
-            "unique field names cannot be empty"
-        );
+        assert!(!fields[index].name().is_empty(), "unique field names cannot be empty");
         let mut previous = 0;
         while previous < index {
             assert!(
@@ -69,10 +62,7 @@ pub(super) const fn validate_unique_fields(
 pub(super) const fn validate_named_fields(names: &'static [&'static str]) {
     let mut index = 0;
     while index < names.len() {
-        assert!(
-            !names[index].is_empty(),
-            "constraint field names cannot be empty"
-        );
+        assert!(!names[index].is_empty(), "constraint field names cannot be empty");
         let mut previous = 0;
         while previous < index {
             assert!(

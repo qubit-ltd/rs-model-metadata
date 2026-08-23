@@ -44,12 +44,7 @@ impl ReferenceMetadata {
     /// when `same_as` is empty or contains an empty segment.
     #[must_use]
     #[inline]
-    pub const fn new(
-        target: ModelId,
-        target_field: FieldPath,
-        must_exist: bool,
-        same_as: Option<FieldPath>,
-    ) -> Self {
+    pub const fn new(target: ModelId, target_field: FieldPath, must_exist: bool, same_as: Option<FieldPath>) -> Self {
         validate_target_field_path(target_field);
         if let Some(same_as) = same_as {
             validate_same_as_path(same_as);

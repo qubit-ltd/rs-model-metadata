@@ -52,10 +52,7 @@ impl NamedTypeRef {
     ///
     /// A resolvable named-type reference.
     #[inline]
-    pub const fn new(
-        identity: TypeIdentity,
-        metadata: fn() -> &'static TypeMetadata,
-    ) -> Self {
+    pub const fn new(identity: TypeIdentity, metadata: fn() -> &'static TypeMetadata) -> Self {
         Self {
             identity,
             metadata: Some(metadata),

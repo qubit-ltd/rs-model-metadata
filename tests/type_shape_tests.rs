@@ -46,10 +46,7 @@ fn test_array_has_sequence_and_fixed_array_capabilities() {
 fn test_type_ref_exposes_rust_type_name() {
     let type_ref = TypeRef::of::<Option<Vec<String>>>();
 
-    assert_eq!(
-        type_ref.type_name(),
-        core::any::type_name::<Option<Vec<String>>>()
-    );
+    assert_eq!(type_ref.type_name(), core::any::type_name::<Option<Vec<String>>>());
 }
 
 #[test]
@@ -62,22 +59,10 @@ fn test_type_ref_strip_optional_removes_only_the_outer_layer() {
 
 #[test]
 fn test_container_capabilities_describe_the_outer_layer() {
-    assert_eq!(
-        <Option<String> as HasTypeShape>::CAPABILITIES,
-        TypeCapabilities::TEXT
-    );
-    assert_eq!(
-        <Vec<String> as HasTypeShape>::CAPABILITIES,
-        TypeCapabilities::SEQUENCE
-    );
-    assert_eq!(
-        <HashSet<String> as HasTypeShape>::CAPABILITIES,
-        TypeCapabilities::SET
-    );
-    assert_eq!(
-        <HashSet<String> as HasTypeShape>::ELEMENT_CAPABILITIES,
-        None
-    );
+    assert_eq!(<Option<String> as HasTypeShape>::CAPABILITIES, TypeCapabilities::TEXT);
+    assert_eq!(<Vec<String> as HasTypeShape>::CAPABILITIES, TypeCapabilities::SEQUENCE);
+    assert_eq!(<HashSet<String> as HasTypeShape>::CAPABILITIES, TypeCapabilities::SET);
+    assert_eq!(<HashSet<String> as HasTypeShape>::ELEMENT_CAPABILITIES, None);
     assert_eq!(
         <HashMap<String, Vec<String>> as HasTypeShape>::CAPABILITIES,
         TypeCapabilities::MAP
@@ -86,10 +71,8 @@ fn test_container_capabilities_describe_the_outer_layer() {
 
 #[test]
 fn test_set_and_map_shapes_recurse_into_unordered_primitive_types() {
-    assert!(
-        matches!(TypeRef::of::<HashSet<f32>>().shape(), TypeShape::Set(element)
-        if matches!(element.shape(), TypeShape::Scalar(ScalarType::F32)))
-    );
+    assert!(matches!(TypeRef::of::<HashSet<f32>>().shape(), TypeShape::Set(element)
+        if matches!(element.shape(), TypeShape::Scalar(ScalarType::F32))));
     assert!(
         matches!(TypeRef::of::<BTreeMap<f32, String>>().shape(), TypeShape::Map { key, value }
         if matches!(key.shape(), TypeShape::Scalar(ScalarType::F32))
@@ -106,18 +89,12 @@ fn test_chrono_types_have_temporal_capability_and_scalar_shapes() {
     use chrono::NaiveTime;
     use chrono::Utc;
 
-    assert_eq!(
-        <NaiveDate as HasTypeShape>::CAPABILITIES,
-        TypeCapabilities::TEMPORAL
-    );
+    assert_eq!(<NaiveDate as HasTypeShape>::CAPABILITIES, TypeCapabilities::TEMPORAL);
     assert!(matches!(
         TypeRef::of::<NaiveDate>().shape(),
         TypeShape::Scalar(ScalarType::Date)
     ));
-    assert_eq!(
-        <NaiveTime as HasTypeShape>::CAPABILITIES,
-        TypeCapabilities::TEMPORAL
-    );
+    assert_eq!(<NaiveTime as HasTypeShape>::CAPABILITIES, TypeCapabilities::TEMPORAL);
     assert!(matches!(
         TypeRef::of::<NaiveTime>().shape(),
         TypeShape::Scalar(ScalarType::Time)
@@ -145,10 +122,7 @@ fn test_chrono_types_have_temporal_capability_and_scalar_shapes() {
 fn test_big_decimal_has_decimal_capability_and_scalar_shape() {
     use bigdecimal::BigDecimal;
 
-    assert_eq!(
-        <BigDecimal as HasTypeShape>::CAPABILITIES,
-        TypeCapabilities::DECIMAL
-    );
+    assert_eq!(<BigDecimal as HasTypeShape>::CAPABILITIES, TypeCapabilities::DECIMAL);
     assert!(matches!(
         TypeRef::of::<BigDecimal>().shape(),
         TypeShape::Scalar(ScalarType::BigDecimal)

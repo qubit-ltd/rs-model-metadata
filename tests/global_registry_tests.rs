@@ -48,25 +48,18 @@ fn test_global_returns_the_same_registry_for_every_thread() {
                 let barrier = Arc::clone(&barrier);
                 scope.spawn(move || {
                     barrier.wait();
-                    ModelRegistry::try_global()
-                        .expect("the linked registrations should be valid")
+                    ModelRegistry::try_global().expect("the linked registrations should be valid")
                 })
             })
             .collect();
         handles
             .into_iter()
-            .map(|handle| {
-                handle.join().expect("the registry thread should not panic")
-            })
+            .map(|handle| handle.join().expect("the registry thread should not panic"))
             .collect::<Vec<_>>()
     });
 
     let expected = registrations[0];
-    assert!(
-        registrations
-            .iter()
-            .all(|actual| core::ptr::eq(*actual, expected))
-    );
+    assert!(registrations.iter().all(|actual| core::ptr::eq(*actual, expected)));
 
     assert!(core::ptr::eq(ModelRegistry::global(), expected));
     assert!(core::ptr::eq(

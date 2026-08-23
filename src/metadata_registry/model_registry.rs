@@ -51,12 +51,10 @@ impl ModelRegistry {
                     source,
                 }
             })?;
-            ModelId::validate(metadata_id.as_str()).map_err(|source| {
-                ModelRegistryError::InvalidMetadataId {
-                    registration,
-                    id: metadata_id,
-                    source,
-                }
+            ModelId::validate(metadata_id.as_str()).map_err(|source| ModelRegistryError::InvalidMetadataId {
+                registration,
+                id: metadata_id,
+                source,
             })?;
             if registration_id != metadata_id {
                 return Err(ModelRegistryError::MetadataIdMismatch {
@@ -69,9 +67,7 @@ impl ModelRegistry {
 
         for pair in registrations.windows(2) {
             let [first, second] = pair else {
-                unreachable!(
-                    "two-item windows always destructure to two elements"
-                );
+                unreachable!("two-item windows always destructure to two elements");
             };
             if first.id() == second.id() {
                 return Err(ModelRegistryError::DuplicateId {
@@ -86,9 +82,7 @@ impl ModelRegistry {
         let mut identity_indices = HashMap::new();
         for (index, registration) in registrations.iter().enumerate() {
             indices.insert(registration.id(), index);
-            if let Some(first_index) = identity_indices
-                .insert(registration.metadata().identity(), index)
-            {
+            if let Some(first_index) = identity_indices.insert(registration.metadata().identity(), index) {
                 return Err(ModelRegistryError::DuplicateIdentity {
                     identity: registration.metadata().identity(),
                     first: registrations[first_index],
@@ -128,9 +122,7 @@ impl ModelRegistry {
     /// Returns metadata for `id`, or `None` if this registry has no such model.
     #[must_use]
     pub fn get(&self, id: &str) -> Option<&'static TypeMetadata> {
-        self.indices
-            .get(id)
-            .map(|index| self.registrations[*index].metadata())
+        self.indices.get(id).map(|index| self.registrations[*index].metadata())
     }
 
     /// Returns the registration for `id`, or `None` if this registry has no
@@ -142,9 +134,7 @@ impl ModelRegistry {
 
     /// Returns all registrations in deterministic stable-ID order.
     #[must_use]
-    pub fn registrations(
-        &self,
-    ) -> impl ExactSizeIterator<Item = &'static ModelRegistration> + '_ {
+    pub fn registrations(&self) -> impl ExactSizeIterator<Item = &'static ModelRegistration> + '_ {
         self.registrations.iter().copied()
     }
 }
@@ -159,10 +149,7 @@ impl MetadataResolver for ModelRegistry {
 }
 
 /// Compares registrations using the deterministic registry ordering.
-fn compare_registrations(
-    left: &&'static ModelRegistration,
-    right: &&'static ModelRegistration,
-) -> std::cmp::Ordering {
+fn compare_registrations(left: &&'static ModelRegistration, right: &&'static ModelRegistration) -> std::cmp::Ordering {
     (
         left.id(),
         left.rust_type_name(),
@@ -182,8 +169,5 @@ fn compare_registrations(
 }
 
 /// Builds the global registry from the registrations linked into this binary.
-static GLOBAL_MODEL_REGISTRY: LazyLock<
-    Result<ModelRegistry, ModelRegistryError>,
-> = LazyLock::new(|| {
-    ModelRegistry::from_registrations(MODEL_REGISTRATIONS.iter())
-});
+static GLOBAL_MODEL_REGISTRY: LazyLock<Result<ModelRegistry, ModelRegistryError>> =
+    LazyLock::new(|| ModelRegistry::from_registrations(MODEL_REGISTRATIONS.iter()));

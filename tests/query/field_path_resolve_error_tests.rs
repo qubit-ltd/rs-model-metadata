@@ -14,8 +14,5 @@ use qubit_model_metadata::FieldPathResolveError;
 fn test_field_path_resolve_error_preserves_missing_field_segment() {
     let error = FieldPathResolveError::FieldNotFound { segment: "name" };
 
-    assert_eq!(
-        error,
-        FieldPathResolveError::FieldNotFound { segment: "name" }
-    );
+    assert_eq!(error, FieldPathResolveError::FieldNotFound { segment: "name" });
 }

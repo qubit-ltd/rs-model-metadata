@@ -48,77 +48,65 @@ impl HasTypeShape for DecimalValue {
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::DECIMAL;
 }
 
-static INVALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Text(TextConstraint::new(
-        None,
-        Some(32),
-        None,
-        None,
-        TextRepertoire::Unicode,
-        false,
-        None,
-    ))];
-static PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
-    [PrimaryKeyFieldMetadata::new("id", true)];
-static INVALID_PRIMARY_KEY_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
-        &PRIMARY_KEY_FIELDS,
-    ))];
-static SEQUENCE_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Sequence(SequenceConstraint::new(
-        Some(1),
-        Some(3),
-        true,
-    ))];
-static ELEMENT_TEXT_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Text(TextConstraint::new(
-        None,
-        None,
-        None,
-        None,
-        TextRepertoire::Ascii,
-        false,
-        None,
-    ))];
-static ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Element(ElementMetadata::new(
-        &ELEMENT_TEXT_ATTRIBUTES,
-    ))];
-static VALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Text(TextConstraint::new(
-        Some(1),
-        Some(32),
-        None,
-        None,
-        TextRepertoire::Unicode,
-        true,
-        None,
-    ))];
-static MAP_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Map(MapConstraint::new(Some(1), Some(4)))];
-static TEMPORAL_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Temporal(TemporalConstraint::new(
-        TemporalPrecision::Second,
-        TemporalNormalization::Utc,
-    ))];
-static DECIMAL_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Decimal(DecimalConstraint::new(
-        Some(8),
-        2,
-        RoundingMode::HalfEven,
-        DecimalSemantic::Money,
-    ))];
-static DECIMAL_ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Decimal(DecimalConstraint::new(
-        None,
-        0,
-        RoundingMode::Down,
-        DecimalSemantic::Number,
-    ))];
-static ELEMENT_DECIMAL_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Element(ElementMetadata::new(
-        &DECIMAL_ELEMENT_ATTRIBUTES,
-    ))];
+static INVALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(TextConstraint::new(
+    None,
+    Some(32),
+    None,
+    None,
+    TextRepertoire::Unicode,
+    false,
+    None,
+))];
+static PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] = [PrimaryKeyFieldMetadata::new("id", true)];
+static INVALID_PRIMARY_KEY_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::PrimaryKey(
+    PrimaryKeyMetadata::new(&PRIMARY_KEY_FIELDS),
+)];
+static SEQUENCE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Sequence(SequenceConstraint::new(
+    Some(1),
+    Some(3),
+    true,
+))];
+static ELEMENT_TEXT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(TextConstraint::new(
+    None,
+    None,
+    None,
+    None,
+    TextRepertoire::Ascii,
+    false,
+    None,
+))];
+static ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Element(ElementMetadata::new(
+    &ELEMENT_TEXT_ATTRIBUTES,
+))];
+static VALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(TextConstraint::new(
+    Some(1),
+    Some(32),
+    None,
+    None,
+    TextRepertoire::Unicode,
+    true,
+    None,
+))];
+static MAP_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Map(MapConstraint::new(Some(1), Some(4)))];
+static TEMPORAL_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Temporal(TemporalConstraint::new(
+    TemporalPrecision::Second,
+    TemporalNormalization::Utc,
+))];
+static DECIMAL_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Decimal(DecimalConstraint::new(
+    Some(8),
+    2,
+    RoundingMode::HalfEven,
+    DecimalSemantic::Money,
+))];
+static DECIMAL_ELEMENT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Decimal(DecimalConstraint::new(
+    None,
+    0,
+    RoundingMode::Down,
+    DecimalSemantic::Number,
+))];
+static ELEMENT_DECIMAL_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Element(ElementMetadata::new(
+    &DECIMAL_ELEMENT_ATTRIBUTES,
+))];
 static RELATION_ATTRIBUTES: [AttributeMetadata; 4] = [
     AttributeMetadata::Reference(ReferenceMetadata::new(
         ModelId::new("test.Target"),
@@ -134,45 +122,29 @@ static RELATION_ATTRIBUTES: [AttributeMetadata; 4] = [
     AttributeMetadata::Generator(StrategyRef::new("generate")),
 ];
 static FIXED_SEQUENCE_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Sequence(SequenceConstraint::new(
-        None, None, false,
-    ))];
-static FIXED_SEQUENCE_WITH_LENGTH_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Sequence(SequenceConstraint::new(
-        Some(1),
-        None,
-        false,
-    ))];
-static ELEMENT_DECIMAL_ON_INTEGER_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Element(ElementMetadata::new(
-        &DECIMAL_ELEMENT_ATTRIBUTES,
-    ))];
+    [AttributeMetadata::Sequence(SequenceConstraint::new(None, None, false))];
+static FIXED_SEQUENCE_WITH_LENGTH_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Sequence(
+    SequenceConstraint::new(Some(1), None, false),
+)];
+static ELEMENT_DECIMAL_ON_INTEGER_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Element(
+    ElementMetadata::new(&DECIMAL_ELEMENT_ATTRIBUTES),
+)];
 
 #[test]
 fn test_field_metadata_exposes_declaration_details() {
-    let field =
-        FieldMetadata::new(2, "amount", "i64", TypeRef::of::<i64>(), &[]);
+    let field = FieldMetadata::new(2, "amount", "i64", TypeRef::of::<i64>(), &[]);
 
     assert_eq!(field.ordinal(), 2);
     assert_eq!(field.name(), "amount");
     assert_eq!(field.rust_type_name(), "i64");
-    assert_eq!(
-        field.field_type().type_name(),
-        core::any::type_name::<i64>()
-    );
+    assert_eq!(field.field_type().type_name(), core::any::type_name::<i64>());
     assert!(!field.is_nullable());
     assert!(field.attributes().is_empty());
 }
 
 #[test]
 fn test_field_metadata_exposes_all_typed_attribute_queries() {
-    let text = FieldMetadata::new(
-        0,
-        "name",
-        "String",
-        TypeRef::of::<String>(),
-        &VALID_TEXT_ATTRIBUTES,
-    );
+    let text = FieldMetadata::new(0, "name", "String", TypeRef::of::<String>(), &VALID_TEXT_ATTRIBUTES);
     let map = FieldMetadata::new(
         1,
         "labels",
@@ -202,31 +174,17 @@ fn test_field_metadata_exposes_all_typed_attribute_queries() {
         &RELATION_ATTRIBUTES,
     );
 
+    assert_eq!(text.text_constraint().and_then(|value| value.max_chars()), Some(32));
+    assert_eq!(map.map_constraint().and_then(|value| value.max_entries()), Some(4));
     assert_eq!(
-        text.text_constraint().and_then(|value| value.max_chars()),
-        Some(32)
-    );
-    assert_eq!(
-        map.map_constraint().and_then(|value| value.max_entries()),
-        Some(4)
-    );
-    assert_eq!(
-        temporal
-            .temporal_constraint()
-            .map(|value| value.precision()),
+        temporal.temporal_constraint().map(|value| value.precision()),
         Some(TemporalPrecision::Second)
     );
-    assert_eq!(
-        decimal.decimal_constraint().map(|value| value.scale()),
-        Some(2)
-    );
+    assert_eq!(decimal.decimal_constraint().map(|value| value.scale()), Some(2));
     assert!(relations.reference().is_some());
     assert!(relations.lookup_relation().is_some());
     assert_eq!(relations.codec().map(|value| value.name()), Some("decode"));
-    assert_eq!(
-        relations.generator().map(|value| value.name()),
-        Some("generate")
-    );
+    assert_eq!(relations.generator().map(|value| value.name()), Some("generate"));
 }
 
 #[test]
@@ -252,21 +210,12 @@ fn test_field_metadata_accepts_fixed_array_without_length_constraints() {
         &FIXED_SEQUENCE_ATTRIBUTES,
     );
 
-    assert_eq!(
-        field.sequence_constraint().map(|value| value.max_items()),
-        Some(None)
-    );
+    assert_eq!(field.sequence_constraint().map(|value| value.max_items()), Some(None));
 }
 
 #[test]
 fn test_field_metadata_reports_nullable_outer_option() {
-    let field = FieldMetadata::new(
-        0,
-        "nickname",
-        "Option<String>",
-        TypeRef::of::<Option<String>>(),
-        &[],
-    );
+    let field = FieldMetadata::new(0, "nickname", "Option<String>", TypeRef::of::<Option<String>>(), &[]);
 
     assert!(field.is_nullable());
 }
@@ -274,27 +223,13 @@ fn test_field_metadata_reports_nullable_outer_option() {
 #[test]
 #[should_panic(expected = "text attributes require a text-capable field")]
 fn test_field_metadata_rejects_text_constraints_on_non_text_types() {
-    let _ = FieldMetadata::new(
-        0,
-        "id",
-        "i64",
-        TypeRef::of::<i64>(),
-        &INVALID_TEXT_ATTRIBUTES,
-    );
+    let _ = FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &INVALID_TEXT_ATTRIBUTES);
 }
 
 #[test]
-#[should_panic(
-    expected = "primary-key attributes are only valid at model scope"
-)]
+#[should_panic(expected = "primary-key attributes are only valid at model scope")]
 fn test_field_metadata_rejects_model_level_attributes() {
-    let _ = FieldMetadata::new(
-        0,
-        "id",
-        "i64",
-        TypeRef::of::<i64>(),
-        &INVALID_PRIMARY_KEY_ATTRIBUTES,
-    );
+    let _ = FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &INVALID_PRIMARY_KEY_ATTRIBUTES);
 }
 
 #[test]
@@ -334,25 +269,13 @@ fn test_field_metadata_exposes_sequence_element_constraints() {
 #[test]
 #[should_panic(expected = "element attributes require a sequence field")]
 fn test_field_metadata_rejects_element_constraints_on_scalar_fields() {
-    let _ = FieldMetadata::new(
-        0,
-        "alias",
-        "String",
-        TypeRef::of::<String>(),
-        &ELEMENT_ATTRIBUTES,
-    );
+    let _ = FieldMetadata::new(0, "alias", "String", TypeRef::of::<String>(), &ELEMENT_ATTRIBUTES);
 }
 
 #[test]
 #[should_panic(expected = "text attributes require a text-capable element")]
 fn test_field_metadata_rejects_constraints_unsupported_by_element_type() {
-    let _ = FieldMetadata::new(
-        0,
-        "ids",
-        "Vec<i64>",
-        TypeRef::of::<Vec<i64>>(),
-        &ELEMENT_ATTRIBUTES,
-    );
+    let _ = FieldMetadata::new(0, "ids", "Vec<i64>", TypeRef::of::<Vec<i64>>(), &ELEMENT_ATTRIBUTES);
 }
 
 #[test]
@@ -368,9 +291,7 @@ fn test_field_metadata_rejects_length_constraints_on_fixed_arrays() {
 }
 
 #[test]
-#[should_panic(
-    expected = "decimal attributes require a decimal-capable element"
-)]
+#[should_panic(expected = "decimal attributes require a decimal-capable element")]
 fn test_field_metadata_rejects_decimal_constraints_on_integer_elements() {
     let _ = FieldMetadata::new(
         0,

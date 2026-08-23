@@ -26,7 +26,6 @@ pub trait HasModelRegistration: HasTypeMetadata {
 /// The static registration emitted for `T`.
 #[must_use]
 #[inline(always)]
-pub fn registration_of<T: HasModelRegistration>() -> &'static ModelRegistration
-{
+pub fn registration_of<T: HasModelRegistration>() -> &'static ModelRegistration {
     T::model_registration()
 }

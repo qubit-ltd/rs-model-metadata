@@ -32,69 +32,42 @@ use qubit_model_metadata::UniqueMetadata;
 struct Account;
 struct Organization;
 
-static NON_CONTIGUOUS_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
-    1,
-    "id",
-    "i64",
-    TypeRef::of::<i64>(),
-    &[],
-)];
-static ACCOUNT_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
-    0,
-    "id",
-    "i64",
-    TypeRef::of::<i64>(),
-    &[],
-)];
+static NON_CONTIGUOUS_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(1, "id", "i64", TypeRef::of::<i64>(), &[])];
+static ACCOUNT_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &[])];
 static INDEX_FIELDS: [&str; 1] = ["missing"];
 static INVALID_INDEX_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Index(IndexMetadata::new(
-        None,
-        &INDEX_FIELDS,
-    ))];
+    [AttributeMetadata::Index(IndexMetadata::new(None, &INDEX_FIELDS))];
 static KEY_FIELDS: [&str; 1] = ["id"];
-static UNKNOWN_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
-    [PrimaryKeyFieldMetadata::new("missing", false)];
-static UNKNOWN_UNIQUE_FIELDS: [UniqueFieldMetadata; 1] =
-    [UniqueFieldMetadata::new("missing", UniqueComparison::Exact)];
+static UNKNOWN_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] = [PrimaryKeyFieldMetadata::new("missing", false)];
+static UNKNOWN_UNIQUE_FIELDS: [UniqueFieldMetadata; 1] = [UniqueFieldMetadata::new("missing", UniqueComparison::Exact)];
 static UNKNOWN_KEY_FIELDS: [&str; 1] = ["missing"];
-static INVALID_PRIMARY_KEY_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
-        &UNKNOWN_PRIMARY_KEY_FIELDS,
-    ))];
-static INVALID_UNIQUE_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Unique(UniqueMetadata::new(
-        None,
-        &UNKNOWN_UNIQUE_FIELDS,
-    ))];
+static INVALID_PRIMARY_KEY_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::PrimaryKey(
+    PrimaryKeyMetadata::new(&UNKNOWN_PRIMARY_KEY_FIELDS),
+)];
+static INVALID_UNIQUE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Unique(UniqueMetadata::new(
+    None,
+    &UNKNOWN_UNIQUE_FIELDS,
+))];
 static INVALID_KEY_ATTRIBUTES: [AttributeMetadata; 1] =
-    [AttributeMetadata::Key(KeyMetadata::new(
-        None,
-        &UNKNOWN_KEY_FIELDS,
-    ))];
+    [AttributeMetadata::Key(KeyMetadata::new(None, &UNKNOWN_KEY_FIELDS))];
 static DUPLICATE_PRIMARY_KEY_ATTRIBUTES: [AttributeMetadata; 2] = [
-    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
-        &ACCOUNT_PRIMARY_KEY_FIELDS,
-    )),
-    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(
-        &ACCOUNT_PRIMARY_KEY_FIELDS,
-    )),
+    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(&ACCOUNT_PRIMARY_KEY_FIELDS)),
+    AttributeMetadata::PrimaryKey(PrimaryKeyMetadata::new(&ACCOUNT_PRIMARY_KEY_FIELDS)),
 ];
-static ACCOUNT_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] =
-    [PrimaryKeyFieldMetadata::new("id", true)];
+static ACCOUNT_PRIMARY_KEY_FIELDS: [PrimaryKeyFieldMetadata; 1] = [PrimaryKeyFieldMetadata::new("id", true)];
 static DUPLICATE_OWNERSHIP_ATTRIBUTES: [AttributeMetadata; 2] = [
-    AttributeMetadata::Ownership(OwnershipMetadata::new(
-        NamedTypeRef::unresolved(TypeIdentity::of::<Organization>()),
-    )),
-    AttributeMetadata::Ownership(OwnershipMetadata::new(
-        NamedTypeRef::unresolved(TypeIdentity::of::<Organization>()),
-    )),
+    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::unresolved(TypeIdentity::of::<
+        Organization,
+    >()))),
+    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::unresolved(TypeIdentity::of::<
+        Organization,
+    >()))),
 ];
 static QUERY_ATTRIBUTES: [AttributeMetadata; 2] = [
     AttributeMetadata::Key(KeyMetadata::new(Some("account"), &KEY_FIELDS)),
-    AttributeMetadata::Ownership(OwnershipMetadata::new(
-        NamedTypeRef::unresolved(TypeIdentity::of::<Organization>()),
-    )),
+    AttributeMetadata::Ownership(OwnershipMetadata::new(NamedTypeRef::unresolved(TypeIdentity::of::<
+        Organization,
+    >()))),
 ];
 
 #[test]
@@ -107,14 +80,12 @@ static ENUM_VARIANTS: [EnumVariantMetadata; 2] = [
     EnumVariantMetadata::new(0, "pending"),
     EnumVariantMetadata::new(1, "active"),
 ];
-static EMPTY_NAME_VARIANTS: [EnumVariantMetadata; 1] =
-    [EnumVariantMetadata::new(0, "")];
+static EMPTY_NAME_VARIANTS: [EnumVariantMetadata; 1] = [EnumVariantMetadata::new(0, "")];
 static DUPLICATE_NAME_VARIANTS: [EnumVariantMetadata; 2] = [
     EnumVariantMetadata::new(0, "pending"),
     EnumVariantMetadata::new(1, "pending"),
 ];
-static NON_CONTIGUOUS_ENUM_VARIANTS: [EnumVariantMetadata; 1] =
-    [EnumVariantMetadata::new(1, "pending")];
+static NON_CONTIGUOUS_ENUM_VARIANTS: [EnumVariantMetadata; 1] = [EnumVariantMetadata::new(1, "pending")];
 
 #[test]
 #[should_panic(expected = "index references an unknown model field")]
@@ -139,9 +110,7 @@ fn test_type_metadata_rejects_unknown_primary_key_fields() {
 }
 
 #[test]
-#[should_panic(
-    expected = "unique constraint references an unknown model field"
-)]
+#[should_panic(expected = "unique constraint references an unknown model field")]
 fn test_type_metadata_rejects_unknown_unique_fields() {
     let _ = TypeMetadata::new(
         ModelId::new("test.metadata.Account"),
@@ -193,10 +162,7 @@ fn test_type_metadata_exposes_keys_and_ownership() {
         &QUERY_ATTRIBUTES,
     );
 
-    assert_eq!(
-        metadata.keys().next().and_then(|key| key.name()),
-        Some("account")
-    );
+    assert_eq!(metadata.keys().next().and_then(|key| key.name()), Some("account"));
     assert!(matches!(
         metadata.ownership(),
         Some(ownership)
@@ -205,10 +171,7 @@ fn test_type_metadata_exposes_keys_and_ownership() {
     assert_eq!(metadata.id().as_str(), "test.metadata.Account");
     assert_eq!(metadata.identity(), TypeIdentity::of::<Account>());
     assert!(matches!(metadata.kind(), TypeKind::Struct(_)));
-    assert!(core::ptr::eq(
-        metadata.attributes().as_ptr(),
-        QUERY_ATTRIBUTES.as_ptr(),
-    ));
+    assert!(core::ptr::eq(metadata.attributes().as_ptr(), QUERY_ATTRIBUTES.as_ptr(),));
     assert!(core::ptr::eq(
         metadata.struct_fields().as_ptr(),
         ACCOUNT_FIELDS.as_ptr(),
@@ -238,15 +201,9 @@ fn test_type_metadata_has_no_struct_fields_for_enum_or_newtype() {
 fn test_enum_metadata_queries_variants_by_name_and_ordinal() {
     let metadata = EnumMetadata::new(&ENUM_VARIANTS);
 
-    assert_eq!(
-        metadata.variant("pending").map(|variant| variant.ordinal()),
-        Some(0)
-    );
+    assert_eq!(metadata.variant("pending").map(|variant| variant.ordinal()), Some(0));
     assert!(metadata.variant("missing").is_none());
-    assert_eq!(
-        metadata.variant_at(1).map(|variant| variant.name()),
-        Some("active")
-    );
+    assert_eq!(metadata.variant_at(1).map(|variant| variant.name()), Some("active"));
     assert!(metadata.variant_at(2).is_none());
 }
 

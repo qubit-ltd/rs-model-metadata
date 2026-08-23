@@ -13,8 +13,7 @@ const STATIC_MODEL_ID: ModelId = ModelId::new("test.model.StaticModel");
 
 #[test]
 fn test_model_id_accepts_nested_modules() {
-    let id = ModelId::try_new("qubit.platform.metadata.dictionary.DictEntry")
-        .expect("the model ID should be valid");
+    let id = ModelId::try_new("qubit.platform.metadata.dictionary.DictEntry").expect("the model ID should be valid");
 
     assert_eq!(id.as_str(), "qubit.platform.metadata.dictionary.DictEntry");
     assert_eq!(id.type_name(), "DictEntry");
@@ -22,8 +21,7 @@ fn test_model_id_accepts_nested_modules() {
 
 #[test]
 fn test_model_id_accepts_module_segments_with_underscores() {
-    let id = ModelId::try_new("test.platform_core.SomeType")
-        .expect("the model ID should be valid");
+    let id = ModelId::try_new("test.platform_core.SomeType").expect("the model ID should be valid");
 
     assert_eq!(id.type_name(), "SomeType");
 }
@@ -86,8 +84,7 @@ fn test_model_id_errors_describe_each_invalid_reason() {
     ];
 
     for (value, expected_error, expected_message) in cases {
-        let error = ModelId::try_new(value)
-            .expect_err("the test value must be invalid");
+        let error = ModelId::try_new(value).expect_err("the test value must be invalid");
         assert_eq!(error, expected_error);
         assert_eq!(error.to_string(), expected_message);
     }
