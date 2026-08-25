@@ -17,7 +17,7 @@ use crate::field_metadata::FieldMetadata;
 use crate::metadata_resolver::MetadataResolver;
 use crate::model_graph::ModelGraphError;
 use crate::model_graph::ModelGraphErrors;
-use crate::model_graph::relation_projection::project_relation_type;
+use crate::model_graph::project_relation_type;
 use crate::model_id::ModelId;
 use crate::relation::FieldPath;
 use crate::relation::LookupRelationMetadata;
@@ -269,7 +269,7 @@ fn requires_shape_target(field_type: TypeRef, min_items: Option<u32>) -> bool {
 /// # Returns
 ///
 /// An iterator over the field's direct-reference attributes.
-fn direct_references(field: FieldMetadata) -> impl Iterator<Item = crate::relation::ReferenceMetadata> {
+fn direct_references(field: FieldMetadata) -> impl Iterator<Item = ReferenceMetadata> {
     field.attributes().iter().filter_map(|attribute| match attribute {
         AttributeMetadata::Reference(reference) => Some(*reference),
         _ => None,
@@ -277,7 +277,7 @@ fn direct_references(field: FieldMetadata) -> impl Iterator<Item = crate::relati
 }
 
 /// Returns every lookup-relation attribute declared on `field`.
-fn lookup_relations(field: FieldMetadata) -> impl Iterator<Item = crate::relation::LookupRelationMetadata> {
+fn lookup_relations(field: FieldMetadata) -> impl Iterator<Item = LookupRelationMetadata> {
     field.attributes().iter().filter_map(|attribute| match attribute {
         AttributeMetadata::LookupRelation(lookup) => Some(*lookup),
         _ => None,
@@ -285,7 +285,7 @@ fn lookup_relations(field: FieldMetadata) -> impl Iterator<Item = crate::relatio
 }
 
 /// Returns every ownership relation declared on `metadata`.
-fn ownership_relations(metadata: &'static TypeMetadata) -> impl Iterator<Item = crate::relation::OwnershipMetadata> {
+fn ownership_relations(metadata: &'static TypeMetadata) -> impl Iterator<Item = OwnershipMetadata> {
     metadata.attributes().iter().filter_map(|attribute| match attribute {
         AttributeMetadata::Ownership(ownership) => Some(*ownership),
         _ => None,

@@ -6,8 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use super::validation::validate_named_fields;
-use super::validation::validate_optional_logical_name;
+use super::internal::validate_named_fields;
+use super::internal::validate_optional_logical_name;
 
 /// A model-level logical-key definition.
 ///
@@ -38,13 +38,13 @@ impl KeyMetadata {
     /// * `name` - The optional logical name of the key.
     /// * `fields` - The non-empty, distinct field names in declaration order.
     ///
-    /// # Panics
-    ///
-    /// Panics when `name` is empty or `fields` is empty.
-    ///
     /// # Returns
     ///
     /// A logical-key definition containing the supplied fields.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `name` is empty or `fields` is empty.
     #[must_use]
     pub const fn new(name: Option<&'static str>, fields: &'static [&'static str]) -> Self {
         validate_optional_logical_name(name);

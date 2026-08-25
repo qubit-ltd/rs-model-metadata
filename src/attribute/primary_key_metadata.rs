@@ -7,7 +7,7 @@
 // =============================================================================
 
 use super::PrimaryKeyFieldMetadata;
-use super::validation::validate_primary_key_fields;
+use super::internal::validate_primary_key_fields;
 
 /// A model-level primary-key definition.
 ///
@@ -34,13 +34,13 @@ impl PrimaryKeyMetadata {
     ///
     /// * `fields` - The non-empty, distinct fields in declaration order.
     ///
-    /// # Panics
-    ///
-    /// Panics when `fields` is empty.
-    ///
     /// # Returns
     ///
     /// A primary-key definition containing the supplied fields.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `fields` is empty.
     #[must_use]
     pub const fn new(fields: &'static [PrimaryKeyFieldMetadata]) -> Self {
         assert!(!fields.is_empty(), "primary key requires at least one field");

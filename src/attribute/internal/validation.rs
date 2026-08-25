@@ -6,8 +6,10 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use super::PrimaryKeyFieldMetadata;
-use super::UniqueFieldMetadata;
+//! Construction validators for attribute field names and logical names.
+
+use crate::attribute::PrimaryKeyFieldMetadata;
+use crate::attribute::UniqueFieldMetadata;
 
 /// Validates non-empty, distinct primary-key field names.
 ///
@@ -18,7 +20,7 @@ use super::UniqueFieldMetadata;
 /// # Panics
 ///
 /// Panics when a field name is empty or duplicated.
-pub(super) const fn validate_primary_key_fields(fields: &'static [PrimaryKeyFieldMetadata]) {
+pub(in crate::attribute) const fn validate_primary_key_fields(fields: &'static [PrimaryKeyFieldMetadata]) {
     let mut index = 0;
     while index < fields.len() {
         assert!(
@@ -46,7 +48,7 @@ pub(super) const fn validate_primary_key_fields(fields: &'static [PrimaryKeyFiel
 /// # Panics
 ///
 /// Panics when a field name is empty or duplicated.
-pub(super) const fn validate_unique_fields(fields: &'static [UniqueFieldMetadata]) {
+pub(in crate::attribute) const fn validate_unique_fields(fields: &'static [UniqueFieldMetadata]) {
     let mut index = 0;
     while index < fields.len() {
         assert!(!fields[index].name().is_empty(), "unique field names cannot be empty");
@@ -71,7 +73,7 @@ pub(super) const fn validate_unique_fields(fields: &'static [UniqueFieldMetadata
 /// # Panics
 ///
 /// Panics when a field name is empty or duplicated.
-pub(super) const fn validate_named_fields(names: &'static [&'static str]) {
+pub(in crate::attribute) const fn validate_named_fields(names: &'static [&'static str]) {
     let mut index = 0;
     while index < names.len() {
         assert!(!names[index].is_empty(), "constraint field names cannot be empty");
@@ -96,7 +98,7 @@ pub(super) const fn validate_named_fields(names: &'static [&'static str]) {
 /// # Panics
 ///
 /// Panics when a supplied name is empty.
-pub(super) const fn validate_optional_logical_name(name: Option<&'static str>) {
+pub(in crate::attribute) const fn validate_optional_logical_name(name: Option<&'static str>) {
     if let Some(name) = name {
         assert!(!name.is_empty(), "logical constraint names cannot be empty");
     }

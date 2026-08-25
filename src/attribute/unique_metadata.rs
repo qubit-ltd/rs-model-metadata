@@ -8,8 +8,8 @@
 
 use super::UniqueComparison;
 use super::UniqueFieldMetadata;
-use super::validation::validate_optional_logical_name;
-use super::validation::validate_unique_fields;
+use super::internal::validate_optional_logical_name;
+use super::internal::validate_unique_fields;
 
 /// A model-level unique-constraint definition.
 ///
@@ -42,13 +42,13 @@ impl UniqueMetadata {
     /// * `name` - The optional logical name of the constraint.
     /// * `fields` - The non-empty, distinct fields in declaration order.
     ///
-    /// # Panics
-    ///
-    /// Panics when `name` is empty or `fields` is empty.
-    ///
     /// # Returns
     ///
     /// A unique-constraint definition containing the supplied fields.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `name` is empty or `fields` is empty.
     #[must_use]
     pub const fn new(name: Option<&'static str>, fields: &'static [UniqueFieldMetadata]) -> Self {
         validate_optional_logical_name(name);

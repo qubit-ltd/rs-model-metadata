@@ -19,7 +19,8 @@ mod strategy_ref;
 mod unique_comparison;
 mod unique_field_metadata;
 mod unique_metadata;
-mod validation;
+// Validates attribute field-name and logical-name construction invariants.
+mod internal;
 
 pub use self::attribute_kind::AttributeKind;
 pub use self::attribute_metadata::AttributeMetadata;
