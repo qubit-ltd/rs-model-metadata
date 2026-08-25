@@ -16,6 +16,9 @@ use proc_macro2::TokenTree;
 use syn::Attribute;
 use syn::Error;
 use syn::Ident;
+use syn::Expr;
+use syn::Lit;
+use syn::Meta;
 use syn::LitBool;
 use syn::LitInt;
 use syn::LitStr;
@@ -84,22 +87,143 @@ pub(crate) fn parse_model_attributes(attributes: &[Attribute]) -> Result<ModelAt
     }
 }
 
-/// Parses every field-level `#[model(...)]` item in source order.
+/// Returns whether an attribute path names a supported field-level helper
+/// attribute consumed by `#[Model]`.
+pub(crate) fn is_field_level_helper_attribute(path: &Path) -> bool {
+    is_field_attribute_path(path) || path.is_ident("unique") || path.is_ident("keep_serializing")
+}
+
+/// Returns whether an attribute on a model field should be ignored by scope
+/// validation because another tool owns it.
+fn is_allowed_foreign_field_attribute(path: &Path) -> bool {
+    path.is_ident("serde")
+        || path.is_ident("doc")
+        || path.is_ident("default")
+        || path.is_ident("allow")
+        || path.is_ident("deny")
+        || path.is_ident("cfg")
+        || path.is_ident("must_use")
+        || path.is_ident("redact")
+}
+
+/// Rejects removed or misplaced attributes on field declarations.
+pub(crate) fn validate_field_attribute_scope(attributes: &[Attribute]) -> Result<()> {
+    let mut errors = None;
+    for attribute in attributes {
+        let path = attribute.path();
+        if is_allowed_foreign_field_attribute(path) || is_field_level_helper_attribute(path) {
+            continue;
+        }
+        if path.is_ident("field") {
+            combine_error(
+                &mut errors,
+                Error::new_spanned(
+                    attribute,
+                    "`#[field(...)]` was removed; use standalone field attributes such as \
+                     `#[identifier]` and `#[indexed]`",
+                ),
+            );
+            continue;
+        }
+        if path.is_ident("model") {
+            combine_error(
+                &mut errors,
+                Error::new_spanned(
+                    attribute,
+                    "field-level `#[model(...)]` attributes are not supported; use standalone \
+                     field attributes such as `#[identifier]` and `#[text(...)]`",
+                ),
+            );
+            continue;
+        }
+        if is_model_attribute_path(path) {
+            combine_error(
+                &mut errors,
+                Error::new_spanned(attribute, "this model-level attribute cannot be used on a field"),
+            );
+            continue;
+        }
+        if path.is_ident("nullable") {
+            combine_error(
+                &mut errors,
+                Error::new_spanned(
+                    attribute,
+                    "`nullable` is not supported; use `Option<T>` for nullability",
+                ),
+            );
+            continue;
+        }
+        if path.is_ident("computed") {
+            combine_error(
+                &mut errors,
+                Error::new_spanned(
+                    attribute,
+                    "`computed` is not supported; declare a real Rust field instead",
+                ),
+            );
+            continue;
+        }
+        combine_error(
+            &mut errors,
+            Error::new_spanned(attribute, "unknown field-level attribute"),
+        );
+    }
+    if let Some(error) = errors { Err(error) } else { Ok(()) }
+}
+
+/// Rejects field helper attributes declared on the model instead of its fields.
+pub(crate) fn validate_model_attribute_scope(attributes: &[Attribute]) -> Result<()> {
+    let mut errors = None;
+    for attribute in attributes {
+        let path = attribute.path();
+        if path.is_ident("model") || is_allowed_foreign_field_attribute(path) {
+            continue;
+        }
+        if path.is_ident("nullable") {
+            combine_error(
+                &mut errors,
+                Error::new_spanned(
+                    attribute,
+                    "`nullable` is not supported; use `Option<T>` for nullability",
+                ),
+            );
+            continue;
+        }
+        if path.is_ident("computed") {
+            combine_error(
+                &mut errors,
+                Error::new_spanned(
+                    attribute,
+                    "`computed` is not supported; declare a real Rust field instead",
+                ),
+            );
+            continue;
+        }
+        if is_field_level_helper_attribute(path) || path.is_ident("field") {
+            combine_error(
+                &mut errors,
+                Error::new_spanned(
+                    attribute,
+                    "field helper attributes must be declared on fields, not on the model",
+                ),
+            );
+        }
+    }
+    if let Some(error) = errors { Err(error) } else { Ok(()) }
+}
+
+/// Parses every supported field-level helper attribute in source order.
 ///
 /// Returns an error when an item is unknown or its value cannot be parsed.
 pub(crate) fn parse_field_attributes(attributes: &[Attribute]) -> Result<Vec<FieldAttribute>> {
+    validate_field_attribute_scope(attributes)?;
     let mut parsed = Vec::new();
     let mut errors = None;
-    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("model")) {
-        let result = attribute.parse_nested_meta(|meta| {
-            let input = meta.input;
-            if let Err(error) = parse_field_attribute(meta, &mut parsed) {
-                combine_error(&mut errors, error);
-                discard_nested_meta_input(input)?;
-            }
-            Ok(())
-        });
-        if let Err(error) = result {
+    for attribute in attributes
+        .iter()
+        .filter(|attribute| is_field_level_helper_attribute(attribute.path()))
+    {
+        if let Err(error) = parse_standalone_field_attribute(attribute, &mut parsed) {
             combine_error(&mut errors, error);
         }
     }
@@ -107,6 +231,500 @@ pub(crate) fn parse_field_attributes(attributes: &[Attribute]) -> Result<Vec<Fie
         Err(error)
     } else {
         Ok(parsed)
+    }
+}
+
+/// Parses one standalone field-level helper attribute.
+fn parse_standalone_field_attribute(
+    attribute: &Attribute,
+    parsed: &mut Vec<FieldAttribute>,
+) -> Result<()> {
+    let path = attribute.path();
+    let span = path.span();
+    if path.is_ident("identifier") {
+        parsed.push(FieldAttribute::Identifier(parse_identifier_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("unique") {
+        parsed.push(FieldAttribute::Unique(parse_field_unique_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("indexed") {
+        reject_field_attribute_arguments(attribute, "indexed")?;
+        parsed.push(FieldAttribute::Index(span));
+        return Ok(());
+    }
+    if path.is_ident("text") {
+        parsed.push(FieldAttribute::Text(parse_text_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("sequence") {
+        parsed.push(FieldAttribute::Sequence(parse_sequence_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("map") {
+        parsed.push(FieldAttribute::Map(parse_map_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("time") {
+        parsed.push(FieldAttribute::Temporal(parse_temporal_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("decimal") {
+        parsed.push(FieldAttribute::Decimal(parse_decimal_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("money") {
+        parsed.push(FieldAttribute::Money(parse_decimal_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("element") {
+        parsed.push(FieldAttribute::Element(parse_element_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("reference") {
+        parsed.push(FieldAttribute::Reference(parse_reference_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("lookup_relation") {
+        parsed.push(FieldAttribute::LookupRelation(parse_lookup_relation_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("codec") {
+        parsed.push(FieldAttribute::Codec(parse_codec_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("generator") {
+        parsed.push(FieldAttribute::Generator(parse_generator_attribute(attribute)?));
+        return Ok(());
+    }
+    if path.is_ident("opaque") {
+        reject_field_attribute_arguments(attribute, "opaque")?;
+        parsed.push(FieldAttribute::Opaque(span));
+        return Ok(());
+    }
+    if path.is_ident("keep_serializing") {
+        reject_field_attribute_arguments(attribute, "keep_serializing")?;
+        parsed.push(FieldAttribute::KeepSerializing);
+        return Ok(());
+    }
+    Err(Error::new(span, "unknown field-level attribute"))
+}
+
+fn parse_identifier_attribute(attribute: &Attribute) -> Result<IdentifierAttribute> {
+    let span = attribute.path().span();
+    let mut generated = Vec::new();
+    match &attribute.meta {
+        Meta::Path(_) => {}
+        Meta::List(_) => {
+            attribute.parse_nested_meta(|nested| {
+                if nested.path.is_ident("generated") {
+                    generated.push(nested.path.span());
+                    Ok(())
+                } else {
+                    Err(nested.error("expected `generated`"))
+                }
+            })?;
+        }
+        Meta::NameValue(name_value) => {
+            return Err(Error::new(
+                name_value.span(),
+                "`identifier` does not accept name-value arguments",
+            ));
+        }
+    }
+    Ok(IdentifierAttribute { generated, span })
+}
+
+fn parse_field_unique_attribute(attribute: &Attribute) -> Result<FieldUniqueAttribute> {
+    let span = attribute.path().span();
+    let mut name = Vec::new();
+    let mut respect_to = Vec::new();
+    let mut respect_to_count = 0;
+    let mut ignore_case = Vec::new();
+    let mut ignore_case_values = Vec::new();
+    match &attribute.meta {
+        Meta::Path(_) => {}
+        Meta::List(_) => {
+            attribute.parse_nested_meta(|nested| {
+                if nested.path.is_ident("name") {
+                    name.push(parse_string(&nested)?);
+                    Ok(())
+                } else if nested.path.is_ident("respectTo") {
+                    respect_to_count += 1;
+                    respect_to.extend(parse_field_name_list(&nested)?);
+                    Ok(())
+                } else if nested.path.is_ident("ignoreCase") {
+                    ignore_case_values.push(parse_bool(&nested)?);
+                    Ok(())
+                } else if nested.path.is_ident("ignore_case") {
+                    ignore_case.push(nested.path.span());
+                    Ok(())
+                } else {
+                    Err(nested.error("expected `name`, `respectTo`, `ignoreCase`, or `ignore_case`"))
+                }
+            })?;
+        }
+        Meta::NameValue(name_value) => {
+            return Err(Error::new(
+                name_value.span(),
+                "`unique` does not accept name-value arguments",
+            ));
+        }
+    }
+    if !ignore_case.is_empty() && !ignore_case_values.is_empty() {
+        return Err(Error::new(
+            span,
+            "`ignoreCase` and `ignore_case` cannot be used together",
+        ));
+    }
+    if name.len() > 1 {
+        return Err(Error::new(name[1].span(), "duplicate `name` argument"));
+    }
+    if ignore_case_values.len() > 1 {
+        return Err(Error::new(
+            ignore_case_values[1].span,
+            "duplicate `ignoreCase` argument",
+        ));
+    }
+    if ignore_case.len() > 1 {
+        return Err(Error::new(ignore_case[1], "duplicate `ignore_case` argument"));
+    }
+    if respect_to_count > 1 {
+        return Err(Error::new(span, "duplicate `respectTo` argument"));
+    }
+    Ok(FieldUniqueAttribute {
+        name,
+        respect_to,
+        ignore_case_values,
+        legacy_ignore_case: !ignore_case.is_empty(),
+        span,
+    })
+}
+
+fn parse_text_attribute(attribute: &Attribute) -> Result<TextAttribute> {
+    let span = attribute.path().span();
+    let mut value = TextAttribute {
+        min_chars: Vec::new(),
+        max_chars: Vec::new(),
+        min_bytes: Vec::new(),
+        max_bytes: Vec::new(),
+        repertoire: Vec::new(),
+        non_blank: Vec::new(),
+        format: Vec::new(),
+        span,
+    };
+    attribute.parse_nested_meta(|nested| parse_text_argument(&mut value, nested))?;
+    Ok(value)
+}
+
+fn parse_text_argument(value: &mut TextAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
+    if nested.path.is_ident("min_chars") {
+        value.min_chars.push(parse_integer(&nested)?);
+    } else if nested.path.is_ident("max_chars") {
+        value.max_chars.push(parse_integer(&nested)?);
+    } else if nested.path.is_ident("min_bytes") {
+        value.min_bytes.push(parse_integer(&nested)?);
+    } else if nested.path.is_ident("max_bytes") {
+        value.max_bytes.push(parse_integer(&nested)?);
+    } else if nested.path.is_ident("repertoire") {
+        let ident = parse_ident(&nested)?;
+        let repertoire = match ident.to_string().as_str() {
+            "unicode" => TextRepertoire::Unicode,
+            "ascii" => TextRepertoire::Ascii,
+            _ => return Err(nested.error("expected `unicode` or `ascii`")),
+        };
+        value.repertoire.push(SpannedValue {
+            value: repertoire,
+            span: ident.span(),
+        });
+    } else if nested.path.is_ident("non_blank") {
+        value.non_blank.push(nested.path.span());
+    } else if nested.path.is_ident("format") {
+        let ident = parse_ident(&nested)?;
+        let format = match ident.to_string().as_str() {
+            "email" => TextFormat::Email,
+            "mobile" => TextFormat::Mobile,
+            "uri" => TextFormat::Uri,
+            "uuid" => TextFormat::Uuid,
+            _ => return Err(nested.error("expected `email`, `mobile`, `uri`, or `uuid`")),
+        };
+        value.format.push(SpannedValue {
+            value: format,
+            span: ident.span(),
+        });
+    } else {
+        return Err(nested.error("unknown `text` argument"));
+    }
+    Ok(())
+}
+
+fn parse_sequence_attribute(attribute: &Attribute) -> Result<SequenceAttribute> {
+    let span = attribute.path().span();
+    let mut value = SequenceAttribute {
+        min_items: Vec::new(),
+        max_items: Vec::new(),
+        unique_items: Vec::new(),
+        span,
+    };
+    attribute.parse_nested_meta(|nested| parse_sequence_argument(&mut value, nested))?;
+    Ok(value)
+}
+
+fn parse_sequence_argument(value: &mut SequenceAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
+    if nested.path.is_ident("min_items") {
+        value.min_items.push(parse_integer(&nested)?);
+    } else if nested.path.is_ident("max_items") {
+        value.max_items.push(parse_integer(&nested)?);
+    } else if nested.path.is_ident("unique_items") {
+        value.unique_items.push(nested.path.span());
+    } else {
+        return Err(nested.error("unknown `sequence` argument"));
+    }
+    Ok(())
+}
+
+fn parse_map_attribute(attribute: &Attribute) -> Result<MapAttribute> {
+    let span = attribute.path().span();
+    let mut value = MapAttribute {
+        min_entries: Vec::new(),
+        max_entries: Vec::new(),
+        span,
+    };
+    attribute.parse_nested_meta(|nested| parse_map_argument(&mut value, nested))?;
+    Ok(value)
+}
+
+fn parse_map_argument(value: &mut MapAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
+    if nested.path.is_ident("min_entries") {
+        value.min_entries.push(parse_integer(&nested)?);
+    } else if nested.path.is_ident("max_entries") {
+        value.max_entries.push(parse_integer(&nested)?);
+    } else {
+        return Err(nested.error("unknown `map` argument"));
+    }
+    Ok(())
+}
+
+fn parse_temporal_attribute(attribute: &Attribute) -> Result<TemporalAttribute> {
+    let span = attribute.path().span();
+    let mut value = TemporalAttribute {
+        precision: Vec::new(),
+        span,
+    };
+    attribute.parse_nested_meta(|nested| parse_temporal_argument(&mut value, nested))?;
+    Ok(value)
+}
+
+fn parse_temporal_argument(value: &mut TemporalAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
+    if nested.path.is_ident("precision") {
+        let ident = parse_ident(&nested)?;
+        let precision = match ident.to_string().as_str() {
+            "second" => TemporalPrecision::Second,
+            "millisecond" => TemporalPrecision::Millisecond,
+            "microsecond" => TemporalPrecision::Microsecond,
+            "nanosecond" => TemporalPrecision::Nanosecond,
+            _ => return Err(nested.error("unknown temporal precision")),
+        };
+        value.precision.push(SpannedValue {
+            value: precision,
+            span: ident.span(),
+        });
+    } else {
+        return Err(nested.error("unknown `time` argument"));
+    }
+    Ok(())
+}
+
+fn parse_decimal_attribute(attribute: &Attribute) -> Result<DecimalAttribute> {
+    let span = attribute.path().span();
+    let mut value = DecimalAttribute {
+        precision: Vec::new(),
+        scale: Vec::new(),
+        rounding: Vec::new(),
+        span,
+    };
+    attribute.parse_nested_meta(|nested| parse_decimal_argument(&mut value, nested))?;
+    Ok(value)
+}
+
+fn parse_decimal_argument(value: &mut DecimalAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
+    if nested.path.is_ident("precision") {
+        value.precision.push(parse_integer(&nested)?);
+    } else if nested.path.is_ident("scale") {
+        value.scale.push(parse_integer(&nested)?);
+    } else if nested.path.is_ident("rounding") {
+        let ident = parse_ident(&nested)?;
+        let rounding = match ident.to_string().as_str() {
+            "down" => RoundingMode::Down,
+            "up" => RoundingMode::Up,
+            "half_up" => RoundingMode::HalfUp,
+            "half_even" => RoundingMode::HalfEven,
+            _ => return Err(nested.error("unknown decimal rounding mode")),
+        };
+        value.rounding.push(SpannedValue {
+            value: rounding,
+            span: ident.span(),
+        });
+    } else {
+        return Err(nested.error("unknown decimal argument"));
+    }
+    Ok(())
+}
+
+fn parse_element_attribute(attribute: &Attribute) -> Result<ElementAttribute> {
+    let span = attribute.path().span();
+    let mut attributes = Vec::new();
+    attribute.parse_nested_meta(|nested| {
+        if nested.path.is_ident("text") {
+            attributes.push(ElementConstraintAttribute::Text(parse_text(nested)?));
+        } else if nested.path.is_ident("decimal") {
+            attributes.push(ElementConstraintAttribute::Decimal(parse_decimal(nested)?));
+        } else {
+            discard_nested_meta_input(nested.input)?;
+            return Err(nested.error("element only supports `text(...)` or `decimal(...)`"));
+        }
+        Ok(())
+    })?;
+    if attributes.is_empty() {
+        return Err(Error::new(span, "element requires `text(...)` or `decimal(...)`"));
+    }
+    Ok(ElementAttribute { attributes, span })
+}
+
+fn parse_reference_attribute(attribute: &Attribute) -> Result<ReferenceAttribute> {
+    let span = attribute.path().span();
+    if matches!(attribute.meta, Meta::Path(_)) {
+        return Err(Error::new(
+            span,
+            "bare `reference` is not supported; specify `entity = \"module.Type\"`",
+        ));
+    }
+    let mut entity = Vec::new();
+    let mut property = Vec::new();
+    let mut existing = Vec::new();
+    let mut path = Vec::new();
+    attribute.parse_nested_meta(|nested| {
+        if nested.path.is_ident("entity") {
+            entity.push(nested.value()?.parse()?);
+        } else if nested.path.is_ident("property") {
+            property.push(parse_field_path(&nested)?);
+        } else if nested.path.is_ident("existing") {
+            existing.push(parse_bool(&nested)?);
+        } else if nested.path.is_ident("path") {
+            path.push(parse_reference_path(&nested)?);
+        } else {
+            return Err(nested.error("unknown `reference` argument"));
+        }
+        Ok(())
+    })?;
+    if entity.is_empty() {
+        return Err(Error::new(span, "reference requires `entity = \"module.Type\"`"));
+    }
+    Ok(ReferenceAttribute {
+        entity,
+        property,
+        existing,
+        path,
+        span,
+    })
+}
+
+fn parse_lookup_relation_attribute(attribute: &Attribute) -> Result<LookupRelationAttribute> {
+    let span = attribute.path().span();
+    if matches!(attribute.meta, Meta::Path(_)) {
+        return Err(Error::new(
+            span,
+            "bare `lookup_relation` is not supported; specify `target = Type` and `target_field = field`",
+        ));
+    }
+    let mut target = Vec::new();
+    let mut target_field = Vec::new();
+    attribute.parse_nested_meta(|nested| {
+        if nested.path.is_ident("target") {
+            target.push(nested.value()?.parse()?);
+        } else if nested.path.is_ident("target_field") {
+            target_field.push(parse_field_path(&nested)?);
+        } else {
+            return Err(nested.error("unknown `lookup_relation` argument"));
+        }
+        Ok(())
+    })?;
+    if target.is_empty() {
+        return Err(Error::new(span, "lookup_relation requires `target = Type`"));
+    }
+    if target_field.is_empty() {
+        return Err(Error::new(span, "lookup_relation requires `target_field = field`"));
+    }
+    Ok(LookupRelationAttribute {
+        target,
+        target_field,
+        span,
+    })
+}
+
+fn parse_generator_attribute(attribute: &Attribute) -> Result<StrategyAttribute> {
+    let span = attribute.path().span();
+    if matches!(attribute.meta, Meta::Path(_)) {
+        return Err(Error::new(span, "generator attribute requires a name"));
+    }
+    let mut name = Vec::new();
+    attribute.parse_nested_meta(|nested| {
+        if nested.path.is_ident("name") || nested.path.is_ident("strategy") {
+            name.push(parse_string(&nested)?);
+            Ok(())
+        } else {
+            Err(nested.error("expected `name = \"...\"`"))
+        }
+    })?;
+    if name.is_empty() {
+        return Err(Error::new(span, "generator attribute requires a name"));
+    }
+    Ok(StrategyAttribute { name, span })
+}
+
+/// Parses `codec = "name"` or `codec(name = "name")`.
+fn parse_codec_attribute(attribute: &Attribute) -> Result<StrategyAttribute> {
+    match &attribute.meta {
+        Meta::NameValue(name_value) => {
+            let Expr::Lit(expr_lit) = &name_value.value else {
+                return Err(Error::new(
+                    name_value.span(),
+                    "codec attribute requires a string literal name",
+                ));
+            };
+            let Lit::Str(literal) = &expr_lit.lit else {
+                return Err(Error::new(
+                    expr_lit.span(),
+                    "codec attribute requires a string literal name",
+                ));
+            };
+            Ok(StrategyAttribute {
+                name: vec![literal.clone()],
+                span: attribute.path().span(),
+            })
+        }
+        Meta::List(_) => parse_generator_attribute(attribute),
+        Meta::Path(path) => Err(Error::new(
+            path.span(),
+            "codec attribute requires a name",
+        )),
+    }
+}
+
+/// Rejects helper attributes that must be written without arguments.
+fn reject_field_attribute_arguments(attribute: &Attribute, name: &str) -> Result<()> {
+    match &attribute.meta {
+        Meta::Path(_) => Ok(()),
+        Meta::List(list) if list.tokens.is_empty() => Ok(()),
+        Meta::List(list) => Err(Error::new(
+            list.span(),
+            format!("`{name}` does not accept arguments"),
+        )),
+        Meta::NameValue(name_value) => Err(Error::new(
+            name_value.span(),
+            format!("`{name}` does not accept arguments"),
+        )),
     }
 }
 
@@ -145,53 +763,6 @@ fn parse_model_attribute(
         return Err(meta.error("this field-level `model` attribute cannot be used on a model"));
     } else {
         return Err(meta.error("unknown model-level `model` attribute"));
-    }
-    Ok(())
-}
-
-/// Parses one field-level nested item and appends its syntax node.
-fn parse_field_attribute(meta: ParseNestedMeta<'_>, parsed: &mut Vec<FieldAttribute>) -> Result<()> {
-    let span = meta.path.span();
-    if meta.path.is_ident("identifier") {
-        parsed.push(FieldAttribute::Identifier(parse_identifier(meta)?));
-    } else if meta.path.is_ident("unique") {
-        parsed.push(FieldAttribute::Unique(parse_field_unique(meta)?));
-    } else if meta.path.is_ident("index") {
-        parsed.push(FieldAttribute::Index(span));
-    } else if meta.path.is_ident("text") {
-        parsed.push(FieldAttribute::Text(parse_text(meta)?));
-    } else if meta.path.is_ident("sequence") {
-        parsed.push(FieldAttribute::Sequence(parse_sequence(meta)?));
-    } else if meta.path.is_ident("map") {
-        parsed.push(FieldAttribute::Map(parse_map(meta)?));
-    } else if meta.path.is_ident("time") {
-        parsed.push(FieldAttribute::Temporal(parse_temporal(meta)?));
-    } else if meta.path.is_ident("decimal") {
-        parsed.push(FieldAttribute::Decimal(parse_decimal(meta)?));
-    } else if meta.path.is_ident("money") {
-        parsed.push(FieldAttribute::Money(parse_decimal(meta)?));
-    } else if meta.path.is_ident("element") {
-        parsed.push(FieldAttribute::Element(parse_element(meta)?));
-    } else if meta.path.is_ident("reference") {
-        parsed.push(FieldAttribute::Reference(parse_reference(meta)?));
-    } else if meta.path.is_ident("lookup_relation") {
-        parsed.push(FieldAttribute::LookupRelation(parse_lookup_relation(meta)?));
-    } else if meta.path.is_ident("codec") {
-        parsed.push(FieldAttribute::Codec(parse_strategy(meta)?));
-    } else if meta.path.is_ident("generator") {
-        parsed.push(FieldAttribute::Generator(parse_strategy(meta)?));
-    } else if meta.path.is_ident("opaque") {
-        parsed.push(FieldAttribute::Opaque(span));
-    } else if meta.path.is_ident("keep_serializing") {
-        parsed.push(FieldAttribute::KeepSerializing);
-    } else if meta.path.is_ident("nullable") {
-        return Err(meta.error("`nullable` is not supported; use `Option<T>` for nullability"));
-    } else if meta.path.is_ident("computed") {
-        return Err(meta.error("`computed` is not supported; declare a real Rust field instead"));
-    } else if is_model_attribute_path(&meta.path) {
-        return Err(meta.error("this model-level `model` attribute cannot be used on a field"));
-    } else {
-        return Err(meta.error("unknown field-level `model` attribute"));
     }
     Ok(())
 }
@@ -254,81 +825,6 @@ fn parse_ownership(meta: ParseNestedMeta<'_>) -> Result<OwnershipAttribute> {
     Ok(OwnershipAttribute { owner, span })
 }
 
-/// Parses `identifier` and its optional `generated` marker.
-fn parse_identifier(meta: ParseNestedMeta<'_>) -> Result<IdentifierAttribute> {
-    let span = meta.path.span();
-    let mut generated = Vec::new();
-    if meta.input.peek(Paren) {
-        meta.parse_nested_meta(|nested| {
-            if nested.path.is_ident("generated") {
-                generated.push(nested.path.span());
-                Ok(())
-            } else {
-                Err(nested.error("expected `generated`"))
-            }
-        })?;
-    }
-    Ok(IdentifierAttribute { generated, span })
-}
-
-/// Parses field `unique` and its optional `ignore_case` marker.
-fn parse_field_unique(meta: ParseNestedMeta<'_>) -> Result<FieldUniqueAttribute> {
-    let span = meta.path.span();
-    let mut name = Vec::new();
-    let mut respect_to = Vec::new();
-    let mut respect_to_count = 0;
-    let mut ignore_case = Vec::new();
-    let mut ignore_case_values = Vec::new();
-    if meta.input.peek(Paren) {
-        meta.parse_nested_meta(|nested| {
-            if nested.path.is_ident("name") {
-                name.push(parse_string(&nested)?);
-                Ok(())
-            } else if nested.path.is_ident("respectTo") {
-                respect_to_count += 1;
-                respect_to.extend(parse_field_name_list(&nested)?);
-                Ok(())
-            } else if nested.path.is_ident("ignoreCase") {
-                ignore_case_values.push(parse_bool(&nested)?);
-                Ok(())
-            } else if nested.path.is_ident("ignore_case") {
-                ignore_case.push(nested.path.span());
-                Ok(())
-            } else {
-                Err(nested.error("expected `name`, `respectTo`, `ignoreCase`, or `ignore_case`"))
-            }
-        })?;
-    }
-    if !ignore_case.is_empty() && !ignore_case_values.is_empty() {
-        return Err(Error::new(
-            span,
-            "`ignoreCase` and `ignore_case` cannot be used together",
-        ));
-    }
-    if name.len() > 1 {
-        return Err(Error::new(name[1].span(), "duplicate `name` argument"));
-    }
-    if ignore_case_values.len() > 1 {
-        return Err(Error::new(
-            ignore_case_values[1].span,
-            "duplicate `ignoreCase` argument",
-        ));
-    }
-    if ignore_case.len() > 1 {
-        return Err(Error::new(ignore_case[1], "duplicate `ignore_case` argument"));
-    }
-    if respect_to_count > 1 {
-        return Err(Error::new(span, "duplicate `respectTo` argument"));
-    }
-    Ok(FieldUniqueAttribute {
-        name,
-        respect_to,
-        ignore_case_values,
-        legacy_ignore_case: !ignore_case.is_empty(),
-        span,
-    })
-}
-
 /// Parses a comma-separated bracketed list of Rust field identifiers.
 fn parse_field_name_list(meta: &ParseNestedMeta<'_>) -> Result<Vec<FieldName>> {
     let input = meta.value()?;
@@ -338,7 +834,7 @@ fn parse_field_name_list(meta: &ParseNestedMeta<'_>) -> Result<Vec<FieldName>> {
         .map(|idents| idents.iter().map(field_name_from_ident).collect())
 }
 
-/// Parses text constraint arguments.
+/// Parses nested `text(...)` arguments inside an `element(...)` attribute.
 fn parse_text(meta: ParseNestedMeta<'_>) -> Result<TextAttribute> {
     let span = meta.path.span();
     let mut value = TextAttribute {
@@ -351,126 +847,11 @@ fn parse_text(meta: ParseNestedMeta<'_>) -> Result<TextAttribute> {
         format: Vec::new(),
         span,
     };
-    meta.parse_nested_meta(|nested| {
-        if nested.path.is_ident("min_chars") {
-            value.min_chars.push(parse_integer(&nested)?);
-        } else if nested.path.is_ident("max_chars") {
-            value.max_chars.push(parse_integer(&nested)?);
-        } else if nested.path.is_ident("min_bytes") {
-            value.min_bytes.push(parse_integer(&nested)?);
-        } else if nested.path.is_ident("max_bytes") {
-            value.max_bytes.push(parse_integer(&nested)?);
-        } else if nested.path.is_ident("repertoire") {
-            let ident = parse_ident(&nested)?;
-            let repertoire = match ident.to_string().as_str() {
-                "unicode" => TextRepertoire::Unicode,
-                "ascii" => TextRepertoire::Ascii,
-                _ => return Err(nested.error("expected `unicode` or `ascii`")),
-            };
-            value.repertoire.push(SpannedValue {
-                value: repertoire,
-                span: ident.span(),
-            });
-        } else if nested.path.is_ident("non_blank") {
-            value.non_blank.push(nested.path.span());
-        } else if nested.path.is_ident("format") {
-            let ident = parse_ident(&nested)?;
-            let format = match ident.to_string().as_str() {
-                "email" => TextFormat::Email,
-                "mobile" => TextFormat::Mobile,
-                "uri" => TextFormat::Uri,
-                "uuid" => TextFormat::Uuid,
-                _ => {
-                    return Err(nested.error("expected `email`, `mobile`, `uri`, or `uuid`"));
-                }
-            };
-            value.format.push(SpannedValue {
-                value: format,
-                span: ident.span(),
-            });
-        } else {
-            return Err(nested.error("unknown `text` argument"));
-        }
-        Ok(())
-    })?;
+    meta.parse_nested_meta(|nested| parse_text_argument(&mut value, nested))?;
     Ok(value)
 }
 
-/// Parses ordered-sequence constraint arguments.
-fn parse_sequence(meta: ParseNestedMeta<'_>) -> Result<SequenceAttribute> {
-    let span = meta.path.span();
-    let mut value = SequenceAttribute {
-        min_items: Vec::new(),
-        max_items: Vec::new(),
-        unique_items: Vec::new(),
-        span,
-    };
-    meta.parse_nested_meta(|nested| {
-        if nested.path.is_ident("min_items") {
-            value.min_items.push(parse_integer(&nested)?);
-        } else if nested.path.is_ident("max_items") {
-            value.max_items.push(parse_integer(&nested)?);
-        } else if nested.path.is_ident("unique_items") {
-            value.unique_items.push(nested.path.span());
-        } else {
-            return Err(nested.error("unknown `sequence` argument"));
-        }
-        Ok(())
-    })?;
-    Ok(value)
-}
-
-/// Parses map constraint arguments.
-fn parse_map(meta: ParseNestedMeta<'_>) -> Result<MapAttribute> {
-    let span = meta.path.span();
-    let mut value = MapAttribute {
-        min_entries: Vec::new(),
-        max_entries: Vec::new(),
-        span,
-    };
-    meta.parse_nested_meta(|nested| {
-        if nested.path.is_ident("min_entries") {
-            value.min_entries.push(parse_integer(&nested)?);
-        } else if nested.path.is_ident("max_entries") {
-            value.max_entries.push(parse_integer(&nested)?);
-        } else {
-            return Err(nested.error("unknown `map` argument"));
-        }
-        Ok(())
-    })?;
-    Ok(value)
-}
-
-/// Parses temporal constraint arguments.
-fn parse_temporal(meta: ParseNestedMeta<'_>) -> Result<TemporalAttribute> {
-    let span = meta.path.span();
-    let mut value = TemporalAttribute {
-        precision: Vec::new(),
-        span,
-    };
-    meta.parse_nested_meta(|nested| {
-        if nested.path.is_ident("precision") {
-            let ident = parse_ident(&nested)?;
-            let precision = match ident.to_string().as_str() {
-                "second" => TemporalPrecision::Second,
-                "millisecond" => TemporalPrecision::Millisecond,
-                "microsecond" => TemporalPrecision::Microsecond,
-                "nanosecond" => TemporalPrecision::Nanosecond,
-                _ => return Err(nested.error("unknown temporal precision")),
-            };
-            value.precision.push(SpannedValue {
-                value: precision,
-                span: ident.span(),
-            });
-        } else {
-            return Err(nested.error("unknown `time` argument"));
-        }
-        Ok(())
-    })?;
-    Ok(value)
-}
-
-/// Parses decimal or monetary constraint arguments.
+/// Parses nested `decimal(...)` arguments inside an `element(...)` attribute.
 fn parse_decimal(meta: ParseNestedMeta<'_>) -> Result<DecimalAttribute> {
     let span = meta.path.span();
     let mut value = DecimalAttribute {
@@ -479,146 +860,8 @@ fn parse_decimal(meta: ParseNestedMeta<'_>) -> Result<DecimalAttribute> {
         rounding: Vec::new(),
         span,
     };
-    meta.parse_nested_meta(|nested| {
-        if nested.path.is_ident("precision") {
-            value.precision.push(parse_integer(&nested)?);
-        } else if nested.path.is_ident("scale") {
-            value.scale.push(parse_integer(&nested)?);
-        } else if nested.path.is_ident("rounding") {
-            let ident = parse_ident(&nested)?;
-            let rounding = match ident.to_string().as_str() {
-                "down" => RoundingMode::Down,
-                "up" => RoundingMode::Up,
-                "half_up" => RoundingMode::HalfUp,
-                "half_even" => RoundingMode::HalfEven,
-                _ => return Err(nested.error("unknown decimal rounding mode")),
-            };
-            value.rounding.push(SpannedValue {
-                value: rounding,
-                span: ident.span(),
-            });
-        } else {
-            return Err(nested.error("unknown decimal argument"));
-        }
-        Ok(())
-    })?;
+    meta.parse_nested_meta(|nested| parse_decimal_argument(&mut value, nested))?;
     Ok(value)
-}
-
-/// Parses constraints that apply to every element of a sequence.
-fn parse_element(meta: ParseNestedMeta<'_>) -> Result<ElementAttribute> {
-    let span = meta.path.span();
-    let mut attributes = Vec::new();
-    meta.parse_nested_meta(|nested| {
-        if nested.path.is_ident("text") {
-            attributes.push(ElementConstraintAttribute::Text(parse_text(nested)?));
-        } else if nested.path.is_ident("decimal") {
-            attributes.push(ElementConstraintAttribute::Decimal(parse_decimal(nested)?));
-        } else {
-            discard_nested_meta_input(nested.input)?;
-            return Err(nested.error("element only supports `text(...)` or `decimal(...)`"));
-        }
-        Ok(())
-    })?;
-    if attributes.is_empty() {
-        return Err(Error::new(span, "element requires `text(...)` or `decimal(...)`"));
-    }
-    Ok(ElementAttribute { attributes, span })
-}
-
-/// Parses a direct-reference declaration.
-fn parse_reference(meta: ParseNestedMeta<'_>) -> Result<ReferenceAttribute> {
-    let span = meta.path.span();
-    if meta.input.is_empty() {
-        return Err(Error::new(
-            span,
-            "bare `reference` is not supported; specify `entity = \"module.Type\"`",
-        ));
-    }
-    let mut entity = Vec::new();
-    let mut property = Vec::new();
-    let mut existing = Vec::new();
-    let mut path = Vec::new();
-    meta.parse_nested_meta(|nested| {
-        if nested.path.is_ident("entity") {
-            entity.push(nested.value()?.parse()?);
-        } else if nested.path.is_ident("property") {
-            property.push(parse_field_path(&nested)?);
-        } else if nested.path.is_ident("existing") {
-            existing.push(parse_bool(&nested)?);
-        } else if nested.path.is_ident("path") {
-            path.push(parse_reference_path(&nested)?);
-        } else {
-            return Err(nested.error("unknown `reference` argument"));
-        }
-        Ok(())
-    })?;
-    if entity.is_empty() {
-        return Err(Error::new(span, "reference requires `entity = \"module.Type\"`"));
-    }
-    Ok(ReferenceAttribute {
-        entity,
-        property,
-        existing,
-        path,
-        span,
-    })
-}
-
-/// Parses a lookup-relation declaration.
-fn parse_lookup_relation(meta: ParseNestedMeta<'_>) -> Result<LookupRelationAttribute> {
-    let span = meta.path.span();
-    if meta.input.is_empty() {
-        return Err(Error::new(
-            span,
-            "bare `lookup_relation` is not supported; specify `target = Type` and `target_field = field`",
-        ));
-    }
-    let mut target = Vec::new();
-    let mut target_field = Vec::new();
-    meta.parse_nested_meta(|nested| {
-        if nested.path.is_ident("target") {
-            target.push(nested.value()?.parse()?);
-        } else if nested.path.is_ident("target_field") {
-            target_field.push(parse_field_path(&nested)?);
-        } else {
-            return Err(nested.error("unknown `lookup_relation` argument"));
-        }
-        Ok(())
-    })?;
-    if target.is_empty() {
-        return Err(Error::new(span, "lookup_relation requires `target = Type`"));
-    }
-    if target_field.is_empty() {
-        return Err(Error::new(span, "lookup_relation requires `target_field = field`"));
-    }
-    Ok(LookupRelationAttribute {
-        target,
-        target_field,
-        span,
-    })
-}
-
-/// Parses a strategy as `codec = "name"` or `codec(name = "name")`.
-fn parse_strategy(meta: ParseNestedMeta<'_>) -> Result<StrategyAttribute> {
-    let span = meta.path.span();
-    let mut name = Vec::new();
-    if meta.input.peek(Token![=]) {
-        name.push(parse_string(&meta)?);
-    } else {
-        meta.parse_nested_meta(|nested| {
-            if nested.path.is_ident("name") || nested.path.is_ident("strategy") {
-                name.push(parse_string(&nested)?);
-                Ok(())
-            } else {
-                Err(nested.error("expected `name = \"...\"`"))
-            }
-        })?;
-    }
-    if name.is_empty() {
-        return Err(Error::new(span, "strategy attribute requires a name"));
-    }
-    Ok(StrategyAttribute { name, span })
 }
 
 /// Parses an ordered list of Rust field identifiers.
@@ -767,6 +1010,7 @@ fn is_model_attribute_path(path: &Path) -> bool {
 /// declaration.
 fn is_field_attribute_path(path: &Path) -> bool {
     path.is_ident("identifier")
+        || path.is_ident("indexed")
         || path.is_ident("text")
         || path.is_ident("sequence")
         || path.is_ident("map")

@@ -290,7 +290,7 @@ fn validate_unique_index_conflicts(model: &ModelIr, errors: &mut Option<Error>) 
                     errors,
                     Error::new(
                         *span,
-                        format!("field `{name}` cannot declare both `unique` and `index`"),
+                        format!("field `{name}` cannot declare both `unique` and `indexed`"),
                     ),
                 );
             }
@@ -323,7 +323,7 @@ fn validate_reference_index_conflicts(model: &ModelIr, errors: &mut Option<Error
                     errors,
                     Error::new(
                         *span,
-                        format!("field `{name}` cannot declare both `reference` and `index`"),
+                        format!("field `{name}` cannot declare both `reference` and `indexed`"),
                     ),
                 );
             }

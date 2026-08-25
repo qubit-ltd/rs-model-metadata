@@ -41,7 +41,7 @@ use crate::input::ModelShape;
 /// Normalizes a parsed model into the sole semantic representation consumed by
 /// expansion.
 ///
-/// Field `identifier`, `unique`, and `index` shorthands become model
+/// Field `identifier`, `unique`, and `indexed` shorthands become model
 /// attributes. Monetary values become decimal IR with money semantics. The
 /// function preserves source spans for later local validation and diagnostics.
 ///

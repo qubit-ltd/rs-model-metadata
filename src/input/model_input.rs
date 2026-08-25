@@ -24,6 +24,7 @@ use super::model_variant::ModelVariant;
 use crate::attribute::ModelAttribute;
 use crate::attribute::parse_field_attributes;
 use crate::attribute::parse_model_attributes;
+use crate::attribute::validate_model_attribute_scope;
 use crate::attribute_support::serialized_variant_name;
 
 /// The parsed input required to generate model metadata.
@@ -52,6 +53,9 @@ impl ModelInput {
                 &mut errors,
                 Error::new(input.generics.span(), "Model derive does not support generic models"),
             );
+        }
+        if let Err(error) = validate_model_attribute_scope(&input.attrs) {
+            combine_error(&mut errors, error);
         }
         let attributes = match parse_model_attributes(&input.attrs) {
             Ok(attributes) => Some(attributes),
@@ -157,13 +161,21 @@ impl ModelInput {
     fn parse_enum(variants: Vec<Variant>) -> Result<ModelShape> {
         let mut errors: Option<Error> = None;
         for variant in &variants {
-            for attribute in variant
-                .attrs
-                .iter()
-                .filter(|attribute| attribute.path().is_ident("model"))
-            {
-                let error = Error::new_spanned(attribute, "`model` attributes are not supported on enum variants");
-                combine_error(&mut errors, error);
+            for attribute in &variant.attrs {
+                if attribute.path().is_ident("model") {
+                    combine_error(
+                        &mut errors,
+                        Error::new_spanned(attribute, "`model` attributes are not supported on enum variants"),
+                    );
+                } else if crate::attribute::is_field_level_helper_attribute(attribute.path()) {
+                    combine_error(
+                        &mut errors,
+                        Error::new_spanned(
+                            attribute,
+                            "field helper attributes are not supported on enum variants",
+                        ),
+                    );
+                }
             }
             if !matches!(variant.fields, Fields::Unit) {
                 let error = Error::new(variant.fields.span(), "Model derive only supports fieldless enums");

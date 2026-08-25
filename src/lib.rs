@@ -37,7 +37,7 @@ use proc_macro::TokenStream;
 ///
 /// - `args`: The type-level model arguments, including the required `id`.
 /// - `input`: The token stream containing the model declaration and its
-///   `#[field(...)]` attributes.
+///   standalone field helper attributes such as `#[identifier]` and `#[indexed]`.
 ///
 /// # Returns
 ///

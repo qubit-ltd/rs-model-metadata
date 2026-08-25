@@ -34,7 +34,7 @@ pub(crate) enum FieldAttribute {
     ),
     /// A single-field index shorthand.
     Index(
-        /// Source span of the field-level `index` marker.
+    /// Source span of the field-level `indexed` marker.
         Span,
     ),
     /// Text constraints.

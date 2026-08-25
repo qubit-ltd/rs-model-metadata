@@ -33,6 +33,7 @@ use syn::parse_quote;
 use syn::parse2;
 use syn::punctuated::Punctuated;
 
+use crate::attribute::is_field_level_helper_attribute;
 use crate::attribute_support::has_must_use;
 use crate::attribute_support::serialized_variant_name;
 use crate::derive_model_impl::derive_model_tokens;
@@ -95,7 +96,6 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
     metadata_input
         .attrs
         .push(parse_quote!(#[model(#(#metadata_attributes),*)]));
-    rename_field_attributes(&mut metadata_input.data);
     add_default_serde_field_attributes(
         &mut item.data,
         !options.disabled.serialize,
@@ -245,23 +245,10 @@ fn struct_derives(serde: &TokenStream, disabled: &DisabledCapabilities, redacted
     Ok(parse_quote!(#[derive(#(#derives),*)]))
 }
 
-/// Rewrites field helper attributes for the metadata-only derive input.
-fn rename_field_attributes(data: &mut Data) {
-    visit_fields(data, |field| {
-        for attribute in &mut field.attrs {
-            if attribute.path().is_ident("field")
-                && let Meta::List(list) = &mut attribute.meta
-            {
-                list.path = parse_quote!(model);
-            }
-        }
-    });
-}
-
 /// Removes field helper attributes from the item returned to the compiler.
 fn remove_field_attributes(data: &mut Data) {
     visit_fields(data, |field| {
-        field.attrs.retain(|attribute| !attribute.path().is_ident("field"));
+        field.attrs.retain(|attribute| !is_field_level_helper_attribute(attribute.path()));
     });
 }
 
@@ -317,7 +304,9 @@ fn add_default_serde_field_attributes(data: &mut Data, serialize: bool, deserial
 /// omission.
 #[inline]
 fn field_keeps_serializing(attributes: &[Attribute]) -> Result<bool> {
-    has_attribute_option(attributes, "field", &["keep_serializing"])
+    Ok(attributes
+        .iter()
+        .any(|attribute| attribute.path().is_ident("keep_serializing")))
 }
 
 /// Adds an attribute unless a field's existing Serde attribute has any option.
