@@ -16,7 +16,6 @@ use qubit_model_metadata::MapConstraint;
 use qubit_model_metadata::RoundingMode;
 use qubit_model_metadata::SequenceConstraint;
 use qubit_model_metadata::TemporalConstraint;
-use qubit_model_metadata::TemporalNormalization;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
 use qubit_model_metadata::TextFormat;
@@ -44,8 +43,7 @@ const VALID_SEQUENCE: SequenceConstraint = SequenceConstraint::new(Some(1), Some
 const VALID_MAP: MapConstraint = MapConstraint::new(Some(1), Some(8));
 const VALID_DECIMAL: DecimalConstraint =
     DecimalConstraint::new(Some(8), 3, RoundingMode::HalfEven, DecimalSemantic::Number);
-const VALID_TEMPORAL: TemporalConstraint =
-    TemporalConstraint::new(TemporalPrecision::Millisecond, TemporalNormalization::Utc);
+const VALID_TEMPORAL: TemporalConstraint = TemporalConstraint::new(TemporalPrecision::Millisecond);
 
 #[test]
 fn test_constraint_constructors_remain_const_compatible() {
@@ -66,7 +64,6 @@ fn test_constraint_constructors_remain_const_compatible() {
     assert_eq!(VALID_MAP.max_entries(), Some(8));
 
     assert_eq!(VALID_TEMPORAL.precision(), TemporalPrecision::Millisecond);
-    assert_eq!(VALID_TEMPORAL.normalization(), TemporalNormalization::Utc);
 
     assert_eq!(VALID_DECIMAL.precision(), Some(8));
     assert_eq!(VALID_DECIMAL.scale(), 3);
@@ -88,13 +85,13 @@ fn test_constraint_constructors_execute_runtime_paths() {
     let sequence = SequenceConstraint::new(Some(1), Some(8), true);
     let map = MapConstraint::new(Some(1), Some(8));
     let decimal = DecimalConstraint::new(Some(8), 3, RoundingMode::HalfEven, DecimalSemantic::Number);
-    let temporal = TemporalConstraint::new(TemporalPrecision::Millisecond, TemporalNormalization::Utc);
+    let temporal = TemporalConstraint::new(TemporalPrecision::Millisecond);
 
     assert_eq!(text.max_chars(), Some(8));
     assert!(sequence.has_unique_items());
     assert_eq!(map.max_entries(), Some(8));
     assert_eq!(decimal.scale(), 3);
-    assert_eq!(temporal.normalization(), TemporalNormalization::Utc);
+    assert_eq!(temporal.precision(), TemporalPrecision::Millisecond);
 }
 
 #[test]

@@ -14,7 +14,6 @@ mod map_constraint_tests;
 mod rounding_mode_tests;
 mod sequence_constraint_tests;
 mod temporal_constraint_tests;
-mod temporal_normalization_tests;
 mod temporal_precision_tests;
 mod text_constraint_tests;
 mod text_format_tests;

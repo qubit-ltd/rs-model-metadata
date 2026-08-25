@@ -38,7 +38,6 @@ pub use crate::constraint::MapConstraint;
 pub use crate::constraint::RoundingMode;
 pub use crate::constraint::SequenceConstraint;
 pub use crate::constraint::TemporalConstraint;
-pub use crate::constraint::TemporalNormalization;
 pub use crate::constraint::TemporalPrecision;
 pub use crate::constraint::TextConstraint;
 pub use crate::constraint::TextFormat;

@@ -30,7 +30,6 @@ use qubit_model_metadata::RoundingMode;
 use qubit_model_metadata::SequenceConstraint;
 use qubit_model_metadata::StrategyRef;
 use qubit_model_metadata::TemporalConstraint;
-use qubit_model_metadata::TemporalNormalization;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
 use qubit_model_metadata::TextRepertoire;
@@ -96,7 +95,6 @@ fn test_attribute_metadata_reports_every_kind() {
         AttributeMetadata::Map(MapConstraint::new(None, None)),
         AttributeMetadata::Temporal(TemporalConstraint::new(
             TemporalPrecision::Second,
-            TemporalNormalization::Preserve,
         )),
         AttributeMetadata::Decimal(DecimalConstraint::new(
             None,

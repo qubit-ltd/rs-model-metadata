@@ -26,7 +26,6 @@ use qubit_model_metadata::RoundingMode;
 use qubit_model_metadata::SequenceConstraint;
 use qubit_model_metadata::StrategyRef;
 use qubit_model_metadata::TemporalConstraint;
-use qubit_model_metadata::TemporalNormalization;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
 use qubit_model_metadata::TextRepertoire;
@@ -90,7 +89,6 @@ static VALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(
 static MAP_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Map(MapConstraint::new(Some(1), Some(4)))];
 static TEMPORAL_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Temporal(TemporalConstraint::new(
     TemporalPrecision::Second,
-    TemporalNormalization::Utc,
 ))];
 static DECIMAL_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Decimal(DecimalConstraint::new(
     Some(8),

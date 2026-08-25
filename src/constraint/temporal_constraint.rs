@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use super::TemporalNormalization;
 use super::TemporalPrecision;
 
 /// Constraints for temporal values.
@@ -15,18 +14,15 @@ use super::TemporalPrecision;
 ///
 /// ```
 /// use qubit_model_metadata::TemporalConstraint;
-/// use qubit_model_metadata::TemporalNormalization;
 /// use qubit_model_metadata::TemporalPrecision;
 ///
-/// let constraint = TemporalConstraint::new(TemporalPrecision::Millisecond, TemporalNormalization::Utc);
+/// let constraint = TemporalConstraint::new(TemporalPrecision::Millisecond);
 /// assert_eq!(constraint.precision(), TemporalPrecision::Millisecond);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TemporalConstraint {
     /// The required temporal precision.
     precision: TemporalPrecision,
-    /// The temporal normalization policy.
-    normalization: TemporalNormalization,
 }
 
 impl TemporalConstraint {
@@ -35,17 +31,14 @@ impl TemporalConstraint {
     /// # Parameters
     ///
     /// * `precision` - The required temporal precision.
-    /// * `normalization` - The temporal normalization policy.
-    ///
     /// # Returns
     ///
-    /// Temporal constraints containing the supplied precision and policy.
+    /// Temporal constraints containing the supplied precision.
     #[must_use]
     #[inline(always)]
-    pub const fn new(precision: TemporalPrecision, normalization: TemporalNormalization) -> Self {
+    pub const fn new(precision: TemporalPrecision) -> Self {
         Self {
             precision,
-            normalization,
         }
     }
 
@@ -58,16 +51,5 @@ impl TemporalConstraint {
     #[inline(always)]
     pub const fn precision(self) -> TemporalPrecision {
         self.precision
-    }
-
-    /// Returns the temporal normalization policy.
-    ///
-    /// # Returns
-    ///
-    /// The temporal normalization policy.
-    #[must_use]
-    #[inline(always)]
-    pub const fn normalization(self) -> TemporalNormalization {
-        self.normalization
     }
 }
