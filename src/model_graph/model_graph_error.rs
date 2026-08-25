@@ -12,6 +12,7 @@ use core::fmt;
 
 use crate::model_id::ModelId;
 use crate::relation::FieldPath;
+use crate::relation::ReferencePath;
 
 /// A validation error found in a model registry's direct-reference graph.
 ///
@@ -66,24 +67,24 @@ pub enum ModelGraphError {
         /// The target field type after removing one outer `Option`.
         target_type: &'static str,
     },
-    /// A direct reference's `same_as` path does not resolve in its source
-    /// model.
-    InvalidSameAs {
+    /// A direct reference's object-graph path does not resolve.
+    InvalidReferencePath {
         /// The model declaring the reference.
         source: ModelId,
         /// The source field declaring the reference.
         field: &'static str,
-        /// The invalid path in the source model.
-        same_as: FieldPath,
+        /// The invalid object-graph path.
+        path: ReferencePath,
     },
-    /// A direct reference's `same_as` field has an incompatible projection.
-    IncompatibleSameAs {
+    /// A direct reference's object-graph path does not end at the same
+    /// reference.
+    IncompatibleReferencePath {
         /// The model declaring the reference.
         source: ModelId,
         /// The source field declaring the reference.
         field: &'static str,
-        /// The declared same-as field path.
-        same_as: FieldPath,
+        /// The declared object-graph path.
+        path: ReferencePath,
     },
     /// A lookup relation targets no registered model.
     MissingLookupTarget {
@@ -176,15 +177,15 @@ impl fmt::Display for ModelGraphError {
                 target_field,
                 target.as_str()
             ),
-            Self::InvalidSameAs { source, field, same_as } => write!(
+            Self::InvalidReferencePath { source, field, path } => write!(
                 formatter,
-                "reference {}.{field} has invalid same_as path {}",
+                "reference {}.{field} has invalid path {}",
                 source.as_str(),
-                same_as
+                path
             ),
-            Self::IncompatibleSameAs { source, field, same_as } => write!(
+            Self::IncompatibleReferencePath { source, field, path } => write!(
                 formatter,
-                "reference {}.{field} has incompatible same_as path {same_as}",
+                "reference {}.{field} has incompatible path {path}",
                 source.as_str()
             ),
             Self::MissingLookupTarget { source, field, target } => write!(

@@ -228,7 +228,7 @@ panic。多数场景仍应使用 derive，让声明紧挨着类型。
 | `ModelId::try_new` / `validate` | `ModelIdError` | ID 为空、含空段、模块段或类型段不合法，或把 Rust 关键字当作模块段。 |
 | `ModelRegistry::from_registrations` / `try_global` | `ModelRegistryError` | ID 不合法、注册项与元数据 ID 不一致、重复 ID 或重复类型身份。 |
 | `ModelRegistry::global` | Panic | 与 `try_global` 相同的失败；调用方不能中止时改用 `try_global`。 |
-| `ModelRegistry::validate_graph` | `ModelGraphErrors` | 一条或多条 `ModelGraphError`：目标缺失、目标字段缺失、投影不兼容、`same_as` 无效、归属目标缺失、必填引用环或归属环。 |
+| `ModelRegistry::validate_graph` | `ModelGraphErrors` | 一条或多条 `ModelGraphError`：目标缺失、目标字段缺失、投影不兼容、`path` 无效、归属目标缺失、必填引用环或归属环。 |
 | `TypeMetadata::new`、`FieldMetadata::new`、约束 / 键构造器 | Panic | 构造时违反了本地不变量。 |
 
 `FieldPathResolveError` 的 variant：

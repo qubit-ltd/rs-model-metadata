@@ -37,9 +37,7 @@ impl TemporalConstraint {
     #[must_use]
     #[inline(always)]
     pub const fn new(precision: TemporalPrecision) -> Self {
-        Self {
-            precision,
-        }
+        Self { precision }
     }
 
     /// Returns the required temporal precision.

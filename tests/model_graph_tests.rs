@@ -23,6 +23,8 @@ use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::NamedTypeRef;
 use qubit_model_metadata::OwnershipMetadata;
 use qubit_model_metadata::ReferenceMetadata;
+use qubit_model_metadata::ReferencePath;
+use qubit_model_metadata::ReferencePathSegment;
 use qubit_model_metadata::SourceLocation;
 use qubit_model_metadata::StructMetadata;
 use qubit_model_metadata::TypeCapabilities;
@@ -38,7 +40,7 @@ struct MissingTargetFieldSource;
 struct IncompatibleProjectionSource;
 struct DirectTargetSource;
 struct InfoProjectionSource;
-struct InvalidSameAsSource;
+struct InvalidReferencePathSource;
 struct CycleA;
 struct CycleB;
 struct SelfCycle;
@@ -52,6 +54,9 @@ struct LookupSource;
 struct OwnedModel;
 struct OwnershipCycleA;
 struct OwnershipCycleB;
+struct Country;
+struct Province;
+struct AddressPath;
 
 static TARGET_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &[])];
 static TARGET_METADATA: TypeMetadata = TypeMetadata::new(
@@ -63,9 +68,11 @@ static TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 
 static MISSING_TARGET_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.Missing"),
-    FieldPath::new(&["id"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
-    Some(FieldPath::new(&["unknown"])),
+    Some(qubit_model_metadata::ReferencePath::new(&[
+        qubit_model_metadata::ReferencePathSegment::Field("unknown"),
+    ])),
 ))];
 static MISSING_TARGET_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     0,
@@ -84,7 +91,7 @@ static MISSING_TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 static MISSING_TARGET_FIELD_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
         ModelId::new("test.graph.Target"),
-        FieldPath::new(&["unknown"]),
+        qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["unknown"])),
         true,
         None,
     ))];
@@ -102,9 +109,13 @@ static MISSING_TARGET_FIELD_METADATA: TypeMetadata = TypeMetadata::new(
     &[],
 );
 
-static INCOMPATIBLE_PROJECTION_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(
-    ReferenceMetadata::new(ModelId::new("test.graph.Target"), FieldPath::new(&["id"]), true, None),
-)];
+static INCOMPATIBLE_PROJECTION_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Reference(ReferenceMetadata::new(
+        ModelId::new("test.graph.Target"),
+        qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+        true,
+        None,
+    ))];
 static INCOMPATIBLE_PROJECTION_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     0,
     "target_id",
@@ -121,7 +132,7 @@ static INCOMPATIBLE_PROJECTION_METADATA: TypeMetadata = TypeMetadata::new(
 
 static DIRECT_TARGET_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.Target"),
-    FieldPath::new(&["id"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -141,7 +152,7 @@ static DIRECT_TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 
 static INFO_PROJECTION_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.Target"),
-    FieldPath::new(&["info"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info"])),
     true,
     None,
 ))];
@@ -159,29 +170,32 @@ static INFO_PROJECTION_METADATA: TypeMetadata = TypeMetadata::new(
     &[],
 );
 
-static INVALID_SAME_AS_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
-    ModelId::new("test.graph.Target"),
-    FieldPath::new(&["id"]),
-    true,
-    Some(FieldPath::new(&["unknown"])),
-))];
-static INVALID_SAME_AS_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
+static INVALID_REFERENCE_PATH_ATTRIBUTES: [AttributeMetadata; 1] =
+    [AttributeMetadata::Reference(ReferenceMetadata::new(
+        ModelId::new("test.graph.Target"),
+        qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+        true,
+        Some(qubit_model_metadata::ReferencePath::new(&[
+            qubit_model_metadata::ReferencePathSegment::Field("unknown"),
+        ])),
+    ))];
+static INVALID_REFERENCE_PATH_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     0,
     "target_id",
     "i64",
     TypeRef::of::<i64>(),
-    &INVALID_SAME_AS_ATTRIBUTES,
+    &INVALID_REFERENCE_PATH_ATTRIBUTES,
 )];
-static INVALID_SAME_AS_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::new("test.graph.InvalidSameAsSource"),
-    TypeIdentity::of::<InvalidSameAsSource>(),
-    TypeKind::Struct(StructMetadata::new(&INVALID_SAME_AS_FIELDS)),
+static INVALID_REFERENCE_PATH_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.graph.InvalidReferencePathSource"),
+    TypeIdentity::of::<InvalidReferencePathSource>(),
+    TypeKind::Struct(StructMetadata::new(&INVALID_REFERENCE_PATH_FIELDS)),
     &[],
 );
 
 static CYCLE_A_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.CycleB"),
-    FieldPath::new(&["id"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -198,7 +212,7 @@ static CYCLE_A_METADATA: TypeMetadata = TypeMetadata::new(
 
 static CYCLE_B_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.CycleA"),
-    FieldPath::new(&["id"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -215,7 +229,7 @@ static CYCLE_B_METADATA: TypeMetadata = TypeMetadata::new(
 
 static SELF_CYCLE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.SelfCycle"),
-    FieldPath::new(&["id"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -232,7 +246,7 @@ static SELF_CYCLE_METADATA: TypeMetadata = TypeMetadata::new(
 
 static VEC_CYCLE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.VecCycle"),
-    FieldPath::new(&["id"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -255,7 +269,7 @@ static VEC_CYCLE_METADATA: TypeMetadata = TypeMetadata::new(
 
 static OPTIONAL_CYCLE_A_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.OptionalCycleB"),
-    FieldPath::new(&["id"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -278,7 +292,7 @@ static OPTIONAL_CYCLE_A_METADATA: TypeMetadata = TypeMetadata::new(
 
 static OPTIONAL_CYCLE_B_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.OptionalCycleA"),
-    FieldPath::new(&["id"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -321,7 +335,7 @@ static NESTED_TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 );
 static NESTED_SOURCE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.NestedTarget"),
-    FieldPath::new(&["info", "id"]),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info", "id"])),
     true,
     None,
 ))];
@@ -336,6 +350,70 @@ static NESTED_SOURCE_METADATA: TypeMetadata = TypeMetadata::new(
     ModelId::new("test.graph.NestedSource"),
     TypeIdentity::of::<NestedSource>(),
     TypeKind::Struct(StructMetadata::new(&NESTED_SOURCE_FIELDS)),
+    &[],
+);
+
+static COUNTRY_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(0, "info", "String", TypeRef::of::<String>(), &[])];
+static COUNTRY_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.graph.Country"),
+    TypeIdentity::of::<Country>(),
+    TypeKind::Struct(StructMetadata::new(&COUNTRY_FIELDS)),
+    &[],
+);
+static PROVINCE_COUNTRY_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
+    ModelId::new("test.graph.Country"),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info"])),
+    true,
+    None,
+))];
+static PROVINCE_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
+    0,
+    "country",
+    "String",
+    TypeRef::of::<String>(),
+    &PROVINCE_COUNTRY_ATTRIBUTES,
+)];
+static PROVINCE_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.graph.Province"),
+    TypeIdentity::of::<Province>(),
+    TypeKind::Struct(StructMetadata::new(&PROVINCE_FIELDS)),
+    &[],
+);
+static ADDRESS_COUNTRY_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
+    ModelId::new("test.graph.Country"),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info"])),
+    true,
+    Some(ReferencePath::new(&[
+        ReferencePathSegment::Field("province"),
+        ReferencePathSegment::Field("country"),
+    ])),
+))];
+static ADDRESS_PROVINCE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
+    ModelId::new("test.graph.Province"),
+    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info"])),
+    true,
+    None,
+))];
+static ADDRESS_PATH_FIELDS: [FieldMetadata; 2] = [
+    FieldMetadata::new(
+        0,
+        "country",
+        "String",
+        TypeRef::of::<String>(),
+        &ADDRESS_COUNTRY_ATTRIBUTES,
+    ),
+    FieldMetadata::new(
+        1,
+        "province",
+        "String",
+        TypeRef::of::<String>(),
+        &ADDRESS_PROVINCE_ATTRIBUTES,
+    ),
+];
+static ADDRESS_PATH_METADATA: TypeMetadata = TypeMetadata::new(
+    ModelId::new("test.graph.AddressPath"),
+    TypeIdentity::of::<AddressPath>(),
+    TypeKind::Struct(StructMetadata::new(&ADDRESS_PATH_FIELDS)),
     &[],
 );
 static LOOKUP_SOURCE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::LookupRelation(
@@ -421,10 +499,10 @@ static INFO_PROJECTION_REGISTRATION: ModelRegistration = ModelRegistration::new(
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 18, 1),
 );
-static INVALID_SAME_AS_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::new("test.graph.InvalidSameAsSource"),
-    &INVALID_SAME_AS_METADATA,
-    "InvalidSameAsSource",
+static INVALID_REFERENCE_PATH_REGISTRATION: ModelRegistration = ModelRegistration::new(
+    ModelId::new("test.graph.InvalidReferencePathSource"),
+    &INVALID_REFERENCE_PATH_METADATA,
+    "InvalidReferencePathSource",
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 5, 1),
 );
@@ -483,6 +561,27 @@ static NESTED_SOURCE_REGISTRATION: ModelRegistration = ModelRegistration::new(
     "NestedSource",
     "test::graph",
     SourceLocation::new("model_graph_tests.rs", 12, 1),
+);
+static COUNTRY_REGISTRATION: ModelRegistration = ModelRegistration::new(
+    ModelId::new("test.graph.Country"),
+    &COUNTRY_METADATA,
+    "Country",
+    "test::graph",
+    SourceLocation::new("model_graph_tests.rs", 13, 1),
+);
+static PROVINCE_REGISTRATION: ModelRegistration = ModelRegistration::new(
+    ModelId::new("test.graph.Province"),
+    &PROVINCE_METADATA,
+    "Province",
+    "test::graph",
+    SourceLocation::new("model_graph_tests.rs", 14, 1),
+);
+static ADDRESS_PATH_REGISTRATION: ModelRegistration = ModelRegistration::new(
+    ModelId::new("test.graph.AddressPath"),
+    &ADDRESS_PATH_METADATA,
+    "AddressPath",
+    "test::graph",
+    SourceLocation::new("model_graph_tests.rs", 15, 1),
 );
 static LOOKUP_SOURCE_REGISTRATION: ModelRegistration = ModelRegistration::new(
     ModelId::new("test.graph.LookupSource"),
@@ -570,7 +669,7 @@ fn test_validate_graph_aggregates_direct_reference_errors_and_required_cycles() 
         &MISSING_TARGET_REGISTRATION,
         &MISSING_TARGET_FIELD_REGISTRATION,
         &INCOMPATIBLE_PROJECTION_REGISTRATION,
-        &INVALID_SAME_AS_REGISTRATION,
+        &INVALID_REFERENCE_PATH_REGISTRATION,
         &CYCLE_A_REGISTRATION,
         &CYCLE_B_REGISTRATION,
     ];
@@ -592,10 +691,10 @@ fn test_validate_graph_aggregates_direct_reference_errors_and_required_cycles() 
             target_field: FieldPath::new(&["id"]),
             target_type: "i64",
         },
-        ModelGraphError::InvalidSameAs {
-            source: ModelId::new("test.graph.InvalidSameAsSource"),
+        ModelGraphError::InvalidReferencePath {
+            source: ModelId::new("test.graph.InvalidReferencePathSource"),
             field: "target_id",
-            same_as: FieldPath::new(&["unknown"]),
+            path: ReferencePath::new(&[ReferencePathSegment::Field("unknown")]),
         },
         ModelGraphError::MissingTargetField {
             source: ModelId::new("test.graph.MissingTargetFieldSource"),
@@ -608,10 +707,10 @@ fn test_validate_graph_aggregates_direct_reference_errors_and_required_cycles() 
             field: "target_id",
             target: ModelId::new("test.graph.Missing"),
         },
-        ModelGraphError::InvalidSameAs {
+        ModelGraphError::InvalidReferencePath {
             source: ModelId::new("test.graph.MissingTargetSource"),
             field: "target_id",
-            same_as: FieldPath::new(&["unknown"]),
+            path: ReferencePath::new(&[ReferencePathSegment::Field("unknown")]),
         },
     ];
 
@@ -675,6 +774,20 @@ fn test_validate_graph_resolves_nested_target_paths_and_optional_projections() {
     registry
         .validate_graph()
         .expect("the nested target path should resolve through named metadata");
+}
+
+#[test]
+fn test_validate_graph_resolves_reference_path_through_projection_entities() {
+    let registry = ModelRegistry::from_registrations([
+        &COUNTRY_REGISTRATION,
+        &PROVINCE_REGISTRATION,
+        &ADDRESS_PATH_REGISTRATION,
+    ])
+    .expect("the address-path registrations should be valid");
+
+    registry
+        .validate_graph()
+        .expect("reference path should traverse through referenced projection entities");
 }
 
 #[test]

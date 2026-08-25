@@ -108,7 +108,7 @@ static ELEMENT_DECIMAL_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::
 static RELATION_ATTRIBUTES: [AttributeMetadata; 4] = [
     AttributeMetadata::Reference(ReferenceMetadata::new(
         ModelId::new("test.Target"),
-        FieldPath::new(&["id"]),
+        qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
         true,
         None,
     )),

@@ -11,6 +11,8 @@
 use qubit_model_metadata::FieldPath;
 use qubit_model_metadata::ModelGraphError;
 use qubit_model_metadata::ModelId;
+use qubit_model_metadata::ReferencePath;
+use qubit_model_metadata::ReferencePathSegment;
 
 #[test]
 fn test_model_graph_errors_describe_each_variant() {
@@ -46,12 +48,15 @@ fn test_model_graph_errors_describe_each_variant() {
             "reference test.Source.target_id projects String, but nested.id on test.Target has type i64",
         ),
         (
-            ModelGraphError::InvalidSameAs {
+            ModelGraphError::InvalidReferencePath {
                 source,
                 field: "target_id",
-                same_as: FieldPath::new(&["account", "id"]),
+                path: ReferencePath::new(&[
+                    ReferencePathSegment::Field("account"),
+                    ReferencePathSegment::Field("id"),
+                ]),
             },
-            "reference test.Source.target_id has invalid same_as path account.id",
+            "reference test.Source.target_id has invalid path account.id",
         ),
         (
             ModelGraphError::RequiredReferenceCycle {

@@ -93,9 +93,7 @@ fn test_attribute_metadata_reports_every_kind() {
         )),
         AttributeMetadata::Sequence(SequenceConstraint::new(None, None, false)),
         AttributeMetadata::Map(MapConstraint::new(None, None)),
-        AttributeMetadata::Temporal(TemporalConstraint::new(
-            TemporalPrecision::Second,
-        )),
+        AttributeMetadata::Temporal(TemporalConstraint::new(TemporalPrecision::Second)),
         AttributeMetadata::Decimal(DecimalConstraint::new(
             None,
             0,
@@ -109,7 +107,7 @@ fn test_attribute_metadata_reports_every_kind() {
         AttributeMetadata::Key(VALID_KEY),
         AttributeMetadata::Reference(ReferenceMetadata::new(
             ModelId::new("test.Target"),
-            FieldPath::new(&["id"]),
+            qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
             true,
             None,
         )),

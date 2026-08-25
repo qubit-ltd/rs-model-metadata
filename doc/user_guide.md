@@ -242,7 +242,7 @@ container syntax but still leave the leaf opaque.
 | `ModelId::try_new` / `validate` | `ModelIdError` | Empty ID, empty segment, invalid module or type segment, or a Rust keyword as a module segment. |
 | `ModelRegistry::from_registrations` / `try_global` | `ModelRegistryError` | Invalid IDs, registration/metadata ID mismatch, duplicate ID, or duplicate identity. |
 | `ModelRegistry::global` | Panic | Same failures as `try_global`; use `try_global` when the caller must not abort. |
-| `ModelRegistry::validate_graph` | `ModelGraphErrors` | One or more `ModelGraphError` values: missing targets, missing target fields, incompatible projections, invalid `same_as`, missing owners, required-reference cycles, or ownership cycles. |
+| `ModelRegistry::validate_graph` | `ModelGraphErrors` | One or more `ModelGraphError` values: missing targets, missing target fields, incompatible projections, invalid reference path, missing owners, required-reference cycles, or ownership cycles. |
 | `TypeMetadata::new`, `FieldMetadata::new`, constraint / key constructors | Panic | Local invariant violated at construction time. |
 
 `FieldPathResolveError` variants:

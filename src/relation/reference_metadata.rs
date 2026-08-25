@@ -11,7 +11,79 @@
 use super::field_path::FieldPath;
 use crate::model_id::ModelId;
 
-/// A direct reference from a field to a target model field.
+/// The target selected by a direct reference.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReferenceTarget {
+    /// The source field references the whole target model value.
+    WholeModel,
+    /// The source field references a property or projection on the target
+    /// model.
+    Property(FieldPath),
+}
+
+/// One segment in a reference path through the containing object graph.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReferencePathSegment {
+    /// Move to the parent object in the containing object graph.
+    Parent,
+    /// Move to a named field on the current object.
+    Field(&'static str),
+}
+
+/// A path through the containing object graph to an equivalent reference.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReferencePath {
+    segments: &'static [ReferencePathSegment],
+}
+
+impl core::fmt::Display for ReferencePath {
+    /// Formats this reference path with dot-separated navigation segments.
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut segments = self.segments.iter();
+        if let Some(first) = segments.next() {
+            write_reference_path_segment(formatter, first)?;
+        }
+        for segment in segments {
+            formatter.write_str(".")?;
+            write_reference_path_segment(formatter, segment)?;
+        }
+        Ok(())
+    }
+}
+
+impl ReferencePath {
+    /// Creates a reference path from statically allocated path segments.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the path is empty or contains an empty field segment.
+    #[must_use]
+    #[inline]
+    pub const fn new(segments: &'static [ReferencePathSegment]) -> Self {
+        validate_reference_path(segments);
+        Self { segments }
+    }
+
+    /// Returns the path segments in traversal order.
+    #[must_use]
+    #[inline(always)]
+    pub const fn segments(self) -> &'static [ReferencePathSegment] {
+        self.segments
+    }
+}
+
+/// Writes one reference path segment.
+fn write_reference_path_segment(
+    formatter: &mut core::fmt::Formatter<'_>,
+    segment: &ReferencePathSegment,
+) -> core::fmt::Result {
+    match segment {
+        ReferencePathSegment::Parent => formatter.write_str(".."),
+        ReferencePathSegment::Field(name) => formatter.write_str(name),
+    }
+}
+
+/// A direct reference from a field to a target model or model property.
 ///
 /// # Examples
 ///
@@ -19,37 +91,38 @@ use crate::model_id::ModelId;
 /// use qubit_model_metadata::FieldPath;
 /// use qubit_model_metadata::ModelId;
 /// use qubit_model_metadata::ReferenceMetadata;
+/// use qubit_model_metadata::ReferenceTarget;
 ///
 /// let reference = ReferenceMetadata::new(
 ///     ModelId::new("example.Account"),
-///     FieldPath::new(&["id"]),
+///     ReferenceTarget::Property(FieldPath::new(&["id"])),
 ///     true,
 ///     None,
 /// );
-/// assert_eq!(reference.target().as_str(), "example.Account");
-/// assert!(reference.must_exist());
+/// assert_eq!(reference.entity().as_str(), "example.Account");
+/// assert!(reference.existing());
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ReferenceMetadata {
-    /// The stable ID of the model containing the referenced field.
-    target: ModelId,
-    /// The field path within the target model.
-    target_field: FieldPath,
+    /// The stable ID of the referenced model.
+    entity: ModelId,
+    /// The referenced whole model or property.
+    target: ReferenceTarget,
     /// Whether the referenced record must exist.
-    must_exist: bool,
-    /// An optional field path that must have the same value.
-    same_as: Option<FieldPath>,
+    existing: bool,
+    /// An optional object-graph path to an equivalent reference.
+    path: Option<ReferencePath>,
 }
 
 impl ReferenceMetadata {
-    /// Creates direct-reference metadata for a target model ID and field path.
+    /// Creates direct-reference metadata for a target model and selection.
     ///
     /// # Parameters
     ///
-    /// - `target`: The stable ID of the model containing the referenced field.
-    /// - `target_field`: The field path within the target model.
-    /// - `must_exist`: Whether the referenced record must exist.
-    /// - `same_as`: An optional field path that must have the same value.
+    /// - `entity`: The stable ID of the referenced model.
+    /// - `target`: The referenced whole model or property.
+    /// - `existing`: Whether the referenced record must exist.
+    /// - `path`: An optional object-graph path to an equivalent reference.
     ///
     /// # Returns
     ///
@@ -57,93 +130,84 @@ impl ReferenceMetadata {
     ///
     /// # Panics
     ///
-    /// Panics when `target_field` is empty or contains an empty segment, or
-    /// when `same_as` is empty or contains an empty segment.
+    /// Panics when a property path is empty or contains an empty segment.
     #[must_use]
     #[inline]
-    pub const fn new(target: ModelId, target_field: FieldPath, must_exist: bool, same_as: Option<FieldPath>) -> Self {
-        validate_target_field_path(target_field);
-        if let Some(same_as) = same_as {
-            validate_same_as_path(same_as);
-        }
+    pub const fn new(entity: ModelId, target: ReferenceTarget, existing: bool, path: Option<ReferencePath>) -> Self {
+        validate_target(target);
         Self {
+            entity,
             target,
-            target_field,
-            must_exist,
-            same_as,
+            existing,
+            path,
         }
     }
 
-    /// Returns the stable ID of the target model.
-    ///
-    /// # Returns
-    ///
-    /// The stable ID of the model containing the referenced field.
+    /// Returns the stable ID of the referenced model.
     #[inline(always)]
-    pub const fn target(self) -> ModelId {
+    pub const fn entity(self) -> ModelId {
+        self.entity
+    }
+
+    /// Returns the referenced whole model or property.
+    #[must_use]
+    #[inline(always)]
+    pub const fn target(self) -> ReferenceTarget {
         self.target
     }
 
-    /// Returns the field path in the target model.
-    ///
-    /// # Returns
-    ///
-    /// The field path within the target model.
-    #[must_use]
-    #[inline(always)]
-    pub const fn target_field(self) -> FieldPath {
-        self.target_field
-    }
-
     /// Returns whether the target record must exist.
-    ///
-    /// # Returns
-    ///
-    /// `true` when the referenced record must exist; otherwise `false`.
     #[must_use]
     #[inline(always)]
-    pub const fn must_exist(self) -> bool {
-        self.must_exist
+    pub const fn existing(self) -> bool {
+        self.existing
     }
 
-    /// Returns the same-as field path, if this reference is constrained to one.
-    ///
-    /// # Returns
-    ///
-    /// `Some` with the constrained field path, or `None` when no same-as path
-    /// is configured.
+    /// Returns the object-graph path to an equivalent reference, if configured.
     #[must_use]
     #[inline(always)]
-    pub const fn same_as(self) -> Option<FieldPath> {
-        self.same_as
+    pub const fn path(self) -> Option<ReferencePath> {
+        self.path
     }
 }
 
-/// Validates a reference target field path.
-const fn validate_target_field_path(path: FieldPath) {
+/// Validates a reference target selector.
+const fn validate_target(target: ReferenceTarget) {
+    match target {
+        ReferenceTarget::WholeModel => {}
+        ReferenceTarget::Property(path) => validate_property_path(path),
+    }
+}
+
+/// Validates a reference property path.
+const fn validate_property_path(path: FieldPath) {
     if path.is_empty() {
-        panic!("reference target field path cannot be empty");
+        panic!("reference property path cannot be empty");
     }
     let segments = path.segments();
     let mut index = 0;
     while index < segments.len() {
         if segments[index].is_empty() {
-            panic!("reference target field path cannot contain empty segments");
+            panic!("reference property path cannot contain empty segments");
         }
         index += 1;
     }
 }
 
-/// Validates a same-as field path used by a reference constructor.
-const fn validate_same_as_path(path: FieldPath) {
-    if path.is_empty() {
-        panic!("reference same-as path cannot be empty");
+/// Validates an object-graph reference path.
+const fn validate_reference_path(segments: &'static [ReferencePathSegment]) {
+    if segments.is_empty() {
+        panic!("reference path cannot be empty");
     }
-    let segments = path.segments();
     let mut index = 0;
     while index < segments.len() {
-        if segments[index].is_empty() {
-            panic!("reference same-as path cannot contain empty segments");
+        match segments[index] {
+            ReferencePathSegment::Parent => {}
+            ReferencePathSegment::Field(name) => {
+                if name.is_empty() {
+                    panic!("reference path cannot contain empty field segments");
+                }
+            }
         }
         index += 1;
     }

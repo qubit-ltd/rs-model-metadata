@@ -23,6 +23,9 @@ use crate::relation::FieldPath;
 use crate::relation::LookupRelationMetadata;
 use crate::relation::OwnershipMetadata;
 use crate::relation::ReferenceMetadata;
+use crate::relation::ReferencePath;
+use crate::relation::ReferencePathSegment;
+use crate::relation::ReferenceTarget;
 use crate::type_metadata::TypeMetadata;
 use crate::type_shape::TypeRef;
 use crate::type_shape::TypeShape;
@@ -31,7 +34,8 @@ impl ModelRegistry {
     /// Validates direct references among all registered models.
     ///
     /// Returns every independently discoverable missing target, missing target
-    /// field, incompatible projection, invalid `same_as`, and required-cycle
+    /// field, incompatible projection, invalid reference path, and
+    /// required-cycle
     /// error. Registry construction intentionally does not run this method so
     /// a partial linked model collection remains usable.
     ///
@@ -101,74 +105,110 @@ impl ModelRegistry {
         errors: &mut Vec<ModelGraphError>,
         required_edges: &mut BTreeMap<ModelId, Vec<ModelId>>,
     ) {
-        if let Some(same_as) = reference.same_as() {
-            match resolve_field_path(source_metadata, same_as) {
-                None => errors.push(ModelGraphError::InvalidSameAs {
-                    source,
-                    field: source_field.name(),
-                    same_as,
-                }),
-                Some(same_as_field)
-                    if !project_relation_type(source_field.field_type())
-                        .is_compatible_with(project_relation_type(same_as_field.field_type())) =>
-                {
-                    errors.push(ModelGraphError::IncompatibleSameAs {
-                        source,
-                        field: source_field.name(),
-                        same_as,
-                    });
-                }
-                Some(_) => {}
-            }
-        }
+        self.validate_reference_path(source, source_metadata, source_field, reference, errors);
 
-        let target = reference.target();
-        let Some(target_metadata) = self.get(target.as_str()) else {
+        let entity = reference.entity();
+        let Some(target_metadata) = self.get(entity.as_str()) else {
             errors.push(ModelGraphError::MissingTarget {
                 source,
                 field: source_field.name(),
-                target,
+                target: entity,
             });
             return;
         };
 
         let source_projection = project_relation_type(source_field.field_type());
-        let required_reference = reference.must_exist() && requires_reference_target(source_field);
+        let required_reference = reference.existing() && requires_reference_target(source_field);
         if required_reference {
             required_edges
                 .get_mut(&source)
                 .expect("all registered source models have adjacency entries")
-                .push(target);
+                .push(entity);
         }
 
-        let target_path = reference.target_field();
-        if is_info_method_projection(target_path) {
+        match reference.target() {
+            ReferenceTarget::WholeModel => {
+                if source_projection.identity() != Some(target_metadata.identity()) {
+                    errors.push(ModelGraphError::IncompatibleProjection {
+                        source,
+                        field: source_field.name(),
+                        source_type: source_projection.type_name(),
+                        target: entity,
+                        target_field: FieldPath::new(&["*"]),
+                        target_type: target_metadata.identity().type_name(),
+                    });
+                }
+            }
+            ReferenceTarget::Property(target_path) => {
+                if is_info_method_projection(target_path) {
+                    return;
+                }
+
+                let Some(target_field) = resolve_field_path(target_metadata, target_path) else {
+                    errors.push(ModelGraphError::MissingTargetField {
+                        source,
+                        field: source_field.name(),
+                        target: entity,
+                        target_field: target_path,
+                    });
+                    return;
+                };
+
+                if source_projection.identity() == Some(target_metadata.identity()) {
+                    return;
+                }
+
+                let target_projection = project_relation_type(target_field.field_type());
+                if !source_projection.is_compatible_with(target_projection) {
+                    errors.push(ModelGraphError::IncompatibleProjection {
+                        source,
+                        field: source_field.name(),
+                        source_type: source_projection.type_name(),
+                        target: entity,
+                        target_field: target_path,
+                        target_type: target_projection.type_name(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// Validates one direct reference's object-graph path, when present.
+    fn validate_reference_path(
+        &self,
+        source: ModelId,
+        source_metadata: &'static TypeMetadata,
+        source_field: FieldMetadata,
+        reference: ReferenceMetadata,
+        errors: &mut Vec<ModelGraphError>,
+    ) {
+        let Some(path) = reference.path() else {
             return;
-        }
-
-        let Some(target_field) = resolve_field_path(target_metadata, target_path) else {
-            errors.push(ModelGraphError::MissingTargetField {
+        };
+        let Some(target_field) = resolve_reference_path(self, source_metadata, path) else {
+            errors.push(ModelGraphError::InvalidReferencePath {
                 source,
                 field: source_field.name(),
-                target,
-                target_field: target_path,
+                path,
             });
             return;
         };
-
-        if source_projection.identity() == Some(target_metadata.identity()) {
-            return;
-        }
-
-        let target_projection = project_relation_type(target_field.field_type());
-        if !source_projection.is_compatible_with(target_projection) {
-            errors.push(ModelGraphError::IncompatibleProjection {
+        let Some(target_reference) = target_field.reference() else {
+            errors.push(ModelGraphError::IncompatibleReferencePath {
                 source,
                 field: source_field.name(),
-                source_type: source_projection.type_name(),
-                target,
-                target_field: reference.target_field(),
-                target_type: target_projection.type_name(),
+                path,
+            });
+            return;
+        };
+        if target_reference.entity() != reference.entity()
+            || target_reference.target() != reference.target()
+            || target_reference.existing() != reference.existing()
+        {
+            errors.push(ModelGraphError::IncompatibleReferencePath {
+                source,
+                field: source_field.name(),
+                path,
             });
         }
     }
@@ -315,6 +355,31 @@ fn resolve_field_path(metadata: &'static TypeMetadata, path: FieldPath) -> Optio
         metadata = field.field_type().named_metadata()?;
         segment = *next_segment;
     }
+}
+
+/// Resolves an object-graph reference path within one metadata root.
+fn resolve_reference_path(
+    registry: &ModelRegistry,
+    metadata: &'static TypeMetadata,
+    path: ReferencePath,
+) -> Option<&'static FieldMetadata> {
+    let mut current_metadata = metadata;
+    let mut current_field = None;
+    for segment in path.segments() {
+        match segment {
+            ReferencePathSegment::Parent => return None,
+            ReferencePathSegment::Field(name) => {
+                let field = current_metadata.field(name)?;
+                current_field = Some(field);
+                if let Some(reference) = field.reference() {
+                    current_metadata = registry.get(reference.entity().as_str())?;
+                } else if let Some(metadata) = field.field_type().named_metadata() {
+                    current_metadata = metadata;
+                }
+            }
+        }
+    }
+    current_field
 }
 
 /// Finds one canonical required-reference cycle for every cyclic SCC.
@@ -547,8 +612,8 @@ fn graph_error_sort_key(error: &ModelGraphError) -> (Option<ModelId>, Option<&'s
         ModelGraphError::IncompatibleProjection {
             source, field, target, ..
         } => (Some(*source), Some(*field), 2, Some(*target)),
-        ModelGraphError::InvalidSameAs { source, field, .. } => (Some(*source), Some(*field), 3, None),
-        ModelGraphError::IncompatibleSameAs { source, field, .. } => (Some(*source), Some(*field), 4, None),
+        ModelGraphError::InvalidReferencePath { source, field, .. } => (Some(*source), Some(*field), 3, None),
+        ModelGraphError::IncompatibleReferencePath { source, field, .. } => (Some(*source), Some(*field), 4, None),
         ModelGraphError::MissingLookupTarget { source, field, target } => {
             (Some(*source), Some(*field), 5, Some(*target))
         }
