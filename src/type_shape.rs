@@ -16,6 +16,9 @@ mod scalar_type;
 mod type_capabilities;
 #[path = "type_shape/type_ref.rs"]
 mod type_ref;
+#[path = "type_shape/qubit_datatype.rs"]
+#[cfg(feature = "datatype")]
+mod qubit_datatype;
 
 pub use self::has_type_shape::HasTypeShape;
 pub use self::scalar_type::ScalarType;

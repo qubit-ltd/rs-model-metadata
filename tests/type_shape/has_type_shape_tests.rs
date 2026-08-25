@@ -103,3 +103,25 @@ fn test_id_has_u64_scalar_shape() {
         TypeShape::Scalar(ScalarType::U64)
     ));
 }
+
+#[cfg(feature = "datatype")]
+#[test]
+fn test_data_type_has_named_enum_shape() {
+    use qubit_datatype::DataType;
+    use qubit_model_metadata::TypeKind;
+
+    assert_eq!(<DataType as HasTypeShape>::CAPABILITIES, TypeCapabilities::NONE);
+    let type_ref = TypeRef::of::<DataType>();
+    assert!(matches!(type_ref.shape(), TypeShape::Named(_)));
+    let metadata = type_ref
+        .named_metadata()
+        .expect("DataType metadata must be available");
+    assert_eq!(metadata.id().as_str(), "qubit.datatype.DataType");
+    assert!(matches!(metadata.kind(), TypeKind::Enum(enum_metadata)
+        if enum_metadata.variants().len() == DataType::ALL.len()));
+    if let TypeKind::Enum(enum_metadata) = metadata.kind() {
+        assert_eq!(enum_metadata.variant("int32").map(|variant| variant.name()), Some("int32"));
+    } else {
+        panic!("DataType metadata must describe an enum");
+    }
+}
