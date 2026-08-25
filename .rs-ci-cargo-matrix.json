@@ -20,6 +20,12 @@
       "features": ["big-decimal"]
     },
     {
+      "name": "id",
+      "commands": ["check", "test", "doc"],
+      "defaultFeatures": false,
+      "features": ["id"]
+    },
+    {
       "name": "chrono-big-decimal",
       "commands": ["check", "test", "doc"],
       "defaultFeatures": false,

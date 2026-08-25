@@ -66,13 +66,15 @@ Enable runtime features only for the scalar types you actually use:
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1.0", features = ["chrono", "big-decimal"] }
+qubit-model-metadata = { version = "0.1.0", features = ["chrono", "big-decimal", "id"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 bigdecimal = "0.4"
+qubit-id = "0.4"
 ```
 
 `chrono` covers `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Utc>`.
 `big-decimal` covers `BigDecimal`.
+`id` covers `qubit_id::Id`.
 
 ## Core Workflow
 
@@ -261,7 +263,7 @@ walk so a partial linked set remains usable.
 | Symptom | Check |
 |---|---|
 | `metadata_of::<T>()` does not compile | Ensure `T` implements `HasTypeMetadata`, normally through `#[Model]` or `#[Enum]`. |
-| Model rejects an external field type | Enable `chrono` or `big-decimal`, implement `HasTypeShape`, or use `#[field(opaque)]` when the leaf should stay uninterpreted. |
+| Model rejects an external field type | Enable `chrono`, `big-decimal`, or `id`, implement `HasTypeShape`, or use `#[field(opaque)]` when the leaf should stay uninterpreted. |
 | A field is unexpectedly nullable | Inspect the outermost `TypeShape`. Only outer `Option<T>` is nullable. |
 | Path resolution fails | Confirm every segment, that intermediate named types are structs with resolvers, and that the path is not empty. |
 | A tool cannot find a model | Link and register the model crate, or build a `ModelRegistry` from an explicit registration set. |

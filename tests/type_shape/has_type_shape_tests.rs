@@ -91,3 +91,15 @@ fn test_big_decimal_has_decimal_capability_and_scalar_shape() {
         TypeShape::Scalar(ScalarType::BigDecimal)
     ));
 }
+
+#[cfg(feature = "id")]
+#[test]
+fn test_id_has_u64_scalar_shape() {
+    use qubit_id::Id;
+
+    assert_eq!(<Id as HasTypeShape>::CAPABILITIES, TypeCapabilities::NONE);
+    assert!(matches!(
+        TypeRef::of::<Id>().shape(),
+        TypeShape::Scalar(ScalarType::U64)
+    ));
+}

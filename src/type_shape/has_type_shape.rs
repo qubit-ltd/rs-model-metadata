@@ -18,6 +18,8 @@ use std::collections::VecDeque;
 
 #[cfg(feature = "big-decimal")]
 use bigdecimal::BigDecimal;
+#[cfg(feature = "id")]
+use qubit_id::Id;
 #[cfg(feature = "chrono")]
 use chrono::DateTime;
 #[cfg(feature = "chrono")]
@@ -122,6 +124,12 @@ impl HasTypeShape for DateTime<Utc> {
 impl HasTypeShape for BigDecimal {
     const TYPE_SHAPE: TypeShape = TypeShape::Scalar(ScalarType::BigDecimal);
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::DECIMAL;
+}
+
+#[cfg(feature = "id")]
+impl HasTypeShape for Id {
+    const TYPE_SHAPE: TypeShape = TypeShape::Scalar(ScalarType::U64);
+    const CAPABILITIES: TypeCapabilities = TypeCapabilities::NONE;
 }
 
 impl<T: HasTypeShape> HasTypeShape for Option<T> {

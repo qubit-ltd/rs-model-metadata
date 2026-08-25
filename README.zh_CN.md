@@ -30,6 +30,7 @@ serde = { version = "1", features = ["derive"] }
 |---|---|
 | `chrono` | `chrono::NaiveDate`、`NaiveTime`、`NaiveDateTime` 与 `DateTime<Utc>` |
 | `big-decimal` | `bigdecimal::BigDecimal` |
+| `id` | `qubit_id::Id` |
 
 ## 快速开始
 

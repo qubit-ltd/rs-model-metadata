@@ -61,13 +61,15 @@ serde = { version = "1", features = ["derive"] }
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1.0", features = ["chrono", "big-decimal"] }
+qubit-model-metadata = { version = "0.1.0", features = ["chrono", "big-decimal", "id"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 bigdecimal = "0.4"
+qubit-id = "0.4"
 ```
 
 `chrono` 覆盖 `NaiveDate`、`NaiveTime`、`NaiveDateTime` 与 `DateTime<Utc>`。
 `big-decimal` 覆盖 `BigDecimal`。
+`id` 覆盖 `qubit_id::Id`。
 
 ## 核心工作流
 
@@ -246,7 +248,7 @@ panic。多数场景仍应使用 derive，让声明紧挨着类型。
 | 症状 | 检查项 |
 |---|---|
 | `metadata_of::<T>()` 无法编译 | 确认 `T` 实现了 `HasTypeMetadata`，通常通过 `#[Model]` 或 `#[Enum]`。 |
-| Model 拒绝外部字段类型 | 启用 `chrono` 或 `big-decimal`、自行实现 `HasTypeShape`，或在叶子应保持不解释时使用 `#[field(opaque)]`。 |
+| Model 拒绝外部字段类型 | 启用 `chrono`、`big-decimal` 或 `id`、自行实现 `HasTypeShape`，或在叶子应保持不解释时使用 `#[field(opaque)]`。 |
 | 字段意外可空 | 检查最外层 `TypeShape`；只有外层 `Option<T>` 可空。 |
 | 路径解析失败 | 核对每一段、中间具名类型是否为带 resolver 的 struct，以及路径是否为空。 |
 | 工具找不到模型 | 确认模型 crate 已链接并注册，或从显式注册项集合构造 `ModelRegistry`。 |

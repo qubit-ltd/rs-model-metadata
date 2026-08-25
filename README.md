@@ -32,6 +32,7 @@ Optional Cargo features add shape support for external scalar types:
 |---|---|
 | `chrono` | `chrono::NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Utc>` |
 | `big-decimal` | `bigdecimal::BigDecimal` |
+| `id` | `qubit_id::Id` |
 
 ## Quick Start
 
