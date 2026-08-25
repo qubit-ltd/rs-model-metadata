@@ -102,6 +102,8 @@ model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
   `Deserialize`
 - Debug 风格的 `Display`
 - `#[serde(rename_all = "snake_case")]`
+- Serde 省略规则：值为 `None` 的 `Option<T>` 与直接声明的空标准集合不输出；
+  集合字段在反序列化缺失时自动使用 `#[serde(default)]`
 - 静态的 `TypeKind::Struct` 或 `TypeKind::Newtype` 元数据
 - 来自 `#[field(...)]` 和模型级属性的字段、键、唯一性、索引、文本、集合、时
   间、decimal、引用、codec 与 generator 元数据
@@ -113,6 +115,11 @@ model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 `Option`、序列、Set、数组和 Map 外层，叶子则暴露为 `TypeShape::Opaque`。不加
 `opaque` 时，字段类型必须实现 `HasTypeShape`。`opaque` 不能和依赖形状的约束
 一起用，例如 `text`、`sequence`、`map`、`time`、`decimal`、`money`。
+
+集合省略规则只识别直接声明的 `Vec`、`LinkedList`、`VecDeque`、`HashMap`、
+`BTreeMap`、`HashSet`、`BTreeSet`、`BinaryHeap` 和固定长度数组；类型别名不在
+识别范围内。对 `Option` 或上述集合字段加 `#[field(keep_serializing)]`，即可不
+使用宏自动添加的省略和默认值规则，序列化时保留 `null` 或空值。
 
 ### `#[Enum]`
 

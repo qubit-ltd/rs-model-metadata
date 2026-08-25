@@ -145,6 +145,44 @@ assert!(matches!(metadata_of::<AccountStatus>().kind(), TypeKind::Enum(_)));
 结构体不会得到 `Copy`、`PartialOrd`、`Ord`。在结构体上写 `no_copy` 会编译失
 败。
 
+### Option 和集合字段的 Serde 省略规则
+
+开启序列化时，`#[Model]` 会省略值为 `None` 的直接声明 `Option<T>` 字段；直接
+声明的 `Vec`、`LinkedList`、`VecDeque`、`HashMap`、`BTreeMap`、`HashSet`、
+`BTreeSet`、`BinaryHeap` 以及固定长度数组为空时也会省略。开启反序列化时，这些
+集合字段会自动获得 `#[serde(default)]`，缺少字段就构造对应的空默认值。
+
+```rust
+use std::collections::HashMap;
+
+use qubit_model_derive::Model;
+
+#[Model(id = "example.SearchFilter", no_hash)]
+struct SearchFilter {
+    query: Option<String>,
+    labels: Vec<String>,
+    facets: HashMap<String, String>,
+    #[field(keep_serializing)]
+    explicit_labels: Vec<String>,
+}
+
+let filter = SearchFilter {
+    query: None,
+    labels: Vec::new(),
+    facets: HashMap::new(),
+    explicit_labels: Vec::new(),
+};
+assert_eq!(
+    serde_json::to_string(&filter).expect("serialize filter"),
+    r#"{"explicit_labels":[]}"#
+);
+```
+
+`#[field(keep_serializing)]` 会让该字段不使用宏自动添加的两项规则：序列化时保留
+`null` 或空值，并且不会自动附加 `serde(default)`。它不会删除字段上已经显式写
+出的 `#[serde(...)]`。宏只识别直接写出的类型语法，不处理类型别名。固定长度数组
+只有长度为零时才为空，长度非零的数组仍会输出。
+
 ### 模型级属性
 
 这些属性描述整个模型。除了 `id`，它们只允许写在具名字段结构体上。
@@ -181,6 +219,7 @@ assert!(matches!(metadata_of::<AccountStatus>().kind(), TypeKind::Enum(_)));
 | `lookup_relation(...)` | 按当前作用域里的目标类型做查找关系。 |
 | `codec`、`generator` | 只保存策略名；宏不会执行策略。 |
 | `opaque` | 隐藏外部类型的内部结构。 |
+| `keep_serializing` | Serde 输出中保留 `None` 或支持集合的空值，并阻止宏为该字段自动添加 `serde(default)`。 |
 
 `text` 支持 `min_chars`、`max_chars`、`min_bytes`、`max_bytes`、
 `repertoire = unicode\|ascii`、`non_blank`，以及
@@ -193,10 +232,10 @@ assert!(matches!(metadata_of::<AccountStatus>().kind(), TypeKind::Enum(_)));
 `codec(name = "name")`。
 
 类型结构来自 `HasTypeShape`，不是解析类型名字符串。支持的形状包括标量、
-`Option<T>`、`Vec<T>`、`HashSet<T>`、`BTreeSet<T>`、`HashMap<K, V>`、
-`BTreeMap<K, V>`、固定数组，以及其他已经派生元数据的模型。
-`Option<Vec<String>>` 和 `Vec<Option<String>>` 不是同一种形状；只有最外层
-`Option` 会让字段可空。
+`Option<T>`、`Vec<T>`、`LinkedList<T>`、`VecDeque<T>`、`HashSet<T>`、
+`BTreeSet<T>`、`HashMap<K, V>`、`BTreeMap<K, V>`、`BinaryHeap<T>`、固定数组，
+以及其他已经派生元数据的模型。`Option<Vec<String>>` 和 `Vec<Option<String>>`
+不是同一种形状；只有最外层 `Option` 会让字段可空。
 
 ## `#[Enum]`：无字段枚举能力
 

@@ -156,6 +156,47 @@ Serde field names use `snake_case`.
 Structs do not receive `Copy`, `PartialOrd`, or `Ord`. `no_copy` on a struct is
 a compile error.
 
+### Serde omission for optional and collection fields
+
+When serialization is enabled, `#[Model]` omits a directly declared `Option<T>`
+whose value is `None`. It also omits an empty directly declared `Vec`,
+`LinkedList`, `VecDeque`, `HashMap`, `BTreeMap`, `HashSet`, `BTreeSet`,
+`BinaryHeap`, or fixed array. When deserialization is enabled, those collection
+fields receive `#[serde(default)]`, so an omitted field becomes its empty
+default.
+
+```rust
+use std::collections::HashMap;
+
+use qubit_model_derive::Model;
+
+#[Model(id = "example.SearchFilter", no_hash)]
+struct SearchFilter {
+    query: Option<String>,
+    labels: Vec<String>,
+    facets: HashMap<String, String>,
+    #[field(keep_serializing)]
+    explicit_labels: Vec<String>,
+}
+
+let filter = SearchFilter {
+    query: None,
+    labels: Vec::new(),
+    facets: HashMap::new(),
+    explicit_labels: Vec::new(),
+};
+assert_eq!(
+    serde_json::to_string(&filter).expect("serialize filter"),
+    r#"{"explicit_labels":[]}"#
+);
+```
+
+`#[field(keep_serializing)]` opts that field out of both automatically injected
+rules, preserving `null` or an empty value during serialization. It does not
+remove an explicit field-level `#[serde(...)]` attribute. The macro recognizes
+only direct type syntax, not aliases. A fixed array is empty only when its
+length is zero; an ordinary nonzero-length array is therefore retained.
+
 ### Model-level attributes
 
 These attributes describe the whole model. Except for `id`, they are valid only
@@ -194,6 +235,7 @@ not from a `nullable` flag.
 | `lookup_relation(...)` | Lookup against a target type in scope. |
 | `codec`, `generator` | Strategy-name metadata only; the macro does not run a strategy. |
 | `opaque` | Hide an external type's structure. |
+| `keep_serializing` | Keep `None` or an empty supported collection in Serde output; suppress the macro's automatic `serde(default)` for that field. |
 
 `text` accepts `min_chars`, `max_chars`, `min_bytes`, `max_bytes`,
 `repertoire = unicode\|ascii`, `non_blank`, and
@@ -205,10 +247,11 @@ not from a `nullable` flag.
 `codec` and `generator` accept `codec = "name"` or `codec(name = "name")`.
 
 Type structure comes from `HasTypeShape`, not from parsed type-name strings.
-Supported wrappers include scalars, `Option<T>`, `Vec<T>`, `HashSet<T>`,
-`BTreeSet<T>`, `HashMap<K, V>`, `BTreeMap<K, V>`, fixed arrays, and other
-derived models. `Option<Vec<String>>` and `Vec<Option<String>>` remain
-distinct; only an outer `Option` makes a field nullable.
+Supported wrappers include scalars, `Option<T>`, `Vec<T>`, `LinkedList<T>`,
+`VecDeque<T>`, `HashSet<T>`, `BTreeSet<T>`, `HashMap<K, V>`, `BTreeMap<K, V>`,
+`BinaryHeap<T>`, fixed arrays, and other derived models. `Option<Vec<String>>`
+and `Vec<Option<String>>` remain distinct; only an outer `Option` makes a
+field nullable.
 
 ## `#[Enum]`: Fieldless Enum Capabilities
 

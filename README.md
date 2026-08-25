@@ -111,6 +111,9 @@ For a struct it generates:
   `Deserialize`
 - A `Display` implementation with Debug-shaped output
 - `#[serde(rename_all = "snake_case")]`
+- Serde omission defaults: `Option<T>` values set to `None` and empty direct
+  standard collections are omitted; collection fields also receive
+  `#[serde(default)]` for a missing input field
 - Static `TypeKind::Struct` or `TypeKind::Newtype` metadata
 - Field, key, uniqueness, index, text, collection, temporal, decimal,
   reference, codec, and generator metadata from `#[field(...)]` and model-level
@@ -124,6 +127,13 @@ field keeps visible `Option`, sequence, set, array, and map wrappers and exposes
 its leaf as `TypeShape::Opaque`. Without `opaque`, the field type must implement
 `HasTypeShape`. `opaque` cannot combine with shape-dependent constraints such as
 `text`, `sequence`, `map`, `time`, `decimal`, or `money`.
+
+The collection omission rule recognizes directly declared `Vec`, `LinkedList`,
+`VecDeque`, `HashMap`, `BTreeMap`, `HashSet`, `BTreeSet`, `BinaryHeap`, and
+fixed arrays. Type aliases are not recognized. Use
+`#[field(keep_serializing)]` on an `Option` or supported collection field to
+opt out of the macro's automatic omission and defaulting, preserving `null` or
+an empty value during serialization.
 
 ### `#[Enum]`
 
