@@ -24,6 +24,9 @@ mod struct_metadata;
 mod type_identity;
 #[path = "type_metadata/type_kind.rs"]
 mod type_kind;
+// Implements allocation-free field, attribute, key, index, and nested
+// field-path queries.
+mod query;
 
 pub use self::enum_metadata::EnumMetadata;
 pub use self::enum_variant_metadata::EnumVariantMetadata;
@@ -39,6 +42,25 @@ use crate::field_metadata::FieldMetadata;
 use crate::model_id::ModelId;
 
 /// Immutable metadata for a named model type.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::ModelId;
+/// use qubit_model_metadata::StructMetadata;
+/// use qubit_model_metadata::TypeIdentity;
+/// use qubit_model_metadata::TypeKind;
+/// use qubit_model_metadata::TypeMetadata;
+///
+/// let metadata = TypeMetadata::new(
+///     ModelId::new("example.Account"),
+///     TypeIdentity::of::<u8>(),
+///     TypeKind::Struct(StructMetadata::new(&[])),
+///     &[],
+/// );
+/// assert_eq!(metadata.id().as_str(), "example.Account");
+/// assert!(metadata.field("missing").is_none());
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct TypeMetadata {
@@ -88,7 +110,6 @@ impl TypeMetadata {
     }
 
     /// Returns the stable identifier of this model type.
-    #[must_use]
     #[inline(always)]
     pub const fn id(&self) -> ModelId {
         self.id
@@ -99,6 +120,7 @@ impl TypeMetadata {
     /// # Returns
     ///
     /// The runtime identity stored in this metadata.
+    #[must_use]
     #[inline(always)]
     pub const fn identity(&self) -> TypeIdentity {
         self.identity
