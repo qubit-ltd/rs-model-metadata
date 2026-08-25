@@ -9,7 +9,8 @@
 
 领域对象除了 Rust 类型本身，校验、持久化和 schema 工具还需要字段结构、约束和
 稳定标识。这些事实如果另存一份，很快就会和代码分叉。`qubit-model-derive`
-提供两个属性宏：`#[Model]` 和 `#[Enum]`。声明写在类型旁边，编译期生成
+提供两个属性宏：`#[Model]` 和 `#[Enum]`。声明写在类型旁边，通过
+`#[identifier]`、`#[text(...)]` 等独立字段属性表达约束，编译期生成
 `qubit-model-metadata` 在运行时查询的静态实现和注册项。
 
 ## 安装
@@ -32,7 +33,7 @@ serde = { version = "1", features = ["derive"] }
 ## 快速开始
 
 账户记录和它的生命周期状态是两种形状：带字段的结构体，和无字段枚举。分别用对
-应的宏声明，再查询生成的元数据：
+应的宏声明，在字段上写独立属性，再查询生成的元数据：
 
 ```rust
 use qubit_model_derive::Enum;
@@ -49,9 +50,10 @@ enum AccountStatus {
 
 #[Model(id = "example.Account")]
 struct Account {
-    #[field(identifier)]
+    #[identifier]
     id: i64,
-    #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
+    #[unique(ignore_case)]
+    #[text(min_chars = 3, max_chars = 320)]
     email: String,
     status: AccountStatus,
 }
@@ -96,6 +98,11 @@ model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 `#[Model]` 接受具名字段结构体、空结构体和单字段元组 newtype。用在枚举上会编
 译失败，应改用 `#[Enum]`。
 
+`primary_key`、`index`、`key`、`ownership` 等模型级键写在 `#[Model(...)]` 参数
+里。字段约束用独立字段属性，例如 `#[identifier]`、`#[unique(...)]`、
+`#[text(...)]`、`#[reference(...)]`。已移除的 `#[field(...)]` 包装会触发编译
+错误。
+
 对结构体，它会生成：
 
 - 默认 trait：`Clone`、`Debug`、`Eq`、`PartialEq`、`Hash`、`Serialize`、
@@ -105,21 +112,24 @@ model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 - Serde 省略规则：值为 `None` 的 `Option<T>` 与直接声明的空标准集合不输出；
   集合字段在反序列化缺失时自动使用 `#[serde(default)]`
 - 静态的 `TypeKind::Struct` 或 `TypeKind::Newtype` 元数据
-- 来自 `#[field(...)]` 和模型级属性的字段、键、唯一性、索引、文本、集合、时
+- 来自独立字段属性和模型级参数的字段、键、唯一性、索引、文本、集合、时
   间、decimal、引用、codec 与 generator 元数据
 
 结构体上不能写 `no_copy`。`#[Model(..., redact)]` 或任意字段 `#[redact(...)]`
 会把格式化和序列化交给 `qubit-redact`。
 
-未知外部字段类型必须显式加上 `#[field(opaque)]`。opaque 字段会保留可见的
+未知外部字段类型必须显式加上 `#[opaque]`。opaque 字段会保留可见的
 `Option`、序列、Set、数组和 Map 外层，叶子则暴露为 `TypeShape::Opaque`。不加
 `opaque` 时，字段类型必须实现 `HasTypeShape`。`opaque` 不能和依赖形状的约束
 一起用，例如 `text`、`sequence`、`map`、`time`、`decimal`、`money`。
 
 集合省略规则只识别直接声明的 `Vec`、`LinkedList`、`VecDeque`、`HashMap`、
 `BTreeMap`、`HashSet`、`BTreeSet`、`BinaryHeap` 和固定长度数组；类型别名不在
-识别范围内。对 `Option` 或上述集合字段加 `#[field(keep_serializing)]`，即可不
-使用宏自动添加的省略和默认值规则，序列化时保留 `null` 或空值。
+识别范围内。对 `Option` 或上述集合字段加 `#[keep_serializing]`，即可不使用宏
+自动添加的省略和默认值规则，序列化时保留 `null` 或空值。
+
+字段上的 `#[unique(...)]` 简写会规范化为模型级唯一约束。复合唯一性在标注字
+段上使用 `respectTo = [other_fields]`。
 
 ### `#[Enum]`
 
@@ -148,8 +158,8 @@ schema，也不执行 codec/generator 策略。目标是否存在、投影是否
 ## 已知限制
 
 - 泛型模型、多字段元组结构体、union，以及携带数据的枚举变体都会被拒绝。
-- `primary_key`、`unique`、`index`、`key`、`ownership` 这类模型级约束只适用于
-  具名字段结构体。
+- `primary_key`、`index`、`key`、`ownership` 这类模型级约束只适用于具名字段
+  结构体。
 - `reference(entity = "module.Type", ...)` 使用稳定目标 ID，不要求对目标模型
   建立 Cargo 依赖。
 

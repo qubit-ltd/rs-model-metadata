@@ -242,7 +242,7 @@ pub struct TextConstraint {
     max_chars: Option<u32>,
     min_bytes: Option<u32>,
     max_bytes: Option<u32>,
-    repertoire: TextRepertoire,
+    allowed_chars: AllowedChars,
     non_blank: bool,
     format: Option<TextFormat>,
 }
@@ -251,7 +251,7 @@ pub struct TextConstraint {
 - `chars` 明确定义为 Rust `char` 数量，即 Unicode scalar value 数量；
 - `bytes` 明确定义为 UTF-8 字节数；
 - 第一版不使用 grapheme cluster；
-- `TextRepertoire` 默认是 Unicode，可指定 ASCII；
+- `AllowedChars` 默认是 Unicode，可指定 ASCII；
 - `non_blank` 与 `min_chars = 1` 不等价，前者还排除纯空白；
 - `TextFormat` 是 email 等强类型格式，不保存任意正则字符串作为通用格式。
 
@@ -446,7 +446,7 @@ pub struct User {
     #[model(text(
         min_chars = 3,
         max_chars = 32,
-        repertoire = ascii,
+        allowed_chars = ascii,
         non_blank
     ))]
     pub username: String,

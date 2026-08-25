@@ -20,24 +20,30 @@ compile error.
 
 ## Conceptual Model
 
-At compile time the matching macro reads the type, its `id`, and any
-`#[field(...)]` attributes. It then emits default traits, a `Display`
-implementation, Serde rename rules, and the runtime metadata traits.
+At compile time the matching macro reads the type, its `id`, model-level arguments
+on `#[Model(...)]`, and standalone field helper attributes such as `#[identifier]`
+and `#[text(...)]`. It then emits default traits, a `Display` implementation,
+Serde rename rules, and the runtime metadata traits.
 
 ```text
-struct + #[field(...)]  ──►  #[Model]  ──►  TypeKind::Struct | Newtype
-fieldless enum          ──►  #[Enum]   ──►  TypeKind::Enum
-                                            │
-                                            ▼
+struct + #[identifier] / #[text(...)] / …  ──►  #[Model]  ──►  TypeKind::Struct | Newtype
+fieldless enum                            ──►  #[Enum]   ──►  TypeKind::Enum
+                                                            │
+                                                            ▼
                          HasTypeShape + HasTypeMetadata + ModelRegistry
-                                            │
-                                            ▼
-                                    metadata_of::<T>()
+                                                            │
+                                                            ▼
+                                                    metadata_of::<T>()
 ```
 
 The two macros share the ID grammar, the three runtime traits, and the
 automatic `ModelRegistry` registration. They differ in accepted shapes, default
 traits, Serde naming, `Display`, and whether field constraints exist.
+
+Model-level keys such as `primary_key`, `index`, `key`, and `ownership` belong
+in the `#[Model(...)]` argument list. Field constraints are standalone
+attributes on fields. The removed `#[field(...)]` wrapper is rejected with a
+compile error.
 
 A model ID uses ASCII snake_case module segments and an ASCII UpperCamelCase
 final segment that matches the Rust type name, for example
@@ -105,9 +111,10 @@ enum AccountStatus {
 
 #[Model(id = "example.Account")]
 struct Account {
-    #[field(identifier(generated))]
+    #[identifier(generated)]
     id: i64,
-    #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
+    #[unique(ignore_case)]
+    #[text(min_chars = 3, max_chars = 320)]
     email: String,
     status: AccountStatus,
 }
@@ -175,7 +182,7 @@ struct SearchFilter {
     query: Option<String>,
     labels: Vec<String>,
     facets: HashMap<String, String>,
-    #[field(keep_serializing)]
+    #[keep_serializing]
     explicit_labels: Vec<String>,
 }
 
@@ -191,41 +198,42 @@ assert_eq!(
 );
 ```
 
-`#[field(keep_serializing)]` opts that field out of both automatically injected
-rules, preserving `null` or an empty value during serialization. It does not
-remove an explicit field-level `#[serde(...)]` attribute. The macro recognizes
-only direct type syntax, not aliases. A fixed array is empty only when its
-length is zero; an ordinary nonzero-length array is therefore retained.
+`#[keep_serializing]` opts that field out of both automatically injected rules,
+preserving `null` or an empty value during serialization. It does not remove an
+explicit field-level `#[serde(...)]` attribute. The macro recognizes only
+direct type syntax, not aliases. A fixed array is empty only when its length is
+zero; an ordinary nonzero-length array is therefore retained.
 
 ### Model-level attributes
 
-These attributes describe the whole model. Except for `id`, they are valid only
-on named structs.
+These attributes belong in the `#[Model(...)]` argument list. Except for `id`,
+they are valid only on named structs.
 
 | Attribute | Meaning |
 | --- | --- |
 | `id = "example.Account"` | Required stable model ID. |
 | `textual` | Marks a named struct as a text-capable value object, so field constraints such as `text(format = mobile)` can target it. |
 | `primary_key(fields(id), generated(id))` | Ordered primary key. A generated field must belong to it. |
-| `unique(name = "account", fields(org_id, username), ignore_case(username))` | Unique constraint with per-field comparison. |
 | `index(name = "created_at", fields(created_at))` | Ordered index. |
 | `key(name = "account", fields(org_id, username))` | Logical key. |
-| `ownership(owner = Organization)` | Owning model type. |
+| `ownership(owner = Organization)` | Owning model type. `target = Type` is accepted as an alias for `owner`. |
 
-`identifier` on a field is the single-field shorthand for a primary key.
-`unique` and `index` on a field are the corresponding single-field shorthands.
+`#[identifier]` on a field is the single-field shorthand for a primary key.
+`#[unique(...)]` and `#[indexed]` on a field are the corresponding single-field
+shorthands. Composite uniqueness is expressed with `#[unique(respectTo = [other_fields], ...)]`
+on one participating field; there is no model-level `unique(...)` argument.
 
-### Field-level attributes
+### Standalone field attributes
 
-Write field constraints as `#[field(...)]`. Nullability comes from `Option<T>`,
-not from a `nullable` flag.
+Write field constraints as standalone attributes on the field. Nullability comes
+from `Option<T>`, not from a `nullable` flag.
 
 | Attribute | Purpose |
 | --- | --- |
 | `identifier`, `identifier(generated)` | Single-field primary key. |
-| `unique`, `unique(ignore_case)` | Single-field unique constraint. |
-| `index` | Single-field index. |
-| `text(...)` | Character and byte ranges, repertoire, `non_blank`, and format. |
+| `unique`, `unique(ignore_case)`, `unique(ignoreCase = true)` | Single-field or composite unique constraint. Use `respectTo = [fields]` for composite keys and optional `name = "..."`. |
+| `indexed` | Single-field index. |
+| `text(...)` | Character and byte ranges, `allowed_chars`, `non_blank`, and format. |
 | `sequence(...)` | Item-count bounds and `unique_items`. |
 | `map(...)` | Entry-count bounds. |
 | `element(text(...))`, `element(decimal(...))` | Constraints on each sequence element. |
@@ -238,13 +246,12 @@ not from a `nullable` flag.
 | `keep_serializing` | Keep `None` or an empty supported collection in Serde output; suppress the macro's automatic `serde(default)` for that field. |
 
 `text` accepts `min_chars`, `max_chars`, `min_bytes`, `max_bytes`,
-`repertoire = unicode\|ascii`, `non_blank`, and
+`allowed_chars = unicode\|ascii`, `non_blank`, and
 `format = email\|mobile\|uri\|uuid`. `sequence` accepts `min_items`,
 `max_items`, and `unique_items`. `map` accepts `min_entries` and `max_entries`.
 `time` uses `precision = second\|millisecond\|microsecond\|nanosecond`.
-`DateTime<Utc>` is
-represented as `ScalarType::Instant`, while `NaiveDateTime` remains
-timezone-free. `decimal` and `money` accept `precision`, `scale`, and
+`DateTime<Utc>` is represented as `ScalarType::Instant`, while `NaiveDateTime`
+remains timezone-free. `decimal` and `money` accept `precision`, `scale`, and
 `rounding = half_up\|half_even\|down\|up`. Money requires `scale`.
 `codec` and `generator` accept `codec = "name"` or `codec(name = "name")`.
 
@@ -306,7 +313,7 @@ assert_eq!(
 ```
 
 Empty or duplicate serialized names are compile errors. Enum variants do not
-accept `#[field(...)]` or `#[model(...)]` attributes.
+accept field helper attributes or model-level keys.
 
 ## Advanced Usage
 
@@ -344,7 +351,7 @@ use qubit_redact::Redactor;
 #[Model(id = "example.Credential")]
 struct Credential {
     username: String,
-    #[field(opaque)]
+    #[opaque]
     #[redact(level = "secret")]
     password: String,
 }
@@ -373,17 +380,18 @@ use qubit_model_derive::Model;
 
 #[Model(id = "example.Organization")]
 struct Organization {
-    #[field(identifier)]
+    #[identifier]
     id: i64,
 }
 
 #[Model(id = "example.Membership")]
 struct Membership {
-    #[field(reference(
-        target = "example.Organization",
+    #[reference(
+        entity = "example.Organization",
         property = id,
-        existing = true
-    ))]
+        existing = true,
+        path = "organization.id"
+    )]
     organization_id: i64,
 }
 ```
@@ -409,7 +417,7 @@ struct ExternalToken;
 
 #[Model(id = "example.ImportRecord")]
 struct ImportRecord {
-    #[field(opaque)]
+    #[opaque]
     token: ExternalToken,
 }
 ```
@@ -433,7 +441,7 @@ struct Phone {
 
 #[Model(id = "example.PhoneLoginParams")]
 struct PhoneLoginParams {
-    #[field(text(format = mobile))]
+    #[text(format = mobile)]
     mobile: Option<Phone>,
 }
 ```
@@ -451,10 +459,12 @@ Failures are compile errors on the offending syntax. Typical causes:
 | Missing or duplicate `id` | Every declaration needs one `id = "module.Type"`. |
 | ID type segment mismatch | The final ID segment must equal the Rust type name. |
 | Unsupported shape | No generics, unions, multi-field tuples, or data enums. |
-| Wrong attribute scope | Model-level keys only on named structs; field attributes only on fields. |
+| Wrong attribute scope | Model-level keys only in `#[Model(...)]`; field helpers only on fields. |
+| Removed `#[field(...)]` | Use standalone attributes such as `#[identifier]` and `#[text(...)]`. |
 | Capability mismatch | `text` needs a text-capable type; `ignore_case` has the same requirement. |
 | Duplicate serialized enum name | Two variants collapsed to the same Serde name. |
 | `no_copy` on a struct | Allowed only on `#[Enum]`. |
+| Model-level `unique(...)` | Use field-level `#[unique(...)]` instead. |
 
 `nullable` and `computed` are rejected with an explicit message: use
 `Option<T>`, and declare a real field instead of a computed one.
@@ -488,9 +498,9 @@ schema exporter.
 - Sensitive-value handling is expressed with `qubit-redact`, not with a
   `sensitive` field attribute.
 - `ownership(owner = Type)` names a Rust type in scope; `reference` names a
-  stable model ID string.
+  stable model ID string through `entity = "module.Type"`.
 - Prefer field shorthands for single-field keys, and model-level attributes for
-  composite keys.
+  composite primary keys and indexes.
 
 ## Further Reading
 

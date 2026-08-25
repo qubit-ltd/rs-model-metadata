@@ -18,23 +18,28 @@
 
 ## 概念模型
 
-编译期由对应的宏读取类型、`id` 以及 `#[field(...)]`，再生成默认 trait、
-`Display`、Serde 命名规则和运行时元数据 trait。
+编译期由对应的宏读取类型、`#[Model(...)]` 上的模型级参数，以及字段上的独立辅
+助属性（如 `#[identifier]`、`#[text(...)]`），再生成默认 trait、`Display`、Serde
+命名规则和运行时元数据 trait。
 
 ```text
-结构体 + #[field(...)]  ──►  #[Model]  ──►  TypeKind::Struct | Newtype
-无字段枚举              ──►  #[Enum]   ──►  TypeKind::Enum
-                                            │
-                                            ▼
+结构体 + #[identifier] / #[text(...)] / …  ──►  #[Model]  ──►  TypeKind::Struct | Newtype
+无字段枚举                                  ──►  #[Enum]   ──►  TypeKind::Enum
+                                                            │
+                                                            ▼
                          HasTypeShape + HasTypeMetadata + ModelRegistry
-                                            │
-                                            ▼
-                                    metadata_of::<T>()
+                                                            │
+                                                            ▼
+                                                    metadata_of::<T>()
 ```
 
 两个宏共用同一套 ID 规则、三个运行时 trait，以及向 `ModelRegistry` 的自动注
 册。差别在于接受的形状、默认 trait、Serde 命名、`Display`，以及是否存在字段
 约束。
+
+`primary_key`、`index`、`key`、`ownership` 等模型级键写在 `#[Model(...)]` 参数
+里。字段约束写成字段上的独立属性。已移除的 `#[field(...)]` 包装会触发编译错
+误。
 
 模型 ID 的模块段必须是 ASCII snake_case，最后一段必须是与 Rust 类型名一致的
 ASCII UpperCamelCase，例如 `example.AccountStatus`。
@@ -97,9 +102,10 @@ enum AccountStatus {
 
 #[Model(id = "example.Account")]
 struct Account {
-    #[field(identifier(generated))]
+    #[identifier(generated)]
     id: i64,
-    #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
+    #[unique(ignore_case)]
+    #[text(min_chars = 3, max_chars = 320)]
     email: String,
     status: AccountStatus,
 }
@@ -162,7 +168,7 @@ struct SearchFilter {
     query: Option<String>,
     labels: Vec<String>,
     facets: HashMap<String, String>,
-    #[field(keep_serializing)]
+    #[keep_serializing]
     explicit_labels: Vec<String>,
 }
 
@@ -178,42 +184,44 @@ assert_eq!(
 );
 ```
 
-`#[field(keep_serializing)]` 会让该字段不使用宏自动添加的两项规则：序列化时保留
+`#[keep_serializing]` 会让该字段不使用宏自动添加的两项规则：序列化时保留
 `null` 或空值，并且不会自动附加 `serde(default)`。它不会删除字段上已经显式写
 出的 `#[serde(...)]`。宏只识别直接写出的类型语法，不处理类型别名。固定长度数组
 只有长度为零时才为空，长度非零的数组仍会输出。
 
 ### 模型级属性
 
-这些属性描述整个模型。除了 `id`，它们只允许写在具名字段结构体上。
+这些属性写在 `#[Model(...)]` 参数里。除了 `id`，它们只允许出现在具名字段结构
+体上。
 
 | 属性 | 含义 |
 | --- | --- |
 | `id = "example.Account"` | 必填的稳定模型 ID。 |
 | `textual` | 把具名字段结构体标成具备文本能力的值对象，以便 `text(format = mobile)` 这类约束能作用到它。 |
 | `primary_key(fields(id), generated(id))` | 有序主键。生成字段必须属于该主键。 |
-| `unique(name = "account", fields(org_id, username), ignore_case(username))` | 唯一约束，比较规则按字段保存。 |
 | `index(name = "created_at", fields(created_at))` | 有序索引。 |
 | `key(name = "account", fields(org_id, username))` | 逻辑键。 |
-| `ownership(owner = Organization)` | 拥有该模型的类型。 |
+| `ownership(owner = Organization)` | 拥有该模型的类型。`target = Type` 可作为 `owner` 的别名。 |
 
-字段上的 `identifier` 是单字段主键简写；`unique` 和 `index` 是对应的单字段简
-写。
+字段上的 `#[identifier]` 是单字段主键简写；`#[unique(...)]` 和 `#[indexed]` 是
+对应的单字段简写。复合唯一性在参与字段之一上写
+`#[unique(respectTo = [other_fields], ...)]`；`#[Model(...)]` 里没有模型级
+`unique(...)` 参数。
 
-### 字段级属性
+### 独立字段属性
 
-字段约束写成 `#[field(...)]`。可空性来自 `Option<T>`，没有 `nullable` 开关。
+字段约束写成字段上的独立属性。可空性来自 `Option<T>`，没有 `nullable` 开关。
 
 | 属性 | 用途 |
 | --- | --- |
 | `identifier`、`identifier(generated)` | 单字段主键。 |
-| `unique`、`unique(ignore_case)` | 单字段唯一约束。 |
-| `index` | 单字段索引。 |
+| `unique`、`unique(ignore_case)`、`unique(ignoreCase = true)` | 单字段或复合唯一约束。复合键用 `respectTo = [fields]`，可选 `name = "..."`。 |
+| `indexed` | 单字段索引。 |
 | `text(...)` | 字符/字节范围、字符集、`non_blank` 与格式。 |
 | `sequence(...)` | 元素个数范围和 `unique_items`。 |
 | `map(...)` | 条目个数范围。 |
 | `element(text(...))`、`element(decimal(...))` | 作用在每个序列元素上的约束。 |
-| `time(...)` | 时间精度与时区归一化。 |
+| `time(...)` | 时间精度；`DateTime<Utc>` 由其类型形状表示为 instant。 |
 | `decimal(...)`、`money(...)` | decimal 语义和范围；二者不能同时使用。 |
 | `reference(...)` | 指向另一个模型 ID 和字段路径的直接引用。 |
 | `lookup_relation(...)` | 按当前作用域里的目标类型做查找关系。 |
@@ -222,7 +230,7 @@ assert_eq!(
 | `keep_serializing` | Serde 输出中保留 `None` 或支持集合的空值，并阻止宏为该字段自动添加 `serde(default)`。 |
 
 `text` 支持 `min_chars`、`max_chars`、`min_bytes`、`max_bytes`、
-`repertoire = unicode\|ascii`、`non_blank`，以及
+`allowed_chars = unicode\|ascii`、`non_blank`，以及
 `format = email\|mobile\|uri\|uuid`。`sequence` 支持 `min_items`、
 `max_items`、`unique_items`。`map` 支持 `min_entries`、`max_entries`。`time`
 使用 `precision = second\|millisecond\|microsecond\|nanosecond`。
@@ -286,8 +294,7 @@ assert_eq!(
 );
 ```
 
-空的或重复的序列化名会编译失败。枚举变体不能写 `#[field(...)]` 或
-`#[model(...)]`。
+空的或重复的序列化名会编译失败。枚举变体不能写字段辅助属性或模型级键。
 
 ## 进阶用法
 
@@ -324,7 +331,7 @@ use qubit_redact::Redactor;
 #[Model(id = "example.Credential")]
 struct Credential {
     username: String,
-    #[field(opaque)]
+    #[opaque]
     #[redact(level = "secret")]
     password: String,
 }
@@ -351,17 +358,18 @@ use qubit_model_derive::Model;
 
 #[Model(id = "example.Organization")]
 struct Organization {
-    #[field(identifier)]
+    #[identifier]
     id: i64,
 }
 
 #[Model(id = "example.Membership")]
 struct Membership {
-    #[field(reference(
-        target = "example.Organization",
+    #[reference(
+        entity = "example.Organization",
         property = id,
-        existing = true
-    ))]
+        existing = true,
+        path = "organization.id"
+    )]
     organization_id: i64,
 }
 ```
@@ -384,7 +392,7 @@ struct ExternalToken;
 
 #[Model(id = "example.ImportRecord")]
 struct ImportRecord {
-    #[field(opaque)]
+    #[opaque]
     token: ExternalToken,
 }
 ```
@@ -407,7 +415,7 @@ struct Phone {
 
 #[Model(id = "example.PhoneLoginParams")]
 struct PhoneLoginParams {
-    #[field(text(format = mobile))]
+    #[text(format = mobile)]
     mobile: Option<Phone>,
 }
 ```
@@ -425,10 +433,12 @@ struct PhoneLoginParams {
 | 缺少或重复的 `id` | 每个声明都要有一个 `id = "module.Type"`。 |
 | ID 类型段不匹配 | 最后一段必须等于 Rust 类型名。 |
 | 不支持的形状 | 不要写泛型、union、多字段元组或带数据的枚举。 |
-| 属性作用域错误 | 模型级键只能写在具名字段结构体上；字段属性只能写在字段上。 |
+| 属性作用域错误 | 模型级键只能写在 `#[Model(...)]` 里；字段辅助属性只能写在字段上。 |
+| 仍在使用 `#[field(...)]` | 改用 `#[identifier]`、`#[text(...)]` 等独立属性。 |
 | 类型能力不匹配 | `text` 需要具备文本能力的类型；`ignore_case` 同样如此。 |
 | 枚举序列化名重复 | 两个变体收成了同一个 Serde 名。 |
 | 结构体上写了 `no_copy` | 只允许出现在 `#[Enum]` 上。 |
+| 在 `#[Model(...)]` 里写 `unique(...)` | 改用字段级 `#[unique(...)]`。 |
 
 `nullable` 和 `computed` 会被明确拒绝：可空请用 `Option<T>`，不要用计算字段
 代替真实字段。
@@ -456,9 +466,9 @@ decimal 的 `scale` 不能大于 `precision`。未知外部类型要么实现
 
 - `codec` 和 `generator` 只保存策略名。
 - 敏感值处理用 `qubit-redact` 表达，没有 `sensitive` 字段属性。
-- `ownership(owner = Type)` 写的是当前作用域中的 Rust 类型；`reference` 写的
-  是稳定模型 ID 字符串。
-- 单字段键优先用字段简写，复合键写到模型级属性。
+- `ownership(owner = Type)` 写的是当前作用域中的 Rust 类型；`reference` 通过
+  `entity = "module.Type"` 写稳定模型 ID 字符串。
+- 单字段键优先用字段简写，复合主键和索引写到模型级参数。
 
 ## 延伸阅读
 

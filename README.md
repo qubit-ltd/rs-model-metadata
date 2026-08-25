@@ -36,8 +36,9 @@ no `#[derive(Model)]` alias.
 ## Quick Start
 
 An account record and its lifecycle status are two different shapes: a struct
-with fields, and a fieldless enum. Declare each with the matching macro, then
-query the generated metadata:
+with fields, and a fieldless enum. Declare each with the matching macro, attach
+field constraints as standalone attributes such as `#[identifier]` and
+`#[text(...)]`, then query the generated metadata:
 
 ```rust
 use qubit_model_derive::Enum;
@@ -54,9 +55,10 @@ enum AccountStatus {
 
 #[Model(id = "example.Account")]
 struct Account {
-    #[field(identifier)]
+    #[identifier]
     id: i64,
-    #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
+    #[unique(ignore_case)]
+    #[text(min_chars = 3, max_chars = 320)]
     email: String,
     status: AccountStatus,
 }
@@ -105,6 +107,12 @@ model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 `#[Model]` accepts named-field structs, unit structs, and single-field tuple
 newtypes. Applying it to an enum is a compile error; use `#[Enum]` instead.
 
+Model-level keys such as `primary_key`, `index`, `key`, and `ownership` belong
+in the `#[Model(...)]` argument list. Field constraints are standalone field
+attributes such as `#[identifier]`, `#[unique(...)]`, `#[text(...)]`, and
+`#[reference(...)]`. The removed `#[field(...)]` wrapper is rejected with a
+compile error.
+
 For a struct it generates:
 
 - Default traits: `Clone`, `Debug`, `Eq`, `PartialEq`, `Hash`, `Serialize`, and
@@ -116,24 +124,28 @@ For a struct it generates:
   `#[serde(default)]` for a missing input field
 - Static `TypeKind::Struct` or `TypeKind::Newtype` metadata
 - Field, key, uniqueness, index, text, collection, temporal, decimal,
-  reference, codec, and generator metadata from `#[field(...)]` and model-level
-  attributes
+  reference, codec, and generator metadata from standalone field attributes and
+  model-level arguments
 
 `no_copy` is rejected on structs. `#[Model(..., redact)]` or any field
 `#[redact(...)]` delegates formatting and serialization to `qubit-redact`.
 
-Unknown external field types must opt in with `#[field(opaque)]`. An opaque
-field keeps visible `Option`, sequence, set, array, and map wrappers and exposes
-its leaf as `TypeShape::Opaque`. Without `opaque`, the field type must implement
+Unknown external field types must opt in with `#[opaque]`. An opaque field keeps
+visible `Option`, sequence, set, array, and map wrappers and exposes its leaf as
+`TypeShape::Opaque`. Without `opaque`, the field type must implement
 `HasTypeShape`. `opaque` cannot combine with shape-dependent constraints such as
 `text`, `sequence`, `map`, `time`, `decimal`, or `money`.
 
 The collection omission rule recognizes directly declared `Vec`, `LinkedList`,
 `VecDeque`, `HashMap`, `BTreeMap`, `HashSet`, `BTreeSet`, `BinaryHeap`, and
-fixed arrays. Type aliases are not recognized. Use
-`#[field(keep_serializing)]` on an `Option` or supported collection field to
-opt out of the macro's automatic omission and defaulting, preserving `null` or
-an empty value during serialization.
+fixed arrays. Type aliases are not recognized. Use `#[keep_serializing]` on an
+`Option` or supported collection field to opt out of the macro's automatic
+omission and defaulting, preserving `null` or an empty value during
+serialization.
+
+Field-level `#[unique(...)]` shorthands normalize into model-level unique
+constraints. Composite uniqueness uses `respectTo = [other_fields]` on the
+annotated field.
 
 ### `#[Enum]`
 
@@ -167,7 +179,7 @@ compatibility, and ownership cycles belong to
 
 - Generic models, multi-field tuple structs, unions, and data-carrying enum
   variants are rejected.
-- Model-level constraints such as `primary_key`, `unique`, `index`, `key`, and
+- Model-level constraints such as `primary_key`, `index`, `key`, and
   `ownership` apply only to named structs.
 - `reference(entity = "module.Type", ...)` names a stable target ID and does not
   require a Cargo dependency on that target.
