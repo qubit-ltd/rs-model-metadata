@@ -7,16 +7,23 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-`qubit-model-metadata` provides immutable, strongly typed metadata for Rust domain models. It lets validation, schema-oriented tooling, and application code inspect model fields, type shapes, constraints, keys, and relations without a mutable runtime registry or string-based type inference.
+`qubit-model-metadata` gives validation, schema tooling, and application code a
+typed, immutable view of a Rust domain model: fields, type shapes, constraints,
+keys, and relations. Those facts usually come from `qubit-model-derive`, so
+callers do not keep a second registry in sync with source, and they do not parse
+`type_name` strings to recover structure.
 
 ## Installation
 
-Add the runtime crate and, when metadata should be generated from model declarations, the companion derive crate:
+This crate is the runtime query API. To generate metadata from a model
+declaration, add the companion derive crate and Serde. Both macros require
+`serde` in the consuming crate. The crate requires Rust 1.94 or later.
 
 ```toml
 [dependencies]
 qubit-model-metadata = "0.1"
-qubit-model-derive = "0.1.0"
+qubit-model-derive = "0.1"
+serde = { version = "1", features = ["derive"] }
 ```
 
 Optional Cargo features add shape support for external scalar types:
@@ -28,11 +35,16 @@ Optional Cargo features add shape support for external scalar types:
 
 ## Quick Start
 
-For an account model, declare its static metadata once and query it through the runtime API:
+A signup service stores accounts. Before it writes a row, a schema helper needs
+the primary key, the email length limit, and whether email uniqueness ignores
+case. Declare the model once; the query reads static slices and function
+pointers and does not allocate a metadata graph.
 
 ```rust
 use qubit_model_derive::Model;
-use qubit_model_metadata::{TypeShape, metadata_of};
+use qubit_model_metadata::TypeShape;
+use qubit_model_metadata::UniqueComparison;
+use qubit_model_metadata::metadata_of;
 
 #[Model(id = "example.Account")]
 struct Account {
@@ -42,43 +54,79 @@ struct Account {
     email: String,
 }
 
-let metadata = metadata_of::<Account>();
-let email = metadata.field("email").expect("email metadata");
+fn main() {
+    let metadata = metadata_of::<Account>();
+    let email = metadata.field("email").expect("email metadata");
 
-assert!(metadata.primary_key().expect("primary key").contains("id"));
-assert!(matches!(email.field_type().shape(), TypeShape::Scalar(_)));
-assert_eq!(email.text_constraint().and_then(|text| text.max_chars()), Some(320));
+    assert!(metadata.primary_key().expect("primary key").contains("id"));
+    assert!(matches!(email.field_type().shape(), TypeShape::Scalar(_)));
+    assert_eq!(email.text_constraint().and_then(|text| text.max_chars()), Some(320));
+    assert_eq!(
+        metadata
+            .unique_constraints()
+            .next()
+            .and_then(|unique| unique.comparison_of("email")),
+        Some(UniqueComparison::IgnoreCase)
+    );
+}
 ```
 
-The query reads static slices and function pointers. It does not allocate a metadata graph at runtime.
-
-`Model` is an attribute macro. It generates the standard model traits and the
-static metadata implementation; `#[field(...)]` declares field metadata.
+`Model` is an attribute macro, not `#[derive(Model)]`. It emits the runtime
+traits and a process-local registration; `#[field(...)]` declares field
+metadata. `unique(ignore_case)` becomes a model-level unique constraint.
 
 ## Why This Project Exists
 
-Domain-model consumers need more than Rust's memory representation: they need field structure and constraints with stable semantics. Separate registries drift from source declarations, while parsing `type_name` strings fails for aliases and renamed dependencies. This crate uses recursive traits for structure and runtime-local `TypeId` identity; type names remain diagnostic display data. `TypeId` is for in-process metadata lookup, not persistence or cross-process stable identifiers.
+Consumers of a domain model need more than Rust's memory layout. They need
+field structure and constraints with stable semantics. A hand-maintained
+registry drifts from the source declaration. Parsing `type_name` fails for
+aliases and renamed dependencies.
+
+This crate describes structure with recursive traits and identifies types with
+the current process's `TypeId`. Type names stay diagnostic display data.
+`TypeId` is for in-process lookup, not persistence or a cross-process stable
+identifier. The portable identifier is `ModelId`.
 
 ## What It Provides
 
-- Recursive `TypeShape` metadata for supported scalars, `Option<T>`, `Vec<T>`, sets, maps, fixed arrays, named models, and explicitly opaque fields.
-- Capability flags used by derive-time validation. Options and newtypes inherit inner capabilities; arrays expose both `SEQUENCE` and `ARRAY`, so uniqueness is expressible while their fixed length remains authoritative.
-- Static model, field, enum, newtype, constraint, key, index, and relation value objects with typed getters.
+- Recursive `TypeShape` metadata for supported scalars, `Option<T>`, `Vec<T>`,
+  `HashSet`/`BTreeSet`, `HashMap`/`BTreeMap`, fixed arrays, named models, and
+  explicitly opaque fields.
+- Capability flags used when attributes are validated. `Option` inherits the
+  inner type's capabilities. Arrays expose both `SEQUENCE` and `ARRAY`, so
+  element uniqueness is expressible while the const length remains
+  authoritative.
+- Static value objects for models, fields, enums, newtypes, constraints, keys,
+  indexes, and relations, with typed getters.
 - Allocation-free field, attribute, key, index, and nested field-path queries.
-- Const-compatible public constructors that reject reversed ranges, decimal scales above precision, and empty key-like field sets.
-- Optional `chrono` and `bigdecimal` scalar integrations behind explicit Cargo features.
+- Const-compatible public constructors that reject reversed ranges, a decimal
+  scale greater than precision, and empty key-like field sets.
+- An immutable `ModelRegistry` over registrations linked into the process, plus
+  `validate_graph()` for cross-model references when the full set is present.
+- Optional `chrono` and `bigdecimal` scalar integrations behind explicit Cargo
+  features.
+
+It does not map databases, emit validation messages, define serialization
+formats, or run codecs, generators, or redaction.
 
 ## Known Limits
 
-- The runtime crate provides an immutable global `ModelRegistry` over distributed registrations linked into the process. Unlinked model crates are intentionally absent, and callers can construct a registry from an explicit registration set when needed.
-- It does not define database mappings, validation error messages, serialization formats, codecs, generators, or redaction implementations.
-- `ModelRegistry::validate_graph()` validates direct references, lookup relations, ownership targets, compatible relation projections, required-reference cycles, and ownership cycles.
-- User-defined types must implement `HasTypeShape`; the companion macro supports `#[field(opaque)]`, which preserves visible `Option`, sequence, set, array, and map wrappers while leaving the leaf type uninterpreted.
+- The global registry contains only model crates linked into this process.
+  Unlinked crates are absent by design. Tools that need a closed set can call
+  `ModelRegistry::from_registrations`.
+- Registry construction checks ID validity, registration/metadata ID agreement,
+  and duplicate IDs or identities. It does not walk relations. Call
+  `ModelRegistry::validate_graph()` after linking a complete model set.
+- User-defined field types must implement `HasTypeShape`. The companion macro
+  supports `#[field(opaque)]`, which keeps visible `Option`, sequence, set,
+  array, and map wrappers and leaves only the leaf uninterpreted.
+- `FieldMetadata::is_nullable()` inspects only an outer `Option`.
+  `Option<Vec<String>>` is nullable; `Vec<Option<String>>` is not.
 
 ## Learn More
 
 - [User guide](doc/user_guide.md)
-- [User guide](doc/user_guide.md)
+- [中文用户手册](doc/user_guide.zh_CN.md)
 - [API documentation](https://docs.rs/qubit-model-metadata)
 - [中文文档](README.zh_CN.md)
 
