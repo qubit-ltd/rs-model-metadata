@@ -17,7 +17,7 @@ mod temporal_constraint;
 mod temporal_precision;
 mod text_constraint;
 mod text_format;
-mod text_repertoire;
+mod allowed_chars;
 
 pub use self::decimal_constraint::DecimalConstraint;
 pub use self::decimal_semantic::DecimalSemantic;
@@ -28,4 +28,4 @@ pub use self::temporal_constraint::TemporalConstraint;
 pub use self::temporal_precision::TemporalPrecision;
 pub use self::text_constraint::TextConstraint;
 pub use self::text_format::TextFormat;
-pub use self::text_repertoire::TextRepertoire;
+pub use self::allowed_chars::AllowedChars;

@@ -17,4 +17,4 @@ mod temporal_constraint_tests;
 mod temporal_precision_tests;
 mod text_constraint_tests;
 mod text_format_tests;
-mod text_repertoire_tests;
+mod allowed_chars_tests;

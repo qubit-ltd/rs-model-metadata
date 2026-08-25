@@ -6,17 +6,17 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-/// The repertoire accepted by a text constraint.
+/// The character set accepted by a text constraint.
 ///
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::TextRepertoire;
+/// use qubit_model_metadata::AllowedChars;
 ///
-/// assert_eq!(TextRepertoire::default(), TextRepertoire::Unicode);
+/// assert_eq!(AllowedChars::default(), AllowedChars::Unicode);
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum TextRepertoire {
+pub enum AllowedChars {
     /// All Unicode scalar values are accepted.
     #[default]
     Unicode,

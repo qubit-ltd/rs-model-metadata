@@ -13,7 +13,7 @@ use qubit_model_metadata::AttributeMetadata;
 use qubit_model_metadata::AttributeQuery;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::TextConstraint;
-use qubit_model_metadata::TextRepertoire;
+use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::TypeRef;
 
 struct EmptyAttributes;
@@ -41,7 +41,7 @@ fn test_attribute_query_reads_field_attributes() {
         Some(16),
         None,
         None,
-        TextRepertoire::Ascii,
+        AllowedChars::Ascii,
         false,
         None,
     ))];

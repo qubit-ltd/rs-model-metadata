@@ -28,7 +28,7 @@ use qubit_model_metadata::StrategyRef;
 use qubit_model_metadata::TemporalConstraint;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
-use qubit_model_metadata::TextRepertoire;
+use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::TypeCapabilities;
 use qubit_model_metadata::TypeIdentity;
 use qubit_model_metadata::TypeRef;
@@ -52,7 +52,7 @@ static INVALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Tex
     Some(32),
     None,
     None,
-    TextRepertoire::Unicode,
+    AllowedChars::Unicode,
     false,
     None,
 ))];
@@ -70,7 +70,7 @@ static ELEMENT_TEXT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Tex
     None,
     None,
     None,
-    TextRepertoire::Ascii,
+    AllowedChars::Ascii,
     false,
     None,
 ))];
@@ -82,7 +82,7 @@ static VALID_TEXT_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(
     Some(32),
     None,
     None,
-    TextRepertoire::Unicode,
+    AllowedChars::Unicode,
     true,
     None,
 ))];
@@ -260,7 +260,7 @@ fn test_field_metadata_exposes_sequence_element_constraints() {
     assert!(matches!(
         element.attributes(),
         [AttributeMetadata::Text(constraint)]
-            if constraint.repertoire() == TextRepertoire::Ascii
+            if constraint.allowed_chars() == AllowedChars::Ascii
     ));
 }
 

@@ -27,7 +27,7 @@ use qubit_model_metadata::PrimaryKeyFieldMetadata;
 use qubit_model_metadata::PrimaryKeyMetadata;
 use qubit_model_metadata::StructMetadata;
 use qubit_model_metadata::TextConstraint;
-use qubit_model_metadata::TextRepertoire;
+use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::TypeCapabilities;
 use qubit_model_metadata::TypeIdentity;
 use qubit_model_metadata::TypeKind;
@@ -49,7 +49,7 @@ static USERNAME_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(Te
     Some(32),
     None,
     None,
-    TextRepertoire::Unicode,
+    AllowedChars::Unicode,
     false,
     None,
 ))];

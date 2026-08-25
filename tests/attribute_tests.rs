@@ -32,7 +32,7 @@ use qubit_model_metadata::StrategyRef;
 use qubit_model_metadata::TemporalConstraint;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
-use qubit_model_metadata::TextRepertoire;
+use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::TypeIdentity;
 use qubit_model_metadata::UniqueComparison;
 use qubit_model_metadata::UniqueFieldMetadata;
@@ -52,7 +52,7 @@ const ELEMENT_TEXT: AttributeMetadata = AttributeMetadata::Text(TextConstraint::
     None,
     None,
     None,
-    TextRepertoire::Ascii,
+    AllowedChars::Ascii,
     false,
     None,
 ));
@@ -87,7 +87,7 @@ fn test_attribute_metadata_reports_every_kind() {
             None,
             None,
             None,
-            TextRepertoire::Unicode,
+            AllowedChars::Unicode,
             false,
             None,
         )),

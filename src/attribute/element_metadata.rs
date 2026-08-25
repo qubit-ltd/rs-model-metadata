@@ -16,14 +16,14 @@ use super::AttributeMetadata;
 /// use qubit_model_metadata::AttributeMetadata;
 /// use qubit_model_metadata::ElementMetadata;
 /// use qubit_model_metadata::TextConstraint;
-/// use qubit_model_metadata::TextRepertoire;
+/// use qubit_model_metadata::AllowedChars;
 ///
 /// const ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(TextConstraint::new(
 ///     None,
 ///     Some(64),
 ///     None,
 ///     None,
-///     TextRepertoire::Unicode,
+///     AllowedChars::Unicode,
 ///     false,
 ///     None,
 /// ))];

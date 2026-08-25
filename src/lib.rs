@@ -41,7 +41,7 @@ pub use crate::constraint::TemporalConstraint;
 pub use crate::constraint::TemporalPrecision;
 pub use crate::constraint::TextConstraint;
 pub use crate::constraint::TextFormat;
-pub use crate::constraint::TextRepertoire;
+pub use crate::constraint::AllowedChars;
 pub use crate::field_metadata::FieldMetadata;
 pub use crate::metadata_registry::ModelRegistry;
 pub use crate::metadata_registry::ModelRegistryError;

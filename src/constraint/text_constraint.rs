@@ -7,7 +7,7 @@
 // =============================================================================
 
 use super::TextFormat;
-use super::TextRepertoire;
+use super::AllowedChars;
 
 /// Text constraints that apply to a string field.
 ///
@@ -16,14 +16,14 @@ use super::TextRepertoire;
 /// ```
 /// use qubit_model_metadata::TextConstraint;
 /// use qubit_model_metadata::TextFormat;
-/// use qubit_model_metadata::TextRepertoire;
+/// use qubit_model_metadata::AllowedChars;
 ///
 /// let constraint = TextConstraint::new(
 ///     Some(3),
 ///     Some(320),
 ///     None,
 ///     None,
-///     TextRepertoire::Ascii,
+///     AllowedChars::Ascii,
 ///     true,
 ///     Some(TextFormat::Email),
 /// );
@@ -40,8 +40,8 @@ pub struct TextConstraint {
     min_bytes: Option<u32>,
     /// The maximum UTF-8 byte length, if constrained.
     max_bytes: Option<u32>,
-    /// The permitted character repertoire.
-    repertoire: TextRepertoire,
+    /// The permitted character set.
+    allowed_chars: AllowedChars,
     /// Whether whitespace-only values are forbidden.
     non_blank: bool,
     /// The required semantic text format, if any.
@@ -49,7 +49,7 @@ pub struct TextConstraint {
 }
 
 impl TextConstraint {
-    /// Creates text constraints from character, byte, repertoire, and format
+    /// Creates text constraints from character, byte, allowed-character, and format
     /// limits.
     ///
     /// # Parameters
@@ -58,7 +58,7 @@ impl TextConstraint {
     /// * `max_chars` - The optional maximum number of Unicode scalar values.
     /// * `min_bytes` - The optional minimum UTF-8 byte length.
     /// * `max_bytes` - The optional maximum UTF-8 byte length.
-    /// * `repertoire` - The permitted character repertoire.
+    /// * `allowed_chars` - The permitted character set.
     /// * `non_blank` - Whether whitespace-only values are forbidden.
     /// * `format` - The optional required semantic text format.
     ///
@@ -75,7 +75,7 @@ impl TextConstraint {
         max_chars: Option<u32>,
         min_bytes: Option<u32>,
         max_bytes: Option<u32>,
-        repertoire: TextRepertoire,
+        allowed_chars: AllowedChars,
         non_blank: bool,
         format: Option<TextFormat>,
     ) -> Self {
@@ -96,7 +96,7 @@ impl TextConstraint {
             max_chars,
             min_bytes,
             max_bytes,
-            repertoire,
+            allowed_chars,
             non_blank,
             format,
         }
@@ -148,15 +148,15 @@ impl TextConstraint {
         self.max_bytes
     }
 
-    /// Returns the permitted character repertoire.
+    /// Returns the permitted character set.
     ///
     /// # Returns
     ///
-    /// The permitted character repertoire.
+    /// The permitted character set.
     #[must_use]
     #[inline(always)]
-    pub const fn repertoire(self) -> TextRepertoire {
-        self.repertoire
+    pub const fn allowed_chars(self) -> AllowedChars {
+        self.allowed_chars
     }
 
     /// Returns whether whitespace-only values are forbidden.

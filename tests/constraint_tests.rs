@@ -19,14 +19,14 @@ use qubit_model_metadata::TemporalConstraint;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
 use qubit_model_metadata::TextFormat;
-use qubit_model_metadata::TextRepertoire;
+use qubit_model_metadata::AllowedChars;
 
 const VALID_TEXT: TextConstraint = TextConstraint::new(
     Some(1),
     Some(8),
     Some(1),
     Some(16),
-    TextRepertoire::Ascii,
+    AllowedChars::Ascii,
     true,
     Some(TextFormat::Email),
 );
@@ -35,7 +35,7 @@ const VALID_MOBILE_TEXT: TextConstraint = TextConstraint::new(
     None,
     None,
     None,
-    TextRepertoire::Unicode,
+    AllowedChars::Unicode,
     false,
     Some(TextFormat::Mobile),
 );
@@ -51,7 +51,7 @@ fn test_constraint_constructors_remain_const_compatible() {
     assert_eq!(VALID_TEXT.max_chars(), Some(8));
     assert_eq!(VALID_TEXT.min_bytes(), Some(1));
     assert_eq!(VALID_TEXT.max_bytes(), Some(16));
-    assert_eq!(VALID_TEXT.repertoire(), TextRepertoire::Ascii);
+    assert_eq!(VALID_TEXT.allowed_chars(), AllowedChars::Ascii);
     assert!(VALID_TEXT.is_non_blank());
     assert_eq!(VALID_TEXT.format(), Some(TextFormat::Email));
     assert_eq!(VALID_MOBILE_TEXT.format(), Some(TextFormat::Mobile));
@@ -78,7 +78,7 @@ fn test_constraint_constructors_execute_runtime_paths() {
         Some(8),
         Some(1),
         Some(16),
-        TextRepertoire::Ascii,
+        AllowedChars::Ascii,
         true,
         Some(TextFormat::Email),
     );
@@ -97,13 +97,13 @@ fn test_constraint_constructors_execute_runtime_paths() {
 #[test]
 #[should_panic(expected = "minimum character count cannot exceed maximum character count")]
 fn test_text_constraint_rejects_reversed_character_range() {
-    let _ = TextConstraint::new(Some(2), Some(1), None, None, TextRepertoire::Unicode, false, None);
+    let _ = TextConstraint::new(Some(2), Some(1), None, None, AllowedChars::Unicode, false, None);
 }
 
 #[test]
 #[should_panic(expected = "minimum byte count cannot exceed maximum byte count")]
 fn test_text_constraint_rejects_reversed_byte_range() {
-    let _ = TextConstraint::new(None, None, Some(2), Some(1), TextRepertoire::Unicode, false, None);
+    let _ = TextConstraint::new(None, None, Some(2), Some(1), AllowedChars::Unicode, false, None);
 }
 
 #[test]
