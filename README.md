@@ -169,7 +169,7 @@ compatibility, and ownership cycles belong to
   variants are rejected.
 - Model-level constraints such as `primary_key`, `unique`, `index`, `key`, and
   `ownership` apply only to named structs.
-- `reference(target = "module.Type", ...)` names a stable target ID and does not
+- `reference(entity = "module.Type", ...)` names a stable target ID and does not
   require a Cargo dependency on that target.
 
 ## Learn More

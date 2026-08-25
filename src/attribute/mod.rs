@@ -46,6 +46,7 @@ pub(crate) use named_fields_attribute::NamedFieldsAttribute;
 pub(crate) use parse::parse_field_attributes;
 pub(crate) use parse::parse_model_attributes;
 pub(crate) use reference_attribute::ReferenceAttribute;
+pub(crate) use reference_attribute::ReferencePathSegment;
 pub(crate) use rounding_mode::RoundingMode;
 pub(crate) use sequence_attribute::SequenceAttribute;
 pub(crate) use spanned_value::SpannedValue;

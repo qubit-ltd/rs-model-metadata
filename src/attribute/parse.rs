@@ -46,6 +46,7 @@ use super::named_fields_attribute::NamedFieldsAttribute;
 use super::ownership_attribute::OwnershipAttribute;
 use super::primary_key_attribute::PrimaryKeyAttribute;
 use super::reference_attribute::ReferenceAttribute;
+use super::reference_attribute::ReferencePathSegment;
 use super::rounding_mode::RoundingMode;
 use super::sequence_attribute::SequenceAttribute;
 use super::spanned_value::SpannedValue;
@@ -531,38 +532,35 @@ fn parse_reference(meta: ParseNestedMeta<'_>) -> Result<ReferenceAttribute> {
     if meta.input.is_empty() {
         return Err(Error::new(
             span,
-            "bare `reference` is not supported; specify `target = \"module.Type\"` and `target_field = field`",
+            "bare `reference` is not supported; specify `entity = \"module.Type\"`",
         ));
     }
-    let mut target = Vec::new();
-    let mut target_field = Vec::new();
-    let mut must_exist = Vec::new();
-    let mut same_as = Vec::new();
+    let mut entity = Vec::new();
+    let mut property = Vec::new();
+    let mut existing = Vec::new();
+    let mut path = Vec::new();
     meta.parse_nested_meta(|nested| {
-        if nested.path.is_ident("target") {
-            target.push(nested.value()?.parse()?);
-        } else if nested.path.is_ident("target_field") {
-            target_field.push(parse_field_path(&nested)?);
-        } else if nested.path.is_ident("must_exist") {
-            must_exist.push(parse_bool(&nested)?);
-        } else if nested.path.is_ident("same_as") {
-            same_as.push(parse_field_path(&nested)?);
+        if nested.path.is_ident("entity") {
+            entity.push(nested.value()?.parse()?);
+        } else if nested.path.is_ident("property") {
+            property.push(parse_field_path(&nested)?);
+        } else if nested.path.is_ident("existing") {
+            existing.push(parse_bool(&nested)?);
+        } else if nested.path.is_ident("path") {
+            path.push(parse_reference_path(&nested)?);
         } else {
             return Err(nested.error("unknown `reference` argument"));
         }
         Ok(())
     })?;
-    if target.is_empty() {
-        return Err(Error::new(span, "reference requires `target = \"module.Type\"`"));
-    }
-    if target_field.is_empty() {
-        return Err(Error::new(span, "reference requires `target_field = field`"));
+    if entity.is_empty() {
+        return Err(Error::new(span, "reference requires `entity = \"module.Type\"`"));
     }
     Ok(ReferenceAttribute {
-        target,
-        target_field,
-        must_exist,
-        same_as,
+        entity,
+        property,
+        existing,
+        path,
         span,
     })
 }
@@ -655,6 +653,55 @@ fn parse_field_path(meta: &ParseNestedMeta<'_>) -> Result<Vec<FieldName>> {
             .map(|segment| field_name_from_ident(&segment.ident))
             .collect())
     }
+}
+
+/// Parses a reference path through the containing object graph.
+fn parse_reference_path(meta: &ParseNestedMeta<'_>) -> Result<Vec<ReferencePathSegment>> {
+    let literal: LitStr = meta.value()?.parse()?;
+    let value = literal.value();
+    if value.is_empty() {
+        return Err(Error::new(literal.span(), "reference path cannot be empty"));
+    }
+    let mut segments = Vec::new();
+    let mut start = 0;
+    while start < value.len() {
+        if value[start..].starts_with("..") {
+            segments.push(ReferencePathSegment::Parent(literal.span()));
+            start += 2;
+            if start < value.len() {
+                let separator = value.as_bytes()[start];
+                if separator != b'.' && separator != b'/' {
+                    return Err(Error::new(
+                        literal.span(),
+                        "reference path parent segment must be followed by `.` or `/`",
+                    ));
+                }
+                start += 1;
+            }
+            continue;
+        }
+
+        let mut end = start;
+        while end < value.len() {
+            let byte = value.as_bytes()[end];
+            if byte == b'.' || byte == b'/' {
+                break;
+            }
+            end += 1;
+        }
+        if end == start {
+            return Err(Error::new(literal.span(), "reference path contains an empty segment"));
+        }
+        segments.push(ReferencePathSegment::Field(parse_field_path_segment(
+            &value[start..end],
+            literal.span(),
+        )?));
+        start = end;
+        if start < value.len() {
+            start += 1;
+        }
+    }
+    Ok(segments)
 }
 
 /// Parses and normalizes one string-literal path segment as a Rust field name.

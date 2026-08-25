@@ -24,6 +24,7 @@ use syn::TypePath;
 
 use crate::attribute::LookupRelationAttribute;
 use crate::attribute::ReferenceAttribute;
+use crate::attribute::ReferencePathSegment;
 use crate::attribute::RoundingMode;
 use crate::attribute::SequenceAttribute;
 use crate::attribute::SpannedValue;
@@ -352,12 +353,7 @@ fn expand_field(field: &FieldIr, runtime: &TokenStream) -> TokenStream {
     let ty = &field.ty;
     let attributes = expand_field_attributes(&field.attributes, runtime);
     let capability_assertions = expand_capability_assertions(field, runtime);
-    let field_type = if let Some(span) = field.opaque.first().copied() {
-        let opaque_shape = expand_opaque_shape(ty, runtime);
-        quote_spanned!(span=> #runtime::TypeRef::opaque_with_shape::<#ty>(|| #opaque_shape))
-    } else {
-        quote!(#runtime::TypeRef::of::<#ty>())
-    };
+    let field_type = expand_field_type(field, runtime);
 
     quote! {{
         #(#capability_assertions)*
@@ -369,6 +365,146 @@ fn expand_field(field: &FieldIr, runtime: &TokenStream) -> TokenStream {
             &[#(#attributes),*],
         )
     }}
+}
+
+/// Returns whether a field declares a direct reference constraint.
+fn field_declares_reference(field: &FieldIr) -> bool {
+    field
+        .attributes
+        .iter()
+        .any(|attribute| matches!(attribute, FieldAttributeIr::Reference(_)))
+}
+
+/// Generates the runtime `TypeRef` expression for one field.
+fn expand_field_type(field: &FieldIr, runtime: &TokenStream) -> TokenStream {
+    let ty = &field.ty;
+    if let Some(span) = field.opaque.first().copied() {
+        let opaque_shape = expand_opaque_shape(ty, runtime);
+        return quote_spanned!(span=> #runtime::TypeRef::opaque_with_shape::<#ty>(|| #opaque_shape));
+    }
+    if field_declares_reference(field) {
+        return expand_reference_field_type(field, runtime);
+    }
+    quote!(#runtime::TypeRef::of::<#ty>())
+}
+
+/// Generates a `TypeRef` for a reference field without an explicit `opaque`.
+///
+/// Reference fields whose Rust type implements [`HasTypeShape`] keep their
+/// structural metadata. Foreign-key scalars and other opaque leaves fall back
+/// to an opaque reference that preserves visible container syntax.
+fn expand_reference_field_type(field: &FieldIr, runtime: &TokenStream) -> TokenStream {
+    let ty = &field.ty;
+    if reference_field_type_requires_opaque(ty) {
+        let opaque_shape = expand_opaque_shape(ty, runtime);
+        quote!(#runtime::TypeRef::opaque_with_shape::<#ty>(|| #opaque_shape))
+    } else {
+        quote!(#runtime::TypeRef::of::<#ty>())
+    }
+}
+
+/// Returns whether a reference field type should use an opaque `TypeRef`.
+fn reference_field_type_requires_opaque(ty: &Type) -> bool {
+    match unwrap_type(ty) {
+        Type::Path(path) => reference_path_type_requires_opaque(path),
+        Type::Array(array) => reference_field_type_requires_opaque(&array.elem),
+        Type::Slice(slice) => reference_field_type_requires_opaque(&slice.elem),
+        Type::Tuple(tuple) => tuple
+            .elems
+            .iter()
+            .any(reference_field_type_requires_opaque),
+        Type::Reference(reference) => reference_field_type_requires_opaque(&reference.elem),
+        _ => true,
+    }
+}
+
+/// Returns whether a path type used by a reference field should be opaque.
+fn reference_path_type_requires_opaque(path: &TypePath) -> bool {
+    let Some(segment) = path.path.segments.last() else {
+        return true;
+    };
+    let name = segment.ident.to_string();
+    if matches!(
+        name.as_str(),
+        "Id" | "Path" | "PathBuf" | "OsString" | "CString" | "CStr" | "OsStr"
+    ) {
+        return true;
+    }
+    if is_builtin_has_type_shape_type(name.as_str()) {
+        return false;
+    }
+    let arguments = type_path_arguments(segment);
+    match name.as_str() {
+        "Option" | "Vec" | "HashSet" | "BTreeSet" | "LinkedList" | "VecDeque" | "BinaryHeap" => arguments
+            .iter()
+            .any(|argument| reference_field_type_requires_opaque(argument)),
+        "HashMap" | "BTreeMap" => arguments
+            .iter()
+            .any(|argument| reference_field_type_requires_opaque(argument)),
+        _ => {
+            if path.path.segments.len() > 1 {
+                let crate_root = path.path.segments.first().map(|segment| segment.ident.to_string());
+                matches!(crate_root.as_deref(), Some("std" | "core" | "alloc" | "os" | "ffi"))
+            } else {
+                false
+            }
+        }
+    }
+}
+
+/// Returns whether a path segment names a type with a built-in [`HasTypeShape`]
+/// implementation.
+fn is_builtin_has_type_shape_type(name: &str) -> bool {
+    matches!(
+        name,
+        "bool"
+            | "char"
+            | "str"
+            | "String"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "f32"
+            | "f64"
+            | "NaiveDate"
+            | "NaiveTime"
+            | "NaiveDateTime"
+            | "DateTime"
+            | "BigDecimal"
+    )
+}
+
+/// Returns the type arguments from the final segment of a path type.
+fn type_path_arguments(segment: &syn::PathSegment) -> Vec<&Type> {
+    let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return Vec::new();
+    };
+    arguments
+        .args
+        .iter()
+        .filter_map(|argument| match argument {
+            GenericArgument::Type(ty) => Some(ty),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Strips grouping and parenthesis wrappers from a field type.
+fn unwrap_type(ty: &Type) -> &Type {
+    match ty {
+        Type::Group(group) => unwrap_type(&group.elem),
+        Type::Paren(paren) => unwrap_type(&paren.elem),
+        other => other,
+    }
 }
 
 /// Generates the visible container structure for an opaque field type.
@@ -790,34 +926,43 @@ fn expand_u16_or_default(value: Option<&SpannedValue<u16>>) -> TokenStream {
 
 /// Generates one direct-reference attribute and its static field paths.
 fn expand_reference(value: &ReferenceAttribute, runtime: &TokenStream) -> TokenStream {
-    let target = value.target.first().expect("reference parser requires a target");
-    let target_field = value
-        .target_field
-        .first()
-        .expect("reference parser requires a target field")
-        .iter()
-        .map(|field| LitStr::new(&field.name, field.span));
-    let must_exist = if let Some(must_exist) = value.must_exist.first() {
-        let must_exist_value = must_exist.value;
-        let must_exist_span = must_exist.span;
-        quote_spanned!(must_exist_span=> #must_exist_value)
+    let entity = value.entity.first().expect("reference parser requires an entity");
+    let target = match value.property.first() {
+        Some(property) => {
+            let fields = property.iter().map(|field| LitStr::new(&field.name, field.span));
+            quote!(#runtime::ReferenceTarget::Property(#runtime::FieldPath::new(&[#(#fields),*])))
+        }
+        None => quote!(#runtime::ReferenceTarget::WholeModel),
+    };
+    let existing = if let Some(existing) = value.existing.first() {
+        let existing_value = existing.value;
+        let existing_span = existing.span;
+        quote_spanned!(existing_span=> #existing_value)
     } else {
         quote!(true)
     };
-    let same_as = match value.same_as.first() {
-        Some(fields) => {
-            let fields = fields.iter().map(|field| LitStr::new(&field.name, field.span));
-            quote!(Some(#runtime::FieldPath::new(&[#(#fields),*])))
+    let path = match value.path.first() {
+        Some(segments) => {
+            let segments = segments.iter().map(|segment| match segment {
+                ReferencePathSegment::Parent(span) => {
+                    quote_spanned!(*span=> #runtime::ReferencePathSegment::Parent)
+                }
+                ReferencePathSegment::Field(field) => {
+                    let field = LitStr::new(&field.name, field.span);
+                    quote!(#runtime::ReferencePathSegment::Field(#field))
+                }
+            });
+            quote!(Some(#runtime::ReferencePath::new(&[#(#segments),*])))
         }
         None => quote!(None),
     };
     let span = value.span;
     quote_spanned! {span=>
         #runtime::AttributeMetadata::Reference(#runtime::ReferenceMetadata::new(
-            #runtime::ModelId::new(#target),
-            #runtime::FieldPath::new(&[#(#target_field),*]),
-            #must_exist,
-            #same_as,
+            #runtime::ModelId::new(#entity),
+            #target,
+            #existing,
+            #path,
         ))
     }
 }

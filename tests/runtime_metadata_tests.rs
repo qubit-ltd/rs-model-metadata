@@ -14,9 +14,12 @@ use model_runtime::AttributeKind;
 use model_runtime::AttributeMetadata;
 use model_runtime::AttributeQuery;
 use model_runtime::DecimalSemantic;
+use model_runtime::FieldPath;
 use model_runtime::HasModelRegistration;
 use model_runtime::HasTypeShape;
 use model_runtime::ModelRegistry;
+use model_runtime::ReferencePathSegment;
+use model_runtime::ReferenceTarget;
 use model_runtime::RoundingMode;
 use model_runtime::TemporalPrecision;
 use model_runtime::TextFormat;
@@ -128,12 +131,13 @@ struct OpaqueContainer {
 struct AttributedModel {
     id: i64,
     #[field(reference(
-        target = "test.derive.Organization",
-        target_field = id,
-        must_exist = true,
-        same_as = "organization.id"
+        entity = "test.derive.Organization",
+        property = id,
+        existing = true,
+        path = "organization.id"
     ))]
     organization_id: i64,
+    #[field(reference(entity = "test.derive.Organization"))]
     organization: Organization,
     #[field(lookup_relation(target = Organization, target_field = id))]
     organization_lookup: i64,
@@ -473,13 +477,26 @@ fn test_reference_and_strategy_attributes_expand() {
         .expect("organization_id metadata")
         .reference()
         .expect("reference metadata");
-    assert_eq!(reference.target().as_str(), "test.derive.Organization");
-    assert_eq!(reference.target_field().segments(), &["id"]);
-    assert!(reference.must_exist());
+    assert_eq!(reference.entity().as_str(), "test.derive.Organization");
+    assert_eq!(reference.target(), ReferenceTarget::Property(FieldPath::new(&["id"])));
+    assert!(reference.existing());
     assert_eq!(
-        reference.same_as().expect("same-as path").segments(),
-        &["organization", "id"]
+        reference.path().expect("reference path").segments(),
+        &[
+            ReferencePathSegment::Field("organization"),
+            ReferencePathSegment::Field("id"),
+        ]
     );
+
+    let whole_reference = metadata
+        .field("organization")
+        .expect("organization metadata")
+        .reference()
+        .expect("whole model reference metadata");
+    assert_eq!(whole_reference.entity().as_str(), "test.derive.Organization");
+    assert_eq!(whole_reference.target(), ReferenceTarget::WholeModel);
+    assert!(whole_reference.existing());
+    assert_eq!(whole_reference.path(), None);
 
     let lookup = metadata
         .field("organization_lookup")
@@ -502,6 +519,38 @@ fn test_reference_and_strategy_attributes_expand() {
         Some(AttributeMetadata::Generator(generator))
             if generator.name() == "account_balance"
     ));
+}
+
+#[allow(dead_code)]
+#[Model(
+    id = "test.derive.ReferenceWithOpaqueForeignKey",
+    no_clone,
+    no_debug,
+    no_display,
+    no_partial_eq,
+    no_hash,
+    no_serialize,
+    no_deserialize
+)]
+struct ReferenceWithOpaqueForeignKey {
+    #[field(reference(entity = "test.derive.Organization", property = id))]
+    organization_id: std::path::PathBuf,
+}
+
+#[test]
+fn test_reference_field_auto_opaque_for_non_has_type_shape() {
+    let metadata = metadata_of::<ReferenceWithOpaqueForeignKey>();
+    let field = metadata.field("organization_id").expect("organization_id metadata");
+    assert!(matches!(field.field_type().shape(), TypeShape::Opaque));
+    assert_eq!(
+        field.field_type().type_name(),
+        core::any::type_name::<std::path::PathBuf>()
+    );
+
+    let organization = metadata_of::<AttributedModel>()
+        .field("organization")
+        .expect("organization metadata");
+    assert!(matches!(organization.field_type().shape(), TypeShape::Named(_)));
 }
 
 #[test]

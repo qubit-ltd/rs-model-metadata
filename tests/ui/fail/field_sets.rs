@@ -35,9 +35,9 @@ struct Invalid {
     name: String,
     other: String,
     #[field(reference(
-        target = "test.derive.Organization",
-        target_field = id,
-        same_as = missing
+        entity = "test.derive.Organization",
+        property = id,
+        path = "missing"
     ))]
     organization_id: i64,
 }

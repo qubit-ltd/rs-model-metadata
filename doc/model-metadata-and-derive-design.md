@@ -337,14 +337,14 @@ pub struct FieldPath {
 
 pub struct ReferenceMetadata {
     target: NamedTypeRef,
-    target_field: FieldPath,
-    must_exist: bool,
-    same_as: Option<FieldPath>,
+    property: FieldPath,
+    existing: bool,
+    path: Option<FieldPath>,
 }
 ```
 
 - 只记录真实业务关联；Java 中没有目标类型的裸 `@Reference` 不迁移；
-- `must_exist = false` 对应旧 `existing = false`；
+- `existing = false` 对应旧 `existing = false`；
 - 路径保存为静态字段段数组，而不是运行时反复解析的点分字符串；
 - 关联基数从字段的 `TypeShape` 推断，不重复保存；
 - `ReferenceBy` 规范化为 `LookupRelationMetadata`；
@@ -436,10 +436,10 @@ use qubit_model_metadata::HasTypeMetadata;
 pub struct User {
     pub id: Option<i64>,
 
-    #[model(reference(
-        target = Organization,
-        target_field = id,
-        must_exist = true
+    #[field(reference(
+        entity = "test.derive.Organization",
+        property = id,
+        existing = true
     ))]
     pub organization_id: i64,
 

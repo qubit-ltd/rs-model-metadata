@@ -12,16 +12,24 @@ use syn::LitStr;
 use super::field_name::FieldName;
 use super::spanned_value::SpannedValue;
 
+/// Parsed object-graph reference path segment.
+pub(crate) enum ReferencePathSegment {
+    /// Parent object navigation (`..`).
+    Parent(Span),
+    /// Named child field navigation.
+    Field(FieldName),
+}
+
 /// Parsed direct-reference values.
 pub(crate) struct ReferenceAttribute {
-    /// Target-model occurrences in source order.
-    pub(crate) target: Vec<LitStr>,
-    /// Target-field path occurrences in source order.
-    pub(crate) target_field: Vec<Vec<FieldName>>,
-    /// Must-exist value occurrences in source order.
-    pub(crate) must_exist: Vec<SpannedValue<bool>>,
-    /// Same-as field-path occurrences in source order.
-    pub(crate) same_as: Vec<Vec<FieldName>>,
+    /// Referenced entity occurrences in source order.
+    pub(crate) entity: Vec<LitStr>,
+    /// Referenced property path occurrences in source order.
+    pub(crate) property: Vec<Vec<FieldName>>,
+    /// Existing value occurrences in source order.
+    pub(crate) existing: Vec<SpannedValue<bool>>,
+    /// Object-graph reference path occurrences in source order.
+    pub(crate) path: Vec<Vec<ReferencePathSegment>>,
     /// The span of the complete attribute item.
     pub(crate) span: Span,
 }

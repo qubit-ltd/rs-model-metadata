@@ -381,20 +381,20 @@ struct Organization {
 struct Membership {
     #[field(reference(
         target = "example.Organization",
-        target_field = id,
-        must_exist = true
+        property = id,
+        existing = true
     ))]
     organization_id: i64,
 }
 ```
 
 `lookup_relation(target = Organization, target_field = id)` instead names a
-Rust type that must be in scope. `reference` may also set `same_as` to a local
+Rust type that must be in scope. `reference` may also set `path` to a local
 field path.
 
 The derive validates one model only. Call `ModelRegistry::validate_graph()`
 from a linked complete set to check target existence, target-field
-compatibility, `same_as`, lookup relations, ownership, required-reference
+compatibility, `path`, lookup relations, ownership, required-reference
 cycles, and ownership cycles.
 
 ### Opaque fields and textual value objects

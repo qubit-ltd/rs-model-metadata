@@ -22,6 +22,7 @@ use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
 use crate::attribute::FieldName;
+use crate::attribute::ReferencePathSegment;
 use crate::attribute::SequenceAttribute;
 use crate::attribute::SpannedValue;
 use crate::attribute::TextAttribute;
@@ -663,15 +664,17 @@ fn validate_field_attribute(
         FieldAttributeIr::Decimal(value) => validate_decimal(value, errors),
         FieldAttributeIr::Element(value) => validate_element(value, errors),
         FieldAttributeIr::Reference(value) => {
-            validate_duplicate_literals("target", &value.target, errors);
-            validate_duplicate_field_paths("target_field", &value.target_field, errors);
-            validate_duplicate_values("must_exist", &value.must_exist, errors);
-            validate_duplicate_field_paths("same_as", &value.same_as, errors);
-            for path in &value.same_as {
-                if let Some(first) = path.first()
-                    && !field_exists(fields, &first.name)
-                {
-                    push_unknown_field(errors, first);
+            validate_duplicate_literals("entity", &value.entity, errors);
+            validate_duplicate_field_paths("property", &value.property, errors);
+            validate_duplicate_values("existing", &value.existing, errors);
+            if let Some(path) = value.path.first() {
+                for segment in path {
+                    if let ReferencePathSegment::Field(field) = segment {
+                        if !field_exists(fields, &field.name) {
+                            push_unknown_field(errors, field);
+                        }
+                        break;
+                    }
                 }
             }
         }

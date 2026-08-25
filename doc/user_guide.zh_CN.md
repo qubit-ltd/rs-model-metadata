@@ -359,18 +359,18 @@ struct Organization {
 struct Membership {
     #[field(reference(
         target = "example.Organization",
-        target_field = id,
-        must_exist = true
+        property = id,
+        existing = true
     ))]
     organization_id: i64,
 }
 ```
 
 `lookup_relation(target = Organization, target_field = id)` 则要求目标类型已
-在当前作用域中。`reference` 还可以用 `same_as` 指向本地字段路径。
+在当前作用域中。`reference` 还可以用 `path` 指向本地字段路径。
 
 宏只校验单个模型。链接完整模型集合后调用 `ModelRegistry::validate_graph()`，
-才会检查目标是否存在、目标字段是否相容、`same_as`、查找关系、ownership、强
+才会检查目标是否存在、目标字段是否相容、`path`、查找关系、ownership、强
 制引用环和 ownership 环。
 
 ### Opaque 字段与文本值对象

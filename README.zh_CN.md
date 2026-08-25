@@ -150,7 +150,7 @@ schema，也不执行 codec/generator 策略。目标是否存在、投影是否
 - 泛型模型、多字段元组结构体、union，以及携带数据的枚举变体都会被拒绝。
 - `primary_key`、`unique`、`index`、`key`、`ownership` 这类模型级约束只适用于
   具名字段结构体。
-- `reference(target = "module.Type", ...)` 使用稳定目标 ID，不要求对目标模型
+- `reference(entity = "module.Type", ...)` 使用稳定目标 ID，不要求对目标模型
   建立 Cargo 依赖。
 
 ## 延伸阅读

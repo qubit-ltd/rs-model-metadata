@@ -44,7 +44,7 @@ struct ValidAttributes {
     ratio: bigdecimal::BigDecimal,
     #[field(money(precision = 12, scale = 2))]
     balance: bigdecimal::BigDecimal,
-    #[field(reference(target = "test.derive.Organization", target_field = id))]
+    #[field(reference(entity = "test.derive.Organization", property = id))]
     organization_id: i64,
     #[field(lookup_relation(target = Organization, target_field = id))]
     organization_lookup: i64,
