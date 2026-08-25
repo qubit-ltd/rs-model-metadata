@@ -29,6 +29,7 @@ use syn::ext::IdentExt;
 use syn::meta::ParseNestedMeta;
 use syn::parse::ParseStream;
 use syn::parse_str;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Paren;
 
@@ -157,8 +158,14 @@ pub(crate) struct IdentifierAttribute {
 
 /// Parsed single-field unique shorthand.
 pub(crate) struct FieldUniqueAttribute {
+    /// Optional logical constraint name.
+    pub(crate) name: Vec<LitStr>,
+    /// Fields whose values scope the current field's uniqueness.
+    pub(crate) respect_to: Vec<FieldName>,
     /// Every `ignore_case` marker span in source order.
     pub(crate) ignore_case: Vec<Span>,
+    /// Explicit Java-compatible ignore-case values.
+    pub(crate) ignore_case_values: Vec<SpannedValue<bool>>,
     /// The span of the complete attribute item.
     pub(crate) span: Span,
 }
@@ -576,18 +583,44 @@ fn parse_identifier(meta: ParseNestedMeta<'_>) -> Result<IdentifierAttribute> {
 /// Parses field `unique` and its optional `ignore_case` marker.
 fn parse_field_unique(meta: ParseNestedMeta<'_>) -> Result<FieldUniqueAttribute> {
     let span = meta.path.span();
+    let mut name = Vec::new();
+    let mut respect_to = Vec::new();
     let mut ignore_case = Vec::new();
+    let mut ignore_case_values = Vec::new();
     if meta.input.peek(Paren) {
         meta.parse_nested_meta(|nested| {
-            if nested.path.is_ident("ignore_case") {
+            if nested.path.is_ident("name") {
+                name.push(parse_string(&nested)?);
+                Ok(())
+            } else if nested.path.is_ident("respectTo") {
+                respect_to.extend(parse_field_name_list(&nested)?);
+                Ok(())
+            } else if nested.path.is_ident("ignoreCase") {
+                ignore_case_values.push(parse_bool(&nested)?);
+                Ok(())
+            } else if nested.path.is_ident("ignore_case") {
                 ignore_case.push(nested.path.span());
                 Ok(())
             } else {
-                Err(nested.error("expected `ignore_case`"))
+                Err(nested.error("expected `name`, `respectTo`, `ignoreCase`, or `ignore_case`"))
             }
         })?;
     }
-    Ok(FieldUniqueAttribute { ignore_case, span })
+    Ok(FieldUniqueAttribute {
+        name,
+        respect_to,
+        ignore_case,
+        ignore_case_values,
+        span,
+    })
+}
+
+/// Parses a comma-separated bracketed list of Rust field identifiers.
+fn parse_field_name_list(meta: &ParseNestedMeta<'_>) -> Result<Vec<FieldName>> {
+    let content;
+    syn::bracketed!(content in meta.value()?);
+    Punctuated::<Ident, Token![,]>::parse_terminated(&content)
+        .map(|idents| idents.iter().map(field_name_from_ident).collect())
 }
 
 /// Parses text constraint arguments.

@@ -119,6 +119,8 @@ pub(crate) struct UniqueIr {
     /// Every `ignore_case(...)` field reference, including invalid or
     /// duplicate ones.
     pub(crate) ignore_case: Vec<FieldName>,
+    /// Whether this constraint originated from a field-level shorthand.
+    pub(crate) field_shorthand: bool,
     /// The originating attribute span.
     pub(crate) span: Span,
 }
@@ -292,6 +294,7 @@ fn normalize_model_attribute(attribute: ModelAttribute) -> Option<ModelAttribute
                 name: attribute.name,
                 fields,
                 ignore_case: attribute.ignore_case,
+                field_shorthand: false,
                 span: attribute.span,
             }))
         }
@@ -383,21 +386,31 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
                 }));
             }
             FieldAttribute::Unique(attribute) => {
-                let ignore_case = attribute
-                    .ignore_case
-                    .into_iter()
-                    .map(|span| FieldName {
-                        name: name.clone(),
-                        span,
-                    })
-                    .collect();
-                model_attributes.push(ModelAttributeIr::Unique(UniqueIr {
-                    name: Vec::new(),
-                    fields: vec![UniqueFieldIr {
+                let explicit_ignore_case = attribute.ignore_case_values.first().map(|value| value.value);
+                let ignore_case = if explicit_ignore_case != Some(false) {
+                    vec![FieldName {
                         name: name.clone(),
                         span: attribute.span,
-                    }],
+                    }]
+                } else {
+                    Vec::new()
+                };
+                let mut fields = attribute.respect_to;
+                fields.push(FieldName {
+                    name: name.clone(),
+                    span: attribute.span,
+                });
+                model_attributes.push(ModelAttributeIr::Unique(UniqueIr {
+                    name: attribute.name,
+                    fields: fields
+                        .into_iter()
+                        .map(|field| UniqueFieldIr {
+                            name: field.name,
+                            span: field.span,
+                        })
+                        .collect(),
                     ignore_case,
+                    field_shorthand: true,
                     span: attribute.span,
                 }));
             }
