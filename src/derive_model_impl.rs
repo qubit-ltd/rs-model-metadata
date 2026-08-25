@@ -5,6 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+
 //! Shared expansion entry point for the public derive macros.
 
 use proc_macro2::TokenStream;

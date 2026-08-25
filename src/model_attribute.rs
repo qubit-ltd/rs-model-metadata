@@ -18,6 +18,7 @@ use syn::Attribute;
 use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
+use syn::Field;
 use syn::Fields;
 use syn::Ident;
 use syn::Index;
@@ -403,7 +404,7 @@ fn has_redact_fields(data: &Data) -> bool {
 }
 
 /// Visits all struct fields in a declaration.
-fn visit_fields(data: &mut Data, mut visit: impl FnMut(&mut syn::Field)) {
+fn visit_fields(data: &mut Data, mut visit: impl FnMut(&mut Field)) {
     if let Data::Struct(data) = data {
         for field in &mut data.fields {
             visit(field);
