@@ -35,8 +35,23 @@ use qubit_model_derive::Model;
 struct User {
     #[field(identifier(generated))]
     id: Option<i64>,
-    #[field(unique(ignore_case), index)]
+    #[field(unique(ignore_case))]
     nickname: Option<String>,
+}
+
+#[allow(dead_code)]
+#[Model(id = "test.derive.ScopedUnique")]
+struct ScopedUnique {
+    organization_id: i64,
+    #[field(unique(respectTo = [organization_id]))]
+    code: String,
+}
+
+#[allow(dead_code)]
+#[Model(id = "test.derive.NumericUnique")]
+struct NumericUnique {
+    #[field(unique)]
+    value: i64,
 }
 
 #[Model(id = "test.derive.Empty")]
@@ -107,11 +122,6 @@ struct OpaqueContainer {
     no_serialize,
     no_deserialize,
     primary_key(fields(id), generated(id)),
-    unique(
-        name = "organization_username",
-        fields(organization_id, username),
-        ignore_case(username)
-    ),
     index(name = "created_at_index", fields(created_at)),
     key(name = "account", fields(organization_id, username)),
     ownership(owner = Organization)
@@ -136,6 +146,11 @@ struct AttributedModel {
         repertoire = ascii,
         non_blank,
         format = email
+    ))]
+    #[field(unique(
+        name = "organization_username",
+        respectTo = [organization_id],
+        ignoreCase = true
     ))]
     username: String,
     #[field(sequence(min_items = 1, max_items = 5, unique_items))]
@@ -215,8 +230,35 @@ fn test_shorthand_normalizes_to_type_constraints() {
         [("nickname", UniqueComparison::IgnoreCase)]
     );
 
-    let index = metadata.indexes().next().expect("index metadata");
-    assert_eq!(index.fields(), &["nickname"]);
+    assert_eq!(metadata.indexes().count(), 0);
+}
+
+#[test]
+fn test_field_unique_respect_to_expands_as_ordered_composite_constraint() {
+    let unique = metadata_of::<ScopedUnique>()
+        .unique_constraints()
+        .next()
+        .expect("scoped unique metadata");
+    assert_eq!(
+        unique
+            .fields()
+            .iter()
+            .map(|field| (field.name(), field.comparison()))
+            .collect::<Vec<_>>(),
+        [
+            ("organization_id", UniqueComparison::Exact),
+            ("code", UniqueComparison::IgnoreCase),
+        ]
+    );
+}
+
+#[test]
+fn test_non_text_field_unique_defaults_to_exact_comparison() {
+    let unique = metadata_of::<NumericUnique>()
+        .unique_constraints()
+        .next()
+        .expect("numeric unique metadata");
+    assert_eq!(unique.comparison_of("value"), Some(UniqueComparison::Exact));
 }
 
 #[test]
@@ -296,9 +338,13 @@ fn test_model_attributes_expand_in_canonical_form() {
     assert_eq!(unique.name(), Some("organization_username"));
     assert_eq!(unique.comparison_of("organization_id"), Some(UniqueComparison::Exact));
     assert_eq!(unique.comparison_of("username"), Some(UniqueComparison::IgnoreCase));
-    let index = metadata.indexes().next().expect("index metadata");
+    let index = metadata
+        .indexes()
+        .find(|index| index.name() == Some("created_at_index"))
+        .expect("created-at index metadata");
     assert_eq!(index.name(), Some("created_at_index"));
     assert_eq!(index.fields(), &["created_at"]);
+    assert!(metadata.indexes().any(|index| index.fields() == ["organization_id"]));
     assert!(matches!(
         metadata.attribute(AttributeKind::Key),
         Some(AttributeMetadata::Key(key))

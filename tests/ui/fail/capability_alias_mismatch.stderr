@@ -1,5 +1,5 @@
 error[E0080]: evaluation panicked: `ignore_case` requires a text-capable field
-  --> tests/ui/fail/capability_alias_mismatch.rs:15:20
+  --> tests/ui/fail/capability_alias_mismatch.rs:15:13
    |
 15 |     #[field(unique(ignore_case))]
-   |                    ^^^^^^^^^^^ evaluation of `_::_` failed here
+   |             ^^^^^^ evaluation of `_::_` failed here

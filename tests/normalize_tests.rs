@@ -49,8 +49,8 @@ fn test_primary_key_ir_retains_generated_field_references_before_validation() {
 #[test]
 fn test_unique_ir_retains_ignore_case_field_references_before_validation() {
     let input = parse_quote! {
-        #[model(unique(fields(username), ignore_case(missing, missing)))]
         struct User {
+            #[model(unique(respectTo = [missing], ignoreCase = true))]
             username: String,
         }
     };
@@ -70,7 +70,7 @@ fn test_unique_ir_retains_ignore_case_field_references_before_validation() {
             .iter()
             .map(|field| field.name.as_str())
             .collect::<Vec<_>>(),
-        ["missing", "missing"]
+        ["username"]
     );
 }
 

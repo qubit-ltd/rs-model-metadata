@@ -8,18 +8,35 @@
 
 #![allow(dead_code)]
 
-
-#[qubit_model_derive::Model(id = "test.derive.Organization", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+#[qubit_model_derive::Model(
+    id = "test.derive.Organization",
+    no_clone,
+    no_debug,
+    no_display,
+    no_partial_eq,
+    no_hash,
+    no_serialize,
+    no_deserialize
+)]
 struct Organization {
     #[field(identifier)]
     id: i64,
 }
 
-#[qubit_model_derive::Model(id = "test.derive.ValidAttributes", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+#[qubit_model_derive::Model(
+    id = "test.derive.ValidAttributes",
+    no_clone,
+    no_debug,
+    no_display,
+    no_partial_eq,
+    no_hash,
+    no_serialize,
+    no_deserialize
+)]
 struct ValidAttributes {
     #[field(identifier(generated))]
     id: Option<i64>,
-    #[field(unique(ignore_case), index, text(max_chars = 32))]
+    #[field(unique(respectTo = [organization_id], ignoreCase = true), text(max_chars = 32))]
     username: String,
     #[field(time(precision = millisecond, normalization = utc))]
     created_at: chrono::DateTime<chrono::Utc>,

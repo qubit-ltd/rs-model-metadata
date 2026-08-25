@@ -10,8 +10,10 @@
 //! Normalization from parsed attribute syntax to expansion-ready semantic IR.
 
 use proc_macro2::Span;
+use syn::GenericArgument;
 use syn::Ident;
 use syn::LitStr;
+use syn::PathArguments;
 use syn::Type;
 use syn::TypePath;
 
@@ -119,8 +121,6 @@ pub(crate) struct UniqueIr {
     /// Every `ignore_case(...)` field reference, including invalid or
     /// duplicate ones.
     pub(crate) ignore_case: Vec<FieldName>,
-    /// Whether this constraint originated from a field-level shorthand.
-    pub(crate) field_shorthand: bool,
     /// The originating attribute span.
     pub(crate) span: Span,
 }
@@ -141,6 +141,8 @@ pub(crate) struct NamedFieldsIr {
     pub(crate) fields: Vec<(String, Span)>,
     /// The originating attribute span.
     pub(crate) span: Span,
+    /// Whether this index was generated from a reference attribute.
+    pub(crate) implicit: bool,
 }
 
 /// A canonical ownership relation.
@@ -281,25 +283,12 @@ fn normalize_model_attribute(attribute: ModelAttribute) -> Option<ModelAttribute
                 span: attribute.span,
             }))
         }
-        ModelAttribute::Unique(attribute) => {
-            let fields = attribute
-                .fields
-                .into_iter()
-                .map(|field| UniqueFieldIr {
-                    name: field.name,
-                    span: field.span,
-                })
-                .collect();
-            Some(ModelAttributeIr::Unique(UniqueIr {
-                name: attribute.name,
-                fields,
-                ignore_case: attribute.ignore_case,
-                field_shorthand: false,
-                span: attribute.span,
-            }))
+        ModelAttribute::Index(attribute) => {
+            Some(ModelAttributeIr::Index(normalize_named_fields(attribute)))
         }
-        ModelAttribute::Index(attribute) => Some(ModelAttributeIr::Index(normalize_named_fields(attribute))),
-        ModelAttribute::Key(attribute) => Some(ModelAttributeIr::Key(normalize_named_fields(attribute))),
+        ModelAttribute::Key(attribute) => {
+            Some(ModelAttributeIr::Key(normalize_named_fields(attribute)))
+        }
         ModelAttribute::Ownership(attribute) => Some(ModelAttributeIr::Ownership(OwnershipIr {
             owner: attribute.owner,
             span: attribute.span,
@@ -317,6 +306,7 @@ fn normalize_named_fields(attribute: attribute::NamedFieldsAttribute) -> NamedFi
             .map(|field| (field.name, field.span))
             .collect(),
         span: attribute.span,
+        implicit: false,
     }
 }
 
@@ -365,6 +355,9 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
     let mut field_attributes = Vec::new();
     let mut model_attributes = Vec::new();
     let mut opaque = Vec::new();
+    let has_text_attribute = attributes
+        .iter()
+        .any(|attribute| matches!(attribute, FieldAttribute::Text(_)));
     for attribute in attributes {
         match attribute {
             FieldAttribute::Identifier(attribute) => {
@@ -386,8 +379,16 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
                 }));
             }
             FieldAttribute::Unique(attribute) => {
-                let explicit_ignore_case = attribute.ignore_case_values.first().map(|value| value.value);
-                let ignore_case = if explicit_ignore_case != Some(false) {
+                let explicit_ignore_case = attribute
+                    .ignore_case_values
+                    .first()
+                    .map(|value| value.value);
+                let default_ignore_case = explicit_ignore_case != Some(false)
+                    && (is_string_type(&ty) || has_text_attribute);
+                let ignore_case = if explicit_ignore_case == Some(true)
+                    || attribute.legacy_ignore_case
+                    || default_ignore_case
+                {
                     vec![FieldName {
                         name: name.clone(),
                         span: attribute.span,
@@ -410,7 +411,6 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
                         })
                         .collect(),
                     ignore_case,
-                    field_shorthand: true,
                     span: attribute.span,
                 }));
             }
@@ -419,6 +419,7 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
                     name: Vec::new(),
                     fields: vec![(name.clone(), span)],
                     span,
+                    implicit: false,
                 }));
             }
             FieldAttribute::Text(attribute) => {
@@ -450,6 +451,12 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
             }
             FieldAttribute::Reference(attribute) => {
                 field_attributes.push(FieldAttributeIr::Reference(attribute));
+                model_attributes.push(ModelAttributeIr::Index(NamedFieldsIr {
+                    name: Vec::new(),
+                    fields: vec![(name.clone(), Span::call_site())],
+                    span: Span::call_site(),
+                    implicit: true,
+                }));
             }
             FieldAttribute::LookupRelation(attribute) => {
                 field_attributes.push(FieldAttributeIr::LookupRelation(attribute));
@@ -461,6 +468,7 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
                 field_attributes.push(FieldAttributeIr::Generator(attribute));
             }
             FieldAttribute::Opaque(span) => opaque.push(span),
+            FieldAttribute::KeepSerializing => {}
         }
     }
 
@@ -474,6 +482,34 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
         },
         model_attributes,
     )
+}
+
+/// Returns whether a field is syntactically a `String` or `Option<String>`.
+fn is_string_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(path) => {
+            let Some(segment) = path.path.segments.last() else {
+                return false;
+            };
+            if segment.ident == "String" {
+                return true;
+            }
+            if segment.ident != "Option" {
+                return false;
+            }
+            let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return false;
+            };
+            matches!(
+                arguments.args.first(),
+                Some(GenericArgument::Type(Type::Path(inner)))
+                    if inner.path.segments.last().is_some_and(|segment| segment.ident == "String")
+            )
+        }
+        Type::Group(group) => is_string_type(&group.elem),
+        Type::Paren(paren) => is_string_type(&paren.elem),
+        _ => false,
+    }
 }
 
 /// Normalizes element constraints into their runtime semantic forms.

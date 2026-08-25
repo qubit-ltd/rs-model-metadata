@@ -259,6 +259,72 @@ fn validate_model_attributes(model: &ModelIr, errors: &mut Option<Error>) {
             }
         }
     }
+    validate_unique_index_conflicts(model, errors);
+    validate_reference_index_conflicts(model, errors);
+}
+
+/// Rejects an explicit index on a field that is already unique.
+fn validate_unique_index_conflicts(model: &ModelIr, errors: &mut Option<Error>) {
+    let unique_fields = model
+        .attributes
+        .iter()
+        .filter_map(|attribute| match attribute {
+            ModelAttributeIr::Unique(value) => value.fields.last().map(|field| field.name.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for attribute in &model.attributes {
+        let ModelAttributeIr::Index(index) = attribute else {
+            continue;
+        };
+        if index.implicit {
+            continue;
+        }
+        for (name, span) in &index.fields {
+            if unique_fields.contains(&name.as_str()) {
+                push_error(
+                    errors,
+                    Error::new(
+                        *span,
+                        format!("field `{name}` cannot declare both `unique` and `index`"),
+                    ),
+                );
+            }
+        }
+    }
+}
+
+/// Rejects an explicit index on a field that declares a reference.
+fn validate_reference_index_conflicts(model: &ModelIr, errors: &mut Option<Error>) {
+    let reference_fields = model_fields(model)
+        .iter()
+        .filter(|field| {
+            field
+                .attributes
+                .iter()
+                .any(|attribute| matches!(attribute, FieldAttributeIr::Reference(_)))
+        })
+        .map(|field| field.name.as_str())
+        .collect::<Vec<_>>();
+    for attribute in &model.attributes {
+        let ModelAttributeIr::Index(index) = attribute else {
+            continue;
+        };
+        if index.implicit {
+            continue;
+        }
+        for (name, span) in &index.fields {
+            if reference_fields.contains(&name.as_str()) {
+                push_error(
+                    errors,
+                    Error::new(
+                        *span,
+                        format!("field `{name}` cannot declare both `reference` and `index`"),
+                    ),
+                );
+            }
+        }
+    }
 }
 
 /// Validates that explicitly named constraints are non-blank and unique within

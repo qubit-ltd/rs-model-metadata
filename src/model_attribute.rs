@@ -25,6 +25,7 @@ use syn::LitStr;
 use syn::Meta;
 use syn::Result;
 use syn::Token;
+use syn::Type;
 use syn::WhereClause;
 use syn::parse::Parser;
 use syn::parse_quote;
@@ -55,7 +56,11 @@ pub(crate) fn expand_enum(args: TokenStream, input: TokenStream) -> TokenStream 
 }
 
 /// Expands one model declaration with default traits and metadata.
-fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) -> Result<TokenStream> {
+fn expand_result(
+    args: TokenStream,
+    input: TokenStream,
+    enum_declaration: bool,
+) -> Result<TokenStream> {
     let attributes = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     let options = ModelOptions::parse(attributes)?;
     let mut item: DeriveInput = parse2(input)?;
@@ -73,7 +78,10 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
             ));
         }
         (Data::Enum(_), true) | (Data::Struct(_), true) => {
-            return Err(Error::new_spanned(&item.ident, "#[Enum] only supports fieldless enums"));
+            return Err(Error::new_spanned(
+                &item.ident,
+                "#[Enum] only supports fieldless enums",
+            ));
         }
         (Data::Union(union), _) => {
             return Err(Error::new_spanned(
@@ -92,6 +100,11 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
         .attrs
         .push(parse_quote!(#[model(#(#metadata_attributes),*)]));
     rename_field_attributes(&mut metadata_input.data);
+    add_default_serde_field_attributes(
+        &mut item.data,
+        !options.disabled.serialize,
+        !options.disabled.deserialize,
+    )?;
     remove_field_attributes(&mut item.data);
 
     let derives = default_derives(&item.data, &serde, &options.disabled, redacted)?;
@@ -100,7 +113,10 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
         item.attrs.push(parse_quote!(#[must_use]));
     }
     if redacted {
-        let redact = dependency_path("qubit-redact", "Model redaction requires the `qubit-redact` dependency")?;
+        let redact = dependency_path(
+            "qubit-redact",
+            "Model redaction requires the `qubit-redact` dependency",
+        )?;
         item.attrs.push(parse_quote!(#[derive(#redact::Redact)]));
         if !options.disabled.serialize {
             item.attrs.push(parse_quote!(#[redact(serde)]));
@@ -113,7 +129,8 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
         }
     }
     if !options.disabled.serialize || !options.disabled.deserialize {
-        item.attrs.push(parse_quote!(#[serde(rename_all = #rename_all)]));
+        item.attrs
+            .push(parse_quote!(#[serde(rename_all = #rename_all)]));
     }
     let metadata = derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
     let enum_names = enum_declaration
@@ -169,7 +186,11 @@ fn default_derives(
 }
 
 /// Builds the defaults for a fieldless enum.
-fn enum_derives(serde: &TokenStream, disabled: &DisabledCapabilities, redacted: bool) -> Result<Attribute> {
+fn enum_derives(
+    serde: &TokenStream,
+    disabled: &DisabledCapabilities,
+    redacted: bool,
+) -> Result<Attribute> {
     let mut derives = Vec::new();
     if !disabled.clone {
         derives.push(quote!(Clone));
@@ -206,9 +227,16 @@ fn enum_derives(serde: &TokenStream, disabled: &DisabledCapabilities, redacted: 
 }
 
 /// Builds the defaults for a struct.
-fn struct_derives(serde: &TokenStream, disabled: &DisabledCapabilities, redacted: bool) -> Result<Attribute> {
+fn struct_derives(
+    serde: &TokenStream,
+    disabled: &DisabledCapabilities,
+    redacted: bool,
+) -> Result<Attribute> {
     if disabled.copy {
-        return Err(Error::new(Span::call_site(), "`no_copy` is only supported on enums"));
+        return Err(Error::new(
+            Span::call_site(),
+            "`no_copy` is only supported on enums",
+        ));
     }
     let mut derives = Vec::new();
     if !disabled.clone {
@@ -238,8 +266,8 @@ fn struct_derives(serde: &TokenStream, disabled: &DisabledCapabilities, redacted
 
 /// Rewrites field helper attributes for the metadata-only derive input.
 fn rename_field_attributes(data: &mut Data) {
-    visit_fields(data, |attributes| {
-        for attribute in attributes {
+    visit_fields(data, |field| {
+        for attribute in &mut field.attrs {
             if attribute.path().is_ident("field")
                 && let Meta::List(list) = &mut attribute.meta
             {
@@ -251,9 +279,149 @@ fn rename_field_attributes(data: &mut Data) {
 
 /// Removes field helper attributes from the item returned to the compiler.
 fn remove_field_attributes(data: &mut Data) {
-    visit_fields(data, |attributes| {
-        attributes.retain(|attribute| !attribute.path().is_ident("field"));
+    visit_fields(data, |field| {
+        field
+            .attrs
+            .retain(|attribute| !attribute.path().is_ident("field"));
     });
+}
+
+/// Adds Serde defaults supported by the model's enabled serialization capabilities.
+fn add_default_serde_field_attributes(
+    data: &mut Data,
+    serialize: bool,
+    deserialize: bool,
+) -> Result<()> {
+    let mut error: Option<Error> = None;
+    visit_fields(data, |field| {
+        let result = field_keeps_serializing(&field.attrs).and_then(|keep_serializing| {
+            if keep_serializing {
+                Ok(())
+            } else if serialize && is_direct_type(&field.ty, "Option") {
+                add_serde_attribute_if_absent(
+                    &mut field.attrs,
+                    &["skip_serializing_if", "skip_serializing", "skip"],
+                    parse_quote!(#[serde(skip_serializing_if = "::core::option::Option::is_none")]),
+                )
+            } else if let Some(is_empty) = collection_is_empty_function(&field.ty) {
+                let serialization = if serialize {
+                    add_serde_attribute_if_absent(
+                        &mut field.attrs,
+                        &["skip_serializing_if", "skip_serializing", "skip"],
+                        serde_skip_serializing_if_attribute(is_empty),
+                    )
+                } else {
+                    Ok(())
+                };
+                let deserialization = if deserialize {
+                    add_serde_attribute_if_absent(
+                        &mut field.attrs,
+                        &["default", "skip_deserializing", "skip"],
+                        parse_quote!(#[serde(default)]),
+                    )
+                } else {
+                    Ok(())
+                };
+                serialization.and(deserialization)
+            } else {
+                Ok(())
+            }
+        });
+        if let Err(current) = result {
+            match &mut error {
+                Some(error) => error.combine(current),
+                None => error = Some(current),
+            }
+        }
+    });
+    error.map_or(Ok(()), Err)
+}
+
+/// Returns whether a field opts out of the model's automatic serialization omission.
+fn field_keeps_serializing(attributes: &[Attribute]) -> Result<bool> {
+    has_attribute_option(attributes, "field", &["keep_serializing"])
+}
+
+/// Adds an attribute unless a field's existing Serde attribute has any option.
+fn add_serde_attribute_if_absent(
+    attributes: &mut Vec<Attribute>,
+    options: &[&str],
+    default_attribute: Attribute,
+) -> Result<()> {
+    if !has_attribute_option(attributes, "serde", options)? {
+        attributes.push(default_attribute);
+    }
+    Ok(())
+}
+
+/// Returns whether an attribute list contains any one of the supplied options.
+fn has_attribute_option(
+    attributes: &[Attribute],
+    attribute_name: &str,
+    options: &[&str],
+) -> Result<bool> {
+    for attribute in attributes
+        .iter()
+        .filter(|attribute| attribute.path().is_ident(attribute_name))
+    {
+        let Meta::List(list) = &attribute.meta else {
+            continue;
+        };
+        let serde_options =
+            list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+        if serde_options.iter().any(|serde_option| {
+            options
+                .iter()
+                .any(|option| serde_option.path().is_ident(option))
+        }) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Builds a Serde field attribute calling an inherent `is_empty` method.
+fn serde_skip_serializing_if_attribute(is_empty: &str) -> Attribute {
+    let is_empty = LitStr::new(is_empty, Span::call_site());
+    parse_quote!(#[serde(skip_serializing_if = #is_empty)])
+}
+
+/// Returns the `is_empty` function for a directly declared standard collection.
+fn collection_is_empty_function(ty: &Type) -> Option<&'static str> {
+    match ty {
+        Type::Path(type_path) => {
+            let type_name = type_path.path.segments.last()?.ident.to_string();
+            match type_name.as_str() {
+                "Vec" => Some("::std::vec::Vec::is_empty"),
+                "LinkedList" => Some("::std::collections::LinkedList::is_empty"),
+                "VecDeque" => Some("::std::collections::VecDeque::is_empty"),
+                "HashMap" => Some("::std::collections::HashMap::is_empty"),
+                "BTreeMap" => Some("::std::collections::BTreeMap::is_empty"),
+                "HashSet" => Some("::std::collections::HashSet::is_empty"),
+                "BTreeSet" => Some("::std::collections::BTreeSet::is_empty"),
+                "BinaryHeap" => Some("::std::collections::BinaryHeap::is_empty"),
+                _ => None,
+            }
+        }
+        Type::Array(_) => Some("<[_]>::is_empty"),
+        Type::Group(group) => collection_is_empty_function(&group.elem),
+        Type::Paren(paren) => collection_is_empty_function(&paren.elem),
+        _ => None,
+    }
+}
+
+/// Returns whether a type is a direct declaration of a named standard type.
+fn is_direct_type(ty: &Type, type_name: &str) -> bool {
+    match ty {
+        Type::Path(type_path) => type_path
+            .path
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == type_name),
+        Type::Group(group) => is_direct_type(&group.elem, type_name),
+        Type::Paren(paren) => is_direct_type(&paren.elem, type_name),
+        _ => false,
+    }
 }
 
 /// Returns whether any struct field declares a redaction rule.
@@ -261,16 +429,19 @@ fn has_redact_fields(data: &Data) -> bool {
     let Data::Struct(data) = data else {
         return false;
     };
-    data.fields
-        .iter()
-        .any(|field| field.attrs.iter().any(|attribute| attribute.path().is_ident("redact")))
+    data.fields.iter().any(|field| {
+        field
+            .attrs
+            .iter()
+            .any(|attribute| attribute.path().is_ident("redact"))
+    })
 }
 
 /// Visits all struct fields in a declaration.
-fn visit_fields(data: &mut Data, mut visit: impl FnMut(&mut Vec<Attribute>)) {
+fn visit_fields(data: &mut Data, mut visit: impl FnMut(&mut syn::Field)) {
     if let Data::Struct(data) = data {
         for field in &mut data.fields {
-            visit(&mut field.attrs);
+            visit(field);
         }
     }
 }
@@ -280,7 +451,13 @@ fn expand_display(input: &DeriveInput, rename_all: LitStr) -> Result<TokenStream
     let name = &input.ident;
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
     match &input.data {
-        Data::Struct(data) => expand_struct_display(name, impl_generics, type_generics, where_clause, &data.fields),
+        Data::Struct(data) => expand_struct_display(
+            name,
+            impl_generics,
+            type_generics,
+            where_clause,
+            &data.fields,
+        ),
         Data::Enum(data) => {
             let mut arms = Vec::with_capacity(data.variants.len());
             for variant in &data.variants {
