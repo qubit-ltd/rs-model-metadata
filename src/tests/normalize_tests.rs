@@ -48,7 +48,7 @@ fn test_primary_key_ir_retains_generated_field_references_before_validation() {
 fn test_unique_ir_retains_ignore_case_field_references_before_validation() {
     let input = parse_quote! {
         struct User {
-            #[model(unique(respectTo = [missing], ignoreCase = true))]
+            #[unique(respectTo = [missing], ignoreCase = true)]
             username: String,
         }
     };
@@ -76,7 +76,7 @@ fn test_unique_ir_retains_ignore_case_field_references_before_validation() {
 fn test_attribute_ir_retains_repeated_single_value_occurrences() {
     let input = parse_quote! {
         struct User {
-            #[model(text(max_chars = 16, max_chars = 32))]
+            #[text(max_chars = 16, max_chars = 32)]
             username: String,
         }
     };

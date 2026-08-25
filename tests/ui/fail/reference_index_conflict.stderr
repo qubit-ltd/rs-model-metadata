@@ -1,11 +1,11 @@
 error: duplicate `index` constraint
-  --> tests/ui/fail/reference_index_conflict.rs:22:70
+  --> tests/ui/fail/reference_index_conflict.rs:23:7
    |
-22 |     #[field(reference(entity = "test.derive.Target", property = id), index)]
-   |                                                                      ^^^^^
+23 |     #[indexed]
+   |       ^^^^^^^
 
-error: field `target_id` cannot declare both `reference` and `index`
-  --> tests/ui/fail/reference_index_conflict.rs:22:70
+error: field `target_id` cannot declare both `reference` and `indexed`
+  --> tests/ui/fail/reference_index_conflict.rs:23:7
    |
-22 |     #[field(reference(entity = "test.derive.Target", property = id), index)]
-   |                                                                      ^^^^^
+23 |     #[indexed]
+   |       ^^^^^^^

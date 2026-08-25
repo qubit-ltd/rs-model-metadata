@@ -19,7 +19,7 @@
     no_deserialize
 )]
 struct Organization {
-    #[field(identifier)]
+    #[identifier]
     id: i64,
 }
 
@@ -34,19 +34,20 @@ struct Organization {
     no_deserialize
 )]
 struct ValidAttributes {
-    #[field(identifier(generated))]
+    #[identifier(generated)]
     id: Option<i64>,
-    #[field(unique(respectTo = [organization_id], ignoreCase = true), text(max_chars = 32))]
+    #[unique(respectTo = [organization_id], ignoreCase = true)]
+    #[text(max_chars = 32)]
     username: String,
-    #[field(time(precision = millisecond))]
+    #[time(precision = millisecond)]
     created_at: chrono::DateTime<chrono::Utc>,
-    #[field(decimal(precision = 8, scale = 3))]
+    #[decimal(precision = 8, scale = 3)]
     ratio: bigdecimal::BigDecimal,
-    #[field(money(precision = 12, scale = 2))]
+    #[money(precision = 12, scale = 2)]
     balance: bigdecimal::BigDecimal,
-    #[field(reference(entity = "test.derive.Organization", property = id))]
+    #[reference(entity = "test.derive.Organization", property = id)]
     organization_id: i64,
-    #[field(lookup_relation(target = Organization, target_field = id))]
+    #[lookup_relation(target = Organization, target_field = id)]
     organization_lookup: i64,
 }
 

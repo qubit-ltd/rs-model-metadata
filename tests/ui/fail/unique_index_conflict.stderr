@@ -1,5 +1,5 @@
-error: field `code` cannot declare both `unique` and `index`
-  --> tests/ui/fail/unique_index_conflict.rs:22:21
+error: field `code` cannot declare both `unique` and `indexed`
+  --> tests/ui/fail/unique_index_conflict.rs:23:7
    |
-22 |     #[field(unique, index)]
-   |                     ^^^^^
+23 |     #[indexed]
+   |       ^^^^^^^

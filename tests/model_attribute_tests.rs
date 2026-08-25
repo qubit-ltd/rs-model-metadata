@@ -52,7 +52,7 @@ struct DisplayWithoutDebug {
 #[Model(id = "test.attribute.Credential")]
 struct Credential {
     username: String,
-    #[field(opaque)]
+    #[opaque]
     #[redact(level = "secret")]
     password: String,
 }
@@ -78,9 +78,9 @@ struct CollectionDefaults {
     btree_set: BTreeSet<String>,
     binary_heap: BinaryHeap<String>,
     empty_array: [String; 0],
-    #[field(keep_serializing)]
+    #[keep_serializing]
     kept_values: Vec<String>,
-    #[field(keep_serializing)]
+    #[keep_serializing]
     kept_option: Option<String>,
 }
 

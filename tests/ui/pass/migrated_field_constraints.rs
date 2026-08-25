@@ -16,13 +16,13 @@ struct Target {
 #[qubit_model_derive::Model(id = "test.derive.MigratedConstraints", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct MigratedConstraints {
     target: Target,
-    #[field(reference(entity = "test.derive.Target", property = id, path = "target.id"))]
+    #[reference(entity = "test.derive.Target", property = id, path = "target.id")]
     target_id: i64,
-    #[field(element(text(repertoire = ascii)))]
+    #[element(text(repertoire = ascii))]
     codes: [String; 2],
-    #[field(element(decimal(scale = 2)))]
+    #[element(decimal(scale = 2))]
     values: Vec<bigdecimal::BigDecimal>,
-    #[field(text(format = mobile))]
+    #[text(format = mobile)]
     mobile: String,
     verification_code: String,
 }

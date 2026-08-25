@@ -20,7 +20,7 @@
     key(name = "", fields(value))
 )]
 struct Invalid {
-    #[field(codec = "")]
+    #[codec = ""]
     value: String,
     other: String,
 }

@@ -24,14 +24,14 @@
 )]
 struct Invalid {
     id: i64,
-    #[field(
-        text(min_chars = 1, min_chars = 2, non_blank, non_blank),
-        text(max_chars = 8)
-    )]
+    #[text(min_chars = 1, min_chars = 2, non_blank, non_blank)]
+    #[text(max_chars = 8)]
     name: String,
-    #[field(decimal(scale = 2), money(scale = 2))]
+    #[decimal(scale = 2)]
+    #[money(scale = 2)]
     amount: bigdecimal::BigDecimal,
-    #[field(opaque, opaque)]
+    #[opaque]
+    #[opaque]
     external: External,
 }
 

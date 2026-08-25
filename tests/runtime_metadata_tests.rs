@@ -35,9 +35,9 @@ use qubit_model_derive::Model;
 #[allow(dead_code)]
 #[Model(id = "test.derive.User")]
 struct User {
-    #[field(identifier(generated))]
+    #[identifier(generated)]
     id: Option<i64>,
-    #[field(unique(ignore_case))]
+    #[unique(ignore_case)]
     nickname: Option<String>,
 }
 
@@ -45,14 +45,14 @@ struct User {
 #[Model(id = "test.derive.ScopedUnique")]
 struct ScopedUnique {
     organization_id: i64,
-    #[field(unique(respectTo = [organization_id]))]
+    #[unique(respectTo = [organization_id])]
     code: String,
 }
 
 #[allow(dead_code)]
 #[Model(id = "test.derive.NumericUnique")]
 struct NumericUnique {
-    #[field(unique)]
+    #[unique]
     value: i64,
 }
 
@@ -78,7 +78,7 @@ struct Phone {
 #[Model(id = "test.derive.PhoneLoginParams")]
 #[allow(dead_code)]
 struct PhoneLoginParams {
-    #[field(text(format = mobile))]
+    #[text(format = mobile)]
     mobile: Option<Phone>,
 }
 
@@ -108,7 +108,7 @@ struct ExternalValue;
 #[allow(dead_code)]
 #[Model(id = "test.derive.OpaqueContainer")]
 struct OpaqueContainer {
-    #[field(opaque)]
+    #[opaque]
     external_values: Option<Vec<i128>>,
 }
 
@@ -130,18 +130,18 @@ struct OpaqueContainer {
 )]
 struct AttributedModel {
     id: i64,
-    #[field(reference(
+    #[reference(
         entity = "test.derive.Organization",
         property = id,
         existing = true,
         path = "organization.id"
-    ))]
+    )]
     organization_id: i64,
-    #[field(reference(entity = "test.derive.Organization"))]
+    #[reference(entity = "test.derive.Organization")]
     organization: Organization,
-    #[field(lookup_relation(target = Organization, target_field = id))]
+    #[lookup_relation(target = Organization, target_field = id)]
     organization_lookup: i64,
-    #[field(text(
+    #[text(
         min_chars = 3,
         max_chars = 32,
         min_bytes = 3,
@@ -149,33 +149,34 @@ struct AttributedModel {
         repertoire = ascii,
         non_blank,
         format = email
-    ))]
-    #[field(unique(
+    )]
+    #[unique(
         name = "organization_username",
         respectTo = [organization_id],
         ignoreCase = true
-    ))]
+    )]
     username: String,
-    #[field(sequence(min_items = 1, max_items = 5, unique_items))]
+    #[sequence(min_items = 1, max_items = 5, unique_items)]
     aliases: Vec<String>,
-    #[field(element(text(repertoire = ascii)))]
+    #[element(text(repertoire = ascii))]
     ascii_codes: [String; 2],
-    #[field(map(min_entries = 1, max_entries = 4))]
+    #[map(min_entries = 1, max_entries = 4)]
     labels: HashMap<String, String>,
-    #[field(time(precision = millisecond))]
+    #[time(precision = millisecond)]
     created_at: chrono::DateTime<chrono::Utc>,
-    #[field(decimal(precision = 8, scale = 3, rounding = half_up))]
+    #[decimal(precision = 8, scale = 3, rounding = half_up)]
     ratio: bigdecimal::BigDecimal,
-    #[field(money(precision = 12, scale = 2, rounding = half_even))]
+    #[money(precision = 12, scale = 2, rounding = half_even)]
     balance: bigdecimal::BigDecimal,
-    #[field(element(decimal(scale = 2)))]
+    #[element(decimal(scale = 2))]
     decimal_values: Vec<bigdecimal::BigDecimal>,
-    #[field(text(format = mobile))]
+    #[text(format = mobile)]
     mobile: String,
-    #[field(codec = "encrypted", generator(name = "account_balance"))]
+    #[codec = "encrypted"]
+    #[generator(name = "account_balance")]
     secret: String,
     verification_code: String,
-    #[field(opaque)]
+    #[opaque]
     external: ExternalValue,
 }
 
@@ -533,7 +534,7 @@ fn test_reference_and_strategy_attributes_expand() {
     no_deserialize
 )]
 struct ReferenceWithOpaqueForeignKey {
-    #[field(reference(entity = "test.derive.Organization", property = id))]
+    #[reference(entity = "test.derive.Organization", property = id)]
     organization_id: std::path::PathBuf,
 }
 

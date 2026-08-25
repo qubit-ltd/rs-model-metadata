@@ -17,7 +17,7 @@
     no_serialize,
     no_deserialize, primary_key(fields(id)))]
 struct Invalid {
-    #[field(identifier)]
+    #[identifier]
     id: i64,
 }
 

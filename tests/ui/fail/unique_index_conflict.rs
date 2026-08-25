@@ -19,7 +19,8 @@
     no_deserialize
 )]
 struct InvalidUniqueIndex {
-    #[field(unique, index)]
+    #[unique]
+    #[indexed]
     code: String,
 }
 

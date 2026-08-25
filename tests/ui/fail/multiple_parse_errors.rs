@@ -7,12 +7,12 @@
 // =============================================================================
 
 #[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
-#[field(nullable)]
-#[field(computed)]
+#[nullable]
+#[computed]
 struct Invalid {
-    #[field(primary_key(fields(first)))]
+    #[primary_key(fields(first))]
     first: String,
-    #[field(unknown)]
+    #[unknown]
     second: String,
 }
 

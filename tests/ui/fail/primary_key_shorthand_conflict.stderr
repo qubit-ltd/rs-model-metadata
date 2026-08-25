@@ -1,5 +1,5 @@
 error: field `identifier` shorthand conflicts with the model-level `primary_key`
-  --> tests/ui/fail/primary_key_shorthand_conflict.rs:20:13
+  --> tests/ui/fail/primary_key_shorthand_conflict.rs:20:7
    |
-20 |     #[field(identifier)]
-   |             ^^^^^^^^^^
+20 |     #[identifier]
+   |       ^^^^^^^^^^

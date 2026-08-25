@@ -19,7 +19,8 @@
     no_deserialize
 )]
 struct InvalidReferenceIndex {
-    #[field(reference(entity = "test.derive.Target", property = id), index)]
+    #[reference(entity = "test.derive.Target", property = id)]
+    #[indexed]
     target_id: i64,
 }
 

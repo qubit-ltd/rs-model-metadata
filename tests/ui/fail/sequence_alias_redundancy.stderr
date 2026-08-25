@@ -24,10 +24,10 @@ note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
    | |_________________- in this macro invocation
 
 error[E0080]: evaluation panicked: `unique_items` is redundant for Set fields
-  --> tests/ui/fail/sequence_alias_redundancy.rs:17:22
+  --> tests/ui/fail/sequence_alias_redundancy.rs:17:16
    |
-17 |     #[field(sequence(unique_items))]
-   |                      ^^^^^^^^^^^^ evaluation of `_::FIELDS::_` failed here
+17 |     #[sequence(unique_items)]
+   |                ^^^^^^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 note: erroneous constant encountered
   --> tests/ui/fail/sequence_alias_redundancy.rs:15:1

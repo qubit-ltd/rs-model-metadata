@@ -1,5 +1,11 @@
-error: unknown field-level `model` attribute
-  --> tests/ui/fail/unknown_attribute.rs:11:13
+error: unknown field-level attribute
+  --> tests/ui/fail/unknown_attribute.rs:11:5
    |
-11 |     #[field(unknown)]
-   |             ^^^^^^^
+11 |     #[unknown]
+   |     ^^^^^^^^^^
+
+error: cannot find attribute `unknown` in this scope
+  --> tests/ui/fail/unknown_attribute.rs:11:7
+   |
+11 |     #[unknown]
+   |       ^^^^^^^

@@ -36,7 +36,7 @@ struct Phone {
     no_deserialize,
 )]
 struct LoginParams {
-    #[field(text(format = mobile))]
+    #[text(format = mobile)]
     mobile: Option<Phone>,
 }
 

@@ -1,59 +1,59 @@
 error: `min_chars` cannot exceed `max_chars`
-  --> tests/ui/fail/ranges_and_container_shape.rs:15:30
+  --> tests/ui/fail/ranges_and_container_shape.rs:15:24
    |
-15 |     #[field(text(min_chars = 4, max_chars = 3, min_bytes = 8, max_bytes = 7))]
-   |                              ^
+15 |     #[text(min_chars = 4, max_chars = 3, min_bytes = 8, max_bytes = 7)]
+   |                        ^
 
 error: `min_bytes` cannot exceed `max_bytes`
-  --> tests/ui/fail/ranges_and_container_shape.rs:15:60
+  --> tests/ui/fail/ranges_and_container_shape.rs:15:54
    |
-15 |     #[field(text(min_chars = 4, max_chars = 3, min_bytes = 8, max_bytes = 7))]
-   |                                                            ^
+15 |     #[text(min_chars = 4, max_chars = 3, min_bytes = 8, max_bytes = 7)]
+   |                                                      ^
 
 error: `min_items` cannot exceed `max_items`
-  --> tests/ui/fail/ranges_and_container_shape.rs:17:34
+  --> tests/ui/fail/ranges_and_container_shape.rs:17:28
    |
-17 |     #[field(sequence(min_items = 3, max_items = 2))]
-   |                                  ^
+17 |     #[sequence(min_items = 3, max_items = 2)]
+   |                            ^
 
 error: `min_entries` cannot exceed `max_entries`
-  --> tests/ui/fail/ranges_and_container_shape.rs:19:31
+  --> tests/ui/fail/ranges_and_container_shape.rs:19:25
    |
-19 |     #[field(map(min_entries = 2, max_entries = 1))]
-   |                               ^
+19 |     #[map(min_entries = 2, max_entries = 1)]
+   |                         ^
 
 error: decimal `scale` cannot exceed `precision`
-  --> tests/ui/fail/ranges_and_container_shape.rs:21:44
+  --> tests/ui/fail/ranges_and_container_shape.rs:21:38
    |
-21 |     #[field(decimal(precision = 2, scale = 3))]
-   |                                            ^
+21 |     #[decimal(precision = 2, scale = 3)]
+   |                                      ^
 
 error: `money` requires an explicit `scale`
-  --> tests/ui/fail/ranges_and_container_shape.rs:23:13
+  --> tests/ui/fail/ranges_and_container_shape.rs:23:7
    |
-23 |     #[field(money(precision = 4))]
-   |             ^^^^^
+23 |     #[money(precision = 4)]
+   |       ^^^^^
 
 error: array length is fixed by its type; remove `min_items`
-  --> tests/ui/fail/ranges_and_container_shape.rs:27:34
+  --> tests/ui/fail/ranges_and_container_shape.rs:27:28
    |
-27 |     #[field(sequence(min_items = 3, max_items = 3))]
-   |                                  ^
+27 |     #[sequence(min_items = 3, max_items = 3)]
+   |                            ^
 
 error: array length is fixed by its type; remove `max_items`
-  --> tests/ui/fail/ranges_and_container_shape.rs:27:49
+  --> tests/ui/fail/ranges_and_container_shape.rs:27:43
    |
-27 |     #[field(sequence(min_items = 3, max_items = 3))]
-   |                                                 ^
+27 |     #[sequence(min_items = 3, max_items = 3)]
+   |                                           ^
 
 error[E0080]: evaluation panicked: `unique_items` is redundant for Set fields
-  --> tests/ui/fail/ranges_and_container_shape.rs:25:22
+  --> tests/ui/fail/ranges_and_container_shape.rs:25:16
    |
-25 |     #[field(sequence(unique_items))]
-   |                      ^^^^^^^^^^^^ evaluation of `_` failed here
+25 |     #[sequence(unique_items)]
+   |                ^^^^^^^^^^^^ evaluation of `_` failed here
 
 error[E0080]: evaluation panicked: array length is fixed by its type; remove sequence length arguments
-  --> tests/ui/fail/ranges_and_container_shape.rs:27:13
+  --> tests/ui/fail/ranges_and_container_shape.rs:27:7
    |
-27 |     #[field(sequence(min_items = 3, max_items = 3))]
-   |             ^^^^^^^^ evaluation of `_` failed here
+27 |     #[sequence(min_items = 3, max_items = 3)]
+   |       ^^^^^^^^ evaluation of `_` failed here

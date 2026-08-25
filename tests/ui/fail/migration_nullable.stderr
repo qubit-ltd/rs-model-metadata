@@ -1,5 +1,11 @@
 error: `nullable` is not supported; use `Option<T>` for nullability
-  --> tests/ui/fail/migration_nullable.rs:11:13
+  --> tests/ui/fail/migration_nullable.rs:11:5
    |
-11 |     #[field(nullable)]
-   |             ^^^^^^^^
+11 |     #[nullable]
+   |     ^^^^^^^^^^^
+
+error: cannot find attribute `nullable` in this scope
+  --> tests/ui/fail/migration_nullable.rs:11:7
+   |
+11 |     #[nullable]
+   |       ^^^^^^^^

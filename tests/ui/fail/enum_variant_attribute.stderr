@@ -1,5 +1,11 @@
-error: cannot find attribute `field` in this scope
+error: field helper attributes are not supported on enum variants
+  --> tests/ui/fail/enum_variant_attribute.rs:11:5
+   |
+11 |     #[indexed]
+   |     ^^^^^^^^^^
+
+error: cannot find attribute `indexed` in this scope
   --> tests/ui/fail/enum_variant_attribute.rs:11:7
    |
-11 |     #[field(index)]
-   |       ^^^^^
+11 |     #[indexed]
+   |       ^^^^^^^

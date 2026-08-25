@@ -1,5 +1,11 @@
 error: `computed` is not supported; declare a real Rust field instead
-  --> tests/ui/fail/migration_computed.rs:11:13
+  --> tests/ui/fail/migration_computed.rs:11:5
    |
-11 |     #[field(computed)]
-   |             ^^^^^^^^
+11 |     #[computed]
+   |     ^^^^^^^^^^^
+
+error: cannot find attribute `computed` in this scope
+  --> tests/ui/fail/migration_computed.rs:11:7
+   |
+11 |     #[computed]
+   |       ^^^^^^^^

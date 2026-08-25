@@ -11,7 +11,7 @@ error: `key` constraint name cannot be empty
    |                ^^
 
 error: `codec` strategy name cannot be empty
-  --> tests/ui/fail/constraint_name.rs:23:21
+  --> tests/ui/fail/constraint_name.rs:23:15
    |
-23 |     #[field(codec = "")]
-   |                     ^^
+23 |     #[codec = ""]
+   |               ^^

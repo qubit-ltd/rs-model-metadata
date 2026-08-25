@@ -34,11 +34,11 @@ struct Invalid {
     id: i64,
     name: String,
     other: String,
-    #[field(reference(
+    #[reference(
         entity = "test.derive.Organization",
         property = id,
         path = "missing"
-    ))]
+    )]
     organization_id: i64,
 }
 

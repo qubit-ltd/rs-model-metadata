@@ -8,9 +8,9 @@
 
 #[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Invalid {
-    #[field(element())]
+    #[element()]
     empty: Vec<String>,
-    #[field(element(time(precision = second)))]
+    #[element(time(precision = second))]
     unsupported: Vec<chrono::DateTime<chrono::Utc>>,
 }
 

@@ -14,7 +14,7 @@ type SetAlias = HashSet<String>;
 
 #[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Invalid {
-    #[field(sequence(unique_items))]
+    #[sequence(unique_items)]
     values: SetAlias,
 }
 

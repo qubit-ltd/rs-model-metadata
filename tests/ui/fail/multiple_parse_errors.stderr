@@ -1,23 +1,47 @@
-error: this model-level `model` attribute cannot be used on a field
-  --> tests/ui/fail/multiple_parse_errors.rs:13:13
+error: `nullable` is not supported; use `Option<T>` for nullability
+  --> tests/ui/fail/multiple_parse_errors.rs:10:1
    |
-13 |     #[field(primary_key(fields(first)))]
-   |             ^^^^^^^^^^^
+10 | #[nullable]
+   | ^^^^^^^^^^^
 
-error: unknown field-level `model` attribute
-  --> tests/ui/fail/multiple_parse_errors.rs:15:13
+error: `computed` is not supported; declare a real Rust field instead
+  --> tests/ui/fail/multiple_parse_errors.rs:11:1
    |
-15 |     #[field(unknown)]
-   |             ^^^^^^^
+11 | #[computed]
+   | ^^^^^^^^^^^
 
-error: cannot find attribute `field` in this scope
+error: this model-level attribute cannot be used on a field
+  --> tests/ui/fail/multiple_parse_errors.rs:13:5
+   |
+13 |     #[primary_key(fields(first))]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unknown field-level attribute
+  --> tests/ui/fail/multiple_parse_errors.rs:15:5
+   |
+15 |     #[unknown]
+   |     ^^^^^^^^^^
+
+error: cannot find attribute `nullable` in this scope
   --> tests/ui/fail/multiple_parse_errors.rs:10:3
    |
-10 | #[field(nullable)]
-   |   ^^^^^
+10 | #[nullable]
+   |   ^^^^^^^^
 
-error: cannot find attribute `field` in this scope
+error: cannot find attribute `computed` in this scope
   --> tests/ui/fail/multiple_parse_errors.rs:11:3
    |
-11 | #[field(computed)]
-   |   ^^^^^
+11 | #[computed]
+   |   ^^^^^^^^
+
+error: cannot find attribute `primary_key` in this scope
+  --> tests/ui/fail/multiple_parse_errors.rs:13:7
+   |
+13 |     #[primary_key(fields(first))]
+   |       ^^^^^^^^^^^
+
+error: cannot find attribute `unknown` in this scope
+  --> tests/ui/fail/multiple_parse_errors.rs:15:7
+   |
+15 |     #[unknown]
+   |       ^^^^^^^
