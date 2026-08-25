@@ -7,29 +7,45 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
-`qubit-model-derive` 为 Rust 领域模型提供 `#[Model(...)]`。它将模型声明转换为 `qubit-model-metadata` 暴露的静态强类型元数据和自动注册项。
+领域对象除了 Rust 类型本身，校验、持久化和 schema 工具还需要字段结构、约束和
+稳定标识。这些事实如果另存一份，很快就会和代码分叉。`qubit-model-derive`
+提供两个属性宏：`#[Model]` 和 `#[Enum]`。声明写在类型旁边，编译期生成
+`qubit-model-metadata` 在运行时查询的静态实现和注册项。
 
 ## 安装
 
-请为 derive crate 和 runtime crate 使用匹配版本：
+derive crate、runtime crate 与 Serde 使用匹配版本。两个宏都要求消费方依赖
+`serde`：
 
 ```toml
 [dependencies]
 qubit-model-derive = "0.1"
 qubit-model-metadata = "0.1"
+serde = { version = "1", features = ["derive"] }
 ```
 
-runtime crate 是必需依赖：若展开位置没有 `qubit-model-metadata` 依赖，宏会发出 `compile_error!`，说明缺少该依赖。
+缺少 `qubit-model-metadata` 或 `serde` 时，展开会发出 `compile_error!`，指出缺
+少哪个依赖。只有模型或枚举需要脱敏时，才额外加入 `qubit-redact`。
 
-`Model` 是唯一支持的属性宏；旧 derive 别名已移除。
+请写成 `#[Model(...)]` 和 `#[Enum(...)]`。没有 `#[derive(Model)]` 这类别名。
 
 ## 快速开始
 
-以账户模型为例，只需 derive 一次，应用中任何需要查看模型的地方都可以查询元数据：
+账户记录和它的生命周期状态是两种形状：带字段的结构体，和无字段枚举。分别用对
+应的宏声明，再查询生成的元数据：
 
 ```rust
+use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
+use qubit_model_metadata::AttributeQuery;
+use qubit_model_metadata::TypeKind;
 use qubit_model_metadata::metadata_of;
+
+#[Enum(id = "example.AccountStatus")]
+enum AccountStatus {
+    Active,
+    Suspended,
+}
 
 #[Model(id = "example.Account")]
 struct Account {
@@ -37,61 +53,103 @@ struct Account {
     id: i64,
     #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
     email: String,
+    status: AccountStatus,
 }
 
 fn main() {
-    let metadata = metadata_of::<Account>();
-    assert!(metadata.primary_key().expect("primary key").contains("id"));
-    assert!(!metadata.field("email").expect("email field").is_nullable());
+    let account = metadata_of::<Account>();
+    assert!(account.primary_key().expect("primary key").contains("id"));
+    assert!(!account.field("email").expect("email field").is_nullable());
+
+    let status = AccountStatus::Suspended;
+    assert_eq!(status.name(), "SUSPENDED");
+    assert_eq!(AccountStatus::from_name("ACTIVE"), Some(AccountStatus::Active));
+    assert!(matches!(metadata_of::<AccountStatus>().kind(), TypeKind::Enum(_)));
 }
 ```
 
-derive 会生成不可变元数据、所需的 runtime trait 与一个自动注册项。该查询可观察声明的主键与字段元数据，而不会在运行时解析 Rust 类型名称。
+`Account` 会注册结构体元数据，并带上主键和邮箱唯一约束。`AccountStatus` 会注册
+枚举元数据，同时提供 `Display`、Serde、`name` 和 `from_name` 共用的规范名。这些
+查询都不会在运行时解析 Rust 类型名字符串。
 
 ## 为什么需要这个项目
 
-Rust 模型通常不仅需要 Rust 类型：校验、持久化和 schema 工具还需要字段结构与领域约束。把这些事实维护在独立注册表中容易与模型声明漂移；基于类型名字符串的推断又会在类型别名和依赖重命名时失效。本 crate 让模型声明保持为唯一事实来源，并由 Rust 在编译期解析实际类型。
+领域类型不只是内存布局。下游还需要键、唯一性、文本和数值边界，以及一份不随
+crate 重命名失效的稳定 ID。靠类型名字符串去猜，会在类型别名和依赖重命名时失
+败。本 crate 把这些事实留在声明旁边，由 Rust 在编译期解析真实类型。
 
 ## 提供的能力
 
-- 为具名字段 struct、unit struct、单字段 tuple newtype 与 fieldless enum 生成静态 `HasTypeShape` 和 `HasTypeMetadata` 实现。
-- 从受支持的 `#[field(...)]` 属性生成字段、类型、键、唯一性、索引、文本、集合、时间、decimal、reference、敏感信息、codec 与 generator 元数据。
-- 每个模型都必须声明稳定的 `#[field(id = "module.Type")]`；每次展开都会向不可变全局 `ModelRegistry` 贡献一个注册项。
-- 使用 `#[Model(..., redact)]` 或任意字段 `#[redact(...)]` 时委托给
-  `qubit-redact`。模型宏会派生借用式 `Redact` 契约，并在未单独禁用时生成策略感知的
-  `Debug`、`Display` 与结构化 `Serialize` 实现。
-- 按 Cargo 包名解析 runtime 依赖。若本地将 `qubit-model-metadata` 重命名，展开代码会使用该本地依赖名；即使存在同名本地模块可能造成遮蔽，也仍然适用：
+两个宏都必须写稳定 ID：`id = "module.Type"`，最后一段要和 Rust 类型名一致。每次
+展开都会实现 `HasTypeShape`、`HasTypeMetadata` 和 `HasModelRegistration`，并向
+不可变的全局 `ModelRegistry` 贡献一条注册。
 
-  ```toml
-  [dependencies]
-  model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
-  ```
+runtime 依赖按 Cargo 包名解析。本地重命名仍然有效：
 
-- 要求未知外部字段类型通过 `#[field(opaque)]` 显式选择退出结构解析。opaque 字段会保留可见的 `Option`、序列、Set、数组和 Map 外层，并将叶子暴露为 `TypeShape::Opaque`，而不要求外部类型实现 `HasTypeShape`。
-
-对确实不应进行结构解析的字段使用 opaque 标记：
-
-```rust
-struct ExternalToken;
-
-#[Model(id = "example.ImportRecord")]
-struct ImportRecord {
-    #[field(opaque)]
-    token: ExternalToken,
-}
+```toml
+[dependencies]
+model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 ```
 
-未使用 `opaque` 时，外部类型必须实现 `HasTypeShape`；`opaque` 不能与依赖结构形状的字段约束同时使用，例如 `text`、`sequence`、`map`、`time`、`decimal` 或 `money`。
+### `#[Model]`
+
+`#[Model]` 接受具名字段结构体、空结构体和单字段元组 newtype。用在枚举上会编
+译失败，应改用 `#[Enum]`。
+
+对结构体，它会生成：
+
+- 默认 trait：`Clone`、`Debug`、`Eq`、`PartialEq`、`Hash`、`Serialize`、
+  `Deserialize`
+- Debug 风格的 `Display`
+- `#[serde(rename_all = "snake_case")]`
+- 静态的 `TypeKind::Struct` 或 `TypeKind::Newtype` 元数据
+- 来自 `#[field(...)]` 和模型级属性的字段、键、唯一性、索引、文本、集合、时
+  间、decimal、引用、codec 与 generator 元数据
+
+结构体上不能写 `no_copy`。`#[Model(..., redact)]` 或任意字段 `#[redact(...)]`
+会把格式化和序列化交给 `qubit-redact`。
+
+未知外部字段类型必须显式加上 `#[field(opaque)]`。opaque 字段会保留可见的
+`Option`、序列、Set、数组和 Map 外层，叶子则暴露为 `TypeShape::Opaque`。不加
+`opaque` 时，字段类型必须实现 `HasTypeShape`。`opaque` 不能和依赖形状的约束
+一起用，例如 `text`、`sequence`、`map`、`time`、`decimal`、`money`。
+
+### `#[Enum]`
+
+`#[Enum]` 只接受无字段枚举。用在结构体上，或变体携带数据时，都会编译失败。
+
+对无字段枚举，它会生成：
+
+- 默认 trait：`Clone`、`Copy`、`Debug`、`Eq`、`PartialEq`、`PartialOrd`、
+  `Ord`、`Hash`、`Serialize`、`Deserialize`
+- 若声明上还没有 `#[must_use]`，则自动补上
+- `#[serde(rename_all = "SCREAMING_SNAKE_CASE")]`
+- 输出规范序列化名的 `Display`
+- `name(&self) -> &'static str` 和 `from_name(&str) -> Option<Self>`
+- 静态的 `TypeKind::Enum` 元数据，变体名与上述 Serde 序列化名一致
+
+变体上的 `#[serde(rename = "...")]` 或 `#[serde(rename(serialize = "..."))]`
+会覆盖规范名，并同时作用于元数据、`Display`、`name` 和 `from_name`。重复的序
+列化名会被拒绝。`no_copy` 只允许写在枚举上。
+
+### 明确不提供的能力
+
+宏不会校验实例数据，不定义表/列映射或 PostgreSQL 专属类型，不导出 JSON
+schema，也不执行 codec/generator 策略。目标是否存在、投影是否相容、ownership
+是否成环，要在链接完整模型集合后调用 `ModelRegistry::validate_graph()`。
 
 ## 已知限制
 
-- 多字段 tuple struct、带数据的 enum variant、union 和泛型模型会被拒绝。
-- 宏只校验单个模型。`reference(target = "module.Type", ...)` 使用稳定目标 ID，不要求对目标模型建立 Cargo 依赖；目标是否存在、目标字段、投影类型相容性、`same_as`、LookupRelation、Ownership、强制引用环和 ownership 环，只会由已链接模型集合显式调用 `ModelRegistry::validate_graph()` 时校验。
-- 不定义表/列映射、PostgreSQL 专属类型、JSON 导出格式，或 codec/generator 的策略 trait 实现。
+- 泛型模型、多字段元组结构体、union，以及携带数据的枚举变体都会被拒绝。
+- `primary_key`、`unique`、`index`、`key`、`ownership` 这类模型级约束只适用于
+  具名字段结构体。
+- `reference(target = "module.Type", ...)` 使用稳定目标 ID，不要求对目标模型
+  建立 Cargo 依赖。
 
 ## 延伸阅读
 
 - [用户手册](doc/user_guide.zh_CN.md)
+- [runtime 元数据用户手册](../rs-model-metadata/doc/user_guide.zh_CN.md)
 - [脱敏运行时手册](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.zh_CN.md)
 - [API 文档](https://docs.rs/qubit-model-derive)
 - [English document](README.md)
@@ -111,11 +169,6 @@ cargo test --all-features
 # 检查代码覆盖率
 ./coverage.sh
 ```
-
-`src/derive_model_impl.rs` 仅免于逐文件覆盖率阈值检查。其运行时依赖解析的
-错误路径由隔离 Cargo fixture 覆盖；但 Rust 在编译 fixture 时加载过程宏 dylib
-产生的 profiler 数据不会被 `cargo-llvm-cov` 聚合。该豁免不会移除这些
-fixture 覆盖测试。
 
 ## 许可证
 

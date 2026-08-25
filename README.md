@@ -7,29 +7,50 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-`qubit-model-derive` supplies `#[Model(...)]` for Rust domain models. It turns a model declaration into static, strongly typed metadata and an automatic registration exposed by `qubit-model-metadata`.
+`qubit-model-derive` turns a Rust domain declaration into static metadata and
+the everyday traits that surround it. Validation, persistence, and schema tools
+need field structure, constraints, and a stable identity; keeping those facts in
+a second registry drifts from the code. This crate provides two attribute
+macros, `#[Model]` and `#[Enum]`. The declaration stays the source of truth, and
+`qubit-model-metadata` exposes the generated implementations at runtime.
 
 ## Installation
 
-Use matching versions of the derive and runtime crates:
+Use matching versions of the derive crate, the runtime crate, and Serde. Both
+macros require `serde` in the consuming crate:
 
 ```toml
 [dependencies]
 qubit-model-derive = "0.1"
 qubit-model-metadata = "0.1"
+serde = { version = "1", features = ["derive"] }
 ```
 
-The runtime crate is required: an expansion without a `qubit-model-metadata` dependency emits a compile error explaining the missing dependency.
+An expansion without `qubit-model-metadata` or `serde` emits a compile error
+that names the missing dependency. Add `qubit-redact` only when a model or enum
+participates in redaction.
 
-`Model` is the supported attribute macro; legacy derive aliases are unavailable.
+These are attribute macros, written `#[Model(...)]` and `#[Enum(...)]`. There is
+no `#[derive(Model)]` alias.
 
 ## Quick Start
 
-For an account model, derive metadata once and query it wherever the application needs to inspect the model:
+An account record and its lifecycle status are two different shapes: a struct
+with fields, and a fieldless enum. Declare each with the matching macro, then
+query the generated metadata:
 
 ```rust
+use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
+use qubit_model_metadata::AttributeQuery;
+use qubit_model_metadata::TypeKind;
 use qubit_model_metadata::metadata_of;
+
+#[Enum(id = "example.AccountStatus")]
+enum AccountStatus {
+    Active,
+    Suspended,
+}
 
 #[Model(id = "example.Account")]
 struct Account {
@@ -37,62 +58,114 @@ struct Account {
     id: i64,
     #[field(unique(ignore_case), text(min_chars = 3, max_chars = 320))]
     email: String,
+    status: AccountStatus,
 }
 
 fn main() {
-    let metadata = metadata_of::<Account>();
-    assert!(metadata.primary_key().expect("primary key").contains("id"));
-    assert!(!metadata.field("email").expect("email field").is_nullable());
+    let account = metadata_of::<Account>();
+    assert!(account.primary_key().expect("primary key").contains("id"));
+    assert!(!account.field("email").expect("email field").is_nullable());
+
+    let status = AccountStatus::Suspended;
+    assert_eq!(status.name(), "SUSPENDED");
+    assert_eq!(AccountStatus::from_name("ACTIVE"), Some(AccountStatus::Active));
+    assert!(matches!(metadata_of::<AccountStatus>().kind(), TypeKind::Enum(_)));
 }
 ```
 
-The derive generates immutable metadata, the required runtime traits, and one automatic registration. The query observes the declared primary key and field metadata; it does not parse Rust type names at runtime.
+`Account` contributes a struct registration with a primary key and a unique
+email constraint. `AccountStatus` contributes an enum registration plus
+canonical names used by `Display`, Serde, `name`, and `from_name`. Neither query
+parses Rust type names at runtime.
 
 ## Why This Project Exists
 
-Rust models often need more than their Rust type: validation, persistence, and schema tooling need field structure and domain constraints too. Keeping those facts in separate registries drifts from the model declaration, while inferring them from type-name strings breaks for aliases and renamed dependencies. This crate keeps the declaration as the source of truth and lets Rust resolve the actual types at compile time.
+A domain type is not only a Rust layout. Downstream tools also need keys,
+uniqueness, text and numeric bounds, and a stable ID that survives crate
+renames. Inferring those facts from type-name strings breaks for aliases and
+renamed dependencies. This crate keeps the facts beside the declaration and lets
+Rust resolve the actual types at compile time.
 
 ## What It Provides
 
-- Derives static `HasTypeShape` and `HasTypeMetadata` implementations for named-field and unit structs, single-field tuple newtypes, and fieldless enums.
-- Generates field, type, key, uniqueness, index, text, collection, temporal, decimal, reference, sensitivity, codec, and generator metadata from supported `#[field(...)]` attributes.
-- Requires every model to declare a stable `#[field(id = "module.Type")]`; each expansion contributes one registration to the immutable global `ModelRegistry`.
-- Delegates redaction to `qubit-redact` when `#[Model(..., redact)]` or any
-  `#[redact(...)]` field is present. The model macro derives the borrowing
-  `Redact` contract and, unless individually disabled, policy-aware `Debug`,
-  `Display`, and structured `Serialize` implementations.
-- Resolves the runtime package by Cargo package name. If `qubit-model-metadata` is renamed locally, the expansion uses that local dependency name, including when a same-named module would otherwise shadow it:
+Both macros require a stable `id = "module.Type"`. The final segment must match
+the Rust type name. Each expansion implements `HasTypeShape`,
+`HasTypeMetadata`, and `HasModelRegistration`, and registers one entry in the
+immutable global `ModelRegistry`.
 
-  ```toml
-  [dependencies]
-  model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
-  ```
+The runtime crate is resolved by Cargo package name. A local rename still works:
 
-- Requires unknown external field types to opt in explicitly with `#[field(opaque)]`. An opaque field preserves visible `Option`, sequence, set, array, and map wrappers while exposing its leaf as `TypeShape::Opaque`, without requiring the external type to implement `HasTypeShape`.
-
-For an opaque field, use the marker only when structural inspection is intentionally unavailable:
-
-```rust
-struct ExternalToken;
-
-#[Model(id = "example.ImportRecord")]
-struct ImportRecord {
-    #[field(opaque)]
-    token: ExternalToken,
-}
+```toml
+[dependencies]
+model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 ```
 
-Without `opaque`, an external type must implement `HasTypeShape`; `opaque` cannot be combined with shape-dependent field constraints such as `text`, `sequence`, `map`, `time`, `decimal`, or `money`.
+### `#[Model]`
+
+`#[Model]` accepts named-field structs, unit structs, and single-field tuple
+newtypes. Applying it to an enum is a compile error; use `#[Enum]` instead.
+
+For a struct it generates:
+
+- Default traits: `Clone`, `Debug`, `Eq`, `PartialEq`, `Hash`, `Serialize`, and
+  `Deserialize`
+- A `Display` implementation with Debug-shaped output
+- `#[serde(rename_all = "snake_case")]`
+- Static `TypeKind::Struct` or `TypeKind::Newtype` metadata
+- Field, key, uniqueness, index, text, collection, temporal, decimal,
+  reference, codec, and generator metadata from `#[field(...)]` and model-level
+  attributes
+
+`no_copy` is rejected on structs. `#[Model(..., redact)]` or any field
+`#[redact(...)]` delegates formatting and serialization to `qubit-redact`.
+
+Unknown external field types must opt in with `#[field(opaque)]`. An opaque
+field keeps visible `Option`, sequence, set, array, and map wrappers and exposes
+its leaf as `TypeShape::Opaque`. Without `opaque`, the field type must implement
+`HasTypeShape`. `opaque` cannot combine with shape-dependent constraints such as
+`text`, `sequence`, `map`, `time`, `decimal`, or `money`.
+
+### `#[Enum]`
+
+`#[Enum]` accepts fieldless enums only. Applying it to a struct, or to a variant
+that carries data, is a compile error.
+
+For a fieldless enum it generates:
+
+- Default traits: `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`, `PartialOrd`,
+  `Ord`, `Hash`, `Serialize`, and `Deserialize`
+- `#[must_use]` unless the declaration already has one
+- `#[serde(rename_all = "SCREAMING_SNAKE_CASE")]`
+- A `Display` implementation that writes the canonical serialized name
+- `name(&self) -> &'static str` and `from_name(&str) -> Option<Self>`
+- Static `TypeKind::Enum` metadata whose variant names follow the same Serde
+  serialization names
+
+`#[serde(rename = "...")]` or `#[serde(rename(serialize = "..."))]` on a variant
+overrides that canonical name for metadata, `Display`, `name`, and `from_name`.
+Duplicate serialized names are rejected. `no_copy` is valid on enums.
+
+### What it does not provide
+
+The macros do not validate instance data, map tables or columns, define
+PostgreSQL-specific types, export JSON schemas, or run codec/generator
+strategies. Cross-model checks such as target existence, projection
+compatibility, and ownership cycles belong to
+`ModelRegistry::validate_graph()` on a linked model set.
 
 ## Known Limits
 
-- Multi-field tuple structs, data-carrying enum variants, unions, and generic models are rejected.
-- The macro validates one model only. `reference(target = "module.Type", ...)` accepts a stable target ID without requiring a Cargo dependency on that target model; target existence, fields, projection compatibility, `same_as`, lookup relations, ownership, required-reference cycles, and ownership cycles are checked by explicit `ModelRegistry::validate_graph()` on a linked model set.
-- It does not define table/column mappings, PostgreSQL-specific types, JSON export formats, or codec/generator strategy implementations.
+- Generic models, multi-field tuple structs, unions, and data-carrying enum
+  variants are rejected.
+- Model-level constraints such as `primary_key`, `unique`, `index`, `key`, and
+  `ownership` apply only to named structs.
+- `reference(target = "module.Type", ...)` names a stable target ID and does not
+  require a Cargo dependency on that target.
 
 ## Learn More
 
 - [User guide](doc/user_guide.md)
+- [Runtime metadata user guide](../rs-model-metadata/doc/user_guide.md)
 - [Redaction runtime guide](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.md)
 - [API documentation](https://docs.rs/qubit-model-derive)
 - [中文文档](README.zh_CN.md)
@@ -112,12 +185,6 @@ cargo test --all-features
 # Check code coverage
 ./coverage.sh
 ```
-
-`src/derive_model_impl.rs` is excluded from per-file coverage thresholds only.
-Its runtime-resolution error paths are verified by isolated Cargo fixtures, but
-`cargo-llvm-cov` does not merge the profiler data emitted while Rust loads the
-proc-macro dylib for those fixture compilations. The exemption does not remove
-the fixture coverage from the test suite.
 
 ## License
 
