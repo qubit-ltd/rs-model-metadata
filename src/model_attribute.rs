@@ -56,11 +56,7 @@ pub(crate) fn expand_enum(args: TokenStream, input: TokenStream) -> TokenStream 
 }
 
 /// Expands one model declaration with default traits and metadata.
-fn expand_result(
-    args: TokenStream,
-    input: TokenStream,
-    enum_declaration: bool,
-) -> Result<TokenStream> {
+fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) -> Result<TokenStream> {
     let attributes = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     let options = ModelOptions::parse(attributes)?;
     let mut item: DeriveInput = parse2(input)?;
@@ -78,10 +74,7 @@ fn expand_result(
             ));
         }
         (Data::Enum(_), true) | (Data::Struct(_), true) => {
-            return Err(Error::new_spanned(
-                &item.ident,
-                "#[Enum] only supports fieldless enums",
-            ));
+            return Err(Error::new_spanned(&item.ident, "#[Enum] only supports fieldless enums"));
         }
         (Data::Union(union), _) => {
             return Err(Error::new_spanned(
@@ -113,10 +106,7 @@ fn expand_result(
         item.attrs.push(parse_quote!(#[must_use]));
     }
     if redacted {
-        let redact = dependency_path(
-            "qubit-redact",
-            "Model redaction requires the `qubit-redact` dependency",
-        )?;
+        let redact = dependency_path("qubit-redact", "Model redaction requires the `qubit-redact` dependency")?;
         item.attrs.push(parse_quote!(#[derive(#redact::Redact)]));
         if !options.disabled.serialize {
             item.attrs.push(parse_quote!(#[redact(serde)]));
@@ -129,8 +119,7 @@ fn expand_result(
         }
     }
     if !options.disabled.serialize || !options.disabled.deserialize {
-        item.attrs
-            .push(parse_quote!(#[serde(rename_all = #rename_all)]));
+        item.attrs.push(parse_quote!(#[serde(rename_all = #rename_all)]));
     }
     let metadata = derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
     let enum_names = enum_declaration
@@ -186,11 +175,7 @@ fn default_derives(
 }
 
 /// Builds the defaults for a fieldless enum.
-fn enum_derives(
-    serde: &TokenStream,
-    disabled: &DisabledCapabilities,
-    redacted: bool,
-) -> Result<Attribute> {
+fn enum_derives(serde: &TokenStream, disabled: &DisabledCapabilities, redacted: bool) -> Result<Attribute> {
     let mut derives = Vec::new();
     if !disabled.clone {
         derives.push(quote!(Clone));
@@ -227,16 +212,9 @@ fn enum_derives(
 }
 
 /// Builds the defaults for a struct.
-fn struct_derives(
-    serde: &TokenStream,
-    disabled: &DisabledCapabilities,
-    redacted: bool,
-) -> Result<Attribute> {
+fn struct_derives(serde: &TokenStream, disabled: &DisabledCapabilities, redacted: bool) -> Result<Attribute> {
     if disabled.copy {
-        return Err(Error::new(
-            Span::call_site(),
-            "`no_copy` is only supported on enums",
-        ));
+        return Err(Error::new(Span::call_site(), "`no_copy` is only supported on enums"));
     }
     let mut derives = Vec::new();
     if !disabled.clone {
@@ -280,18 +258,13 @@ fn rename_field_attributes(data: &mut Data) {
 /// Removes field helper attributes from the item returned to the compiler.
 fn remove_field_attributes(data: &mut Data) {
     visit_fields(data, |field| {
-        field
-            .attrs
-            .retain(|attribute| !attribute.path().is_ident("field"));
+        field.attrs.retain(|attribute| !attribute.path().is_ident("field"));
     });
 }
 
-/// Adds Serde defaults supported by the model's enabled serialization capabilities.
-fn add_default_serde_field_attributes(
-    data: &mut Data,
-    serialize: bool,
-    deserialize: bool,
-) -> Result<()> {
+/// Adds Serde defaults supported by the model's enabled serialization
+/// capabilities.
+fn add_default_serde_field_attributes(data: &mut Data, serialize: bool, deserialize: bool) -> Result<()> {
     let mut error: Option<Error> = None;
     visit_fields(data, |field| {
         let result = field_keeps_serializing(&field.attrs).and_then(|keep_serializing| {
@@ -337,7 +310,8 @@ fn add_default_serde_field_attributes(
     error.map_or(Ok(()), Err)
 }
 
-/// Returns whether a field opts out of the model's automatic serialization omission.
+/// Returns whether a field opts out of the model's automatic serialization
+/// omission.
 fn field_keeps_serializing(attributes: &[Attribute]) -> Result<bool> {
     has_attribute_option(attributes, "field", &["keep_serializing"])
 }
@@ -355,11 +329,7 @@ fn add_serde_attribute_if_absent(
 }
 
 /// Returns whether an attribute list contains any one of the supplied options.
-fn has_attribute_option(
-    attributes: &[Attribute],
-    attribute_name: &str,
-    options: &[&str],
-) -> Result<bool> {
+fn has_attribute_option(attributes: &[Attribute], attribute_name: &str, options: &[&str]) -> Result<bool> {
     for attribute in attributes
         .iter()
         .filter(|attribute| attribute.path().is_ident(attribute_name))
@@ -367,13 +337,11 @@ fn has_attribute_option(
         let Meta::List(list) = &attribute.meta else {
             continue;
         };
-        let serde_options =
-            list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-        if serde_options.iter().any(|serde_option| {
-            options
-                .iter()
-                .any(|option| serde_option.path().is_ident(option))
-        }) {
+        let serde_options = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+        if serde_options
+            .iter()
+            .any(|serde_option| options.iter().any(|option| serde_option.path().is_ident(option)))
+        {
             return Ok(true);
         }
     }
@@ -429,12 +397,9 @@ fn has_redact_fields(data: &Data) -> bool {
     let Data::Struct(data) = data else {
         return false;
     };
-    data.fields.iter().any(|field| {
-        field
-            .attrs
-            .iter()
-            .any(|attribute| attribute.path().is_ident("redact"))
-    })
+    data.fields
+        .iter()
+        .any(|field| field.attrs.iter().any(|attribute| attribute.path().is_ident("redact")))
 }
 
 /// Visits all struct fields in a declaration.
@@ -451,13 +416,7 @@ fn expand_display(input: &DeriveInput, rename_all: LitStr) -> Result<TokenStream
     let name = &input.ident;
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
     match &input.data {
-        Data::Struct(data) => expand_struct_display(
-            name,
-            impl_generics,
-            type_generics,
-            where_clause,
-            &data.fields,
-        ),
+        Data::Struct(data) => expand_struct_display(name, impl_generics, type_generics, where_clause, &data.fields),
         Data::Enum(data) => {
             let mut arms = Vec::with_capacity(data.variants.len());
             for variant in &data.variants {

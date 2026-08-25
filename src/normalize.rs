@@ -283,12 +283,8 @@ fn normalize_model_attribute(attribute: ModelAttribute) -> Option<ModelAttribute
                 span: attribute.span,
             }))
         }
-        ModelAttribute::Index(attribute) => {
-            Some(ModelAttributeIr::Index(normalize_named_fields(attribute)))
-        }
-        ModelAttribute::Key(attribute) => {
-            Some(ModelAttributeIr::Key(normalize_named_fields(attribute)))
-        }
+        ModelAttribute::Index(attribute) => Some(ModelAttributeIr::Index(normalize_named_fields(attribute))),
+        ModelAttribute::Key(attribute) => Some(ModelAttributeIr::Key(normalize_named_fields(attribute))),
         ModelAttribute::Ownership(attribute) => Some(ModelAttributeIr::Ownership(OwnershipIr {
             owner: attribute.owner,
             span: attribute.span,
@@ -379,23 +375,18 @@ fn normalize_field(field: ModelField) -> (FieldIr, Vec<ModelAttributeIr>) {
                 }));
             }
             FieldAttribute::Unique(attribute) => {
-                let explicit_ignore_case = attribute
-                    .ignore_case_values
-                    .first()
-                    .map(|value| value.value);
-                let default_ignore_case = explicit_ignore_case != Some(false)
-                    && (is_string_type(&ty) || has_text_attribute);
-                let ignore_case = if explicit_ignore_case == Some(true)
-                    || attribute.legacy_ignore_case
-                    || default_ignore_case
-                {
-                    vec![FieldName {
-                        name: name.clone(),
-                        span: attribute.span,
-                    }]
-                } else {
-                    Vec::new()
-                };
+                let explicit_ignore_case = attribute.ignore_case_values.first().map(|value| value.value);
+                let default_ignore_case =
+                    explicit_ignore_case != Some(false) && (is_string_type(&ty) || has_text_attribute);
+                let ignore_case =
+                    if explicit_ignore_case == Some(true) || attribute.legacy_ignore_case || default_ignore_case {
+                        vec![FieldName {
+                            name: name.clone(),
+                            span: attribute.span,
+                        }]
+                    } else {
+                        Vec::new()
+                    };
                 let mut fields = attribute.respect_to;
                 fields.push(FieldName {
                     name: name.clone(),

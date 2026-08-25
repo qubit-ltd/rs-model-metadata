@@ -39,13 +39,7 @@ struct User {
     first_name: String,
 }
 
-#[Model(
-    id = "test.attribute.Relaxed",
-    no_display,
-    no_eq,
-    no_hash,
-    no_serialize
-)]
+#[Model(id = "test.attribute.Relaxed", no_display, no_eq, no_hash, no_serialize)]
 struct Relaxed {
     value: f64,
 }
@@ -74,12 +68,7 @@ struct SerdeDefaults {
     explicit_values: Vec<String>,
 }
 
-#[Model(
-    id = "test.attribute.CollectionDefaults",
-    no_eq,
-    no_partial_eq,
-    no_hash
-)]
+#[Model(id = "test.attribute.CollectionDefaults", no_eq, no_partial_eq, no_hash)]
 struct CollectionDefaults {
     linked_list: LinkedList<String>,
     vec_deque: VecDeque<String>,
@@ -113,10 +102,7 @@ fn test_enum_attribute_supplies_enum_defaults() {
         serde_json::to_string(&status).expect("status should serialize"),
         "\"IN_REVIEW\""
     );
-    assert_eq!(
-        metadata_of::<Status>().id().as_str(),
-        "test.attribute.Status"
-    );
+    assert_eq!(metadata_of::<Status>().id().as_str(), "test.attribute.Status");
 
     let mut hasher = DefaultHasher::new();
     status.hash(&mut hasher);
@@ -172,10 +158,7 @@ fn test_model_attribute_supports_display_without_debug() {
         value: "safe".to_owned(),
     };
 
-    assert_eq!(
-        format!("{value}"),
-        r#"DisplayWithoutDebug { value: "safe" }"#
-    );
+    assert_eq!(format!("{value}"), r#"DisplayWithoutDebug { value: "safe" }"#);
 }
 
 /// Verifies field redaction controls formatting and serialization safely.
@@ -197,9 +180,8 @@ fn test_model_attribute_enables_redaction_for_marked_fields() {
     let serialized = serde_json::to_string(&value).expect("credential should serialize");
     assert!(!serialized.contains("raw-secret"));
 
-    let deserialized: Credential =
-        serde_json::from_str(r#"{"username":"alice","password":"input-secret"}"#)
-            .expect("credential should deserialize");
+    let deserialized: Credential = serde_json::from_str(r#"{"username":"alice","password":"input-secret"}"#)
+        .expect("credential should deserialize");
     assert_eq!(deserialized.password, "input-secret");
 }
 
@@ -223,8 +205,7 @@ fn test_model_attribute_omits_none_and_empty_vector_fields() {
 /// Verifies omitted vector fields deserialize to their empty default.
 #[test]
 fn test_model_attribute_defaults_omitted_vector_fields() {
-    let value: SerdeDefaults =
-        serde_json::from_str(r#"{"required":"value"}"#).expect("value should deserialize");
+    let value: SerdeDefaults = serde_json::from_str(r#"{"required":"value"}"#).expect("value should deserialize");
 
     assert_eq!(value.optional, None);
     assert!(value.values.is_empty());
@@ -255,12 +236,12 @@ fn test_model_attribute_omits_empty_collections_and_keeps_marked_values() {
     );
 }
 
-/// Verifies omitted supported collections are reconstructed from their defaults.
+/// Verifies omitted supported collections are reconstructed from their
+/// defaults.
 #[test]
 fn test_model_attribute_defaults_omitted_supported_collections() {
     let value: CollectionDefaults =
-        serde_json::from_str(r#"{"kept_values":[],"kept_option":null}"#)
-            .expect("value should deserialize");
+        serde_json::from_str(r#"{"kept_values":[],"kept_option":null}"#).expect("value should deserialize");
 
     assert!(value.linked_list.is_empty());
     assert!(value.vec_deque.is_empty());

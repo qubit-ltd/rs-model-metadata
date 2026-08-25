@@ -133,7 +133,8 @@ pub(crate) enum FieldAttribute {
     Generator(StrategyAttribute),
     /// An explicit opaque type marker.
     Opaque(Span),
-    /// Retains the normal serialized representation for an otherwise skipped field.
+    /// Retains the normal serialized representation for an otherwise skipped
+    /// field.
     KeepSerializing,
 }
 
@@ -336,10 +337,7 @@ pub(crate) fn parse_model_attributes(attributes: &[Attribute]) -> Result<ModelAt
     let mut parsed = Vec::new();
     let mut id = Vec::new();
     let mut errors = None;
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("model"))
-    {
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("model")) {
         let result = attribute.parse_nested_meta(|meta| {
             let input = meta.input;
             if let Err(error) = parse_model_attribute(meta, &mut id, &mut parsed) {
@@ -355,10 +353,7 @@ pub(crate) fn parse_model_attributes(attributes: &[Attribute]) -> Result<ModelAt
     if let Some(error) = errors {
         Err(error)
     } else {
-        Ok(ModelAttributes {
-            id,
-            attributes: parsed,
-        })
+        Ok(ModelAttributes { id, attributes: parsed })
     }
 }
 
@@ -368,10 +363,7 @@ pub(crate) fn parse_model_attributes(attributes: &[Attribute]) -> Result<ModelAt
 pub(crate) fn parse_field_attributes(attributes: &[Attribute]) -> Result<Vec<FieldAttribute>> {
     let mut parsed = Vec::new();
     let mut errors = None;
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("model"))
-    {
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("model")) {
         let result = attribute.parse_nested_meta(|meta| {
             let input = meta.input;
             if let Err(error) = parse_field_attribute(meta, &mut parsed) {
@@ -431,10 +423,7 @@ fn parse_model_attribute(
 }
 
 /// Parses one field-level nested item and appends its syntax node.
-fn parse_field_attribute(
-    meta: ParseNestedMeta<'_>,
-    parsed: &mut Vec<FieldAttribute>,
-) -> Result<()> {
+fn parse_field_attribute(meta: ParseNestedMeta<'_>, parsed: &mut Vec<FieldAttribute>) -> Result<()> {
     let span = meta.path.span();
     if meta.path.is_ident("identifier") {
         parsed.push(FieldAttribute::Identifier(parse_identifier(meta)?));
@@ -599,10 +588,7 @@ fn parse_field_unique(meta: ParseNestedMeta<'_>) -> Result<FieldUniqueAttribute>
         ));
     }
     if ignore_case.len() > 1 {
-        return Err(Error::new(
-            ignore_case[1],
-            "duplicate `ignore_case` argument",
-        ));
+        return Err(Error::new(ignore_case[1], "duplicate `ignore_case` argument"));
     }
     if respect_to_count > 1 {
         return Err(Error::new(span, "duplicate `respectTo` argument"));
@@ -820,10 +806,7 @@ fn parse_element(meta: ParseNestedMeta<'_>) -> Result<ElementAttribute> {
         Ok(())
     })?;
     if attributes.is_empty() {
-        return Err(Error::new(
-            span,
-            "element requires `text(...)` or `decimal(...)`",
-        ));
+        return Err(Error::new(span, "element requires `text(...)` or `decimal(...)`"));
     }
     Ok(ElementAttribute { attributes, span })
 }
@@ -856,16 +839,10 @@ fn parse_reference(meta: ParseNestedMeta<'_>) -> Result<ReferenceAttribute> {
         Ok(())
     })?;
     if target.is_empty() {
-        return Err(Error::new(
-            span,
-            "reference requires `target = \"module.Type\"`",
-        ));
+        return Err(Error::new(span, "reference requires `target = \"module.Type\"`"));
     }
     if target_field.is_empty() {
-        return Err(Error::new(
-            span,
-            "reference requires `target_field = field`",
-        ));
+        return Err(Error::new(span, "reference requires `target_field = field`"));
     }
     Ok(ReferenceAttribute {
         target,
@@ -901,10 +878,7 @@ fn parse_lookup_relation(meta: ParseNestedMeta<'_>) -> Result<LookupRelationAttr
         return Err(Error::new(span, "lookup_relation requires `target = Type`"));
     }
     if target_field.is_empty() {
-        return Err(Error::new(
-            span,
-            "lookup_relation requires `target_field = field`",
-        ));
+        return Err(Error::new(span, "lookup_relation requires `target_field = field`"));
     }
     Ok(LookupRelationAttribute {
         target,
@@ -974,8 +948,8 @@ fn parse_field_path_segment(name: &str, span: Span) -> Result<FieldName> {
     if name.is_empty() {
         return Err(Error::new(span, "field path contains an empty segment"));
     }
-    let ident = parse_str::<Ident>(name)
-        .map_err(|_| Error::new(span, "field path segments must be Rust identifiers"))?;
+    let ident =
+        parse_str::<Ident>(name).map_err(|_| Error::new(span, "field path segments must be Rust identifiers"))?;
     Ok(FieldName {
         name: ident.unraw().to_string(),
         span,
