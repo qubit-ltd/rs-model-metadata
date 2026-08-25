@@ -10,8 +10,11 @@
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::collections::BinaryHeap;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::LinkedList;
+use std::collections::VecDeque;
 
 use crate::type_shape::ScalarType;
 use crate::type_shape::TypeCapabilities;
@@ -104,6 +107,24 @@ impl<T: HasTypeShape> HasTypeShape for Option<T> {
 }
 
 impl<T: HasTypeShape> HasTypeShape for Vec<T> {
+    const TYPE_SHAPE: TypeShape = TypeShape::Sequence(TypeRef::of::<T>());
+    const CAPABILITIES: TypeCapabilities = TypeCapabilities::SEQUENCE;
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> = Some(T::CAPABILITIES);
+}
+
+impl<T: HasTypeShape> HasTypeShape for LinkedList<T> {
+    const TYPE_SHAPE: TypeShape = TypeShape::Sequence(TypeRef::of::<T>());
+    const CAPABILITIES: TypeCapabilities = TypeCapabilities::SEQUENCE;
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> = Some(T::CAPABILITIES);
+}
+
+impl<T: HasTypeShape> HasTypeShape for VecDeque<T> {
+    const TYPE_SHAPE: TypeShape = TypeShape::Sequence(TypeRef::of::<T>());
+    const CAPABILITIES: TypeCapabilities = TypeCapabilities::SEQUENCE;
+    const ELEMENT_CAPABILITIES: Option<TypeCapabilities> = Some(T::CAPABILITIES);
+}
+
+impl<T: HasTypeShape> HasTypeShape for BinaryHeap<T> {
     const TYPE_SHAPE: TypeShape = TypeShape::Sequence(TypeRef::of::<T>());
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::SEQUENCE;
     const ELEMENT_CAPABILITIES: Option<TypeCapabilities> = Some(T::CAPABILITIES);
