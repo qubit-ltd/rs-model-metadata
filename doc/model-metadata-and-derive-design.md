@@ -278,7 +278,6 @@ pub struct MapConstraint {
 ```rust
 pub struct TemporalConstraint {
     precision: TemporalPrecision,
-    normalization: TemporalNormalization,
 }
 
 pub struct DecimalConstraint {
@@ -294,7 +293,7 @@ pub struct DecimalConstraint {
 - `DecimalSemantic` 区分普通高精度数和金额；
 - 金额属性第一版要求显式给出 `scale`，不暗中继承 Java `@Money` 的默认值；
 - Java `@Money.useGroup` 属于显示格式，不进入领域/存储元数据；
-- 时间精度与时区归一化分开表达，具体数据库映射由未来的 Schema 组件完成。
+- 时间精度由约束表达，`DateTime<Utc>` 的绝对时间点语义由 `ScalarType::Instant` 表达，具体数据库映射由未来的 Schema 组件完成。
 
 #### 主键、唯一键、索引和逻辑键
 
@@ -454,7 +453,7 @@ pub struct User {
 
     pub state: UserState,
 
-    #[model(time(precision = second, normalization = utc))]
+    #[model(time(precision = second))]
     pub create_time: chrono::DateTime<chrono::Utc>,
 
     pub r#type: String,

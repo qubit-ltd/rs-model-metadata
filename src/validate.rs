@@ -659,7 +659,6 @@ fn validate_field_attribute(
         }
         FieldAttributeIr::Temporal(value) => {
             validate_duplicate_values("precision", &value.precision, errors);
-            validate_duplicate_values("normalization", &value.normalization, errors);
         }
         FieldAttributeIr::Decimal(value) => validate_decimal(value, errors),
         FieldAttributeIr::Element(value) => validate_element(value, errors),

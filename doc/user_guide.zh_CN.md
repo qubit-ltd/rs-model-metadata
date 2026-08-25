@@ -225,10 +225,11 @@ assert_eq!(
 `repertoire = unicode\|ascii`、`non_blank`，以及
 `format = email\|mobile\|uri\|uuid`。`sequence` 支持 `min_items`、
 `max_items`、`unique_items`。`map` 支持 `min_entries`、`max_entries`。`time`
-使用 `precision = second\|millisecond\|microsecond\|nanosecond` 和
-`normalization = preserve\|utc`。`decimal` 与 `money` 支持 `precision`、
-`scale` 和 `rounding = half_up\|half_even\|down\|up`。`money` 必须写
-`scale`。`codec` 和 `generator` 可写成 `codec = "name"` 或
+使用 `precision = second\|millisecond\|microsecond\|nanosecond`。
+`DateTime<Utc>` 由其类型形状表示为 `ScalarType::Instant`，而
+`NaiveDateTime` 仍表示无时区时间。`decimal` 与 `money` 支持 `precision`、
+`scale` 和 `rounding = half_up\|half_even\|down\|up`。`money` 必须写 `scale`。
+`codec` 和 `generator` 可写成 `codec = "name"` 或
 `codec(name = "name")`。
 
 类型结构来自 `HasTypeShape`，不是解析类型名字符串。支持的形状包括标量、

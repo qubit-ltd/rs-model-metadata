@@ -51,7 +51,6 @@ use super::sequence_attribute::SequenceAttribute;
 use super::spanned_value::SpannedValue;
 use super::strategy_attribute::StrategyAttribute;
 use super::temporal_attribute::TemporalAttribute;
-use super::temporal_normalization::TemporalNormalization;
 use super::temporal_precision::TemporalPrecision;
 use super::text_attribute::TextAttribute;
 use super::text_format::TextFormat;
@@ -446,7 +445,6 @@ fn parse_temporal(meta: ParseNestedMeta<'_>) -> Result<TemporalAttribute> {
     let span = meta.path.span();
     let mut value = TemporalAttribute {
         precision: Vec::new(),
-        normalization: Vec::new(),
         span,
     };
     meta.parse_nested_meta(|nested| {
@@ -461,17 +459,6 @@ fn parse_temporal(meta: ParseNestedMeta<'_>) -> Result<TemporalAttribute> {
             };
             value.precision.push(SpannedValue {
                 value: precision,
-                span: ident.span(),
-            });
-        } else if nested.path.is_ident("normalization") {
-            let ident = parse_ident(&nested)?;
-            let normalization = match ident.to_string().as_str() {
-                "preserve" => TemporalNormalization::Preserve,
-                "utc" => TemporalNormalization::Utc,
-                _ => return Err(nested.error("expected `preserve` or `utc`")),
-            };
-            value.normalization.push(SpannedValue {
-                value: normalization,
                 span: ident.span(),
             });
         } else {

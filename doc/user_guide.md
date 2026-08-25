@@ -229,7 +229,7 @@ not from a `nullable` flag.
 | `sequence(...)` | Item-count bounds and `unique_items`. |
 | `map(...)` | Entry-count bounds. |
 | `element(text(...))`, `element(decimal(...))` | Constraints on each sequence element. |
-| `time(...)` | Temporal precision and normalization. |
+| `time(...)` | Temporal precision; `DateTime<Utc>` is represented as an instant by its type shape. |
 | `decimal(...)`, `money(...)` | Decimal semantics and bounds; the two cannot be combined. |
 | `reference(...)` | Direct reference to another model ID and field path. |
 | `lookup_relation(...)` | Lookup against a target type in scope. |
@@ -241,9 +241,11 @@ not from a `nullable` flag.
 `repertoire = unicode\|ascii`, `non_blank`, and
 `format = email\|mobile\|uri\|uuid`. `sequence` accepts `min_items`,
 `max_items`, and `unique_items`. `map` accepts `min_entries` and `max_entries`.
-`time` uses `precision = second\|millisecond\|microsecond\|nanosecond` and
-`normalization = preserve\|utc`. `decimal` and `money` accept `precision`,
-`scale`, and `rounding = half_up\|half_even\|down\|up`. Money requires `scale`.
+`time` uses `precision = second\|millisecond\|microsecond\|nanosecond`.
+`DateTime<Utc>` is
+represented as `ScalarType::Instant`, while `NaiveDateTime` remains
+timezone-free. `decimal` and `money` accept `precision`, `scale`, and
+`rounding = half_up\|half_even\|down\|up`. Money requires `scale`.
 `codec` and `generator` accept `codec = "name"` or `codec(name = "name")`.
 
 Type structure comes from `HasTypeShape`, not from parsed type-name strings.

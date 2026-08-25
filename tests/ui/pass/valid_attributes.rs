@@ -38,7 +38,7 @@ struct ValidAttributes {
     id: Option<i64>,
     #[field(unique(respectTo = [organization_id], ignoreCase = true), text(max_chars = 32))]
     username: String,
-    #[field(time(precision = millisecond, normalization = utc))]
+    #[field(time(precision = millisecond))]
     created_at: chrono::DateTime<chrono::Utc>,
     #[field(decimal(precision = 8, scale = 3))]
     ratio: bigdecimal::BigDecimal,

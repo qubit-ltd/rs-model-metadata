@@ -18,7 +18,6 @@ use model_runtime::HasModelRegistration;
 use model_runtime::HasTypeShape;
 use model_runtime::ModelRegistry;
 use model_runtime::RoundingMode;
-use model_runtime::TemporalNormalization;
 use model_runtime::TemporalPrecision;
 use model_runtime::TextFormat;
 use model_runtime::TextRepertoire;
@@ -159,7 +158,7 @@ struct AttributedModel {
     ascii_codes: [String; 2],
     #[field(map(min_entries = 1, max_entries = 4))]
     labels: HashMap<String, String>,
-    #[field(time(precision = millisecond, normalization = utc))]
+    #[field(time(precision = millisecond))]
     created_at: chrono::DateTime<chrono::Utc>,
     #[field(decimal(precision = 8, scale = 3, rounding = half_up))]
     ratio: bigdecimal::BigDecimal,
@@ -405,7 +404,6 @@ fn test_temporal_decimal_and_money_attributes_expand() {
             .attribute(AttributeKind::Temporal),
         Some(AttributeMetadata::Temporal(temporal))
             if temporal.precision() == TemporalPrecision::Millisecond
-                && temporal.normalization() == TemporalNormalization::Utc
     ));
     assert!(matches!(
         metadata

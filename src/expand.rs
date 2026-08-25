@@ -29,7 +29,6 @@ use crate::attribute::SequenceAttribute;
 use crate::attribute::SpannedValue;
 use crate::attribute::StrategyAttribute;
 use crate::attribute::TemporalAttribute;
-use crate::attribute::TemporalNormalization;
 use crate::attribute::TemporalPrecision;
 use crate::attribute::TextAttribute;
 use crate::attribute::TextFormat;
@@ -694,26 +693,10 @@ fn expand_temporal(value: &TemporalAttribute, runtime: &TokenStream) -> TokenStr
     } else {
         precision_value
     };
-    let normalization = value.normalization.first();
-    let normalization_value = match normalization.map(|occurrence| occurrence.value) {
-        None | Some(TemporalNormalization::Preserve) => {
-            quote!(#runtime::TemporalNormalization::Preserve)
-        }
-        Some(TemporalNormalization::Utc) => {
-            quote!(#runtime::TemporalNormalization::Utc)
-        }
-    };
-    let normalization = if let Some(normalization) = normalization {
-        let normalization_span = normalization.span;
-        quote_spanned!(normalization_span=> #normalization_value)
-    } else {
-        normalization_value
-    };
     let span = value.span;
     quote_spanned! {span=>
         #runtime::AttributeMetadata::Temporal(#runtime::TemporalConstraint::new(
             #precision,
-            #normalization,
         ))
     }
 }
