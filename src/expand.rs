@@ -33,7 +33,7 @@ use crate::attribute::TemporalAttribute;
 use crate::attribute::TemporalPrecision;
 use crate::attribute::TextAttribute;
 use crate::attribute::TextFormat;
-use crate::attribute::TextRepertoire;
+use crate::attribute::AllowedChars;
 use crate::input::ModelVariant;
 use crate::normalize::DecimalIr;
 use crate::normalize::DecimalSemantic;
@@ -766,18 +766,18 @@ fn expand_text(value: &TextAttribute, runtime: &TokenStream) -> TokenStream {
     let min_bytes = expand_optional_u32(value.min_bytes.first());
     let max_bytes = expand_optional_u32(value.max_bytes.first());
     let non_blank = !value.non_blank.is_empty();
-    let repertoire = value.repertoire.first();
-    let repertoire_value = match repertoire.map(|occurrence| occurrence.value) {
-        None | Some(TextRepertoire::Unicode) => {
-            quote!(#runtime::TextRepertoire::Unicode)
+    let allowed_chars = value.allowed_chars.first();
+    let allowed_chars_value = match allowed_chars.map(|occurrence| occurrence.value) {
+        None | Some(AllowedChars::Unicode) => {
+            quote!(#runtime::AllowedChars::Unicode)
         }
-        Some(TextRepertoire::Ascii) => quote!(#runtime::TextRepertoire::Ascii),
+        Some(AllowedChars::Ascii) => quote!(#runtime::AllowedChars::Ascii),
     };
-    let repertoire = if let Some(repertoire) = repertoire {
-        let repertoire_span = repertoire.span;
-        quote_spanned!(repertoire_span=> #repertoire_value)
+    let allowed_chars = if let Some(allowed_chars) = allowed_chars {
+        let allowed_chars_span = allowed_chars.span;
+        quote_spanned!(allowed_chars_span=> #allowed_chars_value)
     } else {
-        repertoire_value
+        allowed_chars_value
     };
     let format = match value.format.first() {
         Some(format) => {
@@ -799,7 +799,7 @@ fn expand_text(value: &TextAttribute, runtime: &TokenStream) -> TokenStream {
             #max_chars,
             #min_bytes,
             #max_bytes,
-            #repertoire,
+            #allowed_chars,
             #non_blank,
             #format,
         ))

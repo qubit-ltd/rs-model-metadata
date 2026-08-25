@@ -8,7 +8,7 @@
 
 #[qubit_model_derive::Model(id = "test.derive.Invalid", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
 struct Invalid {
-    #[element(text(repertoire = ascii), text(max_chars = 8))]
+    #[element(text(allowed_chars = ascii), text(max_chars = 8))]
     values: Vec<String>,
 }
 

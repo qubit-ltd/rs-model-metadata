@@ -23,7 +23,7 @@ use model_runtime::ReferenceTarget;
 use model_runtime::RoundingMode;
 use model_runtime::TemporalPrecision;
 use model_runtime::TextFormat;
-use model_runtime::TextRepertoire;
+use model_runtime::AllowedChars;
 use model_runtime::TypeCapabilities;
 use model_runtime::TypeKind;
 use model_runtime::TypeShape;
@@ -146,7 +146,7 @@ struct AttributedModel {
         max_chars = 32,
         min_bytes = 3,
         max_bytes = 64,
-        repertoire = ascii,
+        allowed_chars = ascii,
         non_blank,
         format = email
     )]
@@ -158,7 +158,7 @@ struct AttributedModel {
     username: String,
     #[sequence(min_items = 1, max_items = 5, unique_items)]
     aliases: Vec<String>,
-    #[element(text(repertoire = ascii))]
+    #[element(text(allowed_chars = ascii))]
     ascii_codes: [String; 2],
     #[map(min_entries = 1, max_entries = 4)]
     labels: HashMap<String, String>,
@@ -374,7 +374,7 @@ fn test_text_sequence_and_map_attributes_expand() {
     assert_eq!(text.max_chars(), Some(32));
     assert_eq!(text.min_bytes(), Some(3));
     assert_eq!(text.max_bytes(), Some(64));
-    assert_eq!(text.repertoire(), TextRepertoire::Ascii);
+    assert_eq!(text.allowed_chars(), AllowedChars::Ascii);
     assert!(text.is_non_blank());
     assert_eq!(text.format(), Some(TextFormat::Email));
 
@@ -445,7 +445,7 @@ fn test_migrated_element_and_mobile_constraints_expand() {
     assert!(matches!(
         ascii_element.attributes(),
         [AttributeMetadata::Text(text)]
-            if text.repertoire() == TextRepertoire::Ascii
+            if text.allowed_chars() == AllowedChars::Ascii
     ));
 
     let decimal_element = metadata

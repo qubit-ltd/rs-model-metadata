@@ -23,7 +23,7 @@ note: inside `qubit_model_metadata::field_metadata::validate_field_attributes`
 error[E0080]: evaluation panicked: `element` requires a sequence field
   --> tests/ui/fail/element_constraints.rs:13:7
    |
-13 |     #[element(text(repertoire = ascii))]
+13 |     #[element(text(allowed_chars = ascii))]
    |       ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 error[E0080]: evaluation panicked: `element(decimal(...))` requires a decimal-capable element
@@ -35,7 +35,7 @@ error[E0080]: evaluation panicked: `element(decimal(...))` requires a decimal-ca
 error[E0080]: evaluation panicked: `element` requires a sequence field
   --> tests/ui/fail/element_constraints.rs:17:7
    |
-17 |     #[element(text(repertoire = ascii))]
+17 |     #[element(text(allowed_chars = ascii))]
    |       ^^^^^^^ evaluation of `_::FIELDS::_` failed here
 
 note: erroneous constant encountered

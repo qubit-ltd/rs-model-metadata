@@ -58,7 +58,7 @@ use super::temporal_attribute::TemporalAttribute;
 use super::temporal_precision::TemporalPrecision;
 use super::text_attribute::TextAttribute;
 use super::text_format::TextFormat;
-use super::text_repertoire::TextRepertoire;
+use super::allowed_chars::AllowedChars;
 
 /// Parses every model-level `#[model(...)]` item in source order.
 ///
@@ -409,7 +409,7 @@ fn parse_text_attribute(attribute: &Attribute) -> Result<TextAttribute> {
         max_chars: Vec::new(),
         min_bytes: Vec::new(),
         max_bytes: Vec::new(),
-        repertoire: Vec::new(),
+        allowed_chars: Vec::new(),
         non_blank: Vec::new(),
         format: Vec::new(),
         span,
@@ -427,15 +427,15 @@ fn parse_text_argument(value: &mut TextAttribute, nested: ParseNestedMeta<'_>) -
         value.min_bytes.push(parse_integer(&nested)?);
     } else if nested.path.is_ident("max_bytes") {
         value.max_bytes.push(parse_integer(&nested)?);
-    } else if nested.path.is_ident("repertoire") {
+    } else if nested.path.is_ident("allowed_chars") {
         let ident = parse_ident(&nested)?;
-        let repertoire = match ident.to_string().as_str() {
-            "unicode" => TextRepertoire::Unicode,
-            "ascii" => TextRepertoire::Ascii,
+        let allowed_chars = match ident.to_string().as_str() {
+            "unicode" => AllowedChars::Unicode,
+            "ascii" => AllowedChars::Ascii,
             _ => return Err(nested.error("expected `unicode` or `ascii`")),
         };
-        value.repertoire.push(SpannedValue {
-            value: repertoire,
+        value.allowed_chars.push(SpannedValue {
+            value: allowed_chars,
             span: ident.span(),
         });
     } else if nested.path.is_ident("non_blank") {
@@ -842,7 +842,7 @@ fn parse_text(meta: ParseNestedMeta<'_>) -> Result<TextAttribute> {
         max_chars: Vec::new(),
         min_bytes: Vec::new(),
         max_bytes: Vec::new(),
-        repertoire: Vec::new(),
+        allowed_chars: Vec::new(),
         non_blank: Vec::new(),
         format: Vec::new(),
         span,

@@ -6,9 +6,9 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-/// Parsed text repertoire.
+/// Parsed allowed character set.
 #[derive(Clone, Copy)]
-pub(crate) enum TextRepertoire {
+pub(crate) enum AllowedChars {
     /// All Unicode scalar values.
     Unicode,
     /// ASCII characters only.

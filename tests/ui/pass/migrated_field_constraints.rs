@@ -18,7 +18,7 @@ struct MigratedConstraints {
     target: Target,
     #[reference(entity = "test.derive.Target", property = id, path = "target.id")]
     target_id: i64,
-    #[element(text(repertoire = ascii))]
+    #[element(text(allowed_chars = ascii))]
     codes: [String; 2],
     #[element(decimal(scale = 2))]
     values: Vec<bigdecimal::BigDecimal>,

@@ -10,7 +10,7 @@ use proc_macro2::Span;
 
 use super::spanned_value::SpannedValue;
 use super::text_format::TextFormat;
-use super::text_repertoire::TextRepertoire;
+use super::allowed_chars::AllowedChars;
 
 /// Parsed text constraint values.
 pub(crate) struct TextAttribute {
@@ -22,8 +22,8 @@ pub(crate) struct TextAttribute {
     pub(crate) min_bytes: Vec<SpannedValue<u32>>,
     /// Maximum UTF-8 byte count occurrences in source order.
     pub(crate) max_bytes: Vec<SpannedValue<u32>>,
-    /// Character-repertoire occurrences in source order.
-    pub(crate) repertoire: Vec<SpannedValue<TextRepertoire>>,
+    /// Allowed-character-set occurrences in source order.
+    pub(crate) allowed_chars: Vec<SpannedValue<AllowedChars>>,
     /// Every `non_blank` marker span in source order.
     pub(crate) non_blank: Vec<Span>,
     /// Semantic text-format occurrences in source order.

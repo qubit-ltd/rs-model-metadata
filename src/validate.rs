@@ -704,7 +704,7 @@ fn validate_text(value: &TextAttribute, errors: &mut Option<Error>) {
     validate_duplicate_values("max_chars", &value.max_chars, errors);
     validate_duplicate_values("min_bytes", &value.min_bytes, errors);
     validate_duplicate_values("max_bytes", &value.max_bytes, errors);
-    validate_duplicate_values("repertoire", &value.repertoire, errors);
+    validate_duplicate_values("allowed_chars", &value.allowed_chars, errors);
     validate_duplicate_spans("non_blank", &value.non_blank, errors);
     validate_duplicate_values("format", &value.format, errors);
     validate_min_max("min_chars", &value.min_chars, "max_chars", &value.max_chars, errors);
