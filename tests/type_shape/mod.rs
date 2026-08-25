@@ -6,5 +6,9 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Coverage for `ModelGraphErrors` remains in the model-graph integration
-//! tests.
+//! Tests for type-shape source modules.
+
+mod has_type_shape_tests;
+mod scalar_type_tests;
+mod type_capabilities_tests;
+mod type_ref_tests;

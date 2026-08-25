@@ -8,6 +8,8 @@
 
 //! Integration tests for attribute construction invariants.
 
+mod attribute;
+
 use qubit_model_metadata::AttributeKind;
 use qubit_model_metadata::AttributeMetadata;
 use qubit_model_metadata::DecimalConstraint;

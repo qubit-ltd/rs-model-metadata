@@ -8,6 +8,8 @@
 
 //! Integration tests for explicit direct-reference graph validation.
 
+mod model_graph;
+
 use qubit_model_metadata::AttributeMetadata;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::FieldPath;

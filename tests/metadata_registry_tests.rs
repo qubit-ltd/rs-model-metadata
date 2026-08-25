@@ -8,6 +8,8 @@
 
 //! Integration tests for immutable model registration lookup.
 
+mod metadata_registry;
+
 use qubit_model_metadata::HasModelRegistration;
 use qubit_model_metadata::HasTypeMetadata;
 use qubit_model_metadata::HasTypeShape;

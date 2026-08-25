@@ -6,4 +6,5 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Coverage for `ModelRegistryError` remains in the metadata-registry integration tests.
+//! Coverage for `ModelRegistryError` remains in the metadata-registry
+//! integration tests.

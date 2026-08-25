@@ -24,3 +24,17 @@ fn test_reference_metadata_preserves_direct_reference_details() {
     assert!(reference.must_exist());
     assert_eq!(reference.same_as(), Some(same_as));
 }
+
+#[test]
+#[should_panic(expected = "reference target field path cannot be empty")]
+fn test_reference_rejects_empty_target_path() {
+    let target = ModelId::new("test.metadata.Target");
+    let _ = ReferenceMetadata::new(target, FieldPath::new(&[]), true, None);
+}
+
+#[test]
+#[should_panic(expected = "reference target field path cannot contain empty segments")]
+fn test_reference_rejects_empty_target_path_segments() {
+    let target = ModelId::new("test.metadata.Target");
+    let _ = ReferenceMetadata::new(target, FieldPath::new(&[""]), true, None);
+}

@@ -24,3 +24,10 @@ fn test_lookup_relation_metadata_preserves_target_and_field() {
     assert_eq!(lookup.target().identity(), target.identity());
     assert_eq!(lookup.target_field(), target_field);
 }
+
+#[test]
+#[should_panic(expected = "lookup relation target field path cannot be empty")]
+fn test_lookup_relation_rejects_empty_target_path() {
+    let target = NamedTypeRef::unresolved(TypeIdentity::of::<Target>());
+    let _ = LookupRelationMetadata::new(target, FieldPath::new(&[]));
+}

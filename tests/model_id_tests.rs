@@ -8,6 +8,8 @@
 
 //! Integration tests for stable model identifiers.
 
+mod model_id;
+
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelIdError;
 

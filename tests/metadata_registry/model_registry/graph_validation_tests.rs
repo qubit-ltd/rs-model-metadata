@@ -6,5 +6,5 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Coverage for `ModelGraphErrors` remains in the model-graph integration
-//! tests.
+//! Coverage for `ModelRegistry::validate_graph` remains in the model-graph
+//! integration tests.

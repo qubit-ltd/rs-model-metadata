@@ -6,5 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Coverage for `ModelGraphErrors` remains in the model-graph integration
-//! tests.
+//! Tests for model-graph source modules.
+
+mod internal;
+mod model_graph_error_tests;
+mod model_graph_errors_tests;

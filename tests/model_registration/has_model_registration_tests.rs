@@ -57,8 +57,5 @@ impl HasModelRegistration for Account {
 
 #[test]
 fn test_registration_of_returns_the_type_registration() {
-    assert!(core::ptr::eq(
-        registration_of::<Account>(),
-        &ACCOUNT_REGISTRATION,
-    ));
+    assert!(core::ptr::eq(registration_of::<Account>(), &ACCOUNT_REGISTRATION,));
 }

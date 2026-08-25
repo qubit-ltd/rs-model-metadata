@@ -17,3 +17,8 @@ fn test_field_path_preserves_static_segments() {
     assert_eq!(path.segments(), &["organization", "id"]);
     assert!(!path.is_empty());
 }
+
+#[test]
+fn test_field_path_reports_empty_segments() {
+    assert!(FieldPath::new(&[]).is_empty());
+}

@@ -8,6 +8,8 @@
 
 //! Integration tests for static model registrations.
 
+mod model_registration;
+
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelRegistration;
 use qubit_model_metadata::SourceLocation;

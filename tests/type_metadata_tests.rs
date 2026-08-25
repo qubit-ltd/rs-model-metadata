@@ -8,6 +8,8 @@
 
 //! Integration tests for structural type metadata validation.
 
+mod type_metadata;
+
 use qubit_model_metadata::AttributeMetadata;
 use qubit_model_metadata::EnumMetadata;
 use qubit_model_metadata::EnumVariantMetadata;

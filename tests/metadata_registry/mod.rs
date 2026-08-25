@@ -6,14 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use qubit_model_metadata::HasTypeShape;
-use qubit_model_metadata::ScalarType;
-use qubit_model_metadata::TypeShape;
+//! Tests for metadata-registry source modules.
 
-#[test]
-fn test_has_type_shape_exposes_scalar_shape() {
-    assert!(matches!(
-        <i32 as HasTypeShape>::TYPE_SHAPE,
-        TypeShape::Scalar(ScalarType::I32)
-    ));
-}
+mod model_registry;
+mod model_registry_error_tests;
+mod model_registry_tests;

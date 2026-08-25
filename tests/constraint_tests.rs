@@ -8,6 +8,8 @@
 
 //! Integration tests for constraint construction invariants.
 
+mod constraint;
+
 use qubit_model_metadata::DecimalConstraint;
 use qubit_model_metadata::DecimalSemantic;
 use qubit_model_metadata::MapConstraint;

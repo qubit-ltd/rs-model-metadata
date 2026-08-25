@@ -13,8 +13,8 @@ use qubit_model_metadata::ModelIdError;
 
 #[test]
 fn test_model_id_buf_owns_validated_values() {
-    let owned = ModelIdBuf::try_from("test.model.DynamicModel".to_owned())
-        .expect("the dynamic model ID should be valid");
+    let owned =
+        ModelIdBuf::try_from("test.model.DynamicModel".to_owned()).expect("the dynamic model ID should be valid");
 
     assert_eq!(owned.as_str(), "test.model.DynamicModel");
     assert_eq!(owned.to_string(), "test.model.DynamicModel");

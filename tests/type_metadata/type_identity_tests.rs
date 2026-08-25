@@ -18,6 +18,14 @@ fn test_type_identity_compares_the_same_rust_type() {
 }
 
 #[test]
+fn test_type_identity_exposes_rust_type_id() {
+    let identity = TypeIdentity::of::<u64>();
+
+    assert_eq!(identity.type_id(), core::any::TypeId::of::<u64>());
+    assert_ne!(identity.type_id(), TypeIdentity::of::<i32>().type_id());
+}
+
+#[test]
 fn test_type_identity_exposes_name_debug_and_hash() {
     let identity = TypeIdentity::of::<u64>();
     let mut hasher = DefaultHasher::new();

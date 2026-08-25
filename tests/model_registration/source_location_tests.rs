@@ -6,7 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Coverage for `SourceLocation` remains in the model-registration integration tests.
+//! Coverage for `SourceLocation` remains in the model-registration integration
+//! tests.
 
 use qubit_model_metadata::SourceLocation;
 
