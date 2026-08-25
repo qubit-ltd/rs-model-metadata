@@ -8,6 +8,7 @@
 
 //! Immutable lookup indexes over statically linked model registrations.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -142,15 +143,15 @@ impl ModelRegistry {
 
     /// Returns the lazily constructed registry for all linked model crates.
     ///
+    /// # Returns
+    ///
+    /// The process-wide registry built from linked model registrations.
+    ///
     /// # Panics
     ///
     /// Panics when linked model registrations contain an invalid or duplicate
     /// stable ID. Use [`ModelRegistry::try_global`] when callers need to handle
     /// configuration errors without panicking.
-    ///
-    /// # Returns
-    ///
-    /// The process-wide registry built from linked model registrations.
     #[must_use]
     pub fn global() -> &'static Self {
         Self::try_global().unwrap_or_else(|error| {
@@ -227,7 +228,7 @@ impl MetadataResolver for ModelRegistry {
 /// # Returns
 ///
 /// The ordering used to sort registrations by ID and source location.
-fn compare_registrations(left: &&'static ModelRegistration, right: &&'static ModelRegistration) -> std::cmp::Ordering {
+fn compare_registrations(left: &&'static ModelRegistration, right: &&'static ModelRegistration) -> Ordering {
     (
         left.id(),
         left.rust_type_name(),

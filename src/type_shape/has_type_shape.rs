@@ -16,6 +16,19 @@ use std::collections::HashSet;
 use std::collections::LinkedList;
 use std::collections::VecDeque;
 
+#[cfg(feature = "big-decimal")]
+use bigdecimal::BigDecimal;
+#[cfg(feature = "chrono")]
+use chrono::DateTime;
+#[cfg(feature = "chrono")]
+use chrono::NaiveDate;
+#[cfg(feature = "chrono")]
+use chrono::NaiveDateTime;
+#[cfg(feature = "chrono")]
+use chrono::NaiveTime;
+#[cfg(feature = "chrono")]
+use chrono::Utc;
+
 use crate::type_shape::ScalarType;
 use crate::type_shape::TypeCapabilities;
 use crate::type_shape::TypeRef;
@@ -82,31 +95,31 @@ impl HasTypeShape for String {
 }
 
 #[cfg(feature = "chrono")]
-impl HasTypeShape for chrono::NaiveDate {
+impl HasTypeShape for NaiveDate {
     const TYPE_SHAPE: TypeShape = TypeShape::Scalar(ScalarType::Date);
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::TEMPORAL;
 }
 
 #[cfg(feature = "chrono")]
-impl HasTypeShape for chrono::NaiveTime {
+impl HasTypeShape for NaiveTime {
     const TYPE_SHAPE: TypeShape = TypeShape::Scalar(ScalarType::Time);
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::TEMPORAL;
 }
 
 #[cfg(feature = "chrono")]
-impl HasTypeShape for chrono::NaiveDateTime {
+impl HasTypeShape for NaiveDateTime {
     const TYPE_SHAPE: TypeShape = TypeShape::Scalar(ScalarType::DateTime);
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::TEMPORAL;
 }
 
 #[cfg(feature = "chrono")]
-impl HasTypeShape for chrono::DateTime<chrono::Utc> {
+impl HasTypeShape for DateTime<Utc> {
     const TYPE_SHAPE: TypeShape = TypeShape::Scalar(ScalarType::Instant);
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::TEMPORAL;
 }
 
 #[cfg(feature = "big-decimal")]
-impl HasTypeShape for bigdecimal::BigDecimal {
+impl HasTypeShape for BigDecimal {
     const TYPE_SHAPE: TypeShape = TypeShape::Scalar(ScalarType::BigDecimal);
     const CAPABILITIES: TypeCapabilities = TypeCapabilities::DECIMAL;
 }

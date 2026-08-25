@@ -97,6 +97,10 @@ impl ModelRegistration {
     }
 
     /// Returns the stable identifier used to register this model.
+    ///
+    /// # Returns
+    ///
+    /// The stable model identifier stored in this registration.
     #[inline(always)]
     pub const fn id(&self) -> ModelId {
         self.id

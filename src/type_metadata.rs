@@ -38,6 +38,8 @@ pub use self::struct_metadata::StructMetadata;
 pub use self::type_identity::TypeIdentity;
 pub use self::type_kind::TypeKind;
 use crate::attribute::AttributeMetadata;
+use crate::attribute::PrimaryKeyMetadata;
+use crate::attribute::UniqueMetadata;
 use crate::field_metadata::FieldMetadata;
 use crate::model_id::ModelId;
 
@@ -110,6 +112,10 @@ impl TypeMetadata {
     }
 
     /// Returns the stable identifier of this model type.
+    ///
+    /// # Returns
+    ///
+    /// The portable model identifier stored in this metadata.
     #[inline(always)]
     pub const fn id(&self) -> ModelId {
         self.id
@@ -225,10 +231,7 @@ const fn validate_type_attributes(kind: TypeKind, attributes: &'static [Attribut
 /// # Panics
 ///
 /// Panics when the primary key references an unknown model field.
-const fn validate_primary_key_fields(
-    primary_key: crate::attribute::PrimaryKeyMetadata,
-    fields: &'static [FieldMetadata],
-) {
+const fn validate_primary_key_fields(primary_key: PrimaryKeyMetadata, fields: &'static [FieldMetadata]) {
     let fields_to_validate = primary_key.fields();
     let mut index = 0;
     while index < fields_to_validate.len() {
@@ -250,7 +253,7 @@ const fn validate_primary_key_fields(
 /// # Panics
 ///
 /// Panics when the unique constraint references an unknown model field.
-const fn validate_unique_fields(unique: crate::attribute::UniqueMetadata, fields: &'static [FieldMetadata]) {
+const fn validate_unique_fields(unique: UniqueMetadata, fields: &'static [FieldMetadata]) {
     let fields_to_validate = unique.fields();
     let mut index = 0;
     while index < fields_to_validate.len() {

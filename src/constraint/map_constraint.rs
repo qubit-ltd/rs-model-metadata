@@ -33,13 +33,13 @@ impl MapConstraint {
     /// * `min_entries` - The optional minimum entry count.
     /// * `max_entries` - The optional maximum entry count.
     ///
-    /// # Panics
-    ///
-    /// Panics when the supplied minimum entry count exceeds the maximum.
-    ///
     /// # Returns
     ///
     /// Map constraints containing the supplied entry limits.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the supplied minimum entry count exceeds the maximum.
     #[must_use]
     pub const fn new(min_entries: Option<u32>, max_entries: Option<u32>) -> Self {
         if let (Some(min_entries), Some(max_entries)) = (min_entries, max_entries) {

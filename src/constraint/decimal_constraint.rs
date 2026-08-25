@@ -45,14 +45,14 @@ impl DecimalConstraint {
     /// * `rounding` - The required rounding strategy.
     /// * `semantic` - The domain meaning of the decimal value.
     ///
-    /// # Panics
-    ///
-    /// Panics when `scale` exceeds a supplied `precision`.
-    ///
     /// # Returns
     ///
     /// Decimal constraints containing the supplied precision, scale, and
     /// policies.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `scale` exceeds a supplied `precision`.
     #[must_use]
     pub const fn new(precision: Option<u16>, scale: u16, rounding: RoundingMode, semantic: DecimalSemantic) -> Self {
         if let Some(precision) = precision {

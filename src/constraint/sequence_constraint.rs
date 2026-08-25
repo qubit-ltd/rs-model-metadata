@@ -36,14 +36,14 @@ impl SequenceConstraint {
     /// * `max_items` - The optional maximum item count.
     /// * `unique_items` - Whether sequence elements must be unique.
     ///
-    /// # Panics
-    ///
-    /// Panics when the supplied minimum item count exceeds the maximum.
-    ///
     /// # Returns
     ///
     /// Sequence constraints containing the supplied limits and uniqueness
     /// policy.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the supplied minimum item count exceeds the maximum.
     #[must_use]
     pub const fn new(min_items: Option<u32>, max_items: Option<u32>, unique_items: bool) -> Self {
         if let (Some(min_items), Some(max_items)) = (min_items, max_items) {

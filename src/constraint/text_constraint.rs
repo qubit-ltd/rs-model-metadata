@@ -62,13 +62,13 @@ impl TextConstraint {
     /// * `non_blank` - Whether whitespace-only values are forbidden.
     /// * `format` - The optional required semantic text format.
     ///
-    /// # Panics
-    ///
-    /// Panics when either supplied minimum exceeds its corresponding maximum.
-    ///
     /// # Returns
     ///
     /// Text constraints containing the supplied limits and policies.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either supplied minimum exceeds its corresponding maximum.
     #[must_use]
     pub const fn new(
         min_chars: Option<u32>,

@@ -44,15 +44,15 @@ impl ElementMetadata {
     /// * `attributes` - The non-empty text or decimal constraints applied to
     ///   each element.
     ///
+    /// # Returns
+    ///
+    /// Element metadata containing the supplied constraints.
+    ///
     /// # Panics
     ///
     /// Panics when `attributes` is empty, contains unsupported metadata, or
     /// repeats a constraint kind. Element-type compatibility is validated by
     /// [`crate::FieldMetadata::new`].
-    ///
-    /// # Returns
-    ///
-    /// Element metadata containing the supplied constraints.
     #[must_use]
     pub const fn new(attributes: &'static [AttributeMetadata]) -> Self {
         assert!(
