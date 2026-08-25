@@ -1,5 +1,5 @@
 error: model ID type segment `OtherModel` must match derived type `TypeNameMismatch`
- --> tests/ui/fail/model_id_type_name_mismatch.rs:8:34
+ --> tests/ui/fail/model_id_type_name_mismatch.rs:9:34
   |
-8 | #[qubit_model_derive::Model(id = "test.derive.OtherModel", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_d...
+9 | #[qubit_model_derive::Model(id = "test.derive.OtherModel", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_d...
   |                                  ^^^^^^^^^^^^^^^^^^^^^^^^
