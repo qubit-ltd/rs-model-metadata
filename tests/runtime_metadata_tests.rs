@@ -37,7 +37,7 @@ use qubit_model_derive::Model;
 struct User {
     #[identifier(generated)]
     id: Option<i64>,
-    #[unique(ignore_case)]
+    #[unique]
     nickname: Option<String>,
 }
 
