@@ -13,6 +13,8 @@ use proc_macro2::TokenStream;
 use crate::model_attribute;
 
 /// Expands the `Enum` attribute macro.
+#[must_use]
+#[inline(always)]
 pub(crate) fn expand(args: TokenStream, input: TokenStream) -> TokenStream {
     model_attribute::expand_enum(args, input)
 }

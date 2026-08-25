@@ -30,6 +30,7 @@ use crate::validate;
 ///
 /// Returns generated metadata tokens or compile-error tokens that preserve
 /// syntax, validation, and runtime-resolution diagnostics.
+#[must_use]
 pub(crate) fn derive_model_tokens(input: TokenStream, runtime_path: Result<TokenStream>) -> TokenStream {
     let derive_input = match parse2(input) {
         Ok(derive_input) => derive_input,

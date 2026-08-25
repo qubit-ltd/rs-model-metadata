@@ -22,13 +22,20 @@ use syn::PathArguments;
 use syn::Type;
 use syn::TypePath;
 
+use crate::attribute::LookupRelationAttribute;
+use crate::attribute::ReferenceAttribute;
 use crate::attribute::RoundingMode;
 use crate::attribute::SequenceAttribute;
+use crate::attribute::SpannedValue;
+use crate::attribute::StrategyAttribute;
+use crate::attribute::TemporalAttribute;
 use crate::attribute::TemporalNormalization;
 use crate::attribute::TemporalPrecision;
+use crate::attribute::TextAttribute;
 use crate::attribute::TextFormat;
 use crate::attribute::TextRepertoire;
 use crate::input::ModelVariant;
+use crate::normalize::DecimalIr;
 use crate::normalize::DecimalSemantic;
 use crate::normalize::ElementConstraintIr;
 use crate::normalize::ElementIr;
@@ -55,6 +62,7 @@ use crate::normalize::UniqueIr;
 /// # Returns
 ///
 /// Returns generated Rust tokens for the validated normalized model.
+#[must_use]
 pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
     let ident = &input.ident;
     let id = input.id.first().expect("validated model input requires one model ID");
@@ -122,6 +130,7 @@ fn expand_registration(ident: &Ident, id: &LitStr, runtime: &TokenStream) -> Tok
 
 /// Generates type-system diagnostics that remain meaningful even when local
 /// semantic validation has already rejected the model.
+#[must_use]
 pub(crate) fn expand_independent_diagnostics(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
     let unique_assertions = expand_unique_capability_assertions(&input.shape, &input.attributes, runtime);
     let field_assertions = model_fields(&input.shape)
@@ -132,6 +141,8 @@ pub(crate) fn expand_independent_diagnostics(input: &ModelIr, runtime: &TokenStr
 }
 
 /// Returns every field-bearing supported shape as a slice.
+#[must_use]
+#[inline(always)]
 fn model_fields(shape: &ModelShapeIr) -> &[FieldIr] {
     match shape {
         ModelShapeIr::NamedStruct(fields) => fields,
@@ -614,7 +625,7 @@ fn expand_field_attributes(attributes: &[FieldAttributeIr], runtime: &TokenStrea
 }
 
 /// Generates one text constraint attribute.
-fn expand_text(value: &crate::attribute::TextAttribute, runtime: &TokenStream) -> TokenStream {
+fn expand_text(value: &TextAttribute, runtime: &TokenStream) -> TokenStream {
     let min_chars = expand_optional_u32(value.min_chars.first());
     let max_chars = expand_optional_u32(value.max_chars.first());
     let min_bytes = expand_optional_u32(value.min_bytes.first());
@@ -661,7 +672,7 @@ fn expand_text(value: &crate::attribute::TextAttribute, runtime: &TokenStream) -
 }
 
 /// Generates one temporal constraint attribute.
-fn expand_temporal(value: &crate::attribute::TemporalAttribute, runtime: &TokenStream) -> TokenStream {
+fn expand_temporal(value: &TemporalAttribute, runtime: &TokenStream) -> TokenStream {
     let precision = value.precision.first();
     let precision_value = match precision.map(|occurrence| occurrence.value) {
         None | Some(TemporalPrecision::Second) => {
@@ -708,7 +719,7 @@ fn expand_temporal(value: &crate::attribute::TemporalAttribute, runtime: &TokenS
 }
 
 /// Generates one normalized decimal constraint attribute.
-fn expand_decimal(value: &crate::normalize::DecimalIr, runtime: &TokenStream) -> TokenStream {
+fn expand_decimal(value: &DecimalIr, runtime: &TokenStream) -> TokenStream {
     let precision = expand_optional_u16(value.value.precision.first());
     let scale = expand_u16_or_default(value.value.scale.first());
     let rounding = value.value.rounding.first();
@@ -757,7 +768,7 @@ fn expand_element(value: &ElementIr, runtime: &TokenStream) -> TokenStream {
 
 /// Generates an `Option<u32>` expression without relying on `Option<T>` token
 /// flattening.
-fn expand_optional_u32(value: Option<&crate::attribute::SpannedValue<u32>>) -> TokenStream {
+fn expand_optional_u32(value: Option<&SpannedValue<u32>>) -> TokenStream {
     match value {
         Some(value) => {
             let number = value.value;
@@ -770,7 +781,7 @@ fn expand_optional_u32(value: Option<&crate::attribute::SpannedValue<u32>>) -> T
 
 /// Generates an `Option<u16>` expression without relying on `Option<T>` token
 /// flattening.
-fn expand_optional_u16(value: Option<&crate::attribute::SpannedValue<u16>>) -> TokenStream {
+fn expand_optional_u16(value: Option<&SpannedValue<u16>>) -> TokenStream {
     match value {
         Some(value) => {
             let number = value.value;
@@ -783,7 +794,7 @@ fn expand_optional_u16(value: Option<&crate::attribute::SpannedValue<u16>>) -> T
 
 /// Generates a required `u16` expression, using zero for syntax deferred to
 /// validation.
-fn expand_u16_or_default(value: Option<&crate::attribute::SpannedValue<u16>>) -> TokenStream {
+fn expand_u16_or_default(value: Option<&SpannedValue<u16>>) -> TokenStream {
     match value {
         Some(value) => {
             let number = value.value;
@@ -795,7 +806,7 @@ fn expand_u16_or_default(value: Option<&crate::attribute::SpannedValue<u16>>) ->
 }
 
 /// Generates one direct-reference attribute and its static field paths.
-fn expand_reference(value: &crate::attribute::ReferenceAttribute, runtime: &TokenStream) -> TokenStream {
+fn expand_reference(value: &ReferenceAttribute, runtime: &TokenStream) -> TokenStream {
     let target = value.target.first().expect("reference parser requires a target");
     let target_field = value
         .target_field
@@ -829,7 +840,7 @@ fn expand_reference(value: &crate::attribute::ReferenceAttribute, runtime: &Toke
 }
 
 /// Generates one lookup-relation attribute and its static target field path.
-fn expand_lookup_relation(value: &crate::attribute::LookupRelationAttribute, runtime: &TokenStream) -> TokenStream {
+fn expand_lookup_relation(value: &LookupRelationAttribute, runtime: &TokenStream) -> TokenStream {
     let target = value.target.first().expect("lookup_relation parser requires a target");
     let target_field = value
         .target_field
@@ -849,7 +860,7 @@ fn expand_lookup_relation(value: &crate::attribute::LookupRelationAttribute, run
 }
 
 /// Generates one codec or generator strategy attribute.
-fn expand_strategy(value: &crate::attribute::StrategyAttribute, runtime: &TokenStream, codec: bool) -> TokenStream {
+fn expand_strategy(value: &StrategyAttribute, runtime: &TokenStream, codec: bool) -> TokenStream {
     let name = value.name.first().expect("strategy parser requires a name");
     let span = value.span;
     if codec {

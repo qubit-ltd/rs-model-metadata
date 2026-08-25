@@ -51,6 +51,8 @@ pub(crate) fn serialized_variant_name(variant: &Variant) -> Result<String> {
 }
 
 /// Returns whether an item already declares `must_use`.
+#[must_use]
+#[inline(always)]
 pub(crate) fn has_must_use(attributes: &[Attribute]) -> bool {
     attributes.iter().any(|attribute| attribute.path().is_ident("must_use"))
 }

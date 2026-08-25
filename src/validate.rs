@@ -22,6 +22,7 @@ use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
 use crate::attribute::FieldName;
+use crate::attribute::SequenceAttribute;
 use crate::attribute::SpannedValue;
 use crate::attribute::TextAttribute;
 use crate::normalize::DecimalIr;
@@ -204,6 +205,8 @@ fn is_rust_keyword(segment: &str) -> bool {
 }
 
 /// Returns the fields addressable by local model-level constraints.
+#[must_use]
+#[inline(always)]
 fn model_fields(model: &ModelIr) -> &[FieldIr] {
     match &model.shape {
         ModelShapeIr::NamedStruct(fields) => fields,
@@ -785,7 +788,7 @@ fn validate_decimal(value: &DecimalIr, errors: &mut Option<Error>) {
 
 /// Validates the fixed-length-array redundancy rule when the array syntax is
 /// explicit.
-fn validate_sequence_shape(value: &crate::attribute::SequenceAttribute, ty: &Type, errors: &mut Option<Error>) {
+fn validate_sequence_shape(value: &SequenceAttribute, ty: &Type, errors: &mut Option<Error>) {
     if !is_syntactic_array(ty) {
         return;
     }
