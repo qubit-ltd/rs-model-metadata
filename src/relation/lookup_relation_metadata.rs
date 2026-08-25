@@ -12,6 +12,21 @@ use super::field_path::FieldPath;
 use crate::type_metadata::NamedTypeRef;
 
 /// A relation resolved by looking up another model.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::FieldPath;
+/// use qubit_model_metadata::LookupRelationMetadata;
+/// use qubit_model_metadata::NamedTypeRef;
+/// use qubit_model_metadata::TypeIdentity;
+///
+/// let lookup = LookupRelationMetadata::new(
+///     NamedTypeRef::unresolved(TypeIdentity::of::<u8>()),
+///     FieldPath::new(&["code"]),
+/// );
+/// assert_eq!(lookup.target_field().to_string(), "code");
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct LookupRelationMetadata {
     /// The named model containing the lookup field.

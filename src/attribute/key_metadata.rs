@@ -10,6 +10,17 @@ use super::validation::validate_named_fields;
 use super::validation::validate_optional_logical_name;
 
 /// A model-level logical-key definition.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::KeyMetadata;
+///
+/// const FIELDS: [&str; 1] = ["username"];
+/// let key = KeyMetadata::new(Some("user"), &FIELDS);
+/// assert_eq!(key.name(), Some("user"));
+/// assert!(key.fields().contains(&"username"));
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct KeyMetadata {
     /// The optional logical key name.

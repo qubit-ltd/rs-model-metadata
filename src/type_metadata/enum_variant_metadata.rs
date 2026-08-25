@@ -9,6 +9,15 @@
 //! Metadata for fieldless enum variants.
 
 /// Metadata for a fieldless enum variant.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::EnumVariantMetadata;
+///
+/// let variant = EnumVariantMetadata::new(0, "Active");
+/// assert_eq!(variant.name(), "Active");
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct EnumVariantMetadata {

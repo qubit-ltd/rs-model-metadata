@@ -3,17 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
-//    You may obtain a copy of the License at
-//
-//        http://www.apache.org/licenses/LICENSE-2.0
-//
-//    Unless required by applicable law or agreed to in writing, software
-//    distributed under the License is distributed on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//    See the License for the specific language governing permissions and
-//    limitations under the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Distributed declarations for statically linked model metadata.
@@ -33,6 +23,33 @@ pub use self::has_model_registration::registration_of;
 pub use self::source_location::SourceLocation;
 
 /// A statically linked model metadata declaration.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::ModelId;
+/// use qubit_model_metadata::ModelRegistration;
+/// use qubit_model_metadata::SourceLocation;
+/// use qubit_model_metadata::StructMetadata;
+/// use qubit_model_metadata::TypeIdentity;
+/// use qubit_model_metadata::TypeKind;
+/// use qubit_model_metadata::TypeMetadata;
+///
+/// static METADATA: TypeMetadata = TypeMetadata::new(
+///     ModelId::new("example.Account"),
+///     TypeIdentity::of::<u8>(),
+///     TypeKind::Struct(StructMetadata::new(&[])),
+///     &[],
+/// );
+/// let registration = ModelRegistration::new(
+///     ModelId::new("example.Account"),
+///     &METADATA,
+///     "example::Account",
+///     "example",
+///     SourceLocation::new("account.rs", 1, 1),
+/// );
+/// assert_eq!(registration.id().as_str(), "example.Account");
+/// ```
 #[derive(Debug)]
 pub struct ModelRegistration {
     /// The stable model identifier used as the registry key.
@@ -80,13 +97,16 @@ impl ModelRegistration {
     }
 
     /// Returns the stable identifier used to register this model.
-    #[must_use]
     #[inline(always)]
     pub const fn id(&self) -> ModelId {
         self.id
     }
 
     /// Returns the immutable metadata registered for this model.
+    ///
+    /// # Returns
+    ///
+    /// The static metadata linked to this registration.
     #[inline(always)]
     pub const fn metadata(&self) -> &'static TypeMetadata {
         self.metadata

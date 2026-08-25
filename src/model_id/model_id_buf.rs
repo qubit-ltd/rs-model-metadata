@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Owned stable model identifiers for dynamic inputs.
@@ -13,6 +15,16 @@ use super::ModelId;
 use super::ModelIdError;
 
 /// A validated, owned stable identifier for a model type.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::ModelId;
+/// use qubit_model_metadata::ModelIdBuf;
+///
+/// let owned = ModelIdBuf::try_from("example.Account").expect("valid model ID");
+/// assert_eq!(owned.as_str(), ModelId::new("example.Account").as_str());
+/// ```
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModelIdBuf(String);
 
@@ -26,6 +38,7 @@ impl ModelIdBuf {
 }
 
 impl TryFrom<String> for ModelIdBuf {
+    /// The validation error returned for an invalid model-ID string.
     type Error = ModelIdError;
 
     /// Validates and takes ownership of a dynamic model-ID string.
@@ -36,6 +49,7 @@ impl TryFrom<String> for ModelIdBuf {
 }
 
 impl TryFrom<&str> for ModelIdBuf {
+    /// The validation error returned for an invalid model-ID string.
     type Error = ModelIdError;
 
     /// Validates and copies a dynamic model-ID string.

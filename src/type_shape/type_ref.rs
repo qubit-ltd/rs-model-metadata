@@ -17,6 +17,17 @@ use crate::type_shape::TypeCapabilities;
 use crate::type_shape::TypeShape;
 
 /// A small, copyable reference to a type's static shape metadata.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::TypeRef;
+/// use qubit_model_metadata::TypeShape;
+///
+/// let type_ref = TypeRef::of::<Option<String>>();
+/// assert!(matches!(type_ref.shape(), TypeShape::Optional(_)));
+/// assert!(type_ref.type_name().contains("Option"));
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct TypeRef {
@@ -156,6 +167,7 @@ impl TypeRef {
     ///
     /// `Some` with the element capabilities for sequence and array shapes;
     /// otherwise, `None`.
+    #[must_use]
     #[inline(always)]
     pub const fn element_capabilities(self) -> Option<TypeCapabilities> {
         self.element_capabilities

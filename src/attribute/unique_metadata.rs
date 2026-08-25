@@ -12,6 +12,19 @@ use super::validation::validate_optional_logical_name;
 use super::validation::validate_unique_fields;
 
 /// A model-level unique-constraint definition.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::UniqueComparison;
+/// use qubit_model_metadata::UniqueFieldMetadata;
+/// use qubit_model_metadata::UniqueMetadata;
+///
+/// const FIELDS: [UniqueFieldMetadata; 1] =
+///     [UniqueFieldMetadata::new("email", UniqueComparison::IgnoreCase)];
+/// let unique = UniqueMetadata::new(Some("user_email"), &FIELDS);
+/// assert_eq!(unique.comparison_of("email"), Some(UniqueComparison::IgnoreCase));
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct UniqueMetadata {
     /// The optional logical constraint name.

@@ -7,6 +7,14 @@
 // =============================================================================
 
 /// The domain meaning of a decimal value.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::DecimalSemantic;
+///
+/// assert_ne!(DecimalSemantic::Money, DecimalSemantic::Number);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DecimalSemantic {
     /// A general-purpose decimal number.

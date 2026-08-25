@@ -7,6 +7,14 @@
 // =============================================================================
 
 /// The repertoire accepted by a text constraint.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::TextRepertoire;
+///
+/// assert_eq!(TextRepertoire::default(), TextRepertoire::Unicode);
+/// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextRepertoire {
     /// All Unicode scalar values are accepted.

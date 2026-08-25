@@ -14,6 +14,10 @@ use super::UniqueFieldMetadata;
 /// # Parameters
 ///
 /// * `fields` - The primary-key fields to validate.
+///
+/// # Panics
+///
+/// Panics when a field name is empty or duplicated.
 pub(super) const fn validate_primary_key_fields(fields: &'static [PrimaryKeyFieldMetadata]) {
     let mut index = 0;
     while index < fields.len() {
@@ -38,6 +42,10 @@ pub(super) const fn validate_primary_key_fields(fields: &'static [PrimaryKeyFiel
 /// # Parameters
 ///
 /// * `fields` - The unique-constraint fields to validate.
+///
+/// # Panics
+///
+/// Panics when a field name is empty or duplicated.
 pub(super) const fn validate_unique_fields(fields: &'static [UniqueFieldMetadata]) {
     let mut index = 0;
     while index < fields.len() {
@@ -59,6 +67,10 @@ pub(super) const fn validate_unique_fields(fields: &'static [UniqueFieldMetadata
 /// # Parameters
 ///
 /// * `names` - The field names to validate.
+///
+/// # Panics
+///
+/// Panics when a field name is empty or duplicated.
 pub(super) const fn validate_named_fields(names: &'static [&'static str]) {
     let mut index = 0;
     while index < names.len() {
@@ -76,6 +88,14 @@ pub(super) const fn validate_named_fields(names: &'static [&'static str]) {
 }
 
 /// Validates an optional logical name when one is supplied.
+///
+/// # Parameters
+///
+/// * `name` - The optional logical name to validate.
+///
+/// # Panics
+///
+/// Panics when a supplied name is empty.
 pub(super) const fn validate_optional_logical_name(name: Option<&'static str>) {
     if let Some(name) = name {
         assert!(!name.is_empty(), "logical constraint names cannot be empty");

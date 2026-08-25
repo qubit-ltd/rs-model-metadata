@@ -7,6 +7,17 @@
 // =============================================================================
 
 /// A discriminant for generic attribute queries.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::AttributeKind;
+/// use qubit_model_metadata::AttributeMetadata;
+/// use qubit_model_metadata::StrategyRef;
+///
+/// let attribute = AttributeMetadata::Codec(StrategyRef::new("redact-email"));
+/// assert_eq!(attribute.kind(), AttributeKind::Codec);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AttributeKind {

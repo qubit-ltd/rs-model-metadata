@@ -9,6 +9,27 @@
 use super::AttributeMetadata;
 
 /// Static constraints applied to each element of a sequence field.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::AttributeMetadata;
+/// use qubit_model_metadata::ElementMetadata;
+/// use qubit_model_metadata::TextConstraint;
+/// use qubit_model_metadata::TextRepertoire;
+///
+/// const ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Text(TextConstraint::new(
+///     None,
+///     Some(64),
+///     None,
+///     None,
+///     TextRepertoire::Unicode,
+///     false,
+///     None,
+/// ))];
+/// let element = ElementMetadata::new(&ATTRIBUTES);
+/// assert_eq!(element.attributes().len(), 1);
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct ElementMetadata {
     /// Element-level attributes in declaration order.

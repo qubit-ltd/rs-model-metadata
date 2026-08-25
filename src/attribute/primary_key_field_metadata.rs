@@ -7,6 +7,16 @@
 // =============================================================================
 
 /// A field participating in a primary key.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::PrimaryKeyFieldMetadata;
+///
+/// let field = PrimaryKeyFieldMetadata::new("id", true);
+/// assert_eq!(field.name(), "id");
+/// assert!(field.is_generated());
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct PrimaryKeyFieldMetadata {
     /// The normalized field name.

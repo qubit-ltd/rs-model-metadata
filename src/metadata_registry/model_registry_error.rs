@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Construction errors for immutable model registries.
@@ -14,6 +16,24 @@ use crate::model_registration::ModelRegistration;
 use crate::type_metadata::TypeIdentity;
 
 /// A configuration error encountered while constructing a model registry.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::ModelRegistry;
+/// use qubit_model_metadata::ModelRegistryError;
+///
+/// fn classify(result: Result<ModelRegistry, ModelRegistryError>) -> &'static str {
+///     match result {
+///         Ok(_) => "ok",
+///         Err(ModelRegistryError::DuplicateId { .. }) => "duplicate id",
+///         Err(_) => "other",
+///     }
+/// }
+///
+/// assert_eq!(classify(ModelRegistry::from_registrations([])), "ok");
+/// ```
+#[must_use]
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum ModelRegistryError {

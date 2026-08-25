@@ -12,6 +12,23 @@ use super::field_path::FieldPath;
 use crate::model_id::ModelId;
 
 /// A direct reference from a field to a target model field.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::FieldPath;
+/// use qubit_model_metadata::ModelId;
+/// use qubit_model_metadata::ReferenceMetadata;
+///
+/// let reference = ReferenceMetadata::new(
+///     ModelId::new("example.Account"),
+///     FieldPath::new(&["id"]),
+///     true,
+///     None,
+/// );
+/// assert_eq!(reference.target().as_str(), "example.Account");
+/// assert!(reference.must_exist());
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct ReferenceMetadata {
     /// The stable ID of the model containing the referenced field.

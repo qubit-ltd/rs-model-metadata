@@ -7,6 +7,14 @@
 // =============================================================================
 
 /// A rounding strategy for decimal constraints.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::RoundingMode;
+///
+/// assert_ne!(RoundingMode::HalfEven, RoundingMode::Down);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RoundingMode {
     /// Round toward zero.

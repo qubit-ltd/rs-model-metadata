@@ -9,6 +9,17 @@
 use super::UniqueComparison;
 
 /// A field participating in a unique constraint.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::UniqueComparison;
+/// use qubit_model_metadata::UniqueFieldMetadata;
+///
+/// let field = UniqueFieldMetadata::new("email", UniqueComparison::Exact);
+/// assert_eq!(field.name(), "email");
+/// assert_eq!(field.comparison(), UniqueComparison::Exact);
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct UniqueFieldMetadata {
     /// The normalized field name.

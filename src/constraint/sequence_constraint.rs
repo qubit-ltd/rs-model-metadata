@@ -7,6 +7,16 @@
 // =============================================================================
 
 /// Constraints that apply to an ordered sequence.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::SequenceConstraint;
+///
+/// let constraint = SequenceConstraint::new(Some(1), Some(10), true);
+/// assert_eq!(constraint.max_items(), Some(10));
+/// assert!(constraint.has_unique_items());
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SequenceConstraint {
     /// The minimum number of items, if constrained.

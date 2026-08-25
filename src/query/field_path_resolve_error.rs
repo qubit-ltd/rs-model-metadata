@@ -9,6 +9,30 @@
 //! Errors returned while resolving field paths.
 
 /// A typed reason why a field path cannot be resolved.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::FieldPath;
+/// use qubit_model_metadata::FieldPathResolveError;
+/// use qubit_model_metadata::ModelId;
+/// use qubit_model_metadata::StructMetadata;
+/// use qubit_model_metadata::TypeIdentity;
+/// use qubit_model_metadata::TypeKind;
+/// use qubit_model_metadata::TypeMetadata;
+///
+/// let metadata = TypeMetadata::new(
+///     ModelId::new("example.Account"),
+///     TypeIdentity::of::<u8>(),
+///     TypeKind::Struct(StructMetadata::new(&[])),
+///     &[],
+/// );
+/// assert_eq!(
+///     metadata.resolve_field_path(FieldPath::new(&[])).unwrap_err(),
+///     FieldPathResolveError::EmptyPath
+/// );
+/// ```
+#[must_use]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FieldPathResolveError {

@@ -9,6 +9,16 @@
 //! Static sequences of field-name segments.
 
 /// A statically declared sequence of field-name segments.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::FieldPath;
+///
+/// let path = FieldPath::new(&["profile", "email"]);
+/// assert_eq!(path.to_string(), "profile.email");
+/// assert!(!path.is_empty());
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FieldPath {
     /// The field-name segments in traversal order.

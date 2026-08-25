@@ -10,6 +10,17 @@ use super::validation::validate_named_fields;
 use super::validation::validate_optional_logical_name;
 
 /// A model-level index definition.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::IndexMetadata;
+///
+/// const FIELDS: [&str; 2] = ["organization_id", "email"];
+/// let index = IndexMetadata::new(Some("organization_email"), &FIELDS);
+/// assert_eq!(index.name(), Some("organization_email"));
+/// assert_eq!(index.fields(), &FIELDS);
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct IndexMetadata {
     /// The optional logical index name.

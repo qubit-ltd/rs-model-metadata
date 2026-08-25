@@ -12,6 +12,15 @@ use bitflags::bitflags;
 
 bitflags! {
     /// Capabilities that determine which metadata attributes a type can accept.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qubit_model_metadata::TypeCapabilities;
+    ///
+    /// assert!(TypeCapabilities::TEXT.contains(TypeCapabilities::TEXT));
+    /// assert!(!TypeCapabilities::NONE.contains(TypeCapabilities::SEQUENCE));
+    /// ```
     #[must_use]
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
     pub struct TypeCapabilities: u8 {

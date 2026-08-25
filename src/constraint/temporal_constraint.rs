@@ -10,6 +10,17 @@ use super::TemporalNormalization;
 use super::TemporalPrecision;
 
 /// Constraints for temporal values.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::TemporalConstraint;
+/// use qubit_model_metadata::TemporalNormalization;
+/// use qubit_model_metadata::TemporalPrecision;
+///
+/// let constraint = TemporalConstraint::new(TemporalPrecision::Millisecond, TemporalNormalization::Utc);
+/// assert_eq!(constraint.precision(), TemporalPrecision::Millisecond);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TemporalConstraint {
     /// The required temporal precision.

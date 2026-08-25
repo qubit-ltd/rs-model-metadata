@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Source locations associated with static model registrations.
@@ -9,6 +11,15 @@
 use std::fmt;
 
 /// The source location where a model registration was declared.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::SourceLocation;
+///
+/// let source = SourceLocation::new("src/account.rs", 12, 1);
+/// assert_eq!(source.to_string(), "src/account.rs:12:1");
+/// ```
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct SourceLocation {
     /// The source file containing the registration.

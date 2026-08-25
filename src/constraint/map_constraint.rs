@@ -7,6 +7,16 @@
 // =============================================================================
 
 /// Constraints that apply to a map.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::MapConstraint;
+///
+/// let constraint = MapConstraint::new(Some(1), Some(8));
+/// assert_eq!(constraint.min_entries(), Some(1));
+/// assert_eq!(constraint.max_entries(), Some(8));
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MapConstraint {
     /// The minimum number of entries, if constrained.

@@ -10,6 +10,18 @@ use super::DecimalSemantic;
 use super::RoundingMode;
 
 /// Constraints for decimal values.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::DecimalConstraint;
+/// use qubit_model_metadata::DecimalSemantic;
+/// use qubit_model_metadata::RoundingMode;
+///
+/// let constraint = DecimalConstraint::new(Some(12), 2, RoundingMode::HalfEven, DecimalSemantic::Money);
+/// assert_eq!(constraint.scale(), 2);
+/// assert_eq!(constraint.semantic(), DecimalSemantic::Money);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DecimalConstraint {
     /// The total significant-digit precision, if constrained.

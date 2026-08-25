@@ -14,6 +14,18 @@ use crate::field_metadata::FieldMetadata;
 use crate::type_metadata::TypeMetadata;
 
 /// Provides allocation-free queries over a static metadata attribute slice.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::AttributeKind;
+/// use qubit_model_metadata::AttributeQuery;
+/// use qubit_model_metadata::FieldMetadata;
+/// use qubit_model_metadata::TypeRef;
+///
+/// let field = FieldMetadata::new(0, "email", "String", TypeRef::of::<String>(), &[]);
+/// assert!(field.attribute(AttributeKind::Text).is_none());
+/// ```
 pub trait AttributeQuery {
     /// Returns the complete static attribute slice.
     ///

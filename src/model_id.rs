@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Stable, portable identifiers for model types.
@@ -15,28 +17,35 @@ pub use self::model_id_buf::ModelIdBuf;
 pub use self::model_id_error::ModelIdError;
 
 /// A stable identifier for a model type.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::ModelId;
+///
+/// let id = ModelId::new("example.Account");
+/// assert_eq!(id.as_str(), "example.Account");
+/// assert_eq!(id.type_name(), "Account");
+/// ```
+#[must_use]
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModelId(&'static str);
 
 impl ModelId {
-    /// Validates a model-ID string without allocating.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
-    /// protocol.
-    #[inline]
-    pub const fn validate(value: &str) -> Result<(), ModelIdError> {
-        validate_model_id(value)
-    }
-
     /// Creates a validated model ID from a static value.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The static model-ID string to wrap.
+    ///
+    /// # Returns
+    ///
+    /// A validated model ID borrowing `value`.
     ///
     /// # Panics
     ///
     /// Panics when `value` does not follow the stable-ID protocol. Use
     /// [`ModelId::try_new`] when callers need a recoverable error.
-    #[must_use]
     #[inline(always)]
     pub const fn new(value: &'static str) -> Self {
         match Self::validate(value) {
@@ -47,12 +56,37 @@ impl ModelId {
 
     /// Validates and creates a model ID from a static value.
     ///
+    /// # Parameters
+    ///
+    /// - `value`: The static model-ID string to wrap.
+    ///
+    /// # Returns
+    ///
+    /// A validated model ID borrowing `value`.
+    ///
+    /// # Errors
+    ///
     /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
     /// protocol.
     #[inline]
     pub fn try_new(value: &'static str) -> Result<Self, ModelIdError> {
         Self::validate(value)?;
         Ok(Self(value))
+    }
+
+    /// Validates a model-ID string without allocating.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The candidate model-ID string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
+    /// protocol.
+    #[inline]
+    pub const fn validate(value: &str) -> Result<(), ModelIdError> {
+        validate_model_id(value)
     }
 
     /// Returns the complete stable model ID.

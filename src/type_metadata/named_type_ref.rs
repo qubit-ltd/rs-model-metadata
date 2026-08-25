@@ -14,6 +14,17 @@ use crate::type_metadata::TypeMetadata;
 use crate::type_metadata::metadata_of;
 
 /// A static reference to metadata for a named model type.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::NamedTypeRef;
+/// use qubit_model_metadata::TypeIdentity;
+///
+/// let named = NamedTypeRef::unresolved(TypeIdentity::of::<u8>());
+/// assert_eq!(named.identity(), TypeIdentity::of::<u8>());
+/// assert!(named.metadata().is_none());
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct NamedTypeRef {
@@ -82,6 +93,7 @@ impl NamedTypeRef {
     /// # Returns
     ///
     /// The runtime identity of the named type.
+    #[must_use]
     #[inline(always)]
     pub const fn identity(self) -> TypeIdentity {
         self.identity

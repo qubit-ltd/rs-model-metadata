@@ -7,6 +7,14 @@
 // =============================================================================
 
 /// The resolution retained for temporal values.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::TemporalPrecision;
+///
+/// assert_ne!(TemporalPrecision::Nanosecond, TemporalPrecision::Second);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TemporalPrecision {
     /// Whole seconds.

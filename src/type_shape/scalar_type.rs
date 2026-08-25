@@ -9,6 +9,16 @@
 //! Scalar types supported by the metadata system.
 
 /// A scalar type supported by the metadata system.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::HasTypeShape;
+/// use qubit_model_metadata::ScalarType;
+/// use qubit_model_metadata::TypeShape;
+///
+/// assert!(matches!(i64::TYPE_SHAPE, TypeShape::Scalar(ScalarType::I64)));
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]

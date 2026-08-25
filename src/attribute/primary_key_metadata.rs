@@ -10,6 +10,17 @@ use super::PrimaryKeyFieldMetadata;
 use super::validation::validate_primary_key_fields;
 
 /// A model-level primary-key definition.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::PrimaryKeyFieldMetadata;
+/// use qubit_model_metadata::PrimaryKeyMetadata;
+///
+/// const FIELDS: [PrimaryKeyFieldMetadata; 1] = [PrimaryKeyFieldMetadata::new("id", true)];
+/// let primary_key = PrimaryKeyMetadata::new(&FIELDS);
+/// assert!(primary_key.contains("id"));
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct PrimaryKeyMetadata {
     /// The primary-key fields in declaration order.

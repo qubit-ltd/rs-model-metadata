@@ -22,6 +22,17 @@ use crate::type_shape::TypeRef;
 use crate::type_shape::TypeShape;
 
 /// Metadata exposed by types whose structure can be described statically.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::HasTypeShape;
+/// use qubit_model_metadata::TypeCapabilities;
+/// use qubit_model_metadata::TypeShape;
+///
+/// assert!(matches!(String::TYPE_SHAPE, TypeShape::Scalar(_)));
+/// assert_eq!(String::CAPABILITIES, TypeCapabilities::TEXT);
+/// ```
 pub trait HasTypeShape: 'static {
     /// The recursive shape of this type.
     const TYPE_SHAPE: TypeShape;

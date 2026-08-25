@@ -11,6 +11,18 @@
 use crate::field_metadata::FieldMetadata;
 
 /// Metadata for a single-field tuple newtype.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::FieldMetadata;
+/// use qubit_model_metadata::NewtypeMetadata;
+/// use qubit_model_metadata::TypeRef;
+///
+/// const INNER: FieldMetadata = FieldMetadata::new(0, "0", "i64", TypeRef::of::<i64>(), &[]);
+/// let metadata = NewtypeMetadata::new(INNER);
+/// assert_eq!(metadata.field().name(), "0");
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct NewtypeMetadata {

@@ -23,6 +23,18 @@ use crate::type_shape::TypeRef;
 use crate::type_shape::TypeShape;
 
 /// Immutable metadata for a declared model field.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::FieldMetadata;
+/// use qubit_model_metadata::TypeRef;
+/// use qubit_model_metadata::TypeShape;
+///
+/// let field = FieldMetadata::new(0, "email", "String", TypeRef::of::<String>(), &[]);
+/// assert_eq!(field.name(), "email");
+/// assert!(matches!(field.field_type().shape(), TypeShape::Scalar(_)));
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct FieldMetadata {
     /// The field's zero-based declaration position.

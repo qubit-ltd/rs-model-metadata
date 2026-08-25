@@ -24,6 +24,16 @@ pub use self::type_ref::TypeRef;
 use crate::type_metadata::NamedTypeRef;
 
 /// The recursive structural shape of a Rust type.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::HasTypeShape;
+/// use qubit_model_metadata::TypeShape;
+///
+/// assert!(matches!(Vec::<u8>::TYPE_SHAPE, TypeShape::Sequence(_)));
+/// assert!(matches!(Option::<u8>::TYPE_SHAPE, TypeShape::Optional(_)));
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]

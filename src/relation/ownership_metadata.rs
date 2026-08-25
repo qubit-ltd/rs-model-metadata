@@ -11,6 +11,17 @@
 use crate::type_metadata::NamedTypeRef;
 
 /// Metadata declaring the named model that owns this model.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::NamedTypeRef;
+/// use qubit_model_metadata::OwnershipMetadata;
+/// use qubit_model_metadata::TypeIdentity;
+///
+/// let ownership = OwnershipMetadata::new(NamedTypeRef::unresolved(TypeIdentity::of::<u8>()));
+/// assert!(ownership.owner().metadata().is_none());
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct OwnershipMetadata {
     /// The named model that owns the current model.

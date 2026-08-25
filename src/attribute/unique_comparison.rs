@@ -7,6 +7,16 @@
 // =============================================================================
 
 /// Comparison semantics for a field within a unique constraint.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::UniqueComparison;
+/// use qubit_model_metadata::UniqueFieldMetadata;
+///
+/// let field = UniqueFieldMetadata::new("email", UniqueComparison::IgnoreCase);
+/// assert_eq!(field.comparison(), UniqueComparison::IgnoreCase);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UniqueComparison {
     /// Compare values exactly.

@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Individual direct-reference graph validation errors.
@@ -12,6 +14,20 @@ use crate::model_id::ModelId;
 use crate::relation::FieldPath;
 
 /// A validation error found in a model registry's direct-reference graph.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::ModelGraphError;
+/// use qubit_model_metadata::ModelId;
+///
+/// let error = ModelGraphError::MissingOwner {
+///     source: ModelId::new("example.Order"),
+///     owner: ModelId::new("example.Customer"),
+/// };
+/// assert!(error.to_string().contains("example.Order"));
+/// ```
+#[must_use]
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ModelGraphError {

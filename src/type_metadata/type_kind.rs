@@ -13,6 +13,15 @@ use crate::type_metadata::NewtypeMetadata;
 use crate::type_metadata::StructMetadata;
 
 /// The structural form of a named model type.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::StructMetadata;
+/// use qubit_model_metadata::TypeKind;
+///
+/// assert!(matches!(TypeKind::Struct(StructMetadata::new(&[])), TypeKind::Struct(_)));
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]

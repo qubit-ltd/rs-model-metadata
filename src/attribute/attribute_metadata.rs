@@ -23,6 +23,17 @@ use crate::relation::OwnershipMetadata;
 use crate::relation::ReferenceMetadata;
 
 /// A strongly typed metadata attribute.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::AttributeKind;
+/// use qubit_model_metadata::AttributeMetadata;
+/// use qubit_model_metadata::StrategyRef;
+///
+/// let attribute = AttributeMetadata::Generator(StrategyRef::new("uuid-v7"));
+/// assert_eq!(attribute.kind(), AttributeKind::Generator);
+/// ```
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum AttributeMetadata {

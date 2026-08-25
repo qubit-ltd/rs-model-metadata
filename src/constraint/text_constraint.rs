@@ -10,6 +10,26 @@ use super::TextFormat;
 use super::TextRepertoire;
 
 /// Text constraints that apply to a string field.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::TextConstraint;
+/// use qubit_model_metadata::TextFormat;
+/// use qubit_model_metadata::TextRepertoire;
+///
+/// let constraint = TextConstraint::new(
+///     Some(3),
+///     Some(320),
+///     None,
+///     None,
+///     TextRepertoire::Ascii,
+///     true,
+///     Some(TextFormat::Email),
+/// );
+/// assert_eq!(constraint.max_chars(), Some(320));
+/// assert_eq!(constraint.format(), Some(TextFormat::Email));
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TextConstraint {
     /// The minimum number of Unicode scalar values, if constrained.

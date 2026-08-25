@@ -11,6 +11,20 @@
 use crate::type_metadata::EnumVariantMetadata;
 
 /// Metadata for a fieldless enum.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::EnumMetadata;
+/// use qubit_model_metadata::EnumVariantMetadata;
+///
+/// const VARIANTS: [EnumVariantMetadata; 2] = [
+///     EnumVariantMetadata::new(0, "Active"),
+///     EnumVariantMetadata::new(1, "Closed"),
+/// ];
+/// let metadata = EnumMetadata::new(&VARIANTS);
+/// assert_eq!(metadata.variant("Closed").map(|variant| variant.ordinal()), Some(1));
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct EnumMetadata {

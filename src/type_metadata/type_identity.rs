@@ -17,6 +17,16 @@ use core::any::type_name;
 /// This identity is local to the Rust process/build that produced it. It is
 /// suitable for in-memory metadata lookup, but must not be persisted or used
 /// as a stable cross-process identifier.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::TypeIdentity;
+///
+/// let identity = TypeIdentity::of::<String>();
+/// assert_eq!(identity, TypeIdentity::of::<String>());
+/// assert_ne!(identity, TypeIdentity::of::<u8>());
+/// ```
 #[derive(Clone, Copy)]
 pub struct TypeIdentity {
     /// A function that returns the runtime [`TypeId`] for the represented
@@ -37,6 +47,7 @@ impl TypeIdentity {
     /// # Returns
     ///
     /// A type identity that can be compared, hashed, and displayed.
+    #[must_use]
     #[inline]
     pub const fn of<T: 'static>() -> Self {
         Self {

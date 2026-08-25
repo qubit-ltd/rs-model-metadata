@@ -7,6 +7,15 @@
 // =============================================================================
 
 /// A static identifier for an external strategy implemented by another crate.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::StrategyRef;
+///
+/// let strategy = StrategyRef::new("redact-email");
+/// assert_eq!(strategy.name(), "redact-email");
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StrategyRef {
     /// The stable logical strategy name.

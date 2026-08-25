@@ -7,6 +7,14 @@
 // =============================================================================
 
 /// A semantic format accepted by a text constraint.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::TextFormat;
+///
+/// assert_ne!(TextFormat::Email, TextFormat::Uuid);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TextFormat {
     /// An email address.

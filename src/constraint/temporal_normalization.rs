@@ -7,6 +7,14 @@
 // =============================================================================
 
 /// The normalization policy for temporal values.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::TemporalNormalization;
+///
+/// assert_ne!(TemporalNormalization::Utc, TemporalNormalization::Preserve);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TemporalNormalization {
     /// Preserve the value's supplied offset or timezone representation.

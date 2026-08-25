@@ -11,6 +11,19 @@
 use crate::field_metadata::FieldMetadata;
 
 /// Metadata for a struct with named fields.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::FieldMetadata;
+/// use qubit_model_metadata::StructMetadata;
+/// use qubit_model_metadata::TypeRef;
+///
+/// const FIELDS: [FieldMetadata; 1] =
+///     [FieldMetadata::new(0, "id", "i64", TypeRef::of::<i64>(), &[])];
+/// let metadata = StructMetadata::new(&FIELDS);
+/// assert_eq!(metadata.fields()[0].name(), "id");
+/// ```
 #[must_use]
 #[derive(Clone, Copy, Debug)]
 pub struct StructMetadata {
