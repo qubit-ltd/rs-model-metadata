@@ -1,4 +1,2 @@
-multiple-public-types | src/model_options.rs | Model capability options and their normalized disabled-state representation are parsed together.
-multiple-public-types | src/attribute.rs | Attribute parsing AST is intentionally grouped for recursive parsing.
-multiple-public-types | src/input.rs | Parsed declaration model types form one syntax tree.
-multiple-public-types | src/normalize.rs | Normalized metadata IR types form one recursive representation.
+# Reviewed exceptions for qubit-style mechanical checks.
+# Format: rule | path | reason

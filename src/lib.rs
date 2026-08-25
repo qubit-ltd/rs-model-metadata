@@ -11,6 +11,7 @@
 mod attribute;
 mod attribute_support;
 mod derive_model_impl;
+mod disabled_capabilities;
 mod enum_attribute;
 mod expand;
 mod input;
@@ -19,6 +20,9 @@ mod model_options;
 mod normalize;
 mod runtime_path;
 mod validate;
+
+#[cfg(test)]
+mod tests;
 
 use proc_macro::TokenStream;
 
@@ -44,6 +48,22 @@ use proc_macro::TokenStream;
 ///
 /// Diagnostics are returned as compile-error tokens for unsupported model
 /// shapes, invalid attributes, and missing runtime dependencies.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+///
+/// #[Model(id = "example.Item")]
+/// struct Item {
+///     name: String,
+/// }
+///
+/// let item = Item {
+///     name: "alpha".to_owned(),
+/// };
+/// assert_eq!(item.name, "alpha");
+/// ```
 #[proc_macro_attribute /* required by the style checker */]
 #[allow(non_snake_case)]
 pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -71,6 +91,21 @@ pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Diagnostics are returned as compile-error tokens for non-unit variants,
 /// duplicate serialized names, invalid attributes, and missing runtime
 /// dependencies.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Enum;
+///
+/// #[Enum(id = "example.Status")]
+/// enum Status {
+///     Active,
+///     Suspended,
+/// }
+///
+/// assert_eq!(Status::Active.name(), "ACTIVE");
+/// assert_eq!(Status::from_name("SUSPENDED"), Some(Status::Suspended));
+/// ```
 #[proc_macro_attribute /* required by the style checker */]
 #[allow(non_snake_case)]
 pub fn Enum(args: TokenStream, input: TokenStream) -> TokenStream {

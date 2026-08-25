@@ -6,208 +6,37 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-// qubit-style: allow multiple-public-types
 //! Normalization from parsed attribute syntax to expansion-ready semantic IR.
 
 use proc_macro2::Span;
 use syn::GenericArgument;
-use syn::Ident;
-use syn::LitStr;
 use syn::PathArguments;
 use syn::Type;
-use syn::TypePath;
 
-use super::attribute;
-use super::attribute::DecimalAttribute;
-use super::attribute::ElementAttribute;
-use super::attribute::ElementConstraintAttribute;
-use super::attribute::FieldAttribute;
-use super::attribute::FieldName;
-use super::attribute::LookupRelationAttribute;
-use super::attribute::MapAttribute;
-use super::attribute::ModelAttribute;
-use super::attribute::ReferenceAttribute;
-use super::attribute::SequenceAttribute;
-use super::attribute::StrategyAttribute;
-use super::attribute::TemporalAttribute;
-use super::attribute::TextAttribute;
-use super::input::ModelField;
-use super::input::ModelInput;
-use super::input::ModelShape;
-use super::input::ModelVariant;
-
-/// An expansion-ready model with all shorthand syntax removed.
-pub(crate) struct ModelIr {
-    /// The declared model type name.
-    pub(crate) ident: Ident,
-    /// Raw stable model-ID literals in source order.
-    pub(crate) id: Vec<LitStr>,
-    /// Canonical model-level attributes.
-    pub(crate) attributes: Vec<ModelAttributeIr>,
-    /// Number of attributes declared directly on the model before field
-    /// shorthands were appended.
-    pub(crate) model_attribute_count: usize,
-    /// Whether this named model is a textual value object.
-    pub(crate) textual: bool,
-    /// The model's supported structural form.
-    pub(crate) shape: ModelShapeIr,
-}
-
-/// A supported model shape containing normalized fields.
-pub(crate) enum ModelShapeIr {
-    /// A struct with named fields in declaration order.
-    NamedStruct(Vec<FieldIr>),
-    /// A struct with no fields.
-    UnitStruct,
-    /// A tuple struct with exactly one field.
-    Newtype(Box<FieldIr>),
-    /// An enum whose variants all have no fields.
-    FieldlessEnum(Vec<ModelVariant>),
-}
-
-/// A field whose attributes have been normalized to runtime semantics.
-pub(crate) struct FieldIr {
-    /// The zero-based declaration ordinal.
-    pub(crate) ordinal: usize,
-    /// The normalized field name.
-    pub(crate) name: String,
-    /// The declared Rust type.
-    pub(crate) ty: Type,
-    /// Canonical field-level attributes.
-    pub(crate) attributes: Vec<FieldAttributeIr>,
-    /// Every marker span requiring the field type to be treated as opaque.
-    pub(crate) opaque: Vec<Span>,
-}
-
-/// A canonical model-level attribute.
-pub(crate) enum ModelAttributeIr {
-    /// The model's primary-key definition.
-    PrimaryKey(PrimaryKeyIr),
-    /// A unique-constraint definition.
-    Unique(UniqueIr),
-    /// An index definition.
-    Index(NamedFieldsIr),
-    /// A logical-key definition.
-    Key(NamedFieldsIr),
-    /// An ownership relation.
-    Ownership(OwnershipIr),
-}
-
-/// A canonical primary-key definition.
-pub(crate) struct PrimaryKeyIr {
-    /// Key fields in declaration order.
-    pub(crate) fields: Vec<PrimaryKeyFieldIr>,
-    /// Every `generated(...)` field reference in source order, including
-    /// invalid or duplicate ones.
-    pub(crate) generated: Vec<FieldName>,
-    /// The originating attribute span.
-    pub(crate) span: Span,
-}
-
-/// A canonical primary-key field.
-pub(crate) struct PrimaryKeyFieldIr {
-    /// The normalized field name.
-    pub(crate) name: String,
-    /// The originating field-name or shorthand span.
-    pub(crate) span: Span,
-}
-
-/// A canonical unique-constraint definition.
-pub(crate) struct UniqueIr {
-    /// Logical-name occurrences in source order.
-    pub(crate) name: Vec<LitStr>,
-    /// Fields in comparison order.
-    pub(crate) fields: Vec<UniqueFieldIr>,
-    /// Every `ignore_case(...)` field reference, including invalid or
-    /// duplicate ones.
-    pub(crate) ignore_case: Vec<FieldName>,
-    /// The originating attribute span.
-    pub(crate) span: Span,
-}
-
-/// A canonical unique-constraint field.
-pub(crate) struct UniqueFieldIr {
-    /// The normalized field name.
-    pub(crate) name: String,
-    /// The originating field-name or shorthand span.
-    pub(crate) span: Span,
-}
-
-/// A canonical named ordered-field declaration.
-pub(crate) struct NamedFieldsIr {
-    /// Logical-name occurrences in source order.
-    pub(crate) name: Vec<LitStr>,
-    /// Ordered normalized field names and their spans.
-    pub(crate) fields: Vec<(String, Span)>,
-    /// The originating attribute span.
-    pub(crate) span: Span,
-    /// Whether this index was generated from a reference attribute.
-    pub(crate) implicit: bool,
-}
-
-/// A canonical ownership relation.
-pub(crate) struct OwnershipIr {
-    /// Owning-model occurrences in source order.
-    pub(crate) owner: Vec<TypePath>,
-    /// The originating attribute span.
-    pub(crate) span: Span,
-}
-
-/// A canonical field-level attribute emitted into `FieldMetadata`.
-pub(crate) enum FieldAttributeIr {
-    /// Text constraints.
-    Text(TextAttribute),
-    /// Ordered-sequence constraints.
-    Sequence(SequenceAttribute),
-    /// Map constraints.
-    Map(MapAttribute),
-    /// Temporal constraints.
-    Temporal(TemporalAttribute),
-    /// Decimal constraints with normalized domain semantics.
-    Decimal(DecimalIr),
-    /// Constraints applied to sequence elements.
-    Element(ElementIr),
-    /// A direct model reference.
-    Reference(ReferenceAttribute),
-    /// A lookup relation to another model.
-    LookupRelation(LookupRelationAttribute),
-    /// A codec strategy.
-    Codec(StrategyAttribute),
-    /// A generator strategy.
-    Generator(StrategyAttribute),
-}
-
-/// Canonical decimal semantics shared by `decimal` and `money` syntax.
-pub(crate) struct DecimalIr {
-    /// Parsed decimal values.
-    pub(crate) value: DecimalAttribute,
-    /// Whether the value is an ordinary number or money.
-    pub(crate) semantic: DecimalSemantic,
-}
-
-/// Canonical constraints applied to sequence elements.
-pub(crate) struct ElementIr {
-    /// Element constraints in source order.
-    pub(crate) attributes: Vec<ElementConstraintIr>,
-    /// The originating attribute span.
-    pub(crate) span: Span,
-}
-
-/// A normalized constraint supported on migrated collection elements.
-pub(crate) enum ElementConstraintIr {
-    /// Text constraints for string elements.
-    Text(TextAttribute),
-    /// Ordinary decimal constraints for high-precision numeric elements.
-    Decimal(DecimalIr),
-}
-
-/// The domain meaning of a decimal field.
-pub(crate) enum DecimalSemantic {
-    /// A general-purpose decimal number.
-    Number,
-    /// A monetary amount.
-    Money,
-}
+use super::DecimalIr;
+use super::DecimalSemantic;
+use super::ElementConstraintIr;
+use super::ElementIr;
+use super::FieldAttributeIr;
+use super::FieldIr;
+use super::ModelAttributeIr;
+use super::ModelIr;
+use super::ModelShapeIr;
+use super::NamedFieldsIr;
+use super::OwnershipIr;
+use super::PrimaryKeyFieldIr;
+use super::PrimaryKeyIr;
+use super::UniqueFieldIr;
+use super::UniqueIr;
+use crate::attribute;
+use crate::attribute::ElementAttribute;
+use crate::attribute::ElementConstraintAttribute;
+use crate::attribute::FieldAttribute;
+use crate::attribute::FieldName;
+use crate::attribute::ModelAttribute;
+use crate::input::ModelField;
+use crate::input::ModelInput;
+use crate::input::ModelShape;
 
 /// Normalizes a parsed model into the sole semantic representation consumed by
 /// expansion.

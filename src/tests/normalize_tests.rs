@@ -10,13 +10,11 @@
 
 use syn::parse_quote;
 
-mod support;
-
-use support::input;
-use support::normalize;
-use support::normalize::FieldAttributeIr;
-use support::normalize::ModelAttributeIr;
-use support::normalize::ModelShapeIr;
+use crate::input;
+use crate::normalize;
+use crate::normalize::FieldAttributeIr;
+use crate::normalize::ModelAttributeIr;
+use crate::normalize::ModelShapeIr;
 
 #[test]
 fn test_primary_key_ir_retains_generated_field_references_before_validation() {

@@ -6,10 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-// qubit-style: allow source-test-pair
-// qubit-style: allow multiple-public-types
-//! Parsed model declarations supported by the derive macro.
-
 use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
@@ -18,16 +14,17 @@ use syn::Fields;
 use syn::Ident;
 use syn::LitStr;
 use syn::Result;
-use syn::Type;
 use syn::Variant;
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
-use super::attribute::FieldAttribute;
-use super::attribute::ModelAttribute;
-use super::attribute::parse_field_attributes;
-use super::attribute::parse_model_attributes;
-use super::attribute_support::serialized_variant_name;
+use super::model_field::ModelField;
+use super::model_shape::ModelShape;
+use super::model_variant::ModelVariant;
+use crate::attribute::ModelAttribute;
+use crate::attribute::parse_field_attributes;
+use crate::attribute::parse_model_attributes;
+use crate::attribute_support::serialized_variant_name;
 
 /// The parsed input required to generate model metadata.
 pub(crate) struct ModelInput {
@@ -39,38 +36,6 @@ pub(crate) struct ModelInput {
     pub(crate) attributes: Vec<ModelAttribute>,
     /// The supported structural form of the model.
     pub(crate) shape: ModelShape,
-}
-
-/// A supported structural form of a model declaration.
-pub(crate) enum ModelShape {
-    /// A struct with named fields in declaration order.
-    NamedStruct(Vec<ModelField>),
-    /// A struct with no fields.
-    UnitStruct,
-    /// A tuple struct with exactly one field.
-    Newtype(Box<ModelField>),
-    /// An enum whose variants all have no fields.
-    FieldlessEnum(Vec<ModelVariant>),
-}
-
-/// A declared model field.
-pub(crate) struct ModelField {
-    /// The zero-based declaration ordinal.
-    pub(crate) ordinal: usize,
-    /// The normalized field name.
-    pub(crate) name: String,
-    /// The declared Rust field type.
-    pub(crate) ty: Type,
-    /// Parsed field-level attributes in source order.
-    pub(crate) attributes: Vec<FieldAttribute>,
-}
-
-/// A fieldless enum variant.
-pub(crate) struct ModelVariant {
-    /// The zero-based declaration ordinal.
-    pub(crate) ordinal: usize,
-    /// The normalized variant name.
-    pub(crate) name: String,
 }
 
 impl ModelInput {

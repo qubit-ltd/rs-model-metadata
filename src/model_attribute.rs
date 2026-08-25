@@ -36,11 +36,12 @@ use syn::punctuated::Punctuated;
 use crate::attribute_support::has_must_use;
 use crate::attribute_support::serialized_variant_name;
 use crate::derive_model_impl::derive_model_tokens;
-use crate::model_options::DisabledCapabilities;
+use crate::disabled_capabilities::DisabledCapabilities;
 use crate::model_options::ModelOptions;
 use crate::runtime_path::runtime_path;
 
 /// Expands one model declaration and converts failures to compiler diagnostics.
+#[must_use]
 pub(crate) fn expand(args: TokenStream, input: TokenStream) -> TokenStream {
     match expand_result(args, input, false) {
         Ok(tokens) => tokens,
@@ -49,6 +50,7 @@ pub(crate) fn expand(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 /// Expands the public `Enum` attribute macro.
+#[must_use]
 pub(crate) fn expand_enum(args: TokenStream, input: TokenStream) -> TokenStream {
     match expand_result(args, input, true) {
         Ok(tokens) => tokens,
@@ -313,6 +315,7 @@ fn add_default_serde_field_attributes(data: &mut Data, serialize: bool, deserial
 
 /// Returns whether a field opts out of the model's automatic serialization
 /// omission.
+#[inline]
 fn field_keeps_serializing(attributes: &[Attribute]) -> Result<bool> {
     has_attribute_option(attributes, "field", &["keep_serializing"])
 }
@@ -380,6 +383,8 @@ fn collection_is_empty_function(ty: &Type) -> Option<&'static str> {
 }
 
 /// Returns whether a type is a direct declaration of a named standard type.
+#[must_use]
+#[inline]
 fn is_direct_type(ty: &Type, type_name: &str) -> bool {
     match ty {
         Type::Path(type_path) => type_path
@@ -394,6 +399,8 @@ fn is_direct_type(ty: &Type, type_name: &str) -> bool {
 }
 
 /// Returns whether any struct field declares a redaction rule.
+#[must_use]
+#[inline]
 fn has_redact_fields(data: &Data) -> bool {
     let Data::Struct(data) = data else {
         return false;

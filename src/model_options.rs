@@ -6,12 +6,12 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Parsing and normalization for `Model` capability options.
-
 use proc_macro2::Span;
 use syn::Error;
 use syn::Meta;
 use syn::Result;
+
+use crate::disabled_capabilities::DisabledCapabilities;
 
 /// Capability controls parsed from one `Model` attribute.
 pub(crate) struct ModelOptions {
@@ -21,34 +21,6 @@ pub(crate) struct ModelOptions {
     pub(crate) redact: bool,
     /// Whether each default capability is disabled.
     pub(crate) disabled: DisabledCapabilities,
-}
-
-/// Disabled default capabilities after dependency normalization.
-// qubit-style: allow multiple-public-types
-#[derive(Default)]
-pub(crate) struct DisabledCapabilities {
-    /// Disables `Clone`.
-    pub(crate) clone: bool,
-    /// Disables `Copy`.
-    pub(crate) copy: bool,
-    /// Disables `Debug`.
-    pub(crate) debug: bool,
-    /// Disables `Display`.
-    pub(crate) display: bool,
-    /// Disables `Eq`.
-    pub(crate) eq: bool,
-    /// Disables `PartialEq`.
-    pub(crate) partial_eq: bool,
-    /// Disables `PartialOrd`.
-    pub(crate) partial_ord: bool,
-    /// Disables `Ord`.
-    pub(crate) ord: bool,
-    /// Disables `Hash`.
-    pub(crate) hash: bool,
-    /// Disables `Serialize`.
-    pub(crate) serialize: bool,
-    /// Disables `Deserialize`.
-    pub(crate) deserialize: bool,
 }
 
 impl ModelOptions {
@@ -74,20 +46,6 @@ impl ModelOptions {
         } else {
             options.disabled.normalize();
             Ok(options)
-        }
-    }
-}
-
-impl DisabledCapabilities {
-    /// Applies the trait dependency rules defined by the public macro API.
-    fn normalize(&mut self) {
-        if self.partial_eq {
-            self.eq = true;
-            self.partial_ord = true;
-            self.ord = true;
-        }
-        if self.eq || self.partial_ord {
-            self.ord = true;
         }
     }
 }

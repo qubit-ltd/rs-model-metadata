@@ -2,17 +2,17 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Integration tests for shared declaration-attribute support.
+//! Crate-internal tests for shared declaration-attribute support.
 
-#[path = "../src/attribute_support.rs"]
-mod attribute_support;
-
-use attribute_support::has_must_use;
-use attribute_support::serialized_variant_name;
 use syn::DeriveInput;
 use syn::parse_quote;
+
+use crate::attribute_support::has_must_use;
+use crate::attribute_support::serialized_variant_name;
 
 #[test]
 fn test_serialized_variant_name_honors_serde_serialization_rename() {
