@@ -156,7 +156,8 @@ model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 略、`opaque` 和脱敏等局部规则。`identifier`、`unique`、`indexed`、
 `reference`、`lookup_relation` 以及模型级键会被拒绝，因为不同变体没有共同的
 记录级字段集合。tuple 载荷元数据字段名依次为 `"0"`、`"1"`。`no_copy` 对所
-有枚举仍然有效。
+有枚举仍然有效。tuple 的自动 Serde 省略会保持位置：只有最后一个可选字段或空集
+合字段会被省略；缺失的尾部字段在反序列化时通过 `default` 补齐。
 
 ### 明确不提供的能力
 

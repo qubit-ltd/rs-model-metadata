@@ -73,9 +73,10 @@ pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Declares an enum with metadata and canonical serialized names.
 ///
-/// The macro adds `#[must_use]` unless the declaration already has one. It
-/// also generates `name` and `from_name` methods that use each
-/// variant's Serde serialization name.
+/// The macro adds `#[must_use]` unless the declaration already has one. Every
+/// enum receives `name`, which returns the Serde serialization name of its
+/// current variant. An enum whose variants are all unit variants also receives
+/// `from_name`.
 ///
 /// # Parameters
 ///

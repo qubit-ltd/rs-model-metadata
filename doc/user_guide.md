@@ -328,6 +328,11 @@ defaults, and redaction are supported. Record-wide helpers (`identifier`,
 `unique`, `indexed`, `reference`, and `lookup_relation`) and model-level keys
 are rejected because variants do not share one field set.
 
+Tuple payloads preserve their positional Serde contract. Automatic omission
+therefore applies only to an optional or empty-collection final field; a
+missing trailing field receives `default` during deserialization. Earlier tuple
+fields remain serialized even when empty, so later values cannot shift left.
+
 ## Advanced Usage
 
 ### Disabling default capabilities

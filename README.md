@@ -175,7 +175,10 @@ Payload fields support local constraints such as `text`, `sequence`, `map`,
 redaction. Record-level helpers (`identifier`, `unique`, `indexed`, `reference`,
 and `lookup_relation`) and model-level keys are rejected because enum variants
 do not share one record-wide field set. Tuple payload metadata uses names
-`"0"`, `"1"`, and so on. `no_copy` remains valid on all enums.
+`"0"`, `"1"`, and so on. Automatic Serde omission preserves tuple positions:
+only an optional or empty-collection final payload field is omitted; missing
+trailing fields deserialize through `default`. `no_copy` remains valid on all
+enums.
 
 ### What it does not provide
 
