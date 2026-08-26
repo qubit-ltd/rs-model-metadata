@@ -201,8 +201,9 @@ assert_eq!(
 `#[keep_serializing]` opts that field out of both automatically injected rules,
 preserving `null` or an empty value during serialization. It does not remove an
 explicit field-level `#[serde(...)]` attribute. The macro recognizes only
-direct type syntax, not aliases. A fixed array is empty only when its length is
-zero; an ordinary nonzero-length array is therefore retained.
+unqualified prelude spellings and explicit standard-library paths, not aliases
+or qualified custom types with the same final name. A fixed array is empty only
+when its length is zero; an ordinary nonzero-length array is therefore retained.
 
 ### Model-level attributes
 
@@ -328,9 +329,11 @@ defaults, and redaction are supported. Record-wide helpers (`identifier`,
 `unique`, `indexed`, `reference`, and `lookup_relation`) and model-level keys
 are rejected because variants do not share one field set.
 
-Tuple payloads preserve their positional Serde contract. Automatic omission
-therefore applies only to an optional or empty-collection final field; a
-missing trailing field receives `default` during deserialization. Earlier tuple
+Tuple payloads preserve their positional Serde contract. For a tuple variant
+with at least two fields, automatic omission therefore applies only to an
+optional or empty-collection final field; a missing trailing field receives
+`default` during deserialization. A single-field newtype variant preserves its
+`null` or empty collection because of Serde's representation. Earlier tuple
 fields remain serialized even when empty, so later values cannot shift left.
 
 ## Advanced Usage

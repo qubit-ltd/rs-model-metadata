@@ -123,10 +123,11 @@ model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 `opaque` 时，字段类型必须实现 `HasTypeShape`。`opaque` 不能和依赖形状的约束
 一起用，例如 `text`、`sequence`、`map`、`time`、`decimal`、`money`。
 
-集合省略规则只识别直接声明的 `Vec`、`LinkedList`、`VecDeque`、`HashMap`、
-`BTreeMap`、`HashSet`、`BTreeSet`、`BinaryHeap` 和固定长度数组；类型别名不在
-识别范围内。对 `Option` 或上述集合字段加 `#[keep_serializing]`，即可不使用宏
-自动添加的省略和默认值规则，序列化时保留 `null` 或空值。
+集合省略规则只识别 `Option`、`Vec`、`LinkedList`、`VecDeque`、`HashMap`、
+`BTreeMap`、`HashSet`、`BTreeSet`、`BinaryHeap` 和固定长度数组的无限定预导入
+写法及显式标准库路径；类型别名和末段名称相同的限定路径自定义类型不在识别范围内。
+对 `Option` 或上述集合字段加 `#[keep_serializing]`，即可不使用宏自动添加的省略和
+默认值规则，序列化时保留 `null` 或空值。
 
 字段上的 `#[unique(...)]` 简写会规范化为模型级唯一约束。复合唯一性在标注字
 段上使用 `respectTo = [other_fields]`。
@@ -156,8 +157,9 @@ model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 略、`opaque` 和脱敏等局部规则。`identifier`、`unique`、`indexed`、
 `reference`、`lookup_relation` 以及模型级键会被拒绝，因为不同变体没有共同的
 记录级字段集合。tuple 载荷元数据字段名依次为 `"0"`、`"1"`。`no_copy` 对所
-有枚举仍然有效。tuple 的自动 Serde 省略会保持位置：只有最后一个可选字段或空集
-合字段会被省略；缺失的尾部字段在反序列化时通过 `default` 补齐。
+有枚举仍然有效。tuple 的自动 Serde 省略会保持位置：对于至少有两个字段的变体，只有
+最后一个可选字段或空集合字段会被省略；缺失的尾部字段在反序列化时通过 `default` 补齐。
+单字段 newtype 载荷受 Serde 表示限制，会保留 `null` 或空集合。
 
 ### 明确不提供的能力
 

@@ -136,12 +136,13 @@ visible `Option`, sequence, set, array, and map wrappers and exposes its leaf as
 `HasTypeShape`. `opaque` cannot combine with shape-dependent constraints such as
 `text`, `sequence`, `map`, `time`, `decimal`, or `money`.
 
-The collection omission rule recognizes directly declared `Vec`, `LinkedList`,
-`VecDeque`, `HashMap`, `BTreeMap`, `HashSet`, `BTreeSet`, `BinaryHeap`, and
-fixed arrays. Type aliases are not recognized. Use `#[keep_serializing]` on an
-`Option` or supported collection field to opt out of the macro's automatic
-omission and defaulting, preserving `null` or an empty value during
-serialization.
+The collection omission rule recognizes unqualified prelude spellings and
+explicit standard-library paths for `Option`, `Vec`, `LinkedList`, `VecDeque`,
+`HashMap`, `BTreeMap`, `HashSet`, `BTreeSet`, `BinaryHeap`, and fixed arrays.
+Type aliases and qualified custom types with the same final name are not
+recognized. Use `#[keep_serializing]` on an `Option` or supported collection
+field to opt out of the macro's automatic omission and defaulting, preserving
+`null` or an empty value during serialization.
 
 Field-level `#[unique(...)]` shorthands normalize into model-level unique
 constraints. Composite uniqueness uses `respectTo = [other_fields]` on the
@@ -176,8 +177,10 @@ redaction. Record-level helpers (`identifier`, `unique`, `indexed`, `reference`,
 and `lookup_relation`) and model-level keys are rejected because enum variants
 do not share one record-wide field set. Tuple payload metadata uses names
 `"0"`, `"1"`, and so on. Automatic Serde omission preserves tuple positions:
-only an optional or empty-collection final payload field is omitted; missing
-trailing fields deserialize through `default`. `no_copy` remains valid on all
+only an optional or empty-collection final payload field is omitted when the
+variant has at least two fields; missing trailing fields deserialize through
+`default`. A single-field newtype payload retains `null` or an empty collection
+because of Serde's representation. `no_copy` remains valid on all
 enums.
 
 ### What it does not provide
