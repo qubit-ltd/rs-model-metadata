@@ -36,7 +36,7 @@ no `#[derive(Model)]` alias.
 ## Quick Start
 
 An account record and its lifecycle status are two different shapes: a struct
-with fields, and a fieldless enum. Declare each with the matching macro, attach
+and an enum. Declare each with the matching macro, attach
 field constraints as standalone attributes such as `#[identifier]` and
 `#[text(...)]`, then query the generated metadata:
 
@@ -149,23 +149,33 @@ annotated field.
 
 ### `#[Enum]`
 
-`#[Enum]` accepts fieldless enums only. Applying it to a struct, or to a variant
-that carries data, is a compile error.
+`#[Enum]` accepts unit, tuple, struct, and mixed enums. Applying it to a struct
+is a compile error. Generic enums remain unsupported.
 
-For a fieldless enum it generates:
+For an enum it generates:
 
-- Default traits: `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`, `PartialOrd`,
-  `Ord`, `Hash`, `Serialize`, and `Deserialize`
+- Default traits: `Clone`, `Debug`, `Eq`, `PartialEq`, `PartialOrd`, `Ord`,
+  `Hash`, `Serialize`, and `Deserialize`; a fully unit enum also receives
+  `Copy`
 - `#[must_use]` unless the declaration already has one
 - `#[serde(rename_all = "SCREAMING_SNAKE_CASE")]`
-- A `Display` implementation that writes the canonical serialized name
-- `name(&self) -> &'static str` and `from_name(&str) -> Option<Self>`
-- Static `TypeKind::Enum` metadata whose variant names follow the same Serde
-  serialization names
+- A `Display` implementation that writes the canonical serialized name and
+  Debug-shaped tuple or struct payloads
+- `name(&self) -> &'static str`; fully unit enums also receive
+  `from_name(&str) -> Option<Self>`
+- Static `TypeKind::Enum` metadata whose variants expose `Unit`, `Tuple`, or
+  `Struct` shape and reuse `FieldMetadata` for payload fields
 
 `#[serde(rename = "...")]` or `#[serde(rename(serialize = "..."))]` on a variant
-overrides that canonical name for metadata, `Display`, `name`, and `from_name`.
-Duplicate serialized names are rejected. `no_copy` is valid on enums.
+overrides that canonical name for metadata, `Display`, and `name`, as well as
+`from_name` when it exists. Duplicate serialized names are rejected.
+
+Payload fields support local constraints such as `text`, `sequence`, `map`,
+`time`, decimal constraints, element constraints, strategies, `opaque`, and
+redaction. Record-level helpers (`identifier`, `unique`, `indexed`, `reference`,
+and `lookup_relation`) and model-level keys are rejected because enum variants
+do not share one record-wide field set. Tuple payload metadata uses names
+`"0"`, `"1"`, and so on. `no_copy` remains valid on all enums.
 
 ### What it does not provide
 
@@ -177,8 +187,7 @@ compatibility, and ownership cycles belong to
 
 ## Known Limits
 
-- Generic models, multi-field tuple structs, unions, and data-carrying enum
-  variants are rejected.
+- Generic models, multi-field tuple structs, and unions are rejected.
 - Model-level constraints such as `primary_key`, `index`, `key`, and
   `ownership` apply only to named structs.
 - `reference(entity = "module.Type", ...)` names a stable target ID and does not

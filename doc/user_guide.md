@@ -5,7 +5,7 @@
 Applies to `qubit-model-derive` 0.1.0 and `qubit-model-metadata` 0.1.0.
 
 This crate exposes two attribute macros: `#[Model(...)]` for structs and
-`#[Enum(...)]` for fieldless enums. There is no `#[derive(Model)]` alias.
+`#[Enum(...)]` for enums. There is no `#[derive(Model)]` alias.
 
 ## Purpose and Audience
 
@@ -15,7 +15,7 @@ The macros emit static implementations and registrations for
 `qubit-model-metadata`. They do not validate instance data.
 
 Choose `#[Model]` for a named-field struct, a unit struct, or a single-field
-tuple newtype. Choose `#[Enum]` for a fieldless enum. Using the wrong macro is a
+tuple newtype. Choose `#[Enum]` for an enum. Using the wrong macro is a
 compile error.
 
 ## Conceptual Model
@@ -27,7 +27,7 @@ Serde rename rules, and the runtime metadata traits.
 
 ```text
 struct + #[identifier] / #[text(...)] / …  ──►  #[Model]  ──►  TypeKind::Struct | Newtype
-fieldless enum                            ──►  #[Enum]   ──►  TypeKind::Enum
+unit / tuple / struct enum                ──►  #[Enum]   ──►  TypeKind::Enum
                                                             │
                                                             ▼
                          HasTypeShape + HasTypeMetadata + ModelRegistry
@@ -262,35 +262,44 @@ Supported wrappers include scalars, `Option<T>`, `Vec<T>`, `LinkedList<T>`,
 and `Vec<Option<String>>` remain distinct; only an outer `Option` makes a
 field nullable.
 
-## `#[Enum]`: Fieldless Enum Capabilities
+## `#[Enum]`: Enum Capabilities
 
-`#[Enum]` rewrites a fieldless enum and emits variant metadata for it.
+`#[Enum]` rewrites an enum and emits variant and payload-field metadata.
 
 ### Accepted shapes
 
-Every variant must be a unit variant. Data-carrying variants, structs, unions,
-and generic enums are rejected.
+Unit, tuple, struct, and mixed variants are supported. Applying `#[Enum]` to a
+struct or union is rejected. Generic enums remain unsupported.
 
 ### Default traits and naming
 
-Unless disabled, an enum receives `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`,
-`PartialOrd`, `Ord`, `Hash`, `Serialize`, and `Deserialize`. The macro adds
+Unless disabled, an enum receives `Clone`, `Debug`, `Eq`, `PartialEq`,
+`PartialOrd`, `Ord`, `Hash`, `Serialize`, and `Deserialize`. An enum receives
+`Copy` by default only when every variant is a unit variant. The macro adds
 `#[must_use]` unless one is already present. Serde variant names use
 `SCREAMING_SNAKE_CASE`.
 
 `Display` writes the canonical serialized name, not the Rust identifier:
-`AccountStatus::Suspended` displays as `SUSPENDED`.
+`AccountStatus::Suspended` displays as `SUSPENDED`. Tuple and struct variants
+append Debug-shaped payloads, such as `PROGRESS(42)` and
+`FAILED { message: "timeout" }`. Payload fields must implement `Debug` unless
+`Display` is disabled or redaction supplies the safe formatter.
 
 ### Canonical names
 
-The macro generates:
+Every enum receives:
 
 ```rust
 pub const fn name(&self) -> &'static str;
+```
+
+Only an enum whose variants are all unit variants also receives:
+
+```rust
 pub fn from_name(name: &str) -> Option<Self>;
 ```
 
-Both methods, `Display`, Serde, and `EnumVariantMetadata` share the same name.
+These methods, `Display`, Serde, and `EnumVariantMetadata` share the same name.
 By default that name is the variant ident in `SCREAMING_SNAKE_CASE`. A variant
 may override it:
 
@@ -312,8 +321,12 @@ assert_eq!(
 );
 ```
 
-Empty or duplicate serialized names are compile errors. Enum variants do not
-accept field helper attributes or model-level keys.
+Empty or duplicate serialized names are compile errors. Payload fields reuse
+`FieldMetadata`: tuple fields are named `"0"`, `"1"`, and so on, while struct
+fields retain their Rust names. Local constraints, strategies, `opaque`, Serde
+defaults, and redaction are supported. Record-wide helpers (`identifier`,
+`unique`, `indexed`, `reference`, and `lookup_relation`) and model-level keys
+are rejected because variants do not share one field set.
 
 ## Advanced Usage
 
@@ -455,10 +468,10 @@ Failures are compile errors on the offending syntax. Typical causes:
 | Missing `qubit-model-metadata` or `serde` | The consuming crate's `[dependencies]`. |
 | Missing `qubit-redact` | Required only when `redact` or `#[redact(...)]` is present. |
 | `#[Model]` on an enum | Switch to `#[Enum]`. |
-| `#[Enum]` on a struct or data-carrying variant | Switch to `#[Model]`, or drop the variant payload. |
+| `#[Enum]` on a struct | Switch to `#[Model]`. |
 | Missing or duplicate `id` | Every declaration needs one `id = "module.Type"`. |
 | ID type segment mismatch | The final ID segment must equal the Rust type name. |
-| Unsupported shape | No generics, unions, multi-field tuples, or data enums. |
+| Unsupported shape | No generics, unions, or multi-field tuple structs. |
 | Wrong attribute scope | Model-level keys only in `#[Model(...)]`; field helpers only on fields. |
 | Removed `#[field(...)]` | Use standalone attributes such as `#[identifier]` and `#[text(...)]`. |
 | Capability mismatch | `text` needs a text-capable type; `ignore_case` has the same requirement. |
@@ -476,7 +489,7 @@ implement `HasTypeShape` or choose `opaque`.
 
 1. Confirm the consuming crate lists `qubit-model-derive`, `qubit-model-metadata`,
    and `serde`.
-2. Confirm the macro matches the shape: struct → `#[Model]`, fieldless enum →
+2. Confirm the macro matches the shape: struct → `#[Model]`, enum →
    `#[Enum]`.
 3. If a field constraint fails, inspect the field type's `HasTypeShape`
    capabilities rather than its type-name spelling. Type aliases are resolved

@@ -29,7 +29,7 @@ use proc_macro::TokenStream;
 /// Declares a struct model and derives its standard capabilities and metadata.
 ///
 /// The macro accepts named and unit structs and single-field tuple newtypes.
-/// Use [`Enum`] for fieldless enums. It emits compile errors for unsupported
+/// Use [`Enum`] for enums. It emits compile errors for unsupported
 /// declaration shapes or when required runtime dependencies cannot be resolved
 /// from the consuming crate's dependencies.
 ///
@@ -37,7 +37,8 @@ use proc_macro::TokenStream;
 ///
 /// - `args`: The type-level model arguments, including the required `id`.
 /// - `input`: The token stream containing the model declaration and its
-///   standalone field helper attributes such as `#[identifier]` and `#[indexed]`.
+///   standalone field helper attributes such as `#[identifier]` and
+///   `#[indexed]`.
 ///
 /// # Returns
 ///
@@ -70,7 +71,7 @@ pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream {
     model_attribute::expand(args.into(), input.into()).into()
 }
 
-/// Declares a fieldless enum with metadata and canonical serialized names.
+/// Declares an enum with metadata and canonical serialized names.
 ///
 /// The macro adds `#[must_use]` unless the declaration already has one. It
 /// also generates `name` and `from_name` methods that use each
@@ -79,7 +80,7 @@ pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream {
 /// # Parameters
 ///
 /// - `args`: The type-level enum arguments, including the required `id`.
-/// - `input`: The token stream containing the fieldless enum declaration.
+/// - `input`: The token stream containing the enum declaration.
 ///
 /// # Returns
 ///
@@ -88,9 +89,9 @@ pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// # Errors
 ///
-/// Diagnostics are returned as compile-error tokens for non-unit variants,
-/// duplicate serialized names, invalid attributes, and missing runtime
-/// dependencies.
+/// Diagnostics are returned as compile-error tokens for invalid payload field
+/// attributes, duplicate serialized names, generics, invalid attributes, and
+/// missing runtime dependencies.
 ///
 /// # Examples
 ///

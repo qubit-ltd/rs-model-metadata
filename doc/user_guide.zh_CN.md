@@ -4,7 +4,7 @@
 
 适用于 `qubit-model-derive` 0.1.0 与 `qubit-model-metadata` 0.1.0。
 
-本 crate 对外提供两个属性宏：结构体用 `#[Model(...)]`，无字段枚举用
+本 crate 对外提供两个属性宏：结构体用 `#[Model(...)]`，枚举用
 `#[Enum(...)]`。没有 `#[derive(Model)]` 这种写法。
 
 ## 手册目标与读者
@@ -13,7 +13,7 @@
 这本手册。宏生成的是 `qubit-model-metadata` 消费的静态实现和注册项，不会校验
 实例数据。
 
-具名字段结构体、空结构体、单字段元组 newtype 用 `#[Model]`；无字段枚举用
+具名字段结构体、空结构体、单字段元组 newtype 用 `#[Model]`；枚举用
 `#[Enum]`。宏选错会直接编译失败。
 
 ## 概念模型
@@ -24,7 +24,7 @@
 
 ```text
 结构体 + #[identifier] / #[text(...)] / …  ──►  #[Model]  ──►  TypeKind::Struct | Newtype
-无字段枚举                                  ──►  #[Enum]   ──►  TypeKind::Enum
+unit / tuple / struct 枚举                   ──►  #[Enum]   ──►  TypeKind::Enum
                                                             │
                                                             ▼
                          HasTypeShape + HasTypeMetadata + ModelRegistry
@@ -246,30 +246,38 @@ assert_eq!(
 以及其他已经派生元数据的模型。`Option<Vec<String>>` 和 `Vec<Option<String>>`
 不是同一种形状；只有最外层 `Option` 会让字段可空。
 
-## `#[Enum]`：无字段枚举能力
+## `#[Enum]`：枚举能力
 
-`#[Enum]` 会改写无字段枚举，并生成变体元数据。
+`#[Enum]` 会改写枚举，并生成变体及载荷字段元数据。
 
 ### 接受的形状
 
-每个变体都必须是 unit variant。携带数据的变体、结构体、union 和泛型枚举都会
-被拒绝。
+支持 unit、tuple、struct 及混合变体。`#[Enum]` 用在结构体或 union 上会被拒
+绝；泛型枚举仍不支持。
 
 ### 默认 trait 与命名
 
-未关闭时，枚举会得到 `Clone`、`Copy`、`Debug`、`Eq`、`PartialEq`、
-`PartialOrd`、`Ord`、`Hash`、`Serialize`、`Deserialize`。若声明上还没有
-`#[must_use]`，宏会补上。Serde 变体名使用 `SCREAMING_SNAKE_CASE`。
+未关闭时，枚举会得到 `Clone`、`Debug`、`Eq`、`PartialEq`、`PartialOrd`、
+`Ord`、`Hash`、`Serialize`、`Deserialize`。只有全部变体都是 unit variant
+时，才会默认得到 `Copy`。若声明上还没有 `#[must_use]`，宏会补上。Serde 变
+体名使用 `SCREAMING_SNAKE_CASE`。
 
 `Display` 输出的是规范序列化名，不是 Rust 标识符：`AccountStatus::Suspended`
-显示为 `SUSPENDED`。
+显示为 `SUSPENDED`。tuple 和 struct 变体会追加 Debug 风格载荷，例如
+`PROGRESS(42)` 和 `FAILED { message: "timeout" }`。除非关闭 `Display` 或由脱敏
+实现安全格式化，载荷字段必须实现 `Debug`。
 
 ### 规范名
 
-宏会生成：
+所有枚举都会生成：
 
 ```rust
 pub const fn name(&self) -> &'static str;
+```
+
+仅当全部变体都是 unit variant 时，还会生成：
+
+```rust
 pub fn from_name(name: &str) -> Option<Self>;
 ```
 
@@ -294,7 +302,11 @@ assert_eq!(
 );
 ```
 
-空的或重复的序列化名会编译失败。枚举变体不能写字段辅助属性或模型级键。
+空的或重复的序列化名会编译失败。载荷字段复用 `FieldMetadata`：tuple 字段名依
+次为 `"0"`、`"1"`，struct 字段保留 Rust 字段名。支持局部约束、策略、
+`opaque`、Serde 默认规则和脱敏。`identifier`、`unique`、`indexed`、
+`reference`、`lookup_relation` 等记录级 helper 以及模型级键会被拒绝，因为变
+体没有共同的字段集合。
 
 ## 进阶用法
 
@@ -429,10 +441,10 @@ struct PhoneLoginParams {
 | 缺少 `qubit-model-metadata` 或 `serde` | 消费方 `[dependencies]`。 |
 | 缺少 `qubit-redact` | 只有出现 `redact` 或 `#[redact(...)]` 时才需要。 |
 | 把 `#[Model]` 用在枚举上 | 改成 `#[Enum]`。 |
-| 把 `#[Enum]` 用在结构体或带数据的变体上 | 改成 `#[Model]`，或去掉变体载荷。 |
+| 把 `#[Enum]` 用在结构体上 | 改成 `#[Model]`。 |
 | 缺少或重复的 `id` | 每个声明都要有一个 `id = "module.Type"`。 |
 | ID 类型段不匹配 | 最后一段必须等于 Rust 类型名。 |
-| 不支持的形状 | 不要写泛型、union、多字段元组或带数据的枚举。 |
+| 不支持的形状 | 不要写泛型、union 或多字段元组结构体。 |
 | 属性作用域错误 | 模型级键只能写在 `#[Model(...)]` 里；字段辅助属性只能写在字段上。 |
 | 仍在使用 `#[field(...)]` | 改用 `#[identifier]`、`#[text(...)]` 等独立属性。 |
 | 类型能力不匹配 | `text` 需要具备文本能力的类型；`ignore_case` 同样如此。 |
@@ -450,7 +462,7 @@ decimal 的 `scale` 不能大于 `precision`。未知外部类型要么实现
 
 1. 确认消费方已经声明 `qubit-model-derive`、`qubit-model-metadata` 和
    `serde`。
-2. 确认宏和形状对应：结构体用 `#[Model]`，无字段枚举用 `#[Enum]`。
+2. 确认宏和形状对应：结构体用 `#[Model]`，枚举用 `#[Enum]`。
 3. 字段约束失败时，看该类型的 `HasTypeShape` 能力，不要看类型名字符串。类型
    别名由 Rust 自己解析。
 4. 关系在单个模型上看起来合法、但稍后失败时，对已链接集合调用

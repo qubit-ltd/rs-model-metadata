@@ -7,6 +7,9 @@
 > 上位方案：[Java Common 核心能力迁移到 Rust 的整体方案](java-common-to-rust-overall-design.md)
 >
 > 本文范围：确定两个基础 crate 的职责、核心数据模型、查询方式和宏的生成规则；不实现校验器、随机生成器、Schema 工具、DAO 或 Service。
+>
+> 后续演进：本文关于“只支持 fieldless enum”的第一版限制已由
+> [带数据枚举支持设计](data_enum_support_design.md) 替代；其他第一版历史决策保留原文。
 
 ## 1. 结论
 

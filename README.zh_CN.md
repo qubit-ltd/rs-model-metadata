@@ -32,7 +32,7 @@ serde = { version = "1", features = ["derive"] }
 
 ## 快速开始
 
-账户记录和它的生命周期状态是两种形状：带字段的结构体，和无字段枚举。分别用对
+账户记录和它的生命周期状态是两种形状：结构体和枚举。分别用对
 应的宏声明，在字段上写独立属性，再查询生成的元数据：
 
 ```rust
@@ -133,21 +133,30 @@ model_runtime = { package = "qubit-model-metadata", version = "0.1.0" }
 
 ### `#[Enum]`
 
-`#[Enum]` 只接受无字段枚举。用在结构体上，或变体携带数据时，都会编译失败。
+`#[Enum]` 接受 unit、tuple、struct 以及混合枚举。用在结构体上会编译失败；泛
+型枚举仍不支持。
 
-对无字段枚举，它会生成：
+对枚举，它会生成：
 
-- 默认 trait：`Clone`、`Copy`、`Debug`、`Eq`、`PartialEq`、`PartialOrd`、
-  `Ord`、`Hash`、`Serialize`、`Deserialize`
+- 默认 trait：`Clone`、`Debug`、`Eq`、`PartialEq`、`PartialOrd`、`Ord`、
+  `Hash`、`Serialize`、`Deserialize`；全部为 unit variant 时还会生成 `Copy`
 - 若声明上还没有 `#[must_use]`，则自动补上
 - `#[serde(rename_all = "SCREAMING_SNAKE_CASE")]`
-- 输出规范序列化名的 `Display`
-- `name(&self) -> &'static str` 和 `from_name(&str) -> Option<Self>`
-- 静态的 `TypeKind::Enum` 元数据，变体名与上述 Serde 序列化名一致
+- 输出规范序列化名及 Debug 风格 tuple/struct 载荷的 `Display`
+- `name(&self) -> &'static str`；全部为 unit variant 时还会生成
+  `from_name(&str) -> Option<Self>`
+- 静态的 `TypeKind::Enum` 元数据；变体会暴露 `Unit`、`Tuple` 或 `Struct` 形
+  状，并复用 `FieldMetadata` 描述载荷字段
 
 变体上的 `#[serde(rename = "...")]` 或 `#[serde(rename(serialize = "..."))]`
-会覆盖规范名，并同时作用于元数据、`Display`、`name` 和 `from_name`。重复的序
-列化名会被拒绝。`no_copy` 只允许写在枚举上。
+会覆盖规范名，并同时作用于元数据、`Display`、`name`，以及存在时的
+`from_name`。重复的序列化名会被拒绝。
+
+载荷字段可以使用 `text`、`sequence`、`map`、`time`、decimal、元素约束、策
+略、`opaque` 和脱敏等局部规则。`identifier`、`unique`、`indexed`、
+`reference`、`lookup_relation` 以及模型级键会被拒绝，因为不同变体没有共同的
+记录级字段集合。tuple 载荷元数据字段名依次为 `"0"`、`"1"`。`no_copy` 对所
+有枚举仍然有效。
 
 ### 明确不提供的能力
 
@@ -157,7 +166,7 @@ schema，也不执行 codec/generator 策略。目标是否存在、投影是否
 
 ## 已知限制
 
-- 泛型模型、多字段元组结构体、union，以及携带数据的枚举变体都会被拒绝。
+- 泛型模型、多字段元组结构体和 union 会被拒绝。
 - `primary_key`、`index`、`key`、`ownership` 这类模型级约束只适用于具名字段
   结构体。
 - `reference(entity = "module.Type", ...)` 使用稳定目标 ID，不要求对目标模型
