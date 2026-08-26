@@ -9,11 +9,13 @@
 // qubit-style: allow source-test-pair
 //! Token generation for normalized static runtime model metadata.
 
+mod internal;
+
 use std::slice::from_ref;
 
+use internal::expand_variants;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
-use quote::format_ident;
 use quote::quote;
 use quote::quote_spanned;
 use syn::GenericArgument;
@@ -45,7 +47,6 @@ use crate::normalize::FieldIr;
 use crate::normalize::ModelAttributeIr;
 use crate::normalize::ModelIr;
 use crate::normalize::ModelShapeIr;
-use crate::normalize::ModelVariantIr;
 use crate::normalize::ModelVariantShapeIr;
 use crate::normalize::NamedFieldsIr;
 use crate::normalize::PrimaryKeyIr;
@@ -416,7 +417,7 @@ fn expand_field_type(field: &FieldIr, runtime: &TokenStream) -> TokenStream {
 
 /// Generates a `TypeRef` for a reference field without an explicit `opaque`.
 ///
-/// Reference fields whose Rust type implements [`HasTypeShape`] keep their
+/// Reference fields whose Rust type implements `HasTypeShape` keep their
 /// structural metadata. Foreign-key scalars and other opaque leaves fall back
 /// to an opaque reference that preserves visible container syntax.
 fn expand_reference_field_type(field: &FieldIr, runtime: &TokenStream) -> TokenStream {
@@ -475,7 +476,7 @@ fn reference_path_type_requires_opaque(path: &TypePath) -> bool {
     }
 }
 
-/// Returns whether a path segment names a type with a built-in [`HasTypeShape`]
+/// Returns whether a path segment names a type with a built-in `HasTypeShape`
 /// implementation.
 fn is_builtin_has_type_shape_type(name: &str) -> bool {
     matches!(
@@ -1023,40 +1024,4 @@ fn expand_strategy(value: &StrategyAttribute, runtime: &TokenStream, codec: bool
             #runtime::AttributeMetadata::Generator(#runtime::StrategyRef::new(#name))
         }
     }
-}
-
-/// Generates enum-variant metadata values in declaration order.
-fn expand_variants(variants: &[ModelVariantIr], runtime: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    let mut field_statics = Vec::new();
-    let mut expanded = Vec::with_capacity(variants.len());
-    for variant in variants {
-        let ordinal = variant.ordinal;
-        let name = LitStr::new(&variant.name, Span::call_site());
-        match &variant.shape {
-            ModelVariantShapeIr::Unit => {
-                expanded.push(quote!(#runtime::EnumVariantMetadata::new(#ordinal, #name)));
-            }
-            ModelVariantShapeIr::Tuple(fields) | ModelVariantShapeIr::Struct(fields) => {
-                let field_static = format_ident!("VARIANT_{ordinal}_FIELDS");
-                let expanded_fields = expand_fields(fields, runtime);
-                let count = expanded_fields.len();
-                field_statics.push(quote! {
-                    static #field_static: [#runtime::FieldMetadata; #count] = [#(#expanded_fields),*];
-                });
-                let constructor = match variant.shape {
-                    ModelVariantShapeIr::Tuple(_) => quote!(tuple),
-                    ModelVariantShapeIr::Struct(_) => quote!(structure),
-                    ModelVariantShapeIr::Unit => unreachable!("unit variants are handled separately"),
-                };
-                expanded.push(quote! {
-                    #runtime::EnumVariantMetadata::#constructor(
-                        #ordinal,
-                        #name,
-                        &#field_static,
-                    )
-                });
-            }
-        }
-    }
-    (field_statics, expanded)
 }
