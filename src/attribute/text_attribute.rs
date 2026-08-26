@@ -8,9 +8,9 @@
 
 use proc_macro2::Span;
 
+use super::allowed_chars::AllowedChars;
 use super::spanned_value::SpannedValue;
 use super::text_format::TextFormat;
-use super::allowed_chars::AllowedChars;
 
 /// Parsed text constraint values.
 pub(crate) struct TextAttribute {

@@ -8,6 +8,7 @@
 
 //! Parsing for `#[model(...)]` attributes.
 
+mod allowed_chars;
 mod decimal_attribute;
 mod element_attribute;
 mod element_constraint_attribute;
@@ -32,8 +33,8 @@ mod temporal_attribute;
 mod temporal_precision;
 mod text_attribute;
 mod text_format;
-mod allowed_chars;
 
+pub(crate) use allowed_chars::AllowedChars;
 pub(crate) use decimal_attribute::DecimalAttribute;
 pub(crate) use element_attribute::ElementAttribute;
 pub(crate) use element_constraint_attribute::ElementConstraintAttribute;
@@ -57,4 +58,3 @@ pub(crate) use temporal_attribute::TemporalAttribute;
 pub(crate) use temporal_precision::TemporalPrecision;
 pub(crate) use text_attribute::TextAttribute;
 pub(crate) use text_format::TextFormat;
-pub(crate) use allowed_chars::AllowedChars;

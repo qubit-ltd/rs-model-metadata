@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+// qubit-style: allow multiple-public-types
+
 use proc_macro2::Span;
 use syn::LitStr;
 

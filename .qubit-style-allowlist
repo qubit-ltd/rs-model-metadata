@@ -1,2 +1,3 @@
 # Reviewed exceptions for qubit-style mechanical checks.
 # Format: rule | path | reason
+multiple-public-types | src/attribute/reference_attribute.rs | Reference paths and their containing attribute form one composite parsed value
