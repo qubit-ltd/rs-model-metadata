@@ -10,6 +10,7 @@
 
 mod constraint;
 
+use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::DecimalConstraint;
 use qubit_model_metadata::DecimalSemantic;
 use qubit_model_metadata::MapConstraint;
@@ -19,7 +20,6 @@ use qubit_model_metadata::TemporalConstraint;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
 use qubit_model_metadata::TextFormat;
-use qubit_model_metadata::AllowedChars;
 
 const VALID_TEXT: TextConstraint = TextConstraint::new(
     Some(1),

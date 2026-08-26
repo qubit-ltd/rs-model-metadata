@@ -10,6 +10,7 @@
 
 use std::collections::HashMap;
 
+use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::AttributeKind;
 use qubit_model_metadata::AttributeMetadata;
 use qubit_model_metadata::AttributeQuery;
@@ -27,7 +28,6 @@ use qubit_model_metadata::PrimaryKeyFieldMetadata;
 use qubit_model_metadata::PrimaryKeyMetadata;
 use qubit_model_metadata::StructMetadata;
 use qubit_model_metadata::TextConstraint;
-use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::TypeCapabilities;
 use qubit_model_metadata::TypeIdentity;
 use qubit_model_metadata::TypeKind;

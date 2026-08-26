@@ -10,6 +10,7 @@
 
 use qubit_datatype::DataType;
 
+use crate::ModelId;
 use crate::type_metadata::EnumMetadata;
 use crate::type_metadata::EnumVariantMetadata;
 use crate::type_metadata::HasTypeMetadata;
@@ -20,7 +21,6 @@ use crate::type_metadata::TypeMetadata;
 use crate::type_shape::HasTypeShape;
 use crate::type_shape::TypeCapabilities;
 use crate::type_shape::TypeShape;
-use crate::ModelId;
 
 static DATA_TYPE_VARIANTS: [EnumVariantMetadata; 25] = [
     EnumVariantMetadata::new(0, "bool"),

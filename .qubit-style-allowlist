@@ -1,0 +1,1 @@
+multiple-public-types | src/relation/reference_metadata.rs | Reference target, path, segments, and metadata form one composite public API

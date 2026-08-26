@@ -8,6 +8,7 @@
 
 //! Tests for constraint source modules.
 
+mod allowed_chars_tests;
 mod decimal_constraint_tests;
 mod decimal_semantic_tests;
 mod map_constraint_tests;
@@ -17,4 +18,3 @@ mod temporal_constraint_tests;
 mod temporal_precision_tests;
 mod text_constraint_tests;
 mod text_format_tests;
-mod allowed_chars_tests;

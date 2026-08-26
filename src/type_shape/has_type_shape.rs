@@ -18,8 +18,6 @@ use std::collections::VecDeque;
 
 #[cfg(feature = "big-decimal")]
 use bigdecimal::BigDecimal;
-#[cfg(feature = "id")]
-use qubit_id::Id;
 #[cfg(feature = "chrono")]
 use chrono::DateTime;
 #[cfg(feature = "chrono")]
@@ -30,6 +28,8 @@ use chrono::NaiveDateTime;
 use chrono::NaiveTime;
 #[cfg(feature = "chrono")]
 use chrono::Utc;
+#[cfg(feature = "id")]
+use qubit_id::Id;
 
 use crate::type_shape::ScalarType;
 use crate::type_shape::TypeCapabilities;

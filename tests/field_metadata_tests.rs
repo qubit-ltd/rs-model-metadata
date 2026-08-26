@@ -8,6 +8,7 @@
 
 //! Integration tests for field metadata validation and typed queries.
 
+use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::AttributeMetadata;
 use qubit_model_metadata::DecimalConstraint;
 use qubit_model_metadata::DecimalSemantic;
@@ -22,13 +23,13 @@ use qubit_model_metadata::NamedTypeRef;
 use qubit_model_metadata::PrimaryKeyFieldMetadata;
 use qubit_model_metadata::PrimaryKeyMetadata;
 use qubit_model_metadata::ReferenceMetadata;
+use qubit_model_metadata::ReferenceTarget;
 use qubit_model_metadata::RoundingMode;
 use qubit_model_metadata::SequenceConstraint;
 use qubit_model_metadata::StrategyRef;
 use qubit_model_metadata::TemporalConstraint;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
-use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::TypeCapabilities;
 use qubit_model_metadata::TypeIdentity;
 use qubit_model_metadata::TypeRef;
@@ -108,7 +109,7 @@ static ELEMENT_DECIMAL_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::
 static RELATION_ATTRIBUTES: [AttributeMetadata; 4] = [
     AttributeMetadata::Reference(ReferenceMetadata::new(
         ModelId::new("test.Target"),
-        qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+        ReferenceTarget::Property(FieldPath::new(&["id"])),
         true,
         None,
     )),

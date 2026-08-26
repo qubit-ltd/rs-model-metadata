@@ -8,12 +8,12 @@
 
 //! Tests for [`AttributeQuery`].
 
+use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::AttributeKind;
 use qubit_model_metadata::AttributeMetadata;
 use qubit_model_metadata::AttributeQuery;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::TextConstraint;
-use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::TypeRef;
 
 struct EmptyAttributes;

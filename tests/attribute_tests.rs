@@ -10,6 +10,7 @@
 
 mod attribute;
 
+use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::AttributeKind;
 use qubit_model_metadata::AttributeMetadata;
 use qubit_model_metadata::DecimalConstraint;
@@ -26,13 +27,13 @@ use qubit_model_metadata::OwnershipMetadata;
 use qubit_model_metadata::PrimaryKeyFieldMetadata;
 use qubit_model_metadata::PrimaryKeyMetadata;
 use qubit_model_metadata::ReferenceMetadata;
+use qubit_model_metadata::ReferenceTarget;
 use qubit_model_metadata::RoundingMode;
 use qubit_model_metadata::SequenceConstraint;
 use qubit_model_metadata::StrategyRef;
 use qubit_model_metadata::TemporalConstraint;
 use qubit_model_metadata::TemporalPrecision;
 use qubit_model_metadata::TextConstraint;
-use qubit_model_metadata::AllowedChars;
 use qubit_model_metadata::TypeIdentity;
 use qubit_model_metadata::UniqueComparison;
 use qubit_model_metadata::UniqueFieldMetadata;
@@ -107,7 +108,7 @@ fn test_attribute_metadata_reports_every_kind() {
         AttributeMetadata::Key(VALID_KEY),
         AttributeMetadata::Reference(ReferenceMetadata::new(
             ModelId::new("test.Target"),
-            qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+            ReferenceTarget::Property(FieldPath::new(&["id"])),
             true,
             None,
         )),

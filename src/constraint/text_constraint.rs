@@ -6,8 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use super::TextFormat;
 use super::AllowedChars;
+use super::TextFormat;
 
 /// Text constraints that apply to a string field.
 ///
@@ -49,8 +49,8 @@ pub struct TextConstraint {
 }
 
 impl TextConstraint {
-    /// Creates text constraints from character, byte, allowed-character, and format
-    /// limits.
+    /// Creates text constraints from character, byte, allowed-character, and
+    /// format limits.
     ///
     /// # Parameters
     ///

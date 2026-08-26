@@ -25,6 +25,7 @@ use qubit_model_metadata::OwnershipMetadata;
 use qubit_model_metadata::ReferenceMetadata;
 use qubit_model_metadata::ReferencePath;
 use qubit_model_metadata::ReferencePathSegment;
+use qubit_model_metadata::ReferenceTarget;
 use qubit_model_metadata::SourceLocation;
 use qubit_model_metadata::StructMetadata;
 use qubit_model_metadata::TypeCapabilities;
@@ -68,11 +69,9 @@ static TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 
 static MISSING_TARGET_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.Missing"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+    ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
-    Some(qubit_model_metadata::ReferencePath::new(&[
-        qubit_model_metadata::ReferencePathSegment::Field("unknown"),
-    ])),
+    Some(ReferencePath::new(&[ReferencePathSegment::Field("unknown")])),
 ))];
 static MISSING_TARGET_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     0,
@@ -91,7 +90,7 @@ static MISSING_TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 static MISSING_TARGET_FIELD_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
         ModelId::new("test.graph.Target"),
-        qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["unknown"])),
+        ReferenceTarget::Property(FieldPath::new(&["unknown"])),
         true,
         None,
     ))];
@@ -112,7 +111,7 @@ static MISSING_TARGET_FIELD_METADATA: TypeMetadata = TypeMetadata::new(
 static INCOMPATIBLE_PROJECTION_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
         ModelId::new("test.graph.Target"),
-        qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+        ReferenceTarget::Property(FieldPath::new(&["id"])),
         true,
         None,
     ))];
@@ -132,7 +131,7 @@ static INCOMPATIBLE_PROJECTION_METADATA: TypeMetadata = TypeMetadata::new(
 
 static DIRECT_TARGET_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.Target"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+    ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -152,7 +151,7 @@ static DIRECT_TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 
 static INFO_PROJECTION_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.Target"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info"])),
+    ReferenceTarget::Property(FieldPath::new(&["info"])),
     true,
     None,
 ))];
@@ -173,11 +172,9 @@ static INFO_PROJECTION_METADATA: TypeMetadata = TypeMetadata::new(
 static INVALID_REFERENCE_PATH_ATTRIBUTES: [AttributeMetadata; 1] =
     [AttributeMetadata::Reference(ReferenceMetadata::new(
         ModelId::new("test.graph.Target"),
-        qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+        ReferenceTarget::Property(FieldPath::new(&["id"])),
         true,
-        Some(qubit_model_metadata::ReferencePath::new(&[
-            qubit_model_metadata::ReferencePathSegment::Field("unknown"),
-        ])),
+        Some(ReferencePath::new(&[ReferencePathSegment::Field("unknown")])),
     ))];
 static INVALID_REFERENCE_PATH_FIELDS: [FieldMetadata; 1] = [FieldMetadata::new(
     0,
@@ -195,7 +192,7 @@ static INVALID_REFERENCE_PATH_METADATA: TypeMetadata = TypeMetadata::new(
 
 static CYCLE_A_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.CycleB"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+    ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -212,7 +209,7 @@ static CYCLE_A_METADATA: TypeMetadata = TypeMetadata::new(
 
 static CYCLE_B_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.CycleA"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+    ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -229,7 +226,7 @@ static CYCLE_B_METADATA: TypeMetadata = TypeMetadata::new(
 
 static SELF_CYCLE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.SelfCycle"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+    ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -246,7 +243,7 @@ static SELF_CYCLE_METADATA: TypeMetadata = TypeMetadata::new(
 
 static VEC_CYCLE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.VecCycle"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+    ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -269,7 +266,7 @@ static VEC_CYCLE_METADATA: TypeMetadata = TypeMetadata::new(
 
 static OPTIONAL_CYCLE_A_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.OptionalCycleB"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+    ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -292,7 +289,7 @@ static OPTIONAL_CYCLE_A_METADATA: TypeMetadata = TypeMetadata::new(
 
 static OPTIONAL_CYCLE_B_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.OptionalCycleA"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["id"])),
+    ReferenceTarget::Property(FieldPath::new(&["id"])),
     true,
     None,
 ))];
@@ -335,7 +332,7 @@ static NESTED_TARGET_METADATA: TypeMetadata = TypeMetadata::new(
 );
 static NESTED_SOURCE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.NestedTarget"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info", "id"])),
+    ReferenceTarget::Property(FieldPath::new(&["info", "id"])),
     true,
     None,
 ))];
@@ -362,7 +359,7 @@ static COUNTRY_METADATA: TypeMetadata = TypeMetadata::new(
 );
 static PROVINCE_COUNTRY_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.Country"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info"])),
+    ReferenceTarget::Property(FieldPath::new(&["info"])),
     true,
     None,
 ))];
@@ -381,7 +378,7 @@ static PROVINCE_METADATA: TypeMetadata = TypeMetadata::new(
 );
 static ADDRESS_COUNTRY_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.Country"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info"])),
+    ReferenceTarget::Property(FieldPath::new(&["info"])),
     true,
     Some(ReferencePath::new(&[
         ReferencePathSegment::Field("province"),
@@ -390,7 +387,7 @@ static ADDRESS_COUNTRY_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::
 ))];
 static ADDRESS_PROVINCE_ATTRIBUTES: [AttributeMetadata; 1] = [AttributeMetadata::Reference(ReferenceMetadata::new(
     ModelId::new("test.graph.Province"),
-    qubit_model_metadata::ReferenceTarget::Property(FieldPath::new(&["info"])),
+    ReferenceTarget::Property(FieldPath::new(&["info"])),
     true,
     None,
 ))];
