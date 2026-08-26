@@ -69,7 +69,7 @@ FAILED { message: "timeout" }
 
 该格式供人阅读，不承诺可反序列化。普通 `Display` 要求载荷字段实现 `Debug`；调用方可用 `no_display` 关闭。
 
-Serde 继续使用 `SCREAMING_SNAKE_CASE` 变体名。载荷字段复用结构体字段的省略与默认规则：`Option<T>` 和支持的空集合可在序列化时省略，并在反序列化缺失时使用 `default`。这保证 tuple variant 在省略尾部字段后仍可往返反序列化。
+Serde 继续使用 `SCREAMING_SNAKE_CASE` 变体名。载荷字段复用结构体字段的默认规则：`Option<T>` 和支持的空集合在反序列化缺失时使用 `default`。struct variant 的每个此类字段都可在序列化时省略；为避免位置左移，tuple variant 只有最后一个此类字段可自动省略。这保证 tuple variant 在省略尾部字段后仍可往返反序列化。
 
 出现 `redact` 或载荷字段 `#[redact(...)]` 时，普通 `Display`、`Debug` 和 Serde 实现不再生成，由 `qubit-redact` 生成安全实现，避免原始载荷泄露。
 
