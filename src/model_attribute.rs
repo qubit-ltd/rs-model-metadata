@@ -265,62 +265,123 @@ fn remove_field_attributes(data: &mut Data) {
 /// capabilities.
 fn add_default_serde_field_attributes(data: &mut Data, serialize: bool, deserialize: bool) -> Result<()> {
     let mut error: Option<Error> = None;
-    visit_fields(data, |field| {
-        let result = field_keeps_serializing(&field.attrs).and_then(|keep_serializing| {
-            if keep_serializing {
-                Ok(())
-            } else if is_direct_type(&field.ty, "Option") {
-                let serialization = if serialize {
-                    add_serde_attribute_if_absent(
-                        &mut field.attrs,
-                        &["skip_serializing_if", "skip_serializing", "skip"],
-                        parse_quote!(#[serde(skip_serializing_if = "::core::option::Option::is_none")]),
-                    )
-                } else {
-                    Ok(())
-                };
-                let deserialization = if deserialize {
-                    add_serde_attribute_if_absent(
-                        &mut field.attrs,
-                        &["default", "skip_deserializing", "skip"],
-                        parse_quote!(#[serde(default)]),
-                    )
-                } else {
-                    Ok(())
-                };
-                serialization.and(deserialization)
-            } else if let Some(is_empty) = collection_is_empty_function(&field.ty) {
-                let serialization = if serialize {
-                    add_serde_attribute_if_absent(
-                        &mut field.attrs,
-                        &["skip_serializing_if", "skip_serializing", "skip"],
-                        serde_skip_serializing_if_attribute(is_empty),
-                    )
-                } else {
-                    Ok(())
-                };
-                let deserialization = if deserialize {
-                    add_serde_attribute_if_absent(
-                        &mut field.attrs,
-                        &["default", "skip_deserializing", "skip"],
-                        parse_quote!(#[serde(default)]),
-                    )
-                } else {
-                    Ok(())
-                };
-                serialization.and(deserialization)
-            } else {
-                Ok(())
-            }
-        });
-        if let Err(current) = result {
-            match &mut error {
-                Some(error) => error.combine(current),
-                None => error = Some(current),
+    match data {
+        Data::Struct(data) => visit_serde_fields(&mut data.fields, true, serialize, deserialize, &mut error),
+        Data::Enum(data) => {
+            for variant in &mut data.variants {
+                match &mut variant.fields {
+                    Fields::Unit => {}
+                    Fields::Unnamed(fields) => {
+                        let last_index = fields.unnamed.len().saturating_sub(1);
+                        for (index, field) in fields.unnamed.iter_mut().enumerate() {
+                            add_default_serde_attributes(
+                                field,
+                                index == last_index,
+                                serialize,
+                                deserialize,
+                                &mut error,
+                            );
+                        }
+                    }
+                    Fields::Named(fields) => {
+                        for field in &mut fields.named {
+                            add_default_serde_attributes(field, true, serialize, deserialize, &mut error);
+                        }
+                    }
+                }
             }
         }
-    });
+        Data::Union(_) => {}
+    }
     error.map_or(Ok(()), Err)
+}
+
+/// Adds the supported Serde defaults to a non-enum field collection.
+fn visit_serde_fields(
+    fields: &mut Fields,
+    allow_serialization_omission: bool,
+    serialize: bool,
+    deserialize: bool,
+    error: &mut Option<Error>,
+) {
+    for field in fields {
+        add_default_serde_attributes(field, allow_serialization_omission, serialize, deserialize, error);
+    }
+}
+
+/// Adds Serde defaults to one field without changing tuple field positions.
+///
+/// A tuple variant may omit only its final field. Omitting any earlier field
+/// shifts later serialized values left and prevents safe deserialization.
+fn add_default_serde_attributes(
+    field: &mut Field,
+    allow_serialization_omission: bool,
+    serialize: bool,
+    deserialize: bool,
+    error: &mut Option<Error>,
+) {
+    let result = field_keeps_serializing(&field.attrs).and_then(|keep_serializing| {
+        if keep_serializing {
+            return Ok(());
+        }
+        let omit_serialization = serialize && allow_serialization_omission;
+        if is_direct_type(&field.ty, "Option") {
+            add_default_option_serde_attributes(field, omit_serialization, deserialize)
+        } else if let Some(is_empty) = collection_is_empty_function(&field.ty) {
+            add_default_collection_serde_attributes(field, is_empty, omit_serialization, deserialize)
+        } else {
+            Ok(())
+        }
+    });
+    if let Err(current) = result {
+        match error {
+            Some(error) => error.combine(current),
+            None => *error = Some(current),
+        }
+    }
+}
+
+/// Adds automatic Serde attributes for an optional field.
+fn add_default_option_serde_attributes(field: &mut Field, omit_serialization: bool, deserialize: bool) -> Result<()> {
+    if omit_serialization {
+        add_serde_attribute_if_absent(
+            &mut field.attrs,
+            &["skip_serializing_if", "skip_serializing", "skip"],
+            parse_quote!(#[serde(skip_serializing_if = "::core::option::Option::is_none")]),
+        )?;
+    }
+    if deserialize {
+        add_serde_attribute_if_absent(
+            &mut field.attrs,
+            &["default", "skip_deserializing", "skip"],
+            parse_quote!(#[serde(default)]),
+        )?;
+    }
+    Ok(())
+}
+
+/// Adds automatic Serde attributes for a supported collection field.
+fn add_default_collection_serde_attributes(
+    field: &mut Field,
+    is_empty: &str,
+    omit_serialization: bool,
+    deserialize: bool,
+) -> Result<()> {
+    if omit_serialization {
+        add_serde_attribute_if_absent(
+            &mut field.attrs,
+            &["skip_serializing_if", "skip_serializing", "skip"],
+            serde_skip_serializing_if_attribute(is_empty),
+        )?;
+    }
+    if deserialize {
+        add_serde_attribute_if_absent(
+            &mut field.attrs,
+            &["default", "skip_deserializing", "skip"],
+            parse_quote!(#[serde(default)]),
+        )?;
+    }
+    Ok(())
 }
 
 /// Returns whether a field opts out of the model's automatic serialization

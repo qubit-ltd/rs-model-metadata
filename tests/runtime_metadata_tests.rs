@@ -103,6 +103,7 @@ enum Event {
     Started,
     Progress(u8, String),
     Optional(Option<String>, Vec<String>),
+    OptionalValues(Option<String>, Option<String>),
     Failed {
         #[text(max_chars = 200)]
         #[serde(rename = "error_message")]
@@ -338,8 +339,9 @@ fn test_derive_emits_data_enum_variant_metadata() {
     assert_eq!(variants[1].fields()[0].name(), "0");
     assert_eq!(variants[1].fields()[1].name(), "1");
     assert!(matches!(variants[2].kind(), EnumVariantKind::Tuple(_)));
-    assert!(matches!(variants[3].kind(), EnumVariantKind::Struct(_)));
-    let message = variants[3].fields()[0];
+    assert!(matches!(variants[3].kind(), EnumVariantKind::Tuple(_)));
+    assert!(matches!(variants[4].kind(), EnumVariantKind::Struct(_)));
+    let message = variants[4].fields()[0];
     assert_eq!(message.name(), "message");
     assert_eq!(message.text_constraint().and_then(|text| text.max_chars()), Some(200));
 }
@@ -366,14 +368,34 @@ fn test_data_enum_generates_names_display_and_serde_defaults() {
 }
 
 #[test]
-fn test_data_enum_applies_serde_defaults_to_tuple_fields() {
+fn test_data_enum_preserves_non_trailing_tuple_field_positions() {
+    let required_tail = Event::Optional(None, vec!["tag".to_owned()]);
+    let optional_tail = Event::OptionalValues(None, Some("tail".to_owned()));
+
+    assert_eq!(
+        serde_json::to_string(&required_tail).expect("tuple data enum should serialize"),
+        r#"{"OPTIONAL":[null,["tag"]]}"#
+    );
+    assert_eq!(
+        serde_json::to_string(&optional_tail).expect("tuple data enum should serialize"),
+        r#"{"OPTIONAL_VALUES":[null,"tail"]}"#
+    );
+    assert_eq!(
+        serde_json::from_str::<Event>(r#"{"OPTIONAL_VALUES":[null,"tail"]}"#)
+            .expect("tuple data enum should deserialize"),
+        optional_tail
+    );
+}
+
+#[test]
+fn test_data_enum_omits_trailing_tuple_fields_with_defaults() {
     let optional = Event::Optional(None, Vec::new());
     let serialized = serde_json::to_string(&optional).expect("tuple data enum should serialize");
 
-    assert_eq!(serialized, r#"{"OPTIONAL":[]}"#);
+    assert_eq!(serialized, r#"{"OPTIONAL":[null]}"#);
     assert_eq!(
         serde_json::from_str::<Event>(&serialized).expect("tuple data enum should deserialize"),
-        optional
+        optional,
     );
 }
 

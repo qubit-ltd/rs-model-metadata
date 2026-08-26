@@ -94,6 +94,14 @@ struct CollectionDefaults {
     kept_option: Option<String>,
 }
 
+/// Verifies `keep_serializing` does not implicitly default absent fields.
+#[test]
+fn test_model_attribute_kept_fields_require_serialized_input() {
+    let error = serde_json::from_str::<CollectionDefaults>("{}").expect_err("kept fields should be required");
+
+    assert!(error.to_string().contains("kept_values"));
+}
+
 /// Verifies default enum traits, canonical names, display text, and metadata.
 #[test]
 fn test_enum_attribute_supplies_enum_defaults() {
