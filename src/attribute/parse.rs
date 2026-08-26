@@ -331,6 +331,19 @@ fn parse_standalone_field_attribute(attribute: &Attribute, parsed: &mut Vec<Fiel
     Err(Error::new(span, "unknown field-level attribute"))
 }
 
+/// Parses one `identifier` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed identifier configuration.
+///
+/// # Errors
+///
+/// Returns an error for unsupported identifier arguments.
 fn parse_identifier_attribute(attribute: &Attribute) -> Result<IdentifierAttribute> {
     let span = attribute.path().span();
     let mut generated = Vec::new();
@@ -356,6 +369,19 @@ fn parse_identifier_attribute(attribute: &Attribute) -> Result<IdentifierAttribu
     Ok(IdentifierAttribute { generated, span })
 }
 
+/// Parses one `unique` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed uniqueness configuration.
+///
+/// # Errors
+///
+/// Returns an error for duplicate, conflicting, or unsupported arguments.
 fn parse_field_unique_attribute(attribute: &Attribute) -> Result<FieldUniqueAttribute> {
     let span = attribute.path().span();
     let mut name = Vec::new();
@@ -422,6 +448,19 @@ fn parse_field_unique_attribute(attribute: &Attribute) -> Result<FieldUniqueAttr
     })
 }
 
+/// Parses one `text` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed text constraints.
+///
+/// # Errors
+///
+/// Returns an error for malformed or unsupported text arguments.
 fn parse_text_attribute(attribute: &Attribute) -> Result<TextAttribute> {
     let span = attribute.path().span();
     let mut value = TextAttribute {
@@ -438,6 +477,16 @@ fn parse_text_attribute(attribute: &Attribute) -> Result<TextAttribute> {
     Ok(value)
 }
 
+/// Parses one nested argument of a `text` attribute.
+///
+/// # Parameters
+///
+/// - `value`: The text constraints being accumulated.
+/// - `nested`: The nested metadata item to parse.
+///
+/// # Errors
+///
+/// Returns an error for an unknown text argument or invalid argument value.
 fn parse_text_argument(value: &mut TextAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
     if nested.path.is_ident("min_chars") {
         value.min_chars.push(parse_integer(&nested)?);
@@ -479,6 +528,19 @@ fn parse_text_argument(value: &mut TextAttribute, nested: ParseNestedMeta<'_>) -
     Ok(())
 }
 
+/// Parses one `sequence` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed sequence constraints.
+///
+/// # Errors
+///
+/// Returns an error for malformed or unsupported sequence arguments.
 fn parse_sequence_attribute(attribute: &Attribute) -> Result<SequenceAttribute> {
     let span = attribute.path().span();
     let mut value = SequenceAttribute {
@@ -491,6 +553,16 @@ fn parse_sequence_attribute(attribute: &Attribute) -> Result<SequenceAttribute> 
     Ok(value)
 }
 
+/// Parses one nested argument of a `sequence` attribute.
+///
+/// # Parameters
+///
+/// - `value`: The sequence constraints being accumulated.
+/// - `nested`: The nested metadata item to parse.
+///
+/// # Errors
+///
+/// Returns an error for an unknown sequence argument or invalid argument value.
 fn parse_sequence_argument(value: &mut SequenceAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
     if nested.path.is_ident("min_items") {
         value.min_items.push(parse_integer(&nested)?);
@@ -504,6 +576,19 @@ fn parse_sequence_argument(value: &mut SequenceAttribute, nested: ParseNestedMet
     Ok(())
 }
 
+/// Parses one `map` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed map constraints.
+///
+/// # Errors
+///
+/// Returns an error for malformed or unsupported map arguments.
 fn parse_map_attribute(attribute: &Attribute) -> Result<MapAttribute> {
     let span = attribute.path().span();
     let mut value = MapAttribute {
@@ -515,6 +600,16 @@ fn parse_map_attribute(attribute: &Attribute) -> Result<MapAttribute> {
     Ok(value)
 }
 
+/// Parses one nested argument of a `map` attribute.
+///
+/// # Parameters
+///
+/// - `value`: The map constraints being accumulated.
+/// - `nested`: The nested metadata item to parse.
+///
+/// # Errors
+///
+/// Returns an error for an unknown map argument or invalid argument value.
 fn parse_map_argument(value: &mut MapAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
     if nested.path.is_ident("min_entries") {
         value.min_entries.push(parse_integer(&nested)?);
@@ -526,6 +621,19 @@ fn parse_map_argument(value: &mut MapAttribute, nested: ParseNestedMeta<'_>) -> 
     Ok(())
 }
 
+/// Parses one `time` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed temporal constraints.
+///
+/// # Errors
+///
+/// Returns an error for malformed or unsupported temporal arguments.
 fn parse_temporal_attribute(attribute: &Attribute) -> Result<TemporalAttribute> {
     let span = attribute.path().span();
     let mut value = TemporalAttribute {
@@ -536,6 +644,16 @@ fn parse_temporal_attribute(attribute: &Attribute) -> Result<TemporalAttribute> 
     Ok(value)
 }
 
+/// Parses one nested argument of a `time` attribute.
+///
+/// # Parameters
+///
+/// - `value`: The temporal constraints being accumulated.
+/// - `nested`: The nested metadata item to parse.
+///
+/// # Errors
+///
+/// Returns an error for an unknown temporal argument or invalid argument value.
 fn parse_temporal_argument(value: &mut TemporalAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
     if nested.path.is_ident("precision") {
         let ident = parse_ident(&nested)?;
@@ -556,6 +674,19 @@ fn parse_temporal_argument(value: &mut TemporalAttribute, nested: ParseNestedMet
     Ok(())
 }
 
+/// Parses one `decimal` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed decimal constraints.
+///
+/// # Errors
+///
+/// Returns an error for malformed or unsupported decimal arguments.
 fn parse_decimal_attribute(attribute: &Attribute) -> Result<DecimalAttribute> {
     let span = attribute.path().span();
     let mut value = DecimalAttribute {
@@ -568,6 +699,16 @@ fn parse_decimal_attribute(attribute: &Attribute) -> Result<DecimalAttribute> {
     Ok(value)
 }
 
+/// Parses one nested argument of a `decimal` attribute.
+///
+/// # Parameters
+///
+/// - `value`: The decimal constraints being accumulated.
+/// - `nested`: The nested metadata item to parse.
+///
+/// # Errors
+///
+/// Returns an error for an unknown decimal argument or invalid argument value.
 fn parse_decimal_argument(value: &mut DecimalAttribute, nested: ParseNestedMeta<'_>) -> Result<()> {
     if nested.path.is_ident("precision") {
         value.precision.push(parse_integer(&nested)?);
@@ -592,6 +733,19 @@ fn parse_decimal_argument(value: &mut DecimalAttribute, nested: ParseNestedMeta<
     Ok(())
 }
 
+/// Parses one `element` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed element constraints.
+///
+/// # Errors
+///
+/// Returns an error when the attribute lacks a supported nested constraint.
 fn parse_element_attribute(attribute: &Attribute) -> Result<ElementAttribute> {
     let span = attribute.path().span();
     let mut attributes = Vec::new();
@@ -612,6 +766,19 @@ fn parse_element_attribute(attribute: &Attribute) -> Result<ElementAttribute> {
     Ok(ElementAttribute { attributes, span })
 }
 
+/// Parses one `reference` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed direct-reference configuration.
+///
+/// # Errors
+///
+/// Returns an error for a bare attribute, missing entity, or invalid arguments.
 fn parse_reference_attribute(attribute: &Attribute) -> Result<ReferenceAttribute> {
     let span = attribute.path().span();
     if matches!(attribute.meta, Meta::Path(_)) {
@@ -650,6 +817,20 @@ fn parse_reference_attribute(attribute: &Attribute) -> Result<ReferenceAttribute
     })
 }
 
+/// Parses one `lookup_relation` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed lookup-relation configuration.
+///
+/// # Errors
+///
+/// Returns an error for a bare attribute, missing required arguments, or
+/// invalid values.
 fn parse_lookup_relation_attribute(attribute: &Attribute) -> Result<LookupRelationAttribute> {
     let span = attribute.path().span();
     if matches!(attribute.meta, Meta::Path(_)) {
@@ -683,6 +864,19 @@ fn parse_lookup_relation_attribute(attribute: &Attribute) -> Result<LookupRelati
     })
 }
 
+/// Parses one `generator` field attribute.
+///
+/// # Parameters
+///
+/// - `attribute`: The source attribute to parse.
+///
+/// # Returns
+///
+/// Returns the parsed generation strategy.
+///
+/// # Errors
+///
+/// Returns an error for a missing name or unsupported generator argument.
 fn parse_generator_attribute(attribute: &Attribute) -> Result<StrategyAttribute> {
     let span = attribute.path().span();
     if matches!(attribute.meta, Meta::Path(_)) {

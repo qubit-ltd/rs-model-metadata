@@ -140,9 +140,10 @@ The collection omission rule recognizes unqualified prelude spellings and
 explicit standard-library paths for `Option`, `Vec`, `LinkedList`, `VecDeque`,
 `HashMap`, `BTreeMap`, `HashSet`, `BTreeSet`, `BinaryHeap`, and fixed arrays.
 Type aliases and qualified custom types with the same final name are not
-recognized. Use `#[keep_serializing]` on an `Option` or supported collection
-field to opt out of the macro's automatic omission and defaulting, preserving
-`null` or an empty value during serialization.
+recognized. An unqualified custom type that shadows one of these standard
+names is currently indistinguishable to the procedural macro; use
+`#[keep_serializing]` on that field to opt out of automatic omission and
+defaulting, preserving its own Serde behavior.
 
 Field-level `#[unique(...)]` shorthands normalize into model-level unique
 constraints. Composite uniqueness uses `respectTo = [other_fields]` on the

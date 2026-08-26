@@ -17,9 +17,15 @@ use super::spanned_value::SpannedValue;
 /// Parsed object-graph reference path segment.
 pub(crate) enum ReferencePathSegment {
     /// Parent object navigation (`..`).
-    Parent(Span),
+    Parent(
+        /// Source span of the parent-navigation segment.
+        Span,
+    ),
     /// Named child field navigation.
-    Field(FieldName),
+    Field(
+        /// Parsed name and source span of the child field segment.
+        FieldName,
+    ),
 }
 
 /// Parsed direct-reference values.

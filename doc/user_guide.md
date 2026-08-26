@@ -202,8 +202,11 @@ assert_eq!(
 preserving `null` or an empty value during serialization. It does not remove an
 explicit field-level `#[serde(...)]` attribute. The macro recognizes only
 unqualified prelude spellings and explicit standard-library paths, not aliases
-or qualified custom types with the same final name. A fixed array is empty only
-when its length is zero; an ordinary nonzero-length array is therefore retained.
+or qualified custom types with the same final name. An unqualified custom type
+that shadows a standard name is currently indistinguishable to the procedural
+macro; add `#[keep_serializing]` to preserve that type's own Serde behavior. A
+fixed array is empty only when its length is zero; an ordinary nonzero-length
+array is therefore retained.
 
 ### Model-level attributes
 
