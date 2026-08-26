@@ -1,0 +1,14 @@
+error[E0277]: `NotDebug` doesn't implement `Debug`
+  --> tests/ui/fail/data_enum_display.rs:12:1
+   |
+12 | #[qubit_model_derive::Enum(id = "test.derive.DisplayData", no_debug, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `NotDebug`
+   |
+   = note: add `#[derive(Debug)]` to `NotDebug` or manually `impl Debug for NotDebug`
+   = note: required for the cast from `&NotDebug` to `&dyn Debug`
+   = note: this error originates in the attribute macro `qubit_model_derive::Enum` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider annotating `NotDebug` with `#[derive(Debug)]`
+   |
+10 + #[derive(Debug)]
+11 | struct NotDebug;
+   |

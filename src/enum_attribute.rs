@@ -6,7 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Public expansion entry point for fieldless enum declarations.
+//! Public expansion entry point for enum declarations.
 
 use proc_macro2::TokenStream;
 

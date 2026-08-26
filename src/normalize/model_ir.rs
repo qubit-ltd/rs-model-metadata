@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+use proc_macro2::Span;
 use syn::Ident;
 use syn::LitStr;
 
@@ -23,8 +24,8 @@ pub(crate) struct ModelIr {
     /// Number of attributes declared directly on the model before field
     /// shorthands were appended.
     pub(crate) model_attribute_count: usize,
-    /// Whether this named model is a textual value object.
-    pub(crate) textual: bool,
+    /// The optional marker declaring this model as a textual value object.
+    pub(crate) textual: Option<Span>,
     /// The model's supported structural form.
     pub(crate) shape: ModelShapeIr,
 }

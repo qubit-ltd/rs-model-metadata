@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+use proc_macro2::Span;
+
 use super::named_fields_attribute::NamedFieldsAttribute;
 use super::ownership_attribute::OwnershipAttribute;
 use super::primary_key_attribute::PrimaryKeyAttribute;
@@ -13,7 +15,10 @@ use super::primary_key_attribute::PrimaryKeyAttribute;
 /// Parsed model-level attribute syntax.
 pub(crate) enum ModelAttribute {
     /// Declares a named value object as text-capable for field constraints.
-    Textual,
+    Textual(
+        /// The span of the `textual` capability marker.
+        Span,
+    ),
     /// A primary-key declaration.
     PrimaryKey(
         /// Parsed `primary_key(...)` syntax for this model.

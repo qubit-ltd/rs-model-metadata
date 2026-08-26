@@ -22,6 +22,8 @@ use super::FieldIr;
 use super::ModelAttributeIr;
 use super::ModelIr;
 use super::ModelShapeIr;
+use super::ModelVariantIr;
+use super::ModelVariantShapeIr;
 use super::NamedFieldsIr;
 use super::OwnershipIr;
 use super::PrimaryKeyFieldIr;
@@ -37,6 +39,8 @@ use crate::attribute::ModelAttribute;
 use crate::input::ModelField;
 use crate::input::ModelInput;
 use crate::input::ModelShape;
+use crate::input::ModelVariant;
+use crate::input::ModelVariantShape;
 
 /// Normalizes a parsed model into the sole semantic representation consumed by
 /// expansion.
@@ -60,10 +64,11 @@ pub(crate) fn normalize(input: ModelInput) -> ModelIr {
         attributes,
         shape,
     } = input;
-    let textual = attributes
-        .iter()
-        .any(|attribute| matches!(attribute, ModelAttribute::Textual));
-    let model_attribute_count = attributes.len() - usize::from(textual);
+    let textual = attributes.iter().find_map(|attribute| match attribute {
+        ModelAttribute::Textual(span) => Some(*span),
+        _ => None,
+    });
+    let model_attribute_count = attributes.len() - usize::from(textual.is_some());
     let mut model_attributes = attributes
         .into_iter()
         .filter_map(normalize_model_attribute)
@@ -80,7 +85,15 @@ pub(crate) fn normalize(input: ModelInput) -> ModelIr {
             model_attributes.extend(shorthand);
             ModelShapeIr::Newtype(Box::new(field))
         }
-        ModelShape::FieldlessEnum(variants) => ModelShapeIr::FieldlessEnum(variants),
+        ModelShape::Enum(variants) => {
+            let mut normalized = Vec::with_capacity(variants.len());
+            for variant in variants {
+                let (variant, shorthand) = normalize_variant(variant);
+                normalized.push(variant);
+                model_attributes.extend(shorthand);
+            }
+            ModelShapeIr::Enum(normalized)
+        }
     };
 
     ModelIr {
@@ -93,10 +106,37 @@ pub(crate) fn normalize(input: ModelInput) -> ModelIr {
     }
 }
 
+/// Normalizes one enum variant and returns model-level shorthand attributes
+/// found on its payload fields.
+///
+/// # Parameters
+///
+/// - `variant`: The parsed variant to normalize.
+///
+/// # Returns
+///
+/// Returns the normalized variant and any record-level field shorthands for
+/// later scope validation.
+fn normalize_variant(variant: ModelVariant) -> (ModelVariantIr, Vec<ModelAttributeIr>) {
+    let ModelVariant { ordinal, name, shape } = variant;
+    let (shape, shorthand) = match shape {
+        ModelVariantShape::Unit => (ModelVariantShapeIr::Unit, Vec::new()),
+        ModelVariantShape::Tuple(fields) => {
+            let (fields, shorthand) = normalize_fields(fields);
+            (ModelVariantShapeIr::Tuple(fields), shorthand)
+        }
+        ModelVariantShape::Struct(fields) => {
+            let (fields, shorthand) = normalize_fields(fields);
+            (ModelVariantShapeIr::Struct(fields), shorthand)
+        }
+    };
+    (ModelVariantIr { ordinal, name, shape }, shorthand)
+}
+
 /// Converts one parsed model attribute to canonical IR.
 fn normalize_model_attribute(attribute: ModelAttribute) -> Option<ModelAttributeIr> {
     match attribute {
-        ModelAttribute::Textual => None,
+        ModelAttribute::Textual(_) => None,
         ModelAttribute::PrimaryKey(attribute) => {
             let fields = attribute
                 .fields

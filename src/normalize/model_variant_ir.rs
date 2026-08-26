@@ -6,14 +6,14 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use super::model_variant_shape::ModelVariantShape;
+use super::model_variant_shape_ir::ModelVariantShapeIr;
 
-/// A parsed enum variant.
-pub(crate) struct ModelVariant {
+/// An expansion-ready enum variant.
+pub(crate) struct ModelVariantIr {
     /// The zero-based declaration ordinal.
     pub(crate) ordinal: usize,
-    /// The normalized variant name.
+    /// The normalized serialized variant name.
     pub(crate) name: String,
-    /// The variant's parsed structural form.
-    pub(crate) shape: ModelVariantShape,
+    /// The variant's normalized structural form.
+    pub(crate) shape: ModelVariantShapeIr,
 }

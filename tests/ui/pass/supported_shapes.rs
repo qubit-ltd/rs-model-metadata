@@ -33,4 +33,14 @@ enum Fieldless {
     Second,
 }
 
+#[qubit_model_derive::Enum(id = "test.derive.DataEnum", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, no_deserialize)]
+enum DataEnum {
+    Unit,
+    Tuple(#[text(max_chars = 8)] String),
+    Struct {
+        #[sequence(max_items = 3)]
+        values: Vec<String>,
+    },
+}
+
 fn main() {}

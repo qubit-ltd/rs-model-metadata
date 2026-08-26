@@ -23,9 +23,9 @@ pub(crate) enum ModelShape {
         /// The single tuple-struct field.
         Box<ModelField>,
     ),
-    /// An enum whose variants all have no fields.
-    FieldlessEnum(
-        /// Fieldless variants in declaration order.
+    /// An enum with variants in declaration order.
+    Enum(
+        /// Parsed variants in declaration order.
         Vec<ModelVariant>,
     ),
 }

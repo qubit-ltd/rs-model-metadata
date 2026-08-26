@@ -1,0 +1,12 @@
+error[E0599]: no variant or associated item named `from_name` found for enum `NamedData` in the current scope
+  --> tests/ui/fail/data_enum_from_name.rs:15:24
+   |
+10 | enum NamedData {
+   | -------------- variant or associated item `from_name` not found for this enum
+...
+15 |     let _ = NamedData::from_name("VALUE");
+   |                        ^^^^^^^^^ variant or associated item not found in `NamedData`
+   |
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following trait defines an item `from_name`, perhaps you need to implement it:
+           candidate #1: `bitflags::traits::Flags`

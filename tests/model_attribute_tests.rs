@@ -34,6 +34,16 @@ enum RedactedStatus {
     InReview,
 }
 
+#[Enum(id = "test.attribute.SensitiveEvent", no_deserialize)]
+enum SensitiveEvent {
+    Secret(#[redact(level = "secret")] String),
+    Rejected {
+        reason: String,
+        #[redact(level = "secret")]
+        token: String,
+    },
+}
+
 #[Model(id = "test.attribute.User")]
 struct User {
     first_name: String,
@@ -116,6 +126,28 @@ fn test_redacted_enum_without_deserialize_keeps_screaming_snake_case() {
     assert_eq!(
         serde_json::to_string(&RedactedStatus::InReview).expect("redacted status should serialize"),
         "\"IN_REVIEW\"",
+    );
+}
+
+/// Verifies data-enum payload redaction controls formatting and serialization.
+#[test]
+fn test_data_enum_redacts_marked_payload_fields() {
+    let tuple = SensitiveEvent::Secret("raw-secret".to_owned());
+    let structure = SensitiveEvent::Rejected {
+        reason: "expired".to_owned(),
+        token: "raw-token".to_owned(),
+    };
+
+    assert_eq!(format!("{tuple:?}"), r#"Secret("<redacted>")"#);
+    assert_eq!(format!("{tuple}"), r#"Secret("<redacted>")"#);
+    assert_eq!(
+        format!("{structure}"),
+        r#"Rejected { reason: "expired", token: "<redacted>" }"#
+    );
+    assert!(
+        !serde_json::to_string(&structure)
+            .expect("redacted data enum should serialize")
+            .contains("raw-token")
     );
 }
 

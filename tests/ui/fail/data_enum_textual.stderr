@@ -1,0 +1,5 @@
+error: record-level model attributes are not supported on enums
+ --> tests/ui/fail/data_enum_textual.rs:9:60
+  |
+9 | #[qubit_model_derive::Enum(id = "test.derive.TextualData", textual, no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serial...
+  |                                                            ^^^^^^^

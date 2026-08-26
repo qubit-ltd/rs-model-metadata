@@ -35,6 +35,7 @@ use crate::normalize::FieldIr;
 use crate::normalize::ModelAttributeIr;
 use crate::normalize::ModelIr;
 use crate::normalize::ModelShapeIr;
+use crate::normalize::ModelVariantShapeIr;
 use crate::normalize::NamedFieldsIr;
 use crate::normalize::PrimaryKeyIr;
 use crate::normalize::UniqueIr;
@@ -55,11 +56,44 @@ pub(crate) fn validate(model: &ModelIr) -> Result<()> {
     validate_model_id(model, &mut errors);
     validate_model_attribute_scope(model, &mut errors);
     validate_model_attributes(model, &mut errors);
-    let fields = model_fields(model);
-    for field in fields {
-        validate_field(field, fields, &mut errors);
-    }
+    validate_model_fields(model, &mut errors);
     finish(errors)
+}
+
+/// Validates fields within each declaration shape's local field set.
+///
+/// # Parameters
+///
+/// - `model`: The normalized model containing fields to validate.
+/// - `errors`: The combined diagnostics accumulated for the model.
+fn validate_model_fields(model: &ModelIr, errors: &mut Option<Error>) {
+    match &model.shape {
+        ModelShapeIr::NamedStruct(fields) => validate_fields(fields, errors),
+        ModelShapeIr::Newtype(field) => validate_fields(from_ref(field.as_ref()), errors),
+        ModelShapeIr::Enum(variants) => {
+            for variant in variants {
+                match &variant.shape {
+                    ModelVariantShapeIr::Unit => {}
+                    ModelVariantShapeIr::Tuple(fields) | ModelVariantShapeIr::Struct(fields) => {
+                        validate_fields(fields, errors);
+                    }
+                }
+            }
+        }
+        ModelShapeIr::UnitStruct => {}
+    }
+}
+
+/// Validates one local field set.
+///
+/// # Parameters
+///
+/// - `fields`: Fields that may refer to one another locally.
+/// - `errors`: The combined diagnostics accumulated for the model.
+fn validate_fields(fields: &[FieldIr], errors: &mut Option<Error>) {
+    for field in fields {
+        validate_field(field, fields, errors);
+    }
 }
 
 /// Validates the required stable ID declared directly on the model type.
@@ -212,7 +246,7 @@ fn model_fields(model: &ModelIr) -> &[FieldIr] {
     match &model.shape {
         ModelShapeIr::NamedStruct(fields) => fields,
         ModelShapeIr::Newtype(field) => from_ref(field.as_ref()),
-        ModelShapeIr::UnitStruct | ModelShapeIr::FieldlessEnum(_) => &[],
+        ModelShapeIr::UnitStruct | ModelShapeIr::Enum(_) => &[],
     }
 }
 
@@ -221,6 +255,33 @@ fn model_fields(model: &ModelIr) -> &[FieldIr] {
 fn validate_model_attribute_scope(model: &ModelIr, errors: &mut Option<Error>) {
     if matches!(model.shape, ModelShapeIr::NamedStruct(_)) {
         return;
+    }
+    if matches!(model.shape, ModelShapeIr::Enum(_)) {
+        if let Some(span) = model.textual {
+            push_error(
+                errors,
+                Error::new(span, "record-level model attributes are not supported on enums"),
+            );
+        }
+        for attribute in &model.attributes {
+            push_error(
+                errors,
+                Error::new(
+                    model_attribute_span(attribute),
+                    "record-level model attributes are not supported on enums",
+                ),
+            );
+        }
+        return;
+    }
+    if let Some(span) = model.textual {
+        push_error(
+            errors,
+            Error::new(
+                span,
+                "model-level `textual` capability is only supported on named structs",
+            ),
+        );
     }
     for attribute in &model.attributes {
         push_error(
@@ -239,6 +300,9 @@ fn validate_model_attribute_scope(model: &ModelIr, errors: &mut Option<Error>) {
 /// Validates model constraints, their duplicate declarations, and their field
 /// sets.
 fn validate_model_attributes(model: &ModelIr, errors: &mut Option<Error>) {
+    if matches!(model.shape, ModelShapeIr::Enum(_)) {
+        return;
+    }
     validate_primary_key_declarations(model, errors);
     validate_ownership_declarations(model, errors);
     validate_repeated_constraints(model, errors);

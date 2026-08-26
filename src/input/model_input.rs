@@ -21,6 +21,8 @@ use syn::spanned::Spanned;
 use super::model_field::ModelField;
 use super::model_shape::ModelShape;
 use super::model_variant::ModelVariant;
+use super::model_variant_shape::ModelVariantShape;
+use crate::attribute::FieldAttribute;
 use crate::attribute::ModelAttribute;
 use crate::attribute::parse_field_attributes;
 use crate::attribute::parse_model_attributes;
@@ -44,8 +46,8 @@ impl ModelInput {
     /// this macro.
     ///
     /// Returns an error at the unsupported declaration's span when the input is
-    /// a union, a tuple struct with any field count other than one, an enum
-    /// variant with fields, or a generic model.
+    /// a union, a tuple struct with any field count other than one, or a
+    /// generic model.
     pub(crate) fn parse(input: DeriveInput) -> Result<Self> {
         let mut errors = None;
         if !input.generics.params.is_empty() || input.generics.where_clause.is_some() {
@@ -156,8 +158,7 @@ impl ModelInput {
         })
     }
 
-    /// Parses a fieldless enum and combines unsupported fields and variant
-    /// attributes.
+    /// Parses enum variants and combines misplaced variant attributes.
     fn parse_enum(variants: Vec<Variant>) -> Result<ModelShape> {
         let mut errors: Option<Error> = None;
         for variant in &variants {
@@ -170,32 +171,108 @@ impl ModelInput {
                 } else if crate::attribute::is_field_level_helper_attribute(attribute.path()) {
                     combine_error(
                         &mut errors,
-                        Error::new_spanned(
-                            attribute,
-                            "field helper attributes are not supported on enum variants",
-                        ),
+                        Error::new_spanned(attribute, "field helper attributes are not supported on enum variants"),
                     );
                 }
-            }
-            if !matches!(variant.fields, Fields::Unit) {
-                let error = Error::new(variant.fields.span(), "Model derive only supports fieldless enums");
-                combine_error(&mut errors, error);
             }
         }
         if let Some(error) = errors {
             return Err(error);
         }
 
-        Ok(ModelShape::FieldlessEnum(
+        Ok(ModelShape::Enum(
             variants
                 .into_iter()
                 .enumerate()
                 .map(|(ordinal, variant)| {
                     let name = serialized_variant_name(&variant)?;
-                    Ok(ModelVariant { ordinal, name })
+                    let shape = Self::parse_variant_shape(variant.fields)?;
+                    Ok(ModelVariant { ordinal, name, shape })
                 })
                 .collect::<Result<Vec<_>>>()?,
         ))
+    }
+
+    /// Parses one enum variant's payload fields.
+    ///
+    /// # Parameters
+    ///
+    /// - `fields`: The syntactic variant fields to parse.
+    ///
+    /// # Returns
+    ///
+    /// Returns the parsed unit, tuple, or struct variant shape.
+    fn parse_variant_shape(fields: Fields) -> Result<ModelVariantShape> {
+        match fields {
+            Fields::Unit => Ok(ModelVariantShape::Unit),
+            Fields::Unnamed(fields) => fields
+                .unnamed
+                .into_iter()
+                .enumerate()
+                .map(|(ordinal, field)| {
+                    let attributes = parse_field_attributes(&field.attrs)?;
+                    Self::validate_enum_field_attributes(&attributes)?;
+                    Ok(ModelField {
+                        ordinal,
+                        name: ordinal.to_string(),
+                        ty: field.ty,
+                        attributes,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()
+                .map(ModelVariantShape::Tuple),
+            Fields::Named(fields) => fields
+                .named
+                .into_iter()
+                .enumerate()
+                .map(|(ordinal, field)| {
+                    let field = Self::parse_named_field(ordinal, field)?;
+                    Self::validate_enum_field_attributes(&field.attributes)?;
+                    Ok(field)
+                })
+                .collect::<Result<Vec<_>>>()
+                .map(ModelVariantShape::Struct),
+        }
+    }
+
+    /// Rejects field attributes that require one record-wide field set.
+    ///
+    /// # Parameters
+    ///
+    /// - `attributes`: Parsed attributes from one enum payload field.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error at the attribute span for primary-key, uniqueness,
+    /// index, reference, or lookup-relation semantics.
+    fn validate_enum_field_attributes(attributes: &[FieldAttribute]) -> Result<()> {
+        for attribute in attributes {
+            let unsupported = match attribute {
+                FieldAttribute::Identifier(value) => Some((value.span, "identifier")),
+                FieldAttribute::Unique(value) => Some((value.span, "unique")),
+                FieldAttribute::Index(span) => Some((*span, "indexed")),
+                FieldAttribute::Reference(value) => Some((value.span, "reference")),
+                FieldAttribute::LookupRelation(value) => Some((value.span, "lookup_relation")),
+                FieldAttribute::Text(_)
+                | FieldAttribute::Sequence(_)
+                | FieldAttribute::Map(_)
+                | FieldAttribute::Temporal(_)
+                | FieldAttribute::Decimal(_)
+                | FieldAttribute::Money(_)
+                | FieldAttribute::Element(_)
+                | FieldAttribute::Codec(_)
+                | FieldAttribute::Generator(_)
+                | FieldAttribute::Opaque(_)
+                | FieldAttribute::KeepSerializing => None,
+            };
+            if let Some((span, name)) = unsupported {
+                return Err(Error::new(
+                    span,
+                    format!("`{name}` is not supported on enum variant fields"),
+                ));
+            }
+        }
+        Ok(())
     }
 }
 

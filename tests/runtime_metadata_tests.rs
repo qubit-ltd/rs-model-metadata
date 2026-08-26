@@ -10,10 +10,12 @@
 
 use std::collections::HashMap;
 
+use model_runtime::AllowedChars;
 use model_runtime::AttributeKind;
 use model_runtime::AttributeMetadata;
 use model_runtime::AttributeQuery;
 use model_runtime::DecimalSemantic;
+use model_runtime::EnumVariantKind;
 use model_runtime::FieldPath;
 use model_runtime::HasModelRegistration;
 use model_runtime::HasTypeShape;
@@ -23,7 +25,6 @@ use model_runtime::ReferenceTarget;
 use model_runtime::RoundingMode;
 use model_runtime::TemporalPrecision;
 use model_runtime::TextFormat;
-use model_runtime::AllowedChars;
 use model_runtime::TypeCapabilities;
 use model_runtime::TypeKind;
 use model_runtime::TypeShape;
@@ -95,6 +96,20 @@ enum SerializedStatus {
     Reviewing,
     #[serde(rename(serialize = "invalid-state"))]
     Invalid,
+}
+
+#[Enum(id = "test.derive.Event")]
+enum Event {
+    Started,
+    Progress(u8, String),
+    Optional(Option<String>, Vec<String>),
+    Failed {
+        #[text(max_chars = 200)]
+        #[serde(rename = "error_message")]
+        message: String,
+        details: Option<String>,
+        tags: Vec<String>,
+    },
 }
 
 #[allow(dead_code)]
@@ -308,6 +323,58 @@ fn test_derive_emits_fieldless_enum_metadata() {
         if enum_metadata.variants().len() == 2
             && enum_metadata.variants()[0].name() == "DRAFT"
             && enum_metadata.variants()[1].ordinal() == 1));
+}
+
+#[test]
+fn test_derive_emits_data_enum_variant_metadata() {
+    let TypeKind::Enum(metadata) = metadata_of::<Event>().kind() else {
+        panic!("Event should have enum metadata");
+    };
+    let variants = metadata.variants();
+
+    assert!(matches!(variants[0].kind(), EnumVariantKind::Unit));
+    assert!(matches!(variants[1].kind(), EnumVariantKind::Tuple(_)));
+    assert_eq!(variants[1].fields().len(), 2);
+    assert_eq!(variants[1].fields()[0].name(), "0");
+    assert_eq!(variants[1].fields()[1].name(), "1");
+    assert!(matches!(variants[2].kind(), EnumVariantKind::Tuple(_)));
+    assert!(matches!(variants[3].kind(), EnumVariantKind::Struct(_)));
+    let message = variants[3].fields()[0];
+    assert_eq!(message.name(), "message");
+    assert_eq!(message.text_constraint().and_then(|text| text.max_chars()), Some(200));
+}
+
+#[test]
+fn test_data_enum_generates_names_display_and_serde_defaults() {
+    let progress = Event::Progress(42, "items".to_owned());
+    let failed = Event::Failed {
+        message: "timeout".to_owned(),
+        details: None,
+        tags: Vec::new(),
+    };
+
+    assert_eq!(progress.name(), "PROGRESS");
+    assert_eq!(progress.to_string(), "PROGRESS(42, \"items\")");
+    assert_eq!(
+        failed.to_string(),
+        "FAILED { message: \"timeout\", details: None, tags: [] }"
+    );
+    assert_eq!(
+        serde_json::to_string(&failed).expect("data enum should serialize"),
+        r#"{"FAILED":{"error_message":"timeout"}}"#
+    );
+}
+
+#[test]
+fn test_data_enum_applies_serde_defaults_to_tuple_fields() {
+    let optional = Event::Optional(None, Vec::new());
+    let serialized = serde_json::to_string(&optional).expect("tuple data enum should serialize");
+
+    assert_eq!(serialized, r#"{"OPTIONAL":[]}"#);
+    assert_eq!(
+        serde_json::from_str::<Event>(&serialized).expect("tuple data enum should deserialize"),
+        optional
+    );
 }
 
 #[test]

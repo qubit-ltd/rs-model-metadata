@@ -13,9 +13,11 @@ use proc_macro_crate::crate_name;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
+use quote::format_ident;
 use quote::quote;
 use syn::Attribute;
 use syn::Data;
+use syn::DataEnum;
 use syn::DeriveInput;
 use syn::Error;
 use syn::Field;
@@ -66,19 +68,15 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
     let mut item: DeriveInput = parse2(input)?;
     match (&item.data, enum_declaration) {
         (Data::Struct(_), false) => {}
-        (Data::Enum(data), true)
-            if data
-                .variants
-                .iter()
-                .all(|variant| matches!(variant.fields, Fields::Unit)) => {}
+        (Data::Enum(_), true) => {}
         (Data::Enum(_), false) => {
             return Err(Error::new_spanned(
                 &item.ident,
-                "#[Model] only supports structs; use #[Enum] for fieldless enums",
+                "#[Model] only supports structs; use #[Enum] for enums",
             ));
         }
-        (Data::Enum(_), true) | (Data::Struct(_), true) => {
-            return Err(Error::new_spanned(&item.ident, "#[Enum] only supports fieldless enums"));
+        (Data::Struct(_), true) => {
+            return Err(Error::new_spanned(&item.ident, "#[Enum] only supports enums"));
         }
         (Data::Union(union), _) => {
             return Err(Error::new_spanned(
@@ -168,7 +166,7 @@ fn default_derives(
     redacted: bool,
 ) -> Result<Attribute> {
     match data {
-        Data::Enum(_) => enum_derives(serde, disabled, redacted),
+        Data::Enum(data) => enum_derives(data, serde, disabled, redacted),
         Data::Struct(_) => struct_derives(serde, disabled, redacted),
         Data::Union(union) => Err(Error::new_spanned(
             union.union_token,
@@ -177,13 +175,22 @@ fn default_derives(
     }
 }
 
-/// Builds the defaults for a fieldless enum.
-fn enum_derives(serde: &TokenStream, disabled: &DisabledCapabilities, redacted: bool) -> Result<Attribute> {
+/// Builds the defaults for an enum, including shape-dependent `Copy` support.
+fn enum_derives(
+    data: &DataEnum,
+    serde: &TokenStream,
+    disabled: &DisabledCapabilities,
+    redacted: bool,
+) -> Result<Attribute> {
     let mut derives = Vec::new();
     if !disabled.clone {
         derives.push(quote!(Clone));
     }
-    if !disabled.copy && !disabled.clone {
+    let fieldless = data
+        .variants
+        .iter()
+        .all(|variant| matches!(variant.fields, Fields::Unit));
+    if fieldless && !disabled.copy && !disabled.clone {
         derives.push(quote!(Copy));
     }
     if !disabled.debug && !redacted {
@@ -248,7 +255,9 @@ fn struct_derives(serde: &TokenStream, disabled: &DisabledCapabilities, redacted
 /// Removes field helper attributes from the item returned to the compiler.
 fn remove_field_attributes(data: &mut Data) {
     visit_fields(data, |field| {
-        field.attrs.retain(|attribute| !is_field_level_helper_attribute(attribute.path()));
+        field
+            .attrs
+            .retain(|attribute| !is_field_level_helper_attribute(attribute.path()));
     });
 }
 
@@ -260,12 +269,26 @@ fn add_default_serde_field_attributes(data: &mut Data, serialize: bool, deserial
         let result = field_keeps_serializing(&field.attrs).and_then(|keep_serializing| {
             if keep_serializing {
                 Ok(())
-            } else if serialize && is_direct_type(&field.ty, "Option") {
-                add_serde_attribute_if_absent(
-                    &mut field.attrs,
-                    &["skip_serializing_if", "skip_serializing", "skip"],
-                    parse_quote!(#[serde(skip_serializing_if = "::core::option::Option::is_none")]),
-                )
+            } else if is_direct_type(&field.ty, "Option") {
+                let serialization = if serialize {
+                    add_serde_attribute_if_absent(
+                        &mut field.attrs,
+                        &["skip_serializing_if", "skip_serializing", "skip"],
+                        parse_quote!(#[serde(skip_serializing_if = "::core::option::Option::is_none")]),
+                    )
+                } else {
+                    Ok(())
+                };
+                let deserialization = if deserialize {
+                    add_serde_attribute_if_absent(
+                        &mut field.attrs,
+                        &["default", "skip_deserializing", "skip"],
+                        parse_quote!(#[serde(default)]),
+                    )
+                } else {
+                    Ok(())
+                };
+                serialization.and(deserialization)
             } else if let Some(is_empty) = collection_is_empty_function(&field.ty) {
                 let serialization = if serialize {
                     add_serde_attribute_if_absent(
@@ -387,24 +410,41 @@ fn is_direct_type(ty: &Type, type_name: &str) -> bool {
     }
 }
 
-/// Returns whether any struct field declares a redaction rule.
+/// Returns whether any struct or enum payload field declares a redaction rule.
 #[must_use]
 #[inline]
 fn has_redact_fields(data: &Data) -> bool {
-    let Data::Struct(data) = data else {
-        return false;
-    };
-    data.fields
-        .iter()
-        .any(|field| field.attrs.iter().any(|attribute| attribute.path().is_ident("redact")))
+    match data {
+        Data::Struct(data) => data
+            .fields
+            .iter()
+            .any(|field| field.attrs.iter().any(|attribute| attribute.path().is_ident("redact"))),
+        Data::Enum(data) => data.variants.iter().any(|variant| {
+            variant
+                .fields
+                .iter()
+                .any(|field| field.attrs.iter().any(|attribute| attribute.path().is_ident("redact")))
+        }),
+        Data::Union(_) => false,
+    }
 }
 
-/// Visits all struct fields in a declaration.
+/// Visits all struct or enum payload fields in a declaration.
 fn visit_fields(data: &mut Data, mut visit: impl FnMut(&mut Field)) {
-    if let Data::Struct(data) = data {
-        for field in &mut data.fields {
-            visit(field);
+    match data {
+        Data::Struct(data) => {
+            for field in &mut data.fields {
+                visit(field);
+            }
         }
+        Data::Enum(data) => {
+            for variant in &mut data.variants {
+                for field in &mut variant.fields {
+                    visit(field);
+                }
+            }
+        }
+        Data::Union(_) => {}
     }
 }
 
@@ -417,11 +457,37 @@ fn expand_display(input: &DeriveInput, rename_all: LitStr) -> Result<TokenStream
         Data::Enum(data) => {
             let mut arms = Vec::with_capacity(data.variants.len());
             for variant in &data.variants {
-                if !matches!(variant.fields, Fields::Unit) {
-                    return Ok(TokenStream::new());
-                }
                 let variant_name = &variant.ident;
-                arms.push(quote!(Self::#variant_name => formatter.write_str(self.name())));
+                let arm = match &variant.fields {
+                    Fields::Unit => quote!(Self::#variant_name => formatter.write_str(self.name())),
+                    Fields::Unnamed(fields) => {
+                        let bindings = (0..fields.unnamed.len())
+                            .map(|index| format_ident!("field_{index}"))
+                            .collect::<Vec<_>>();
+                        quote! {
+                            Self::#variant_name(#(#bindings),*) => {
+                                let mut debug = formatter.debug_tuple(self.name());
+                                #(debug.field(#bindings);)*
+                                debug.finish()
+                            }
+                        }
+                    }
+                    Fields::Named(fields) => {
+                        let bindings = fields
+                            .named
+                            .iter()
+                            .filter_map(|field| field.ident.as_ref())
+                            .collect::<Vec<_>>();
+                        quote! {
+                            Self::#variant_name { #(#bindings),* } => {
+                                let mut debug = formatter.debug_struct(self.name());
+                                #(debug.field(stringify!(#bindings), #bindings);)*
+                                debug.finish()
+                            }
+                        }
+                    }
+                };
+                arms.push(arm);
             }
             let _ = rename_all;
             Ok(quote! {
@@ -441,14 +507,15 @@ fn expand_display(input: &DeriveInput, rename_all: LitStr) -> Result<TokenStream
     }
 }
 
-/// Generates canonical name conversion methods for a fieldless enum.
+/// Generates canonical name methods and unit-only reverse conversion.
 fn expand_enum_names(input: &DeriveInput) -> Result<TokenStream> {
     let Data::Enum(data) = &input.data else {
         return Ok(TokenStream::new());
     };
     let name = &input.ident;
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
-    let mut variants = Vec::with_capacity(data.variants.len());
+    let mut name_arms = Vec::with_capacity(data.variants.len());
+    let mut unit_variants = Vec::with_capacity(data.variants.len());
     let mut names = Vec::with_capacity(data.variants.len());
     for variant in &data.variants {
         let serialized = serialized_variant_name(variant)?;
@@ -458,31 +525,50 @@ fn expand_enum_names(input: &DeriveInput) -> Result<TokenStream> {
                 format!("duplicate serialized enum name {serialized:?}"),
             ));
         }
-        variants.push(&variant.ident);
+        let variant_name = &variant.ident;
+        let pattern = match variant.fields {
+            Fields::Unit => {
+                unit_variants.push(variant_name);
+                quote!(Self::#variant_name)
+            }
+            Fields::Unnamed(_) => quote!(Self::#variant_name(..)),
+            Fields::Named(_) => quote!(Self::#variant_name { .. }),
+        };
+        name_arms.push((pattern, serialized.clone()));
         names.push(serialized);
     }
     let names = names
         .iter()
         .map(|name| LitStr::new(name, Span::call_site()))
         .collect::<Vec<_>>();
+    let patterns = name_arms.iter().map(|(pattern, _)| pattern);
+    let name_literals = name_arms
+        .iter()
+        .map(|(_, name)| LitStr::new(name, Span::call_site()))
+        .collect::<Vec<_>>();
+    let from_name = (unit_variants.len() == data.variants.len()).then(|| {
+        quote! {
+            /// Converts a canonical serialized name back into an enum variant.
+            #[must_use]
+            pub fn from_name(name: &str) -> Option<Self> {
+                match name {
+                    #(#names => Some(Self::#unit_variants),)*
+                    _ => None,
+                }
+            }
+        }
+    });
     Ok(quote! {
         impl #impl_generics #name #type_generics #where_clause {
             /// Returns the canonical serialized name of this enum variant.
             #[must_use]
             pub const fn name(&self) -> &'static str {
                 match self {
-                    #(Self::#variants => #names,)*
+                    #(#patterns => #name_literals,)*
                 }
             }
 
-            /// Converts a canonical serialized name back into an enum variant.
-            #[must_use]
-            pub fn from_name(name: &str) -> Option<Self> {
-                match name {
-                    #(#names => Some(Self::#variants),)*
-                    _ => None,
-                }
-            }
+            #from_name
         }
     })
 }

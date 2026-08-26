@@ -13,15 +13,18 @@ use std::slice::from_ref;
 
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
+use quote::format_ident;
 use quote::quote;
 use quote::quote_spanned;
 use syn::GenericArgument;
 use syn::Ident;
 use syn::LitStr;
 use syn::PathArguments;
+use syn::PathSegment;
 use syn::Type;
 use syn::TypePath;
 
+use crate::attribute::AllowedChars;
 use crate::attribute::LookupRelationAttribute;
 use crate::attribute::ReferenceAttribute;
 use crate::attribute::ReferencePathSegment;
@@ -33,8 +36,6 @@ use crate::attribute::TemporalAttribute;
 use crate::attribute::TemporalPrecision;
 use crate::attribute::TextAttribute;
 use crate::attribute::TextFormat;
-use crate::attribute::AllowedChars;
-use crate::input::ModelVariant;
 use crate::normalize::DecimalIr;
 use crate::normalize::DecimalSemantic;
 use crate::normalize::ElementConstraintIr;
@@ -44,6 +45,8 @@ use crate::normalize::FieldIr;
 use crate::normalize::ModelAttributeIr;
 use crate::normalize::ModelIr;
 use crate::normalize::ModelShapeIr;
+use crate::normalize::ModelVariantIr;
+use crate::normalize::ModelVariantShapeIr;
 use crate::normalize::NamedFieldsIr;
 use crate::normalize::PrimaryKeyIr;
 use crate::normalize::UniqueIr;
@@ -73,13 +76,10 @@ pub(crate) fn expand(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
             let ty = &field.ty;
             quote!(<#ty as #runtime::HasTypeShape>::CAPABILITIES)
         }
-        ModelShapeIr::NamedStruct(_) if input.textual => {
+        ModelShapeIr::NamedStruct(_) if input.textual.is_some() => {
             quote!(#runtime::TypeCapabilities::TEXT)
         }
-        ModelShapeIr::NamedStruct(_)
-        | ModelShapeIr::UnitStruct
-        | ModelShapeIr::Newtype(_)
-        | ModelShapeIr::FieldlessEnum(_) => {
+        ModelShapeIr::NamedStruct(_) | ModelShapeIr::UnitStruct | ModelShapeIr::Newtype(_) | ModelShapeIr::Enum(_) => {
             quote!(#runtime::TypeCapabilities::NONE)
         }
     };
@@ -133,11 +133,36 @@ fn expand_registration(ident: &Ident, id: &LitStr, runtime: &TokenStream) -> Tok
 #[must_use]
 pub(crate) fn expand_independent_diagnostics(input: &ModelIr, runtime: &TokenStream) -> TokenStream {
     let unique_assertions = expand_unique_capability_assertions(&input.shape, &input.attributes, runtime);
-    let field_assertions = model_fields(&input.shape)
-        .iter()
+    let field_assertions = all_fields(&input.shape)
+        .into_iter()
         .flat_map(|field| expand_capability_assertions(field, runtime))
         .collect::<Vec<_>>();
     quote!(#(#unique_assertions)* #(#field_assertions)*)
+}
+
+/// Returns every field-bearing declaration member for independent type
+/// assertions.
+///
+/// # Parameters
+///
+/// - `shape`: The normalized model shape to inspect.
+///
+/// # Returns
+///
+/// Returns borrowed fields across structs, newtypes, and enum variants.
+fn all_fields(shape: &ModelShapeIr) -> Vec<&FieldIr> {
+    match shape {
+        ModelShapeIr::NamedStruct(fields) => fields.iter().collect(),
+        ModelShapeIr::Newtype(field) => vec![field.as_ref()],
+        ModelShapeIr::Enum(variants) => variants
+            .iter()
+            .flat_map(|variant| match &variant.shape {
+                ModelVariantShapeIr::Unit => [].as_slice().iter(),
+                ModelVariantShapeIr::Tuple(fields) | ModelVariantShapeIr::Struct(fields) => fields.iter(),
+            })
+            .collect(),
+        ModelShapeIr::UnitStruct => Vec::new(),
+    }
 }
 
 /// Returns every field-bearing supported shape as a slice.
@@ -147,7 +172,7 @@ fn model_fields(shape: &ModelShapeIr) -> &[FieldIr] {
     match shape {
         ModelShapeIr::NamedStruct(fields) => fields,
         ModelShapeIr::Newtype(field) => from_ref(field.as_ref()),
-        ModelShapeIr::UnitStruct | ModelShapeIr::FieldlessEnum(_) => &[],
+        ModelShapeIr::UnitStruct | ModelShapeIr::Enum(_) => &[],
     }
 }
 
@@ -198,11 +223,12 @@ fn expand_type_kind(
                 );
             }
         }
-        ModelShapeIr::FieldlessEnum(variants) => {
-            let variants = expand_variants(variants, runtime);
+        ModelShapeIr::Enum(variants) => {
+            let (field_statics, variants) = expand_variants(variants, runtime);
             let count = variants.len();
             quote! {
                 #(#unique_capability_assertions)*
+                #(#field_statics)*
                 static VARIANTS: [#runtime::EnumVariantMetadata; #count] = [#(#variants),*];
                 static MODEL_METADATA: #runtime::TypeMetadata = #runtime::TypeMetadata::new(
                     #runtime::ModelId::new(#id),
@@ -409,10 +435,7 @@ fn reference_field_type_requires_opaque(ty: &Type) -> bool {
         Type::Path(path) => reference_path_type_requires_opaque(path),
         Type::Array(array) => reference_field_type_requires_opaque(&array.elem),
         Type::Slice(slice) => reference_field_type_requires_opaque(&slice.elem),
-        Type::Tuple(tuple) => tuple
-            .elems
-            .iter()
-            .any(reference_field_type_requires_opaque),
+        Type::Tuple(tuple) => tuple.elems.iter().any(reference_field_type_requires_opaque),
         Type::Reference(reference) => reference_field_type_requires_opaque(&reference.elem),
         _ => true,
     }
@@ -484,7 +507,7 @@ fn is_builtin_has_type_shape_type(name: &str) -> bool {
 }
 
 /// Returns the type arguments from the final segment of a path type.
-fn type_path_arguments(segment: &syn::PathSegment) -> Vec<&Type> {
+fn type_path_arguments(segment: &PathSegment) -> Vec<&Type> {
     let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
         return Vec::new();
     };
@@ -1003,13 +1026,37 @@ fn expand_strategy(value: &StrategyAttribute, runtime: &TokenStream, codec: bool
 }
 
 /// Generates enum-variant metadata values in declaration order.
-fn expand_variants(variants: &[ModelVariant], runtime: &TokenStream) -> Vec<TokenStream> {
-    variants
-        .iter()
-        .map(|variant| {
-            let ordinal = variant.ordinal;
-            let name = LitStr::new(&variant.name, Span::call_site());
-            quote!(#runtime::EnumVariantMetadata::new(#ordinal, #name))
-        })
-        .collect()
+fn expand_variants(variants: &[ModelVariantIr], runtime: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
+    let mut field_statics = Vec::new();
+    let mut expanded = Vec::with_capacity(variants.len());
+    for variant in variants {
+        let ordinal = variant.ordinal;
+        let name = LitStr::new(&variant.name, Span::call_site());
+        match &variant.shape {
+            ModelVariantShapeIr::Unit => {
+                expanded.push(quote!(#runtime::EnumVariantMetadata::new(#ordinal, #name)));
+            }
+            ModelVariantShapeIr::Tuple(fields) | ModelVariantShapeIr::Struct(fields) => {
+                let field_static = format_ident!("VARIANT_{ordinal}_FIELDS");
+                let expanded_fields = expand_fields(fields, runtime);
+                let count = expanded_fields.len();
+                field_statics.push(quote! {
+                    static #field_static: [#runtime::FieldMetadata; #count] = [#(#expanded_fields),*];
+                });
+                let constructor = match variant.shape {
+                    ModelVariantShapeIr::Tuple(_) => quote!(tuple),
+                    ModelVariantShapeIr::Struct(_) => quote!(structure),
+                    ModelVariantShapeIr::Unit => unreachable!("unit variants are handled separately"),
+                };
+                expanded.push(quote! {
+                    #runtime::EnumVariantMetadata::#constructor(
+                        #ordinal,
+                        #name,
+                        &#field_static,
+                    )
+                });
+            }
+        }
+    }
+    (field_statics, expanded)
 }

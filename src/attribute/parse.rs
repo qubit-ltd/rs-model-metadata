@@ -15,13 +15,13 @@ use proc_macro2::Span;
 use proc_macro2::TokenTree;
 use syn::Attribute;
 use syn::Error;
-use syn::Ident;
 use syn::Expr;
+use syn::Ident;
 use syn::Lit;
-use syn::Meta;
 use syn::LitBool;
 use syn::LitInt;
 use syn::LitStr;
+use syn::Meta;
 use syn::Path;
 use syn::Result;
 use syn::Token;
@@ -34,6 +34,7 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Paren;
 
+use super::allowed_chars::AllowedChars;
 use super::decimal_attribute::DecimalAttribute;
 use super::element_attribute::ElementAttribute;
 use super::element_constraint_attribute::ElementConstraintAttribute;
@@ -58,7 +59,6 @@ use super::temporal_attribute::TemporalAttribute;
 use super::temporal_precision::TemporalPrecision;
 use super::text_attribute::TextAttribute;
 use super::text_format::TextFormat;
-use super::allowed_chars::AllowedChars;
 
 /// Parses every model-level `#[model(...)]` item in source order.
 ///
@@ -235,10 +235,7 @@ pub(crate) fn parse_field_attributes(attributes: &[Attribute]) -> Result<Vec<Fie
 }
 
 /// Parses one standalone field-level helper attribute.
-fn parse_standalone_field_attribute(
-    attribute: &Attribute,
-    parsed: &mut Vec<FieldAttribute>,
-) -> Result<()> {
+fn parse_standalone_field_attribute(attribute: &Attribute, parsed: &mut Vec<FieldAttribute>) -> Result<()> {
     let path = attribute.path();
     let span = path.span();
     if path.is_ident("identifier") {
@@ -287,7 +284,9 @@ fn parse_standalone_field_attribute(
         return Ok(());
     }
     if path.is_ident("lookup_relation") {
-        parsed.push(FieldAttribute::LookupRelation(parse_lookup_relation_attribute(attribute)?));
+        parsed.push(FieldAttribute::LookupRelation(parse_lookup_relation_attribute(
+            attribute,
+        )?));
         return Ok(());
     }
     if path.is_ident("codec") {
@@ -705,10 +704,7 @@ fn parse_codec_attribute(attribute: &Attribute) -> Result<StrategyAttribute> {
             })
         }
         Meta::List(_) => parse_generator_attribute(attribute),
-        Meta::Path(path) => Err(Error::new(
-            path.span(),
-            "codec attribute requires a name",
-        )),
+        Meta::Path(path) => Err(Error::new(path.span(), "codec attribute requires a name")),
     }
 }
 
@@ -717,10 +713,7 @@ fn reject_field_attribute_arguments(attribute: &Attribute, name: &str) -> Result
     match &attribute.meta {
         Meta::Path(_) => Ok(()),
         Meta::List(list) if list.tokens.is_empty() => Ok(()),
-        Meta::List(list) => Err(Error::new(
-            list.span(),
-            format!("`{name}` does not accept arguments"),
-        )),
+        Meta::List(list) => Err(Error::new(list.span(), format!("`{name}` does not accept arguments"))),
         Meta::NameValue(name_value) => Err(Error::new(
             name_value.span(),
             format!("`{name}` does not accept arguments"),
@@ -739,14 +732,14 @@ fn parse_model_attribute(
     } else if meta.path.is_ident("textual") {
         if parsed
             .iter()
-            .any(|attribute| matches!(attribute, ModelAttribute::Textual))
+            .any(|attribute| matches!(attribute, ModelAttribute::Textual(_)))
         {
             return Err(meta.error("duplicate `textual` model capability"));
         }
         if meta.input.peek(Paren) || meta.input.peek(Token![=]) {
             return Err(meta.error("`textual` does not accept arguments"));
         }
-        parsed.push(ModelAttribute::Textual);
+        parsed.push(ModelAttribute::Textual(meta.path.span()));
     } else if meta.path.is_ident("primary_key") {
         parsed.push(ModelAttribute::PrimaryKey(parse_primary_key(meta)?));
     } else if meta.path.is_ident("index") {

@@ -7,7 +7,7 @@
 // =============================================================================
 
 use super::field_ir::FieldIr;
-use crate::input::ModelVariant;
+use super::model_variant_ir::ModelVariantIr;
 
 /// A supported model shape containing normalized fields.
 pub(crate) enum ModelShapeIr {
@@ -23,9 +23,9 @@ pub(crate) enum ModelShapeIr {
         /// The single tuple-struct field.
         Box<FieldIr>,
     ),
-    /// An enum whose variants all have no fields.
-    FieldlessEnum(
-        /// Fieldless variants in declaration order.
-        Vec<ModelVariant>,
+    /// An enum with normalized variants in declaration order.
+    Enum(
+        /// Normalized variants in declaration order.
+        Vec<ModelVariantIr>,
     ),
 }
