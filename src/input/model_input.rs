@@ -158,7 +158,20 @@ impl ModelInput {
         })
     }
 
-    /// Parses enum variants and combines misplaced variant attributes.
+    /// Parses enum variants and combines all variant and payload diagnostics.
+    ///
+    /// # Parameters
+    ///
+    /// - `variants`: Enum variants in their source order.
+    ///
+    /// # Returns
+    ///
+    /// Returns parsed variants with ordinals that match their source order.
+    ///
+    /// # Errors
+    ///
+    /// Returns one combined `syn::Error` when any variant has unsupported
+    /// helper attributes, invalid Serde metadata, or an invalid payload field.
     fn parse_enum(variants: Vec<Variant>) -> Result<ModelShape> {
         let mut errors: Option<Error> = None;
         for variant in &variants {
@@ -176,21 +189,31 @@ impl ModelInput {
                 }
             }
         }
-        if let Some(error) = errors {
-            return Err(error);
+        let mut parsed = Vec::with_capacity(variants.len());
+        for (ordinal, variant) in variants.into_iter().enumerate() {
+            let name = match serialized_variant_name(&variant) {
+                Ok(name) => Some(name),
+                Err(error) => {
+                    combine_error(&mut errors, error);
+                    None
+                }
+            };
+            let shape = match Self::parse_variant_shape(variant.fields) {
+                Ok(shape) => Some(shape),
+                Err(error) => {
+                    combine_error(&mut errors, error);
+                    None
+                }
+            };
+            if let (Some(name), Some(shape)) = (name, shape) {
+                parsed.push(ModelVariant { ordinal, name, shape });
+            }
         }
-
-        Ok(ModelShape::Enum(
-            variants
-                .into_iter()
-                .enumerate()
-                .map(|(ordinal, variant)| {
-                    let name = serialized_variant_name(&variant)?;
-                    let shape = Self::parse_variant_shape(variant.fields)?;
-                    Ok(ModelVariant { ordinal, name, shape })
-                })
-                .collect::<Result<Vec<_>>>()?,
-        ))
+        if let Some(error) = errors {
+            Err(error)
+        } else {
+            Ok(ModelShape::Enum(parsed))
+        }
     }
 
     /// Parses one enum variant's payload fields.
@@ -202,36 +225,51 @@ impl ModelInput {
     /// # Returns
     ///
     /// Returns the parsed unit, tuple, or struct variant shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns one combined `syn::Error` when one or more payload fields have
+    /// invalid attributes or use record-wide helper semantics.
     fn parse_variant_shape(fields: Fields) -> Result<ModelVariantShape> {
         match fields {
             Fields::Unit => Ok(ModelVariantShape::Unit),
-            Fields::Unnamed(fields) => fields
-                .unnamed
-                .into_iter()
-                .enumerate()
-                .map(|(ordinal, field)| {
-                    let attributes = parse_field_attributes(&field.attrs)?;
-                    Self::validate_enum_field_attributes(&attributes)?;
-                    Ok(ModelField {
-                        ordinal,
-                        name: ordinal.to_string(),
-                        ty: field.ty,
-                        attributes,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()
-                .map(ModelVariantShape::Tuple),
-            Fields::Named(fields) => fields
-                .named
-                .into_iter()
-                .enumerate()
-                .map(|(ordinal, field)| {
-                    let field = Self::parse_named_field(ordinal, field)?;
-                    Self::validate_enum_field_attributes(&field.attributes)?;
-                    Ok(field)
-                })
-                .collect::<Result<Vec<_>>>()
-                .map(ModelVariantShape::Struct),
+            Fields::Unnamed(fields) => {
+                let mut parsed = Vec::with_capacity(fields.unnamed.len());
+                let mut errors = None;
+                for (ordinal, field) in fields.unnamed.into_iter().enumerate() {
+                    let attributes = parse_field_attributes(&field.attrs)
+                        .and_then(|attributes| Self::validate_enum_field_attributes(&attributes).map(|()| attributes));
+                    match attributes {
+                        Ok(attributes) => parsed.push(ModelField {
+                            ordinal,
+                            name: ordinal.to_string(),
+                            ty: field.ty,
+                            attributes,
+                        }),
+                        Err(error) => combine_error(&mut errors, error),
+                    }
+                }
+                match errors {
+                    Some(error) => Err(error),
+                    None => Ok(ModelVariantShape::Tuple(parsed)),
+                }
+            }
+            Fields::Named(fields) => {
+                let mut parsed = Vec::with_capacity(fields.named.len());
+                let mut errors = None;
+                for (ordinal, field) in fields.named.into_iter().enumerate() {
+                    let field = Self::parse_named_field(ordinal, field)
+                        .and_then(|field| Self::validate_enum_field_attributes(&field.attributes).map(|()| field));
+                    match field {
+                        Ok(field) => parsed.push(field),
+                        Err(error) => combine_error(&mut errors, error),
+                    }
+                }
+                match errors {
+                    Some(error) => Err(error),
+                    None => Ok(ModelVariantShape::Struct(parsed)),
+                }
+            }
         }
     }
 
@@ -243,9 +281,11 @@ impl ModelInput {
     ///
     /// # Errors
     ///
-    /// Returns an error at the attribute span for primary-key, uniqueness,
-    /// index, reference, or lookup-relation semantics.
+    /// Returns one combined error with an entry at every attribute span for
+    /// primary-key, uniqueness, index, reference, or lookup-relation
+    /// semantics.
     fn validate_enum_field_attributes(attributes: &[FieldAttribute]) -> Result<()> {
+        let mut errors = None;
         for attribute in attributes {
             let unsupported = match attribute {
                 FieldAttribute::Identifier(value) => Some((value.span, "identifier")),
@@ -266,13 +306,16 @@ impl ModelInput {
                 | FieldAttribute::KeepSerializing => None,
             };
             if let Some((span, name)) = unsupported {
-                return Err(Error::new(
-                    span,
-                    format!("`{name}` is not supported on enum variant fields"),
-                ));
+                combine_error(
+                    &mut errors,
+                    Error::new(span, format!("`{name}` is not supported on enum variant fields")),
+                );
             }
         }
-        Ok(())
+        match errors {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 }
 

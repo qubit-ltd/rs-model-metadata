@@ -9,4 +9,5 @@
 //! Crate-internal tests for `pub(crate)` parsing and normalization contracts.
 
 mod attribute_support_tests;
+mod model_input_tests;
 mod normalize_tests;
