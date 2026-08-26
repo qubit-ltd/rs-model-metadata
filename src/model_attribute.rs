@@ -26,6 +26,7 @@ use syn::Ident;
 use syn::Index;
 use syn::LitStr;
 use syn::Meta;
+use syn::Path;
 use syn::Result;
 use syn::Token;
 use syn::Type;
@@ -305,10 +306,11 @@ fn add_default_serde_field_attributes(data: &mut Data, serialize: bool, deserial
                     Fields::Unit => {}
                     Fields::Unnamed(fields) => {
                         let last_index = fields.unnamed.len().saturating_sub(1);
+                        let can_omit_tail = fields.unnamed.len() > 1;
                         for (index, field) in fields.unnamed.iter_mut().enumerate() {
                             add_default_serde_attributes(
                                 field,
-                                index == last_index,
+                                can_omit_tail && index == last_index,
                                 serialize,
                                 deserialize,
                                 &mut error,
@@ -357,7 +359,7 @@ fn add_default_serde_attributes(
             return Ok(());
         }
         let omit_serialization = serialize && allow_serialization_omission;
-        if is_direct_type(&field.ty, "Option") {
+        if is_standard_option_type(&field.ty) {
             add_default_option_serde_attributes(field, omit_serialization, deserialize)
         } else if let Some(is_empty) = collection_is_empty_function(&field.ty) {
             add_default_collection_serde_attributes(field, is_empty, omit_serialization, deserialize)
@@ -466,19 +468,27 @@ fn serde_skip_serializing_if_attribute(is_empty: &str) -> Attribute {
 /// Returns the `is_empty` function for a directly declared standard collection.
 fn collection_is_empty_function(ty: &Type) -> Option<&'static str> {
     match ty {
-        Type::Path(type_path) => {
-            let type_name = type_path.path.segments.last()?.ident.to_string();
-            match type_name.as_str() {
-                "Vec" => Some("::std::vec::Vec::is_empty"),
-                "LinkedList" => Some("::std::collections::LinkedList::is_empty"),
-                "VecDeque" => Some("::std::collections::VecDeque::is_empty"),
-                "HashMap" => Some("::std::collections::HashMap::is_empty"),
-                "BTreeMap" => Some("::std::collections::BTreeMap::is_empty"),
-                "HashSet" => Some("::std::collections::HashSet::is_empty"),
-                "BTreeSet" => Some("::std::collections::BTreeSet::is_empty"),
-                "BinaryHeap" => Some("::std::collections::BinaryHeap::is_empty"),
-                _ => None,
-            }
+        Type::Path(_) if is_standard_type_path(ty, "Vec", &["std", "vec", "Vec"]) => Some("::std::vec::Vec::is_empty"),
+        Type::Path(_) if is_standard_type_path(ty, "LinkedList", &["std", "collections", "LinkedList"]) => {
+            Some("::std::collections::LinkedList::is_empty")
+        }
+        Type::Path(_) if is_standard_type_path(ty, "VecDeque", &["std", "collections", "VecDeque"]) => {
+            Some("::std::collections::VecDeque::is_empty")
+        }
+        Type::Path(_) if is_standard_type_path(ty, "HashMap", &["std", "collections", "HashMap"]) => {
+            Some("::std::collections::HashMap::is_empty")
+        }
+        Type::Path(_) if is_standard_type_path(ty, "BTreeMap", &["std", "collections", "BTreeMap"]) => {
+            Some("::std::collections::BTreeMap::is_empty")
+        }
+        Type::Path(_) if is_standard_type_path(ty, "HashSet", &["std", "collections", "HashSet"]) => {
+            Some("::std::collections::HashSet::is_empty")
+        }
+        Type::Path(_) if is_standard_type_path(ty, "BTreeSet", &["std", "collections", "BTreeSet"]) => {
+            Some("::std::collections::BTreeSet::is_empty")
+        }
+        Type::Path(_) if is_standard_type_path(ty, "BinaryHeap", &["std", "collections", "BinaryHeap"]) => {
+            Some("::std::collections::BinaryHeap::is_empty")
         }
         Type::Array(_) => Some("<[_]>::is_empty"),
         Type::Group(group) => collection_is_empty_function(&group.elem),
@@ -487,20 +497,42 @@ fn collection_is_empty_function(ty: &Type) -> Option<&'static str> {
     }
 }
 
-/// Returns whether a type is a direct declaration of a named standard type.
+/// Returns whether a type names the standard-library `Option` type.
+fn is_standard_option_type(ty: &Type) -> bool {
+    is_standard_type_path(ty, "Option", &["core", "option", "Option"])
+        || is_standard_type_path(ty, "Option", &["std", "option", "Option"])
+}
+
+/// Returns whether a type uses either the prelude spelling or the canonical
+/// standard-library path for one supported type.
 #[must_use]
 #[inline]
-fn is_direct_type(ty: &Type, type_name: &str) -> bool {
+fn is_standard_type_path(ty: &Type, prelude_name: &str, standard_path: &[&str]) -> bool {
     match ty {
-        Type::Path(type_path) => type_path
-            .path
-            .segments
-            .last()
-            .is_some_and(|segment| segment.ident == type_name),
-        Type::Group(group) => is_direct_type(&group.elem, type_name),
-        Type::Paren(paren) => is_direct_type(&paren.elem, type_name),
+        Type::Path(type_path) => {
+            type_path.qself.is_none()
+                && (is_unqualified_type_path(&type_path.path, prelude_name)
+                    || path_matches(&type_path.path, standard_path))
+        }
+        Type::Group(group) => is_standard_type_path(&group.elem, prelude_name, standard_path),
+        Type::Paren(paren) => is_standard_type_path(&paren.elem, prelude_name, standard_path),
         _ => false,
     }
+}
+
+/// Returns whether a path is one unqualified type segment with the given name.
+fn is_unqualified_type_path(path: &Path, expected: &str) -> bool {
+    path.segments.len() == 1 && path.segments.first().is_some_and(|segment| segment.ident == expected)
+}
+
+/// Returns whether a parsed path matches the supplied canonical segments.
+fn path_matches(path: &Path, expected: &[&str]) -> bool {
+    path.segments.len() == expected.len()
+        && path
+            .segments
+            .iter()
+            .zip(expected)
+            .all(|(segment, expected)| segment.ident == *expected)
 }
 
 /// Returns whether any struct or enum payload field declares a redaction rule.

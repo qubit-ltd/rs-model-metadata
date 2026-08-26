@@ -145,6 +145,8 @@ enum Event {
     no_hash
 )]
 enum PayloadSerdeDefaults {
+    SingleOption(Option<String>),
+    SingleVec(Vec<String>),
     OptionTail(u8, Option<String>),
     KeptOption(u8, #[keep_serializing] Option<String>),
     VecTail(u8, Vec<String>),
@@ -475,6 +477,34 @@ fn test_data_enum_omits_trailing_tuple_fields_with_defaults() {
     assert_eq!(
         serde_json::from_str::<Event>(&serialized).expect("tuple data enum should deserialize"),
         optional,
+    );
+}
+
+/// Verifies Serde preserves a single newtype payload even when it is empty.
+#[test]
+fn test_data_enum_preserves_single_payload_values() {
+    let optional = PayloadSerdeDefaults::SingleOption(None);
+    let values = PayloadSerdeDefaults::SingleVec(Vec::new());
+
+    assert_eq!(
+        serde_json::to_string(&optional).expect("single option payload should serialize"),
+        r#"{"SINGLE_OPTION":null}"#,
+    );
+    assert_eq!(
+        serde_json::to_string(&values).expect("single vector payload should serialize"),
+        r#"{"SINGLE_VEC":[]}"#,
+    );
+    assert_eq!(
+        serde_json::from_str::<PayloadSerdeDefaults>(r#"{"SINGLE_OPTION":null}"#)
+            .expect("single option payload should deserialize")
+            .name(),
+        "SINGLE_OPTION",
+    );
+    assert_eq!(
+        serde_json::from_str::<PayloadSerdeDefaults>(r#"{"SINGLE_VEC":[]}"#)
+            .expect("single vector payload should deserialize")
+            .name(),
+        "SINGLE_VEC",
     );
 }
 
