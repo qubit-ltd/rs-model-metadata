@@ -104,6 +104,15 @@ enum SerdeDecoratedStatus {
     Value,
 }
 
+#[allow(non_camel_case_types)]
+#[Enum(id = "test.derive.SerdeNamingEdgeCases")]
+enum SerdeNamingEdgeCases {
+    r#type,
+    HTTPServer,
+    XMLHttpRequest,
+    IPv6Address,
+}
+
 #[Enum(id = "test.derive.Event")]
 enum Event {
     Started,
@@ -116,6 +125,38 @@ enum Event {
         message: String,
         details: Option<String>,
         tags: Vec<String>,
+    },
+}
+
+#[allow(dead_code)]
+#[Enum(
+    id = "test.derive.PayloadMetadata",
+    no_clone,
+    no_debug,
+    no_display,
+    no_partial_eq,
+    no_hash,
+    no_serialize,
+    no_deserialize
+)]
+enum PayloadMetadata {
+    Tuple(
+        #[text(max_chars = 8)] String,
+        #[sequence(min_items = 1, max_items = 3, unique_items)] Vec<String>,
+        #[map(min_entries = 1, max_entries = 2)] HashMap<String, String>,
+    ),
+    Struct {
+        #[time(precision = millisecond)]
+        created_at: chrono::DateTime<chrono::Utc>,
+        #[decimal(precision = 8, scale = 3, rounding = half_up)]
+        ratio: bigdecimal::BigDecimal,
+        #[element(text(allowed_chars = ascii))]
+        codes: Vec<String>,
+        #[codec = "encrypted"]
+        #[generator(name = "token")]
+        value: String,
+        #[opaque]
+        external: ExternalValue,
     },
 }
 
@@ -405,6 +446,63 @@ fn test_data_enum_omits_trailing_tuple_fields_with_defaults() {
     );
 }
 
+/// Verifies every allowed payload helper expands into its runtime metadata.
+#[test]
+fn test_data_enum_payload_attributes_expand_into_runtime_metadata() {
+    let TypeKind::Enum(metadata) = metadata_of::<PayloadMetadata>().kind() else {
+        panic!("PayloadMetadata should have enum metadata");
+    };
+    let tuple = metadata.variant("TUPLE").expect("tuple variant metadata");
+    let structure = metadata.variant("STRUCT").expect("struct variant metadata");
+
+    assert_eq!(
+        tuple.fields()[0].text_constraint().and_then(|text| text.max_chars()),
+        Some(8)
+    );
+    assert!(matches!(
+        tuple.fields()[1].attribute(AttributeKind::Sequence),
+        Some(AttributeMetadata::Sequence(sequence))
+            if sequence.min_items() == Some(1)
+                && sequence.max_items() == Some(3)
+                && sequence.has_unique_items()
+    ));
+    assert!(matches!(
+        tuple.fields()[2].attribute(AttributeKind::Map),
+        Some(AttributeMetadata::Map(map))
+            if map.min_entries() == Some(1) && map.max_entries() == Some(2)
+    ));
+    assert!(matches!(
+        structure.fields()[0].attribute(AttributeKind::Temporal),
+        Some(AttributeMetadata::Temporal(temporal))
+            if temporal.precision() == TemporalPrecision::Millisecond
+    ));
+    assert!(matches!(
+        structure.fields()[1].attribute(AttributeKind::Decimal),
+        Some(AttributeMetadata::Decimal(decimal))
+            if decimal.precision() == Some(8)
+                && decimal.scale() == 3
+                && decimal.rounding() == RoundingMode::HalfUp
+                && decimal.semantic() == DecimalSemantic::Number
+    ));
+    assert!(matches!(
+        structure.fields()[2].element_metadata(),
+        Some(element)
+            if matches!(
+                element.attributes(),
+                [AttributeMetadata::Text(text)] if text.allowed_chars() == AllowedChars::Ascii
+            )
+    ));
+    assert!(matches!(
+        structure.fields()[3].attribute(AttributeKind::Codec),
+        Some(AttributeMetadata::Codec(codec)) if codec.name() == "encrypted"
+    ));
+    assert!(matches!(
+        structure.fields()[3].attribute(AttributeKind::Generator),
+        Some(AttributeMetadata::Generator(generator)) if generator.name() == "token"
+    ));
+    assert!(matches!(structure.fields()[4].field_type().shape(), TypeShape::Opaque));
+}
+
 #[test]
 fn test_enum_name_methods_follow_serde_serialization_names() {
     assert_eq!(SerializedStatus::Reviewing.name(), "reviewing");
@@ -440,6 +538,26 @@ fn test_enum_name_methods_ignore_noncanonical_serde_variant_names() {
         serde_json::from_str::<SerdeDecoratedStatus>(r#""OLD""#).expect("status alias should deserialize"),
         SerdeDecoratedStatus::Value
     );
+}
+
+/// Verifies implicit canonical names exactly match Serde's variant renaming.
+#[test]
+fn test_enum_name_methods_match_serde_for_raw_and_acronym_variants() {
+    let cases = [
+        (SerdeNamingEdgeCases::r#type, "TYPE"),
+        (SerdeNamingEdgeCases::HTTPServer, "H_T_T_P_SERVER"),
+        (SerdeNamingEdgeCases::XMLHttpRequest, "X_M_L_HTTP_REQUEST"),
+        (SerdeNamingEdgeCases::IPv6Address, "I_PV6_ADDRESS"),
+    ];
+
+    for (value, expected_name) in cases {
+        assert_eq!(value.name(), expected_name);
+        assert_eq!(
+            serde_json::to_string(&value).expect("edge-case enum should serialize"),
+            format!("\"{expected_name}\"")
+        );
+        assert_eq!(SerdeNamingEdgeCases::from_name(expected_name), Some(value));
+    }
 }
 
 #[test]

@@ -8,21 +8,22 @@
 
 //! Shared support for public model declaration attributes.
 
-use heck::ToShoutySnakeCase;
 use syn::Attribute;
 use syn::Error;
 use syn::Expr;
+use syn::Ident;
 use syn::Lit;
 use syn::LitStr;
 use syn::Meta;
 use syn::Result;
 use syn::Token;
 use syn::Variant;
+use syn::ext::IdentExt;
 use syn::punctuated::Punctuated;
 
 /// Returns the canonical serialized name for one enum variant.
 pub(crate) fn serialized_variant_name(variant: &Variant) -> Result<String> {
-    let mut name = variant.ident.to_string().to_shouty_snake_case();
+    let mut name = default_serialized_variant_name(&variant.ident);
     for attribute in &variant.attrs {
         if !attribute.path().is_ident("serde") {
             continue;
@@ -42,6 +43,25 @@ pub(crate) fn serialized_variant_name(variant: &Variant) -> Result<String> {
         ));
     }
     Ok(name)
+}
+
+/// Returns the implicit `SCREAMING_SNAKE_CASE` name that Serde applies to an
+/// enum variant.
+///
+/// Serde inserts a separator before every uppercase Unicode scalar after the
+/// first and performs ASCII-only case conversion. Keeping this implementation
+/// aligned with Serde makes generated metadata and `name()` match the wire
+/// representation for raw identifiers and acronym-heavy variant names.
+fn default_serialized_variant_name(ident: &Ident) -> String {
+    let variant = ident.unraw().to_string();
+    let mut snake = String::with_capacity(variant.len());
+    for (index, character) in variant.char_indices() {
+        if index > 0 && character.is_uppercase() {
+            snake.push('_');
+        }
+        snake.push(character.to_ascii_lowercase());
+    }
+    snake.to_ascii_uppercase()
 }
 
 /// Returns the serialization name selected by one Serde metadata item.

@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+use syn::Attribute;
 use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
@@ -22,7 +23,6 @@ use super::model_field::ModelField;
 use super::model_shape::ModelShape;
 use super::model_variant::ModelVariant;
 use super::model_variant_shape::ModelVariantShape;
-use crate::attribute::FieldAttribute;
 use crate::attribute::ModelAttribute;
 use crate::attribute::parse_field_attributes;
 use crate::attribute::parse_model_attributes;
@@ -237,16 +237,20 @@ impl ModelInput {
                 let mut parsed = Vec::with_capacity(fields.unnamed.len());
                 let mut errors = None;
                 for (ordinal, field) in fields.unnamed.into_iter().enumerate() {
-                    let attributes = parse_field_attributes(&field.attrs)
-                        .and_then(|attributes| Self::validate_enum_field_attributes(&attributes).map(|()| attributes));
+                    let mut field_errors = Self::validate_enum_field_attributes(&field.attrs).err();
+                    let attributes = parse_field_attributes(&field.attrs);
                     match attributes {
-                        Ok(attributes) => parsed.push(ModelField {
+                        Ok(attributes) if field_errors.is_none() => parsed.push(ModelField {
                             ordinal,
                             name: ordinal.to_string(),
                             ty: field.ty,
                             attributes,
                         }),
-                        Err(error) => combine_error(&mut errors, error),
+                        Ok(_) => {}
+                        Err(error) => combine_error(&mut field_errors, error),
+                    }
+                    if let Some(error) = field_errors {
+                        combine_error(&mut errors, error);
                     }
                 }
                 match errors {
@@ -258,11 +262,15 @@ impl ModelInput {
                 let mut parsed = Vec::with_capacity(fields.named.len());
                 let mut errors = None;
                 for (ordinal, field) in fields.named.into_iter().enumerate() {
-                    let field = Self::parse_named_field(ordinal, field)
-                        .and_then(|field| Self::validate_enum_field_attributes(&field.attributes).map(|()| field));
+                    let mut field_errors = Self::validate_enum_field_attributes(&field.attrs).err();
+                    let field = Self::parse_named_field(ordinal, field);
                     match field {
-                        Ok(field) => parsed.push(field),
-                        Err(error) => combine_error(&mut errors, error),
+                        Ok(field) if field_errors.is_none() => parsed.push(field),
+                        Ok(_) => {}
+                        Err(error) => combine_error(&mut field_errors, error),
+                    }
+                    if let Some(error) = field_errors {
+                        combine_error(&mut errors, error);
                     }
                 }
                 match errors {
@@ -277,33 +285,29 @@ impl ModelInput {
     ///
     /// # Parameters
     ///
-    /// - `attributes`: Parsed attributes from one enum payload field.
+    /// - `attributes`: Attributes attached to one enum payload field.
     ///
     /// # Errors
     ///
     /// Returns one combined error with an entry at every attribute span for
     /// primary-key, uniqueness, index, reference, or lookup-relation
     /// semantics.
-    fn validate_enum_field_attributes(attributes: &[FieldAttribute]) -> Result<()> {
+    fn validate_enum_field_attributes(attributes: &[Attribute]) -> Result<()> {
         let mut errors = None;
         for attribute in attributes {
-            let unsupported = match attribute {
-                FieldAttribute::Identifier(value) => Some((value.span, "identifier")),
-                FieldAttribute::Unique(value) => Some((value.span, "unique")),
-                FieldAttribute::Index(span) => Some((*span, "indexed")),
-                FieldAttribute::Reference(value) => Some((value.span, "reference")),
-                FieldAttribute::LookupRelation(value) => Some((value.span, "lookup_relation")),
-                FieldAttribute::Text(_)
-                | FieldAttribute::Sequence(_)
-                | FieldAttribute::Map(_)
-                | FieldAttribute::Temporal(_)
-                | FieldAttribute::Decimal(_)
-                | FieldAttribute::Money(_)
-                | FieldAttribute::Element(_)
-                | FieldAttribute::Codec(_)
-                | FieldAttribute::Generator(_)
-                | FieldAttribute::Opaque(_)
-                | FieldAttribute::KeepSerializing => None,
+            let path = attribute.path();
+            let unsupported = if path.is_ident("identifier") {
+                Some((path.span(), "identifier"))
+            } else if path.is_ident("unique") {
+                Some((path.span(), "unique"))
+            } else if path.is_ident("indexed") {
+                Some((path.span(), "indexed"))
+            } else if path.is_ident("reference") {
+                Some((path.span(), "reference"))
+            } else if path.is_ident("lookup_relation") {
+                Some((path.span(), "lookup_relation"))
+            } else {
+                None
             };
             if let Some((span, name)) = unsupported {
                 combine_error(

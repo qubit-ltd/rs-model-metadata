@@ -34,3 +34,22 @@ fn test_enum_payload_scope_validation_reports_every_invalid_helper() {
     assert!(message.contains("`indexed` is not supported on enum variant fields"));
     assert!(message.contains("`reference` is not supported on enum variant fields"));
 }
+
+/// Verifies payload scope diagnostics survive unrelated helper parse failures.
+#[test]
+fn test_enum_payload_scope_validation_combines_parse_and_scope_errors() {
+    let input: DeriveInput = parse_quote! {
+        #[model(id = "test.derive.Invalid")]
+        enum Invalid {
+            Value(#[text(unknown = 1)] #[unique] String),
+        }
+    };
+
+    let Err(error) = ModelInput::parse(input) else {
+        panic!("payload helpers should be rejected");
+    };
+    let message = error.into_compile_error().to_string();
+
+    assert!(message.contains("unknown `text` argument"));
+    assert!(message.contains("`unique` is not supported on enum variant fields"));
+}
