@@ -137,6 +137,8 @@ enum Event {
     },
 }
 
+const EVENT_STARTED_NAME: &str = Event::Started.name();
+
 #[Enum(
     id = "test.derive.PayloadSerdeDefaults",
     no_debug,
@@ -436,6 +438,7 @@ fn test_data_enum_generates_names_display_and_serde_defaults() {
         tags: Vec::new(),
     };
 
+    assert_eq!(EVENT_STARTED_NAME, "STARTED");
     assert_eq!(progress.name(), "PROGRESS");
     assert_eq!(progress.to_string(), "PROGRESS(42, \"items\")");
     assert_eq!(
@@ -445,6 +448,11 @@ fn test_data_enum_generates_names_display_and_serde_defaults() {
     assert_eq!(
         serde_json::to_string(&failed).expect("data enum should serialize"),
         r#"{"FAILED":{"error_message":"timeout"}}"#
+    );
+    assert_eq!(
+        serde_json::from_str::<Event>(r#"{"FAILED":{"error_message":"timeout"}}"#)
+            .expect("data enum should deserialize"),
+        failed
     );
 }
 

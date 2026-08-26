@@ -11,17 +11,21 @@ mod custom {
     pub struct Option<T>(pub T);
 }
 
+use custom::Option;
+
 #[qubit_model_derive::Enum(id = "test.derive.CustomOption")]
 enum CustomOption {
     Value {
         #[opaque]
-        value: custom::Option<String>,
+        #[keep_serializing]
+        value: Option<String>,
     },
 }
 
 fn main() {
     let value = CustomOption::Value {
-        value: custom::Option("value".to_owned()),
+        value: Option("value".to_owned()),
     };
-    let _ = serde_json::to_string(&value).expect("custom option payload should serialize");
+    let serialized = serde_json::to_string(&value).expect("custom option payload should serialize");
+    assert!(serialized.contains("value"));
 }
