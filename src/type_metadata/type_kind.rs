@@ -28,7 +28,7 @@ use crate::type_metadata::StructMetadata;
 pub enum TypeKind {
     /// A type with named fields.
     Struct(StructMetadata),
-    /// A fieldless enum.
+    /// An enum with unit, tuple, or struct variants.
     Enum(EnumMetadata),
     /// A tuple newtype with one inner field.
     Newtype(NewtypeMetadata),

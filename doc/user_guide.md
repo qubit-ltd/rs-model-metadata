@@ -38,6 +38,14 @@ treat it as a cross-process identifier.
 queries apply to structs; enums and newtypes expose an empty `struct_fields()`
 slice.
 
+`TypeKind::Enum` exposes `EnumVariantMetadata` in declaration order. Each
+variant has an `EnumVariantKind`: `Unit`, `Tuple`, or `Struct`. Tuple and struct
+variants carry a `FieldMetadata` slice available through `fields()`; tuple
+field names are decimal ordinals such as `"0"`, while struct fields retain
+their Rust names. These variant fields are intentionally separate from
+`TypeMetadata::struct_fields()` because an enum has no single field set shared
+by every value.
+
 ## Scenario
 
 A signup service stores accounts. Each account has a generated identifier, a

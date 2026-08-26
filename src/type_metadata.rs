@@ -10,6 +10,8 @@
 
 #[path = "type_metadata/enum_metadata.rs"]
 mod enum_metadata;
+#[path = "type_metadata/enum_variant_kind.rs"]
+mod enum_variant_kind;
 #[path = "type_metadata/enum_variant_metadata.rs"]
 mod enum_variant_metadata;
 #[path = "type_metadata/has_type_metadata.rs"]
@@ -29,6 +31,7 @@ mod type_kind;
 mod query;
 
 pub use self::enum_metadata::EnumMetadata;
+pub use self::enum_variant_kind::EnumVariantKind;
 pub use self::enum_variant_metadata::EnumVariantMetadata;
 pub use self::has_type_metadata::HasTypeMetadata;
 pub use self::has_type_metadata::metadata_of;

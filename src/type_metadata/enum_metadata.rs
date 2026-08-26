@@ -6,11 +6,11 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Metadata for fieldless enums.
+//! Metadata for enums and their variants.
 
 use crate::type_metadata::EnumVariantMetadata;
 
-/// Metadata for a fieldless enum.
+/// Metadata for an enum, including each variant's optional payload fields.
 ///
 /// # Examples
 ///
@@ -41,7 +41,7 @@ impl EnumMetadata {
     ///
     /// # Returns
     ///
-    /// Immutable metadata for the fieldless enum.
+    /// Immutable metadata for the enum.
     ///
     /// # Panics
     ///

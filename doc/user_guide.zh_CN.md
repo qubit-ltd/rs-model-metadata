@@ -35,6 +35,12 @@ HasModelRegistration ──► MODEL_REGISTRATIONS ──► ModelRegistry
 `TypeKind` 把具名类型分成 `Struct`、`Enum` 和 `Newtype`。字段查询面向 struct；
 enum 和 newtype 的 `struct_fields()` 为空切片。
 
+`TypeKind::Enum` 按声明顺序暴露 `EnumVariantMetadata`。每个变体都有
+`EnumVariantKind`：`Unit`、`Tuple` 或 `Struct`。tuple 和 struct 变体通过
+`fields()` 暴露 `FieldMetadata` 切片；tuple 字段名使用 `"0"` 这类十进制序号，
+struct 字段保留 Rust 名称。这些变体字段不会并入 `TypeMetadata::struct_fields()`，
+因为枚举值不存在所有变体共同拥有的单一字段集合。
+
 ## 贯穿场景
 
 注册服务要保存账户。每条账户有生成的标识、唯一邮箱、可选标签，以及嵌套的联系人

@@ -9,6 +9,7 @@
 //! Tests for type-metadata source modules.
 
 mod enum_metadata_tests;
+mod enum_variant_kind_tests;
 mod enum_variant_metadata_tests;
 mod has_type_metadata_tests;
 mod named_type_ref_tests;
