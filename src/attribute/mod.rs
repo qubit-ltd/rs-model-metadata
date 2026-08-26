@@ -44,6 +44,7 @@ pub(crate) use lookup_relation_attribute::LookupRelationAttribute;
 pub(crate) use map_attribute::MapAttribute;
 pub(crate) use model_attribute::ModelAttribute;
 pub(crate) use named_fields_attribute::NamedFieldsAttribute;
+pub(crate) use parse::enum_payload_unsupported_field_attribute;
 pub(crate) use parse::is_field_level_helper_attribute;
 pub(crate) use parse::parse_field_attributes;
 pub(crate) use parse::parse_model_attributes;

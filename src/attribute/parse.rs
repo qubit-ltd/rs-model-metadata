@@ -93,6 +93,27 @@ pub(crate) fn is_field_level_helper_attribute(path: &Path) -> bool {
     is_field_attribute_path(path) || path.is_ident("unique") || path.is_ident("keep_serializing")
 }
 
+/// Returns the record-level helper name when it cannot describe an enum
+/// payload field independently.
+///
+/// Enum variants do not share one record-wide field set, so these helpers
+/// cannot retain their usual model-level semantics on a payload field.
+pub(crate) fn enum_payload_unsupported_field_attribute(path: &Path) -> Option<&'static str> {
+    if path.is_ident("identifier") {
+        Some("identifier")
+    } else if path.is_ident("unique") {
+        Some("unique")
+    } else if path.is_ident("indexed") {
+        Some("indexed")
+    } else if path.is_ident("reference") {
+        Some("reference")
+    } else if path.is_ident("lookup_relation") {
+        Some("lookup_relation")
+    } else {
+        None
+    }
+}
+
 /// Returns whether an attribute on a model field should be ignored by scope
 /// validation because another tool owns it.
 fn is_allowed_foreign_field_attribute(path: &Path) -> bool {

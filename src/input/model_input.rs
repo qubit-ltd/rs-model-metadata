@@ -24,6 +24,7 @@ use super::model_shape::ModelShape;
 use super::model_variant::ModelVariant;
 use super::model_variant_shape::ModelVariantShape;
 use crate::attribute::ModelAttribute;
+use crate::attribute::enum_payload_unsupported_field_attribute;
 use crate::attribute::parse_field_attributes;
 use crate::attribute::parse_model_attributes;
 use crate::attribute::validate_model_attribute_scope;
@@ -296,23 +297,10 @@ impl ModelInput {
         let mut errors = None;
         for attribute in attributes {
             let path = attribute.path();
-            let unsupported = if path.is_ident("identifier") {
-                Some((path.span(), "identifier"))
-            } else if path.is_ident("unique") {
-                Some((path.span(), "unique"))
-            } else if path.is_ident("indexed") {
-                Some((path.span(), "indexed"))
-            } else if path.is_ident("reference") {
-                Some((path.span(), "reference"))
-            } else if path.is_ident("lookup_relation") {
-                Some((path.span(), "lookup_relation"))
-            } else {
-                None
-            };
-            if let Some((span, name)) = unsupported {
+            if let Some(name) = enum_payload_unsupported_field_attribute(path) {
                 combine_error(
                     &mut errors,
-                    Error::new(span, format!("`{name}` is not supported on enum variant fields")),
+                    Error::new(path.span(), format!("`{name}` is not supported on enum variant fields")),
                 );
             }
         }
