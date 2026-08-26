@@ -98,6 +98,12 @@ enum SerializedStatus {
     Invalid,
 }
 
+#[Enum(id = "test.derive.SerdeDecoratedStatus")]
+enum SerdeDecoratedStatus {
+    #[serde(rename(serialize = "OUT", deserialize = "IN"), alias = "OLD")]
+    Value,
+}
+
 #[Enum(id = "test.derive.Event")]
 enum Event {
     Started,
@@ -412,6 +418,28 @@ fn test_enum_name_methods_follow_serde_serialization_names() {
         Some(SerializedStatus::Invalid)
     );
     assert_eq!(SerializedStatus::from_name("invalid"), None);
+}
+
+#[test]
+fn test_enum_name_methods_ignore_noncanonical_serde_variant_names() {
+    assert_eq!(SerdeDecoratedStatus::Value.name(), "OUT");
+    assert_eq!(
+        SerdeDecoratedStatus::from_name("OUT"),
+        Some(SerdeDecoratedStatus::Value)
+    );
+    assert_eq!(SerdeDecoratedStatus::from_name("IN"), None);
+    assert_eq!(
+        serde_json::to_string(&SerdeDecoratedStatus::Value).expect("status should serialize"),
+        r#""OUT""#
+    );
+    assert_eq!(
+        serde_json::from_str::<SerdeDecoratedStatus>(r#""IN""#).expect("status should deserialize"),
+        SerdeDecoratedStatus::Value
+    );
+    assert_eq!(
+        serde_json::from_str::<SerdeDecoratedStatus>(r#""OLD""#).expect("status alias should deserialize"),
+        SerdeDecoratedStatus::Value
+    );
 }
 
 #[test]

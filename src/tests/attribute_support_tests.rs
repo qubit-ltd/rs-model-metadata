@@ -28,6 +28,32 @@ fn test_serialized_variant_name_honors_serde_serialization_rename() {
 }
 
 #[test]
+fn test_serialized_variant_name_ignores_serde_alias() {
+    let variant = parse_quote! {
+        #[serde(alias = "OLD_VALUE")]
+        Value
+    };
+
+    assert_eq!(
+        serialized_variant_name(&variant).expect("the variant should parse"),
+        "VALUE"
+    );
+}
+
+#[test]
+fn test_serialized_variant_name_reads_combined_serde_rename() {
+    let variant = parse_quote! {
+        #[serde(rename(serialize = "OUT", deserialize = "IN"))]
+        Value
+    };
+
+    assert_eq!(
+        serialized_variant_name(&variant).expect("the variant should parse"),
+        "OUT"
+    );
+}
+
+#[test]
 fn test_serialized_variant_name_defaults_to_screaming_snake_case() {
     let variant = parse_quote!(InReview);
 

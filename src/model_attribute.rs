@@ -100,6 +100,9 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
         !options.disabled.deserialize,
     )?;
     remove_field_attributes(&mut item.data);
+    if options.disabled.serialize && options.disabled.deserialize && !redacted {
+        remove_serde_attributes(&mut item);
+    }
 
     let derives = default_derives(&item.data, &serde, &options.disabled, redacted)?;
     item.attrs.push(derives);
@@ -122,11 +125,11 @@ fn expand_result(args: TokenStream, input: TokenStream, enum_declaration: bool) 
     if !options.disabled.serialize || !options.disabled.deserialize {
         item.attrs.push(parse_quote!(#[serde(rename_all = #rename_all)]));
     }
-    let metadata = derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
     let enum_names = enum_declaration
-        .then(|| expand_enum_names(&item))
+        .then(|| expand_enum_names(&metadata_input))
         .transpose()?
         .unwrap_or_default();
+    let metadata = derive_model_tokens(metadata_input.into_token_stream(), runtime_path());
     let display = (!redacted && !options.disabled.display)
         .then(|| expand_display(&item, rename_all))
         .transpose()?
@@ -259,6 +262,35 @@ fn remove_field_attributes(data: &mut Data) {
             .attrs
             .retain(|attribute| !is_field_level_helper_attribute(attribute.path()));
     });
+}
+
+/// Removes inert Serde helper attributes when no generated derive consumes
+/// them.
+///
+/// # Parameters
+///
+/// - `item`: The declaration that will be returned to the Rust compiler.
+///
+/// This mutates the declaration only after both serialization capabilities are
+/// disabled and no redaction derive remains to consume Serde helper attributes.
+fn remove_serde_attributes(item: &mut DeriveInput) {
+    item.attrs.retain(|attribute| !attribute.path().is_ident("serde"));
+    match &mut item.data {
+        Data::Struct(data) => {
+            for field in &mut data.fields {
+                field.attrs.retain(|attribute| !attribute.path().is_ident("serde"));
+            }
+        }
+        Data::Enum(data) => {
+            for variant in &mut data.variants {
+                variant.attrs.retain(|attribute| !attribute.path().is_ident("serde"));
+                for field in &mut variant.fields {
+                    field.attrs.retain(|attribute| !attribute.path().is_ident("serde"));
+                }
+            }
+        }
+        Data::Union(_) => {}
+    }
 }
 
 /// Adds Serde defaults supported by the model's enabled serialization
