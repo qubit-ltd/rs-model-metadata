@@ -118,6 +118,17 @@ fn test_data_type_has_named_enum_shape() {
     assert!(matches!(metadata.kind(), TypeKind::Enum(enum_metadata)
         if enum_metadata.variants().len() == DataType::ALL.len()));
     if let TypeKind::Enum(enum_metadata) = metadata.kind() {
+        let actual: Vec<_> = enum_metadata
+            .variants()
+            .iter()
+            .map(|variant| (variant.ordinal(), variant.name()))
+            .collect();
+        let expected: Vec<_> = DataType::ALL
+            .iter()
+            .enumerate()
+            .map(|(ordinal, data_type)| (ordinal, data_type.info().name()))
+            .collect();
+        assert_eq!(actual, expected);
         assert_eq!(
             enum_metadata.variant("int32").map(|variant| variant.name()),
             Some("int32")
