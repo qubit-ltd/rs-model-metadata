@@ -1,12 +1,8 @@
 {
   "threshold_exempt_files": {
     "qubit-model-derive": [
-      "src/attribute/parse.rs",
-      "src/derive_model_impl.rs",
-      "src/input/model_input.rs",
       "src/lib.rs",
-      "src/runtime_path.rs",
-      "src/validate.rs"
+      "src/runtime_path.rs"
     ]
   }
 }
