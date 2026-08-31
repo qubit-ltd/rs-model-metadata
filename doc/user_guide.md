@@ -1,301 +1,113 @@
-# Qubit Model Metadata User Guide
+# qubit-model-metadata User Guide
 
-[中文](user_guide.zh_CN.md) · [README](../README.md) · [API documentation](https://docs.rs/qubit-model-metadata)
+[简体中文](user_guide.zh_CN.md) | [README](../README.md)
 
-Applies to `qubit-model-metadata` 0.1.0.
+## Purpose and conceptual model
 
-## Purpose and Audience
-
-This guide is for application and tool authors who consume static domain-model
-metadata at runtime: schema helpers, validators, and code that must inspect
-fields, constraints, keys, and relations without a mutable registry.
-
-`qubit-model-derive` usually produces the metadata. This crate is the typed
-query API. The full `#[Model]` / `#[Enum]` attribute language lives in the
-[derive user guide](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.md).
-The macros do not validate instance data.
-
-## Conceptual Model
-
-`HasTypeShape` describes a recursive structural shape. Named models also
-implement `HasTypeMetadata` and expose `TypeMetadata`. `metadata_of::<T>()`
-returns a `&'static` value built from static slices and function pointers.
+This guide targets framework and application developers using version 0.1.x.
+`qubit-reflect` owns Rust structure; `qubit-model-metadata` overlays domain
+meaning; `qubit-model-derive` generates both from one declaration.
 
 ```text
-HasTypeShape ──► TypeRef ──► TypeShape
-       │
-HasTypeMetadata ──► TypeMetadata ──► FieldMetadata + model attributes
-       │
-HasModelRegistration ──► MODEL_REGISTRATIONS ──► ModelRegistry
+Rust declaration -> TypeDescriptor -> TypeMetadata -> ModelRegistry -> ResolvedModelGraph
+                         |                  |
+                    FieldDescriptor    Field/Property semantics
 ```
 
-A named model has a portable `ModelId` (for example `example.Account`) and a
-process-local `TypeIdentity`. `TypeIdentity` compares types with Rust's
-`TypeId`. Type names are diagnostic display data. Do not persist a `TypeId` or
-treat it as a cross-process identifier.
+A `TypeRef` is `Resolved`, `Opaque`, or `Symbolic`. `FieldMetadata::descriptor()`
+and `PropertyMetadata::descriptor()` therefore return `Option`.
 
-`TypeKind` classifies a named type as `Struct`, `Enum`, or `Newtype`. Field
-queries apply to structs; enums and newtypes expose an empty `struct_fields()`
-slice.
+## Scenario: inspect and resolve an account model
 
-`TypeKind::Enum` exposes `EnumVariantMetadata` in declaration order. Each
-variant has an `EnumVariantKind`: `Unit`, `Tuple`, or `Struct`. Tuple and struct
-variants carry a `FieldMetadata` slice available through `fields()`; tuple
-field names are decimal ordinals such as `"0"`, while struct fields retain
-their Rust names. These variant fields are intentionally separate from
-`TypeMetadata::struct_fields()` because an enum has no single field set shared
-by every value.
-
-## Scenario
-
-A signup service stores accounts. Each account has a generated identifier, a
-unique email, optional tags, and a nested contact record. Success means the
-service can:
-
-1. compile the declarations;
-2. read the primary key, email constraints, and ignore-case uniqueness;
-3. see that `tags: Option<Vec<String>>` is nullable at the outer layer;
-4. resolve `contact.email` through a static field path.
-
-## Installation and Minimal Configuration
-
-The crate requires Rust 1.94 or later. Add the runtime crate. When metadata
-should be generated from declarations, also add the companion derive crate and
-Serde. Both macros require `serde` in the consuming crate.
+Add the runtime and macro crates to the application. The repository currently
+targets Rust 1.94 and edition 2024.
 
 ```toml
 [dependencies]
-qubit-model-metadata = "0.1.0"
-qubit-model-derive = "0.1.0"
-serde = { version = "1", features = ["derive"] }
+qubit-model-metadata = "0.1"
+qubit-model-derive = "0.1"
 ```
 
-Enable runtime features only for the scalar types you actually use:
+Declare an entity and a referring model:
 
-```toml
-[dependencies]
-qubit-model-metadata = { version = "0.1.0", features = ["chrono", "big-decimal", "id"] }
-chrono = { version = "0.4", default-features = false, features = ["std"] }
-bigdecimal = "0.4"
-qubit-id = "0.4"
-```
+```rust,ignore
+use qubit_model_derive::{Entity, Model};
 
-`chrono` covers `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Utc>`.
-`big-decimal` covers `BigDecimal`.
-`id` covers `qubit_id::Id`.
-
-## Core Workflow
-
-Declare the nested contact and the account. `Model` is an attribute macro, not
-`#[derive(Model)]`. `#[field(identifier)]` becomes a model-level primary key.
-`unique(ignore_case)` becomes a model-level unique constraint.
-
-```rust
-use qubit_model_derive::Model;
-use qubit_model_metadata::FieldPath;
-use qubit_model_metadata::TypeShape;
-use qubit_model_metadata::UniqueComparison;
-use qubit_model_metadata::metadata_of;
-
-#[Model(id = "example.Contact")]
-struct Contact {
-    #[field(text(max_chars = 320))]
-    email: String,
+#[Entity(id = "example.Account")]
+pub struct Account {
+    #[identifier]
+    pub id: u64,
+    #[unique(ignore_case = true)]
+    pub email: String,
 }
 
-#[Model(id = "example.Account")]
-struct Account {
-    #[field(identifier)]
-    id: i64,
-    #[field(text(min_chars = 3, max_chars = 320), unique(ignore_case))]
-    email: String,
-    tags: Option<Vec<String>>,
-    contact: Contact,
-}
-
-fn inspect_account() {
-    let metadata = metadata_of::<Account>();
-    let email = metadata.field("email").expect("declared field");
-
-    assert!(metadata.primary_key().expect("primary key").contains("id"));
-    assert_eq!(email.text_constraint().and_then(|value| value.max_chars()), Some(320));
-    assert_eq!(
-        metadata
-            .unique_constraints()
-            .next()
-            .and_then(|unique| unique.comparison_of("email")),
-        Some(UniqueComparison::IgnoreCase)
-    );
-    assert!(matches!(
-        metadata.field("tags").expect("tags field").field_type().shape(),
-        TypeShape::Optional(_)
-    ));
-    assert!(metadata.field("tags").expect("tags field").is_nullable());
-
-    let nested = metadata
-        .resolve_field_path(FieldPath::new(&["contact", "email"]))
-        .expect("nested field");
-    assert_eq!(nested.name(), "email");
+#[Model(id = "example.Login")]
+pub struct Login {
+    #[reference(entity_id = "example.Account", property = id)]
+    pub account_id: u64,
 }
 ```
 
-`field` returns `Option` because the queried name might not be declared. Treat
-absence as a configuration error, not as an impossible state.
+Static inspection is direct and does not touch global registration:
 
-A `ModelId` uses ASCII snake_case module segments and an ASCII UpperCamelCase
-final segment, for example `example.Account`. Empty segments, Rust keywords as
-module segments, and a final segment that is not UpperCamelCase are rejected.
+```rust,ignore
+use qubit_model_metadata::TypeMetadata;
 
-## Advanced Usage
-
-### Type shapes and nullability
-
-`TypeRef` is a small copyable handle. `shape()` returns a recursive `TypeShape`:
-scalar, named model, optional value, sequence, set, map, fixed array, or
-`Opaque`. For macro-produced opaque fields, visible standard wrappers such as
-`Option`, sequences, sets, arrays, and maps remain in the shape; only the leaf
-is `Opaque`. The outer shape controls nullability and relation projection.
-
-```rust
-use qubit_model_metadata::TypeRef;
-use qubit_model_metadata::TypeShape;
-
-let shape = TypeRef::of::<Option<Vec<String>>>().shape();
-assert!(matches!(shape, TypeShape::Optional(_)));
+let account = TypeMetadata::of::<Account>();
+assert!(account.field("id").unwrap().is_identifier());
+assert!(account.property("email").unwrap().is_readable());
 ```
 
-`FieldMetadata::is_nullable()` checks only the outermost `Option`. Therefore
-`Option<Vec<String>>` is nullable and `Vec<Option<String>>` is not. Arrays keep
-their const length in `TypeShape::Array` and expose both sequence and array
-capabilities; sequence `min_items` / `max_items` are rejected on arrays because
-the length is already fixed by the type.
+After all model crates are linked, collect registrations and resolve external
+relationships:
 
-`TypeRef::strip_optional()` removes one outer `Option`. `named_metadata()` then
-resolves a named struct after that optional layer, when a resolver is present.
+```rust,ignore
+use qubit_model_metadata::{ModelRegistry, ModelResolver, ResolveInputs, TypeMetadata};
 
-### Attribute queries
-
-`TypeMetadata` has typed getters for `primary_key`, `unique_constraints`,
-`indexes`, `keys`, and `ownership`. Import `AttributeQuery` for generic
-`attribute` and `attributes_of` over `AttributeKind`. Fields expose
-`text_constraint`, `sequence_constraint`, `map_constraint`,
-`temporal_constraint`, `decimal_constraint`, `element_metadata`, `reference`,
-`lookup_relation`, `codec`, and `generator` where those attributes exist.
-
-```rust
-use qubit_model_metadata::AttributeKind;
-use qubit_model_metadata::AttributeQuery;
-use qubit_model_metadata::metadata_of;
-
-let metadata = metadata_of::<Account>();
-assert_eq!(metadata.attributes_of(AttributeKind::Unique).count(), 1);
-assert!(matches!(
-    metadata.attribute(AttributeKind::PrimaryKey),
-    Some(_)
-));
+let registry = ModelRegistry::try_global()?;
+let graph = ModelResolver::new(ResolveInputs { models: registry }).resolve_all()?;
+let field = TypeMetadata::of::<Login>().field("account_id").unwrap();
+assert_eq!(
+    graph.reference(field).unwrap().target().model_id().unwrap().as_str(),
+    "example.Account",
+);
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-`AttributeMetadata` is non-exhaustive. Prefer the typed getters, or handle
-future variants instead of relying on an exhaustive match.
+The observable result is one immutable graph in which every declared external
+relationship was resolved. Resolution errors prevent graph publication and are
+returned together in deterministic order.
 
-### Field paths
+## Fields, properties, and generics
 
-`FieldPath` stores static segments. `resolve_field_path` walks resolvable named
-struct metadata to a terminal field. One outer `Option` on an intermediate named
-field is stripped; a non-struct intermediate value, a missing segment, or a
-named type without a metadata resolver is a typed error.
+Fields are physical storage slots from reflection. Properties merge a field,
+an optional getter, and an optional setter under one name. Getter adapters
+preserve borrowed lifetimes; setter failures before execution return the
+replacement value.
 
-Path resolution diagnoses one local traversal. It is not global graph
-validation. After linking a complete model set, call
-`ModelRegistry::validate_graph()`.
+Generic declarations register one `GenericModelMetadata` template when they
+have a model ID. Concrete instances have no model ID and are not registered;
+their `generic_definition()` points to the template. Template field types may
+be symbolic, while concrete field types can be resolved.
 
-### Model registry
+## Errors and troubleshooting
 
-Linked model crates contribute `ModelRegistration` values to the distributed
-`MODEL_REGISTRATIONS` slice. `ModelRegistry::try_global()` builds an immutable
-index lazily. It never panics; `global()` panics if the linked set is invalid.
+- `ModelRegistryError` reports duplicate IDs or reflection-registry failure.
+- `ModelResolveErrors` aggregates missing IDs, wrong roles, missing or
+  unreadable properties, and invalid projection sources.
+- If `TypeMetadata::of::<T>()` does not compile, `T` was not generated by a
+  model-role macro or does not satisfy its generated bounds.
+- If `descriptor()` returns `None`, inspect `type_ref()`; opaque and symbolic
+  references intentionally have no concrete descriptor.
+- A declared validator is not executable in 0.1.x. Keep its ID, parameters,
+  and dependencies as schema metadata until the validator protocol is added.
 
-Construction checks:
+## Limits and best practices
 
-- each registration ID and metadata ID against the `ModelId` protocol;
-- that the two IDs match;
-- that no two registrations share a stable ID or a `TypeIdentity`.
+Use `ModelId` only for stable linked declarations and `ModelIdBuf::parse` for
+dynamic input. Do not use Rust diagnostic type names as persistent IDs. Keep
+ordinary static inspection separate from global registry initialization, and
+run one explicit resolver pass after the complete model set is linked.
 
-It does not allocate a metadata graph for ordinary queries and does not walk
-relations. `get(id)` looks up metadata by stable ID; `resolve` implements
-`MetadataResolver` for runtime identity lookup.
-
-Tools that need a closed collection can call
-`ModelRegistry::from_registrations` with an explicit slice instead of the
-process-wide set.
-
-### Manual construction
-
-Public constructors are const-compatible, so advanced users can assemble static
-metadata without the derive crate. They enforce local invariants: field order
-and capability compatibility, non-empty key / unique / index field sets,
-monotonic text and sequence ranges, and decimal scale no greater than
-precision. Invalid input panics. Derive remains the safer default because the
-declaration stays next to the type.
-
-`TypeRef::opaque::<T>()` marks a type uninterpreted while keeping its Rust
-name. `TypeRef::opaque_with_shape` is for producers that can see standard
-container syntax but still leave the leaf opaque.
-
-## Errors and Diagnostics
-
-| API | Failure | What it means |
-|---|---|---|
-| `metadata_of::<T>()` | Does not compile | `T` does not implement `HasTypeMetadata`. |
-| `TypeMetadata::field` | `None` | No declared field has that normalized name. |
-| `TypeMetadata::resolve_field_path` | `FieldPathResolveError` | Empty path, missing segment, intermediate non-struct, or named metadata that cannot be resolved. |
-| `ModelId::try_new` / `validate` | `ModelIdError` | Empty ID, empty segment, invalid module or type segment, or a Rust keyword as a module segment. |
-| `ModelRegistry::from_registrations` / `try_global` | `ModelRegistryError` | Invalid IDs, registration/metadata ID mismatch, duplicate ID, or duplicate identity. |
-| `ModelRegistry::global` | Panic | Same failures as `try_global`; use `try_global` when the caller must not abort. |
-| `ModelRegistry::validate_graph` | `ModelGraphErrors` | One or more `ModelGraphError` values: missing targets, missing target fields, incompatible projections, invalid reference path, missing owners, required-reference cycles, or ownership cycles. |
-| `TypeMetadata::new`, `FieldMetadata::new`, constraint / key constructors | Panic | Local invariant violated at construction time. |
-
-`FieldPathResolveError` variants:
-
-- `EmptyPath`
-- `FieldNotFound { segment }`
-- `IntermediateNotStruct { segment }`
-- `NamedMetadataUnavailable { segment }`
-
-`ModelGraphErrors::errors()` returns every independently discovered graph
-problem in deterministic order. Registry construction deliberately skips this
-walk so a partial linked set remains usable.
-
-## Troubleshooting
-
-| Symptom | Check |
-|---|---|
-| `metadata_of::<T>()` does not compile | Ensure `T` implements `HasTypeMetadata`, normally through `#[Model]` or `#[Enum]`. |
-| Model rejects an external field type | Enable `chrono`, `big-decimal`, or `id`, implement `HasTypeShape`, or use `#[field(opaque)]` when the leaf should stay uninterpreted. |
-| A field is unexpectedly nullable | Inspect the outermost `TypeShape`. Only outer `Option<T>` is nullable. |
-| Path resolution fails | Confirm every segment, that intermediate named types are structs with resolvers, and that the path is not empty. |
-| A tool cannot find a model | Link and register the model crate, or build a `ModelRegistry` from an explicit registration set. |
-| `global()` panics at startup | Call `try_global()` and inspect `ModelRegistryError` for invalid or duplicate IDs. |
-| Relations look consistent locally but fail together | Call `validate_graph()` after every participating model crate is linked. |
-
-## Limitations and Best Practices
-
-- This crate stores and queries metadata. It does not map databases, execute
-  codecs or generators, redact values, or produce validation error messages.
-- `Opaque` means the leaf is intentionally uninterpreted. It is not a
-  substitute for structure a consumer still needs.
-- Prefer derive-generated metadata so IDs, fields, and attributes stay next to
-  the type. Manual `const` construction is for tools and tests that cannot
-  depend on the macros.
-- Query with typed getters. `AttributeMetadata` can grow new variants.
-- Use `ModelId` when an identifier must survive a process restart. Use
-  `TypeIdentity` only inside the current binary.
-- Do not treat `validate_graph()` as part of ordinary `metadata_of` queries.
-  Run it when the linked model set is complete.
-
-## Further Reading
-
-- [Derive user guide](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.md)
-- [README](../README.md)
-- [API documentation](https://docs.rs/qubit-model-metadata)
-- [中文用户手册](user_guide.zh_CN.md)
+See the [README](../README.md) and
+[API documentation](https://docs.rs/qubit-model-metadata).
