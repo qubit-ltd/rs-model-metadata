@@ -41,8 +41,13 @@ const VALID_MOBILE_TEXT: TextConstraint = TextConstraint::new(
 );
 const VALID_SEQUENCE: SequenceConstraint = SequenceConstraint::new(Some(1), Some(8), true);
 const VALID_MAP: MapConstraint = MapConstraint::new(Some(1), Some(8));
-const VALID_DECIMAL: DecimalConstraint =
-    DecimalConstraint::new(Some(8), 3, RoundingMode::HalfEven, DecimalSemantic::Number);
+const VALID_DECIMAL: DecimalConstraint = DecimalConstraint::new(
+    Some(8),
+    3,
+    RoundingMode::HalfEven,
+    DecimalSemantic::Number,
+)
+.with_bounds(Some("1.25"), Some("9.75"), false, true);
 const VALID_TEMPORAL: TemporalConstraint = TemporalConstraint::new(TemporalPrecision::Millisecond);
 
 #[test]
@@ -58,7 +63,7 @@ fn test_constraint_constructors_remain_const_compatible() {
 
     assert_eq!(VALID_SEQUENCE.min_items(), Some(1));
     assert_eq!(VALID_SEQUENCE.max_items(), Some(8));
-    assert!(VALID_SEQUENCE.has_unique_items());
+    assert!(VALID_SEQUENCE.unique_items());
 
     assert_eq!(VALID_MAP.min_entries(), Some(1));
     assert_eq!(VALID_MAP.max_entries(), Some(8));
@@ -69,6 +74,10 @@ fn test_constraint_constructors_remain_const_compatible() {
     assert_eq!(VALID_DECIMAL.scale(), 3);
     assert_eq!(VALID_DECIMAL.rounding(), RoundingMode::HalfEven);
     assert_eq!(VALID_DECIMAL.semantic(), DecimalSemantic::Number);
+    assert_eq!(VALID_DECIMAL.min(), Some("1.25"));
+    assert_eq!(VALID_DECIMAL.max(), Some("9.75"));
+    assert!(!VALID_DECIMAL.min_inclusive());
+    assert!(VALID_DECIMAL.max_inclusive());
 }
 
 #[test]
@@ -88,7 +97,7 @@ fn test_constraint_constructors_execute_runtime_paths() {
     let temporal = TemporalConstraint::new(TemporalPrecision::Millisecond);
 
     assert_eq!(text.max_chars(), Some(8));
-    assert!(sequence.has_unique_items());
+    assert!(sequence.unique_items());
     assert_eq!(map.max_entries(), Some(8));
     assert_eq!(decimal.scale(), 3);
     assert_eq!(temporal.precision(), TemporalPrecision::Millisecond);

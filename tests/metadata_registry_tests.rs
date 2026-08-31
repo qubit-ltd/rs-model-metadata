@@ -2,231 +2,113 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Integration tests for immutable model registration lookup.
+// qubit-style: allow explicit-imports
+//! Integration tests for frozen model registration indexes.
 
-mod metadata_registry;
-
-use qubit_model_metadata::HasModelRegistration;
-use qubit_model_metadata::HasTypeMetadata;
-use qubit_model_metadata::HasTypeShape;
-use qubit_model_metadata::MetadataResolver;
+use qubit_model_metadata::GenericModelMetadata;
 use qubit_model_metadata::ModelId;
+use qubit_model_metadata::ModelMetadata;
 use qubit_model_metadata::ModelRegistration;
 use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelRegistryError;
-use qubit_model_metadata::NamedTypeRef;
-use qubit_model_metadata::SourceLocation;
-use qubit_model_metadata::StructMetadata;
-use qubit_model_metadata::TypeCapabilities;
-use qubit_model_metadata::TypeIdentity;
-use qubit_model_metadata::TypeKind;
+use qubit_model_metadata::ModelRegistryErrorKind;
+use qubit_model_metadata::ModelRole;
+use qubit_model_metadata::Reflect;
+use qubit_model_metadata::RoleMetadata;
+use qubit_model_metadata::TypeDescriptor;
 use qubit_model_metadata::TypeMetadata;
-use qubit_model_metadata::TypeShape;
-use qubit_model_metadata::registration_of;
+use qubit_model_metadata::identity::FragmentIdentity;
 
-struct Account;
-struct Organization;
-struct DuplicateA;
-struct DuplicateZ;
+#[derive(Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+struct RegistryFixture;
 
-static ACCOUNT_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::new("test.metadata.Account"),
-    TypeIdentity::of::<Account>(),
-    TypeKind::Struct(StructMetadata::new(&[])),
-    &[],
-);
-static ORGANIZATION_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::new("test.metadata.Organization"),
-    TypeIdentity::of::<Organization>(),
-    TypeKind::Struct(StructMetadata::new(&[])),
-    &[],
-);
-static DUPLICATE_A_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::new("test.metadata.Duplicate"),
-    TypeIdentity::of::<DuplicateA>(),
-    TypeKind::Struct(StructMetadata::new(&[])),
-    &[],
-);
-static DUPLICATE_Z_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::new("test.metadata.Duplicate"),
-    TypeIdentity::of::<DuplicateZ>(),
-    TypeKind::Struct(StructMetadata::new(&[])),
-    &[],
-);
-static MISMATCH_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::new("test.metadata.Account"),
-    TypeIdentity::of::<Account>(),
-    TypeKind::Struct(StructMetadata::new(&[])),
-    &[],
-);
-static IDENTITY_DUPLICATE_METADATA: TypeMetadata = TypeMetadata::new(
-    ModelId::new("test.metadata.IdentityDuplicate"),
-    TypeIdentity::of::<Account>(),
-    TypeKind::Struct(StructMetadata::new(&[])),
-    &[],
-);
-
-static ACCOUNT_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::new("test.metadata.Account"),
-    &ACCOUNT_METADATA,
-    "test::Account",
-    "test::metadata",
-    SourceLocation::new("account.rs", 10, 1),
-);
-static ORGANIZATION_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::new("test.metadata.Organization"),
-    &ORGANIZATION_METADATA,
-    "test::Organization",
-    "test::metadata",
-    SourceLocation::new("organization.rs", 20, 1),
-);
-static DUPLICATE_Z_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::new("test.metadata.Duplicate"),
-    &DUPLICATE_Z_METADATA,
-    "z::Model",
-    "z::module",
-    SourceLocation::new("z.rs", 30, 3),
-);
-static DUPLICATE_A_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::new("test.metadata.Duplicate"),
-    &DUPLICATE_A_METADATA,
-    "a::Model",
-    "a::module",
-    SourceLocation::new("a.rs", 20, 2),
-);
-static MISMATCH_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::new("test.metadata.Mismatch"),
-    &MISMATCH_METADATA,
-    "test::Mismatch",
-    "test::metadata",
-    SourceLocation::new("mismatch.rs", 40, 4),
-);
-static IDENTITY_DUPLICATE_REGISTRATION: ModelRegistration = ModelRegistration::new(
-    ModelId::new("test.metadata.IdentityDuplicate"),
-    &IDENTITY_DUPLICATE_METADATA,
-    "test::IdentityDuplicate",
-    "test::metadata",
-    SourceLocation::new("identity_duplicate.rs", 50, 1),
-);
-
-impl HasTypeMetadata for Account {
-    fn type_metadata() -> &'static TypeMetadata {
-        &ACCOUNT_METADATA
-    }
+#[derive(Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+struct GenericFixture<T> {
+    value: T,
 }
 
-impl HasTypeShape for Account {
-    const TYPE_SHAPE: TypeShape = TypeShape::Named(NamedTypeRef::of::<Self>());
-    const CAPABILITIES: TypeCapabilities = TypeCapabilities::NONE;
-}
+static MODEL_ROLE: RoleMetadata = RoleMetadata::Model(ModelMetadata);
 
-impl HasModelRegistration for Account {
-    fn model_registration() -> &'static ModelRegistration {
-        &ACCOUNT_REGISTRATION
-    }
+fn registration(id: &'static str, fingerprint: u64) -> &'static ModelRegistration {
+    let metadata = Box::leak(Box::new(TypeMetadata::new(
+        TypeDescriptor::of::<RegistryFixture>(),
+        Some(ModelId::new(id)),
+        &[],
+        &MODEL_ROLE,
+    )));
+    let source = Box::leak(Box::new(FragmentIdentity::new(
+        "fixture",
+        "tests",
+        fingerprint as u32,
+        1,
+        "model",
+        fingerprint,
+    )));
+    Box::leak(Box::new(ModelRegistration::from_concrete(metadata, source)))
 }
 
 #[test]
-fn test_from_registrations_sorts_and_looks_up_models() {
-    let registry = ModelRegistry::from_registrations([&ORGANIZATION_REGISTRATION, &ACCOUNT_REGISTRATION])
-        .expect("the registrations should be valid and unique");
+fn test_registry_indexes_registration_metadata_and_type_identity() {
+    let item = registration("example.RegistryFixture", 1);
+    let registry = ModelRegistry::from_registrations([item]).expect("valid registry");
 
-    let registrations: Vec<_> = registry
-        .registrations()
-        .map(|registration| registration.id().as_str())
-        .collect();
-    assert_eq!(registrations, ["test.metadata.Account", "test.metadata.Organization"]);
-    assert!(core::ptr::eq(
-        registry
-            .get("test.metadata.Account")
-            .expect("the account metadata should be found"),
-        &ACCOUNT_METADATA,
+    assert!(std::ptr::eq(
+        registry.get("example.RegistryFixture").expect("registration"),
+        registry.registrations().first().unwrap()
     ));
-    assert!(core::ptr::eq(
-        registry
-            .registration("test.metadata.Organization")
-            .expect("the organization registration should be found"),
-        &ORGANIZATION_REGISTRATION,
+    assert!(std::ptr::eq(
+        registry.metadata("example.RegistryFixture").expect("metadata"),
+        item.metadata().unwrap()
     ));
-    assert!(registry.get("test.metadata.Unknown").is_none());
-    assert!(registry.registration("test.metadata.Unknown").is_none());
-}
-
-#[test]
-fn test_registration_of_exposes_explicit_model_catalog_entries() {
-    let registry = ModelRegistry::from_registrations([registration_of::<Account>()])
-        .expect("the explicit model catalog should be valid");
-
-    assert!(core::ptr::eq(registration_of::<Account>(), &ACCOUNT_REGISTRATION));
-    assert!(core::ptr::eq(
+    assert!(std::ptr::eq(
         registry
-            .resolve(TypeIdentity::of::<Account>())
-            .expect("the account identity should resolve"),
-        &ACCOUNT_METADATA,
+            .by_type_id(TypeDescriptor::of::<RegistryFixture>().type_id())
+            .expect("type lookup"),
+        item.metadata().unwrap(),
     ));
+    assert!(registry.get("not-valid!").is_none());
 }
 
 #[test]
-fn test_from_registrations_rejects_duplicate_type_identity() {
-    let error = ModelRegistry::from_registrations([&ACCOUNT_REGISTRATION, &IDENTITY_DUPLICATE_REGISTRATION])
-        .expect_err("one Rust type identity cannot have two registrations");
+fn test_registry_reports_duplicate_ids_with_both_sources() {
+    let first = registration("example.Duplicate", 1);
+    let second = registration("example.Duplicate", 2);
+    let error = ModelRegistry::from_registrations([second, first]).expect_err("duplicate IDs must fail");
 
-    match error {
-        ModelRegistryError::DuplicateIdentity {
-            identity,
-            first,
-            second,
-        } => {
-            assert_eq!(identity, TypeIdentity::of::<Account>());
-            assert!(core::ptr::eq(first, &ACCOUNT_REGISTRATION));
-            assert!(core::ptr::eq(second, &IDENTITY_DUPLICATE_REGISTRATION));
-        }
-        other => panic!("expected duplicate identity error, got {other:?}"),
-    }
+    assert_eq!(error.kind(), ModelRegistryErrorKind::DuplicateModelId);
+    assert_eq!(error.model_id().map(|id| id.as_str()), Some("example.Duplicate"));
+    assert_eq!(error.sources().len(), 2);
 }
 
 #[test]
-fn test_from_registrations_reports_duplicate_id_in_stable_order() {
-    let error = ModelRegistry::from_registrations([&DUPLICATE_Z_REGISTRATION, &DUPLICATE_A_REGISTRATION])
-        .expect_err("duplicate model IDs must be rejected");
+fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
+    let concrete = TypeDescriptor::of::<GenericFixture<u8>>();
+    let definition = concrete.concrete_generic().expect("generic substitutions").definition();
+    let generic = Box::leak(Box::new(GenericModelMetadata::new(
+        ModelId::new("example.GenericFixture"),
+        ModelRole::Model,
+        definition,
+        &[],
+    )));
+    let source = Box::leak(Box::new(FragmentIdentity::new(
+        "fixture",
+        "tests",
+        3,
+        1,
+        "generic-model",
+        3,
+    )));
+    let registration: &'static ModelRegistration =
+        Box::leak(Box::new(ModelRegistration::from_generic(generic, source)));
+    let registry = ModelRegistry::from_registrations([registration]).expect("generic registry");
 
-    match error {
-        ModelRegistryError::DuplicateId { id, first, second } => {
-            assert_eq!(id.as_str(), "test.metadata.Duplicate");
-            assert_eq!(first.rust_type_name(), "a::Model");
-            assert_eq!(first.rust_module_path(), "a::module");
-            assert_eq!(first.source().file(), "a.rs");
-            assert_eq!(first.source().line(), 20);
-            assert_eq!(first.source().column(), 2);
-            assert_eq!(second.rust_type_name(), "z::Model");
-            assert_eq!(second.rust_module_path(), "z::module");
-            assert_eq!(second.source().file(), "z.rs");
-            assert_eq!(second.source().line(), 30);
-            assert_eq!(second.source().column(), 3);
-        }
-        other => panic!("expected a duplicate-ID error, got {other:?}"),
-    }
-}
-
-#[test]
-fn test_from_registrations_rejects_mismatched_metadata_id() {
-    let error = ModelRegistry::from_registrations([&MISMATCH_REGISTRATION])
-        .expect_err("registration and metadata IDs must agree");
-
-    match error {
-        ModelRegistryError::MetadataIdMismatch {
-            registration,
-            registration_id,
-            metadata_id,
-        } => {
-            assert!(core::ptr::eq(registration, &MISMATCH_REGISTRATION));
-            assert_eq!(registration_id.as_str(), "test.metadata.Mismatch");
-            assert_eq!(metadata_id.as_str(), "test.metadata.Account");
-        }
-        other => panic!("expected a metadata-ID mismatch error, got {other:?}"),
-    }
+    assert!(std::ptr::eq(
+        registry.generic("example.GenericFixture").expect("generic lookup"),
+        generic,
+    ));
+    assert!(registry.metadata("example.GenericFixture").is_none());
+    assert_eq!(registry.generic_definitions().len(), 1);
 }
