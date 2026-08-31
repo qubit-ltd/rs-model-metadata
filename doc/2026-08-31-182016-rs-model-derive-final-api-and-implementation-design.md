@@ -1,0 +1,1258 @@
+# `rs-model-derive` 最终 API 与实现方案（基于 `rs-reflect`）
+
+- 时间：2026-08-31 18:20:16 CST
+- 修订：2026-09-01，校正 Validator/Codec/Redact crate 边界并增加 Validator 后续 TODO
+- 状态：最终设计稿，可据此拆分实施计划
+- 适用仓库：`rs-model-derive`、`rs-model-metadata`、`rs-reflect`
+- 需求基线：2026-08-28 的需求规范、目标 API 手册、重构蓝图与待确认清单
+- 核心前提：`qubit-reflect` 已提供可复用的 Rust 结构反射、动态访问、泛型描述、typed capability 和链接期注册机制
+
+## 1. 结论
+
+`rs-model-derive` 不再建立第二套 Rust 反射系统。最终方案是：
+
+1. `qubit-reflect` 是唯一的 Rust 结构事实源，负责 `TypeDescriptor`、`FieldDescriptor`、
+   `VariantDescriptor`、`TypeRef`、泛型表达式、动态值、字段访问和反射注册表。
+2. `qubit-model-metadata` 是领域语义覆盖层，负责五种模型角色、字段约束、关系、查询、策略引用、
+   Serde/Redact 语义、稳定 `ModelId` 和模型图解析。
+3. `qubit-model-derive` 是领域声明编译器。六个属性宏共享一条
+   `parse -> normalize -> validate -> expand` 流水线，并委托 `qubit-reflect` 生成结构反射。
+4. 模型 metadata 通过 `qubit-reflect` 的 typed capability 挂到唯一的
+   `TypeDescriptor` 根上，不修改、包装或复制该根。
+5. `ModelRegistry` 是 `ReflectRegistry` 之上的稳定 ID 索引和领域解析层；它不再保存另一份 Rust 结构注册表。
+6. 2026-08-28 文档中自建 `TypeDescriptor`、`HasTypeDescriptor`、字段 erased accessor、泛型结构表达和
+   `TypeDescriptor::metadata()` 的方案由本设计替代。其领域语义要求继续保留，但底层实现统一复用
+   `qubit-reflect`。
+
+一句话概括最终形态：
+
+```text
+Rust declaration
+    │
+    ├─ qubit-reflect descriptor（唯一结构事实）
+    │       ├─ fields / variants / generics / access / construct
+    │       └─ typed capability: qubit.model.metadata
+    │                              │
+    │                              └─ TypeMetadata（领域语义覆盖层）
+    │
+    └─ ModelRegistration（仅有 ModelId 的类型或泛型定义）
+             └─ ModelRegistry -> ModelResolver -> ResolvedModelGraph
+```
+
+## 2. 设计依据：`rs-reflect` 已经解决的能力
+
+本方案基于当前 `rs-reflect` 代码中的以下稳定设计，而不是仅根据 README 推断：
+
+- `Reflect` 是唯一静态反射 trait，`TypeDescriptor::of::<T>()` 返回唯一根描述符。
+- `TypeDescriptor` 已直接提供标准 `TypeId`、`type_name()`、结构种类、字段、variant、泛型实例和能力集合。
+- `TypeRef::{Resolved, Opaque, Symbolic}` 已准确覆盖 concrete 字段、显式 opaque 字段和泛型定义中的符号类型。
+- `FieldDescriptor` 已保存字段 index、Rust/query name、可见性、所属 variant、字段类型和安全访问适配器。
+- 字段读取/写入使用 `ReflectedRef`、`ReflectedMut`、`ReflectedOwned`，并在调用前检查目标和值的准确
+  `TypeId`；失败不会伪造生命周期或绕过 Rust aliasing。
+- `ConcreteGenericDescriptor`、`GenericDefinitionDescriptor`、`GenericArgument` 和 `TypeExpression` 已覆盖泛型定义、
+  concrete 实参及结构化 const 表达式。
+- `TypeCapabilities` 通过 `CapabilityKey<A>` 同时校验稳定 ID 和 Rust adapter 类型；第三方可以注册自定义 typed
+  capability。
+- `ReflectRegistry` 使用 immutable snapshot、`OnceLock<Result<...>>`、确定性 fragment 排序、源位置 identity 和
+  冲突错误。
+- `qubit-reflect` 已有 downstream facade 测试：领域 runtime crate 可以重导出反射 API，领域 derive crate 通过
+  `#[reflect(crate = facade)]` 委托生成代码，最终业务 crate 不必直接依赖 `qubit-reflect`。
+- `__private` 已提供宏生产 ABI、`inventory` 重导出、lazy type reference 和 registration fragment；普通用户 API 与
+  生成代码 API 已有清楚边界。
+
+因此，若 `rs-model-metadata` 再定义 `TypeDescriptor`、`TypeIdentity`、`TypeRef`、字段访问器或 generic expression，
+会产生两个不可避免的问题：同一 Rust 类型出现两棵可能不一致的图；修复递归、泛型和安全访问时必须维护两份实现。
+
+## 3. 方案比较
+
+### 3.1 方案 A：继续实现独立模型描述符
+
+做法：沿 2026-08-28 蓝图，在 `rs-model-metadata` 内新增独立 `TypeDescriptor`、`HasTypeDescriptor`、容器描述、
+Field/Property accessor 和 concrete 泛型 cache。
+
+优点是可以原样保留 2026-08-28 候选签名。缺点是重复 `rs-reflect` 已实现的大部分高风险能力，并且模型字段与反射字段
+可能拥有不同的 `TypeId`、递归边界、opaque 语义和访问策略。该方案不采用。
+
+### 3.2 方案 B：模型 metadata 作为 `qubit-reflect` 的 typed capability
+
+做法：`TypeMetadata` 持有唯一 `&'static TypeDescriptor`，领域 Field/Variant 是反射 descriptor 的语义覆盖层；
+`TypeDescriptor` 通过 capability 返回模型 metadata provider；模型注册表只索引有稳定 ID 的领域声明。
+
+优点：结构事实、动态访问、泛型、递归和注册基础全部复用；模型层仍保持强类型和独立演进；与现有 facade 机制完全一致。
+代价是必须把 2026-08-28 的 `TypeDescriptor::metadata()` 改成扩展 trait 方法，并把字段类型访问从必定 resolved 改为
+准确表达 `Resolved/Opaque/Symbolic`。这是推荐并采用的方案。
+
+### 3.3 方案 C：把五种模型角色直接加入 `qubit-reflect`
+
+做法：在 `TypeDescriptor` 或 `TypeKind` 中直接加入 Entity、Projection、Model、Enum、Value 和全部约束。
+
+优点是调用表面最短。缺点是通用反射 crate 将依赖模型、validator、codec、redact 等领域概念，破坏依赖方向，也使其他
+反射用户承担无关 API。该方案不采用。
+
+## 4. crate 边界和依赖方向
+
+最终依赖关系为：
+
+```text
+qubit-reflect
+      ▲
+      │
+qubit-model-metadata ─────► qubit-codec
+      │                    qubit-redact
+      ▲
+      │ generated code only
+qubit-model-derive
+      ▲
+      │
+domain crates
+```
+
+具体规则：
+
+- `qubit-model-metadata` 直接依赖 `qubit-reflect`，并重导出普通模型用户需要的反射类型。
+- `qubit-model-derive` 不在宏进程中读取 runtime registry，不加载领域类型，不读取数据库或网络。
+- `qubit-model-derive` 使用 `proc-macro-crate` 解析 `qubit-model-metadata` 的实际依赖名；生成代码只引用该 facade，
+  不要求业务 crate 直接依赖 `qubit-reflect`。
+- `qubit-model-metadata::__private` 重导出 `qubit_reflect::__private`，保持 facade 委托链。
+- codec 直接复用 `qubit-codec` 的 `#[ValueCodec]`、`ValueEncoder` 和 `ValueDecoder` 契约，不定义平行
+  contract。Validator runtime 尚未设计；当前模型层只保存字段 occurrence 声明，不依赖 validator crate。
+- `qubit-model-metadata` 可以像 `qubit-reflect` 一样用默认 `derive` feature 重导出六个模型宏。若暂不调整 crate 发布形态，
+  业务代码也可分别依赖 `qubit-model-metadata` 与 `qubit-model-derive`；两种方式生成的 API 完全相同。
+
+## 5. 用户可见的宏 API
+
+最终只公开以下六个领域入口：
+
+```rust
+#[proc_macro_attribute]
+pub fn Entity(args: TokenStream, input: TokenStream) -> TokenStream;
+
+#[proc_macro_attribute]
+pub fn Projection(args: TokenStream, input: TokenStream) -> TokenStream;
+
+#[proc_macro_attribute]
+pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream;
+
+#[proc_macro_attribute]
+pub fn Enum(args: TokenStream, input: TokenStream) -> TokenStream;
+
+#[proc_macro_attribute]
+pub fn Value(args: TokenStream, input: TokenStream) -> TokenStream;
+
+#[proc_macro_attribute]
+pub fn ModelProperties(args: TokenStream, input: TokenStream) -> TokenStream;
+```
+
+业务用户不需要同时书写 `#[derive(Reflect)]`。五种类型宏自动委托反射宏，并生成领域 metadata：
+
+```rust
+use qubit_model_metadata::{Entity, TypeMetadata};
+
+#[Entity(id = "qubit.platform.iam.User")]
+pub struct User {
+    #[identifier]
+    pub id: Id,
+    #[unique]
+    #[text(min_chars = 3, max_chars = 32, allowed_chars = code)]
+    pub username: String,
+}
+
+let metadata = TypeMetadata::of::<User>();
+assert!(metadata.as_entity().is_some());
+```
+
+类型宏内部展开等价于：
+
+```rust,ignore
+#[derive(qubit_model_metadata::Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+struct User { /* retained source */ }
+
+impl qubit_model_metadata::HasTypeMetadata for User { /* generated */ }
+
+qubit_model_metadata::__private::register_model_capability!(User, /* provider */);
+qubit_model_metadata::__private::register_model!(/* only when ModelId exists */);
+```
+
+用户在同一声明上显式添加 `Reflect` 派生属于重复配置，宏应在原 derive token 上给出专用诊断，避免产生冲突实现。
+`#[reflect(...)]` 的领域无关参数首版不透传；若模型系统以后确实需要公开某项反射控制，应增加明确的模型参数，不能把
+整个反射 helper 语法泄漏到领域 API。
+
+五种角色、shape、泛型、默认能力、identifier、reference、约束、selector、Serde/Redact 的最终业务语义继续采用
+2026-08-28 需求规范。明确删除项继续删除：lookup_relation、ownership、field generator、computed、exclude、
+modified/unmodified、key_index、物理数据库索引参数和基于 `type_name()` 的稳定身份。
+
+## 6. 静态查询与唯一 descriptor
+
+### 6.1 公共 trait
+
+模型层不再定义 `HasTypeDescriptor`。通用类型约束直接使用 `qubit_reflect::Reflect`：
+
+```rust
+pub use qubit_reflect::Reflect;
+pub use qubit_reflect::TypeDescriptor;
+
+pub trait HasTypeMetadata: Reflect + __private::ModelTypeSeal {
+    fn type_metadata() -> &'static TypeMetadata;
+}
+```
+
+`HasTypeMetadata` 是公开泛型约束，但手工实现不是受支持扩展点。隐藏的 seal 只能由五种角色宏实现，确保模型 metadata、
+反射 descriptor 和注册 fragment 同时生成。需要手写反射的普通类型仍可实现 `Reflect`，但不会自动成为模型角色。
+
+### 6.2 `TypeMetadata` 入口
+
+```rust
+impl TypeMetadata {
+    pub fn of<T: HasTypeMetadata>() -> &'static Self;
+
+    pub fn descriptor(&self) -> &'static TypeDescriptor;
+    pub fn type_id(&self) -> std::any::TypeId;
+    pub fn type_name(&self) -> &'static str;
+
+    pub fn model_id(&self) -> Option<ModelId>;
+    pub fn is_registered(&self) -> bool;
+    pub fn generic_definition(&self) -> Option<&'static GenericModelMetadata>;
+
+    pub fn fields(&self) -> &'static [FieldMetadata];
+    pub fn field(&self, name: &str) -> Option<&'static FieldMetadata>;
+    pub fn field_at(&self, index: usize) -> Option<&'static FieldMetadata>;
+
+    pub fn properties(&self) -> &'static [PropertyMetadata];
+    pub fn property(&self, name: &str) -> Option<&'static PropertyMetadata>;
+
+    pub fn role(&self) -> ModelRole;
+    pub fn role_metadata(&self) -> &'static RoleMetadata;
+    pub fn as_entity(&self) -> Option<&'static EntityMetadata>;
+    pub fn as_projection(&self) -> Option<&'static ProjectionMetadata>;
+    pub fn as_model(&self) -> Option<&'static ModelMetadata>;
+    pub fn as_enum(&self) -> Option<&'static EnumMetadata>;
+    pub fn as_value(&self) -> Option<&'static ValueMetadata>;
+}
+```
+
+`type_id()`、`type_name()` 和所有结构信息均委托给 `descriptor()`；`TypeMetadata` 不保存第二份身份。
+
+### 6.3 从任意反射 descriptor 查询模型 metadata
+
+Rust 不允许在下游 crate 为 `qubit_reflect::TypeDescriptor` 增加固有方法，因此 2026-08-28 候选
+`TypeDescriptor::metadata()` 改为扩展 trait，并使用领域明确的名称：
+
+```rust
+pub trait ModelDescriptorExt {
+    fn model_metadata(&self) -> Option<&'static TypeMetadata>;
+    fn is_model_type(&self) -> bool {
+        self.model_metadata().is_some()
+    }
+}
+
+impl ModelDescriptorExt for TypeDescriptor { /* typed capability lookup */ }
+```
+
+调用方式：
+
+```rust
+use qubit_model_metadata::{ModelDescriptorExt, TypeDescriptor};
+
+assert!(TypeDescriptor::of::<String>().model_metadata().is_none());
+assert_eq!(
+    TypeDescriptor::of::<User>().model_metadata().unwrap().role(),
+    ModelRole::Entity,
+);
+assert!(std::ptr::eq(
+    TypeMetadata::of::<User>().descriptor(),
+    TypeDescriptor::of::<User>(),
+));
+```
+
+内部 capability 契约为：
+
+```rust
+#[doc(hidden)]
+pub type ModelMetadataProvider = fn() -> &'static TypeMetadata;
+
+#[doc(hidden)]
+pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider>;
+```
+
+稳定 capability ID 固定为 `qubit.model.metadata.v1`。`ModelDescriptorExt::model_metadata()` 只做当前 descriptor 的
+typed capability 查询，不读取 `ModelRegistry::global()`。
+
+### 6.4 `TypeCapabilities` 的最终边界
+
+模型层不再定义另一个 `TypeCapabilities` bitflag：
+
+- Rust 可执行能力使用 `qubit_reflect::TypeCapabilities`，例如 Clone、Default 或类型适配器。
+- text/decimal/container 等约束适用性优先根据 `TypeDescriptor::kind()` 和 typed views 判定。
+- 仅当结构种类不足以证明能力时，使用独立、具名的 reflect capability key，例如 text view、decimal view、query
+  comparison adapter；每个 key 都有准确 Rust adapter 类型。
+- “字段声明了某约束”属于 `FieldMetadata`，不得混入类型 capability。
+
+这关闭了 2026-08-28 `META-API-TODO-002`，并避免同一个 `Copy`/`Serialize` 事实在模型与反射两处不一致。
+
+## 7. Field：结构事实与领域语义分层
+
+`FieldMetadata` 是 `FieldDescriptor` 的领域覆盖层，不复制 index、name、visibility、类型或访问器：
+
+```rust
+impl FieldMetadata {
+    pub fn reflect(&self) -> &'static qubit_reflect::FieldDescriptor;
+
+    pub fn index(&self) -> usize;
+    pub fn name(&self) -> Option<&'static str>;
+    pub fn type_ref(&self) -> &'static qubit_reflect::descriptor::TypeRef;
+    pub fn descriptor(&self) -> Option<&'static TypeDescriptor>;
+    pub fn visibility(&self) -> qubit_reflect::access::FieldVisibility<'static>;
+
+    pub fn attributes(&self) -> &'static [FieldAttributeMetadata];
+    pub fn identifier(&self) -> Option<&'static IdentifierMetadata>;
+    pub fn is_identifier(&self) -> bool;
+    pub fn indexing_reasons(&self) -> IndexingReasons;
+    pub fn is_indexed(&self) -> bool;
+    pub fn unique(&self) -> Option<&'static UniqueMetadata>;
+    pub fn is_unique(&self) -> bool;
+    pub fn reference(&self) -> Option<&'static ReferenceMetadata>;
+    pub fn is_reference(&self) -> bool;
+    pub fn key_part(&self) -> Option<&'static KeyPartMetadata>;
+
+    pub fn constraints(&self) -> &'static [ConstraintMetadata];
+    pub fn validators(&self) -> &'static [ValidatorMetadata];
+    pub fn codec(&self) -> Option<&'static CodecMetadata>;
+    pub fn redact(&self) -> Option<&'static RedactMetadata>;
+    pub fn serde(&self) -> &'static SerdeFieldMetadata;
+    pub fn is_opaque(&self) -> bool;
+}
+```
+
+这里对 2026-08-28 `descriptor() -> &'static TypeDescriptor` 做必要修正：最终返回 `Option`。原因不是放宽实现，而是
+准确遵守 `qubit-reflect::TypeRef`：resolved 字段返回 `Some`，显式 opaque 和 generic template 中的 symbolic 字段返回
+`None`。调用者需要完整分支时使用 `type_ref()`，不得把 opaque 或 symbolic 伪造成根 descriptor。
+
+`name()` 使用反射字段的 query name；需要源代码名时调用 `reflect().rust_name()`。tuple Value 和 Enum tuple payload 的
+字段名为 `None`。Enum payload 字段仍属于对应 variant，不进入类型顶层 `fields()`。
+
+高频便利方法保持严格等价：
+
+```rust
+field.is_identifier() == field.identifier().is_some()
+field.is_unique() == field.unique().is_some()
+field.is_reference() == field.reference().is_some()
+field.is_indexed() == !field.indexing_reasons().is_empty()
+```
+
+### 7.1 统一属性迭代
+
+`FieldAttributeMetadata` 是同一批强类型对象的源码顺序视图，不保存第二份值：
+
+```rust
+pub enum FieldAttributeMetadata {
+    Identifier(&'static IdentifierMetadata),
+    Indexed(IndexingReasons),
+    Unique(&'static UniqueMetadata),
+    Reference(&'static ReferenceMetadata),
+    KeyPart(&'static KeyPartMetadata),
+    Constraint(&'static ConstraintMetadata),
+    Validator(&'static ValidatorMetadata),
+    Codec(&'static CodecMetadata),
+    Redact(&'static RedactMetadata),
+    Serde(&'static SerdeFieldMetadata),
+    Opaque,
+}
+```
+
+强类型 getter 与 `attributes()` 中的引用必须指向同一个静态对象。`Indexed` 保存最终 reason 集合，但只在源码中确实
+存在 indexed/identifier/unique/reference 事实时出现一次，避免按每个隐含原因重复列项。
+
+## 8. Property 与 `#[ModelProperties]`
+
+field-backed Property 直接复用 `FieldDescriptor` 的安全访问器；显式 getter/setter 使用同一组动态值类型和相同的
+TypeId 预检规则，不再发明基于裸 `Any` 的接口。
+
+```rust
+pub enum PropertyStorageKind {
+    FieldBacked,
+    Computed,
+    Virtual,
+}
+
+pub enum PropertyValue<'a> {
+    Borrowed(qubit_reflect::ReflectedRef<'a>),
+    Owned(qubit_reflect::ReflectedOwned),
+}
+
+impl PropertyMetadata {
+    pub fn name(&self) -> &'static str;
+    pub fn type_ref(&self) -> &'static qubit_reflect::descriptor::TypeRef;
+    pub fn descriptor(&self) -> Option<&'static TypeDescriptor>;
+
+    pub fn field(&self) -> Option<&'static FieldMetadata>;
+    pub fn getter(&self) -> Option<&'static GetterMetadata>;
+    pub fn setter(&self) -> Option<&'static SetterMetadata>;
+
+    pub fn is_field(&self) -> bool;
+    pub fn is_getter(&self) -> bool;
+    pub fn is_setter(&self) -> bool;
+    pub fn is_readable(&self) -> bool;
+    pub fn is_writable(&self) -> bool;
+    pub fn is_computed(&self) -> bool;
+    pub fn storage_kind(&self) -> PropertyStorageKind;
+
+    pub fn get<'a>(
+        &self,
+        target: qubit_reflect::ReflectedRef<'a>,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError>;
+
+    pub fn set(
+        &self,
+        target: qubit_reflect::ReflectedMut<'_>,
+        value: qubit_reflect::ReflectedOwned,
+    ) -> Result<(), PropertySetFailure>;
+}
+```
+
+```rust
+pub enum GetterOutputKind {
+    Borrowed,
+    Owned,
+}
+
+impl GetterMetadata {
+    pub fn rust_method_name(&self) -> &'static str;
+    pub fn output_type(&self) -> &'static qubit_reflect::descriptor::TypeRef;
+    pub fn output_kind(&self) -> GetterOutputKind;
+    pub fn get<'a>(
+        &self,
+        target: qubit_reflect::ReflectedRef<'a>,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError>;
+}
+
+impl SetterMetadata {
+    pub fn rust_method_name(&self) -> &'static str;
+    pub fn input_type(&self) -> &'static qubit_reflect::descriptor::TypeRef;
+    pub fn set(
+        &self,
+        target: qubit_reflect::ReflectedMut<'_>,
+        value: qubit_reflect::ReflectedOwned,
+    ) -> Result<(), PropertySetFailure>;
+}
+```
+
+`PropertyAccessError` 区分 target type mismatch、value type mismatch、不可读、不可写、adapter unavailable 和用户方法
+执行错误。`PropertySetFailure` 像 `FieldSetFailure` 一样在执行前失败时归还 replacement value；setter 已开始执行后的错误
+不承诺回滚对象状态。
+
+首版只提供 local erased mode。线程安全 Property adapter 必须在单独需求中显式加入，不能根据类型实现 Send/Sync 就自动
+升级动态值模式。
+
+合并规则保持不变：
+
+- field/getter/setter 是三个可同时存在的槽位，不是互斥 enum；
+- field 存在即 `FieldBacked`；无 field 有 getter 即 `Computed`；只有 setter 即 `Virtual`；
+- `is_readable() == is_field() || is_getter()`；
+- `is_writable() == is_field() || is_setter()`；
+- 显式 getter/setter 优先于默认 field adapter；
+- 借用输出的生命周期由 `for<'a>` adapter 绑定到输入 target，不得转成 `'static`；
+- getter/setter 兼容规则按 2026-08-28 需求支持 `T <-> &T`、`String <-> str/&str`、
+  `Vec<T> <-> [T]/&[T]`、`Option<T> <-> Option<&T>`，所有转换必须由具名安全 adapter 完成。
+
+`#[ModelProperties]` 每个目标类型只允许一个 impl。宏通过实现隐藏的 `ModelPropertiesProvider` seal 让重复 impl 产生稳定的
+conflicting implementation 编译错误；同一 impl 内的重复 property、非法方法形状和不兼容类型由宏给出聚合诊断。
+
+## 9. 五种角色的最终 runtime API
+
+```rust
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ModelRole {
+    Entity,
+    Projection,
+    Model,
+    Enum,
+    Value,
+}
+
+pub enum RoleMetadata {
+    Entity(EntityMetadata),
+    Projection(ProjectionMetadata),
+    Model(ModelMetadata),
+    Enum(EnumMetadata),
+    Value(ValueMetadata),
+}
+```
+
+角色公共信息只存在于 `TypeMetadata`。角色 payload 只保存角色专属事实。
+
+### 9.1 Entity
+
+```rust
+impl EntityMetadata {
+    pub fn identifier(&self) -> &'static FieldMetadata;
+}
+```
+
+`model_id()` 不在这里重复；Entity 的必填 ID 从拥有它的 `TypeMetadata::model_id()` 取得。
+
+### 9.2 Projection
+
+```rust
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeclaredEntityTargetKind {
+    RustType,
+    ModelId,
+}
+
+impl DeclaredEntityTarget {
+    pub fn kind(&self) -> DeclaredEntityTargetKind;
+    pub fn metadata(&self) -> Option<&'static TypeMetadata>;
+    pub fn model_id(&self) -> Option<ModelId>;
+}
+
+impl ProjectionMetadata {
+    pub fn identifier(&self) -> &'static FieldMetadata;
+    pub fn source(&self) -> Option<&'static DeclaredEntityTarget>;
+    pub fn is_open(&self) -> bool;
+    pub fn is_fixed(&self) -> bool;
+}
+```
+
+Rust type source 可以通过静态 provider 返回 metadata；ID source 只返回声明的 ID。`source()` 从不隐式读取 registry。
+
+### 9.3 Model
+
+```rust
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ModelMetadata;
+```
+
+保留空 payload，使 `RoleMetadata` 五个分支稳定且未来可向非穷举结构增加 Model 专属事实。首版不向其中塞 query、fields
+或 properties。
+
+### 9.4 Enum
+
+```rust
+impl EnumMetadata {
+    pub fn variants(&self) -> &'static [EnumVariantMetadata];
+    pub fn variant(&self, canonical_name: &str) -> Option<&'static EnumVariantMetadata>;
+    pub fn variant_by_rust_name(&self, name: &str) -> Option<&'static EnumVariantMetadata>;
+    pub fn variant_by_serialized_name(&self, name: &str) -> Option<&'static EnumVariantMetadata>;
+}
+
+impl EnumVariantMetadata {
+    pub fn reflect(&self) -> &'static qubit_reflect::VariantDescriptor;
+    pub fn index(&self) -> usize;
+    pub fn rust_name(&self) -> &'static str;
+    pub fn canonical_name(&self) -> &'static str;
+    pub fn serialized_name(&self) -> &'static str;
+    pub fn deserialized_name(&self) -> &'static str;
+    pub fn fields(&self) -> &'static [FieldMetadata];
+    pub fn field(&self, name: &str) -> Option<&'static FieldMetadata>;
+    pub fn field_at(&self, index: usize) -> Option<&'static FieldMetadata>;
+    pub fn is_default(&self) -> bool;
+}
+```
+
+variant 形状直接使用 `reflect().kind()`，不再定义重复的 `EnumVariantKind`。序列化和反序列化名称分开，正确覆盖 Serde
+directional rename。
+
+### 9.5 Value
+
+```rust
+impl ValueMetadata {
+    pub fn is_transparent(&self) -> bool;
+    pub fn transparent_field(&self) -> Option<&'static FieldMetadata>;
+    pub fn canonical_codec(&self) -> Option<&'static CodecMetadata>;
+}
+```
+
+`transparent_field().is_some()` 与 `is_transparent()` 严格等价。Copy/Default/Serialize 等能力不放入 Value payload，统一从
+反射 capability 或 Rust trait 行为取得。
+
+## 10. 字段语义类型
+
+### 10.1 身份、索引、唯一和键分量
+
+```rust
+pub enum IdentifierAssignment {
+    Application,
+    Database,
+}
+
+impl IdentifierMetadata {
+    pub fn assigned_by(&self) -> IdentifierAssignment;
+}
+
+bitflags::bitflags! {
+    pub struct IndexingReasons: u8 {
+        const EXPLICIT   = 0b0001;
+        const IDENTIFIER = 0b0010;
+        const UNIQUE     = 0b0100;
+        const REFERENCE  = 0b1000;
+    }
+}
+
+impl UniqueMetadata {
+    pub fn respect_to(&self) -> &'static [PropertyPath];
+    pub fn ignore_case(&self) -> bool;
+    pub fn is_scoped(&self) -> bool;
+}
+
+impl KeyPartMetadata {
+    pub fn order(&self) -> usize;
+}
+```
+
+`ignore_case()` 只描述当前 unique 字段，默认 true；scope 路径按源码顺序返回。物理索引名、列名、排序和数据库参数不进入
+这些类型。
+
+### 10.2 Reference
+
+```rust
+pub enum ReferenceSelection {
+    Entity,
+    Property(PropertyPath),
+}
+
+impl ReferenceMetadata {
+    pub fn target(&self) -> &'static DeclaredEntityTarget;
+    pub fn selection(&self) -> &'static ReferenceSelection;
+    pub fn existing(&self) -> bool;
+    pub fn same_as(&self) -> Option<&'static PropertyPath>;
+}
+```
+
+省略 `property` 等价 `ReferenceSelection::Entity`；`property = id` 是普通结构化 PropertyPath，不定义特殊字符串协议。
+`same_as()` 对应 2026-08-28 的 `path` 绑定语义。声明 metadata 不保存解析后目标；解析结果属于
+`ResolvedReference`。
+
+### 10.3 约束与 selector
+
+```rust
+pub enum ConstraintMetadata {
+    Text(TextConstraint),
+    Decimal(DecimalConstraint),
+    Time(TimeConstraint),
+    Sequence(SequenceConstraint),
+    Map(MapConstraint),
+}
+
+pub enum SelectorPosition {
+    Element,
+    MapKey,
+    MapValue,
+}
+
+impl SelectorMetadata {
+    pub fn position(&self) -> SelectorPosition;
+    pub fn constraints(&self) -> &'static [ConstraintMetadata];
+    pub fn validators(&self) -> &'static [ValidatorMetadata];
+    pub fn codec(&self) -> Option<&'static CodecMetadata>;
+    pub fn redact(&self) -> Option<&'static RedactMetadata>;
+}
+
+impl SequenceConstraint {
+    pub fn min_items(&self) -> Option<usize>;
+    pub fn max_items(&self) -> Option<usize>;
+    pub fn unique_items(&self) -> bool;
+    pub fn element(&self) -> Option<&'static SelectorMetadata>;
+}
+
+impl MapConstraint {
+    pub fn min_entries(&self) -> Option<usize>;
+    pub fn max_entries(&self) -> Option<usize>;
+    pub fn key(&self) -> Option<&'static SelectorMetadata>;
+    pub fn value(&self) -> Option<&'static SelectorMetadata>;
+}
+```
+
+Text、Decimal、Time 的参数和枚举继续使用 2026-08-28 已确定名称。Money 不另设平行类型，而是
+`DecimalConstraint::semantic() == DecimalSemantic::Money`。selector 不能递归包含 selector；深层结构必须通过具名
+Value/Model/Enum descriptor 导航。
+
+### 10.4 Validator、Codec、Redact 与 Serde
+
+```rust
+pub enum StrategyArgument {
+    Bool(bool),
+    Integer(i128),
+    Unsigned(u128),
+    String(&'static str),
+    BoolList(&'static [bool]),
+    IntegerList(&'static [i128]),
+    UnsignedList(&'static [u128]),
+    StringList(&'static [&'static str]),
+}
+
+impl ValidatorMetadata {
+    pub fn declared_id(&self) -> &'static str;
+    pub fn params(&self) -> &'static [NamedStrategyArgument];
+    pub fn depends_on(&self) -> &'static [PropertyPath];
+}
+
+pub enum CodecReference {
+    RustType(StrategyTypeIdentity),
+    DeclaredId(&'static str),
+}
+
+impl CodecMetadata {
+    pub fn codec(&self) -> &'static CodecReference;
+    pub fn source(&self) -> CodecSource;
+}
+
+pub enum CodecSource {
+    Field,
+    CanonicalValue,
+    Selector(SelectorPosition),
+}
+```
+
+Validator ID 当前保存为经过宏展开期 ASCII 语法校验的声明字符串；模型 crate 不公开临时 `ValidatorId`。validator
+occurrence 顺序保持源码顺序，当前 resolver 不解析注册状态或值类型兼容性。`StrategyTypeIdentity` 保存准确 `TypeId`
+provider 与诊断 `type_name` provider，不使用字符串判断相等。
+
+`CodecReference::RustType` 直接生成
+`C: Default + qubit_codec::ValueEncoder<T, Output = String> + qubit_codec::ValueDecoder<str, Output = T>` 编译期约束；
+`qubit-codec::ValueCodec` 是定义并注册该实现的属性宏，不作为 trait bound。`DeclaredId` 只保存经过语法校验的稳定
+字符串；在 `qubit-codec` 提供正式 ID/registry API 前保持未解析，模型 crate 不定义 `ValueCodecId` 或替代 registry。
+
+`RedactMetadata` 复用 `qubit-redact::Sensitivity` 和既有 domain capability。模型层允许定义窄的声明枚举
+`RedactModeMetadata::{Level, Skip, Nested, Map, KeyedBy, Json}` 及
+`RedactPosition::{Field, Element, MapKey, MapValue}`，但不得复制执行策略或声称 `qubit-redact` 已公开不存在的统一模式
+枚举。实际输出继续委托 `Redact`、`RedactLevelValue`、`RedactMapValue` 等能力。`SerdeFieldMetadata` 保存最终
+serialize/deserialize name、双向 skip、flatten、with 和自动 omit/default 来源；显式 Serde 配置优先于模型默认。
+
+当前 selector 执行面只接受 `redact(level = "...")`：element/map value 通过递归 level capability 执行，map key
+通过专用 map-key capability 执行。Serde 在脱敏后的 map key 发生碰撞时必须返回错误，禁止后写值静默覆盖前写值；
+其他 selector redact mode 在获得对应 runtime capability 前应于宏展开期拒绝。
+
+### 10.5 Validator 后续 TODO
+
+本次重构只实现小写 `#[validator(id = "...", params(...), depends_on(...))]` 的解析、语法校验和 occurrence metadata。
+以下工作留待独立 Validator 设计，当前代码不得用占位 runtime API 预先固化：
+
+- [ ] 设计 `qubit-validator` crate 的职责和依赖方向。
+- [ ] 设计并实现大写 `#[Validator(id = "...", value = Type)]` 宏。
+- [ ] 设计 Validator 接口使用的标识语义、borrowed/owned 表示和 ASCII 校验规则；不预设 `ValidatorId` 类型。
+- [ ] 设计 `FieldValidator<T>`、`ValidationContext`、`ValidationResult` 和结构化 violation。
+- [ ] 设计 registration、registry、重复 ID、值类型兼容检查和确定性错误顺序。
+- [ ] 设计 `depends_on` 的 Field/Property 路径解析和依赖值访问协议。
+- [ ] 设计从 `TypeMetadata` 递归执行标准约束和自定义 validator 的校验引擎。
+- [ ] 增加跨 crate 注册、缺失 ID、重复 ID、类型不兼容和执行顺序测试。
+
+## 11. 泛型模型
+
+模型层复用反射泛型结构，不再定义平行的参数/表达式体系：
+
+```rust
+impl GenericModelMetadata {
+    pub fn model_id(&self) -> ModelId;
+    pub fn role(&self) -> ModelRole;
+    pub fn definition(&self) -> &'static qubit_reflect::expression::GenericDefinitionDescriptor;
+    pub fn fields(&self) -> &'static [FieldMetadata];
+}
+
+impl TypeMetadata {
+    pub fn concrete_generic(
+        &self,
+    ) -> Option<&'static qubit_reflect::ConcreteGenericDescriptor>;
+}
+```
+
+最终规则：
+
+- Entity 和 Projection 不支持泛型；Model、Enum、Value 支持 type parameter、primitive const parameter 和 where
+  clause；所有模型角色拒绝 lifetime parameter。
+- type parameter 需要 `Reflect + 'static`，具体角色闭包需要的更强 bound 由宏准确生成。
+- 带 ID 的泛型声明只注册一个 `GenericModelMetadata` 模板。
+- `TypeMetadata::of::<Page<User>>()` 返回 concrete metadata；其 `model_id() == None`、`is_registered() == false`，
+  `generic_definition()` 返回模板。
+- concrete descriptor 的参数和 const value 直接从 `ConcreteGenericDescriptor` 导航；首版不生成 concrete ModelId。
+- 未带 ID 的泛型声明不进入 `ModelRegistry`，但 concrete 类型仍可静态查询。
+- generic template 字段的 `type_ref()` 可以是 `TypeRef::Symbolic`；concrete metadata 中可解析的字段使用
+  `TypeRef::Resolved`。
+
+这关闭了 2026-08-28 关于首版 const generic 的分歧：首版支持 `bool`、`char`、整数和 `usize/isize` 等
+`qubit-reflect::ConstArgumentValue` 已支持的 primitive const 类型；其他 const 类型明确拒绝。
+
+## 12. `ModelId` 与模型注册表
+
+### 12.1 `ModelId`
+
+避免在无 `unsafe` 的前提下把任意 `&str` 强转为 borrowed newtype，最终保留静态和 owned 两种类型：
+
+```rust
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ModelId(&'static str);
+
+impl ModelId {
+    pub const fn new(value: &'static str) -> Self; // invalid literal const-panic
+    pub const fn try_new(value: &'static str) -> Result<Self, ModelIdError>;
+    pub const fn as_str(self) -> &'static str;
+}
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ModelIdBuf(Box<str>);
+
+impl ModelIdBuf {
+    pub fn parse(value: &str) -> Result<Self, ModelIdError>;
+    pub fn as_str(&self) -> &str;
+}
+```
+
+宏只生成 `ModelId::new("literal")`。动态输入使用 `ModelIdBuf`。两者执行相同的
+`Segment ('.' Segment)*` ASCII 验证，不强制 namespace 大小写风格。
+
+### 12.2 注册项
+
+```rust
+pub enum ModelRegistrationTarget {
+    Concrete(&'static TypeMetadata),
+    Generic(&'static GenericModelMetadata),
+}
+
+impl ModelRegistration {
+    pub fn model_id(&self) -> ModelId;
+    pub fn role(&self) -> ModelRole;
+    pub fn target(&self) -> ModelRegistrationTarget;
+    pub fn source(&self) -> &'static qubit_reflect::identity::FragmentIdentity;
+    pub fn metadata(&self) -> Option<&'static TypeMetadata>;
+    pub fn generic(&self) -> Option<&'static GenericModelMetadata>;
+}
+```
+
+Entity 必定生成 concrete registration；其他非泛型角色只有声明 ID 才生成。泛型 Model/Enum/Value 有 ID 时生成 generic
+registration。匿名类型不提交 model registration，避免“能枚举但不能稳定查询”的条目。
+
+模型 registration 使用独立 inventory payload，因为 `qubit-reflect::FragmentKind` 是封闭的通用反射协议，不应被领域
+crate 扩展。registration 的 source identity 复用同样的 crate/module/line/column/fingerprint 规则。
+
+### 12.3 `ModelRegistry`
+
+```rust
+impl ModelRegistry {
+    pub fn try_global() -> Result<&'static Self, ModelRegistryError>;
+    pub fn global() -> &'static Self;
+
+    pub fn get(&self, id: &str) -> Option<&'static ModelRegistration>;
+    pub fn metadata(&self, id: &str) -> Option<&'static TypeMetadata>;
+    pub fn generic(&self, id: &str) -> Option<&'static GenericModelMetadata>;
+    pub fn by_type_id(
+        &self,
+        type_id: std::any::TypeId,
+    ) -> Option<&'static TypeMetadata>;
+
+    pub fn registrations(&self) -> &'static [ModelRegistration];
+    pub fn generic_definitions(&self) -> &'static [&'static GenericModelMetadata];
+}
+```
+
+`get(&str)` 对非法格式返回 `None`，适合只读查询；需要区分“ID 非法”和“不存在”时，调用者先使用
+`ModelIdBuf::parse()`。`registrations()` 按 `ModelId`、source identity 确定性排序。`by_type_id()` 只索引已注册 concrete
+类型，不公开匿名 concrete cache。
+
+`try_global()` 先初始化 `ReflectRegistry`，再聚合模型 registration；反射 fragment 冲突包装为
+`ModelRegistryErrorKind::ReflectionRegistry`。`global()` 只是在错误时 panic 的便利入口。
+
+## 13. 显式 resolver 与解析后视图
+
+声明 metadata 永远只保存本地事实。跨 crate ID、角色、Property 和策略兼容性由显式 resolver 完成：
+
+```rust
+pub struct ResolveInputs<'a> {
+    pub models: &'a ModelRegistry,
+}
+
+pub struct ModelResolver<'a> { /* immutable inputs */ }
+
+impl<'a> ModelResolver<'a> {
+    pub fn new(inputs: ResolveInputs<'a>) -> Self;
+    pub fn resolve_all(&self) -> Result<ResolvedModelGraph, ModelResolveErrors>;
+}
+
+impl ResolvedModelGraph {
+    pub fn registry(&self) -> &'static ModelRegistry;
+    pub fn reference(&self, field: &FieldMetadata) -> Option<&ResolvedReference>;
+    pub fn projection_source(
+        &self,
+        projection: &ProjectionMetadata,
+    ) -> Option<&ResolvedProjectionSource>;
+    pub fn validator(&self, occurrence: &ValidatorMetadata) -> Option<&ResolvedValidator>;
+    pub fn codec(&self, occurrence: &CodecMetadata) -> Option<&ResolvedCodec>;
+    pub fn query(&self, entity: &EntityMetadata) -> Option<&QueryMetadata>;
+}
+```
+
+`ResolvedModelGraph` 是一次完整验证后的 immutable snapshot。不存在“部分成功但 getter 静默返回 None”的状态；
+`resolve_all()` 失败时返回全部确定性排序错误，不发布图。
+
+`QueryMetadata` 的最终拥有者是 `ResolvedModelGraph`，不是 `EntityMetadata`：
+
+```rust
+impl QueryMetadata {
+    pub fn filters(&self) -> &'static [QueryField];
+    pub fn unique_keys(&self) -> &'static [UniqueQueryKey];
+    pub fn filter(&self, path: &PropertyPath) -> Option<&QueryField>;
+    pub fn filter_by_flat_name(&self, name: &str) -> Option<&QueryField>;
+}
+
+impl QueryField {
+    pub fn path(&self) -> &'static PropertyPath;
+    pub fn flat_name(&self) -> &'static str;
+    pub fn descriptor(&self) -> Option<&'static TypeDescriptor>;
+    pub fn reasons(&self) -> IndexingReasons;
+}
+```
+
+只有 Entity 产生根查询视图。resolver 负责根 identifier/global unique 排除、scoped unique、普通值递归、reference
+一跳和平面名冲突。字段局部 `indexing_reasons()` 不依赖 resolver。
+
+### 13.1 错误 API
+
+```rust
+pub enum ModelRegistryErrorKind {
+    ReflectionRegistry,
+    DuplicateModelId,
+    RegistrationConflict,
+    UnsupportedPlatform,
+}
+
+pub enum ModelResolveErrorKind {
+    MissingModelId,
+    WrongModelRole,
+    MissingProperty,
+    UnreadableProperty,
+    TypeMismatch,
+    MissingValidator,
+    ValidatorTypeMismatch,
+    MissingCodec,
+    CodecTypeMismatch,
+    InvalidProjectionSource,
+    InvalidValueClosure,
+    QueryNameConflict,
+    InvalidReferenceGraph,
+}
+
+impl ModelResolveError {
+    pub fn kind(&self) -> ModelResolveErrorKind;
+    pub fn path(&self) -> Option<&PropertyPath>;
+    pub fn model_id(&self) -> Option<&str>;
+    pub fn expected_role(&self) -> Option<ModelRole>;
+    pub fn actual_role(&self) -> Option<ModelRole>;
+    pub fn expected_type(&self) -> Option<std::any::TypeId>;
+    pub fn actual_type(&self) -> Option<std::any::TypeId>;
+    pub fn sources(&self) -> &[qubit_reflect::identity::FragmentIdentity];
+}
+
+impl ModelResolveErrors {
+    pub fn errors(&self) -> &[ModelResolveError];
+    pub fn into_errors(self) -> Vec<ModelResolveError>;
+}
+```
+
+错误排序键固定为 kind、model ID、结构化 path、source identity。Display 只负责稳定英文诊断，不把本地化文案作为
+机器协议。
+
+## 14. 隐藏生产 ABI
+
+普通用户不得手工构造 metadata。宏生成代码只使用版本化隐藏模块：
+
+```rust,ignore
+#[doc(hidden)]
+pub mod __private {
+    pub use qubit_reflect::__private as reflect;
+
+    pub mod v1 {
+        // checked metadata factories
+        // model capability registration
+        // concrete/generic model registration
+        // property adapters and provider seal
+        // compile-time assertion helpers
+    }
+}
+```
+
+规则：
+
+- 所有 0.1.x 生成代码固定引用 `__private::v1`；改变生成 ABI 时新增 `v2`，不能悄悄改变旧构造器语义。
+- hidden builder 在 `OnceLock` 初始化时检查字段与反射 descriptor 的 index/name/type 对齐、角色与 shape、属性互斥、
+  property 合并和 adapter TypeId；检查失败表示宏/runtime 版本不兼容，panic 文案必须含 ABI 版本和 source identity。
+- capability adapter 类型必须准确为 `ModelMetadataProvider`，同一 concrete descriptor 重复注册该 key 会由 reflect
+  capability conflict 拒绝。
+- inventory fragment 只保存静态 identity 和 factory function；用户代码和 metadata 构造推迟到 registry 初始化或首次
+ 静态查询。
+- derive 与 runtime 使用精确 patch-compatible 依赖约束，并保留正常、renamed、missing、invalid-runtime 和 facade
+  fixture。
+
+## 15. `rs-model-derive` 内部实现
+
+### 15.1 共享流水线
+
+```text
+TokenStream
+  -> ParsedDeclaration / ParsedPropertyImpl
+  -> NormalizedDeclaration / NormalizedPropertyImpl
+  -> ValidatedDeclaration / ValidatedPropertyImpl
+  -> GeneratedItems
+```
+
+入口函数只选择 `MacroKind`：
+
+```rust,ignore
+enum MacroKind {
+    Entity,
+    Projection,
+    Model,
+    Enum,
+    Value,
+    ModelProperties,
+}
+```
+
+parser 只保留 token 与 span；normalizer 把简写转为唯一语义 IR；validator 只处理当前声明和可由 Rust bound 证明的事实；
+expander 分别生成 retained item、reflect delegation、metadata provider、capability、registration、默认能力和诊断断言。
+
+### 15.2 推荐模块布局
+
+```text
+src/
+├── lib.rs
+├── runtime_path.rs
+├── parse/
+│   ├── declaration.rs
+│   ├── property_impl.rs
+│   ├── attributes.rs
+│   └── types.rs
+├── ir/
+│   ├── declaration.rs
+│   ├── role.rs
+│   ├── field.rs
+│   ├── property.rs
+│   ├── constraint.rs
+│   ├── strategy.rs
+│   ├── representation.rs
+│   └── registration.rs
+├── normalize/
+│   ├── declaration.rs
+│   ├── fields.rs
+│   ├── selectors.rs
+│   └── capabilities.rs
+├── validate/
+│   ├── declaration_shape.rs
+│   ├── role_composition.rs
+│   ├── model_id.rs
+│   ├── identity.rs
+│   ├── relation.rs
+│   ├── constraints.rs
+│   ├── selectors.rs
+│   ├── properties.rs
+│   ├── capabilities.rs
+│   └── representation.rs
+└── expand/
+    ├── declaration.rs
+    ├── reflect.rs
+    ├── metadata.rs
+    ├── fields.rs
+    ├── properties.rs
+    ├── role.rs
+    ├── capability.rs
+    ├── registration.rs
+    ├── defaults.rs
+    ├── serde.rs
+    ├── redact.rs
+    └── assertions.rs
+```
+
+当前 `ModelInput -> normalize::ModelIr -> validate -> expand` 骨架可以保留，但旧的 role-neutral `ModelIr` 应升级为
+`DeclarationIr { role, shape, ... }`；lookup_relation、ownership、generator、旧 primary key/key/index 字段不得继续进入
+新 IR。
+
+### 15.3 反射委托生成
+
+每个类型宏必须：
+
+1. 保留原始 struct/enum 和非模型属性。
+2. 生成 `Reflect` 派生及 `#[reflect(crate = resolved_facade)]`。
+3. 将 `#[opaque]`、字段访问策略和模型需要的 query name 转成受支持的反射 helper。
+4. 从反射 descriptor 构造领域 overlay；不得重新解析 runtime type name 或重建字段访问器。
+5. 注册 model metadata provider capability。
+6. 仅在有 ModelId 时提交 model registration。
+7. 生成默认 derive、Serde 和 Redact 实现以及 trait-bound assertions。
+
+模型 macro 与 `Reflect` macro 都会检查字段 token，但职责不同：反射宏决定 Rust 结构和安全访问；模型宏决定领域属性。
+模型宏生成的 overlay 在初始化时按 index 与反射字段再次对齐，防止两个 proc-macro 版本漂移。
+
+## 16. 实施阶段
+
+### P0：锁定基线和删除映射
+
+- 为现有 parser/normalize/runtime fixture 建立 KEEP、REWRITE、DELETE 清单。
+- 将 2026-08-28 非待确认需求映射到测试层。
+- 固定 `rs-reflect` 当前 facade、capability、recursive descriptor 和 registry 行为的集成测试版本。
+
+验收：不改公共行为即可重复跑通三个仓库相关测试；每个旧 API 都有明确去向。
+
+### P1：建立 `qubit-model-metadata` 反射 facade
+
+- 依赖并重导出 `qubit-reflect` 的 `Reflect`、`TypeDescriptor`、`TypeRef`、字段/variant descriptor 和动态值。
+- 删除目标设计中的独立 `HasTypeDescriptor`；增加 sealed `HasTypeMetadata`。
+- 实现 model metadata capability key、`ModelDescriptorExt` 和 pointer-identity 测试。
+- 建立 `__private::v1` 和 downstream renamed facade fixture。
+
+验收：String 只有 reflect descriptor；模型类型的 `TypeMetadata::descriptor()` 与
+`TypeDescriptor::of::<T>()` 指针相同；查询不初始化 ModelRegistry。
+
+### P2：重建领域 overlay
+
+- 以 `FieldDescriptor`、`VariantDescriptor` 和 `TypeRef` 为底座实现 Field/Enum overlay。
+- 实现 identifier/indexing/unique/reference/key_part、constraint/selector、validator/codec/redact/serde metadata。
+- checked builder 验证 overlay 与反射 descriptor 对齐。
+- 删除 TypeIdentity、旧 TypeRef/TypeShape 的公共结构职责和通用 AttributeMetadata 旧 variant。
+
+验收：resolved、opaque、symbolic 字段均有准确返回；所有强类型 getter 与统一 attributes 迭代指向同一对象。
+
+### P3：实现五种角色宏与能力规划
+
+- 新增 Entity、Projection、Value；重写 Model、Enum；六个入口使用共享 IR。
+- 生成 Reflect 委托、HasTypeMetadata、model capability 和可选 registration。
+- 实现角色 shape/闭包、默认能力、transparent Value、Serde omit/keep_serializing 和 Redact 联动。
+
+验收：目标手册五种角色合法示例全部 compile-pass/runtime-pass；非法 shape、重复 Reflect 和能力冲突均 compile-fail。
+
+### P4：Property
+
+- 实现 `ModelPropertiesProvider` seal、property IR、field/getter/setter 合并。
+- field-backed 路径复用 `FieldDescriptor` adapter；getter/setter 使用同一 dynamic value 类型和预检。
+- 覆盖 borrowed、owned、str、slice、Option borrow 和 setter recovery。
+
+验收：field-only、getter-only、setter-only、三者合并、重复 impl、非法签名和类型不兼容均有测试；高风险 borrowed
+adapter 使用 Miri 或等价验证。
+
+### P5：ModelId、registration 和 generic template
+
+- 实现新的 ASCII ModelId 校验和 ModelIdBuf。
+- 用 inventory immutable fragment 替换 linkme 旧 registration。
+- 实现 concrete/generic registration、重复 ID、确定性排序和 ReflectRegistry 错误桥接。
+- 泛型复用 reflect definition/concrete descriptor，支持规定的 primitive const generic。
+
+验收：匿名模型不注册；Entity 必注册；带 ID 泛型只注册模板；concrete 泛型 metadata 指针缓存稳定且并发安全。
+
+### P6：完整 resolver 与 QueryMetadata
+
+- 解析 source_id、entity_id 和 property，并验证角色与 TypeId。
+- validator 与 codec ID 保留为经过语法校验的声明引用；不连接尚未定型的 validator runtime 或自建 codec registry。
+- 校验 Projection producer/identifier、Value 传递闭包、reference 图和 query 一跳边界。
+- 生成 immutable `ResolvedModelGraph`，聚合并排序全部错误。
+
+验收：真实多 crate fixture 覆盖每个成功与失败类别；metadata getter 不会隐式访问全局 registry。
+
+### P7：删除旧 API 与文档收口
+
+- 删除 metadata_of、TypeIdentity、旧 TypeShape/TypeRef 重叠 API、HasModelRegistration、registration_of、
+  LookupRelation、Ownership、Generator、PrimaryKey/Index/Key 旧模型。
+- 更新 README、用户指南、需求规范和 Rustdoc；不保留长期 deprecated alias。
+- 执行三个相关仓库的 test、clippy、doc、style、CI 和 Miri 高风险集。
+
+验收：仓库公共 API 只剩本设计定义的入口；所有示例可编译；所有删除项搜索为空。
+
+## 17. 测试策略
+
+| 风险 | 首选测试 |
+| --- | --- |
+| 属性 token、重复参数、错误 span | parser 单元测试 + trybuild fail |
+| 简写规范化和多错误聚合 | normalize/validate 白盒测试 |
+| reflect facade 与依赖重命名 | 多 crate runtime fixture |
+| descriptor 唯一性 | `std::ptr::eq` runtime test |
+| overlay 与字段/variant 对齐 | checked builder 单元测试 + runtime test |
+| recursive/opaque/symbolic type | metadata 与 derive integration test |
+| 字段/Property 动态访问 | runtime test + Miri |
+| capability ID/adapter 冲突 | reflect/model 集成测试 |
+| ModelId 重复、排序、source | registry 单元测试 + linked fixture |
+| generic template/concrete cache | 并发 runtime test |
+| source/reference/strategy 跨 crate 解析 | linked workspace fixture |
+| query 一跳、路径冲突、唯一键 | resolver golden test |
+| 默认能力、Serde、Redact | runtime 行为与序列化 snapshot |
+
+至少执行：
+
+```bash
+cargo test --manifest-path rs-reflect/Cargo.toml
+cargo test --manifest-path rs-model-metadata/Cargo.toml
+cargo test --manifest-path rs-model-derive/Cargo.toml
+
+cargo clippy --manifest-path rs-model-metadata/Cargo.toml --all-targets --all-features -- -D warnings
+cargo clippy --manifest-path rs-model-derive/Cargo.toml --all-targets --all-features -- -D warnings
+
+cargo doc --manifest-path rs-model-metadata/Cargo.toml --all-features --no-deps
+cargo doc --manifest-path rs-model-derive/Cargo.toml --all-features --no-deps
+```
+
+具体实施时再按各仓库脚本补充 `style-check.sh`、`ci-check.sh` 和 Miri 命令。
+
+## 18. 迁移和兼容原则
+
+这是 0.1 发布前的破坏性收口，不维持旧源码兼容：
+
+- `metadata_of::<T>()` 改为 `TypeMetadata::of::<T>()`。
+- 模型自建 `HasTypeShape/HasTypeDescriptor` 改为 `qubit_reflect::Reflect`。
+- 模型自建 `TypeRef/TypeShape/TypeIdentity` 改为 reflect descriptor/type expression。
+- 2026-08-28 的 `TypeDescriptor::metadata()` 改为导入 `ModelDescriptorExt` 后调用 `model_metadata()`。
+- `FieldMetadata::descriptor()` 和 `PropertyMetadata::descriptor()` 改为 `Option`；完整状态使用 `type_ref()`。
+- variant shape 改用 `VariantDescriptor::kind()`，删除重复 `EnumVariantKind`。
+- 旧 linkme model registration 改为 inventory immutable fragment。
+- 旧 `ModelRegistration`、`HasModelRegistration`、`registration_of<T>()` 不保留 alias。
+- 旧 parser 参数直接给出指向新语法的错误，不长期保留 deprecated 同义写法。
+
+迁移不得顺手修改下游业务模型。先稳定 runtime 和 derive，再为下游仓库单独建立机械迁移计划。
+
+## 19. 关键不变量
+
+1. 每个 concrete Rust 类型只有一个 `TypeDescriptor` 根；模型层只引用它。
+2. `TypeMetadata::of::<T>()`、descriptor capability 和已注册 concrete metadata 返回同一静态对象。
+3. 静态 metadata 查询不初始化 `ModelRegistry`，不解析字符串 ID。
+4. `ModelRegistry` 只包含有稳定 ModelId 的 concrete 类型或 generic definition。
+5. `type_name()` 只用于诊断；类型相等使用 `TypeId`，协议身份使用 ModelId。
+6. opaque 和 symbolic 状态通过 `TypeRef` 显式暴露，不伪造成 resolved descriptor。
+7. 所有借用 erased value 的生命周期都来自输入 borrow，不制造 `'static`。
+8. proc-macro 不读取文件系统、数据库、网络或链接后 registry。
+9. 当前声明可判定的错误在编译期报告；跨 crate 图错误只在显式 resolver 中报告。
+10. reference 循环合法；descriptor、resolver 和 query 展开都有有限边界。
+11. Value 纯值闭包、reference 一跳和 opaque 截断在 derive、metadata、resolver、consumer 四层含义一致。
+12. Redact/Serde 默认输出 fail closed；缺少 adapter 不得泄露敏感值。
+13. hidden ABI 构造时重新检查会影响内存安全或图一致性的事实。
+14. 公共 metadata 全部 immutable、`Send + Sync`、可静态共享；失败的全局初始化同样被缓存。
+
+## 20. 2026-08-28 待确认项的最终关闭结果
+
+| TODO | 最终决定 |
+| --- | --- |
+| 001 TypeDescriptor | 直接使用 `qubit-reflect::TypeDescriptor/TypeRef/typed views` |
+| 002 TypeCapabilities | 只保留 reflect typed capability；约束声明属于 FieldMetadata |
+| 003 HasTypeMetadata/Descriptor | sealed `HasTypeMetadata: Reflect`；删除模型自建 HasTypeDescriptor |
+| 004 Getter/Setter | 使用 reflect dynamic value、borrow-preserving getter 和 recoverable setter |
+| 005 FieldAttributeMetadata | 同一强类型对象的源码顺序引用枚举 |
+| 006 Identifier | 只公开 `assigned_by()` |
+| 007 Unique | `respect_to()`、`ignore_case()`、`is_scoped()` |
+| 008 Reference | declared target、selection、existing、same_as；解析结果分离 |
+| 009 Constraint | 强类型顶层枚举 + 非递归 selector；Money 是 Decimal semantic |
+| 010 Validator | 当前保存已校验的 declared ID、params 与 depends_on；runtime/registry 列为后续 TODO |
+| 011 Codec | 直接复用 qubit-codec；Rust type/declared ID 二选一，公开 source，不携带 params |
+| 012 Redact | 复用 qubit-redact 的 Sensitivity/domain capability；模型层只增加声明模式与作用位置 |
+| 013 角色 payload | 采用本文第 9 节的最小专属接口 |
+| 014 QueryMetadata | 由 `ResolvedModelGraph` 拥有，只为 Entity 生成 |
+| 015 泛型 | 复用 reflect generic API；支持其 primitive const 参数集合 |
+| 016 ModelId/Registry | 静态 ModelId + owned ModelIdBuf；registry 精确接口见第 12 节 |
+| 017 Resolver | `ModelResolver::resolve_all()` 生成 immutable ResolvedModelGraph |
+| 018 错误 | registry 单错误 + resolver 聚合错误；稳定 kind/path/source 数据 |
+| 019 隐藏 ABI | `qubit_model_metadata::__private::v1`，版本化 checked production ABI |
+
+## 21. 完成定义
+
+只有全部满足以下条件，才可以称为最终 API 已实现：
+
+- 六个模型宏公开、共享流水线并具有 Rustdoc。
+- 模型类型的 reflect descriptor 全局唯一，model metadata capability 与静态入口指针一致。
+- 本文列出的公共类型和方法均已实现，不存在仅有类型名而无查询接口的断链。
+- 五种角色、Field、Property、constraint、strategy、generic、registry、resolver 和 query 均有对应测试。
+- 所有跨 crate 行为由真实 linked workspace fixture 验证。
+- Property borrowed adapter 通过 Miri 或等价内存安全验证。
+- 2026-08-28 明确删除的旧 API 在公开导出、parser、IR、expansion、README 和用户指南中均不存在。
+- `rs-reflect`、`rs-model-metadata`、`rs-model-derive` 的 test、clippy、rustdoc、style 和 CI 全部通过。
+- 2026-08-28 待确认清单中的 19 项已由本文的最终决定替换，实施文档不再保留占位符。
