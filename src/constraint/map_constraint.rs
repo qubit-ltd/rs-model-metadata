@@ -17,12 +17,16 @@
 /// assert_eq!(constraint.min_entries(), Some(1));
 /// assert_eq!(constraint.max_entries(), Some(8));
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub struct MapConstraint {
     /// The minimum number of entries, if constrained.
-    min_entries: Option<u32>,
+    min_entries: Option<usize>,
     /// The maximum number of entries, if constrained.
-    max_entries: Option<u32>,
+    max_entries: Option<usize>,
+    /// Optional key semantics.
+    key: Option<&'static crate::field_semantics::SelectorMetadata>,
+    /// Optional value semantics.
+    value: Option<&'static crate::field_semantics::SelectorMetadata>,
 }
 
 impl MapConstraint {
@@ -41,7 +45,7 @@ impl MapConstraint {
     ///
     /// Panics when the supplied minimum entry count exceeds the maximum.
     #[must_use]
-    pub const fn new(min_entries: Option<u32>, max_entries: Option<u32>) -> Self {
+    pub const fn new(min_entries: Option<usize>, max_entries: Option<usize>) -> Self {
         if let (Some(min_entries), Some(max_entries)) = (min_entries, max_entries) {
             assert!(
                 min_entries <= max_entries,
@@ -51,7 +55,21 @@ impl MapConstraint {
         Self {
             min_entries,
             max_entries,
+            key: None,
+            value: None,
         }
+    }
+
+    /// Attaches non-recursive key and value semantics.
+    #[must_use]
+    pub const fn with_selectors(
+        mut self,
+        key: Option<&'static crate::field_semantics::SelectorMetadata>,
+        value: Option<&'static crate::field_semantics::SelectorMetadata>,
+    ) -> Self {
+        self.key = key;
+        self.value = value;
+        self
     }
 
     /// Returns the minimum number of entries, if constrained.
@@ -61,7 +79,7 @@ impl MapConstraint {
     /// `Some` with the minimum entry count when constrained; otherwise, `None`.
     #[must_use]
     #[inline(always)]
-    pub const fn min_entries(self) -> Option<u32> {
+    pub const fn min_entries(&self) -> Option<usize> {
         self.min_entries
     }
 
@@ -72,7 +90,19 @@ impl MapConstraint {
     /// `Some` with the maximum entry count when constrained; otherwise, `None`.
     #[must_use]
     #[inline(always)]
-    pub const fn max_entries(self) -> Option<u32> {
+    pub const fn max_entries(&self) -> Option<usize> {
         self.max_entries
+    }
+
+    /// Returns key semantics, if declared.
+    #[must_use]
+    pub const fn key(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
+        self.key
+    }
+
+    /// Returns value semantics, if declared.
+    #[must_use]
+    pub const fn value(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
+        self.value
     }
 }

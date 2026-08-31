@@ -7,6 +7,7 @@
 // =============================================================================
 
 //! Strongly typed value objects for field constraints.
+// qubit-style: allow type-file-name
 
 mod allowed_chars;
 mod decimal_constraint;
@@ -26,6 +27,22 @@ pub use self::map_constraint::MapConstraint;
 pub use self::rounding_mode::RoundingMode;
 pub use self::sequence_constraint::SequenceConstraint;
 pub use self::temporal_constraint::TemporalConstraint;
+pub use self::temporal_constraint::TemporalConstraint as TimeConstraint;
 pub use self::temporal_precision::TemporalPrecision;
 pub use self::text_constraint::TextConstraint;
 pub use self::text_format::TextFormat;
+
+/// A standard constraint occurrence on a field or selector.
+#[derive(Clone, Copy, Debug)]
+pub enum ConstraintMetadata {
+    /// Text constraints.
+    Text(TextConstraint),
+    /// Decimal or money constraints.
+    Decimal(DecimalConstraint),
+    /// Time constraints.
+    Time(TimeConstraint),
+    /// Sequence constraints.
+    Sequence(SequenceConstraint),
+    /// Map constraints.
+    Map(MapConstraint),
+}

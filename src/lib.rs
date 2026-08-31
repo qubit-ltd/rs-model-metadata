@@ -6,33 +6,28 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Static metadata for Rust domain models.
+//! Static metadata overlays for Rust domain models.
 
-mod attribute;
+#[doc(hidden)]
+pub mod __private;
 mod constraint;
 mod field_metadata;
+mod field_semantics;
+mod generic_model_metadata;
 mod metadata_registry;
 mod metadata_resolver;
-mod model_graph;
 mod model_id;
 mod model_registration;
-mod query;
+mod property;
+mod reflect_facade;
 mod relation;
+mod role;
 mod type_metadata;
-mod type_shape;
+pub use qubit_redact::Sensitivity;
+pub use qubit_reflect::*;
 
-pub use crate::attribute::AttributeKind;
-pub use crate::attribute::AttributeMetadata;
-pub use crate::attribute::ElementMetadata;
-pub use crate::attribute::IndexMetadata;
-pub use crate::attribute::KeyMetadata;
-pub use crate::attribute::PrimaryKeyFieldMetadata;
-pub use crate::attribute::PrimaryKeyMetadata;
-pub use crate::attribute::StrategyRef;
-pub use crate::attribute::UniqueComparison;
-pub use crate::attribute::UniqueFieldMetadata;
-pub use crate::attribute::UniqueMetadata;
 pub use crate::constraint::AllowedChars;
+pub use crate::constraint::ConstraintMetadata;
 pub use crate::constraint::DecimalConstraint;
 pub use crate::constraint::DecimalSemantic;
 pub use crate::constraint::MapConstraint;
@@ -42,48 +37,83 @@ pub use crate::constraint::TemporalConstraint;
 pub use crate::constraint::TemporalPrecision;
 pub use crate::constraint::TextConstraint;
 pub use crate::constraint::TextFormat;
+pub use crate::constraint::TimeConstraint;
 pub use crate::field_metadata::FieldMetadata;
+pub use crate::field_semantics::CodecMetadata;
+pub use crate::field_semantics::CodecReference;
+pub use crate::field_semantics::CodecSource;
+pub use crate::field_semantics::DeclaredEntityTarget;
+pub use crate::field_semantics::DeclaredEntityTargetKind;
+pub use crate::field_semantics::FieldAttributeMetadata;
+pub use crate::field_semantics::IdentifierAssignment;
+pub use crate::field_semantics::IdentifierMetadata;
+pub use crate::field_semantics::IndexingReasons;
+pub use crate::field_semantics::KeyPartMetadata;
+pub use crate::field_semantics::NamedStrategyArgument;
+pub use crate::field_semantics::RedactMetadata;
+pub use crate::field_semantics::RedactModeMetadata;
+pub use crate::field_semantics::RedactPosition;
+pub use crate::field_semantics::ReferenceMetadata as FieldReferenceMetadata;
+pub use crate::field_semantics::ReferenceSelection;
+pub use crate::field_semantics::SelectorMetadata;
+pub use crate::field_semantics::SelectorPosition;
+pub use crate::field_semantics::SerdeBehaviorSource;
+pub use crate::field_semantics::SerdeFieldMetadata;
+pub use crate::field_semantics::StrategyArgument;
+pub use crate::field_semantics::StrategyTypeIdentity;
+pub use crate::field_semantics::UniqueMetadata as FieldUniqueMetadata;
+pub use crate::field_semantics::ValidatorMetadata;
+pub use crate::generic_model_metadata::GenericModelMetadata;
 pub use crate::metadata_registry::ModelRegistry;
 pub use crate::metadata_registry::ModelRegistryError;
-pub use crate::metadata_resolver::MetadataResolver;
-pub use crate::model_graph::ModelGraphError;
-pub use crate::model_graph::ModelGraphErrors;
+pub use crate::metadata_registry::ModelRegistryErrorKind;
+pub use crate::metadata_resolver::ModelResolveError;
+pub use crate::metadata_resolver::ModelResolveErrorKind;
+pub use crate::metadata_resolver::ModelResolveErrors;
+pub use crate::metadata_resolver::ModelResolver;
+pub use crate::metadata_resolver::QueryField;
+pub use crate::metadata_resolver::QueryMetadata;
+pub use crate::metadata_resolver::ResolveInputs;
+pub use crate::metadata_resolver::ResolvedCodec;
+pub use crate::metadata_resolver::ResolvedModelGraph;
+pub use crate::metadata_resolver::ResolvedProjectionSource;
+pub use crate::metadata_resolver::ResolvedReference;
+pub use crate::metadata_resolver::ResolvedValidator;
+pub use crate::metadata_resolver::UniqueQueryKey;
 pub use crate::model_id::ModelId;
 pub use crate::model_id::ModelIdBuf;
 pub use crate::model_id::ModelIdError;
-pub use crate::model_registration::HasModelRegistration;
-pub use crate::model_registration::MODEL_REGISTRATIONS;
 pub use crate::model_registration::ModelRegistration;
-pub use crate::model_registration::SourceLocation;
-pub use crate::model_registration::registration_of;
-pub use crate::query::AttributeQuery;
-pub use crate::query::FieldPathResolveError;
-pub use crate::relation::FieldPath;
-pub use crate::relation::LookupRelationMetadata;
-pub use crate::relation::OwnershipMetadata;
-pub use crate::relation::ReferenceMetadata;
-pub use crate::relation::ReferencePath;
-pub use crate::relation::ReferencePathSegment;
-pub use crate::relation::ReferenceTarget;
+pub use crate::model_registration::ModelRegistrationFactory;
+pub use crate::model_registration::ModelRegistrationTarget;
+pub use crate::property::BorrowedPropertySlice;
+pub use crate::property::GetterAdapter;
+pub use crate::property::GetterMetadata;
+pub use crate::property::GetterOutputKind;
+pub use crate::property::PropertyAccessError;
+pub use crate::property::PropertyMetadata;
+pub use crate::property::PropertySetFailure;
+pub use crate::property::PropertyStorageKind;
+pub use crate::property::PropertyValue;
+pub use crate::property::SetterAdapter;
+pub use crate::property::SetterMetadata;
+pub use crate::reflect_facade::ModelDescriptorExt;
+#[doc(hidden)]
+pub use crate::reflect_facade::ModelMetadataProvider;
+#[doc(hidden)]
+pub use crate::reflect_facade::ModelPropertiesProvider;
+#[doc(hidden)]
+pub use crate::reflect_facade::model_metadata_key;
+#[doc(hidden)]
+pub use crate::reflect_facade::model_properties_key;
+pub use crate::relation::PropertyPath;
+pub use crate::role::EntityMetadata;
+pub use crate::role::ModelMetadata;
+pub use crate::role::ModelRole;
+pub use crate::role::ProjectionMetadata;
+pub use crate::role::RoleMetadata;
+pub use crate::role::ValueMetadata;
 pub use crate::type_metadata::EnumMetadata;
-pub use crate::type_metadata::EnumVariantKind;
 pub use crate::type_metadata::EnumVariantMetadata;
 pub use crate::type_metadata::HasTypeMetadata;
-pub use crate::type_metadata::NamedTypeRef;
-pub use crate::type_metadata::NewtypeMetadata;
-pub use crate::type_metadata::StructMetadata;
-pub use crate::type_metadata::TypeIdentity;
-pub use crate::type_metadata::TypeKind;
 pub use crate::type_metadata::TypeMetadata;
-pub use crate::type_metadata::metadata_of;
-pub use crate::type_shape::HasTypeShape;
-pub use crate::type_shape::ScalarType;
-pub use crate::type_shape::TypeCapabilities;
-pub use crate::type_shape::TypeRef;
-pub use crate::type_shape::TypeShape;
-
-/// Internal dependency re-exports used by generated model-registration code.
-#[doc(hidden)]
-pub mod __private {
-    pub use linkme;
-}

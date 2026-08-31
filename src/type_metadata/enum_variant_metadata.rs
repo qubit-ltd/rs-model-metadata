@@ -2,155 +2,105 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Metadata for enum variants.
+//! Domain overlay for one reflected enum variant.
 
-use super::enum_variant_kind::EnumVariantKind;
-use super::enum_variant_kind::validate_variant_fields;
-use crate::field_metadata::FieldMetadata;
+use qubit_reflect::VariantDescriptor;
 
-/// Metadata for an enum variant and its optional payload fields.
-///
-/// # Examples
-///
-/// ```
-/// use qubit_model_metadata::EnumVariantMetadata;
-///
-/// let variant = EnumVariantMetadata::new(0, "Active");
-/// assert_eq!(variant.name(), "Active");
-/// ```
-#[must_use]
+use crate::FieldMetadata;
+
+/// Immutable domain metadata for one enum variant.
 #[derive(Clone, Copy, Debug)]
 pub struct EnumVariantMetadata {
-    /// The variant's declaration ordinal.
-    ordinal: usize,
-    /// The variant's normalized name.
-    name: &'static str,
-    /// The variant's structural form and payload fields.
-    kind: EnumVariantKind,
+    reflect: &'static VariantDescriptor,
+    canonical_name: &'static str,
+    serialized_name: &'static str,
+    deserialized_name: &'static str,
+    fields: &'static [FieldMetadata],
+    default: bool,
 }
 
 impl EnumVariantMetadata {
-    /// Creates variant metadata from its declaration ordinal and normalized
-    /// name.
-    ///
-    /// # Parameters
-    ///
-    /// * `ordinal` - The variant's zero-based declaration ordinal.
-    /// * `name` - The variant's normalized name.
-    ///
-    /// # Returns
-    ///
-    /// Immutable metadata for the enum variant.
-    #[inline]
-    pub const fn new(ordinal: usize, name: &'static str) -> Self {
-        Self {
-            ordinal,
-            name,
-            kind: EnumVariantKind::Unit,
-        }
-    }
-
-    /// Creates metadata for a tuple variant.
-    ///
-    /// # Parameters
-    ///
-    /// * `ordinal` - The variant's zero-based declaration ordinal.
-    /// * `name` - The variant's normalized name.
-    /// * `fields` - Positional fields in declaration order. Metadata producers
-    ///   should use decimal ordinals such as `"0"` as field names.
-    ///
-    /// # Returns
-    ///
-    /// Immutable metadata for the tuple variant.
-    ///
-    /// # Panics
-    ///
-    /// Panics when field ordinals are not contiguous, a field name is empty,
-    /// or two field names are duplicated.
-    #[inline]
-    pub const fn tuple(ordinal: usize, name: &'static str, fields: &'static [FieldMetadata]) -> Self {
-        validate_variant_fields(fields);
-        Self {
-            ordinal,
-            name,
-            kind: EnumVariantKind::Tuple(fields),
-        }
-    }
-
-    /// Creates metadata for a struct variant.
-    ///
-    /// # Parameters
-    ///
-    /// * `ordinal` - The variant's zero-based declaration ordinal.
-    /// * `name` - The variant's normalized name.
-    /// * `fields` - Named fields in declaration order.
-    ///
-    /// # Returns
-    ///
-    /// Immutable metadata for the struct variant.
-    ///
-    /// # Panics
-    ///
-    /// Panics when field ordinals are not contiguous, a field name is empty,
-    /// or two field names are duplicated.
-    #[inline]
-    pub const fn structure(ordinal: usize, name: &'static str, fields: &'static [FieldMetadata]) -> Self {
-        validate_variant_fields(fields);
-        Self {
-            ordinal,
-            name,
-            kind: EnumVariantKind::Struct(fields),
-        }
-    }
-
-    /// Returns the declaration ordinal of this variant.
-    ///
-    /// # Returns
-    ///
-    /// The variant's zero-based declaration ordinal.
+    /// Creates an enum-variant overlay.
     #[must_use]
-    #[inline(always)]
-    pub const fn ordinal(self) -> usize {
-        self.ordinal
-    }
-
-    /// Returns the normalized variant name.
-    ///
-    /// # Returns
-    ///
-    /// The normalized variant name.
-    #[must_use]
-    #[inline(always)]
-    pub const fn name(self) -> &'static str {
-        self.name
-    }
-
-    /// Returns the variant's structural form.
-    ///
-    /// # Returns
-    ///
-    /// The unit, tuple, or struct form and its payload fields.
-    #[inline(always)]
-    pub const fn kind(self) -> EnumVariantKind {
-        self.kind
-    }
-
-    /// Returns the variant's payload fields.
-    ///
-    /// # Returns
-    ///
-    /// The tuple or struct fields in declaration order, or an empty slice for
-    /// a unit variant.
-    #[must_use]
-    #[inline(always)]
-    pub const fn fields(self) -> &'static [FieldMetadata] {
-        match self.kind {
-            EnumVariantKind::Unit => &[],
-            EnumVariantKind::Tuple(fields) | EnumVariantKind::Struct(fields) => fields,
+    pub const fn new(
+        reflect: &'static VariantDescriptor,
+        canonical_name: &'static str,
+        serialized_name: &'static str,
+        deserialized_name: &'static str,
+        fields: &'static [FieldMetadata],
+        default: bool,
+    ) -> Self {
+        Self {
+            reflect,
+            canonical_name,
+            serialized_name,
+            deserialized_name,
+            fields,
+            default,
         }
+    }
+
+    /// Returns the underlying structural descriptor.
+    #[must_use]
+    pub const fn reflect(&self) -> &'static VariantDescriptor {
+        self.reflect
+    }
+
+    /// Returns the source declaration index.
+    #[must_use]
+    pub const fn index(&self) -> usize {
+        self.reflect.index()
+    }
+
+    /// Returns the immutable Rust identifier.
+    #[must_use]
+    pub const fn rust_name(&self) -> &'static str {
+        self.reflect.rust_name()
+    }
+
+    /// Returns the canonical model name.
+    #[must_use]
+    pub const fn canonical_name(&self) -> &'static str {
+        self.canonical_name
+    }
+
+    /// Returns the serialization name.
+    #[must_use]
+    pub const fn serialized_name(&self) -> &'static str {
+        self.serialized_name
+    }
+
+    /// Returns the deserialization name.
+    #[must_use]
+    pub const fn deserialized_name(&self) -> &'static str {
+        self.deserialized_name
+    }
+
+    /// Returns payload field overlays in source order.
+    #[must_use]
+    pub const fn fields(&self) -> &'static [FieldMetadata] {
+        self.fields
+    }
+
+    /// Finds a named payload field by query name.
+    #[must_use]
+    pub fn field(&self, name: &str) -> Option<&'static FieldMetadata> {
+        self.fields
+            .iter()
+            .find(|field| field.reflect().query_name() == Some(name))
+    }
+
+    /// Returns a payload field by source index.
+    #[must_use]
+    pub fn field_at(&self, index: usize) -> Option<&'static FieldMetadata> {
+        self.fields.get(index)
+    }
+
+    /// Returns whether this is the default variant.
+    #[must_use]
+    pub const fn is_default(&self) -> bool {
+        self.default
     }
 }

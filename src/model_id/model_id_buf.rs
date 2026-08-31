@@ -26,9 +26,15 @@ use super::ModelIdError;
 /// assert_eq!(owned.as_str(), ModelId::new("example.Account").as_str());
 /// ```
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct ModelIdBuf(String);
+pub struct ModelIdBuf(Box<str>);
 
 impl ModelIdBuf {
+    /// Parses and owns a dynamic model ID.
+    pub fn parse(value: &str) -> Result<Self, ModelIdError> {
+        ModelId::validate(value)?;
+        Ok(Self(value.into()))
+    }
+
     /// Returns the complete stable model ID.
     #[must_use]
     #[inline(always)]
@@ -43,8 +49,7 @@ impl TryFrom<String> for ModelIdBuf {
 
     /// Validates and takes ownership of a dynamic model-ID string.
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        ModelId::validate(&value)?;
-        Ok(Self(value))
+        Self::parse(&value)
     }
 }
 
@@ -61,7 +66,7 @@ impl TryFrom<&str> for ModelIdBuf {
 impl From<ModelId> for ModelIdBuf {
     /// Copies a validated static model ID into an owned value.
     fn from(value: ModelId) -> Self {
-        Self(value.as_str().to_owned())
+        Self(value.as_str().into())
     }
 }
 

@@ -7,25 +7,26 @@
 // =============================================================================
 
 //! Static sequences of field-name segments.
+// qubit-style: allow type-file-name
 
 /// A statically declared sequence of field-name segments.
 ///
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::FieldPath;
+/// use qubit_model_metadata::PropertyPath;
 ///
-/// let path = FieldPath::new(&["profile", "email"]);
+/// let path = PropertyPath::new(&["profile", "email"]);
 /// assert_eq!(path.to_string(), "profile.email");
 /// assert!(!path.is_empty());
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FieldPath {
+pub struct PropertyPath {
     /// The field-name segments in traversal order.
     segments: &'static [&'static str],
 }
 
-impl core::fmt::Display for FieldPath {
+impl core::fmt::Display for PropertyPath {
     /// Formats this path with dot-separated field-name segments.
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut segments = self.segments.iter();
@@ -39,7 +40,7 @@ impl core::fmt::Display for FieldPath {
     }
 }
 
-impl FieldPath {
+impl PropertyPath {
     /// Creates a field path from statically allocated field-name segments.
     ///
     /// # Parameters

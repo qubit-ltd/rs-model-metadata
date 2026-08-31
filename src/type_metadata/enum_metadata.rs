@@ -2,147 +2,46 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Metadata for enums and their variants.
+//! Domain metadata for reflected enums.
 
-use crate::type_metadata::EnumVariantMetadata;
+use crate::EnumVariantMetadata;
 
-/// Metadata for an enum, including each variant's optional payload fields.
-///
-/// # Examples
-///
-/// ```
-/// use qubit_model_metadata::EnumMetadata;
-/// use qubit_model_metadata::EnumVariantMetadata;
-///
-/// const VARIANTS: [EnumVariantMetadata; 2] = [
-///     EnumVariantMetadata::new(0, "Active"),
-///     EnumVariantMetadata::new(1, "Closed"),
-/// ];
-/// let metadata = EnumMetadata::new(&VARIANTS);
-/// assert_eq!(metadata.variant("Closed").map(|variant| variant.ordinal()), Some(1));
-/// ```
-#[must_use]
+/// Metadata for enum variants in source order.
 #[derive(Clone, Copy, Debug)]
 pub struct EnumMetadata {
-    /// The variants in declaration order.
     variants: &'static [EnumVariantMetadata],
 }
 
 impl EnumMetadata {
-    /// Creates enum metadata from variants in declaration order.
-    ///
-    /// # Parameters
-    ///
-    /// * `variants` - The variants in declaration order.
-    ///
-    /// # Returns
-    ///
-    /// Immutable metadata for the enum.
-    ///
-    /// # Panics
-    ///
-    /// Panics when a variant name is empty or duplicated, or when a variant's
-    /// ordinal does not match its position in `variants`.
-    #[inline]
+    /// Creates enum metadata.
+    #[must_use]
     pub const fn new(variants: &'static [EnumVariantMetadata]) -> Self {
-        let mut index = 0;
-        while index < variants.len() {
-            let variant = variants[index];
-            assert!(!variant.name().is_empty(), "enum variant names cannot be empty");
-            if variant.ordinal() != index {
-                panic!("enum variant ordinals must match declaration order");
-            }
-            let mut previous = 0;
-            while previous < index {
-                if str_eq(variant.name(), variants[previous].name()) {
-                    panic!("enum variant names must be unique");
-                }
-                previous += 1;
-            }
-            index += 1;
-        }
         Self { variants }
     }
 
-    /// Returns variants in declaration order.
-    ///
-    /// # Returns
-    ///
-    /// The enum variants in declaration order.
-    #[inline(always)]
-    pub const fn variants(self) -> &'static [EnumVariantMetadata] {
+    /// Returns variants in source order.
+    #[must_use]
+    pub const fn variants(&self) -> &'static [EnumVariantMetadata] {
         self.variants
     }
 
-    /// Returns the first variant with the supplied normalized name.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - The normalized variant name to search for.
-    ///
-    /// # Returns
-    ///
-    /// `Some` with the matching variant, or `None` when no variant has that
-    /// name.
+    /// Finds a variant by canonical model name.
     #[must_use]
-    pub const fn variant(self, name: &str) -> Option<EnumVariantMetadata> {
-        let mut index = 0;
-        while index < self.variants.len() {
-            let variant = self.variants[index];
-            if str_eq(variant.name(), name) {
-                return Some(variant);
-            }
-            index += 1;
-        }
-        None
+    pub fn variant(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
+        self.variants.iter().find(|variant| variant.canonical_name() == name)
     }
 
-    /// Returns the variant declared at `ordinal`.
-    ///
-    /// # Parameters
-    ///
-    /// * `ordinal` - The zero-based declaration ordinal to search for.
-    ///
-    /// # Returns
-    ///
-    /// `Some` with the matching variant, or `None` when the ordinal is out of
-    /// range.
+    /// Finds a variant by Rust identifier.
     #[must_use]
-    pub const fn variant_at(self, ordinal: usize) -> Option<EnumVariantMetadata> {
-        if ordinal < self.variants.len() {
-            Some(self.variants[ordinal])
-        } else {
-            None
-        }
+    pub fn variant_by_rust_name(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
+        self.variants.iter().find(|variant| variant.rust_name() == name)
     }
-}
 
-/// Compares two strings without allocating.
-///
-/// # Parameters
-///
-/// * `left` - The first string to compare.
-/// * `right` - The second string to compare.
-///
-/// # Returns
-///
-/// `true` when both strings contain the same bytes; otherwise, `false`.
-const fn str_eq(left: &str, right: &str) -> bool {
-    let left = left.as_bytes();
-    let right = right.as_bytes();
-    if left.len() != right.len() {
-        return false;
+    /// Finds a variant by serialization name.
+    #[must_use]
+    pub fn variant_by_serialized_name(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
+        self.variants.iter().find(|variant| variant.serialized_name() == name)
     }
-    let mut index = 0;
-    while index < left.len() {
-        if left[index] != right[index] {
-            return false;
-        }
-        index += 1;
-    }
-    true
 }

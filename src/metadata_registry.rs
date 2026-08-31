@@ -13,3 +13,4 @@ mod model_registry_error;
 
 pub use self::model_registry::ModelRegistry;
 pub use self::model_registry_error::ModelRegistryError;
+pub use self::model_registry_error::ModelRegistryErrorKind;

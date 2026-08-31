@@ -1,15 +1,11 @@
 {
   "threshold_exempt_files": {
     "qubit-model-metadata": [
-      "src/attribute.rs",
       "src/constraint.rs",
       "src/field_metadata.rs",
-      "src/query.rs",
       "src/relation.rs",
       "src/type_metadata.rs",
-      "src/type_shape.rs",
-      "src/model_id/model_id_buf.rs",
-      "src/model_graph/model_graph_error.rs"
+      "src/model_id/model_id_buf.rs"
     ]
   }
 }

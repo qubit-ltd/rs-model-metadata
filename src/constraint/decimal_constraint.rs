@@ -32,6 +32,14 @@ pub struct DecimalConstraint {
     rounding: RoundingMode,
     /// The domain meaning of the decimal value.
     semantic: DecimalSemantic,
+    /// Exact lower bound as declared by the model.
+    min: Option<&'static str>,
+    /// Exact upper bound as declared by the model.
+    max: Option<&'static str>,
+    /// Whether the lower bound includes equality.
+    min_inclusive: bool,
+    /// Whether the upper bound includes equality.
+    max_inclusive: bool,
 }
 
 impl DecimalConstraint {
@@ -63,7 +71,27 @@ impl DecimalConstraint {
             scale,
             rounding,
             semantic,
+            min: None,
+            max: None,
+            min_inclusive: true,
+            max_inclusive: true,
         }
+    }
+
+    /// Attaches exact declaration-time bounds.
+    #[must_use]
+    pub const fn with_bounds(
+        mut self,
+        min: Option<&'static str>,
+        max: Option<&'static str>,
+        min_inclusive: bool,
+        max_inclusive: bool,
+    ) -> Self {
+        self.min = min;
+        self.max = max;
+        self.min_inclusive = min_inclusive;
+        self.max_inclusive = max_inclusive;
+        self
     }
 
     /// Returns the total significant-digit precision, if constrained.
@@ -108,5 +136,29 @@ impl DecimalConstraint {
     #[inline(always)]
     pub const fn semantic(self) -> DecimalSemantic {
         self.semantic
+    }
+
+    /// Returns the exact lower-bound declaration.
+    #[must_use]
+    pub const fn min(self) -> Option<&'static str> {
+        self.min
+    }
+
+    /// Returns the exact upper-bound declaration.
+    #[must_use]
+    pub const fn max(self) -> Option<&'static str> {
+        self.max
+    }
+
+    /// Returns whether the lower bound includes equality.
+    #[must_use]
+    pub const fn min_inclusive(self) -> bool {
+        self.min_inclusive
+    }
+
+    /// Returns whether the upper bound includes equality.
+    #[must_use]
+    pub const fn max_inclusive(self) -> bool {
+        self.max_inclusive
     }
 }

@@ -8,30 +8,6 @@
       "features": []
     },
     {
-      "name": "chrono",
-      "commands": ["check", "test", "doc"],
-      "defaultFeatures": false,
-      "features": ["chrono"]
-    },
-    {
-      "name": "big-decimal",
-      "commands": ["check", "test", "doc"],
-      "defaultFeatures": false,
-      "features": ["big-decimal"]
-    },
-    {
-      "name": "id",
-      "commands": ["check", "test", "doc"],
-      "defaultFeatures": false,
-      "features": ["id"]
-    },
-    {
-      "name": "chrono-big-decimal",
-      "commands": ["check", "test", "doc"],
-      "defaultFeatures": false,
-      "features": ["chrono", "big-decimal"]
-    },
-    {
       "name": "all-root",
       "commands": ["check", "test", "doc", "clippy"],
       "allFeatures": true

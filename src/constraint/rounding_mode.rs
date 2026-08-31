@@ -21,8 +21,16 @@ pub enum RoundingMode {
     Down,
     /// Round away from zero.
     Up,
+    /// Round toward positive infinity.
+    Ceiling,
+    /// Round toward negative infinity.
+    Floor,
     /// Round to the nearest value, with halves rounded away from zero.
     HalfUp,
+    /// Round to nearest, with halves toward zero.
+    HalfDown,
     /// Round to the nearest value, with halves rounded to even.
     HalfEven,
+    /// Reject values that require rounding.
+    Unnecessary,
 }

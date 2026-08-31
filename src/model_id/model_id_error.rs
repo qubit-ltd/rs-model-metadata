@@ -26,12 +26,8 @@ pub enum ModelIdError {
     Empty,
     /// The ID contains an empty dot-separated segment.
     EmptySegment,
-    /// A module segment is not an ASCII snake-case identifier.
-    InvalidModuleSegment,
-    /// The final type segment is not an ASCII UpperCamelCase identifier.
-    InvalidTypeSegment,
-    /// A module segment is a Rust keyword.
-    KeywordModuleSegment,
+    /// A segment is not an ASCII identifier matching `[A-Za-z][A-Za-z0-9_]*`.
+    InvalidSegment,
 }
 
 impl core::fmt::Display for ModelIdError {
@@ -40,9 +36,7 @@ impl core::fmt::Display for ModelIdError {
         formatter.write_str(match self {
             Self::Empty => "model ID cannot be empty",
             Self::EmptySegment => "model ID cannot contain empty segments",
-            Self::InvalidModuleSegment => "model ID has an invalid module segment",
-            Self::InvalidTypeSegment => "model ID has an invalid type segment",
-            Self::KeywordModuleSegment => "model ID module segments cannot be Rust keywords",
+            Self::InvalidSegment => "model ID has an invalid segment",
         })
     }
 }

@@ -20,6 +20,12 @@ pub enum AllowedChars {
     /// All Unicode scalar values are accepted.
     #[default]
     Unicode,
+    /// Unicode scalar values except control characters.
+    PrintableUnicode,
     /// Only ASCII characters are accepted.
     Ascii,
+    /// Printable ASCII characters only.
+    PrintableAscii,
+    /// ASCII letters, digits, underscore, and hyphen.
+    Code,
 }
