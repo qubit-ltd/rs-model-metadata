@@ -8,7 +8,7 @@
 
 //! Integration tests for runtime crate path resolution in generated metadata.
 
-use ::model_runtime::metadata_of;
+use ::model_runtime::TypeMetadata;
 use qubit_model_derive::Model;
 
 mod model_runtime {}
@@ -21,5 +21,5 @@ struct RenamedRuntimeUser {
 
 #[test]
 fn test_model_attribute_uses_absolute_renamed_runtime_path() {
-    assert_eq!(metadata_of::<RenamedRuntimeUser>().fields().count(), 1);
+    assert_eq!(TypeMetadata::of::<RenamedRuntimeUser>().fields().len(), 1);
 }

@@ -1,5 +1,0 @@
-error: `identifier` is not supported on enum variant fields
-  --> tests/ui/fail/data_enum.rs:11:13
-   |
-11 |     Value(#[identifier] i64),
-   |             ^^^^^^^^^^

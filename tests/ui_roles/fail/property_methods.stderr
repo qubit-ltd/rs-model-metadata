@@ -1,0 +1,23 @@
+error: ModelProperties methods must be public
+  --> tests/ui_roles/fail/property_methods.rs:11:8
+   |
+11 |     fn private(&self) -> &str { &self.value }
+   |        ^^^^^^^
+
+error: property methods must be safe synchronous non-const functions
+  --> tests/ui_roles/fail/property_methods.rs:13:9
+   |
+13 |     pub async fn asynchronous(&self) -> String { self.value.clone() }
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: property methods cannot be generic
+  --> tests/ui_roles/fail/property_methods.rs:15:19
+   |
+15 |     pub fn generic<T>(&self) -> String { self.value.clone() }
+   |                   ^^^
+
+error: setter requires `&mut self`
+  --> tests/ui_roles/fail/property_methods.rs:17:22
+   |
+17 |     pub fn set_value(&self, value: String) { let _ = value; }
+   |                      ^^^^^

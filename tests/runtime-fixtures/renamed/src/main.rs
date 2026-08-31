@@ -6,7 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use ::model_runtime::metadata_of;
+use ::model_runtime::TypeMetadata;
 use qubit_model_derive::Model;
 
 mod model_runtime {}
@@ -17,5 +17,5 @@ struct Renamed {
 }
 
 fn main() {
-    assert_eq!(metadata_of::<Renamed>().fields().count(), 1);
+    assert_eq!(TypeMetadata::of::<Renamed>().fields().len(), 1);
 }

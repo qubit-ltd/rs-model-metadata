@@ -1,5 +1,0 @@
-error: `min_chars` cannot exceed `max_chars`
-  --> tests/ui/fail/text_range.rs:11:39
-   |
-11 |     #[text(max_chars = 2, min_chars = 3)]
-   |                                       ^

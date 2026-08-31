@@ -1,0 +1,50 @@
+error[E0277]: the trait bound `BadCodec: ValueEncoder<std::string::String>` is not satisfied
+ --> tests/ui_roles/fail/codec_bound.rs:8:13
+  |
+8 |     #[codec(BadCodec)]
+  |             ^^^^^^^^ unsatisfied trait bound
+  |
+help: the trait `ValueEncoder<std::string::String>` is not implemented for `BadCodec`
+ --> tests/ui_roles/fail/codec_bound.rs:4:1
+  |
+4 | struct BadCodec;
+  | ^^^^^^^^^^^^^^^
+help: the trait `ValueEncoder<<C as qubit_codec::codec::codec::Codec>::Value>` is implemented for `CodecValueEncoder<C>`
+ --> $QUBIT_CODEC/src/value/codec_value_encoder.rs
+  |
+  | / impl<C> ValueEncoder<C::Value> for CodecValueEncoder<C>
+  | | where
+  | |     C: Codec,
+  | |     C::Unit: Default,
+  | |_____________________^
+note: required by a bound in `assert_codec`
+ --> tests/ui_roles/fail/codec_bound.rs:6:1
+  |
+6 | #[Model]
+  | ^^^^^^^^ required by this bound in `assert_codec`
+  = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `BadCodec: ValueDecoder<str>` is not satisfied
+ --> tests/ui_roles/fail/codec_bound.rs:8:13
+  |
+8 |     #[codec(BadCodec)]
+  |             ^^^^^^^^ unsatisfied trait bound
+  |
+help: the trait `ValueDecoder<str>` is not implemented for `BadCodec`
+ --> tests/ui_roles/fail/codec_bound.rs:4:1
+  |
+4 | struct BadCodec;
+  | ^^^^^^^^^^^^^^^
+help: the trait `ValueDecoder<[<C as qubit_codec::codec::codec::Codec>::Unit]>` is implemented for `CodecValueDecoder<C>`
+ --> $QUBIT_CODEC/src/value/codec_value_decoder.rs
+  |
+  | / impl<C> ValueDecoder<[C::Unit]> for CodecValueDecoder<C>
+  | | where
+  | |     C: Codec,
+  | |_____________^
+note: required by a bound in `assert_codec`
+ --> tests/ui_roles/fail/codec_bound.rs:6:1
+  |
+6 | #[Model]
+  | ^^^^^^^^ required by this bound in `assert_codec`
+  = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)

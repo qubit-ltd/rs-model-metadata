@@ -6,10 +6,11 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use qubit_model_derive::Model;
+use qubit_model_derive::Entity;
 
-#[Model(id = "test.linked.Target")]
+#[Entity(id = "test.linked.Target")]
 pub struct Target {
+    #[identifier]
     pub id: i64,
 }
 

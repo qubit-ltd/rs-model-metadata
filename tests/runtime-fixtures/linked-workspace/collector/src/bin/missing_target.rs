@@ -6,8 +6,10 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use qubit_model_metadata::ModelGraphError;
 use qubit_model_metadata::ModelRegistry;
+use qubit_model_metadata::ModelResolveErrorKind;
+use qubit_model_metadata::ModelResolver;
+use qubit_model_metadata::ResolveInputs;
 
 fn main() {
     let _ = core::mem::size_of::<model_a::MissingTarget>();
@@ -15,14 +17,11 @@ fn main() {
         .expect("a missing reference target must not invalidate registration");
     assert!(registry.get("test.linked.Absent").is_none());
     assert!(registry.get("test.linked.MissingTarget").is_some());
-    let errors = registry
-        .validate_graph()
+    let errors = ModelResolver::new(ResolveInputs { models: registry })
+        .resolve_all()
         .expect_err("the missing reference target must be reported by graph validation");
     assert!(errors.errors().iter().any(|error| {
-        matches!(
-            error,
-            ModelGraphError::MissingTarget { target, .. }
-                if target.as_str() == "test.linked.Absent"
-        )
+        error.kind() == ModelResolveErrorKind::MissingModelId
+            && error.model_id() == Some("test.linked.Absent")
     }));
 }

@@ -1,5 +1,0 @@
-error: Model derive does not support generic models
-  --> tests/ui/fail/data_enum_generic.rs:10:17
-   |
-10 | enum GenericData<T> {
-   |                 ^

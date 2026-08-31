@@ -6,7 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use qubit_model_metadata::metadata_of;
+use qubit_model_metadata::TypeMetadata;
 use qubit_model_derive::Model;
 
 #[Model(id = "test.derive.Normal")]
@@ -15,5 +15,5 @@ struct Normal {
 }
 
 fn main() {
-    assert_eq!(metadata_of::<Normal>().fields().count(), 1);
+    assert_eq!(TypeMetadata::of::<Normal>().fields().len(), 1);
 }

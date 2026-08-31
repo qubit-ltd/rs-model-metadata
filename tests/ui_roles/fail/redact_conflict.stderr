@@ -1,0 +1,5 @@
+error: no_redact cannot be combined with field redaction rules
+ --> tests/ui_roles/fail/redact_conflict.rs:4:8
+  |
+4 | struct Secret {
+  |        ^^^^^^

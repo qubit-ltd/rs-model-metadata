@@ -1,0 +1,11 @@
+error: explicit Debug would bypass model redaction; use the generated safe implementation
+ --> tests/ui_roles/fail/unsafe_existing_derives.rs:5:8
+  |
+5 | struct DebugBypass {
+  |        ^^^^^^^^^^^
+
+error: explicit Serialize would bypass model redaction; use the generated safe implementation
+  --> tests/ui_roles/fail/unsafe_existing_derives.rs:11:8
+   |
+11 | struct SerializeBypass {
+   |        ^^^^^^^^^^^^^^^

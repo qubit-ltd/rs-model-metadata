@@ -11,3 +11,4 @@ qubit-model-metadata = { path = "../../../../../rs-model-metadata" }
 
 [features]
 duplicate-fixture = ["model-a/duplicate-fixture", "model-b/duplicate-fixture"]
+missing-fixture = ["model-a/missing-fixture"]

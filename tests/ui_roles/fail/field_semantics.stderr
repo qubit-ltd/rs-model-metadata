@@ -1,0 +1,11 @@
+error: duplicate singleton field declaration
+ --> tests/ui_roles/fail/field_semantics.rs:4:8
+  |
+4 | struct InvalidFields {
+  |        ^^^^^^^^^^^^^
+
+error: key_part orders must be unique and contiguous from zero
+ --> tests/ui_roles/fail/field_semantics.rs:4:8
+  |
+4 | struct InvalidFields {
+  |        ^^^^^^^^^^^^^

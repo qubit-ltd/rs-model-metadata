@@ -1,5 +1,0 @@
-error: model ID cannot contain empty segments
- --> tests/ui/fail/model_id_invalid_empty_segment.rs:9:34
-  |
-9 | #[qubit_model_derive::Model(id = "test..InvalidEmptySegment", no_clone, no_debug, no_display, no_partial_eq, no_hash, no_serialize, n...
-  |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^

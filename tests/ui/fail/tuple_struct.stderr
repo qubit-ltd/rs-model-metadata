@@ -1,5 +1,0 @@
-error: Model derive only supports single-field tuple newtypes
-  --> tests/ui/fail/tuple_struct.rs:10:15
-   |
-10 | struct Invalid(i64, i64);
-   |               ^^^^^^^^^^

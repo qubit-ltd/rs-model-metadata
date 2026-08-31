@@ -66,30 +66,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "inventory"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
-
-[[package]]
-name = "linkme"
-version = "0.3.37"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3045e122bd98aef8ec3ad58ce84f0791f64e70163d1a02710af4aa11a4d54cc5"
-dependencies = [
- "linkme-impl",
-]
-
-[[package]]
-name = "linkme-impl"
-version = "0.3.37"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77060ebe535362c3da75682cd17b0431017b6e7c5661e714fc69a7ad017d1301"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.3",
-]
 
 [[package]]
 name = "memchr"
@@ -163,10 +152,18 @@ dependencies = [
 
 [[package]]
 name = "qubit-budget"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "076075301fd9ed7b4828fa12a74d8a072839d654c2151729ebef33a48ce2dd6c"
+checksum = "dc94844f6f5cca8005774cbd1d84e58b9369b50eab393aa9b34d0662edf435fb"
 dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "qubit-codec"
+version = "0.13.0"
+dependencies = [
+ "qubit-utils",
  "thiserror",
 ]
 
@@ -187,7 +184,11 @@ name = "qubit-model-metadata"
 version = "0.1.0"
 dependencies = [
  "bitflags",
- "linkme",
+ "inventory",
+ "qubit-codec",
+ "qubit-redact",
+ "qubit-reflect",
+ "serde",
  "thiserror",
 ]
 
@@ -212,6 +213,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "qubit-reflect"
+version = "0.1.0"
+dependencies = [
+ "inventory",
+ "qubit-reflect-derive",
+ "thiserror",
+]
+
+[[package]]
+name = "qubit-reflect-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "qubit-utils"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f9bf5cd2e783a8a6edd6536826084ef0a82d1924b14f82e79fe0088b7b33748"
+
+[[package]]
 name = "quote"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -219,6 +245,12 @@ checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "rustversion"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "serde"

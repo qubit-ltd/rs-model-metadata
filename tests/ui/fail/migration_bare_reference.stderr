@@ -1,5 +1,0 @@
-error: bare `reference` is not supported; specify `entity = "module.Type"`
-  --> tests/ui/fail/migration_bare_reference.rs:11:7
-   |
-11 |     #[reference]
-   |       ^^^^^^^^^

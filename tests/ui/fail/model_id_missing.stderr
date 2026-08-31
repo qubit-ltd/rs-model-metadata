@@ -1,5 +1,0 @@
-error: missing required model ID; add `#[Model(id = "module.Type")]`
-  --> tests/ui/fail/model_id_missing.rs:10:8
-   |
-10 | struct Missing {
-   |        ^^^^^^^

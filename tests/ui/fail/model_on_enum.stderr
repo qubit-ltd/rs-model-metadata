@@ -1,5 +1,0 @@
-error: #[Model] only supports structs; use #[Enum] for enums
-  --> tests/ui/fail/model_on_enum.rs:10:6
-   |
-10 | enum Invalid {
-   |      ^^^^^^^

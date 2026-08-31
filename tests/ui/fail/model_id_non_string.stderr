@@ -1,5 +1,0 @@
-error: expected string literal
- --> tests/ui/fail/model_id_non_string.rs:9:34
-  |
-9 | #[qubit_model_derive::Model(id = 42)]
-  |                                  ^^

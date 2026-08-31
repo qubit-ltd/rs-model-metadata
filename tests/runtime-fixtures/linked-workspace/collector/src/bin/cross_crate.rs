@@ -7,6 +7,9 @@
 // =============================================================================
 
 use qubit_model_metadata::ModelRegistry;
+use qubit_model_metadata::ModelResolver;
+use qubit_model_metadata::ResolveInputs;
+use qubit_model_metadata::TypeMetadata;
 
 fn main() {
     let _ = core::mem::size_of::<model_a::Source>();
@@ -15,4 +18,14 @@ fn main() {
         .expect("cross-crate registrations should be valid");
     assert!(registry.get("test.linked.Source").is_some());
     assert!(registry.get("test.linked.Target").is_some());
+    let graph = ModelResolver::new(ResolveInputs { models: registry })
+        .resolve_all()
+        .expect("cross-crate reference should resolve");
+    let field = TypeMetadata::of::<model_a::Source>()
+        .field("target_id")
+        .expect("source field");
+    assert_eq!(
+        graph.reference(field).expect("resolved reference").target().model_id().unwrap().as_str(),
+        "test.linked.Target",
+    );
 }

@@ -1,5 +1,0 @@
-error: model declaration attributes do not support unions
-  --> tests/ui/fail/union.rs:10:1
-   |
-10 | union Invalid {
-   | ^^^^^

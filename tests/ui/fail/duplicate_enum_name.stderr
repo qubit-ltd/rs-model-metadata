@@ -1,5 +1,0 @@
-error: duplicate serialized enum name "same"
-  --> tests/ui/fail/duplicate_enum_name.rs:14:5
-   |
-14 |     Second,
-   |     ^^^^^^

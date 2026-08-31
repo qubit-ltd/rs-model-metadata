@@ -8,7 +8,7 @@
 
 use qubit_model_derive::Model;
 
-#[Model(id = "test.derive.Invalid", primary_key(fields(value)))]
-struct Invalid;
+#[Model(id = "test.derive.Invalid")]
+struct Invalid(u64);
 
 fn main() {}

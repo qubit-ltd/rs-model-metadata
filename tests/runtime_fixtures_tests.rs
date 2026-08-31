@@ -65,7 +65,7 @@ fn assert_missing_runtime_fixture_preserves_validation_error() {
         "missing runtime diagnostic: {diagnostic}"
     );
     assert!(
-        diagnostic.contains("only supported on named structs"),
+        diagnostic.contains("Model does not support tuple structs"),
         "missing validation diagnostic: {diagnostic}"
     );
 }
@@ -85,6 +85,7 @@ fn run_fixture(name: &str) -> std::process::Output {
         });
     Command::new(env!("CARGO"))
         .arg("check")
+        .arg("--offline")
         .arg("--quiet")
         .current_dir(fixture_dir)
         .env("CARGO_TARGET_DIR", target_dir)
@@ -102,9 +103,10 @@ fn run_linked_fixture(binary: &str) -> std::process::Output {
             std::env::temp_dir().join(format!("qubit-model-derive-linked-fixture-{}", std::process::id()))
         });
     Command::new(env!("CARGO"))
-        .args(["run", "--quiet", "-p", "collector", "--bin", binary])
-        .args((binary == "duplicate_id").then_some("--features"))
+        .args(["run", "--offline", "--quiet", "-p", "collector", "--bin", binary])
+        .args((binary != "cross_crate").then_some("--features"))
         .args((binary == "duplicate_id").then_some("duplicate-fixture"))
+        .args((binary == "missing_target").then_some("missing-fixture"))
         .current_dir(fixture_dir)
         .env("CARGO_TARGET_DIR", target_dir)
         .output()

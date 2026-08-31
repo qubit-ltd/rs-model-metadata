@@ -10,7 +10,7 @@ use qubit_model_derive::Model;
 
 #[Model(id = "test.linked.Source")]
 pub struct Source {
-    #[reference(entity = "test.linked.Target", property = id)]
+    #[reference(entity_id = "test.linked.Target", property = id)]
     pub target_id: i64,
 }
 
@@ -18,8 +18,9 @@ pub struct Source {
 #[Model(id = "test.linked.Duplicate")]
 pub struct Duplicate;
 
+#[cfg(feature = "missing-fixture")]
 #[Model(id = "test.linked.MissingTarget")]
 pub struct MissingTarget {
-    #[reference(entity = "test.linked.Absent", property = id)]
+    #[reference(entity_id = "test.linked.Absent", property = id)]
     pub target_id: i64,
 }
