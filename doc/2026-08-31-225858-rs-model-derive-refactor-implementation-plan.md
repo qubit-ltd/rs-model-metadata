@@ -312,7 +312,7 @@ impl<'a> ModelResolver<'a> {
 - [x] `rs-reflect` 即使无生产代码变化，也运行 `cargo test --all-features`。
 - [x] 默认 1.94 工具链未安装 Miri；已明确记录，未声称通过 Miri。
 - [x] 按用户要求不使用 subagent；由主执行者完成两轮独立自审，未发现剩余 substantive finding。
-- [ ] 对所有涉及仓库按变更内容分组创建英文提交；将当前分支快进同步到 `dev`、`main`、`dev-starfish` 并推送，最后回到 `dev-starfish`。
+- [x] 对所有涉及仓库按变更内容分组创建英文提交；将当前分支快进同步到 `dev`、`main`、`dev-starfish` 并推送，最后回到 `dev-starfish`。
 
 ## 计划自审映射
 
