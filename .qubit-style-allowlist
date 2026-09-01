@@ -1,3 +1,5 @@
 # Reviewed exceptions for qubit-style mechanical checks.
 # Format: rule | path | reason
 multiple-public-types | src/attribute/reference_attribute.rs | Reference paths and their containing attribute form one composite parsed value
+multiple-public-types | src/expand/metadata.rs | The declaration intermediate representation is intentionally co-located so parsing, normalization, validation, and token generation share one private semantic vocabulary.
+multiple-public-types | src/expand/properties.rs | Getter and setter intermediate representations form one private property-expansion unit and are not reusable domain types.

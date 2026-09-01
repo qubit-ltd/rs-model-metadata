@@ -2,10 +2,18 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Compiles non-property model declarations into reflection and metadata
 //! tokens.
+
+// qubit-style: allow multiple-public-types
+// The private intermediate representations below are one compiler-stage unit.
+// qubit-style: allow explicit-imports
+// Generated token streams deliberately retain absolute paths for downstream
+// hygiene.
 
 use heck::ToShoutySnakeCase;
 use heck::ToSnakeCase;
