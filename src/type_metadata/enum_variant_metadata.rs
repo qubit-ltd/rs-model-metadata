@@ -13,11 +13,17 @@ use crate::FieldMetadata;
 /// Immutable domain metadata for one enum variant.
 #[derive(Clone, Copy, Debug)]
 pub struct EnumVariantMetadata {
+    /// The reflection descriptor that defines the variant.
     reflect: &'static VariantDescriptor,
+    /// The model-level canonical variant name.
     canonical_name: &'static str,
+    /// The name emitted while serializing the variant.
     serialized_name: &'static str,
+    /// The name accepted while deserializing the variant.
     deserialized_name: &'static str,
+    /// Payload field overlays in declaration order.
     fields: &'static [FieldMetadata],
+    /// Whether this variant is the model default.
     default: bool,
 }
 

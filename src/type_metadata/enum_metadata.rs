@@ -11,6 +11,7 @@ use crate::EnumVariantMetadata;
 /// Metadata for enum variants in source order.
 #[derive(Clone, Copy, Debug)]
 pub struct EnumMetadata {
+    /// Variant metadata in declaration order.
     variants: &'static [EnumVariantMetadata],
 }
 

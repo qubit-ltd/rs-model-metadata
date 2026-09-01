@@ -45,11 +45,14 @@ pub enum PropertyValue<'a> {
 }
 
 trait PropertySlice<'a> {
+    /// Returns the number of values in the borrowed slice.
     fn len(&self) -> usize;
+    /// Returns the value at `index`, or `None` when it is out of bounds.
     fn get(&self, index: usize) -> Option<ReflectedRef<'a>>;
 }
 
 struct TypedPropertySlice<'a, T> {
+    /// The typed slice retained by the erased adapter.
     values: &'a [T],
 }
 
@@ -65,6 +68,7 @@ impl<'a, T: 'static> PropertySlice<'a> for TypedPropertySlice<'a, T> {
 
 /// A lifetime-preserving, type-erased borrowed slice returned by a property.
 pub struct BorrowedPropertySlice<'a> {
+    /// The lifetime-preserving erased slice implementation.
     value: Box<dyn PropertySlice<'a> + 'a>,
 }
 
@@ -148,7 +152,9 @@ impl PropertyAccessError {
 
 /// A property set failure with optional untouched replacement ownership.
 pub struct PropertySetFailure {
+    /// The structured reason why the property write failed.
     error: PropertyAccessError,
+    /// The untouched replacement retained for a pre-execution failure.
     replacement: Option<Box<ReflectedOwned>>,
 }
 
@@ -213,10 +219,15 @@ impl std::error::Error for PropertySetFailure {}
 /// Metadata and adapter for one explicit getter method.
 #[derive(Clone, Copy)]
 pub struct GetterMetadata {
+    /// The Rust identifier of the generated getter method.
     rust_method_name: &'static str,
+    /// The declared type of the getter output.
     output_type: &'static TypeRef,
+    /// Whether the getter result borrows from the target or owns its value.
     output_kind: GetterOutputKind,
+    /// Produces the exact Rust type identity accepted by the getter.
     target_type_id: fn() -> TypeId,
+    /// Executes the generated getter after type validation.
     adapter: GetterAdapter,
 }
 
@@ -239,24 +250,34 @@ impl GetterMetadata {
     }
 
     /// Returns the Rust getter method name.
+    #[must_use]
     pub const fn rust_method_name(&self) -> &'static str {
         self.rust_method_name
     }
     /// Returns the declared getter output type.
+    #[must_use]
     pub const fn output_type(&self) -> &'static TypeRef {
         self.output_type
     }
     /// Returns whether the getter borrows or owns its output.
+    #[must_use]
     pub const fn output_kind(&self) -> GetterOutputKind {
         self.output_kind
     }
 
+    /// Returns the exact Rust type identity accepted by this getter.
     #[doc(hidden)]
+    #[must_use]
     pub fn target_type_id(&self) -> TypeId {
         (self.target_type_id)()
     }
 
     /// Executes this getter after exact target validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PropertyAccessError::TargetTypeMismatch`] when `target` has
+    /// a different concrete type, or propagates the generated adapter error.
     pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         let actual = reflected_ref_type_id(&target);
         let expected = (self.target_type_id)();
@@ -282,10 +303,15 @@ impl core::fmt::Debug for GetterMetadata {
 /// Metadata and adapter for one explicit setter method.
 #[derive(Clone, Copy)]
 pub struct SetterMetadata {
+    /// The Rust identifier of the generated setter method.
     rust_method_name: &'static str,
+    /// The declared type accepted by the setter.
     input_type: &'static TypeRef,
+    /// Produces the exact Rust type identity accepted for the target.
     target_type_id: fn() -> TypeId,
+    /// Produces the exact Rust type identity accepted for the input.
     input_type_id: fn() -> TypeId,
+    /// Executes the generated setter after type validation.
     adapter: SetterAdapter,
 }
 
@@ -307,25 +333,36 @@ impl SetterMetadata {
     }
 
     /// Returns the Rust setter method name.
+    #[must_use]
     pub const fn rust_method_name(&self) -> &'static str {
         self.rust_method_name
     }
     /// Returns the exact setter input type.
+    #[must_use]
     pub const fn input_type(&self) -> &'static TypeRef {
         self.input_type
     }
 
+    /// Returns the exact Rust type identity accepted for this setter target.
     #[doc(hidden)]
+    #[must_use]
     pub fn target_type_id(&self) -> TypeId {
         (self.target_type_id)()
     }
 
+    /// Returns the exact Rust type identity accepted for this setter input.
     #[doc(hidden)]
+    #[must_use]
     pub fn input_type_id(&self) -> TypeId {
         (self.input_type_id)()
     }
 
     /// Executes this setter after exact target and value validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PropertySetFailure`] retaining `value` when target or input
+    /// validation fails before adapter execution, or reports the adapter error.
     pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         let actual_target = reflected_mut_type_id(&target);
         let expected_target = (self.target_type_id)();
@@ -359,10 +396,15 @@ impl core::fmt::Debug for SetterMetadata {
 /// Merged field/getter/setter metadata for one model property.
 #[derive(Clone, Copy, Debug)]
 pub struct PropertyMetadata {
+    /// The public property name used by model metadata.
     name: &'static str,
+    /// The declared property type.
     type_ref: &'static TypeRef,
+    /// The reflected backing field, when one exists.
     field: Option<&'static FieldMetadata>,
+    /// The explicit getter adapter, when one exists.
     getter: Option<&'static GetterMetadata>,
+    /// The explicit setter adapter, when one exists.
     setter: Option<&'static SetterMetadata>,
 }
 
@@ -386,26 +428,34 @@ impl PropertyMetadata {
     }
 
     /// Returns the public property name.
+    #[must_use]
     pub const fn name(&self) -> &'static str {
         self.name
     }
     /// Returns the property type reference.
+    #[must_use]
     pub const fn type_ref(&self) -> &'static TypeRef {
         self.type_ref
     }
-    /// Returns the resolved property type descriptor, when available.
+    /// Returns the resolved property type descriptor, or `None` for symbolic
+    /// and opaque property types.
+    #[must_use]
     pub const fn descriptor(&self) -> Option<&'static TypeDescriptor> {
         self.type_ref.as_resolved()
     }
-    /// Returns the backing field, when present.
+    /// Returns the backing field, or `None` for computed and virtual
+    /// properties.
+    #[must_use]
     pub const fn field(&self) -> Option<&'static FieldMetadata> {
         self.field
     }
-    /// Returns the explicit getter, when present.
+    /// Returns the explicit getter, or `None` when reads use field fallback.
+    #[must_use]
     pub const fn getter(&self) -> Option<&'static GetterMetadata> {
         self.getter
     }
-    /// Returns the explicit setter, when present.
+    /// Returns the explicit setter, or `None` when writes use field fallback.
+    #[must_use]
     pub const fn setter(&self) -> Option<&'static SetterMetadata> {
         self.setter
     }
@@ -447,6 +497,11 @@ impl PropertyMetadata {
     }
 
     /// Reads with explicit getter precedence over field fallback.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PropertyAccessError::NotReadable`] when neither a getter nor
+    /// a backing field exists, and otherwise propagates access failures.
     pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         if let Some(getter) = self.getter {
             return getter.get(target);
@@ -462,6 +517,11 @@ impl PropertyMetadata {
     }
 
     /// Writes with explicit setter precedence over field fallback.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PropertySetFailure`] retaining the replacement when no write
+    /// operation has started, and otherwise reports the setter or field error.
     pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         if let Some(setter) = self.setter {
             return setter.set(target, value);
@@ -482,14 +542,17 @@ impl PropertyMetadata {
     }
 }
 
+/// Returns the concrete type ID represented by a reflected shared borrow.
 fn reflected_ref_type_id(value: &ReflectedRef<'_>) -> TypeId {
     value.as_any().map_or_else(TypeId::of::<str>, std::any::Any::type_id)
 }
 
+/// Returns the concrete type ID represented by a reflected mutable borrow.
 fn reflected_mut_type_id(value: &ReflectedMut<'_>) -> TypeId {
     value.as_any().map_or_else(TypeId::of::<str>, std::any::Any::type_id)
 }
 
+/// Returns the concrete type ID represented by an owned reflected value.
 fn reflected_owned_type_id(value: &ReflectedOwned) -> TypeId {
     value.as_any().map_or_else(TypeId::of::<()>, std::any::Any::type_id)
 }

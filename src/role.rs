@@ -30,6 +30,7 @@ pub enum ModelRole {
 /// Entity-specific metadata.
 #[derive(Clone, Copy, Debug)]
 pub struct EntityMetadata {
+    /// The field that supplies the entity identifier.
     identifier: &'static FieldMetadata,
 }
 
@@ -50,7 +51,9 @@ impl EntityMetadata {
 /// Projection-specific metadata.
 #[derive(Clone, Copy, Debug)]
 pub struct ProjectionMetadata {
+    /// The field that supplies the projection identifier.
     identifier: &'static FieldMetadata,
+    /// The optional entity target from which projection fields originate.
     source: Option<&'static DeclaredEntityTarget>,
 }
 
@@ -93,7 +96,9 @@ pub struct ModelMetadata;
 /// Value-specific metadata.
 #[derive(Clone, Copy, Debug)]
 pub struct ValueMetadata {
+    /// The sole wrapped field when the value is transparent.
     transparent_field: Option<&'static FieldMetadata>,
+    /// The codec that represents the complete value, when configured.
     canonical_codec: Option<&'static CodecMetadata>,
 }
 

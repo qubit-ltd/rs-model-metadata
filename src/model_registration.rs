@@ -26,14 +26,22 @@ pub enum ModelRegistrationTarget {
 /// One statically linked model registration.
 #[derive(Clone, Copy, Debug)]
 pub struct ModelRegistration {
+    /// The stable identifier under which the target is registered.
     model_id: ModelId,
+    /// The concrete model or generic model target.
     target: ModelRegistrationTarget,
+    /// The fragment that supplied this registration.
     source: &'static FragmentIdentity,
 }
 
 impl ModelRegistration {
-    #[must_use]
+    /// Creates a concrete registration for generated model metadata.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `metadata` has no stable model ID.
     #[doc(hidden)]
+    #[must_use = "the stable model ID identifies the registered target"]
     pub(crate) const fn from_concrete(metadata: &'static TypeMetadata, source: &'static FragmentIdentity) -> Self {
         let Some(model_id) = metadata.model_id() else {
             panic!("QMM-ABI-060: registered concrete metadata requires a model ID");
@@ -45,8 +53,9 @@ impl ModelRegistration {
         }
     }
 
-    #[must_use]
+    /// Creates a generic registration for generated model metadata.
     #[doc(hidden)]
+    #[must_use]
     pub(crate) const fn from_generic(
         metadata: &'static GenericModelMetadata,
         source: &'static FragmentIdentity,
@@ -58,7 +67,8 @@ impl ModelRegistration {
         }
     }
 
-    /// Returns the registered model ID.
+    /// Returns the stable identifier under which this target is registered.
+    #[must_use]
     pub const fn model_id(&self) -> ModelId {
         self.model_id
     }

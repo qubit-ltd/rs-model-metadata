@@ -33,6 +33,7 @@ pub enum IdentifierAssignment {
 /// Describes identifier assignment for one field.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct IdentifierMetadata {
+    /// The layer responsible for assigning the identifier value.
     assigned_by: IdentifierAssignment,
 }
 
@@ -68,7 +69,9 @@ bitflags! {
 /// Field-local uniqueness semantics.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct UniqueMetadata {
+    /// Property paths that scope uniqueness with this field.
     respect_to: &'static [PropertyPath<'static>],
+    /// Whether textual comparisons use case-insensitive matching.
     ignore_case: bool,
 }
 
@@ -104,6 +107,7 @@ impl UniqueMetadata {
 /// Declares the ordering of one key component.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct KeyPartMetadata {
+    /// The zero-based position within the composite key.
     order: usize,
 }
 
@@ -189,9 +193,13 @@ pub enum ReferenceSelection {
 /// Declaration metadata for one entity reference.
 #[derive(Clone, Copy, Debug)]
 pub struct ReferenceMetadata {
+    /// The entity declaration selected by this reference.
     target: &'static DeclaredEntityTarget,
+    /// The entity or property selected from the target.
     selection: &'static ReferenceSelection,
+    /// Whether the referenced record must exist before assignment.
     existing: bool,
+    /// An equivalent local property path, when declared.
     same_as: Option<&'static PropertyPath<'static>>,
 }
 
@@ -240,8 +248,11 @@ impl ReferenceMetadata {
 /// One declared validator occurrence.
 #[derive(Clone, Copy, Debug)]
 pub struct ValidatorMetadata {
+    /// The stable identifier used to resolve the validator registration.
     declared_id: &'static str,
+    /// Static arguments passed to the resolved validator.
     params: &'static [NamedValidationArgument<'static>],
+    /// Property paths that must be available to the validator.
     depends_on: &'static [PropertyPath<'static>],
 }
 
@@ -298,7 +309,9 @@ pub enum CodecSource {
 /// One codec occurrence.
 #[derive(Clone, Copy, Debug)]
 pub struct CodecMetadata {
+    /// The Rust-type or textual codec declaration.
     codec: &'static CodecReference,
+    /// The metadata location that supplied the declaration.
     source: CodecSource,
 }
 
@@ -353,8 +366,11 @@ pub enum RedactPosition {
 /// One redact declaration using the upstream sensitivity vocabulary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RedactMetadata {
+    /// The optional sensitivity level applied by the redact capability.
     sensitivity: Option<Sensitivity>,
+    /// The redact operation to perform.
     mode: RedactModeMetadata,
+    /// The structural value position to redact.
     position: RedactPosition,
 }
 
@@ -404,14 +420,23 @@ pub enum SerdeBehaviorSource {
 /// Final Serde behavior for one field.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SerdeFieldMetadata {
+    /// The explicit serialization name, when one is configured.
     serialize_name: Option<&'static str>,
+    /// The explicit deserialization name, when one is configured.
     deserialize_name: Option<&'static str>,
+    /// Whether Serde omits this field while serializing.
     skip_serializing: bool,
+    /// Whether Serde ignores this field while deserializing.
     skip_deserializing: bool,
+    /// Whether Serde flattens this field into its parent representation.
     flatten: bool,
+    /// The Serde conversion module or function path, when configured.
     with: Option<&'static str>,
+    /// Whether Serde supplies a missing value through its default behavior.
     default: bool,
+    /// The origin of the missing-value default behavior.
     default_source: SerdeBehaviorSource,
+    /// The origin of empty-value omission behavior.
     omit_source: SerdeBehaviorSource,
 }
 
@@ -456,30 +481,50 @@ impl SerdeFieldMetadata {
         self
     }
 
+    /// Returns the configured serialization name, or `None` when Serde uses
+    /// the field name.
+    #[must_use]
     pub const fn serialize_name(&self) -> Option<&'static str> {
         self.serialize_name
     }
+    /// Returns the configured deserialization name, or `None` when Serde uses
+    /// the field name.
+    #[must_use]
     pub const fn deserialize_name(&self) -> Option<&'static str> {
         self.deserialize_name
     }
+    /// Returns whether Serde omits this field during serialization.
+    #[must_use]
     pub const fn skip_serializing(&self) -> bool {
         self.skip_serializing
     }
+    /// Returns whether Serde ignores this field during deserialization.
+    #[must_use]
     pub const fn skip_deserializing(&self) -> bool {
         self.skip_deserializing
     }
+    /// Returns whether Serde flattens this field into its parent.
+    #[must_use]
     pub const fn flatten(&self) -> bool {
         self.flatten
     }
+    /// Returns the configured Serde conversion path, if present.
+    #[must_use]
     pub const fn with(&self) -> Option<&'static str> {
         self.with
     }
+    /// Returns whether a missing value uses Serde's default behavior.
+    #[must_use]
     pub const fn default(&self) -> bool {
         self.default
     }
+    /// Returns the declaration source for missing-value defaults.
+    #[must_use]
     pub const fn default_source(&self) -> SerdeBehaviorSource {
         self.default_source
     }
+    /// Returns the declaration source for empty-value omission.
+    #[must_use]
     pub const fn omit_source(&self) -> SerdeBehaviorSource {
         self.omit_source
     }
@@ -488,10 +533,15 @@ impl SerdeFieldMetadata {
 /// Non-recursive semantics applied to a collection position.
 #[derive(Clone, Copy, Debug)]
 pub struct SelectorMetadata {
+    /// The nested collection position described by this metadata.
     position: SelectorPosition,
+    /// Constraints applied at the selected position.
     constraints: &'static [ConstraintMetadata],
+    /// Validators applied at the selected position.
     validators: &'static [ValidatorMetadata],
+    /// The optional codec declaration for the selected position.
     codec: Option<&'static CodecMetadata>,
+    /// The optional redaction declaration for the selected position.
     redact: Option<&'static RedactMetadata>,
 }
 
@@ -514,18 +564,28 @@ impl SelectorMetadata {
         }
     }
 
+    /// Returns the nested collection position described by this metadata.
+    #[must_use]
     pub const fn position(&self) -> SelectorPosition {
         self.position
     }
+    /// Returns constraints in source order.
+    #[must_use]
     pub const fn constraints(&self) -> &'static [ConstraintMetadata] {
         self.constraints
     }
+    /// Returns validators in source order.
+    #[must_use]
     pub const fn validators(&self) -> &'static [ValidatorMetadata] {
         self.validators
     }
+    /// Returns the codec declaration, or `None` when absent.
+    #[must_use]
     pub const fn codec(&self) -> Option<&'static CodecMetadata> {
         self.codec
     }
+    /// Returns the redaction declaration, or `None` when absent.
+    #[must_use]
     pub const fn redact(&self) -> Option<&'static RedactMetadata> {
         self.redact
     }

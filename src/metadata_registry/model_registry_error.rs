@@ -28,13 +28,19 @@ pub enum ModelRegistryErrorKind {
 /// A shareable model-registry construction error.
 #[derive(Clone, Debug)]
 pub struct ModelRegistryError {
+    /// The machine-readable class of registry construction failure.
     kind: ModelRegistryErrorKind,
+    /// The involved stable model ID, when the failure identifies one.
     model_id: Option<ModelId>,
+    /// Fragment identities involved in the failure.
     sources: Vec<FragmentIdentity>,
+    /// The underlying reflection failure, when reflection initialization
+    /// failed.
     reflection: Option<RegistryError>,
 }
 
 impl ModelRegistryError {
+    /// Wraps a failure from reflection registry initialization.
     pub(crate) fn reflection(error: RegistryError) -> Self {
         Self {
             kind: ModelRegistryErrorKind::ReflectionRegistry,
@@ -44,6 +50,7 @@ impl ModelRegistryError {
         }
     }
 
+    /// Records registrations that reuse the same stable model ID.
     pub(crate) fn duplicate(model_id: ModelId, sources: Vec<FragmentIdentity>) -> Self {
         Self {
             kind: ModelRegistryErrorKind::DuplicateModelId,
@@ -53,6 +60,7 @@ impl ModelRegistryError {
         }
     }
 
+    /// Records a registration whose metadata conflicts with its target.
     pub(crate) fn conflict(model_id: ModelId, sources: Vec<FragmentIdentity>) -> Self {
         Self {
             kind: ModelRegistryErrorKind::RegistrationConflict,
@@ -63,14 +71,18 @@ impl ModelRegistryError {
     }
 
     /// Returns the machine-readable error class.
+    #[must_use]
     pub const fn kind(&self) -> ModelRegistryErrorKind {
         self.kind
     }
-    /// Returns the conflicting model ID, when applicable.
+    /// Returns the conflicting model ID, or `None` when the failure is not
+    /// associated with a model.
+    #[must_use]
     pub const fn model_id(&self) -> Option<ModelId> {
         self.model_id
     }
     /// Returns the registration sources involved in the error.
+    #[must_use]
     pub fn sources(&self) -> &[FragmentIdentity] {
         &self.sources
     }

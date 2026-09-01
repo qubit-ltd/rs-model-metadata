@@ -31,10 +31,15 @@ use crate::ValidatorMetadata;
 /// Model semantics attached to one reflection-owned structural field.
 #[derive(Clone, Copy, Debug)]
 pub struct FieldMetadata {
+    /// The reflection descriptor that defines the structural field.
     reflect: &'static FieldDescriptor,
+    /// Source-order declarations attached to the field.
     attributes: &'static [FieldAttributeMetadata],
+    /// Standard validation constraints attached to the field.
     constraints: &'static [ConstraintMetadata],
+    /// Custom validator declarations attached to the field.
     validators: &'static [ValidatorMetadata],
+    /// The effective Serde behavior for the field.
     serde: &'static SerdeFieldMetadata,
 }
 
