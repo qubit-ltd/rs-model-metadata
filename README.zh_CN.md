@@ -12,13 +12,13 @@
 
 ## 安装
 
-本 crate 使用 Rust 1.94 和 edition 2024。业务 crate 通常同时依赖宏 crate 与
-`qubit-model-metadata` runtime facade：
+本 crate 使用 Rust 1.94 和 edition 2024，且当前未发布到 crates.io（`publish = false`）。
+请在同时包含宏 crate 和 `qubit-model-metadata` 运行时门面的工作区中使用路径依赖；路径需按实际目录调整：
 
 ```toml
 [dependencies]
-qubit-model-derive = "0.1"
-qubit-model-metadata = "0.1"
+qubit-model-derive = { path = "../rs-model-derive" }
+qubit-model-metadata = { path = "../rs-model-metadata" }
 ```
 
 生成代码会通过 `proc-macro-crate` 解析 `qubit-model-metadata` 的实际依赖名，因此支持重命名 runtime
@@ -54,19 +54,19 @@ assert!(metadata.property("email").unwrap().is_writable());
 assert!(metadata.descriptor().model_metadata().is_some());
 ```
 
-角色宏会委托 `qubit-reflect` 生成 Rust 结构描述符，再把唯一的 `TypeMetadata` typed capability
-挂到同一个描述符上。生成的 `Debug`、`Display`、`Serialize` 会遵守脱敏策略，不会把邮箱按普通明文输出。
+角色宏会委托 `qubit-reflect` 生成 Rust 结构描述符，再将唯一的 `TypeMetadata` 类型化能力
+附加到同一个描述符上。生成的 `Debug`、`Display`、`Serialize` 会遵守脱敏策略，不会把邮箱按普通明文输出。
 
 ## 提供的能力
 
-六个 attribute macro 共用解析、规范化、校验和展开流水线：
+六个属性宏共用解析、规范化、校验和展开流程：
 
 - `#[Entity]`：声明带持久化身份的模型。
 - `#[Projection]`：声明实体的开放或固定视图。
 - `#[Model]`：声明普通结构化数据。
 - `#[Enum]`：声明领域枚举，并保留 Rust 名、canonical 名和 Serde 名。
 - `#[Value]`：声明值对象；`transparent` 支持单字段包装类型。
-- `#[ModelProperties]`：把 public inherent getter/setter 与字段合并为安全的属性元数据。
+- `#[ModelProperties]`：把公开固有方法中的 getter/setter 与字段合并为安全的属性元数据。
 
 五种角色默认生成 `Clone`、遵守脱敏策略的 `Debug` / `Display` / `Serialize`，以及
 `Deserialize`、`PartialEq`、`Eq`、`Hash`、`Redact`。可用对应的 `no_*` 参数关闭；`copy`、
@@ -89,7 +89,7 @@ assert!(metadata.descriptor().model_metadata().is_some());
 
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
-- [API 文档](https://docs.rs/qubit-model-derive)
+- 本地 API 文档：在 crate 根目录运行 `cargo doc --open`
 - [最终 API 与实现方案](doc/2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
 - [English README](README.md)
 

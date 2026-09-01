@@ -8,8 +8,8 @@
 
 ## 概念模型
 
-每个角色宏都会委托 `qubit-reflect` 生成 Rust 描述符，再将 `TypeMetadata` 作为 typed capability
-挂到同一个描述符上。Field 是真实存储槽位；Property 是由 field、getter、setter 按名称合并出来的视图。
+每个角色宏都会委托 `qubit-reflect` 生成 Rust 描述符，再将 `TypeMetadata` 作为类型化能力
+附加到同一个描述符上。字段（field）是真实存储槽位；属性（property）是由字段、getter、setter 按名称合并而成的视图。
 
 ```text
 角色声明 -> Reflect descriptor -> model metadata capability
@@ -21,15 +21,15 @@ ModelProperties impl ----------> property capability
 
 ## 贯穿场景：用户实体与登录请求
 
-设想登录服务需要脱敏的邮箱值、可持久化的用户记录，以及指向该用户的登录请求。先添加宏 crate 和 runtime facade：
+设想登录服务需要脱敏的邮箱值、可持久化的用户记录，以及指向该用户的登录请求。宏 crate 当前未发布到 crates.io（`publish = false`）。在同时检出两个仓库的环境中，应使用路径依赖；下面的路径仅为示例，需按工作区目录调整：
 
 ```toml
 [dependencies]
-qubit-model-derive = "0.1"
-qubit-model-metadata = "0.1"
+qubit-model-derive = { path = "../rs-model-derive" }
+qubit-model-metadata = { path = "../rs-model-metadata" }
 ```
 
-下面的声明包含 transparent Value、Entity、带 reference 的 Model，以及 field-backed 和 computed Property：
+下面的声明包含透明值对象、实体、带引用的模型，以及字段支持和计算属性：
 
 ```rust,ignore
 use qubit_model_derive::{Entity, Model, ModelProperties, Value};
@@ -182,4 +182,5 @@ selector 上的脱敏只接受 `redact(level = "...")`。`element` 和 `map_valu
 
 - [README](../README.zh_CN.md)
 - [English user guide](user_guide.md)
+- 本地 API 文档：在 crate 根目录运行 `cargo doc --open`
 - [最终 API 与实现方案](2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)

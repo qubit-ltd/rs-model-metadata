@@ -15,13 +15,15 @@ without maintaining a parallel schema by hand.
 
 ## Installation
 
-This crate targets Rust 1.94 and edition 2024. Applications normally depend on
-the derive crate and the `qubit-model-metadata` runtime facade:
+This crate targets Rust 1.94 and edition 2024. It is not currently published
+to crates.io (`publish = false`), so use checkout paths for the derive crate
+and its `qubit-model-metadata` runtime facade. Adjust the paths to match your
+workspace layout:
 
 ```toml
 [dependencies]
-qubit-model-derive = "0.1"
-qubit-model-metadata = "0.1"
+qubit-model-derive = { path = "../rs-model-derive" }
+qubit-model-metadata = { path = "../rs-model-metadata" }
 ```
 
 Generated code resolves `qubit-model-metadata` with `proc-macro-crate`; a
@@ -107,7 +109,7 @@ the same output key instead of silently overwriting data.
 
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
-- [API documentation](https://docs.rs/qubit-model-derive)
+- Local API documentation: run `cargo doc --open`
 - [Final API and implementation design](doc/2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
 - [中文 README](README.zh_CN.md)
 

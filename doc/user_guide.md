@@ -29,12 +29,15 @@ span the complete linked model set.
 ## Scenario: A User Entity and Login Request
 
 Assume a login service needs a redacted email value, a persistent user record,
-and a request that points at that user. Add the macro crate and runtime facade:
+and a request that points at that user. The derive crate is not currently
+published to crates.io (`publish = false`). In a checkout containing both
+repositories, use paths such as the following and adjust them for your
+workspace layout:
 
 ```toml
 [dependencies]
-qubit-model-derive = "0.1"
-qubit-model-metadata = "0.1"
+qubit-model-derive = { path = "../rs-model-derive" }
+qubit-model-metadata = { path = "../rs-model-metadata" }
 ```
 
 Declare a transparent value, an entity, a reference-bearing model, and one
@@ -240,4 +243,5 @@ and future resolver input only.
 
 - [README](../README.md)
 - [中文用户指南](user_guide.zh_CN.md)
+- Generate local API documentation with `cargo doc --open`.
 - [Final API and implementation design](2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
