@@ -2,9 +2,14 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Validates and expands getter/setter-backed model properties.
+
+// qubit-style: allow multiple-public-types
+// The private getter/setter representations are tightly coupled expansion data.
 
 use heck::ToSnakeCase;
 use proc_macro2::TokenStream;
@@ -12,14 +17,23 @@ use quote::format_ident;
 use quote::quote;
 use syn::Error;
 use syn::FnArg;
+use syn::GenericArgument;
+use syn::Ident;
 use syn::ImplItem;
 use syn::ImplItemFn;
 use syn::ItemImpl;
+use syn::PathArguments;
 use syn::Result;
 use syn::ReturnType;
 use syn::Type;
+use syn::TypePath;
+use syn::TypeReference;
 use syn::Visibility;
 
+/// Validates that `item` is a non-generic inherent implementation.
+///
+/// Returns a diagnostic describing the first unsupported trait or generic
+/// shape; the supplied syntax tree is never modified.
 pub(crate) fn validate_property_impl(item: &ItemImpl) -> Result<()> {
     if item.trait_.is_some() {
         return Err(Error::new_spanned(item, "ModelProperties requires an inherent impl"));
@@ -33,6 +47,7 @@ pub(crate) fn validate_property_impl(item: &ItemImpl) -> Result<()> {
     Ok(())
 }
 
+/// Classifies the Rust return shape accepted for a property getter.
 #[derive(Clone)]
 enum GetterReturn {
     Owned(Type),
@@ -43,20 +58,26 @@ enum GetterReturn {
     OptionalBorrowedStr,
 }
 
+/// Records the name, method, and return classification of one getter.
 #[derive(Clone)]
 struct GetterIr {
     property: String,
-    method: syn::Ident,
+    method: Ident,
     output: GetterReturn,
 }
 
+/// Records the name, method, and input type of one setter.
 #[derive(Clone)]
 struct SetterIr {
     property: String,
-    method: syn::Ident,
+    method: Ident,
     input: Type,
 }
 
+/// Expands property adapters and metadata for an already parsed implementation.
+///
+/// `item` is preserved in the emitted tokens and `runtime` identifies the
+/// metadata facade. Returns diagnostics for invalid property-method contracts.
 pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result<TokenStream> {
     let target = (*item.self_ty).clone();
     let mut getters = Vec::new();
@@ -211,11 +232,16 @@ pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result
     })
 }
 
+/// Represents one validated property method.
 enum PropertyMethod {
     Getter(GetterIr),
     Setter(SetterIr),
 }
 
+/// Parses one public inherent method as either a getter or a setter.
+///
+/// Returns a diagnostic when visibility, receiver, generic, async, or return
+/// type requirements do not match the property contract.
 fn parse_property_method(method: &ImplItemFn) -> Result<PropertyMethod> {
     if !matches!(method.vis, Visibility::Public(_)) {
         return Err(Error::new_spanned(
@@ -314,28 +340,37 @@ fn parse_property_method(method: &ImplItemFn) -> Result<PropertyMethod> {
     }))
 }
 
-fn option_borrowed_type(path: &syn::TypePath) -> Option<&syn::TypeReference> {
+/// Returns the borrowed inner type when `path` is an `Option<&T>` spelling.
+///
+/// `None` means that the syntax does not represent the supported optional
+/// borrowed getter return shape.
+fn option_borrowed_type(path: &TypePath) -> Option<&TypeReference> {
     let segment = path.path.segments.last()?;
     if segment.ident != "Option" {
         return None;
     }
-    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+    let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
         return None;
     };
     if arguments.args.len() != 1 {
         return None;
     }
-    let syn::GenericArgument::Type(Type::Reference(reference)) = arguments.args.first()? else {
+    let GenericArgument::Type(Type::Reference(reference)) = arguments.args.first()? else {
         return None;
     };
     (reference.mutability.is_none()).then_some(reference)
 }
 
+/// Reports whether `output` is the unit return type required by setters.
 fn returns_unit(output: &ReturnType) -> bool {
     matches!(output, ReturnType::Default)
         || matches!(output, ReturnType::Type(_, ty) if matches!(ty.as_ref(), Type::Tuple(tuple) if tuple.elems.is_empty()))
 }
 
+/// Adds diagnostics for duplicate getter or setter property names.
+///
+/// `errors` accumulates all failures so callers can return one combined
+/// compiler diagnostic instead of stopping at the first duplicate.
 fn validate_unique_property_methods(getters: &[GetterIr], setters: &[SetterIr], errors: &mut Option<Error>) {
     for (index, getter) in getters.iter().enumerate() {
         if getters[..index].iter().any(|other| other.property == getter.property) {
@@ -349,6 +384,10 @@ fn validate_unique_property_methods(getters: &[GetterIr], setters: &[SetterIr], 
     }
 }
 
+/// Generates the adapter that exposes one getter through runtime reflection.
+///
+/// `index` makes the generated symbol unique; `getter`, `target`, and
+/// `runtime` supply the validated method contract and emitted type paths.
 fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
     let adapter = format_ident!(
         "__qubit_model_property_getter_{index}_{}",
@@ -387,6 +426,10 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
     }
 }
 
+/// Generates the adapter that exposes one setter through runtime reflection.
+///
+/// `index` makes the generated symbol unique; `setter`, `target`, and
+/// `runtime` supply the validated method contract and emitted type paths.
 fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
     let adapter = format_ident!(
         "__qubit_model_property_setter_{index}_{}",
@@ -408,6 +451,7 @@ fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime
     }
 }
 
+/// Appends `error` to the optional combined compiler diagnostic.
 fn combine(errors: &mut Option<Error>, error: Error) {
     match errors {
         Some(current) => current.combine(error),
