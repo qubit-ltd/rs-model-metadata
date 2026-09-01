@@ -307,6 +307,7 @@ version = "0.5.0"
 dependencies = [
  "parking_lot",
  "qubit-clock",
+ "serde",
  "thiserror",
 ]
 
@@ -317,7 +318,6 @@ dependencies = [
  "heck",
  "proc-macro-crate",
  "proc-macro2",
- "qubit-redact",
  "quote",
  "syn 2.0.119",
 ]
@@ -326,9 +326,12 @@ dependencies = [
 name = "qubit-model-metadata"
 version = "0.1.0"
 dependencies = [
+ "bigdecimal",
  "bitflags",
+ "chrono",
  "inventory",
  "qubit-codec",
+ "qubit-id",
  "qubit-redact",
  "qubit-reflect",
  "qubit-validator",

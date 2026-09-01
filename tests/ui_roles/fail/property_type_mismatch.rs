@@ -2,20 +2,23 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use ::model_runtime::TypeMetadata;
 use qubit_model_derive::Model;
+use qubit_model_derive::ModelImpl;
 
-mod model_runtime {}
-
-#[Model(id = "test.derive.Renamed")]
-struct Renamed {
-    value: String,
+#[Model]
+struct Profile {
+    value: u32,
 }
 
-fn main() {
-    assert_eq!(TypeMetadata::of::<Renamed>().fields().len(), 1);
+#[ModelImpl]
+impl Profile {
+    pub fn value(&self) -> u32 {
+        self.value
+    }
+
+    pub fn set_value(&mut self, _value: String) {}
 }
+
+fn main() {}

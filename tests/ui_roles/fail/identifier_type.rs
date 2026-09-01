@@ -2,11 +2,14 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Generates Rust tokens from validated model declarations.
+use qubit_model_derive::Entity;
 
-pub(crate) mod declaration;
-pub(crate) mod model_impl;
+#[Entity(id = "example.InvalidIdentifier")]
+struct InvalidIdentifier {
+    #[identifier]
+    id: u64,
+}
+
+fn main() {}

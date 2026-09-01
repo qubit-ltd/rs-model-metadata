@@ -1,0 +1,5 @@
+error: invalid unsigned validator integer: number too large to fit in target type
+  --> tests/ui_roles/fail/validator_array_overflow.rs:13:26
+   |
+13 |         params(values = [340282366920938463463374607431768211456])
+   |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

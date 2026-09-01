@@ -7,11 +7,12 @@
 // =============================================================================
 
 use qubit_model_derive::Model;
+use qubit_model_metadata::__private::qubit_id::Id;
 
 #[Model(id = "test.linked.Source")]
 pub struct Source {
     #[reference(entity_id = "test.linked.Target", property = id)]
-    pub target_id: i64,
+    pub target_id: Id,
 }
 
 #[cfg(feature = "duplicate-fixture")]
@@ -22,5 +23,5 @@ pub struct Duplicate;
 #[Model(id = "test.linked.MissingTarget")]
 pub struct MissingTarget {
     #[reference(entity_id = "test.linked.Absent", property = id)]
-    pub target_id: i64,
+    pub target_id: Id,
 }

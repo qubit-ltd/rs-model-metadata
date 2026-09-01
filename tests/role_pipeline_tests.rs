@@ -6,35 +6,33 @@
 
 //! Runtime smoke coverage for all six shared macro entry points.
 
+use model_runtime::__private::qubit_id::Id;
 use model_runtime::TypeDescriptor;
 use model_runtime::TypeMetadata;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
-use qubit_model_derive::ModelProperties;
+use qubit_model_derive::ModelImpl;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
 
 #[Entity(id = "example.EntityFixture")]
 struct EntityFixture {
     #[identifier]
-    id: u64,
+    id: Id,
 }
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
-struct ExternalIdentifier(u64);
 
 #[Entity(id = "example.OpaqueIdentifierFixture")]
 struct OpaqueIdentifierFixture {
     #[identifier]
     #[opaque]
-    id: ExternalIdentifier,
+    id: Id,
 }
 
 #[Projection(source_id = "example.EntityFixture")]
 struct ProjectionFixture {
     #[identifier]
-    id: u64,
+    id: Id,
 }
 
 #[Model]
@@ -56,7 +54,7 @@ struct GenericModel<T> {
     value: T,
 }
 
-#[ModelProperties]
+#[ModelImpl]
 impl ModelFixture {
     pub fn value(&self) -> &str {
         &self.value
@@ -81,12 +79,9 @@ fn test_six_entry_points_share_reflection_expansion() {
         generic_string.generic_definition().expect("shared generic definition"),
     ));
     assert_eq!(ModelFixture { value: "ok".into() }.value(), "ok");
-    let _ = EntityFixture { id: 1 }.id;
-    let _ = OpaqueIdentifierFixture {
-        id: ExternalIdentifier(2),
-    }
-    .id;
-    let _ = ProjectionFixture { id: 1 }.id;
+    let _ = EntityFixture { id: Id::new(1) }.id;
+    let _ = OpaqueIdentifierFixture { id: Id::new(2) }.id;
+    let _ = ProjectionFixture { id: Id::new(1) }.id;
     let _ = EnumFixture::Ready;
     let EnumFixture::Data(value) = EnumFixture::Data(2) else {
         unreachable!()

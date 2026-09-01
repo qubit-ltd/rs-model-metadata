@@ -24,6 +24,6 @@ pub(crate) enum MacroKind {
     Enum,
     /// Compiles a domain value declaration.
     Value,
-    /// Compiles getter/setter property metadata.
-    ModelProperties,
+    /// Compiles model-aware inherent implementation metadata.
+    ModelImpl,
 }

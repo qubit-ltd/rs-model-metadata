@@ -18,5 +18,5 @@ use crate::ir::MacroKind;
 /// token streams. This conversion never panics for invalid user input; errors
 /// are emitted as compiler diagnostics in the returned token stream.
 pub(crate) fn expand(kind: MacroKind, args: TokenStream, input: TokenStream) -> TokenStream {
-    crate::expand::metadata::expand(kind, args.into(), input.into()).into()
+    crate::expand::declaration::expand(kind, args.into(), input.into()).into()
 }

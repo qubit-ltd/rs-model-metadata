@@ -1,5 +1,6 @@
-use qubit_model_derive::Enum;
+use model_runtime::__private::qubit_id::Id;
 use qubit_model_derive::Entity;
+use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
@@ -7,13 +8,13 @@ use qubit_model_derive::Value;
 #[Entity(id = "trybuild.Source")]
 struct Source {
     #[identifier]
-    id: u64,
+    id: Id,
 }
 
 #[Projection(source = Source)]
 struct View {
     #[identifier]
-    id: u64,
+    id: Id,
 }
 
 #[Model(no_serialize, no_deserialize)]
@@ -40,6 +41,8 @@ fn main() {
     let _ = Buffer::<4> { bytes: [0; 4] };
     let _ = Revision(1).to_string();
     let _ = Status::Ready;
-    let _ = View { id: 1 };
-    let _ = ExistingSafeSerialize { value: String::new() };
+    let _ = View { id: Id::new(1) };
+    let _ = ExistingSafeSerialize {
+        value: String::new(),
+    };
 }

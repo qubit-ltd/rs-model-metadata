@@ -2,20 +2,17 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use ::model_runtime::TypeMetadata;
 use qubit_model_derive::Model;
 
-mod model_runtime {}
-
-#[Model(id = "test.derive.Renamed")]
-struct Renamed {
-    value: String,
+#[Model]
+struct InvalidValidatorArgument {
+    #[validator(
+        id = "example.validator",
+        params(values = [340282366920938463463374607431768211456])
+    )]
+    value: u64,
 }
 
-fn main() {
-    assert_eq!(TypeMetadata::of::<Renamed>().fields().len(), 1);
-}
+fn main() {}

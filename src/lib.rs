@@ -72,14 +72,14 @@ pub fn Value(args: TokenStream, input: TokenStream) -> TokenStream {
     entry::expand(MacroKind::Value, args, input)
 }
 
-/// Compiles getter/setter-backed model properties on an inherent
-/// implementation.
+/// Compiles model-aware getters, setters, and projection producers on an
+/// inherent implementation.
 ///
 /// This attribute accepts no configuration arguments. `input` must be an
 /// inherent implementation whose public, synchronous methods follow the getter
 /// or setter contract. Returns generated Rust tokens or compiler diagnostics.
 #[proc_macro_attribute]
 #[allow(non_snake_case)]
-pub fn ModelProperties(args: TokenStream, input: TokenStream) -> TokenStream {
-    entry::expand(MacroKind::ModelProperties, args, input)
+pub fn ModelImpl(args: TokenStream, input: TokenStream) -> TokenStream {
+    entry::expand(MacroKind::ModelImpl, args, input)
 }

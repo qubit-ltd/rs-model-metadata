@@ -1,19 +1,23 @@
 use qubit_model_derive::Model;
-use qubit_model_derive::ModelProperties;
+use qubit_model_derive::ModelImpl;
 
 #[Model]
 struct Item {
     value: String,
 }
 
-#[ModelProperties]
+#[ModelImpl]
 impl Item {
-    pub fn value(&self) -> &str { &self.value }
+    pub fn value(&self) -> &str {
+        &self.value
+    }
 }
 
-#[ModelProperties]
+#[ModelImpl]
 impl Item {
-    pub fn value_length(&self) -> usize { self.value.len() }
+    pub fn value_length(&self) -> usize {
+        self.value.len()
+    }
 }
 
 fn main() {}
