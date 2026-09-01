@@ -60,10 +60,14 @@ assert!(account.property("email").unwrap().is_readable());
 等所有模型 crate 链接完成后，再集中收集注册项并解析外部关系：
 
 ```rust,ignore
+use qubit_codec::ValueCodecRegistry;
 use qubit_model_metadata::{ModelRegistry, ModelResolver, ResolveInputs, TypeMetadata};
+use qubit_validator::ValidatorRegistry;
 
-let registry = ModelRegistry::try_global()?;
-let graph = ModelResolver::new(ResolveInputs { models: registry }).resolve_all()?;
+let models = ModelRegistry::try_global()?;
+let validators = ValidatorRegistry::try_global()?;
+let codecs = ValueCodecRegistry::try_global()?;
+let graph = ModelResolver::new(ResolveInputs { models, validators, codecs }).resolve_all()?;
 let field = TypeMetadata::of::<Login>().field("account_id").unwrap();
 assert_eq!(
     graph.reference(field).unwrap().target().model_id().unwrap().as_str(),
@@ -87,10 +91,13 @@ getter adapter 保留借用生命周期；setter 若在执行前失败，会归�
 ## 错误、诊断与排障
 
 - `ModelRegistryError` 表示重复 ID 或反射注册表初始化失败。
-- `ModelResolveErrors` 聚合缺失 ID、角色错误、Property 缺失或不可读、Projection source 无效等问题。
+- `ModelResolveErrors` 聚合缺失 ID、角色错误、Property 缺失或不可读、Projection source 无效，以及
+  validator/codec 注册缺失或 value type 不兼容等问题。
 - `TypeMetadata::of::<T>()` 无法编译时，检查 `T` 是否由角色宏生成，以及字段是否满足自动实现所需 trait bound。
 - `descriptor()` 返回 `None` 时应继续检查 `type_ref()`；opaque 和 symbolic 类型本来就没有 concrete descriptor。
-- 0.1.x 只保存 validator 的 ID、参数与依赖声明，不提供 validator 注册或执行。
+- 成功解析的 validator 会公开强类型注册项及可读 dependency Property；成功解析的 codec 会公开可执行
+  descriptor，ID 声明还会保留对应注册项。
+- `QMM-ABI-*` panic 表示生成代码或手写隐藏 ABI metadata 违反局部不变量，且已在发布前被拒绝。
 
 ## 限制与最佳实践
 

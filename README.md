@@ -34,12 +34,14 @@ Core boundaries:
 - `TypeDescriptor`, `FieldDescriptor`, `TypeRef`, and dynamic values come from
   `qubit-reflect`; this crate does not create a parallel reflection system.
 - Static metadata lookup does not initialize the global model registry.
-- Cross-crate IDs, references, projection sources, and queries are checked only
-  by an explicit `ModelResolver` pass.
-- Validator declarations are metadata only in this release; validator
-  registration and execution are intentionally deferred.
-- Codec declarations use `qubit-codec` types and `ValueEncoder` /
-  `ValueDecoder` bounds.
+- Cross-crate IDs, references, projection sources, queries, validators, and
+  codecs are bound only by an explicit `ModelResolver` pass over model,
+  validator, and codec registries.
+- Validators use the typed `qubit-validator` contract; codecs use
+  `qubit-codec::ValueCodecDescriptor`. Both registries expose safely erased
+  executable descriptors after exact value-type checks.
+- Generated metadata crosses the hidden v2 ABI only after descriptor, field,
+  property, role, and codec invariants have been checked.
 
 See the [user guide](doc/user_guide.md) for the complete workflow and the
 [API documentation](https://docs.rs/qubit-model-metadata).

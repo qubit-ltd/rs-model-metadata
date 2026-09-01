@@ -32,10 +32,12 @@ assert!(metadata.descriptor().model_metadata().is_some());
 - `TypeDescriptor`、`FieldDescriptor`、`TypeRef` 和动态值均来自
   `qubit-reflect`，本 crate 不维护平行反射系统。
 - 静态 metadata 查询不会初始化全局模型注册表。
-- 跨 crate ID、reference、Projection source 和 Query 只在显式
-  `ModelResolver` 阶段校验。
-- 当前版本的 validator 只保存声明 metadata，注册与执行留待后续设计。
-- codec 直接使用 `qubit-codec` 及其 `ValueEncoder` / `ValueDecoder` 约束。
+- 跨 crate ID、reference、Projection source、Query、validator 和 codec
+  只在显式 `ModelResolver` 阶段，基于 model、validator、codec 三个注册表完成绑定。
+- validator 使用强类型 `qubit-validator` 契约；codec 使用
+  `qubit-codec::ValueCodecDescriptor`。二者经精确 value type 校验后提供安全类型擦除的可执行 descriptor。
+- 生成的 metadata 只有通过隐藏 ABI v2 对 descriptor、field、property、role 和 codec
+  不变量的检查后才能发布。
 
 完整流程见[用户指南](doc/user_guide.zh_CN.md)，API 细节见
 [docs.rs](https://docs.rs/qubit-model-metadata)。
