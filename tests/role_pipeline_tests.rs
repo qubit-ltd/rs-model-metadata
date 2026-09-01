@@ -7,6 +7,7 @@
 //! Runtime smoke coverage for all six shared macro entry points.
 
 use model_runtime::TypeDescriptor;
+use model_runtime::TypeMetadata;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
@@ -71,8 +72,8 @@ fn test_six_entry_points_share_reflection_expansion() {
     assert_eq!(TypeDescriptor::of::<EnumFixture>().variants().len(), 2);
     assert_eq!(TypeDescriptor::of::<ValueFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<GenericModel<u64>>().fields().len(), 1);
-    let generic_u64 = model_runtime::TypeMetadata::of::<GenericModel<u64>>();
-    let generic_string = model_runtime::TypeMetadata::of::<GenericModel<String>>();
+    let generic_u64 = TypeMetadata::of::<GenericModel<u64>>();
+    let generic_string = TypeMetadata::of::<GenericModel<String>>();
     assert!(!std::ptr::eq(generic_u64, generic_string));
     assert_eq!(generic_u64.model_id(), None);
     assert!(std::ptr::eq(
@@ -98,11 +99,7 @@ fn test_six_entry_points_share_reflection_expansion() {
 #[test]
 fn test_generic_metadata_initialization_is_unique_across_threads() {
     let addresses = (0..8)
-        .map(|_| {
-            std::thread::spawn(|| {
-                model_runtime::TypeMetadata::of::<GenericModel<u32>>() as *const model_runtime::TypeMetadata as usize
-            })
-        })
+        .map(|_| std::thread::spawn(|| TypeMetadata::of::<GenericModel<u32>>() as *const TypeMetadata as usize))
         .map(|thread| thread.join().expect("metadata thread must complete"))
         .collect::<Vec<_>>();
 
