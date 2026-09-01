@@ -150,7 +150,8 @@ pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result
             };
             quote! {
                 {
-                    let output_type = #runtime::__private::descriptor::lazy_type_ref::<#ty>().get();
+                    let output_type =
+                        #runtime::__private::reflect_codegen_v1::descriptor::lazy_type_ref::<#ty>().get();
                     let getter = #runtime::__private::v2::leak(
                         #runtime::GetterMetadata::new::<#target>(#method, output_type, #kind, #adapter),
                     );
@@ -169,7 +170,8 @@ pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result
             let adapter = format_ident!("__qubit_model_property_setter_{index}_{}", target_name);
             quote! {
                 {
-                    let input_type = #runtime::__private::descriptor::lazy_type_ref::<#ty>().get();
+                    let input_type =
+                        #runtime::__private::reflect_codegen_v1::descriptor::lazy_type_ref::<#ty>().get();
                     let setter = #runtime::__private::v2::leak(
                         #runtime::SetterMetadata::new::<#target, #ty>(#method, input_type, #adapter),
                     );

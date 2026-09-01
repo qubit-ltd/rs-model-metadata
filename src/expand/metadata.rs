@@ -2540,7 +2540,7 @@ fn expand_generic_template(
                 let field_type: &'static #runtime::descriptor::TypeRef = #runtime::__private::v2::leak(
                     #runtime::descriptor::TypeRef::Symbolic(#expression),
                 );
-                descriptors.push(#runtime::__private::descriptor::field(
+                descriptors.push(#runtime::__private::reflect_codegen_v1::descriptor::field(
                     #root,
                     #index,
                     #rust_name,
@@ -2580,7 +2580,7 @@ fn expand_generic_template(
                 let mut descriptors = ::std::vec::Vec::new();
                 #(#field_descriptors)*
                 let descriptors = #runtime::__private::v2::leak_slice(descriptors);
-                #runtime::__private::descriptor::struct_type::<#marker>(
+                #runtime::__private::reflect_codegen_v1::descriptor::struct_type::<#marker>(
                     #query_name,
                     #struct_kind,
                     descriptors,
@@ -2627,19 +2627,17 @@ fn expand_type_expression(
                             let expression = expand_const_expression(value, const_parameters, runtime);
                             let diagnostic = LitStr::new(&quote!(#value).to_string(), proc_macro2::Span::call_site());
                             Some(quote!(#runtime::expression::GenericArgument::Const(
-                                #runtime::expression::ConstGenericArgument {
-                                    declared_type: ::std::boxed::Box::new(
-                                        #runtime::expression::TypeExpression::Concrete(
-                                            #runtime::expression::ConcreteTypeExpression {
-                                                path: ::std::boxed::Box::new(["_".into()]),
-                                                arguments: ::std::boxed::Box::new([]),
-                                                diagnostic: #runtime::expression::DiagnosticText::default(),
-                                            },
+                                #runtime::__private::reflect_codegen_v1::expression::const_argument(
+                                    #runtime::expression::TypeExpression::Concrete(
+                                        #runtime::__private::reflect_codegen_v1::expression::concrete(
+                                            ::std::boxed::Box::new(["_".into()]),
+                                            ::std::boxed::Box::new([]),
+                                            #runtime::expression::DiagnosticText::default(),
                                         ),
                                     ),
-                                    value: #expression,
-                                    normalized_diagnostic: #diagnostic.into(),
-                                },
+                                    #expression,
+                                    #diagnostic,
+                                ),
                             )))
                         }
                         _ => None,
@@ -2647,11 +2645,11 @@ fn expand_type_expression(
                     .collect()
             });
             quote!(#runtime::expression::TypeExpression::Concrete(
-                #runtime::expression::ConcreteTypeExpression {
-                    path: ::std::boxed::Box::new([#(#segments.into()),*]),
-                    arguments: ::std::boxed::Box::new([#(#arguments),*]),
-                    diagnostic: #runtime::expression::DiagnosticText::default(),
-                },
+                #runtime::__private::reflect_codegen_v1::expression::concrete(
+                    ::std::boxed::Box::new([#(#segments.into()),*]),
+                    ::std::boxed::Box::new([#(#arguments),*]),
+                    #runtime::expression::DiagnosticText::default(),
+                ),
             ))
         }
         Type::Slice(slice) => {
@@ -2662,11 +2660,10 @@ fn expand_type_expression(
             let element = expand_type_expression(&array.elem, type_parameters, const_parameters, runtime);
             let length = expand_const_expression(&array.len, const_parameters, runtime);
             quote!(#runtime::expression::TypeExpression::Array(
-                #runtime::expression::ArrayTypeExpression {
-                    element: ::std::boxed::Box::new(#element),
-                    length: #length,
-                    diagnostic: #runtime::expression::DiagnosticText::default(),
-                },
+                #runtime::__private::reflect_codegen_v1::expression::array(
+                    #element,
+                    #length,
+                ),
             ))
         }
         Type::Tuple(tuple) => {
@@ -2701,22 +2698,21 @@ fn expand_type_expression(
             };
             let mutable = reference.mutability.is_some();
             quote!(#runtime::expression::TypeExpression::Reference(
-                #runtime::expression::ReferenceTypeExpression {
-                    lifetime: #lifetime,
-                    mutable: #mutable,
-                    target: ::std::boxed::Box::new(#target),
-                    diagnostic: #runtime::expression::DiagnosticText::default(),
-                },
+                #runtime::__private::reflect_codegen_v1::expression::reference(
+                    #lifetime,
+                    #mutable,
+                    #target,
+                ),
             ))
         }
         _ => {
             let source = LitStr::new(&quote!(#ty).to_string(), proc_macro2::Span::call_site());
             quote!(#runtime::expression::TypeExpression::Concrete(
-                #runtime::expression::ConcreteTypeExpression {
-                    path: ::std::boxed::Box::new([#source.into()]),
-                    arguments: ::std::boxed::Box::new([]),
-                    diagnostic: #runtime::expression::DiagnosticText::from(#source),
-                },
+                #runtime::__private::reflect_codegen_v1::expression::concrete(
+                    ::std::boxed::Box::new([#source.into()]),
+                    ::std::boxed::Box::new([]),
+                    #runtime::expression::DiagnosticText::from(#source),
+                ),
             ))
         }
     }

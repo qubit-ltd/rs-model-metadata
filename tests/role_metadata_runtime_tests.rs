@@ -367,7 +367,7 @@ fn test_generic_model_registers_only_its_definition() {
     assert!(concrete.descriptor().model_metadata().is_some());
     let definition = concrete.generic_definition().expect("generic definition");
     assert_eq!(definition.model_id().as_str(), "runtime.Page");
-    assert_eq!(definition.definition().parameters.len(), 1);
+    assert_eq!(definition.definition().parameters().len(), 1);
     assert_eq!(definition.fields().len(), 1);
     let template_field = &definition.fields()[0];
     assert_eq!(template_field.name(), Some("value"));
@@ -382,7 +382,7 @@ fn test_generic_model_registers_only_its_definition() {
 
     let buffer = TypeMetadata::of::<Buffer<4>>();
     let definition = buffer.generic_definition().expect("const generic definition");
-    assert_eq!(definition.definition().parameters.len(), 1);
+    assert_eq!(definition.definition().parameters().len(), 1);
     assert!(definition.fields()[0].type_ref().as_symbolic().is_some());
 }
 
