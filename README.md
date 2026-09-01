@@ -15,7 +15,7 @@ pipeline:
 
 ```rust,ignore
 use qubit_model_derive::{Entity, ModelProperties};
-use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
 
 #[Entity(id = "example.User")]
 pub struct User {
@@ -34,6 +34,7 @@ impl User {
 
 let metadata = TypeMetadata::of::<User>();
 assert!(metadata.property("email").unwrap().is_writable());
+assert!(metadata.descriptor().model_metadata().is_some());
 ```
 
 Generated code refers only to the resolved `qubit-model-metadata` facade. It

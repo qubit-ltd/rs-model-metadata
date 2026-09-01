@@ -69,12 +69,13 @@ impl User {
 随后可以直接查询静态 metadata：
 
 ```rust,ignore
-use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
 
 let user = TypeMetadata::of::<User>();
 assert!(user.field("id").unwrap().is_identifier());
 assert!(user.property("email").unwrap().is_writable());
 assert!(user.property("alias_slice").unwrap().is_computed());
+assert!(user.descriptor().model_metadata().is_some());
 ```
 
 所有业务 crate 链接完成后，再显式解析关系：

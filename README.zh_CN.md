@@ -14,7 +14,7 @@
 
 ```rust,ignore
 use qubit_model_derive::{Entity, ModelProperties};
-use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
 
 #[Entity(id = "example.User")]
 pub struct User {
@@ -33,6 +33,7 @@ impl User {
 
 let metadata = TypeMetadata::of::<User>();
 assert!(metadata.property("email").unwrap().is_writable());
+assert!(metadata.descriptor().model_metadata().is_some());
 ```
 
 生成代码只引用解析后的 `qubit-model-metadata` facade，由 `qubit-reflect` 提供唯一 Rust 结构，
