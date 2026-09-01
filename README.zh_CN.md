@@ -1,16 +1,33 @@
 # qubit-model-derive
 
-[English](README.md) | [用户指南](doc/user_guide.zh_CN.md)
+[![Rust CI](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-derive/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-derive/coverage/)
+[![Crates.io](https://img.shields.io/crates/v/qubit-model-derive.svg?color=blue)](https://crates.io/crates/qubit-model-derive)
+[![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
-`qubit-model-derive` 提供 Qubit Rust 模型的最终 attribute macro API。六个宏共用同一套解析、
-校验、规范化与展开流水线：
+`qubit-model-derive` 把 Rust 领域类型声明编译为 Qubit 模型元数据。它面向需要同时获得 Rust
+结构反射和领域语义的应用、框架作者：身份、约束、关系、脱敏、序列化策略与安全属性都从同一份类型声明生成，无需手工维护另一套 schema。
 
-- `#[Entity]`：有持久化身份的领域实体；
-- `#[Projection]`：Entity 的 open 或 fixed 视图；
-- `#[Model]`：普通结构化数据；
-- `#[Enum]`：领域枚举；
-- `#[Value]`：值对象与 transparent wrapper；
-- `#[ModelProperties]`：基于安全 getter/setter 的 Property。
+## 安装
+
+本 crate 使用 Rust 1.94 和 edition 2024。业务 crate 通常同时依赖宏 crate 与
+`qubit-model-metadata` runtime facade：
+
+```toml
+[dependencies]
+qubit-model-derive = "0.1"
+qubit-model-metadata = "0.1"
+```
+
+生成代码会通过 `proc-macro-crate` 解析 `qubit-model-metadata` 的实际依赖名，因此支持重命名 runtime
+依赖；业务 crate 不必直接依赖 `qubit-reflect`。
+
+## 快速开始
+
+以登录服务为例：用户必须有稳定身份，邮箱不能在日志中明文输出，框架还需要发现可写的 `email`
+属性。只需声明一次模型：
 
 ```rust,ignore
 use qubit_model_derive::{Entity, ModelProperties};
@@ -32,23 +49,79 @@ impl User {
 }
 
 let metadata = TypeMetadata::of::<User>();
+assert!(metadata.field("id").unwrap().is_identifier());
 assert!(metadata.property("email").unwrap().is_writable());
 assert!(metadata.descriptor().model_metadata().is_some());
 ```
 
-生成代码只引用解析后的 `qubit-model-metadata` facade，由 `qubit-reflect` 提供唯一 Rust 结构，
-模型层只生成领域语义 overlay；只有带稳定 ID 的声明才注册。runtime dependency 可以重命名。
+角色宏会委托 `qubit-reflect` 生成 Rust 结构描述符，再把唯一的 `TypeMetadata` typed capability
+挂到同一个描述符上。生成的 `Debug`、`Display`、`Serialize` 会遵守脱敏策略，不会把邮箱按普通明文输出。
 
-五种角色默认提供 `Clone`、经过脱敏的 `Debug` / `Display` / `Serialize`、`Deserialize`、
-`PartialEq`、`Eq`、`Hash` 和 `Redact`。可以使用对应 `no_*` 参数关闭接口；`copy`、
-`default`、`partial_ord`、`ord` 为显式启用。全 unit Enum 默认 `Copy`，可用 `no_copy` 关闭。
+## 提供的能力
 
-小写 `#[validator(...)]` 当前只生成声明 metadata，不包含 validator 注册和执行。Rust codec 类型必须满足
-`qubit-codec` 的 `ValueEncoder` 与 `ValueDecoder` 约束。
+六个 attribute macro 共用解析、规范化、校验和展开流水线：
 
-如果还要添加用户自定义 `#[derive(...)]`，请把角色 attribute 写在它前面，以便模型宏检测并复用或拒绝已有输出实现。
+- `#[Entity]`：声明带持久化身份的模型。
+- `#[Projection]`：声明实体的开放或固定视图。
+- `#[Model]`：声明普通结构化数据。
+- `#[Enum]`：声明领域枚举，并保留 Rust 名、canonical 名和 Serde 名。
+- `#[Value]`：声明值对象；`transparent` 支持单字段包装类型。
+- `#[ModelProperties]`：把 public inherent getter/setter 与字段合并为安全的属性元数据。
 
-完整用法见[用户指南](doc/user_guide.zh_CN.md)和
-[`2026-08-31` 最终设计](doc/2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)。
+五种角色默认生成 `Clone`、遵守脱敏策略的 `Debug` / `Display` / `Serialize`，以及
+`Deserialize`、`PartialEq`、`Eq`、`Hash`、`Redact`。可用对应的 `no_*` 参数关闭；`copy`、
+`default`、`partial_ord`、`ord` 需要显式开启。全 unit Enum 默认实现 `Copy`，指定 `no_copy`
+后例外。
 
-本项目采用 Apache-2.0 许可证。
+角色 attribute 必须写在用户自定义 `#[derive(...)]` 前，使宏能够识别会重复生成实现或绕开脱敏输出的组合。
+
+## 边界
+
+通过 `TypeMetadata::of::<T>()` 或 `ModelDescriptorExt::model_metadata()` 查询静态元数据不会初始化全局注册表。只有在所有参与模型 crate 都已链接后，才使用 `ModelRegistry` 和 `ModelResolver`
+解析稳定 ID、reference、Projection 来源或 Query。
+
+小写 `#[validator(...)]` 目前仅生成已校验的声明元数据，不注册、解析或执行 validator。Rust codec
+必须满足 `qubit-codec` 的 `Default`、`ValueEncoder`、`ValueDecoder` 契约。若多个原始 map key
+脱敏后相同，序列化会失败，避免静默覆盖数据。
+
+## 延伸阅读
+
+- [English user guide](doc/user_guide.md)
+- [中文用户指南](doc/user_guide.zh_CN.md)
+- [API 文档](https://docs.rs/qubit-model-derive)
+- [最终 API 与实现方案](doc/2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
+- [English README](README.md)
+
+## 测试
+
+```bash
+# 使用默认 feature 集运行测试
+cargo test
+
+# 使用项目声明的全部 feature 运行测试
+cargo test --all-features
+
+# 运行项目 CI 检查
+./ci-check.sh
+
+# 检查代码覆盖率
+./coverage.sh
+```
+
+## 许可证
+
+Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
+
+本项目基于 Apache License 2.0 授权。完整许可证文本请参阅
+[LICENSE](LICENSE)。
+
+## 贡献
+
+欢迎贡献。请遵循 Rust API 指南，及时更新公共 API 文档与测试，并在提交
+Pull Request 前运行 `./align-ci.sh`格式化代码，运行`./ci-check.sh`对齐CI要求。
+
+## 作者
+
+**Haixing Hu** - *Qubit Co. Ltd.*
+
+仓库地址：[https://github.com/qubit-ltd/rs-model-derive](https://github.com/qubit-ltd/rs-model-derive)
