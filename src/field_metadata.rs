@@ -54,7 +54,7 @@ impl FieldMetadata {
     /// Creates a complete generated overlay.
     #[doc(hidden)]
     #[must_use]
-    pub const fn with_semantics(
+    pub(crate) const fn with_semantics(
         reflect: &'static FieldDescriptor,
         attributes: &'static [FieldAttributeMetadata],
         constraints: &'static [ConstraintMetadata],

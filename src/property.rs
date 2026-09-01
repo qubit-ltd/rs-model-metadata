@@ -251,6 +251,11 @@ impl GetterMetadata {
         self.output_kind
     }
 
+    #[doc(hidden)]
+    pub fn target_type_id(&self) -> TypeId {
+        (self.target_type_id)()
+    }
+
     /// Executes this getter after exact target validation.
     pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         let actual = reflected_ref_type_id(&target);
@@ -310,6 +315,16 @@ impl SetterMetadata {
         self.input_type
     }
 
+    #[doc(hidden)]
+    pub fn target_type_id(&self) -> TypeId {
+        (self.target_type_id)()
+    }
+
+    #[doc(hidden)]
+    pub fn input_type_id(&self) -> TypeId {
+        (self.input_type_id)()
+    }
+
     /// Executes this setter after exact target and value validation.
     pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         let actual_target = reflected_mut_type_id(&target);
@@ -354,7 +369,7 @@ pub struct PropertyMetadata {
 impl PropertyMetadata {
     /// Creates merged property metadata.
     #[must_use]
-    pub const fn new(
+    pub(crate) const fn new(
         name: &'static str,
         type_ref: &'static TypeRef,
         field: Option<&'static FieldMetadata>,

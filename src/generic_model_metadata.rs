@@ -24,7 +24,7 @@ pub struct GenericModelMetadata {
 impl GenericModelMetadata {
     /// Creates generic model metadata.
     #[must_use]
-    pub const fn new(
+    pub(crate) const fn new(
         model_id: ModelId,
         role: ModelRole,
         definition: &'static GenericDefinitionDescriptor,

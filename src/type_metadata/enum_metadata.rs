@@ -17,7 +17,7 @@ pub struct EnumMetadata {
 impl EnumMetadata {
     /// Creates enum metadata.
     #[must_use]
-    pub const fn new(variants: &'static [EnumVariantMetadata]) -> Self {
+    pub(crate) const fn new(variants: &'static [EnumVariantMetadata]) -> Self {
         Self { variants }
     }
 

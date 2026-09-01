@@ -6,20 +6,20 @@
 
 //! Integration tests for the five model-role metadata payloads.
 
+use qubit_model_metadata::__private::v2;
 use qubit_model_metadata::DeclaredEntityTarget;
-use qubit_model_metadata::EntityMetadata;
-use qubit_model_metadata::EnumMetadata;
 use qubit_model_metadata::EnumVariantMetadata;
+use qubit_model_metadata::FieldAttributeMetadata;
 use qubit_model_metadata::FieldMetadata;
+use qubit_model_metadata::IdentifierAssignment;
+use qubit_model_metadata::IdentifierMetadata;
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelMetadata;
 use qubit_model_metadata::ModelRole;
-use qubit_model_metadata::ProjectionMetadata;
 use qubit_model_metadata::Reflect;
 use qubit_model_metadata::RoleMetadata;
+use qubit_model_metadata::SerdeFieldMetadata;
 use qubit_model_metadata::TypeDescriptor;
-use qubit_model_metadata::TypeMetadata;
-use qubit_model_metadata::ValueMetadata;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]
@@ -39,11 +39,17 @@ fn test_five_role_payloads_expose_only_role_specific_facts() {
     let identifier = Box::leak(Box::new(FieldMetadata::from_reflect(
         descriptor.field_at(0).expect("identifier field"),
     )));
-    let entity = EntityMetadata::new(identifier);
+    let RoleMetadata::Entity(entity) = v2::entity_role(identifier) else {
+        unreachable!()
+    };
     let source = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new("example.Source"))));
-    let projection = ProjectionMetadata::new(identifier, Some(source));
+    let RoleMetadata::Projection(projection) = v2::projection_role(identifier, Some(source)) else {
+        unreachable!()
+    };
     let model = ModelMetadata;
-    let value = ValueMetadata::new(Some(identifier), None);
+    let RoleMetadata::Value(value) = v2::value_role(Some(identifier), None) else {
+        unreachable!()
+    };
 
     assert!(std::ptr::eq(entity.identifier(), identifier));
     assert!(std::ptr::eq(projection.identifier(), identifier));
@@ -74,9 +80,11 @@ fn test_five_role_payloads_expose_only_role_specific_facts() {
 fn test_enum_variant_keeps_rust_canonical_and_directional_serde_names() {
     let descriptor = TypeDescriptor::of::<EnumFixture>();
     let reflect = descriptor.variants().first().expect("enum variant");
-    let variant = EnumVariantMetadata::new(reflect, "READY", "ready-out", "ready-in", &[], true);
+    let variant = v2::enum_variant_metadata(reflect, "READY", "ready-out", "ready-in", &[], true);
     let variants = Box::leak(vec![variant].into_boxed_slice());
-    let metadata = EnumMetadata::new(variants);
+    let RoleMetadata::Enum(metadata) = v2::enum_role(variants) else {
+        unreachable!()
+    };
 
     assert_eq!(
         metadata.variant("READY").map(EnumVariantMetadata::rust_name),
@@ -101,14 +109,22 @@ fn test_enum_variant_keeps_rust_canonical_and_directional_serde_names() {
 #[test]
 fn test_type_metadata_navigates_fields_and_role_without_copying_reflection_facts() {
     let descriptor = TypeDescriptor::of::<EntityFixture>();
+    let identifier = Box::leak(Box::new(IdentifierMetadata::new(IdentifierAssignment::Application)));
+    let attributes = Box::leak(vec![FieldAttributeMetadata::Identifier(identifier)].into_boxed_slice());
     let fields = Box::leak(
-        vec![FieldMetadata::from_reflect(
+        vec![v2::field_metadata(
             descriptor.field_at(0).expect("identifier field"),
+            attributes,
+            &[],
+            &[],
+            &SerdeFieldMetadata::DEFAULT,
         )]
         .into_boxed_slice(),
     );
-    let role = Box::leak(Box::new(RoleMetadata::Entity(EntityMetadata::new(&fields[0]))));
-    let metadata = TypeMetadata::new(descriptor, Some(ModelId::new("example.Entity")), fields, role);
+    let role = Box::leak(Box::new(v2::entity_role(&fields[0])));
+    let metadata =
+        v2::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.Entity")), fields, role)
+            .finish::<EntityFixture>();
 
     assert!(std::ptr::eq(metadata.descriptor(), descriptor));
     assert_eq!(metadata.type_id(), descriptor.type_id());

@@ -46,7 +46,9 @@ pub fn model_properties_key() -> CapabilityKey<ModelPropertiesProvider> {
 #[must_use]
 pub fn model_capability<T: crate::HasTypeMetadata>() -> CapabilityDescriptor {
     fn provide<T: crate::HasTypeMetadata>() -> &'static TypeMetadata {
-        T::type_metadata()
+        let metadata = <T as crate::__private::TypeMetadataProvider>::__type_metadata();
+        metadata.assert_valid_for::<T>();
+        metadata
     }
     CapabilityDescriptor::with_adapter(model_metadata_key(), provide::<T> as ModelMetadataProvider)
 }
@@ -64,6 +66,10 @@ pub trait ModelDescriptorExt {
 
 impl ModelDescriptorExt for TypeDescriptor {
     fn model_metadata(&self) -> Option<&'static TypeMetadata> {
-        self.get_capability(model_metadata_key()).map(|provider| provider())
+        self.get_capability(model_metadata_key()).map(|provider| {
+            let metadata = provider();
+            metadata.assert_valid_descriptor(self);
+            metadata
+        })
     }
 }

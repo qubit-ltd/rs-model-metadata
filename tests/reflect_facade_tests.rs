@@ -12,9 +12,9 @@
 use std::sync::OnceLock;
 
 use qubit_model_metadata::__private::ModelTypeSeal;
-use qubit_model_metadata::__private::v1::register_model_capability;
-use qubit_model_metadata::__private::v1::type_metadata;
-use qubit_model_metadata::HasTypeMetadata;
+use qubit_model_metadata::__private::TypeMetadataProvider;
+use qubit_model_metadata::__private::v2;
+use qubit_model_metadata::__private::v2::register_model_capability;
 use qubit_model_metadata::ModelDescriptorExt;
 use qubit_model_metadata::Reflect;
 use qubit_model_metadata::TypeDescriptor;
@@ -24,16 +24,32 @@ use qubit_model_metadata::TypeMetadata;
 #[reflect(crate = qubit_model_metadata)]
 struct Account;
 
+#[derive(Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+struct Impostor;
+
 impl ModelTypeSeal for Account {}
 
-impl HasTypeMetadata for Account {
-    fn type_metadata() -> &'static TypeMetadata {
+impl TypeMetadataProvider for Account {
+    fn __type_metadata() -> &'static TypeMetadata {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
-        METADATA.get_or_init(|| type_metadata(TypeDescriptor::of::<Account>()))
+        METADATA.get_or_init(|| {
+            let role = v2::leak(v2::model_role());
+            v2::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
+        })
     }
 }
 
-register_model_capability!(Account, Account::type_metadata);
+impl ModelTypeSeal for Impostor {}
+
+impl TypeMetadataProvider for Impostor {
+    fn __type_metadata() -> &'static TypeMetadata {
+        Account::__type_metadata()
+    }
+}
+
+register_model_capability!(Account, Account::__type_metadata);
+register_model_capability!(Impostor, Impostor::__type_metadata);
 
 #[test]
 fn model_metadata_reuses_the_reflect_descriptor_root() {
@@ -48,4 +64,22 @@ fn model_metadata_reuses_the_reflect_descriptor_root() {
     assert!(descriptor.is_model_type());
     assert_eq!(metadata.type_id(), descriptor.type_id());
     assert_eq!(metadata.type_name(), descriptor.type_name());
+}
+
+#[test]
+fn public_metadata_entry_points_reject_cross_type_providers() {
+    let direct = std::panic::catch_unwind(TypeMetadata::of::<Impostor>).expect_err("cross-type provider must fail");
+    assert!(panic_message(direct).starts_with("QMM-ABI-001:"));
+
+    let capability = std::panic::catch_unwind(|| TypeDescriptor::of::<Impostor>().model_metadata())
+        .expect_err("cross-root capability must fail");
+    assert!(panic_message(capability).starts_with("QMM-ABI-002:"));
+}
+
+fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    payload
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| payload.downcast_ref::<&'static str>().map(|value| (*value).to_owned()))
+        .expect("ABI panic must contain text")
 }

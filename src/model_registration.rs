@@ -34,9 +34,9 @@ pub struct ModelRegistration {
 impl ModelRegistration {
     #[must_use]
     #[doc(hidden)]
-    pub const fn from_concrete(metadata: &'static TypeMetadata, source: &'static FragmentIdentity) -> Self {
+    pub(crate) const fn from_concrete(metadata: &'static TypeMetadata, source: &'static FragmentIdentity) -> Self {
         let Some(model_id) = metadata.model_id() else {
-            panic!("registered concrete metadata requires a model ID");
+            panic!("QMM-ABI-060: registered concrete metadata requires a model ID");
         };
         Self {
             model_id,
@@ -47,7 +47,10 @@ impl ModelRegistration {
 
     #[must_use]
     #[doc(hidden)]
-    pub const fn from_generic(metadata: &'static GenericModelMetadata, source: &'static FragmentIdentity) -> Self {
+    pub(crate) const fn from_generic(
+        metadata: &'static GenericModelMetadata,
+        source: &'static FragmentIdentity,
+    ) -> Self {
         Self {
             model_id: metadata.model_id(),
             target: ModelRegistrationTarget::Generic(metadata),

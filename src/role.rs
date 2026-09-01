@@ -36,7 +36,7 @@ pub struct EntityMetadata {
 impl EntityMetadata {
     /// Creates entity metadata.
     #[must_use]
-    pub const fn new(identifier: &'static FieldMetadata) -> Self {
+    pub(crate) const fn new(identifier: &'static FieldMetadata) -> Self {
         Self { identifier }
     }
 
@@ -57,7 +57,7 @@ pub struct ProjectionMetadata {
 impl ProjectionMetadata {
     /// Creates projection metadata.
     #[must_use]
-    pub const fn new(identifier: &'static FieldMetadata, source: Option<&'static DeclaredEntityTarget>) -> Self {
+    pub(crate) const fn new(identifier: &'static FieldMetadata, source: Option<&'static DeclaredEntityTarget>) -> Self {
         Self { identifier, source }
     }
 
@@ -100,7 +100,7 @@ pub struct ValueMetadata {
 impl ValueMetadata {
     /// Creates value metadata.
     #[must_use]
-    pub const fn new(
+    pub(crate) const fn new(
         transparent_field: Option<&'static FieldMetadata>,
         canonical_codec: Option<&'static CodecMetadata>,
     ) -> Self {

@@ -9,15 +9,13 @@
 //! Static metadata contract implemented by generated model declarations.
 
 use crate::Reflect;
-use crate::TypeMetadata;
 
-/// Exposes the generated metadata overlay for one reflected model type.
+/// Marks a reflected Rust type that has generated model metadata.
 ///
-/// This trait is a public generic bound, but its hidden seal makes manual
-/// implementations unsupported. Model role macros implement the seal together
-/// with reflection and capability registration, ensuring all three static
-/// entry points describe the same type.
-pub trait HasTypeMetadata: Reflect + crate::__private::ModelTypeSeal {
-    /// Returns the immutable metadata overlay for this model type.
-    fn type_metadata() -> &'static TypeMetadata;
-}
+/// Generated code supplies the hidden provider and seal. Public generic APIs
+/// can use this trait as a capability bound without exposing an unchecked
+/// metadata-construction hook.
+pub trait HasTypeMetadata: Reflect + crate::__private::ModelTypeSeal + crate::__private::TypeMetadataProvider {}
+
+impl<T> HasTypeMetadata for T where T: Reflect + crate::__private::ModelTypeSeal + crate::__private::TypeMetadataProvider
+{}

@@ -7,17 +7,14 @@
 // qubit-style: allow explicit-imports
 //! Integration tests for frozen model registration indexes.
 
-use qubit_model_metadata::GenericModelMetadata;
+use qubit_model_metadata::__private::v2;
 use qubit_model_metadata::ModelId;
-use qubit_model_metadata::ModelMetadata;
 use qubit_model_metadata::ModelRegistration;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelRegistryErrorKind;
 use qubit_model_metadata::ModelRole;
 use qubit_model_metadata::Reflect;
-use qubit_model_metadata::RoleMetadata;
 use qubit_model_metadata::TypeDescriptor;
-use qubit_model_metadata::TypeMetadata;
 use qubit_model_metadata::identity::FragmentIdentity;
 
 #[derive(Reflect)]
@@ -30,15 +27,17 @@ struct GenericFixture<T> {
     value: T,
 }
 
-static MODEL_ROLE: RoleMetadata = RoleMetadata::Model(ModelMetadata);
-
 fn registration(id: &'static str, fingerprint: u64) -> &'static ModelRegistration {
-    let metadata = Box::leak(Box::new(TypeMetadata::new(
-        TypeDescriptor::of::<RegistryFixture>(),
-        Some(ModelId::new(id)),
-        &[],
-        &MODEL_ROLE,
-    )));
+    let role = v2::leak(v2::model_role());
+    let metadata = v2::leak(
+        v2::GeneratedTypeMetadataBuilder::new(
+            TypeDescriptor::of::<RegistryFixture>(),
+            Some(ModelId::new(id)),
+            &[],
+            role,
+        )
+        .finish::<RegistryFixture>(),
+    );
     let source = Box::leak(Box::new(FragmentIdentity::new(
         "fixture",
         "tests",
@@ -47,7 +46,7 @@ fn registration(id: &'static str, fingerprint: u64) -> &'static ModelRegistratio
         "model",
         fingerprint,
     )));
-    Box::leak(Box::new(ModelRegistration::from_concrete(metadata, source)))
+    v2::leak(v2::concrete_registration(metadata, source))
 }
 
 #[test]
@@ -87,12 +86,12 @@ fn test_registry_reports_duplicate_ids_with_both_sources() {
 fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
     let concrete = TypeDescriptor::of::<GenericFixture<u8>>();
     let definition = concrete.concrete_generic().expect("generic substitutions").definition();
-    let generic = Box::leak(Box::new(GenericModelMetadata::new(
+    let generic = v2::leak(v2::generic_model_metadata(
         ModelId::new("example.GenericFixture"),
         ModelRole::Model,
         definition,
         &[],
-    )));
+    ));
     let source = Box::leak(Box::new(FragmentIdentity::new(
         "fixture",
         "tests",
@@ -101,8 +100,7 @@ fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
         "generic-model",
         3,
     )));
-    let registration: &'static ModelRegistration =
-        Box::leak(Box::new(ModelRegistration::from_generic(generic, source)));
+    let registration: &'static ModelRegistration = v2::leak(v2::generic_registration(generic, source));
     let registry = ModelRegistry::from_registrations([registration]).expect("generic registry");
 
     assert!(std::ptr::eq(

@@ -21,12 +21,12 @@
 /// assert!(!path.is_empty());
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PropertyPath {
+pub struct PropertyPath<'a> {
     /// The field-name segments in traversal order.
-    segments: &'static [&'static str],
+    segments: &'a [&'static str],
 }
 
-impl core::fmt::Display for PropertyPath {
+impl core::fmt::Display for PropertyPath<'_> {
     /// Formats this path with dot-separated field-name segments.
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut segments = self.segments.iter();
@@ -40,7 +40,7 @@ impl core::fmt::Display for PropertyPath {
     }
 }
 
-impl PropertyPath {
+impl<'a> PropertyPath<'a> {
     /// Creates a field path from statically allocated field-name segments.
     ///
     /// # Parameters
@@ -52,7 +52,7 @@ impl PropertyPath {
     /// The constructed field path.
     #[must_use]
     #[inline]
-    pub const fn new(segments: &'static [&'static str]) -> Self {
+    pub const fn new(segments: &'a [&'static str]) -> Self {
         Self { segments }
     }
 
@@ -63,7 +63,7 @@ impl PropertyPath {
     /// The statically allocated field-name segments.
     #[must_use]
     #[inline(always)]
-    pub const fn segments(self) -> &'static [&'static str] {
+    pub const fn segments(self) -> &'a [&'static str] {
         self.segments
     }
 

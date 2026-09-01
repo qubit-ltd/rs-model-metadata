@@ -11,10 +11,10 @@
     reason = "the occurrence vocabulary is documented as one cohesive contract in the module guide"
 )]
 
-use std::any::TypeId;
-
 use bitflags::bitflags;
+use qubit_codec::ValueCodecDescriptor;
 use qubit_redact::Sensitivity;
+use qubit_validator::NamedValidationArgument;
 
 use crate::ModelId;
 use crate::constraint::ConstraintMetadata;
@@ -68,14 +68,14 @@ bitflags! {
 /// Field-local uniqueness semantics.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct UniqueMetadata {
-    respect_to: &'static [PropertyPath],
+    respect_to: &'static [PropertyPath<'static>],
     ignore_case: bool,
 }
 
 impl UniqueMetadata {
     /// Creates uniqueness metadata.
     #[must_use]
-    pub const fn new(respect_to: &'static [PropertyPath], ignore_case: bool) -> Self {
+    pub const fn new(respect_to: &'static [PropertyPath<'static>], ignore_case: bool) -> Self {
         Self {
             respect_to,
             ignore_case,
@@ -84,7 +84,7 @@ impl UniqueMetadata {
 
     /// Returns scope paths in source order.
     #[must_use]
-    pub const fn respect_to(&self) -> &'static [PropertyPath] {
+    pub const fn respect_to(&self) -> &'static [PropertyPath<'static>] {
         self.respect_to
     }
 
@@ -183,7 +183,7 @@ pub enum ReferenceSelection {
     /// Selects the complete entity.
     Entity,
     /// Selects a property path on the entity.
-    Property(PropertyPath),
+    Property(PropertyPath<'static>),
 }
 
 /// Declaration metadata for one entity reference.
@@ -192,7 +192,7 @@ pub struct ReferenceMetadata {
     target: &'static DeclaredEntityTarget,
     selection: &'static ReferenceSelection,
     existing: bool,
-    same_as: Option<&'static PropertyPath>,
+    same_as: Option<&'static PropertyPath<'static>>,
 }
 
 impl ReferenceMetadata {
@@ -202,7 +202,7 @@ impl ReferenceMetadata {
         target: &'static DeclaredEntityTarget,
         selection: &'static ReferenceSelection,
         existing: bool,
-        same_as: Option<&'static PropertyPath>,
+        same_as: Option<&'static PropertyPath<'static>>,
     ) -> Self {
         Self {
             target,
@@ -232,49 +232,8 @@ impl ReferenceMetadata {
 
     /// Returns an equivalent property path, if declared.
     #[must_use]
-    pub const fn same_as(&self) -> Option<&'static PropertyPath> {
+    pub const fn same_as(&self) -> Option<&'static PropertyPath<'static>> {
         self.same_as
-    }
-}
-
-/// One statically typed strategy parameter value.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum StrategyArgument {
-    Bool(bool),
-    Integer(i128),
-    Unsigned(u128),
-    String(&'static str),
-    BoolList(&'static [bool]),
-    IntegerList(&'static [i128]),
-    UnsignedList(&'static [u128]),
-    StringList(&'static [&'static str]),
-}
-
-/// A named strategy parameter.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NamedStrategyArgument {
-    name: &'static str,
-    value: StrategyArgument,
-}
-
-impl NamedStrategyArgument {
-    /// Creates a named strategy parameter.
-    #[must_use]
-    pub const fn new(name: &'static str, value: StrategyArgument) -> Self {
-        assert!(!name.is_empty(), "strategy parameter name cannot be empty");
-        Self { name, value }
-    }
-
-    /// Returns the parameter name.
-    #[must_use]
-    pub const fn name(&self) -> &'static str {
-        self.name
-    }
-
-    /// Returns the parameter value.
-    #[must_use]
-    pub const fn value(&self) -> StrategyArgument {
-        self.value
     }
 }
 
@@ -282,8 +241,8 @@ impl NamedStrategyArgument {
 #[derive(Clone, Copy, Debug)]
 pub struct ValidatorMetadata {
     declared_id: &'static str,
-    params: &'static [NamedStrategyArgument],
-    depends_on: &'static [PropertyPath],
+    params: &'static [NamedValidationArgument<'static>],
+    depends_on: &'static [PropertyPath<'static>],
 }
 
 impl ValidatorMetadata {
@@ -291,8 +250,8 @@ impl ValidatorMetadata {
     #[must_use]
     pub const fn new(
         declared_id: &'static str,
-        params: &'static [NamedStrategyArgument],
-        depends_on: &'static [PropertyPath],
+        params: &'static [NamedValidationArgument<'static>],
+        depends_on: &'static [PropertyPath<'static>],
     ) -> Self {
         assert!(!declared_id.is_empty(), "validator ID cannot be empty");
         Self {
@@ -310,60 +269,21 @@ impl ValidatorMetadata {
 
     /// Returns parameters in source order.
     #[must_use]
-    pub const fn params(&self) -> &'static [NamedStrategyArgument] {
+    pub const fn params(&self) -> &'static [NamedValidationArgument<'static>] {
         self.params
     }
 
     /// Returns dependency paths in source order.
     #[must_use]
-    pub const fn depends_on(&self) -> &'static [PropertyPath] {
+    pub const fn depends_on(&self) -> &'static [PropertyPath<'static>] {
         self.depends_on
-    }
-}
-
-/// Exact process-local identity for a Rust strategy type.
-#[derive(Clone, Copy)]
-pub struct StrategyTypeIdentity {
-    type_id: fn() -> TypeId,
-    type_name: fn() -> &'static str,
-}
-
-impl StrategyTypeIdentity {
-    /// Creates identity providers for `T`.
-    #[must_use]
-    pub const fn of<T: 'static>() -> Self {
-        Self {
-            type_id: TypeId::of::<T>,
-            type_name: core::any::type_name::<T>,
-        }
-    }
-
-    /// Returns the exact process-local type ID.
-    #[must_use]
-    pub fn type_id(&self) -> TypeId {
-        (self.type_id)()
-    }
-
-    /// Returns the compiler-provided diagnostic type name.
-    #[must_use]
-    pub fn type_name(&self) -> &'static str {
-        (self.type_name)()
-    }
-}
-
-impl core::fmt::Debug for StrategyTypeIdentity {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        formatter
-            .debug_tuple("StrategyTypeIdentity")
-            .field(&self.type_name())
-            .finish()
     }
 }
 
 /// A codec declared by Rust type or stable textual ID.
 #[derive(Clone, Copy, Debug)]
 pub enum CodecReference {
-    RustType(StrategyTypeIdentity),
+    RustType(&'static ValueCodecDescriptor),
     DeclaredId(&'static str),
 }
 

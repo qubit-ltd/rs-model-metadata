@@ -23,10 +23,10 @@ use crate::TypeMetadata;
 /// An immutable registry sorted by stable model ID and fragment identity.
 #[derive(Debug)]
 pub struct ModelRegistry {
-    registrations: &'static [ModelRegistration],
+    registrations: Box<[ModelRegistration]>,
     indices: BTreeMap<ModelId, usize>,
     type_indices: HashMap<TypeId, usize>,
-    generic_definitions: &'static [&'static GenericModelMetadata],
+    generic_definitions: Box<[&'static GenericModelMetadata]>,
 }
 
 impl ModelRegistry {
@@ -58,10 +58,10 @@ impl ModelRegistry {
                         vec![registration.source().clone()],
                     ));
                 }
-                if type_indices.insert(metadata.type_id(), index).is_some() {
+                if let Some(previous) = type_indices.insert(metadata.type_id(), index) {
                     return Err(ModelRegistryError::conflict(
                         registration.model_id(),
-                        vec![registration.source().clone()],
+                        vec![registrations[previous].source().clone(), registration.source().clone()],
                     ));
                 }
             }
@@ -70,13 +70,11 @@ impl ModelRegistry {
             }
         }
 
-        let registrations = Box::leak(registrations.into_boxed_slice());
-        let generic_definitions = Box::leak(generic_definitions.into_boxed_slice());
         Ok(Self {
-            registrations,
+            registrations: registrations.into_boxed_slice(),
             indices,
             type_indices,
-            generic_definitions,
+            generic_definitions: generic_definitions.into_boxed_slice(),
         })
     }
 
@@ -105,7 +103,7 @@ impl ModelRegistry {
 
     /// Returns the complete registration for a stable ID.
     #[must_use]
-    pub fn get(&self, id: &str) -> Option<&'static ModelRegistration> {
+    pub fn get(&self, id: &str) -> Option<&ModelRegistration> {
         if ModelId::validate(id).is_err() {
             return None;
         }
@@ -132,14 +130,14 @@ impl ModelRegistry {
 
     /// Returns registrations in deterministic order.
     #[must_use]
-    pub fn registrations(&self) -> &'static [ModelRegistration] {
-        self.registrations
+    pub fn registrations(&self) -> &[ModelRegistration] {
+        &self.registrations
     }
 
     /// Returns registered generic definitions in deterministic order.
     #[must_use]
-    pub fn generic_definitions(&self) -> &'static [&'static GenericModelMetadata] {
-        self.generic_definitions
+    pub fn generic_definitions(&self) -> &[&'static GenericModelMetadata] {
+        &self.generic_definitions
     }
 }
 

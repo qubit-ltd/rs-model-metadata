@@ -15,11 +15,17 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use qubit_codec::ValueCodecDescriptor;
+use qubit_codec::ValueCodecRegistration;
+use qubit_codec::ValueCodecRegistry;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_validator::ValidatorRegistration;
+use qubit_validator::ValidatorRegistry;
 
 use crate::CodecMetadata;
+use crate::ConstraintMetadata;
 use crate::DeclaredEntityTarget;
 use crate::FieldMetadata;
 use crate::FieldReferenceMetadata;
@@ -31,6 +37,8 @@ use crate::ProjectionMetadata;
 use crate::PropertyMetadata;
 use crate::PropertyPath;
 use crate::ReferenceSelection;
+use crate::SelectorMetadata;
+use crate::SelectorPosition;
 use crate::TypeMetadata;
 use crate::ValidatorMetadata;
 
@@ -38,6 +46,8 @@ use crate::ValidatorMetadata;
 #[derive(Clone, Copy)]
 pub struct ResolveInputs<'a> {
     pub models: &'a ModelRegistry,
+    pub validators: &'a ValidatorRegistry,
+    pub codecs: &'a ValueCodecRegistry,
 }
 
 /// Resolves declaration-only metadata against explicit registries.
@@ -56,6 +66,8 @@ impl<'a> ModelResolver<'a> {
     pub fn resolve_all(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
         let mut references = HashMap::new();
         let mut projection_sources = HashMap::new();
+        let mut validators = HashMap::new();
+        let mut codecs = HashMap::new();
         let mut queries = HashMap::new();
         let mut errors = Vec::new();
 
@@ -64,6 +76,15 @@ impl<'a> ModelResolver<'a> {
                 continue;
             };
             for field in metadata.fields() {
+                resolve_field_strategies(
+                    metadata,
+                    field,
+                    self.inputs,
+                    &mut validators,
+                    &mut codecs,
+                    registration.source(),
+                    &mut errors,
+                );
                 if let Some(reference) = field.reference() {
                     let mut local_reference_valid = true;
                     if let Some(path) = reference.same_as() {
@@ -234,6 +255,18 @@ impl<'a> ModelResolver<'a> {
                 );
             }
 
+            if let Some(codec) = metadata.as_value().and_then(crate::ValueMetadata::canonical_codec) {
+                resolve_codec(
+                    metadata,
+                    codec,
+                    metadata.type_id(),
+                    self.inputs.codecs,
+                    &mut codecs,
+                    registration.source(),
+                    &mut errors,
+                );
+            }
+
             if let Some(entity) = metadata.as_entity()
                 && let Some(query) = build_query(metadata, self.inputs.models, registration.source(), &mut errors)
             {
@@ -246,6 +279,8 @@ impl<'a> ModelResolver<'a> {
                 registry: self.inputs.models,
                 references,
                 projection_sources,
+                validators,
+                codecs,
                 queries,
             })
         } else {
@@ -262,12 +297,281 @@ impl<'a> ModelResolver<'a> {
     }
 }
 
+/// Resolves executable strategies declared directly on one field.
+#[allow(clippy::too_many_arguments)]
+fn resolve_field_strategies<'a>(
+    metadata: &'static TypeMetadata,
+    field: &'static FieldMetadata,
+    inputs: ResolveInputs<'a>,
+    validators: &mut HashMap<usize, ResolvedValidator<'a>>,
+    codecs: &mut HashMap<usize, ResolvedCodec<'a>>,
+    source: &'static FragmentIdentity,
+    errors: &mut Vec<ModelResolveError>,
+) {
+    let Some(descriptor) = field.descriptor() else {
+        return;
+    };
+    for occurrence in field.validators() {
+        resolve_validator(
+            metadata,
+            occurrence,
+            descriptor.type_id(),
+            inputs,
+            validators,
+            source,
+            errors,
+        );
+    }
+    if let Some(codec) = field.codec() {
+        resolve_codec(
+            metadata,
+            codec,
+            descriptor
+                .as_optional()
+                .and_then(|view| runtime_type_id(view.element_type()))
+                .unwrap_or_else(|| descriptor.type_id()),
+            inputs.codecs,
+            codecs,
+            source,
+            errors,
+        );
+    }
+    for constraint in field.constraints() {
+        match constraint {
+            ConstraintMetadata::Sequence(sequence) => {
+                if let Some(selector) = sequence.element() {
+                    resolve_selector_strategies(
+                        metadata,
+                        selector,
+                        selector_type_id(descriptor, SelectorPosition::Element),
+                        inputs,
+                        validators,
+                        codecs,
+                        source,
+                        errors,
+                    );
+                }
+            }
+            ConstraintMetadata::Map(map) => {
+                for (selector, position) in [
+                    (map.key(), SelectorPosition::MapKey),
+                    (map.value(), SelectorPosition::MapValue),
+                ] {
+                    if let Some(selector) = selector {
+                        resolve_selector_strategies(
+                            metadata,
+                            selector,
+                            selector_type_id(descriptor, position),
+                            inputs,
+                            validators,
+                            codecs,
+                            source,
+                            errors,
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_selector_strategies<'a>(
+    metadata: &'static TypeMetadata,
+    selector: &'static SelectorMetadata,
+    expected_type: Option<TypeId>,
+    inputs: ResolveInputs<'a>,
+    validators: &mut HashMap<usize, ResolvedValidator<'a>>,
+    codecs: &mut HashMap<usize, ResolvedCodec<'a>>,
+    source: &'static FragmentIdentity,
+    errors: &mut Vec<ModelResolveError>,
+) {
+    let Some(expected_type) = expected_type else {
+        errors.push(ModelResolveError::new(
+            ModelResolveErrorKind::UnresolvedSelectorType,
+            metadata.model_id().map(|id| id.as_str()),
+            None,
+            None,
+            Some(metadata.role()),
+            Some(source),
+        ));
+        return;
+    };
+    for validator in selector.validators() {
+        resolve_validator(metadata, validator, expected_type, inputs, validators, source, errors);
+    }
+    if let Some(codec) = selector.codec() {
+        resolve_codec(metadata, codec, expected_type, inputs.codecs, codecs, source, errors);
+    }
+}
+
+fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosition) -> Option<TypeId> {
+    let descriptor = transparent_descriptor(descriptor)?;
+    let type_ref = match position {
+        SelectorPosition::Element => descriptor
+            .as_sequence()
+            .map(|view| view.element_type())
+            .or_else(|| descriptor.as_set().map(|view| view.element_type()))
+            .or_else(|| descriptor.as_array().map(|view| view.element_type()))
+            .or_else(|| descriptor.as_slice().map(|view| view.element_type())),
+        SelectorPosition::MapKey => descriptor.as_map().map(|view| view.key_type()),
+        SelectorPosition::MapValue => descriptor.as_map().map(|view| view.value_type()),
+    }?;
+    runtime_type_id(type_ref)
+}
+
+fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
+    loop {
+        let element = descriptor
+            .as_optional()
+            .map(|view| view.element_type())
+            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()));
+        let Some(element) = element else {
+            return Some(descriptor);
+        };
+        descriptor = element.as_resolved()?;
+    }
+}
+
+fn runtime_type_id(type_ref: &TypeRef) -> Option<TypeId> {
+    type_ref
+        .as_resolved()
+        .map(TypeDescriptor::type_id)
+        .or_else(|| type_ref.as_opaque().map(|descriptor| descriptor.type_id()))
+}
+
+/// Resolves one validator registration and its readable dependencies.
+#[allow(clippy::too_many_arguments)]
+fn resolve_validator<'a>(
+    metadata: &'static TypeMetadata,
+    occurrence: &'static ValidatorMetadata,
+    expected_type: TypeId,
+    inputs: ResolveInputs<'a>,
+    validators: &mut HashMap<usize, ResolvedValidator<'a>>,
+    source: &'static FragmentIdentity,
+    errors: &mut Vec<ModelResolveError>,
+) {
+    let Some(registration) = inputs.validators.get(occurrence.declared_id()) else {
+        errors.push(ModelResolveError::new(
+            ModelResolveErrorKind::MissingValidator,
+            metadata.model_id().map(|id| id.as_str()),
+            None,
+            None,
+            Some(metadata.role()),
+            Some(source),
+        ));
+        return;
+    };
+    let actual_type = registration.descriptor().value_type_id();
+    if actual_type != expected_type {
+        errors.push(
+            ModelResolveError::new(
+                ModelResolveErrorKind::ValidatorTypeMismatch,
+                metadata.model_id().map(|id| id.as_str()),
+                None,
+                None,
+                Some(metadata.role()),
+                Some(source),
+            )
+            .with_types(expected_type, actual_type),
+        );
+        return;
+    }
+    let mut dependencies = Vec::with_capacity(occurrence.depends_on().len());
+    let initial_error_count = errors.len();
+    for path in occurrence.depends_on() {
+        match resolve_property_path(metadata, path, inputs.models) {
+            Some(property) if property.is_readable() => dependencies.push(property),
+            Some(_) => errors.push(ModelResolveError::new(
+                ModelResolveErrorKind::UnreadableProperty,
+                metadata.model_id().map(|id| id.as_str()),
+                Some(*path),
+                None,
+                Some(metadata.role()),
+                Some(source),
+            )),
+            None => errors.push(ModelResolveError::new(
+                ModelResolveErrorKind::MissingProperty,
+                metadata.model_id().map(|id| id.as_str()),
+                Some(*path),
+                None,
+                Some(metadata.role()),
+                Some(source),
+            )),
+        }
+    }
+    if errors.len() == initial_error_count {
+        validators.insert(
+            occurrence as *const ValidatorMetadata as usize,
+            ResolvedValidator {
+                declaration: occurrence,
+                registration,
+                dependencies: dependencies.into_boxed_slice(),
+            },
+        );
+    }
+}
+
+/// Resolves one statically typed or stable-ID codec declaration.
+#[allow(clippy::too_many_arguments)]
+fn resolve_codec<'a>(
+    metadata: &'static TypeMetadata,
+    occurrence: &'static CodecMetadata,
+    expected_type: TypeId,
+    registry: &'a ValueCodecRegistry,
+    codecs: &mut HashMap<usize, ResolvedCodec<'a>>,
+    source: &'static FragmentIdentity,
+    errors: &mut Vec<ModelResolveError>,
+) {
+    let (descriptor, registration) = match occurrence.codec() {
+        crate::CodecReference::RustType(descriptor) => (*descriptor, None),
+        crate::CodecReference::DeclaredId(id) => {
+            let Some(registration) = registry.get(id) else {
+                errors.push(ModelResolveError::new(
+                    ModelResolveErrorKind::MissingCodec,
+                    metadata.model_id().map(|model_id| model_id.as_str()),
+                    None,
+                    None,
+                    Some(metadata.role()),
+                    Some(source),
+                ));
+                return;
+            };
+            (registration.descriptor(), Some(registration))
+        }
+    };
+    let actual_type = descriptor.value_type_id();
+    if actual_type != expected_type {
+        errors.push(
+            ModelResolveError::new(
+                ModelResolveErrorKind::CodecTypeMismatch,
+                metadata.model_id().map(|id| id.as_str()),
+                None,
+                None,
+                Some(metadata.role()),
+                Some(source),
+            )
+            .with_types(expected_type, actual_type),
+        );
+        return;
+    }
+    codecs.insert(
+        occurrence as *const CodecMetadata as usize,
+        ResolvedCodec {
+            declaration: occurrence,
+            descriptor,
+            registration,
+        },
+    );
+}
+
 trait ReferenceSelectionExt {
-    fn property_path(&self) -> Option<&PropertyPath>;
+    fn property_path(&self) -> Option<&PropertyPath<'static>>;
 }
 
 impl ReferenceSelectionExt for ReferenceSelection {
-    fn property_path(&self) -> Option<&PropertyPath> {
+    fn property_path(&self) -> Option<&PropertyPath<'static>> {
         match self {
             Self::Entity => None,
             Self::Property(path) => Some(path),
@@ -284,6 +588,31 @@ fn metadata_for_descriptor(
         .or_else(|| registry.by_type_id(descriptor.type_id()))
 }
 
+/// An owned runtime path whose segment names originate in static declarations.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct OwnedPropertyPath {
+    segments: Box<[&'static str]>,
+}
+
+impl OwnedPropertyPath {
+    /// Copies one runtime-generated segment sequence.
+    fn from_segments(segments: &[&'static str]) -> Self {
+        Self {
+            segments: segments.into(),
+        }
+    }
+
+    /// Copies one statically declared path.
+    fn from_static(path: PropertyPath<'static>) -> Self {
+        Self::from_segments(path.segments())
+    }
+
+    /// Borrows this owned path as the public lightweight view.
+    fn as_path(&self) -> PropertyPath<'_> {
+        PropertyPath::new(&self.segments)
+    }
+}
+
 fn build_query(
     metadata: &'static TypeMetadata,
     registry: &ModelRegistry,
@@ -293,21 +622,23 @@ fn build_query(
     let initial_error_count = errors.len();
     let mut filters = Vec::new();
     let mut unique_keys = Vec::new();
-    let mut flat_names = HashMap::<&'static str, PropertyPath>::new();
+    let mut flat_names = HashMap::<String, OwnedPropertyPath>::new();
 
     for field in metadata.fields() {
         let Some(name) = field.name() else { continue };
         let root_path = path_from_segments(&[name]);
         if field.is_identifier() {
-            unique_keys.push(UniqueQueryKey::new(Box::leak(vec![root_path].into_boxed_slice())));
+            unique_keys.push(UniqueQueryKey::new(vec![root_path]));
             continue;
         }
         if let Some(unique) = field.unique() {
             if unique.is_scoped() {
-                let mut paths = vec![root_path];
+                let mut paths = vec![root_path.clone()];
                 for scope in unique.respect_to() {
                     match resolve_property_path(metadata, scope, registry) {
-                        Some(property) if property.is_readable() => paths.push(*scope),
+                        Some(property) if property.is_readable() => {
+                            paths.push(OwnedPropertyPath::from_static(*scope));
+                        }
                         Some(_) => errors.push(ModelResolveError::new(
                             ModelResolveErrorKind::UnreadableProperty,
                             metadata.model_id().map(|id| id.as_str()),
@@ -326,9 +657,9 @@ fn build_query(
                         )),
                     }
                 }
-                unique_keys.push(UniqueQueryKey::new(Box::leak(paths.into_boxed_slice())));
+                unique_keys.push(UniqueQueryKey::new(paths));
             } else {
-                unique_keys.push(UniqueQueryKey::new(Box::leak(vec![root_path].into_boxed_slice())));
+                unique_keys.push(UniqueQueryKey::new(vec![root_path]));
                 continue;
             }
         }
@@ -380,7 +711,7 @@ fn build_query(
             errors.push(ModelResolveError::new(
                 ModelResolveErrorKind::InvalidValueClosure,
                 metadata.model_id().map(|id| id.as_str()),
-                Some(root_path),
+                Some(root_path.as_path()),
                 Some(ModelRole::Value),
                 field
                     .descriptor()
@@ -404,7 +735,7 @@ fn collect_query_fields(
     allow_references: bool,
     registry: &ModelRegistry,
     filters: &mut Vec<QueryField>,
-    flat_names: &mut HashMap<&'static str, PropertyPath>,
+    flat_names: &mut HashMap<String, OwnedPropertyPath>,
     root: &'static TypeMetadata,
     source: &'static FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
@@ -439,7 +770,7 @@ fn collect_indexed_field(
     allow_references: bool,
     registry: &ModelRegistry,
     filters: &mut Vec<QueryField>,
-    flat_names: &mut HashMap<&'static str, PropertyPath>,
+    flat_names: &mut HashMap<String, OwnedPropertyPath>,
     root: &'static TypeMetadata,
     source: &'static FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
@@ -497,8 +828,8 @@ fn collect_indexed_field(
 #[allow(clippy::too_many_arguments)]
 fn push_query_field(
     filters: &mut Vec<QueryField>,
-    flat_names: &mut HashMap<&'static str, PropertyPath>,
-    path: PropertyPath,
+    flat_names: &mut HashMap<String, OwnedPropertyPath>,
+    path: OwnedPropertyPath,
     descriptor: Option<&'static TypeDescriptor>,
     reasons: IndexingReasons,
     root: &'static TypeMetadata,
@@ -509,22 +840,25 @@ fn push_query_field(
         existing.reasons |= reasons;
         return;
     }
-    let flat_name = Box::leak(path.segments().join("_").into_boxed_str());
-    if flat_names.get(flat_name).is_some_and(|existing| *existing != path) {
+    let flat_name = path.as_path().segments().join("_");
+    if flat_names
+        .get(flat_name.as_str())
+        .is_some_and(|existing| *existing != path)
+    {
         errors.push(ModelResolveError::new(
             ModelResolveErrorKind::QueryNameConflict,
             root.model_id().map(|id| id.as_str()),
-            Some(path),
+            Some(path.as_path()),
             None,
             None,
             Some(source),
         ));
         return;
     }
-    flat_names.insert(flat_name, path);
+    flat_names.insert(flat_name.clone(), path.clone());
     filters.push(QueryField {
         path,
-        flat_name,
+        flat_name: flat_name.into_boxed_str(),
         descriptor,
         reasons,
     });
@@ -537,8 +871,8 @@ fn resolve_declared_target(target: &DeclaredEntityTarget, registry: &ModelRegist
     }
 }
 
-fn path_from_segments(segments: &[&'static str]) -> PropertyPath {
-    PropertyPath::new(Box::leak(segments.to_vec().into_boxed_slice()))
+fn path_from_segments(segments: &[&'static str]) -> OwnedPropertyPath {
+    OwnedPropertyPath::from_segments(segments)
 }
 
 fn validate_value_closure(
@@ -559,10 +893,11 @@ fn validate_value_closure(
         if !field.type_ref().as_resolved().is_some_and(|descriptor| {
             value_descriptor_is_closed(descriptor, registry, visited, source, errors, &[name])
         }) {
+            let path = path_from_segments(&[name]);
             errors.push(ModelResolveError::new(
                 ModelResolveErrorKind::InvalidValueClosure,
                 metadata.model_id().map(|id| id.as_str()),
-                Some(path_from_segments(&[name])),
+                Some(path.as_path()),
                 Some(ModelRole::Value),
                 field
                     .descriptor()
@@ -645,7 +980,7 @@ fn value_descriptor_is_closed(
 
 fn resolve_property_path(
     target: &'static TypeMetadata,
-    path: &PropertyPath,
+    path: &PropertyPath<'_>,
     registry: &ModelRegistry,
 ) -> Option<&'static PropertyMetadata> {
     let mut current = target;
@@ -698,6 +1033,8 @@ pub struct ResolvedModelGraph<'a> {
     registry: &'a ModelRegistry,
     references: HashMap<usize, ResolvedReference>,
     projection_sources: HashMap<usize, ResolvedProjectionSource>,
+    validators: HashMap<usize, ResolvedValidator<'a>>,
+    codecs: HashMap<usize, ResolvedCodec<'a>>,
     queries: HashMap<usize, QueryMetadata>,
 }
 
@@ -712,21 +1049,66 @@ impl<'a> ResolvedModelGraph<'a> {
         self.projection_sources
             .get(&(projection as *const ProjectionMetadata as usize))
     }
-    pub fn validator(&self, _occurrence: &ValidatorMetadata) -> Option<&ResolvedValidator> {
-        None
+    pub fn validator(&self, occurrence: &ValidatorMetadata) -> Option<&ResolvedValidator<'a>> {
+        self.validators.get(&(occurrence as *const ValidatorMetadata as usize))
     }
-    pub fn codec(&self, _occurrence: &CodecMetadata) -> Option<&ResolvedCodec> {
-        None
+    pub fn codec(&self, occurrence: &CodecMetadata) -> Option<&ResolvedCodec<'a>> {
+        self.codecs.get(&(occurrence as *const CodecMetadata as usize))
     }
     pub fn query(&self, entity: &crate::EntityMetadata) -> Option<&QueryMetadata> {
         self.queries.get(&(entity as *const crate::EntityMetadata as usize))
     }
 }
 
-/// Reserved resolved validator view; runtime validator resolution is deferred.
-pub struct ResolvedValidator;
-/// Reserved resolved codec view until qubit-codec exposes a registry protocol.
-pub struct ResolvedCodec;
+/// A validator occurrence bound to one executable registration.
+#[derive(Debug)]
+pub struct ResolvedValidator<'a> {
+    declaration: &'static ValidatorMetadata,
+    registration: &'a ValidatorRegistration,
+    dependencies: Box<[&'static PropertyMetadata]>,
+}
+
+impl ResolvedValidator<'_> {
+    /// Returns the declaration occurrence.
+    pub const fn declaration(&self) -> &'static ValidatorMetadata {
+        self.declaration
+    }
+
+    /// Returns the executable validator registration.
+    pub const fn registration(&self) -> &ValidatorRegistration {
+        self.registration
+    }
+
+    /// Returns resolved readable dependency properties.
+    pub fn dependencies(&self) -> &[&'static PropertyMetadata] {
+        &self.dependencies
+    }
+}
+
+/// A codec occurrence bound to one executable descriptor.
+#[derive(Debug)]
+pub struct ResolvedCodec<'a> {
+    declaration: &'static CodecMetadata,
+    descriptor: &'static ValueCodecDescriptor,
+    registration: Option<&'a ValueCodecRegistration>,
+}
+
+impl ResolvedCodec<'_> {
+    /// Returns the declaration occurrence.
+    pub const fn declaration(&self) -> &'static CodecMetadata {
+        self.declaration
+    }
+
+    /// Returns the executable codec descriptor.
+    pub const fn descriptor(&self) -> &'static ValueCodecDescriptor {
+        self.descriptor
+    }
+
+    /// Returns the registry entry for stable-ID declarations.
+    pub const fn registration(&self) -> Option<&ValueCodecRegistration> {
+        self.registration
+    }
+}
 
 /// Queryable indexed fields derived for one resolved entity.
 #[derive(Debug)]
@@ -742,29 +1124,29 @@ impl QueryMetadata {
     pub fn unique_keys(&self) -> &[UniqueQueryKey] {
         &self.unique_keys
     }
-    pub fn filter(&self, path: &PropertyPath) -> Option<&QueryField> {
-        self.filters.iter().find(|field| field.path == *path)
+    pub fn filter(&self, path: &PropertyPath<'_>) -> Option<&QueryField> {
+        self.filters.iter().find(|field| field.path.as_path() == *path)
     }
     pub fn filter_by_flat_name(&self, name: &str) -> Option<&QueryField> {
-        self.filters.iter().find(|field| field.flat_name == name)
+        self.filters.iter().find(|field| field.flat_name.as_ref() == name)
     }
 }
 
 /// One queryable field path.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct QueryField {
-    path: PropertyPath,
-    flat_name: &'static str,
+    path: OwnedPropertyPath,
+    flat_name: Box<str>,
     descriptor: Option<&'static TypeDescriptor>,
     reasons: IndexingReasons,
 }
 
 impl QueryField {
-    pub const fn path(&self) -> &PropertyPath {
-        &self.path
+    pub fn path(&self) -> PropertyPath<'_> {
+        self.path.as_path()
     }
-    pub const fn flat_name(&self) -> &'static str {
-        self.flat_name
+    pub fn flat_name(&self) -> &str {
+        &self.flat_name
     }
     pub const fn descriptor(&self) -> Option<&'static TypeDescriptor> {
         self.descriptor
@@ -777,18 +1159,20 @@ impl QueryField {
 /// One identifier or global-unique lookup key.
 #[derive(Clone, Debug)]
 pub struct UniqueQueryKey {
-    paths: Box<[PropertyPath]>,
+    paths: Box<[OwnedPropertyPath]>,
 }
 
 impl UniqueQueryKey {
-    fn new(paths: &'static [PropertyPath]) -> Self {
-        Self { paths: paths.into() }
+    fn new(paths: Vec<OwnedPropertyPath>) -> Self {
+        Self {
+            paths: paths.into_boxed_slice(),
+        }
     }
-    pub fn paths(&self) -> &[PropertyPath] {
-        &self.paths
+    pub fn paths(&self) -> impl ExactSizeIterator<Item = PropertyPath<'_>> + '_ {
+        self.paths.iter().map(OwnedPropertyPath::as_path)
     }
-    pub fn path(&self) -> Option<&PropertyPath> {
-        (self.paths.len() == 1).then(|| &self.paths[0])
+    pub fn path(&self) -> Option<PropertyPath<'_>> {
+        (self.paths.len() == 1).then(|| self.paths[0].as_path())
     }
 }
 
@@ -804,17 +1188,17 @@ pub enum ModelResolveErrorKind {
     ValidatorTypeMismatch,
     MissingCodec,
     CodecTypeMismatch,
+    UnresolvedSelectorType,
     InvalidProjectionSource,
     InvalidValueClosure,
     QueryNameConflict,
-    InvalidReferenceGraph,
 }
 
 /// One structured deterministic resolution error.
 #[derive(Clone, Debug)]
 pub struct ModelResolveError {
     kind: ModelResolveErrorKind,
-    path: Option<PropertyPath>,
+    path: Option<OwnedPropertyPath>,
     model_id: Option<&'static str>,
     expected_role: Option<ModelRole>,
     actual_role: Option<ModelRole>,
@@ -827,14 +1211,14 @@ impl ModelResolveError {
     fn new(
         kind: ModelResolveErrorKind,
         model_id: Option<&'static str>,
-        path: Option<PropertyPath>,
+        path: Option<PropertyPath<'_>>,
         expected_role: Option<ModelRole>,
         actual_role: Option<ModelRole>,
         source: Option<&FragmentIdentity>,
     ) -> Self {
         Self {
             kind,
-            path,
+            path: path.map(|path| OwnedPropertyPath::from_segments(path.segments())),
             model_id,
             expected_role,
             actual_role,
@@ -856,8 +1240,9 @@ impl ModelResolveError {
             .then_with(|| left.model_id.cmp(&right.model_id))
             .then_with(|| {
                 left.path
-                    .map(|path| path.to_string())
-                    .cmp(&right.path.map(|path| path.to_string()))
+                    .as_ref()
+                    .map(|path| path.as_path().to_string())
+                    .cmp(&right.path.as_ref().map(|path| path.as_path().to_string()))
             })
             .then_with(|| left.sources.cmp(&right.sources))
     }
@@ -865,8 +1250,8 @@ impl ModelResolveError {
     pub const fn kind(&self) -> ModelResolveErrorKind {
         self.kind
     }
-    pub const fn path(&self) -> Option<&PropertyPath> {
-        self.path.as_ref()
+    pub fn path(&self) -> Option<PropertyPath<'_>> {
+        self.path.as_ref().map(OwnedPropertyPath::as_path)
     }
     pub const fn model_id(&self) -> Option<&str> {
         self.model_id

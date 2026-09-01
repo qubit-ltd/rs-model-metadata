@@ -24,7 +24,7 @@ pub struct EnumVariantMetadata {
 impl EnumVariantMetadata {
     /// Creates an enum-variant overlay.
     #[must_use]
-    pub const fn new(
+    pub(crate) const fn new(
         reflect: &'static VariantDescriptor,
         canonical_name: &'static str,
         serialized_name: &'static str,
