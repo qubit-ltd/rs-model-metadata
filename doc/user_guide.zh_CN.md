@@ -1,6 +1,6 @@
 # qubit-model-derive 用户指南
 
-[README](../README.zh_CN.md) | [English user guide](user_guide.md) | [最终设计](design.md)
+[README](../README.zh_CN.md) | [English user guide](user_guide.md) | [最终设计](rs-model-derive-final-design.zh_CN.md)
 
 ## 手册目标与读者
 
@@ -14,7 +14,7 @@
 ```text
 角色声明 -> Reflect descriptor -> model metadata capability
                                 -> 可选 ModelRegistration
-ModelProperties impl ----------> property capability
+ModelImpl impl ----------> property capability
 ```
 
 静态查询不依赖全局注册表。只有稳定 ID、reference、Projection 来源和 Query 需要在完整链接的模型集合中解析。
@@ -32,7 +32,7 @@ qubit-model-metadata = { path = "../rs-model-metadata" }
 下面的声明包含透明值对象、实体、带引用的模型，以及字段支持和计算属性：
 
 ```rust,ignore
-use qubit_model_derive::{Entity, Model, ModelProperties, Value};
+use qubit_model_derive::{Entity, Model, ModelImpl, Value};
 
 #[Value(transparent)]
 pub struct Email(
@@ -57,7 +57,7 @@ pub struct Login {
     user_id: u64,
 }
 
-#[ModelProperties]
+#[ModelImpl]
 impl User {
     pub fn email(&self) -> &Email { &self.email }
     pub fn set_email(&mut self, value: Email) { self.email = value; }
@@ -76,8 +76,8 @@ use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
 
 let user = TypeMetadata::of::<User>();
 assert!(user.field("id").unwrap().is_identifier());
-assert!(user.property("email").unwrap().is_writable());
-assert!(user.property("alias_slice").unwrap().is_computed());
+assert!(user.try_property("email").unwrap().unwrap().is_writable());
+assert!(user.try_property("alias_slice").unwrap().unwrap().is_computed());
 assert!(user.descriptor().model_metadata().is_some());
 ```
 
@@ -145,9 +145,9 @@ selector 上的脱敏只接受 `redact(level = "...")`。`element` 和 `map_valu
 
 具名 `Option` 和标准集合字段默认具有 Serde 行为：反序列化时可省略，序列化时会省略空值。`#[keep_serializing]` 可保留空值输出；显式 Serde 配置优先。
 
-## ModelProperties
+## ModelImpl
 
-`#[ModelProperties]` 只接受 public、safe、sync、非泛型的 inherent impl。getter 使用 `&self`，返回值可为 `T`、`&T`、`&str`、`&[T]` 或 `Option<&T>`；setter 使用 `&mut self, T` 并返回 `()`。生成的 getter 会保留借用关系；setter 在调用用户代码前失败时会归还 replacement。重复 Property 或重复标记的 impl 会在编译期失败。
+`#[ModelImpl]` 只接受 public、safe、sync、非泛型的 inherent impl。getter 使用 `&self`，返回值可为 `T`、`&T`、`&str`、`&[T]` 或 `Option<&T>`；setter 使用 `&mut self, T` 并返回 `()`。生成的 getter 会保留借用关系；setter 在调用用户代码前失败时会归还 replacement。重复 Property 或重复标记的 impl 会在编译期失败。
 
 字段、getter、setter 按名称合并：
 
@@ -183,4 +183,4 @@ selector 上的脱敏只接受 `redact(level = "...")`。`element` 和 `map_valu
 - [README](../README.zh_CN.md)
 - [English user guide](user_guide.md)
 - 本地 API 文档：在 crate 根目录运行 `cargo doc --open`
-- [最终设计](design.md)
+- [最终设计](rs-model-derive-final-design.zh_CN.md)

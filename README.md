@@ -22,8 +22,8 @@ workspace layout:
 
 ```toml
 [dependencies]
-qubit-model-derive = { path = "../rs-model-derive" }
-qubit-model-metadata = { path = "../rs-model-metadata" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
 ```
 
 Generated code resolves `qubit-model-metadata` with `proc-macro-crate`; a
@@ -37,7 +37,7 @@ email addresses in its logs, and wants framework code to discover a writable
 `email` property. Declare the model once:
 
 ```rust,ignore
-use qubit_model_derive::{Entity, ModelProperties};
+use qubit_model_derive::{Entity, ModelImpl};
 use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
 
 #[Entity(id = "example.User")]
@@ -49,7 +49,7 @@ pub struct User {
     email: String,
 }
 
-#[ModelProperties]
+#[ModelImpl]
 impl User {
     pub fn email(&self) -> &str { &self.email }
     pub fn set_email(&mut self, value: String) { self.email = value; }
@@ -57,7 +57,7 @@ impl User {
 
 let metadata = TypeMetadata::of::<User>();
 assert!(metadata.field("id").unwrap().is_identifier());
-assert!(metadata.property("email").unwrap().is_writable());
+assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
 assert!(metadata.descriptor().model_metadata().is_some());
 ```
 
@@ -78,7 +78,7 @@ pipeline:
   names.
 - `#[Value]` declares a value object; `transparent` supports a one-field
   wrapper.
-- `#[ModelProperties]` merges public inherent getters and setters with fields
+- `#[ModelImpl]` merges public inherent getters and setters with fields
   into safe property metadata.
 
 The five role macros supply `Clone`, redaction-aware `Debug`, `Display`, and
@@ -110,7 +110,7 @@ the same output key instead of silently overwriting data.
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
 - Local API documentation: run `cargo doc --open`
-- [Final design](doc/design.md)
+- [Final design (Chinese)](doc/rs-model-derive-final-design.zh_CN.md)
 - [中文 README](README.zh_CN.md)
 
 ## Testing

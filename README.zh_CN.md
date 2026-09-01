@@ -17,8 +17,8 @@
 
 ```toml
 [dependencies]
-qubit-model-derive = { path = "../rs-model-derive" }
-qubit-model-metadata = { path = "../rs-model-metadata" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
 ```
 
 生成代码会通过 `proc-macro-crate` 解析 `qubit-model-metadata` 的实际依赖名，因此支持重命名 runtime
@@ -30,7 +30,7 @@ qubit-model-metadata = { path = "../rs-model-metadata" }
 属性。只需声明一次模型：
 
 ```rust,ignore
-use qubit_model_derive::{Entity, ModelProperties};
+use qubit_model_derive::{Entity, ModelImpl};
 use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
 
 #[Entity(id = "example.User")]
@@ -42,7 +42,7 @@ pub struct User {
     email: String,
 }
 
-#[ModelProperties]
+#[ModelImpl]
 impl User {
     pub fn email(&self) -> &str { &self.email }
     pub fn set_email(&mut self, value: String) { self.email = value; }
@@ -50,7 +50,7 @@ impl User {
 
 let metadata = TypeMetadata::of::<User>();
 assert!(metadata.field("id").unwrap().is_identifier());
-assert!(metadata.property("email").unwrap().is_writable());
+assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
 assert!(metadata.descriptor().model_metadata().is_some());
 ```
 
@@ -66,7 +66,7 @@ assert!(metadata.descriptor().model_metadata().is_some());
 - `#[Model]`：声明普通结构化数据。
 - `#[Enum]`：声明领域枚举，并保留 Rust 名、canonical 名和 Serde 名。
 - `#[Value]`：声明值对象；`transparent` 支持单字段包装类型。
-- `#[ModelProperties]`：把公开固有方法中的 getter/setter 与字段合并为安全的属性元数据。
+- `#[ModelImpl]`：把公开固有方法中的 getter/setter 与字段合并为安全的属性元数据。
 
 五种角色默认生成 `Clone`、遵守脱敏策略的 `Debug` / `Display` / `Serialize`，以及
 `Deserialize`、`PartialEq`、`Eq`、`Hash`、`Redact`。可用对应的 `no_*` 参数关闭；`copy`、
@@ -90,7 +90,7 @@ assert!(metadata.descriptor().model_metadata().is_some());
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
 - 本地 API 文档：在 crate 根目录运行 `cargo doc --open`
-- [最终设计](doc/design.md)
+- [最终设计](doc/rs-model-derive-final-design.zh_CN.md)
 - [English README](README.md)
 
 ## 测试

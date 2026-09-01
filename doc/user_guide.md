@@ -1,6 +1,6 @@
 # qubit-model-derive User Guide
 
-[README](../README.md) | [中文用户指南](user_guide.zh_CN.md) | [Final design](design.md)
+[README](../README.md) | [中文用户指南](user_guide.zh_CN.md) | [Final design](rs-model-derive-final-design.zh_CN.md)
 
 ## Purpose and Audience
 
@@ -19,7 +19,7 @@ getter, and setter.
 ```text
 role declaration -> Reflect descriptor -> model metadata capability
                                        -> optional ModelRegistration
-ModelProperties impl -----------------> property capability
+ModelImpl impl -----------------> property capability
 ```
 
 Static lookup has no global-registry dependency. A registry and resolver are
@@ -44,7 +44,7 @@ Declare a transparent value, an entity, a reference-bearing model, and one
 field-backed property plus a computed property:
 
 ```rust,ignore
-use qubit_model_derive::{Entity, Model, ModelProperties, Value};
+use qubit_model_derive::{Entity, Model, ModelImpl, Value};
 
 #[Value(transparent)]
 pub struct Email(
@@ -69,7 +69,7 @@ pub struct Login {
     user_id: u64,
 }
 
-#[ModelProperties]
+#[ModelImpl]
 impl User {
     pub fn email(&self) -> &Email { &self.email }
     pub fn set_email(&mut self, value: Email) { self.email = value; }
@@ -89,8 +89,8 @@ use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
 
 let user = TypeMetadata::of::<User>();
 assert!(user.field("id").unwrap().is_identifier());
-assert!(user.property("email").unwrap().is_writable());
-assert!(user.property("alias_slice").unwrap().is_computed());
+assert!(user.try_property("email").unwrap().unwrap().is_writable());
+assert!(user.try_property("alias_slice").unwrap().unwrap().is_computed());
 assert!(user.descriptor().model_metadata().is_some());
 ```
 
@@ -192,9 +192,9 @@ they deserialize from an omitted value and omit an empty value while
 serializing. `#[keep_serializing]` preserves empty output; an explicit Serde
 attribute takes precedence.
 
-## ModelProperties
+## ModelImpl
 
-`#[ModelProperties]` accepts a public, safe, synchronous, non-generic inherent
+`#[ModelImpl]` accepts a public, safe, synchronous, non-generic inherent
 impl. A getter has `&self` and returns `T`, `&T`, `&str`, `&[T]`, or
 `Option<&T>`. A setter has `&mut self, T` and returns `()`. Getter and setter
 metadata preserve borrowing; a setter returns its replacement value when it
@@ -244,4 +244,4 @@ and future resolver input only.
 - [README](../README.md)
 - [中文用户指南](user_guide.zh_CN.md)
 - Generate local API documentation with `cargo doc --open`.
-- [Final design](design.md)
+- [Final design (Chinese)](rs-model-derive-final-design.zh_CN.md)
