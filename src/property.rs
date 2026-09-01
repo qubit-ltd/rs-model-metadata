@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 // qubit-style: allow multiple-public-types
@@ -193,6 +195,7 @@ impl PropertySetFailure {
     }
 
     /// Consumes the failure and returns its parts.
+    #[must_use]
     pub fn into_parts(self) -> (PropertyAccessError, Option<ReflectedOwned>) {
         (self.error, self.replacement.map(|replacement| *replacement))
     }
@@ -460,26 +463,32 @@ impl PropertyMetadata {
         self.setter
     }
     /// Returns whether a reflected field backs this property.
+    #[must_use]
     pub const fn is_field(&self) -> bool {
         self.field.is_some()
     }
     /// Returns whether an explicit getter is present.
+    #[must_use]
     pub const fn is_getter(&self) -> bool {
         self.getter.is_some()
     }
     /// Returns whether an explicit setter is present.
+    #[must_use]
     pub const fn is_setter(&self) -> bool {
         self.setter.is_some()
     }
     /// Returns whether the property can be read.
+    #[must_use]
     pub const fn is_readable(&self) -> bool {
         self.is_field() || self.is_getter()
     }
     /// Returns whether the property can be written.
+    #[must_use]
     pub const fn is_writable(&self) -> bool {
         self.is_field() || self.is_setter()
     }
     /// Returns whether the property is getter-only and computed.
+    #[must_use]
     pub const fn is_computed(&self) -> bool {
         !self.is_field() && self.is_getter()
     }

@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 // qubit-style: allow multiple-public-types
@@ -294,15 +296,20 @@ impl ValidatorMetadata {
 /// A codec declared by Rust type or stable textual ID.
 #[derive(Clone, Copy, Debug)]
 pub enum CodecReference {
+    /// A codec identified by its static reflection descriptor.
     RustType(&'static ValueCodecDescriptor),
+    /// A codec identified by its stable registry ID.
     DeclaredId(&'static str),
 }
 
 /// Identifies where a codec declaration originated.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CodecSource {
+    /// A codec declared directly on a field.
     Field,
+    /// A codec declared for a value object's canonical representation.
     CanonicalValue,
+    /// A codec declared for a nested selector position.
     Selector(SelectorPosition),
 }
 
@@ -338,28 +345,41 @@ impl CodecMetadata {
 /// The structural position selected by nested field semantics.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SelectorPosition {
+    /// The element type of a sequence.
     Element,
+    /// The key type of a map.
     MapKey,
+    /// The value type of a map.
     MapValue,
 }
 
 /// Narrow declaration modes delegated to `qubit-redact` capabilities.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RedactModeMetadata {
+    /// Apply the configured sensitivity level.
     Level,
+    /// Omit the selected value.
     Skip,
+    /// Recurse into nested metadata.
     Nested,
+    /// Apply map-specific redaction.
     Map,
+    /// Select a redaction policy by stable key.
     KeyedBy(&'static str),
+    /// Use JSON redaction semantics.
     Json,
 }
 
 /// The value position affected by a redact declaration.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RedactPosition {
+    /// The field value itself.
     Field,
+    /// A sequence element.
     Element,
+    /// A map key.
     MapKey,
+    /// A map value.
     MapValue,
 }
 
@@ -594,15 +614,26 @@ impl SelectorMetadata {
 /// Source-order view over the same strongly typed field objects.
 #[derive(Clone, Copy, Debug)]
 pub enum FieldAttributeMetadata {
+    /// Identifier declaration metadata.
     Identifier(&'static IdentifierMetadata),
+    /// Reasons the field participates in an index.
     Indexed(IndexingReasons),
+    /// Uniqueness declaration metadata.
     Unique(&'static UniqueMetadata),
+    /// Entity-reference declaration metadata.
     Reference(&'static ReferenceMetadata),
+    /// Composite-key position metadata.
     KeyPart(&'static KeyPartMetadata),
+    /// A standard validation constraint occurrence.
     Constraint(&'static ConstraintMetadata),
+    /// A custom validator occurrence.
     Validator(&'static ValidatorMetadata),
+    /// A value codec occurrence.
     Codec(&'static CodecMetadata),
+    /// A redaction declaration occurrence.
     Redact(&'static RedactMetadata),
+    /// Effective Serde behavior.
     Serde(&'static SerdeFieldMetadata),
+    /// An explicit opaque-type marker.
     Opaque,
 }

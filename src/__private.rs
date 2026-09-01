@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Hidden, versioned ABI consumed by generated model code.
@@ -21,11 +23,14 @@ pub use serde;
 /// Serde predicates used by generated omission defaults.
 #[doc(hidden)]
 pub mod serde_helpers {
+    /// Returns whether an optional generated value is absent.
+    #[must_use]
     pub const fn is_none<T>(value: &Option<T>) -> bool {
         value.is_none()
     }
 
     pub trait IsEmpty {
+        /// Returns whether this collection contains no values.
         fn is_empty(&self) -> bool;
     }
 
@@ -65,6 +70,8 @@ pub mod serde_helpers {
         }
     }
 
+    /// Returns whether a generated collection contains no values.
+    #[must_use]
     pub fn is_empty<T: IsEmpty>(value: &T) -> bool {
         value.is_empty()
     }
@@ -109,6 +116,7 @@ pub mod v2 {
     }
 
     impl GeneratedTypeMetadataBuilder {
+        /// Starts building metadata for one reflected type.
         pub const fn new(
             descriptor: &'static TypeDescriptor,
             model_id: Option<crate::ModelId>,
@@ -120,16 +128,23 @@ pub mod v2 {
             }
         }
 
+        /// Adds generated property metadata to the builder.
         pub const fn properties(mut self, properties: &'static [crate::PropertyMetadata]) -> Self {
             self.metadata = self.metadata.with_properties(properties);
             self
         }
 
+        /// Records the generic definition represented by this metadata.
         pub const fn generic_definition(mut self, definition: &'static crate::GenericModelMetadata) -> Self {
             self.metadata = self.metadata.with_generic_definition(definition);
             self
         }
 
+        /// Validates and finishes generated metadata for `T`.
+        ///
+        /// # Panics
+        ///
+        /// Panics when generated metadata does not match the reflected type.
         #[must_use]
         pub fn finish<T: 'static>(self) -> TypeMetadata {
             self.metadata.assert_valid_for::<T>();
@@ -137,6 +152,7 @@ pub mod v2 {
         }
     }
 
+    /// Builds one field metadata overlay from generated declarations.
     #[doc(hidden)]
     #[must_use]
     pub const fn field_metadata(
@@ -149,6 +165,7 @@ pub mod v2 {
         crate::FieldMetadata::with_semantics(reflect, attributes, constraints, validators, serde)
     }
 
+    /// Builds one merged property metadata value.
     #[doc(hidden)]
     #[must_use]
     pub const fn property_metadata(
@@ -161,12 +178,14 @@ pub mod v2 {
         crate::PropertyMetadata::new(name, type_ref, field, getter, setter)
     }
 
+    /// Builds entity-role metadata for an identifier field.
     #[doc(hidden)]
     #[must_use]
     pub const fn entity_role(identifier: &'static crate::FieldMetadata) -> crate::RoleMetadata {
         crate::RoleMetadata::Entity(crate::EntityMetadata::new(identifier))
     }
 
+    /// Builds projection-role metadata and its optional source target.
     #[doc(hidden)]
     #[must_use]
     pub const fn projection_role(
@@ -176,12 +195,14 @@ pub mod v2 {
         crate::RoleMetadata::Projection(crate::ProjectionMetadata::new(identifier, source))
     }
 
+    /// Builds metadata for a general model role.
     #[doc(hidden)]
     #[must_use]
     pub const fn model_role() -> crate::RoleMetadata {
         crate::RoleMetadata::Model(crate::ModelMetadata)
     }
 
+    /// Builds value-role metadata.
     #[doc(hidden)]
     #[must_use]
     pub const fn value_role(
@@ -191,6 +212,7 @@ pub mod v2 {
         crate::RoleMetadata::Value(crate::ValueMetadata::new(transparent_field, canonical_codec))
     }
 
+    /// Builds metadata for one generated enum variant.
     #[doc(hidden)]
     #[must_use]
     pub const fn enum_variant_metadata(
@@ -211,12 +233,14 @@ pub mod v2 {
         )
     }
 
+    /// Builds enum-role metadata from generated variants.
     #[doc(hidden)]
     #[must_use]
     pub const fn enum_role(variants: &'static [crate::EnumVariantMetadata]) -> crate::RoleMetadata {
         crate::RoleMetadata::Enum(crate::EnumMetadata::new(variants))
     }
 
+    /// Builds metadata for one generic model definition.
     #[doc(hidden)]
     #[must_use]
     pub const fn generic_model_metadata(
@@ -228,6 +252,7 @@ pub mod v2 {
         crate::GenericModelMetadata::new(model_id, role, definition, fields)
     }
 
+    /// Builds a concrete generated model registration.
     #[doc(hidden)]
     #[must_use]
     pub const fn concrete_registration(
@@ -237,6 +262,7 @@ pub mod v2 {
         crate::ModelRegistration::from_concrete(metadata, source)
     }
 
+    /// Builds a generic generated model registration.
     #[doc(hidden)]
     #[must_use]
     pub const fn generic_registration(
@@ -246,12 +272,14 @@ pub mod v2 {
         crate::ModelRegistration::from_generic(metadata, source)
     }
 
+    /// Leaks a generated value for static metadata storage.
     #[doc(hidden)]
     #[must_use]
     pub fn leak<T: 'static>(value: T) -> &'static T {
         Box::leak(Box::new(value))
     }
 
+    /// Leaks generated values as a static slice for metadata storage.
     #[doc(hidden)]
     #[must_use]
     pub fn leak_slice<T: 'static>(values: Vec<T>) -> &'static [T] {

@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 // qubit-style: allow multiple-public-types
@@ -45,13 +47,17 @@ use crate::ValidatorMetadata;
 /// Inputs used for one complete resolution attempt.
 #[derive(Clone, Copy)]
 pub struct ResolveInputs<'a> {
+    /// Registry containing concrete and generic model registrations.
     pub models: &'a ModelRegistry,
+    /// Registry containing executable validators.
     pub validators: &'a ValidatorRegistry,
+    /// Registry containing executable value codecs.
     pub codecs: &'a ValueCodecRegistry,
 }
 
 /// Resolves declaration-only metadata against explicit registries.
 pub struct ModelResolver<'a> {
+    /// Explicit registries used by this resolver.
     inputs: ResolveInputs<'a>,
 }
 
@@ -289,6 +295,8 @@ impl<'a> ModelResolver<'a> {
         }
     }
 
+    /// Resolves a declaration-time target through the configured model
+    /// registry.
     fn resolve_target(&self, target: &DeclaredEntityTarget) -> Option<&'static TypeMetadata> {
         match target {
             DeclaredEntityTarget::RustType(provider) => Some(provider()),
@@ -297,6 +305,7 @@ impl<'a> ModelResolver<'a> {
     }
 }
 
+/// Resolves executable strategies declared directly on one field.
 /// Resolves executable strategies declared directly on one field.
 #[allow(clippy::too_many_arguments)]
 fn resolve_field_strategies<'a>(
@@ -376,6 +385,7 @@ fn resolve_field_strategies<'a>(
     }
 }
 
+/// Resolves validator and codec strategies attached to a nested selector.
 #[allow(clippy::too_many_arguments)]
 fn resolve_selector_strategies<'a>(
     metadata: &'static TypeMetadata,
@@ -406,6 +416,7 @@ fn resolve_selector_strategies<'a>(
     }
 }
 
+/// Returns the runtime type ID at a nested collection position.
 fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosition) -> Option<TypeId> {
     let descriptor = transparent_descriptor(descriptor)?;
     let type_ref = match position {
@@ -442,6 +453,7 @@ fn runtime_type_id(type_ref: &TypeRef) -> Option<TypeId> {
 }
 
 /// Resolves one validator registration and its readable dependencies.
+/// Resolves one validator occurrence against the executable validator registry.
 #[allow(clippy::too_many_arguments)]
 fn resolve_validator<'a>(
     metadata: &'static TypeMetadata,
@@ -514,6 +526,7 @@ fn resolve_validator<'a>(
 }
 
 /// Resolves one statically typed or stable-ID codec declaration.
+/// Resolves one codec occurrence against the executable codec registry.
 #[allow(clippy::too_many_arguments)]
 fn resolve_codec<'a>(
     metadata: &'static TypeMetadata,
@@ -566,11 +579,14 @@ fn resolve_codec<'a>(
     );
 }
 
+/// Provides resolver-specific access to a selected property path.
 trait ReferenceSelectionExt {
+    /// Returns the selected property path for property references.
     fn property_path(&self) -> Option<&PropertyPath<'static>>;
 }
 
 impl ReferenceSelectionExt for ReferenceSelection {
+    /// Returns `None` for an entity-level selection and the path otherwise.
     fn property_path(&self) -> Option<&PropertyPath<'static>> {
         match self {
             Self::Entity => None,
@@ -579,6 +595,7 @@ impl ReferenceSelectionExt for ReferenceSelection {
     }
 }
 
+/// Finds model metadata attached to or registered for a descriptor.
 fn metadata_for_descriptor(
     descriptor: &'static TypeDescriptor,
     registry: &ModelRegistry,
@@ -613,6 +630,7 @@ impl OwnedPropertyPath {
     }
 }
 
+/// Builds indexed query metadata for one entity.
 fn build_query(
     metadata: &'static TypeMetadata,
     registry: &ModelRegistry,
@@ -728,6 +746,7 @@ fn build_query(
     })
 }
 
+/// Recursively collects indexed fields from a model subtree.
 #[allow(clippy::too_many_arguments)]
 fn collect_query_fields(
     metadata: &'static TypeMetadata,
@@ -763,6 +782,7 @@ fn collect_query_fields(
     added
 }
 
+/// Collects one indexed field and any nested value fields.
 #[allow(clippy::too_many_arguments)]
 fn collect_indexed_field(
     field: &'static FieldMetadata,
@@ -825,6 +845,7 @@ fn collect_indexed_field(
     true
 }
 
+/// Adds one query field while checking flattened-name collisions.
 #[allow(clippy::too_many_arguments)]
 fn push_query_field(
     filters: &mut Vec<QueryField>,
@@ -864,6 +885,7 @@ fn push_query_field(
     });
 }
 
+/// Resolves a declared target using either its provider or stable model ID.
 fn resolve_declared_target(target: &DeclaredEntityTarget, registry: &ModelRegistry) -> Option<&'static TypeMetadata> {
     match target {
         DeclaredEntityTarget::RustType(provider) => Some(provider()),
@@ -871,10 +893,12 @@ fn resolve_declared_target(target: &DeclaredEntityTarget, registry: &ModelRegist
     }
 }
 
+/// Copies static segments into an owned runtime path.
 fn path_from_segments(segments: &[&'static str]) -> OwnedPropertyPath {
     OwnedPropertyPath::from_segments(segments)
 }
 
+/// Verifies that a value model contains only closed value types.
 fn validate_value_closure(
     metadata: &'static TypeMetadata,
     registry: &ModelRegistry,
@@ -909,6 +933,7 @@ fn validate_value_closure(
     }
 }
 
+/// Checks whether a type reference resolves to a closed value type.
 fn value_type_ref_is_closed(
     type_ref: &'static TypeRef,
     registry: &ModelRegistry,
@@ -922,6 +947,7 @@ fn value_type_ref_is_closed(
         .is_some_and(|descriptor| value_descriptor_is_closed(descriptor, registry, visited, source, errors, path))
 }
 
+/// Checks whether a descriptor and its nested types form a closed value.
 fn value_descriptor_is_closed(
     descriptor: &'static TypeDescriptor,
     registry: &ModelRegistry,
@@ -1259,18 +1285,31 @@ impl UniqueQueryKey {
 /// Machine-readable model resolution error class.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ModelResolveErrorKind {
+    /// The target model ID could not be resolved.
     MissingModelId,
+    /// The resolved model has a role incompatible with the declaration.
     WrongModelRole,
+    /// A referenced property does not exist.
     MissingProperty,
+    /// A referenced property exists but cannot be read.
     UnreadableProperty,
+    /// The expected and actual types differ.
     TypeMismatch,
+    /// A declared validator is not registered.
     MissingValidator,
+    /// A validator registration has the wrong input type.
     ValidatorTypeMismatch,
+    /// A declared codec is not registered.
     MissingCodec,
+    /// A codec registration has the wrong value type.
     CodecTypeMismatch,
+    /// A nested selector type cannot be resolved.
     UnresolvedSelectorType,
+    /// A projection source is missing or has the wrong role.
     InvalidProjectionSource,
+    /// A value model contains a non-value nested type.
     InvalidValueClosure,
+    /// Two query paths flatten to the same external name.
     QueryNameConflict,
 }
 
