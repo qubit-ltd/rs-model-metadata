@@ -1,13 +1,31 @@
 # qubit-model-metadata
 
-[English](README.md) | [用户指南](doc/user_guide.zh_CN.md)
+[![Rust CI](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-metadata/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-metadata/coverage/)
+[![Crates.io](https://img.shields.io/crates/v/qubit-model-metadata.svg?color=blue)](https://crates.io/crates/qubit-model-metadata)
+[![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
-`qubit-model-metadata` 是 Qubit Rust 模型的领域语义层。它以
-`qubit-reflect` 为唯一 Rust 结构事实源，在此基础上提供模型角色、字段约束、
-Property、稳定 `ModelId`、注册表和显式跨模型解析。
+`qubit-model-metadata` 为已由 `qubit-reflect` 描述结构的 Rust 类型补充稳定的领域语义。
+它适合框架与应用开发者：通过生成的模型角色、字段语义和稳定 ID，在多个已链接的模型 crate
+之间显式解析关系，同时避免另起一套反射系统。
 
-配套的 `qubit-model-derive` 为 `#[Entity]`、`#[Projection]`、`#[Model]`、
-`#[Enum]`、`#[Value]` 和 `#[ModelProperties]` 声明生成 metadata。
+## 安装
+
+运行时 crate 需要 Rust 1.94，使用 edition 2024。声明模型的应用同时加入运行时 crate 和配套的
+派生宏 crate：
+
+```toml
+[dependencies]
+qubit-model-metadata = "0.1"
+qubit-model-derive = "0.1"
+```
+
+## 快速开始
+
+账户服务只需声明一次账户类型，就能在不启动全局注册表的前提下读取模型元数据。派生宏生成
+角色感知的元数据，`TypeMetadata` 则通过 `qubit-reflect` 采用的同一个 `TypeDescriptor` 暴露它。
 
 ```rust,ignore
 use qubit_model_derive::Entity;
@@ -27,19 +45,63 @@ assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
 assert!(metadata.descriptor().model_metadata().is_some());
 ```
 
-主要边界：
+得到的是 `User` 的静态元数据；这一步不会初始化全局模型注册表。跨 crate 关系的解析流程请参阅用户指南。
 
-- `TypeDescriptor`、`FieldDescriptor`、`TypeRef` 和动态值均来自
-  `qubit-reflect`，本 crate 不维护平行反射系统。
-- 静态 metadata 查询不会初始化全局模型注册表。
-- 跨 crate ID、reference、Projection source、Query、validator 和 codec
-  只在显式 `ModelResolver` 阶段，基于 model、validator、codec 三个注册表完成绑定。
-- validator 使用强类型 `qubit-validator` 契约；codec 使用
-  `qubit-codec::ValueCodecDescriptor`。二者经精确 value type 校验后提供安全类型擦除的可执行 descriptor。
-- 生成的 metadata 只有通过隐藏 ABI v2 对 descriptor、field、property、role 和 codec
-  不变量的检查后才能发布。
+## 为什么需要这个项目
 
-完整流程见[用户指南](doc/user_guide.zh_CN.md)，API 细节见
-[docs.rs](https://docs.rs/qubit-model-metadata)。
+反射可以回答类型有哪些字段、字段使用什么 Rust 类型等结构问题。领域模型还需要标识符、约束、
+引用、Property、角色和可持久化的模型 ID 等信息。本 crate 将这些语义附着在反射 descriptor 上，
+而不是重复维护一份反射模型。
 
-本项目采用 Apache-2.0 许可证。
+## 核心能力
+
+- `qubit-model-derive` 可为 `#[Entity]`、`#[Projection]`、`#[Model]`、`#[Enum]`、`#[Value]`
+  与 `#[ModelProperties]` 声明生成 metadata。
+- `TypeMetadata` 为生成的类型提供静态的角色、Field、Property、泛型模板和可选 `ModelId` 信息。
+- `ModelRegistry` 收集已注册模型；`ModelResolver` 在模型、validator 和 codec 注册表上执行显式解析。
+- 解析成功时得到不可变的 `ResolvedModelGraph`；若引用、角色、Property、validator 或 codec
+  无法解析，则按确定顺序汇总返回错误。
+
+本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的
+metadata 在穿过隐藏 v2 ABI 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量。
+
+## 延伸阅读
+
+- [English user guide](doc/user_guide.md)
+- [简体中文用户指南](doc/user_guide.zh_CN.md)
+- [API 文档](https://docs.rs/qubit-model-metadata)
+- [English README](README.md)
+
+## 测试
+
+```bash
+# 使用默认 feature 集运行测试
+cargo test
+
+# 使用项目声明的全部 feature 运行测试
+cargo test --all-features
+
+# 运行项目 CI 检查
+./ci-check.sh
+
+# 检查代码覆盖率
+./coverage.sh
+```
+
+## 许可证
+
+Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
+
+本项目基于 Apache License 2.0 授权。完整许可证文本请参阅
+[LICENSE](LICENSE)。
+
+## 贡献
+
+欢迎贡献。请遵循 Rust API 指南，及时更新公共 API 文档与测试，并在提交
+Pull Request 前运行 `./align-ci.sh`格式化代码，运行`./ci-check.sh`对齐CI要求。
+
+## 作者
+
+**Haixing Hu** - *Qubit Co. Ltd.*
+
+仓库地址：[https://github.com/qubit-ltd/rs-model-metadata](https://github.com/qubit-ltd/rs-model-metadata)
