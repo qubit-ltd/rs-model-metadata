@@ -103,10 +103,14 @@ models. This is where a missing target, an incorrect role, or an unknown
 referenced property is reported:
 
 ```rust,ignore
+use qubit_codec::ValueCodecRegistry;
 use qubit_model_metadata::{ModelRegistry, ModelResolver, ResolveInputs, TypeMetadata};
+use qubit_validator::ValidatorRegistry;
 
-let registry = ModelRegistry::try_global()?;
-let graph = ModelResolver::new(ResolveInputs { models: registry }).resolve_all()?;
+let models = ModelRegistry::try_global()?;
+let validators = ValidatorRegistry::try_global()?;
+let codecs = ValueCodecRegistry::try_global()?;
+let graph = ModelResolver::new(ResolveInputs { models, validators, codecs }).resolve_all()?;
 let field = TypeMetadata::of::<Login>().field("user_id").unwrap();
 assert_eq!(
     graph.reference(field).unwrap().target().model_id().unwrap().as_str(),
@@ -156,8 +160,9 @@ Selectors accept only `redact(level = "...")` for redaction. `element` and
 source keys map to the same redacted key, Serde serialization returns an error
 rather than overwriting a value.
 
-`validator` produces syntax-validated occurrence metadata only. It is not
-registered, resolved, or executed. A Rust codec is checked at compile time for
+`validator` produces syntax-validated occurrence metadata. `ModelResolver`
+binds its ID to an executable `qubit-validator` descriptor, checks the value
+type, and resolves dependency properties. A Rust codec is checked at compile time for
 `Default + ValueEncoder<Value, Output = String> + ValueDecoder<str, Output = Value>`.
 
 ## Default Interfaces, Serde, and Redaction

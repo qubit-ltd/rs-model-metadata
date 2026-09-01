@@ -92,13 +92,14 @@ macro detect implementations that would duplicate or bypass redacted output.
 
 Static metadata lookup through `TypeMetadata::of::<T>()` and
 `ModelDescriptorExt::model_metadata()` does not initialize a global registry.
-Use `ModelRegistry` and `ModelResolver` only after all participating model
-crates are linked, when resolving IDs, references, projection sources, or
-queries.
+Use `ModelRegistry`, `ValidatorRegistry`, `ValueCodecRegistry`, and
+`ModelResolver` only after all participating crates are linked, when resolving
+IDs, references, projection sources, queries, validators, or codecs.
 
-Lower-case `#[validator(...)]` records validated declaration metadata only; it
-does not register, resolve, or execute validators. A Rust codec must satisfy
-the `qubit-codec` `Default`, `ValueEncoder`, and `ValueDecoder` contracts.
+Lower-case `#[validator(...)]` emits a validated occurrence. The resolver binds
+its stable ID to a `qubit-validator` registration and resolves readable
+dependencies. Rust codecs become executable `ValueCodecDescriptor`s directly,
+or are bound by stable ID; their exact value type is checked.
 For redacted map keys, serialization fails if distinct source keys redact to
 the same output key instead of silently overwriting data.
 

@@ -88,10 +88,14 @@ assert!(user.descriptor().model_metadata().is_some());
 所有业务 crate 链接完成后，再解析依赖其他模型的声明。缺失 target、错误角色、未知引用 Property 等问题会在这一步报告：
 
 ```rust,ignore
+use qubit_codec::ValueCodecRegistry;
 use qubit_model_metadata::{ModelRegistry, ModelResolver, ResolveInputs, TypeMetadata};
+use qubit_validator::ValidatorRegistry;
 
-let registry = ModelRegistry::try_global()?;
-let graph = ModelResolver::new(ResolveInputs { models: registry }).resolve_all()?;
+let models = ModelRegistry::try_global()?;
+let validators = ValidatorRegistry::try_global()?;
+let codecs = ValueCodecRegistry::try_global()?;
+let graph = ModelResolver::new(ResolveInputs { models, validators, codecs }).resolve_all()?;
 let field = TypeMetadata::of::<Login>().field("user_id").unwrap();
 assert_eq!(
     graph.reference(field).unwrap().target().model_id().unwrap().as_str(),
@@ -127,7 +131,8 @@ assert_eq!(
 selector 上的脱敏只接受 `redact(level = "...")`。`element` 和 `map_value` 应用于容器 value；`map_key`
 处理输出 key。若两个原始 key 脱敏后相同，Serde 序列化会返回错误，不会静默覆盖 value。
 
-`validator` 只生成经过语法校验的 occurrence metadata，不注册、解析或执行。Rust codec 会在编译期校验
+`validator` 生成经过语法校验的 occurrence metadata；`ModelResolver` 会将其 ID 绑定到可执行的
+`qubit-validator` descriptor，校验 value type，并解析 dependency Property。Rust codec 会在编译期校验
 `Default + ValueEncoder<Value, Output = String> + ValueDecoder<str, Output = Value>`。
 
 ## 默认接口、Serde 与脱敏

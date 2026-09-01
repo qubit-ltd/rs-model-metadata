@@ -77,11 +77,12 @@ assert!(metadata.descriptor().model_metadata().is_some());
 
 ## 边界
 
-通过 `TypeMetadata::of::<T>()` 或 `ModelDescriptorExt::model_metadata()` 查询静态元数据不会初始化全局注册表。只有在所有参与模型 crate 都已链接后，才使用 `ModelRegistry` 和 `ModelResolver`
-解析稳定 ID、reference、Projection 来源或 Query。
+通过 `TypeMetadata::of::<T>()` 或 `ModelDescriptorExt::model_metadata()` 查询静态元数据不会初始化全局注册表。只有在所有参与 crate 都已链接后，才使用 `ModelRegistry`、`ValidatorRegistry`、
+`ValueCodecRegistry` 和 `ModelResolver` 解析稳定 ID、reference、Projection 来源、Query、validator 或 codec。
 
-小写 `#[validator(...)]` 目前仅生成已校验的声明元数据，不注册、解析或执行 validator。Rust codec
-必须满足 `qubit-codec` 的 `Default`、`ValueEncoder`、`ValueDecoder` 契约。若多个原始 map key
+小写 `#[validator(...)]` 生成已校验的 occurrence；resolver 会按稳定 ID 绑定 `qubit-validator`
+注册项并解析可读依赖。Rust codec 会直接生成可执行 `ValueCodecDescriptor`，或按稳定 ID 绑定，且会校验
+精确 value type。若多个原始 map key
 脱敏后相同，序列化会失败，避免静默覆盖数据。
 
 ## 延伸阅读
