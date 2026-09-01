@@ -1,6 +1,6 @@
 # qubit-model-derive 用户指南
 
-[README](../README.zh_CN.md) | [English user guide](user_guide.md) | [最终设计](2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
+[README](../README.zh_CN.md) | [English user guide](user_guide.md) | [最终设计](design.md)
 
 ## 手册目标与读者
 
@@ -183,4 +183,4 @@ selector 上的脱敏只接受 `redact(level = "...")`。`element` 和 `map_valu
 - [README](../README.zh_CN.md)
 - [English user guide](user_guide.md)
 - 本地 API 文档：在 crate 根目录运行 `cargo doc --open`
-- [最终 API 与实现方案](2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
+- [最终设计](design.md)

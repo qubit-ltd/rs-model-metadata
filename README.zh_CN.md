@@ -90,7 +90,7 @@ assert!(metadata.descriptor().model_metadata().is_some());
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
 - 本地 API 文档：在 crate 根目录运行 `cargo doc --open`
-- [最终 API 与实现方案](doc/2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
+- [最终设计](doc/design.md)
 - [English README](README.md)
 
 ## 测试

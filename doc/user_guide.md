@@ -1,6 +1,6 @@
 # qubit-model-derive User Guide
 
-[README](../README.md) | [中文用户指南](user_guide.zh_CN.md) | [Final design](2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
+[README](../README.md) | [中文用户指南](user_guide.zh_CN.md) | [Final design](design.md)
 
 ## Purpose and Audience
 
@@ -244,4 +244,4 @@ and future resolver input only.
 - [README](../README.md)
 - [中文用户指南](user_guide.zh_CN.md)
 - Generate local API documentation with `cargo doc --open`.
-- [Final API and implementation design](2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
+- [Final design](design.md)

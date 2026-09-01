@@ -110,7 +110,7 @@ the same output key instead of silently overwriting data.
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
 - Local API documentation: run `cargo doc --open`
-- [Final API and implementation design](doc/2026-08-31-182016-rs-model-derive-final-api-and-implementation-design.md)
+- [Final design](doc/design.md)
 - [中文 README](README.zh_CN.md)
 
 ## Testing
