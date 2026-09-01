@@ -8,7 +8,7 @@
 
 //! Integration tests for role-aware type metadata.
 
-use qubit_model_metadata::__private::v2;
+use qubit_model_metadata::__private::v3;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::ModelDescriptorExt;
 use qubit_model_metadata::ModelRole;
@@ -32,8 +32,8 @@ fn test_type_metadata_delegates_structure_to_reflection() {
             .collect::<Vec<_>>()
             .into_boxed_slice(),
     );
-    let role = v2::leak(v2::model_role());
-    let metadata = v2::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role).finish::<NamedFixture>();
+    let role = v3::leak(v3::model_role());
+    let metadata = v3::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role).finish::<NamedFixture>();
 
     assert!(std::ptr::eq(metadata.descriptor(), descriptor));
     assert_eq!(metadata.role(), ModelRole::Model);

@@ -28,15 +28,21 @@ use qubit_reflect::descriptor::TypeRef;
 pub use self::enum_metadata::EnumMetadata;
 pub use self::enum_variant_metadata::EnumVariantMetadata;
 pub use self::has_type_metadata::HasTypeMetadata;
+use crate::AbiViolation;
 use crate::ConstraintMetadata;
 use crate::EntityMetadata;
 use crate::FieldAttributeMetadata;
 use crate::FieldMetadata;
 use crate::GenericModelMetadata;
+use crate::LocalPropertySet;
 use crate::ModelId;
 use crate::ModelMetadata;
 use crate::ModelRole;
 use crate::ProjectionMetadata;
+use crate::PropertyBuildError;
+use crate::PropertyBuildErrorKind;
+use crate::PropertyBuildErrors;
+use crate::PropertyFragment;
 use crate::PropertyMetadata;
 use crate::RoleMetadata;
 use crate::SelectorPosition;
@@ -54,7 +60,9 @@ pub struct TypeMetadata {
     /// Role-specific metadata for the reflected type.
     role: &'static RoleMetadata,
     /// Merged field and method properties for the reflected type.
-    properties: &'static [PropertyMetadata],
+    properties: LocalPropertySet,
+    /// Unmerged field property declarations for types without `ModelImpl`.
+    property_fragments: &'static [PropertyFragment],
     /// The generic definition that produced this concrete instance, if any.
     generic_definition: Option<&'static GenericModelMetadata>,
 }
@@ -74,7 +82,8 @@ impl TypeMetadata {
             model_id,
             fields,
             role,
-            properties: &[],
+            properties: LocalPropertySet::new(&[]),
+            property_fragments: &[],
             generic_definition: None,
         }
     }
@@ -83,7 +92,15 @@ impl TypeMetadata {
     #[doc(hidden)]
     #[must_use]
     pub(crate) const fn with_properties(mut self, properties: &'static [PropertyMetadata]) -> Self {
-        self.properties = properties;
+        self.properties = LocalPropertySet::new(properties);
+        self
+    }
+
+    /// Adds generated field property fragments to this immutable overlay.
+    #[doc(hidden)]
+    #[must_use]
+    pub(crate) const fn with_property_fragments(mut self, fragments: &'static [PropertyFragment]) -> Self {
+        self.property_fragments = fragments;
         self
     }
 
@@ -98,9 +115,19 @@ impl TypeMetadata {
     /// Returns the static metadata generated for `T`.
     #[must_use]
     pub fn of<T: HasTypeMetadata>() -> &'static Self {
+        Self::try_of::<T>().unwrap_or_else(|error| panic!("{error}"))
+    }
+
+    /// Returns the static metadata generated for `T` after ABI validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a structured violation when generated metadata disagrees with
+    /// the unique reflection descriptor for `T`.
+    pub fn try_of<T: HasTypeMetadata>() -> Result<&'static Self, AbiViolation> {
         let metadata = <T as crate::__private::TypeMetadataProvider>::__type_metadata();
-        metadata.assert_valid_for::<T>();
-        metadata
+        metadata.validate_for::<T>()?;
+        Ok(metadata)
     }
 
     /// Returns the unique reflection descriptor root.
@@ -151,18 +178,36 @@ impl TypeMetadata {
         self.fields.get(index)
     }
 
-    /// Returns merged field and method properties.
+    /// Returns unmerged field/getter/setter declarations in source order.
     #[must_use]
-    pub fn properties(&self) -> &'static [PropertyMetadata] {
+    pub fn property_fragments(&'static self) -> &'static [PropertyFragment] {
         self.descriptor
-            .get_capability(crate::reflect_facade::model_properties_key())
-            .map_or(self.properties, |provider| provider())
+            .get_capability(crate::reflect_facade::model_impl_key())
+            .map_or(self.property_fragments, |provider| provider().fragments())
     }
 
-    /// Finds a property by its public name.
-    #[must_use]
-    pub fn property(&self, name: &str) -> Option<&'static PropertyMetadata> {
-        self.properties().iter().find(|property| property.name() == name)
+    /// Returns locally merged field and method properties.
+    ///
+    /// # Errors
+    ///
+    /// Returns deterministic property assembly errors when an independent
+    /// `ModelImpl` block disagrees with the model's reflected fields.
+    pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
+        self.descriptor
+            .get_capability(crate::reflect_facade::model_impl_key())
+            .map_or(Ok(&self.properties), |provider| provider().try_properties())
+    }
+
+    /// Finds a locally merged property by its public name.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same assembly errors as [`Self::try_properties`].
+    pub fn try_property(
+        &'static self,
+        name: &str,
+    ) -> Result<Option<&'static PropertyMetadata>, &'static PropertyBuildErrors> {
+        self.try_properties().map(|properties| properties.property(name))
     }
 
     /// Returns the generic model template that produced this metadata.
@@ -238,13 +283,19 @@ impl TypeMetadata {
     /// consistent before it crosses the public ABI boundary.
     #[doc(hidden)]
     pub fn assert_valid_for<T: 'static>(&self) {
+        self.validate_for::<T>().unwrap_or_else(|error| panic!("{error}"));
+    }
+
+    /// Checks that generated metadata is anchored to `T`.
+    #[doc(hidden)]
+    pub fn validate_for<T: 'static>(&self) -> Result<(), AbiViolation> {
         if self.descriptor.type_id() != TypeId::of::<T>() {
-            abi_violation(
+            return Err(abi_violation(
                 "QMM-ABI-001",
                 "metadata descriptor does not describe the requested Rust type",
-            );
+            ));
         }
-        self.assert_valid_descriptor(self.descriptor);
+        self.validate_descriptor(self.descriptor)
     }
 
     /// Verifies that this metadata remains attached to `descriptor`.
@@ -253,32 +304,49 @@ impl TypeMetadata {
     ///
     /// Panics with a stable ABI diagnostic when metadata and reflection differ.
     pub(crate) fn assert_valid_descriptor(&self, descriptor: &TypeDescriptor) {
+        self.validate_descriptor(descriptor)
+            .unwrap_or_else(|error| panic!("{error}"));
+    }
+
+    /// Checks that this metadata remains attached to `descriptor`.
+    pub(crate) fn validate_descriptor(&self, descriptor: &TypeDescriptor) -> Result<(), AbiViolation> {
         if !core::ptr::eq(self.descriptor, descriptor) {
-            abi_violation("QMM-ABI-002", "metadata is attached to a different reflection root");
+            return Err(abi_violation(
+                "QMM-ABI-002",
+                "metadata is attached to a different reflection root",
+            ));
         }
 
         if !matches!(self.role, RoleMetadata::Enum(_)) {
-            validate_fields(self.fields, descriptor.fields(), descriptor, "QMM-ABI-003");
+            validate_fields(self.fields, descriptor.fields(), descriptor, "QMM-ABI-003")?;
         }
         if self.model_id.is_some() && self.generic_definition.is_some() {
-            abi_violation(
+            return Err(abi_violation(
                 "QMM-ABI-022",
                 "concrete metadata cannot own both a model ID and a generic definition",
-            );
+            ));
         }
         if let Some(definition) = self.generic_definition
             && (self.descriptor.concrete_generic().is_none() || definition.role() != self.role())
         {
-            abi_violation("QMM-ABI-022", "generic metadata does not match its concrete instance");
+            return Err(abi_violation(
+                "QMM-ABI-022",
+                "generic metadata does not match its concrete instance",
+            ));
         }
-        validate_properties(self.properties, self.fields, descriptor);
-        validate_role(self, descriptor);
+        if validate_properties(self.properties.properties(), self.fields, descriptor).is_err() {
+            return Err(abi_violation(
+                "QMM-ABI-004",
+                "generated field properties are internally inconsistent",
+            ));
+        }
+        validate_role(self, descriptor)
     }
 
     /// Verifies a property overlay supplied by a generated capability.
     #[doc(hidden)]
-    pub fn assert_valid_properties(&self, properties: &[PropertyMetadata]) {
-        validate_properties(properties, self.fields, self.descriptor);
+    pub fn validate_properties(&self, properties: &[PropertyMetadata]) -> Result<(), PropertyBuildErrors> {
+        validate_properties(properties, self.fields, self.descriptor)
     }
 }
 
@@ -288,18 +356,21 @@ fn validate_fields(
     reflected: &[FieldDescriptor],
     descriptor: &TypeDescriptor,
     code: &'static str,
-) {
+) -> Result<(), AbiViolation> {
     if metadata.len() != reflected.len() {
-        abi_violation(code, "field metadata count differs from reflection metadata");
+        return Err(abi_violation(
+            code,
+            "field metadata count differs from reflection metadata",
+        ));
     }
     for (index, (field, reflect)) in metadata.iter().zip(reflected).enumerate() {
         if field.index() != index
             || !core::ptr::eq(field.reflect(), reflect)
             || !core::ptr::eq(field.reflect().declaring_type(), descriptor)
         {
-            abi_violation(code, "field metadata is not in reflection source order");
+            return Err(abi_violation(code, "field metadata is not in reflection source order"));
         }
-        validate_field_semantics(field);
+        validate_field_semantics(field)?;
     }
     let mut key_parts = metadata
         .iter()
@@ -307,12 +378,16 @@ fn validate_fields(
         .collect::<Vec<_>>();
     key_parts.sort_unstable();
     if key_parts.iter().copied().ne(0..key_parts.len()) {
-        abi_violation("QMM-ABI-019", "key-part orders must be unique and contiguous");
+        return Err(abi_violation(
+            "QMM-ABI-019",
+            "key-part orders must be unique and contiguous",
+        ));
     }
+    Ok(())
 }
 
 /// Verifies mutually compatible field-level semantic declarations.
-fn validate_field_semantics(field: &FieldMetadata) {
+fn validate_field_semantics(field: &FieldMetadata) -> Result<(), AbiViolation> {
     let mut singleton_counts = [0_u8; 9];
     let mut constraints = Vec::new();
     let mut validators = Vec::new();
@@ -327,7 +402,10 @@ fn validate_field_semantics(field: &FieldMetadata) {
             FieldAttributeMetadata::Serde(value) => {
                 singleton_counts[6] += 1;
                 if !core::ptr::eq(*value, field.serde()) {
-                    abi_violation("QMM-ABI-017", "serde occurrence does not match the cached field value");
+                    return Err(abi_violation(
+                        "QMM-ABI-017",
+                        "serde occurrence does not match the cached field value",
+                    ));
                 }
             }
             FieldAttributeMetadata::Opaque => singleton_counts[7] += 1,
@@ -337,7 +415,10 @@ fn validate_field_semantics(field: &FieldMetadata) {
         }
     }
     if singleton_counts.into_iter().any(|count| count > 1) {
-        abi_violation("QMM-ABI-015", "a field contains duplicate singleton semantics");
+        return Err(abi_violation(
+            "QMM-ABI-015",
+            "a field contains duplicate singleton semantics",
+        ));
     }
     if constraints.len() != field.constraints().len()
         || !constraints
@@ -350,19 +431,23 @@ fn validate_field_semantics(field: &FieldMetadata) {
             .zip(field.validators())
             .all(|(left, right)| core::ptr::eq(*left, right))
     {
-        abi_violation("QMM-ABI-016", "field occurrence lists and cached slices disagree");
+        return Err(abi_violation(
+            "QMM-ABI-016",
+            "field occurrence lists and cached slices disagree",
+        ));
     }
-    validate_constraint_kinds(field.constraints(), field.type_ref(), true);
-    validate_validators(field.validators());
+    validate_constraint_kinds(field.constraints(), field.type_ref(), true)?;
+    validate_validators(field.validators())?;
     validate_codec(
         field.codec(),
         field_codec_type_id(field.type_ref()),
         crate::CodecSource::Field,
-    );
+    )?;
+    Ok(())
 }
 
 /// Verifies that validator declarations have non-empty, unique dependencies.
-fn validate_validators(validators: &[crate::ValidatorMetadata]) {
+fn validate_validators(validators: &[crate::ValidatorMetadata]) -> Result<(), AbiViolation> {
     for validator in validators {
         let mut parameter_names = HashSet::with_capacity(validator.params().len());
         if validator
@@ -370,18 +455,26 @@ fn validate_validators(validators: &[crate::ValidatorMetadata]) {
             .iter()
             .any(|argument| !parameter_names.insert(argument.name()))
         {
-            abi_violation("QMM-ABI-018", "validator parameter names must be unique");
+            return Err(abi_violation("QMM-ABI-018", "validator parameter names must be unique"));
         }
         for (index, dependency) in validator.depends_on().iter().enumerate() {
             if dependency.is_empty() || validator.depends_on()[..index].contains(dependency) {
-                abi_violation("QMM-ABI-018", "validator dependency paths must be non-empty and unique");
+                return Err(abi_violation(
+                    "QMM-ABI-018",
+                    "validator dependency paths must be non-empty and unique",
+                ));
             }
         }
     }
+    Ok(())
 }
 
 /// Verifies constraint kinds against the reflected field type.
-fn validate_constraint_kinds(constraints: &[ConstraintMetadata], type_ref: &TypeRef, allow_selectors: bool) {
+fn validate_constraint_kinds(
+    constraints: &[ConstraintMetadata],
+    type_ref: &TypeRef,
+    allow_selectors: bool,
+) -> Result<(), AbiViolation> {
     let mut kinds = HashSet::with_capacity(constraints.len());
     for constraint in constraints {
         let kind = match constraint {
@@ -391,9 +484,9 @@ fn validate_constraint_kinds(constraints: &[ConstraintMetadata], type_ref: &Type
             ConstraintMetadata::Sequence(sequence) => {
                 if let Some(selector) = sequence.element() {
                     if !allow_selectors {
-                        abi_violation("QMM-ABI-020", "selector semantics must be non-recursive");
+                        return Err(abi_violation("QMM-ABI-020", "selector semantics must be non-recursive"));
                     }
-                    validate_selector(selector, SelectorPosition::Element, type_ref);
+                    validate_selector(selector, SelectorPosition::Element, type_ref)?;
                 }
                 3
             }
@@ -404,50 +497,75 @@ fn validate_constraint_kinds(constraints: &[ConstraintMetadata], type_ref: &Type
                 ] {
                     if let Some(selector) = selector {
                         if !allow_selectors {
-                            abi_violation("QMM-ABI-020", "selector semantics must be non-recursive");
+                            return Err(abi_violation("QMM-ABI-020", "selector semantics must be non-recursive"));
                         }
-                        validate_selector(selector, position, type_ref);
+                        validate_selector(selector, position, type_ref)?;
                     }
                 }
                 4
             }
         };
         if !kinds.insert(kind) {
-            abi_violation("QMM-ABI-021", "a field contains duplicate constraint kinds");
+            return Err(abi_violation(
+                "QMM-ABI-021",
+                "a field contains duplicate constraint kinds",
+            ));
         }
     }
+    Ok(())
 }
 
 /// Verifies one nested selector against its structural position and type.
-fn validate_selector(selector: &crate::SelectorMetadata, position: SelectorPosition, type_ref: &TypeRef) {
+fn validate_selector(
+    selector: &crate::SelectorMetadata,
+    position: SelectorPosition,
+    type_ref: &TypeRef,
+) -> Result<(), AbiViolation> {
     if selector.position() != position {
-        abi_violation("QMM-ABI-020", "selector has the wrong structural position");
+        return Err(abi_violation(
+            "QMM-ABI-020",
+            "selector has the wrong structural position",
+        ));
     }
     let Some(selected_type) = selector_type_ref(type_ref, position) else {
-        abi_violation("QMM-ABI-020", "selector position is incompatible with the field type");
+        return Err(abi_violation(
+            "QMM-ABI-020",
+            "selector position is incompatible with the field type",
+        ));
     };
-    validate_constraint_kinds(selector.constraints(), selected_type, false);
-    validate_validators(selector.validators());
+    validate_constraint_kinds(selector.constraints(), selected_type, false)?;
+    validate_validators(selector.validators())?;
     validate_codec(
         selector.codec(),
         type_ref_id(selected_type),
         crate::CodecSource::Selector(position),
-    );
+    )
 }
 
 /// Verifies that a codec declaration is valid for its expected type and source.
-fn validate_codec(codec: Option<&crate::CodecMetadata>, expected_type: Option<TypeId>, source: crate::CodecSource) {
+fn validate_codec(
+    codec: Option<&crate::CodecMetadata>,
+    expected_type: Option<TypeId>,
+    source: crate::CodecSource,
+) -> Result<(), AbiViolation> {
     let Some(codec) = codec else {
-        return;
+        return Ok(());
     };
     if codec.source() != source {
-        abi_violation("QMM-ABI-025", "codec source differs from its metadata position");
+        return Err(abi_violation(
+            "QMM-ABI-025",
+            "codec source differs from its metadata position",
+        ));
     }
     if let (crate::CodecReference::RustType(descriptor), Some(expected_type)) = (codec.codec(), expected_type)
         && descriptor.value_type_id() != expected_type
     {
-        abi_violation("QMM-ABI-025", "codec value type differs from its metadata position");
+        return Err(abi_violation(
+            "QMM-ABI-025",
+            "codec value type differs from its metadata position",
+        ));
     }
+    Ok(())
 }
 
 /// Returns the codec-compatible type ID for a field type reference.
@@ -491,75 +609,106 @@ fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'s
 }
 
 /// Verifies that generated property overlays agree with fields and reflection.
-fn validate_properties(properties: &[PropertyMetadata], fields: &[FieldMetadata], descriptor: &TypeDescriptor) {
+fn validate_properties(
+    properties: &[PropertyMetadata],
+    fields: &[FieldMetadata],
+    descriptor: &TypeDescriptor,
+) -> Result<(), PropertyBuildErrors> {
     let mut names = HashSet::with_capacity(properties.len());
+    let mut errors = Vec::new();
     for property in properties {
         if property.name().is_empty() || !names.insert(property.name()) {
-            abi_violation("QMM-ABI-004", "property names must be non-empty and unique");
+            errors.push(PropertyBuildError::new(
+                PropertyBuildErrorKind::InvalidName,
+                property.name(),
+            ));
         }
         if property.field().is_none() && property.getter().is_none() && property.setter().is_none() {
-            abi_violation("QMM-ABI-005", "a property must expose a field, getter, or setter");
+            errors.push(PropertyBuildError::new(
+                PropertyBuildErrorKind::MissingSource,
+                property.name(),
+            ));
         }
         if let Some(field) = property.field() {
             if !contains_field(fields, field) || !core::ptr::eq(field.reflect().declaring_type(), descriptor) {
-                abi_violation(
-                    "QMM-ABI-006",
-                    "a property backing field must belong to the metadata root",
-                );
+                errors.push(PropertyBuildError::new(
+                    PropertyBuildErrorKind::ForeignField,
+                    property.name(),
+                ));
             }
             if !type_refs_equal(property.type_ref(), field.type_ref()) {
-                abi_violation("QMM-ABI-007", "property and backing-field type references differ");
+                errors.push(PropertyBuildError::new(
+                    PropertyBuildErrorKind::FieldTypeMismatch,
+                    property.name(),
+                ));
             }
         }
         if let Some(getter) = property.getter()
             && (getter.target_type_id() != descriptor.type_id()
                 || !getter_type_compatible(property.type_ref(), getter.output_type()))
         {
-            abi_violation(
-                "QMM-ABI-008",
-                "getter target or output type disagrees with its property",
-            );
+            errors.push(PropertyBuildError::new(
+                PropertyBuildErrorKind::GetterTypeMismatch,
+                property.name(),
+            ));
         }
         if let Some(setter) = property.setter()
             && (setter.target_type_id() != descriptor.type_id()
                 || !type_refs_equal(property.type_ref(), setter.input_type())
                 || type_ref_id(property.type_ref()).is_some_and(|id| id != setter.input_type_id()))
         {
-            abi_violation("QMM-ABI-009", "setter target or input type disagrees with its property");
+            errors.push(PropertyBuildError::new(
+                PropertyBuildErrorKind::SetterTypeMismatch,
+                property.name(),
+            ));
         }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(PropertyBuildErrors::new(errors))
     }
 }
 
 /// Verifies that role-specific metadata agrees with the reflected type.
-fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) {
+fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) -> Result<(), AbiViolation> {
     match metadata.role_metadata() {
-        RoleMetadata::Entity(role) => validate_identifier(metadata.fields, role.identifier()),
-        RoleMetadata::Projection(role) => validate_identifier(metadata.fields, role.identifier()),
+        RoleMetadata::Entity(role) => validate_identifier(metadata.fields, role.identifier())?,
+        RoleMetadata::Projection(role) => validate_identifier(metadata.fields, role.identifier())?,
         RoleMetadata::Model(_) => {}
         RoleMetadata::Value(role) => {
             if let Some(field) = role.transparent_field()
                 && (metadata.fields.len() != 1 || !contains_field(metadata.fields, field))
             {
-                abi_violation("QMM-ABI-011", "a transparent value must reference its only field");
+                return Err(abi_violation(
+                    "QMM-ABI-011",
+                    "a transparent value must reference its only field",
+                ));
             }
             if let Some(codec) = role.canonical_codec() {
                 if codec.source() != crate::CodecSource::CanonicalValue {
-                    abi_violation("QMM-ABI-025", "codec source differs from its metadata position");
+                    return Err(abi_violation(
+                        "QMM-ABI-025",
+                        "codec source differs from its metadata position",
+                    ));
                 }
                 if let crate::CodecReference::RustType(codec) = codec.codec()
                     && codec.value_type_id() != metadata.type_id()
                 {
-                    abi_violation("QMM-ABI-023", "canonical codec value type differs from its Value type");
+                    return Err(abi_violation(
+                        "QMM-ABI-023",
+                        "canonical codec value type differs from its Value type",
+                    ));
                 }
             }
         }
         RoleMetadata::Enum(role) => {
             let reflected = descriptor.variants();
             if role.variants().len() != reflected.len() {
-                abi_violation(
+                return Err(abi_violation(
                     "QMM-ABI-012",
                     "enum variant metadata count differs from reflection metadata",
-                );
+                ));
             }
             let mut defaults = 0;
             let mut canonical_names = HashSet::with_capacity(role.variants().len());
@@ -570,39 +719,47 @@ fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) {
                     || !core::ptr::eq(variant.reflect(), reflect)
                     || !core::ptr::eq(variant.reflect().declaring_type(), descriptor)
                 {
-                    abi_violation("QMM-ABI-012", "enum variants are not in reflection source order");
+                    return Err(abi_violation(
+                        "QMM-ABI-012",
+                        "enum variants are not in reflection source order",
+                    ));
                 }
                 if variant.canonical_name().is_empty()
                     || !canonical_names.insert(variant.canonical_name())
                     || !serialized_names.insert(variant.serialized_name())
                     || !deserialized_names.insert(variant.deserialized_name())
                 {
-                    abi_violation(
+                    return Err(abi_violation(
                         "QMM-ABI-024",
                         "enum variant names must be non-empty and unique per namespace",
-                    );
+                    ));
                 }
-                validate_fields(variant.fields(), reflect.fields(), descriptor, "QMM-ABI-013");
+                validate_fields(variant.fields(), reflect.fields(), descriptor, "QMM-ABI-013")?;
                 defaults += usize::from(variant.is_default());
             }
             if defaults > 1 {
-                abi_violation("QMM-ABI-014", "an enum cannot declare more than one default variant");
+                return Err(abi_violation(
+                    "QMM-ABI-014",
+                    "an enum cannot declare more than one default variant",
+                ));
             }
         }
     }
+    Ok(())
 }
 
 /// Verifies that an identifier belongs to the declaring field collection.
-fn validate_identifier(fields: &[FieldMetadata], identifier: &FieldMetadata) {
+fn validate_identifier(fields: &[FieldMetadata], identifier: &FieldMetadata) -> Result<(), AbiViolation> {
     if !contains_field(fields, identifier)
         || !identifier.is_identifier()
         || fields.iter().filter(|field| field.is_identifier()).count() != 1
     {
-        abi_violation(
+        return Err(abi_violation(
             "QMM-ABI-010",
             "the role identifier must be an identifier field on the metadata root",
-        );
+        ));
     }
+    Ok(())
 }
 
 /// Returns whether `candidate` is one of the declared field overlays.
@@ -654,9 +811,7 @@ fn getter_type_compatible(property: &TypeRef, output: &TypeRef) -> bool {
         .is_some_and(|(property, output)| type_refs_equal(property, output))
 }
 
-/// Panics with a stable ABI diagnostic for invalid generated metadata.
-#[cold]
-#[track_caller]
-fn abi_violation(code: &'static str, message: &'static str) -> ! {
-    panic!("{code}: {message}")
+/// Creates a stable ABI diagnostic for invalid generated metadata.
+const fn abi_violation(code: &'static str, message: &'static str) -> AbiViolation {
+    AbiViolation::new(code, message)
 }

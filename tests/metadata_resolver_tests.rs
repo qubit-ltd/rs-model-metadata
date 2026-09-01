@@ -16,7 +16,7 @@ use qubit_codec::ValueCodecRegistrationSource;
 use qubit_codec::ValueCodecRegistry;
 use qubit_codec::ValueDecoder;
 use qubit_codec::ValueEncoder;
-use qubit_model_metadata::__private::v2;
+use qubit_model_metadata::__private::v3;
 use qubit_model_metadata::CodecMetadata;
 use qubit_model_metadata::CodecReference;
 use qubit_model_metadata::CodecSource;
@@ -215,7 +215,7 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         .into_boxed_slice(),
     );
     let target_fields = Box::leak(
-        vec![v2::field_metadata(
+        vec![v3::field_metadata(
             target_descriptor.field_at(0).unwrap(),
             target_attributes,
             &[],
@@ -224,9 +224,9 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         )]
         .into_boxed_slice(),
     );
-    let target_role = v2::leak(v2::entity_role(&target_fields[0]));
+    let target_role = v3::leak(v3::entity_role(&target_fields[0]));
     let target_properties = Box::leak(
-        vec![v2::property_metadata(
+        vec![v3::property_metadata(
             "id",
             target_fields[0].type_ref(),
             Some(&target_fields[0]),
@@ -236,7 +236,7 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         .into_boxed_slice(),
     );
     let target_metadata = Box::leak(Box::new(
-        v2::GeneratedTypeMetadataBuilder::new(
+        v3::GeneratedTypeMetadataBuilder::new(
             target_descriptor,
             Some(ModelId::new("example.Target")),
             target_fields,
@@ -257,7 +257,7 @@ fn test_resolver_resolves_reference_targets_and_properties() {
     let attributes = Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
     let source_descriptor = TypeDescriptor::of::<SourceFixture>();
     let source_fields = Box::leak(
-        vec![v2::field_metadata(
+        vec![v3::field_metadata(
             source_descriptor.field_at(0).unwrap(),
             attributes,
             &[],
@@ -266,9 +266,9 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         )]
         .into_boxed_slice(),
     );
-    let source_role = v2::leak(v2::model_role());
-    let source_metadata = v2::leak(
-        v2::GeneratedTypeMetadataBuilder::new(
+    let source_role = v3::leak(v3::model_role());
+    let source_metadata = v3::leak(
+        v3::GeneratedTypeMetadataBuilder::new(
             source_descriptor,
             Some(ModelId::new("example.Source")),
             source_fields,
@@ -278,9 +278,9 @@ fn test_resolver_resolves_reference_targets_and_properties() {
     );
 
     let target_registration: &'static ModelRegistration =
-        v2::leak(v2::concrete_registration(target_metadata, source_identity(1)));
+        v3::leak(v3::concrete_registration(target_metadata, source_identity(1)));
     let source_registration: &'static ModelRegistration =
-        v2::leak(v2::concrete_registration(source_metadata, source_identity(2)));
+        v3::leak(v3::concrete_registration(source_metadata, source_identity(2)));
     let registry = ModelRegistry::from_registrations([target_registration, source_registration]).unwrap();
     let graph = ModelResolver::new(ResolveInputs {
         models: &registry,
@@ -306,7 +306,7 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
     let reference = Box::leak(Box::new(FieldReferenceMetadata::new(target, selection, true, None)));
     let attributes = Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
     let fields = Box::leak(
-        vec![v2::field_metadata(
+        vec![v3::field_metadata(
             descriptor.field_at(0).unwrap(),
             attributes,
             &[],
@@ -315,12 +315,12 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
         )]
         .into_boxed_slice(),
     );
-    let role = v2::leak(v2::model_role());
-    let metadata = v2::leak(
-        v2::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.SourceMissing")), fields, role)
+    let role = v3::leak(v3::model_role());
+    let metadata = v3::leak(
+        v3::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.SourceMissing")), fields, role)
             .finish::<SourceFixture>(),
     );
-    let registration: &'static ModelRegistration = v2::leak(v2::concrete_registration(metadata, source_identity(3)));
+    let registration: &'static ModelRegistration = v3::leak(v3::concrete_registration(metadata, source_identity(3)));
     let registry = ModelRegistry::from_registrations([registration]).unwrap();
     let errors = ModelResolver::new(ResolveInputs {
         models: &registry,
@@ -337,7 +337,7 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
 
 fn indexed_field(reflect: &'static FieldDescriptor) -> FieldMetadata {
     let attributes = Box::leak(vec![FieldAttributeMetadata::Indexed(IndexingReasons::EXPLICIT)].into_boxed_slice());
-    v2::field_metadata(reflect, attributes, &[], &[], &SerdeFieldMetadata::DEFAULT)
+    v3::field_metadata(reflect, attributes, &[], &[], &SerdeFieldMetadata::DEFAULT)
 }
 
 fn entity_metadata<T: 'static>(
@@ -345,17 +345,17 @@ fn entity_metadata<T: 'static>(
     id: &'static str,
     fields: &'static [FieldMetadata],
 ) -> &'static TypeMetadata {
-    let role = v2::leak(v2::entity_role(&fields[0]));
-    v2::leak(v2::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new(id)), fields, role).finish::<T>())
+    let role = v3::leak(v3::entity_role(&fields[0]));
+    v3::leak(v3::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new(id)), fields, role).finish::<T>())
 }
 
 #[test]
 fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     let nested_descriptor = TypeDescriptor::of::<NestedQueryFixture>();
     let nested_fields = Box::leak(vec![indexed_field(nested_descriptor.field_at(0).unwrap())].into_boxed_slice());
-    let nested_role = v2::leak(v2::value_role(None, None));
-    let nested = v2::leak(
-        v2::GeneratedTypeMetadataBuilder::new(
+    let nested_role = v3::leak(v3::value_role(None, None));
+    let nested = v3::leak(
+        v3::GeneratedTypeMetadataBuilder::new(
             nested_descriptor,
             Some(ModelId::new("query.Nested")),
             nested_fields,
@@ -375,7 +375,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     );
     let root_fields = Box::leak(
         vec![
-            v2::field_metadata(
+            v3::field_metadata(
                 root_descriptor.field_at(0).unwrap(),
                 identifier_attributes,
                 &[],
@@ -388,8 +388,8 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     );
     let root = entity_metadata::<RootQueryFixture>(root_descriptor, "query.Root", root_fields);
     let nested_registration: &'static ModelRegistration =
-        v2::leak(v2::concrete_registration(nested, source_identity(10)));
-    let root_registration: &'static ModelRegistration = v2::leak(v2::concrete_registration(root, source_identity(11)));
+        v3::leak(v3::concrete_registration(nested, source_identity(10)));
+    let root_registration: &'static ModelRegistration = v3::leak(v3::concrete_registration(root, source_identity(11)));
     let registry = ModelRegistry::from_registrations([nested_registration, root_registration]).unwrap();
     let graph = ModelResolver::new(ResolveInputs {
         models: &registry,
@@ -407,7 +407,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     let conflict_descriptor = TypeDescriptor::of::<ConflictingQueryFixture>();
     let conflict_fields = Box::leak(
         vec![
-            v2::field_metadata(
+            v3::field_metadata(
                 conflict_descriptor.field_at(0).unwrap(),
                 identifier_attributes,
                 &[],
@@ -421,7 +421,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     );
     let conflict = entity_metadata::<ConflictingQueryFixture>(conflict_descriptor, "query.Conflict", conflict_fields);
     let conflict_registration: &'static ModelRegistration =
-        v2::leak(v2::concrete_registration(conflict, source_identity(12)));
+        v3::leak(v3::concrete_registration(conflict, source_identity(12)));
     let registry = ModelRegistry::from_registrations([nested_registration, conflict_registration]).unwrap();
     let errors = ModelResolver::new(ResolveInputs {
         models: &registry,
@@ -443,9 +443,9 @@ fn test_resolver_rejects_value_closure_over_model_role() {
     let model_descriptor = TypeDescriptor::of::<PlainModelFixture>();
     let model_fields =
         Box::leak(vec![FieldMetadata::from_reflect(model_descriptor.field_at(0).unwrap())].into_boxed_slice());
-    let model_role = v2::leak(v2::model_role());
-    let model = v2::leak(
-        v2::GeneratedTypeMetadataBuilder::new(
+    let model_role = v3::leak(v3::model_role());
+    let model = v3::leak(
+        v3::GeneratedTypeMetadataBuilder::new(
             model_descriptor,
             Some(ModelId::new("closure.Model")),
             model_fields,
@@ -456,9 +456,9 @@ fn test_resolver_rejects_value_closure_over_model_role() {
     let value_descriptor = TypeDescriptor::of::<InvalidValueFixture>();
     let value_fields =
         Box::leak(vec![FieldMetadata::from_reflect(value_descriptor.field_at(0).unwrap())].into_boxed_slice());
-    let value_role = v2::leak(v2::value_role(None, None));
-    let value = v2::leak(
-        v2::GeneratedTypeMetadataBuilder::new(
+    let value_role = v3::leak(v3::value_role(None, None));
+    let value = v3::leak(
+        v3::GeneratedTypeMetadataBuilder::new(
             value_descriptor,
             Some(ModelId::new("closure.Value")),
             value_fields,
@@ -467,9 +467,9 @@ fn test_resolver_rejects_value_closure_over_model_role() {
         .finish::<InvalidValueFixture>(),
     );
     let model_registration: &'static ModelRegistration =
-        v2::leak(v2::concrete_registration(model, source_identity(20)));
+        v3::leak(v3::concrete_registration(model, source_identity(20)));
     let value_registration: &'static ModelRegistration =
-        v2::leak(v2::concrete_registration(value, source_identity(21)));
+        v3::leak(v3::concrete_registration(value, source_identity(21)));
     let registry = ModelRegistry::from_registrations([model_registration, value_registration]).unwrap();
     let errors = ModelResolver::new(ResolveInputs {
         models: &registry,
@@ -494,30 +494,30 @@ fn strategy_metadata() -> (
 ) {
     let descriptor = TypeDescriptor::of::<StrategyFixture>();
     let dependency = PropertyPath::new(&["other"]);
-    let validators = v2::leak_slice(vec![ValidatorMetadata::new(
+    let validators = v3::leak_slice(vec![ValidatorMetadata::new(
         "test.strategy.validator",
         &[],
-        v2::leak_slice(vec![dependency]),
+        v3::leak_slice(vec![dependency]),
     )]);
     let validator = &validators[0];
-    let direct_reference = v2::leak(CodecReference::RustType(&STRING_CODEC_DESCRIPTOR));
-    let direct_codec = v2::leak(CodecMetadata::new(direct_reference, CodecSource::Field));
-    let id_reference = v2::leak(CodecReference::DeclaredId("test.strategy.codec"));
-    let id_codec = v2::leak(CodecMetadata::new(id_reference, CodecSource::Field));
-    let validator_attributes = v2::leak_slice(vec![
+    let direct_reference = v3::leak(CodecReference::RustType(&STRING_CODEC_DESCRIPTOR));
+    let direct_codec = v3::leak(CodecMetadata::new(direct_reference, CodecSource::Field));
+    let id_reference = v3::leak(CodecReference::DeclaredId("test.strategy.codec"));
+    let id_codec = v3::leak(CodecMetadata::new(id_reference, CodecSource::Field));
+    let validator_attributes = v3::leak_slice(vec![
         FieldAttributeMetadata::Validator(validator),
         FieldAttributeMetadata::Codec(direct_codec),
     ]);
-    let codec_attributes = v2::leak_slice(vec![FieldAttributeMetadata::Codec(id_codec)]);
-    let fields = v2::leak_slice(vec![
-        v2::field_metadata(
+    let codec_attributes = v3::leak_slice(vec![FieldAttributeMetadata::Codec(id_codec)]);
+    let fields = v3::leak_slice(vec![
+        v3::field_metadata(
             &descriptor.fields()[0],
             validator_attributes,
             &[],
             validators,
             &SerdeFieldMetadata::DEFAULT,
         ),
-        v2::field_metadata(
+        v3::field_metadata(
             &descriptor.fields()[1],
             codec_attributes,
             &[],
@@ -525,11 +525,11 @@ fn strategy_metadata() -> (
             &SerdeFieldMetadata::DEFAULT,
         ),
     ]);
-    let properties = v2::leak_slice(
+    let properties = v3::leak_slice(
         fields
             .iter()
             .map(|field| {
-                v2::property_metadata(
+                v3::property_metadata(
                     field.name().expect("fixture field name"),
                     field.type_ref(),
                     Some(field),
@@ -539,9 +539,9 @@ fn strategy_metadata() -> (
             })
             .collect(),
     );
-    let role = v2::leak(v2::model_role());
-    let metadata = v2::leak(
-        v2::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("strategy.Fixture")), fields, role)
+    let role = v3::leak(v3::model_role());
+    let metadata = v3::leak(
+        v3::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("strategy.Fixture")), fields, role)
             .properties(properties)
             .finish::<StrategyFixture>(),
     );
@@ -551,7 +551,7 @@ fn strategy_metadata() -> (
 #[test]
 fn test_resolver_binds_executable_validator_and_codec_descriptors() {
     let (metadata, validator, direct_codec, id_codec) = strategy_metadata();
-    let registration = v2::leak(v2::concrete_registration(metadata, source_identity(30)));
+    let registration = v3::leak(v3::concrete_registration(metadata, source_identity(30)));
     let models = ModelRegistry::from_registrations([registration]).unwrap();
     let validators = ValidatorRegistry::from_registrations([&STRING_VALIDATOR_REGISTRATION]).unwrap();
     let codecs = ValueCodecRegistry::from_registrations([&STRING_CODEC_REGISTRATION]).unwrap();
@@ -579,7 +579,7 @@ fn test_resolver_binds_executable_validator_and_codec_descriptors() {
 #[test]
 fn test_resolver_aggregates_missing_validator_and_codec_ids() {
     let (metadata, _, _, _) = strategy_metadata();
-    let registration = v2::leak(v2::concrete_registration(metadata, source_identity(31)));
+    let registration = v3::leak(v3::concrete_registration(metadata, source_identity(31)));
     let models = ModelRegistry::from_registrations([registration]).unwrap();
     let validators = ValidatorRegistry::empty();
     let codecs = ValueCodecRegistry::empty();
@@ -608,7 +608,7 @@ fn test_resolver_aggregates_missing_validator_and_codec_ids() {
 #[test]
 fn test_resolver_aggregates_validator_and_codec_type_mismatches() {
     let (metadata, _, _, _) = strategy_metadata();
-    let registration = v2::leak(v2::concrete_registration(metadata, source_identity(32)));
+    let registration = v3::leak(v3::concrete_registration(metadata, source_identity(32)));
     let models = ModelRegistry::from_registrations([registration]).unwrap();
     let validators = ValidatorRegistry::from_registrations([&U64_VALIDATOR_REGISTRATION]).unwrap();
     let codecs = ValueCodecRegistry::from_registrations([&U64_CODEC_REGISTRATION]).unwrap();

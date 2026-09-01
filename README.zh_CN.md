@@ -56,7 +56,7 @@ assert!(metadata.descriptor().model_metadata().is_some());
 ## 核心能力
 
 - `qubit-model-derive` 可为 `#[Entity]`、`#[Projection]`、`#[Model]`、`#[Enum]`、`#[Value]`
-  与 `#[ModelProperties]` 声明生成 metadata。
+与 `#[ModelImpl]` 声明生成 metadata。
 - `TypeMetadata` 为生成的类型提供静态的角色、Field、Property、泛型模板和可选 `ModelId` 信息。
 - `ModelRegistry` 收集已注册模型；`ModelResolver` 在模型、validator 和 codec 注册表上执行显式解析。
 - 解析成功时得到不可变的 `ResolvedModelGraph`；若引用、角色、Property、validator 或 codec

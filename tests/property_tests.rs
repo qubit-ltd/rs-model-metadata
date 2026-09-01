@@ -9,7 +9,7 @@
 // qubit-style: allow explicit-imports
 //! Integration tests for safe erased property access.
 
-use qubit_model_metadata::__private::v2;
+use qubit_model_metadata::__private::v3;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::GetterMetadata;
 use qubit_model_metadata::GetterOutputKind;
@@ -73,8 +73,8 @@ fn test_property_supports_borrowed_and_owned_getters() {
         GetterOutputKind::Owned,
         owned_count,
     )));
-    let name = v2::property_metadata("name", name_type, None, Some(name_getter), None);
-    let count = v2::property_metadata("count", count_type, None, Some(count_getter), None);
+    let name = v3::property_metadata("name", name_type, None, Some(name_getter), None);
+    let count = v3::property_metadata("count", count_type, None, Some(count_getter), None);
     let value = PropertyFixture {
         name: "alice".to_owned(),
         count: 7,
@@ -102,7 +102,7 @@ fn test_property_field_fallback_and_setter_recovery_are_safe() {
         field.type_ref(),
         set_name,
     )));
-    let property = v2::property_metadata("name", field.type_ref(), Some(field), None, Some(setter));
+    let property = v3::property_metadata("name", field.type_ref(), Some(field), None, Some(setter));
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,
@@ -140,13 +140,13 @@ fn test_property_rejects_wrong_targets_and_field_fallback_can_write() {
         GetterOutputKind::Borrowed,
         borrowed_name,
     )));
-    let computed = v2::property_metadata("name", field.type_ref(), None, Some(getter), None);
+    let computed = v3::property_metadata("name", field.type_ref(), None, Some(getter), None);
     assert!(matches!(
         computed.get(ReflectedRef::new(&7_u32)),
         Err(PropertyAccessError::TargetTypeMismatch(_)),
     ));
 
-    let fallback = v2::property_metadata("name", field.type_ref(), Some(field), None, None);
+    let fallback = v3::property_metadata("name", field.type_ref(), Some(field), None, None);
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,

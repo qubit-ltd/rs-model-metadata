@@ -64,7 +64,7 @@ the reflection model.
 ## What It Provides
 
 - `qubit-model-derive` generates metadata for `#[Entity]`, `#[Projection]`,
-  `#[Model]`, `#[Enum]`, `#[Value]`, and `#[ModelProperties]` declarations.
+`#[Model]`, `#[Enum]`, `#[Value]`, and `#[ModelImpl]` declarations.
 - `TypeMetadata` provides static role, field, property, generic-template, and
   optional `ModelId` metadata for generated types.
 - `ModelRegistry` collects registered models, and `ModelResolver` performs an

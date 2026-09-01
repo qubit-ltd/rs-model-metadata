@@ -10,6 +10,7 @@
 
 use qubit_reflect::expression::GenericDefinitionDescriptor;
 
+use crate::EnumVariantMetadata;
 use crate::FieldMetadata;
 use crate::ModelId;
 use crate::ModelRole;
@@ -25,6 +26,8 @@ pub struct GenericModelMetadata {
     definition: &'static GenericDefinitionDescriptor,
     /// Symbolic field overlays declared by the generic model.
     fields: &'static [FieldMetadata],
+    /// Symbolic enum-variant overlays declared by the generic model.
+    variants: &'static [EnumVariantMetadata],
 }
 
 impl GenericModelMetadata {
@@ -35,12 +38,14 @@ impl GenericModelMetadata {
         role: ModelRole,
         definition: &'static GenericDefinitionDescriptor,
         fields: &'static [FieldMetadata],
+        variants: &'static [EnumVariantMetadata],
     ) -> Self {
         Self {
             model_id,
             role,
             definition,
             fields,
+            variants,
         }
     }
 
@@ -63,5 +68,11 @@ impl GenericModelMetadata {
     #[must_use]
     pub const fn fields(&self) -> &'static [FieldMetadata] {
         self.fields
+    }
+
+    /// Returns symbolic enum-variant overlays for the template.
+    #[must_use]
+    pub const fn variants(&self) -> &'static [EnumVariantMetadata] {
+        self.variants
     }
 }

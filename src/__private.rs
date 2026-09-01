@@ -12,6 +12,7 @@
 
 pub use inventory;
 pub use qubit_codec;
+pub use qubit_id;
 pub use qubit_redact;
 pub use qubit_reflect::__private::*;
 pub use qubit_reflect::capability::TypeCapabilities as ReflectTypeCapabilities;
@@ -87,24 +88,274 @@ pub trait TypeMetadataProvider {
     fn __type_metadata() -> &'static crate::TypeMetadata;
 }
 
-/// Marker implemented once by each generated `ModelProperties` block.
+/// Marker implemented once by each generated `ModelImpl` block.
 #[doc(hidden)]
-pub trait ModelPropertiesSeal {}
+pub trait ModelImplSeal {}
+
+/// Compile-time assertion helpers shared by the generated-code ABI.
+#[doc(hidden)]
+mod compile_assertions {
+    use core::marker::PhantomData;
+
+    use qubit_id::Id;
+    use qubit_reflect::descriptor::TypeRef;
+
+    /// Private sealing boundary for generated compile-time assertions.
+    mod sealed {
+        use super::Id;
+
+        /// Prevents downstream crates from extending exact model type roles.
+        pub trait IdentifierType {}
+
+        impl IdentifierType for Id {}
+    }
+
+    /// Marks the exact identifier type accepted by Entity and Projection.
+    ///
+    /// Type aliases of [`qubit_id::Id`] satisfy this bound because aliases do
+    /// not create a distinct Rust type. Wrappers and containers do not.
+    #[doc(hidden)]
+    pub trait IdentifierType: sealed::IdentifierType {}
+
+    impl IdentifierType for Id {}
+
+    /// Exposes the element selected by sequence constraints without relying
+    /// on a Rust type's source spelling.
+    #[doc(hidden)]
+    pub trait SequenceConstraintTarget {
+        type Element: 'static;
+    }
+
+    /// Marks sequence shapes whose length may be constrained by a range.
+    #[doc(hidden)]
+    pub trait VariableLengthSequenceTarget: SequenceConstraintTarget {}
+
+    /// Marks sequence shapes for which `unique_items` is not redundant.
+    #[doc(hidden)]
+    pub trait UniqueItemsConstraintTarget: SequenceConstraintTarget {}
+
+    /// Exposes the key and value selected by map constraints.
+    #[doc(hidden)]
+    pub trait MapConstraintTarget {
+        type Key: 'static;
+        type Value: 'static;
+    }
+
+    /// Marks values accepted by text constraints.
+    #[doc(hidden)]
+    pub trait TextConstraintTarget {}
+
+    /// Marks exact decimal values accepted by decimal and money constraints.
+    #[doc(hidden)]
+    pub trait DecimalConstraintTarget {}
+
+    /// Marks temporal values accepted by time constraints.
+    #[doc(hidden)]
+    pub trait TemporalConstraintTarget {}
+
+    impl TextConstraintTarget for str {}
+    impl TextConstraintTarget for String {}
+
+    macro_rules! decimal_target {
+        ($($type:ty),+ $(,)?) => {
+            $(impl DecimalConstraintTarget for $type {})+
+        };
+    }
+
+    decimal_target!(
+        i8,
+        i16,
+        i32,
+        i64,
+        i128,
+        isize,
+        u8,
+        u16,
+        u32,
+        u64,
+        u128,
+        usize,
+        bigdecimal::BigDecimal
+    );
+
+    impl<Tz: chrono::TimeZone + 'static> TemporalConstraintTarget for chrono::DateTime<Tz> {}
+    impl TemporalConstraintTarget for chrono::NaiveDate {}
+    impl TemporalConstraintTarget for chrono::NaiveDateTime {}
+    impl TemporalConstraintTarget for chrono::NaiveTime {}
+
+    macro_rules! sequence_target {
+        ($($container:ty),+ $(,)?) => {
+            $(impl<T: 'static> SequenceConstraintTarget for $container {
+                type Element = T;
+            })+
+        };
+    }
+
+    sequence_target!(
+        [T],
+        Vec<T>,
+        std::collections::VecDeque<T>,
+        std::collections::LinkedList<T>,
+        std::collections::BinaryHeap<T>,
+        std::collections::HashSet<T>,
+        std::collections::BTreeSet<T>,
+    );
+
+    macro_rules! variable_sequence_target {
+        ($($container:ty),+ $(,)?) => {
+            $(impl<T: 'static> VariableLengthSequenceTarget for $container {})+
+        };
+    }
+
+    variable_sequence_target!(
+        [T],
+        Vec<T>,
+        std::collections::VecDeque<T>,
+        std::collections::LinkedList<T>,
+        std::collections::BinaryHeap<T>,
+        std::collections::HashSet<T>,
+        std::collections::BTreeSet<T>,
+    );
+
+    macro_rules! unique_items_target {
+        ($($container:ty),+ $(,)?) => {
+            $(impl<T: 'static> UniqueItemsConstraintTarget for $container {})+
+        };
+    }
+
+    unique_items_target!(
+        [T],
+        Vec<T>,
+        std::collections::VecDeque<T>,
+        std::collections::LinkedList<T>,
+        std::collections::BinaryHeap<T>,
+    );
+
+    impl<T: 'static, const N: usize> UniqueItemsConstraintTarget for [T; N] {}
+
+    impl<T: 'static, const N: usize> SequenceConstraintTarget for [T; N] {
+        type Element = T;
+    }
+
+    impl<K: 'static, V: 'static, S> MapConstraintTarget for std::collections::HashMap<K, V, S> {
+        type Key = K;
+        type Value = V;
+    }
+
+    impl<K: 'static, V: 'static> MapConstraintTarget for std::collections::BTreeMap<K, V> {
+        type Key = K;
+        type Value = V;
+    }
+
+    impl<T: SequenceConstraintTarget> SequenceConstraintTarget for Option<T> {
+        type Element = T::Element;
+    }
+    impl<T: VariableLengthSequenceTarget> VariableLengthSequenceTarget for Option<T> {}
+    impl<T: UniqueItemsConstraintTarget> UniqueItemsConstraintTarget for Option<T> {}
+
+    impl<T: MapConstraintTarget> MapConstraintTarget for Option<T> {
+        type Key = T::Key;
+        type Value = T::Value;
+    }
+
+    impl<T: TextConstraintTarget> TextConstraintTarget for Option<T> {}
+    impl<T: DecimalConstraintTarget> DecimalConstraintTarget for Option<T> {}
+    impl<T: TemporalConstraintTarget> TemporalConstraintTarget for Option<T> {}
+
+    macro_rules! transparent_target {
+        ($($wrapper:ty),+ $(,)?) => {
+            $(
+                impl<T: SequenceConstraintTarget + ?Sized> SequenceConstraintTarget for $wrapper {
+                    type Element = T::Element;
+                }
+                impl<T: VariableLengthSequenceTarget + ?Sized> VariableLengthSequenceTarget for $wrapper {}
+                impl<T: UniqueItemsConstraintTarget + ?Sized> UniqueItemsConstraintTarget for $wrapper {}
+
+                impl<T: MapConstraintTarget + ?Sized> MapConstraintTarget for $wrapper {
+                    type Key = T::Key;
+                    type Value = T::Value;
+                }
+
+
+                impl<T: TextConstraintTarget + ?Sized> TextConstraintTarget for $wrapper {}
+                impl<T: DecimalConstraintTarget + ?Sized> DecimalConstraintTarget for $wrapper {}
+                impl<T: TemporalConstraintTarget + ?Sized> TemporalConstraintTarget for $wrapper {}
+            )+
+        };
+    }
+
+    transparent_target!(Box<T>, std::rc::Rc<T>, std::sync::Arc<T>);
+
+    /// Proves that a getter output can represent the value accepted by a
+    /// setter for the same logical property.
+    ///
+    /// The implementation set preserves borrowing while recognizing the
+    /// canonical owned forms supported by model properties.
+    #[doc(hidden)]
+    pub trait PropertyOutputCompatible<Setter: ?Sized> {}
+
+    /// Lifetime-independent marker for a getter returning `&T`.
+    #[doc(hidden)]
+    pub struct BorrowedPropertyOutput<T: ?Sized>(PhantomData<fn() -> T>);
+
+    /// Lifetime-independent marker for a getter returning `Option<&T>`.
+    #[doc(hidden)]
+    pub struct OptionalBorrowedPropertyOutput<T: ?Sized>(PhantomData<fn() -> T>);
+
+    impl<T: ?Sized> PropertyOutputCompatible<T> for T {}
+    impl<T: ?Sized> PropertyOutputCompatible<T> for BorrowedPropertyOutput<T> {}
+    impl PropertyOutputCompatible<String> for BorrowedPropertyOutput<str> {}
+    impl<T> PropertyOutputCompatible<Vec<T>> for BorrowedPropertyOutput<[T]> {}
+    impl<T> PropertyOutputCompatible<Option<T>> for OptionalBorrowedPropertyOutput<T> {}
+    impl PropertyOutputCompatible<Option<String>> for OptionalBorrowedPropertyOutput<str> {}
+
+    /// Wraps a successfully validated merged property slice.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn local_property_set(properties: &'static [crate::PropertyMetadata]) -> crate::LocalPropertySet {
+        crate::LocalPropertySet::new(properties)
+    }
+
+    /// Creates one generated field/getter/setter source fragment.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn property_fragment(
+        name: &'static str,
+        type_ref: &'static TypeRef,
+        source: crate::PropertyFragmentSource,
+    ) -> crate::PropertyFragment {
+        crate::PropertyFragment::new(name, type_ref, source)
+    }
+
+    /// Creates the generated metadata attached by one `ModelImpl` block.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn model_impl_metadata(
+        fragments: &'static [crate::PropertyFragment],
+        properties: Result<&'static crate::LocalPropertySet, &'static crate::PropertyBuildErrors>,
+    ) -> crate::ModelImplMetadata {
+        crate::ModelImplMetadata::new(fragments, properties)
+    }
+}
 
 /// Current generated-code ABI.
 ///
 /// All intentionally permanent allocations used by generic metadata are
 /// centralized here. Generated code must finish each aggregate through
-/// [`v2::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
+/// [`v3::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
 /// its construction boundary.
 #[doc(hidden)]
-pub mod v2 {
+pub mod v3 {
+    pub use qubit_codec::ValueCodecDescriptor;
+    pub use qubit_redact::Redact;
+    pub use qubit_redact::Redactor;
     use qubit_reflect::FieldDescriptor;
     use qubit_reflect::VariantDescriptor;
     use qubit_reflect::descriptor::TypeRef;
     use qubit_reflect::expression::GenericDefinitionDescriptor;
     use qubit_reflect::identity::FragmentIdentity;
 
+    pub use super::compile_assertions::*;
     use crate::TypeDescriptor;
     use crate::TypeMetadata;
     pub use crate::reflect_facade::model_capability;
@@ -134,6 +385,12 @@ pub mod v2 {
             self
         }
 
+        /// Adds generated field property fragments to the builder.
+        pub const fn property_fragments(mut self, fragments: &'static [crate::PropertyFragment]) -> Self {
+            self.metadata = self.metadata.with_property_fragments(fragments);
+            self
+        }
+
         /// Records the generic definition represented by this metadata.
         pub const fn generic_definition(mut self, definition: &'static crate::GenericModelMetadata) -> Self {
             self.metadata = self.metadata.with_generic_definition(definition);
@@ -148,6 +405,13 @@ pub mod v2 {
         #[must_use]
         pub fn finish<T: 'static>(self) -> TypeMetadata {
             self.metadata.assert_valid_for::<T>();
+            self.metadata
+        }
+
+        /// Finishes generated metadata for later fallible ABI validation.
+        #[doc(hidden)]
+        #[must_use]
+        pub const fn finish_unchecked(self) -> TypeMetadata {
             self.metadata
         }
     }
@@ -248,8 +512,9 @@ pub mod v2 {
         role: crate::ModelRole,
         definition: &'static GenericDefinitionDescriptor,
         fields: &'static [crate::FieldMetadata],
+        variants: &'static [crate::EnumVariantMetadata],
     ) -> crate::GenericModelMetadata {
-        crate::GenericModelMetadata::new(model_id, role, definition, fields)
+        crate::GenericModelMetadata::new(model_id, role, definition, fields, variants)
     }
 
     /// Builds a concrete generated model registration.
@@ -288,16 +553,16 @@ pub mod v2 {
 
     #[doc(hidden)]
     pub use crate::__qubit_model_register_model_capability as register_model_capability;
-    pub use crate::__qubit_model_register_properties_capability as register_properties_capability;
+    pub use crate::__qubit_model_register_model_impl_capability as register_model_impl_capability;
 }
 
 /// Registers a generated property provider on the shared reflection root.
 #[doc(hidden)]
 #[macro_export]
-macro_rules! __qubit_model_register_properties_capability {
+macro_rules! __qubit_model_register_model_impl_capability {
     ($target:ty, $provider:expr $(,)?) => {
         $crate::__private::register_type_capabilities!(
-            $target: [$crate::model_properties_key() => $provider]
+            $target: [$crate::model_impl_key() => $provider]
         );
     };
 }

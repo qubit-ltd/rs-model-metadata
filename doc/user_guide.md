@@ -82,7 +82,7 @@ use qubit_model_metadata::TypeMetadata;
 
 let account = TypeMetadata::of::<Account>();
 assert!(account.field("id").unwrap().is_identifier());
-assert!(account.property("email").unwrap().is_readable());
+assert!(account.try_property("email").unwrap().unwrap().is_readable());
 ```
 
 Once every model crate is linked, obtain the three explicit registries and run

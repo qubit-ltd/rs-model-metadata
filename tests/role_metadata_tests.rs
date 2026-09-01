@@ -8,7 +8,7 @@
 
 //! Integration tests for the five model-role metadata payloads.
 
-use qubit_model_metadata::__private::v2;
+use qubit_model_metadata::__private::v3;
 use qubit_model_metadata::DeclaredEntityTarget;
 use qubit_model_metadata::EnumVariantMetadata;
 use qubit_model_metadata::FieldAttributeMetadata;
@@ -41,15 +41,15 @@ fn test_five_role_payloads_expose_only_role_specific_facts() {
     let identifier = Box::leak(Box::new(FieldMetadata::from_reflect(
         descriptor.field_at(0).expect("identifier field"),
     )));
-    let RoleMetadata::Entity(entity) = v2::entity_role(identifier) else {
+    let RoleMetadata::Entity(entity) = v3::entity_role(identifier) else {
         unreachable!()
     };
     let source = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new("example.Source"))));
-    let RoleMetadata::Projection(projection) = v2::projection_role(identifier, Some(source)) else {
+    let RoleMetadata::Projection(projection) = v3::projection_role(identifier, Some(source)) else {
         unreachable!()
     };
     let model = ModelMetadata;
-    let RoleMetadata::Value(value) = v2::value_role(Some(identifier), None) else {
+    let RoleMetadata::Value(value) = v3::value_role(Some(identifier), None) else {
         unreachable!()
     };
 
@@ -82,9 +82,9 @@ fn test_five_role_payloads_expose_only_role_specific_facts() {
 fn test_enum_variant_keeps_rust_canonical_and_directional_serde_names() {
     let descriptor = TypeDescriptor::of::<EnumFixture>();
     let reflect = descriptor.variants().first().expect("enum variant");
-    let variant = v2::enum_variant_metadata(reflect, "READY", "ready-out", "ready-in", &[], true);
+    let variant = v3::enum_variant_metadata(reflect, "READY", "ready-out", "ready-in", &[], true);
     let variants = Box::leak(vec![variant].into_boxed_slice());
-    let RoleMetadata::Enum(metadata) = v2::enum_role(variants) else {
+    let RoleMetadata::Enum(metadata) = v3::enum_role(variants) else {
         unreachable!()
     };
 
@@ -114,7 +114,7 @@ fn test_type_metadata_navigates_fields_and_role_without_copying_reflection_facts
     let identifier = Box::leak(Box::new(IdentifierMetadata::new(IdentifierAssignment::Application)));
     let attributes = Box::leak(vec![FieldAttributeMetadata::Identifier(identifier)].into_boxed_slice());
     let fields = Box::leak(
-        vec![v2::field_metadata(
+        vec![v3::field_metadata(
             descriptor.field_at(0).expect("identifier field"),
             attributes,
             &[],
@@ -123,9 +123,9 @@ fn test_type_metadata_navigates_fields_and_role_without_copying_reflection_facts
         )]
         .into_boxed_slice(),
     );
-    let role = Box::leak(Box::new(v2::entity_role(&fields[0])));
+    let role = Box::leak(Box::new(v3::entity_role(&fields[0])));
     let metadata =
-        v2::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.Entity")), fields, role)
+        v3::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.Entity")), fields, role)
             .finish::<EntityFixture>();
 
     assert!(std::ptr::eq(metadata.descriptor(), descriptor));

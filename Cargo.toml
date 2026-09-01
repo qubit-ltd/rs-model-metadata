@@ -28,7 +28,10 @@ doctest = true
 
 [dependencies]
 bitflags = "2.10.0"
+bigdecimal = "0.4"
+chrono = { version = "0.4", features = ["std"], default-features = false }
 inventory = "0.3"
+qubit-id = { version = "=0.5.0", path = "../../rust-common/rs-id", features = ["serde"] }
 qubit-reflect = { version = "=0.1.0", path = "../rs-reflect" }
 qubit-codec = { version = "=0.13.0", path = "../../rust-common/rs-codec" }
 qubit-redact = { version = "=0.5.0", path = "../../rust-common/rs-redact", features = ["derive", "serde"] }

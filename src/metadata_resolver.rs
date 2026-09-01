@@ -20,6 +20,8 @@ use std::collections::HashSet;
 use qubit_codec::ValueCodecDescriptor;
 use qubit_codec::ValueCodecRegistration;
 use qubit_codec::ValueCodecRegistry;
+use qubit_id::Id;
+use qubit_reflect::FieldAccessError;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::identity::FragmentIdentity;
@@ -31,14 +33,19 @@ use crate::ConstraintMetadata;
 use crate::DeclaredEntityTarget;
 use crate::FieldMetadata;
 use crate::FieldReferenceMetadata;
+use crate::GetterMetadata;
 use crate::IndexingReasons;
+use crate::LocalPropertySet;
 use crate::ModelDescriptorExt;
 use crate::ModelRegistry;
 use crate::ModelRole;
 use crate::ProjectionMetadata;
+use crate::PropertyAccessError;
 use crate::PropertyMetadata;
 use crate::PropertyPath;
+use crate::PropertyValue;
 use crate::ReferenceSelection;
+use crate::ReflectedRef;
 use crate::SelectorMetadata;
 use crate::SelectorPosition;
 use crate::TypeMetadata;
@@ -75,13 +82,81 @@ impl<'a> ModelResolver<'a> {
         let mut validators = HashMap::new();
         let mut codecs = HashMap::new();
         let mut queries = HashMap::new();
+        let mut properties = HashMap::new();
+        let mut projection_producers = Vec::new();
         let mut errors = Vec::new();
 
         for registration in self.inputs.models.registrations() {
             let Some(metadata) = registration.metadata() else {
                 continue;
             };
-            for field in metadata.fields() {
+            match metadata.try_properties() {
+                Ok(local) => {
+                    properties.insert(metadata.type_id(), local);
+                }
+                Err(build_errors) => {
+                    for error in build_errors.errors() {
+                        let segments = [error.property_name()];
+                        let path = PropertyPath::new(&segments);
+                        errors.push(ModelResolveError::new(
+                            ModelResolveErrorKind::InvalidProperties,
+                            metadata.model_id().map(|id| id.as_str()),
+                            Some(path),
+                            None,
+                            Some(metadata.role()),
+                            Some(registration.source()),
+                        ));
+                    }
+                }
+            }
+            let variant_fields = metadata
+                .as_enum()
+                .into_iter()
+                .flat_map(|enumeration| enumeration.variants())
+                .flat_map(|variant| variant.fields());
+            for field in metadata.fields().iter().chain(variant_fields) {
+                if field.is_opaque() {
+                    if let Some(hidden) = field
+                        .type_ref()
+                        .as_resolved()
+                        .and_then(|descriptor| metadata_for_descriptor(descriptor, self.inputs.models))
+                        .or_else(|| {
+                            field
+                                .type_ref()
+                                .as_opaque()
+                                .and_then(|opaque| self.inputs.models.by_type_id(opaque.type_id()))
+                        })
+                        .filter(|hidden| {
+                            matches!(
+                                hidden.role(),
+                                ModelRole::Entity | ModelRole::Projection | ModelRole::Model
+                            )
+                        })
+                    {
+                        push_field_error(
+                            &mut errors,
+                            ModelResolveErrorKind::OpaqueModel,
+                            metadata,
+                            field,
+                            Some(hidden.role()),
+                            registration.source(),
+                        );
+                    }
+                } else if metadata.role() == ModelRole::Entity
+                    && field.reference().is_none()
+                    && let Some(role) = field
+                        .descriptor()
+                        .and_then(|descriptor| forbidden_entity_nested_role(descriptor, self.inputs.models))
+                {
+                    push_field_error(
+                        &mut errors,
+                        ModelResolveErrorKind::InvalidEntityNesting,
+                        metadata,
+                        field,
+                        Some(role),
+                        registration.source(),
+                    );
+                }
                 resolve_field_strategies(
                     metadata,
                     field,
@@ -280,6 +355,69 @@ impl<'a> ModelResolver<'a> {
             }
         }
 
+        for registration in self.inputs.models.registrations() {
+            let Some(source) = registration
+                .metadata()
+                .filter(|metadata| metadata.role() == ModelRole::Entity)
+            else {
+                continue;
+            };
+            let Some(local_properties) = properties.get(&source.type_id()).copied() else {
+                continue;
+            };
+            for property in local_properties.properties() {
+                let Some(getter) = property.getter() else {
+                    continue;
+                };
+                let Some(projection) = property
+                    .descriptor()
+                    .and_then(|descriptor| metadata_for_descriptor(descriptor, self.inputs.models))
+                    .filter(|metadata| metadata.role() == ModelRole::Projection)
+                else {
+                    continue;
+                };
+                let fixed_source = projection
+                    .as_projection()
+                    .and_then(ProjectionMetadata::source)
+                    .and_then(|target| self.resolve_target(target));
+                if fixed_source.is_some_and(|fixed| fixed.type_id() != source.type_id()) {
+                    errors.push(ModelResolveError::new(
+                        ModelResolveErrorKind::InvalidProjectionProducer,
+                        projection.model_id().map(|id| id.as_str()),
+                        None,
+                        Some(ModelRole::Entity),
+                        Some(source.role()),
+                        Some(registration.source()),
+                    ));
+                    continue;
+                }
+                let source_id = source.as_entity().and_then(|entity| entity.identifier().descriptor());
+                let projection_id = projection
+                    .as_projection()
+                    .and_then(|projection| projection.identifier().descriptor());
+                if source_id
+                    .zip(projection_id)
+                    .is_some_and(|(source, projection)| source.type_id() != projection.type_id())
+                {
+                    errors.push(ModelResolveError::new(
+                        ModelResolveErrorKind::InvalidProjectionProducer,
+                        projection.model_id().map(|id| id.as_str()),
+                        None,
+                        Some(ModelRole::Projection),
+                        Some(projection.role()),
+                        Some(registration.source()),
+                    ));
+                    continue;
+                }
+                projection_producers.push(ResolvedProjectionProducer {
+                    source,
+                    projection,
+                    property,
+                    projector: Some(getter),
+                });
+            }
+        }
+
         if errors.is_empty() {
             Ok(ResolvedModelGraph {
                 registry: self.inputs.models,
@@ -288,6 +426,8 @@ impl<'a> ModelResolver<'a> {
                 validators,
                 codecs,
                 queries,
+                properties,
+                projection_producers,
             })
         } else {
             errors.sort_by(ModelResolveError::compare);
@@ -303,6 +443,31 @@ impl<'a> ModelResolver<'a> {
             DeclaredEntityTarget::ModelId(id) => self.inputs.models.metadata(id.as_str()),
         }
     }
+}
+
+/// Records an error anchored to one direct field path.
+fn push_field_error(
+    errors: &mut Vec<ModelResolveError>,
+    kind: ModelResolveErrorKind,
+    metadata: &'static TypeMetadata,
+    field: &'static FieldMetadata,
+    actual_role: Option<ModelRole>,
+    source: &'static FragmentIdentity,
+) {
+    let path = field.name().map(|name| {
+        let segments = [name];
+        OwnedPropertyPath::from_segments(&segments)
+    });
+    let mut error = ModelResolveError::new(
+        kind,
+        metadata.model_id().map(|id| id.as_str()),
+        None,
+        None,
+        actual_role,
+        Some(source),
+    );
+    error.path = path;
+    errors.push(error);
 }
 
 /// Resolves executable strategies declared directly on one field.
@@ -893,6 +1058,52 @@ fn resolve_declared_target(target: &DeclaredEntityTarget, registry: &ModelRegist
     }
 }
 
+/// Finds an Entity or Projection nested through ordinary container structure.
+fn forbidden_entity_nested_role(descriptor: &'static TypeDescriptor, registry: &ModelRegistry) -> Option<ModelRole> {
+    if let Some(metadata) = metadata_for_descriptor(descriptor, registry)
+        && matches!(metadata.role(), ModelRole::Entity | ModelRole::Projection)
+    {
+        return Some(metadata.role());
+    }
+    if let Some(optional) = descriptor.as_optional() {
+        return optional
+            .element_type()
+            .as_resolved()
+            .and_then(|nested| forbidden_entity_nested_role(nested, registry));
+    }
+    if let Some(sequence) = descriptor.as_sequence() {
+        return sequence
+            .element_type()
+            .as_resolved()
+            .and_then(|nested| forbidden_entity_nested_role(nested, registry));
+    }
+    if let Some(set) = descriptor.as_set() {
+        return set
+            .element_type()
+            .as_resolved()
+            .and_then(|nested| forbidden_entity_nested_role(nested, registry));
+    }
+    if let Some(array) = descriptor.as_array() {
+        return array
+            .element_type()
+            .as_resolved()
+            .and_then(|nested| forbidden_entity_nested_role(nested, registry));
+    }
+    if let Some(map) = descriptor.as_map() {
+        return [map.key_type(), map.value_type()]
+            .into_iter()
+            .filter_map(TypeRef::as_resolved)
+            .find_map(|nested| forbidden_entity_nested_role(nested, registry));
+    }
+    if let Some(pointer) = descriptor.as_smart_pointer() {
+        return pointer
+            .pointee_type()
+            .as_resolved()
+            .and_then(|nested| forbidden_entity_nested_role(nested, registry));
+    }
+    None
+}
+
 /// Copies static segments into an owned runtime path.
 fn path_from_segments(segments: &[&'static str]) -> OwnedPropertyPath {
     OwnedPropertyPath::from_segments(segments)
@@ -1013,7 +1224,7 @@ fn resolve_property_path(
     let mut current = target;
     let mut result = None;
     for (index, segment) in path.segments().iter().enumerate() {
-        let property = current.property(segment)?;
+        let property = current.try_property(segment).ok().flatten()?;
         result = Some(property);
         if index + 1 < path.segments().len() {
             current = metadata_for_descriptor(property.descriptor()?, registry)?;
@@ -1060,6 +1271,112 @@ pub struct ResolvedProjectionSource {
     target: &'static TypeMetadata,
 }
 
+/// One resolved readable property that produces a Projection from an Entity.
+#[derive(Clone, Copy, Debug)]
+pub struct ResolvedProjectionProducer {
+    /// Entity declaring the readable property.
+    source: &'static TypeMetadata,
+    /// Projection returned by the property getter.
+    projection: &'static TypeMetadata,
+    /// Merged local property that declares the producer edge.
+    property: &'static PropertyMetadata,
+    /// Executable getter adapter, when automatic projection is available.
+    projector: Option<&'static GetterMetadata>,
+}
+
+impl ResolvedProjectionProducer {
+    /// Returns the producing Entity metadata.
+    #[must_use]
+    pub const fn source(&self) -> &'static TypeMetadata {
+        self.source
+    }
+
+    /// Returns the produced Projection metadata.
+    #[must_use]
+    pub const fn projection(&self) -> &'static TypeMetadata {
+        self.projection
+    }
+
+    /// Returns the property that declares this edge.
+    #[must_use]
+    pub const fn property(&self) -> &'static PropertyMetadata {
+        self.property
+    }
+
+    /// Returns the executable getter used as projector.
+    #[must_use]
+    pub const fn projector(&self) -> Option<&'static GetterMetadata> {
+        self.projector
+    }
+
+    /// Executes the projector and verifies identifier preservation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a structured adapter, field-access, or identifier error.
+    pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
+        let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
+        let source_identifier = self
+            .source
+            .as_entity()
+            .ok_or(ProjectionExecutionError::InvalidProducer)?
+            .identifier()
+            .reflect()
+            .get(source.clone())?
+            .downcast::<Id>()
+            .map_err(|_| ProjectionExecutionError::InvalidIdentifierType)
+            .copied()?;
+        let result = projector.get(source)?;
+        let projection_identifier = match &result {
+            PropertyValue::Borrowed(value) => self.projection_identifier(value.clone())?,
+            PropertyValue::Owned(value) => self.projection_identifier(value.as_reflected_ref())?,
+            PropertyValue::OptionalBorrowed(_) | PropertyValue::BorrowedSlice(_) => {
+                return Err(ProjectionExecutionError::InvalidProducer);
+            }
+        };
+        if source_identifier != projection_identifier {
+            return Err(ProjectionExecutionError::IdentifierMismatch);
+        }
+        Ok(result)
+    }
+
+    /// Reads a produced Projection identifier as an owned exact ID.
+    fn projection_identifier(&self, target: ReflectedRef<'_>) -> Result<Id, ProjectionExecutionError> {
+        self.projection
+            .as_projection()
+            .ok_or(ProjectionExecutionError::InvalidProducer)?
+            .identifier()
+            .reflect()
+            .get(target)?
+            .downcast::<Id>()
+            .map_err(|_| ProjectionExecutionError::InvalidIdentifierType)
+            .copied()
+    }
+}
+
+/// Failure while executing an automatic Projection producer.
+#[derive(Debug, thiserror::Error)]
+pub enum ProjectionExecutionError {
+    /// No executable adapter is registered for this producer.
+    #[error("projection producer has no executable projector")]
+    MissingProjector,
+    /// The resolved edge no longer has the required Entity/Projection shape.
+    #[error("projection producer metadata is invalid")]
+    InvalidProducer,
+    /// An identifier field did not contain the exact `qubit_id::Id` type.
+    #[error("projection identifier has an invalid Rust type")]
+    InvalidIdentifierType,
+    /// The produced Projection changed the source Entity identifier.
+    #[error("projection identifier differs from its source entity")]
+    IdentifierMismatch,
+    /// A property getter failed.
+    #[error("projection property access failed: {0}")]
+    Property(#[from] PropertyAccessError),
+    /// A reflected identifier field could not be read.
+    #[error("projection identifier field access failed: {0}")]
+    Field(#[from] FieldAccessError),
+}
+
 impl ResolvedProjectionSource {
     /// Returns the resolved entity model supplying the projection.
     #[must_use]
@@ -1083,9 +1400,22 @@ pub struct ResolvedModelGraph<'a> {
     codecs: HashMap<usize, ResolvedCodec<'a>>,
     /// Resolved query metadata keyed by entity declaration identity.
     queries: HashMap<usize, QueryMetadata>,
+    properties: HashMap<TypeId, &'static LocalPropertySet>,
+    projection_producers: Vec<ResolvedProjectionProducer>,
 }
 
 impl<'a> ResolvedModelGraph<'a> {
+    /// Returns locally merged properties accepted during graph resolution.
+    #[must_use]
+    pub fn properties(&self, model: &TypeMetadata) -> Option<&'static LocalPropertySet> {
+        self.properties.get(&model.type_id()).copied()
+    }
+
+    /// Returns all resolved Entity-to-Projection producer edges.
+    #[must_use]
+    pub fn projection_producers(&self) -> &[ResolvedProjectionProducer] {
+        &self.projection_producers
+    }
     /// Returns the registry used for this resolution pass.
     #[must_use]
     pub const fn registry(&self) -> &'a ModelRegistry {
@@ -1285,6 +1615,14 @@ impl UniqueQueryKey {
 /// Machine-readable model resolution error class.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ModelResolveErrorKind {
+    /// Field and method fragments could not form a valid local property set.
+    InvalidProperties,
+    /// An Entity embeds another Entity or Projection without a reference.
+    InvalidEntityNesting,
+    /// An opaque field attempts to hide a registered model role.
+    OpaqueModel,
+    /// A readable Entity property violates a Projection source contract.
+    InvalidProjectionProducer,
     /// The target model ID could not be resolved.
     MissingModelId,
     /// The resolved model has a role incompatible with the declaration.

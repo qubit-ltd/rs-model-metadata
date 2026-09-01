@@ -13,8 +13,8 @@ use std::sync::OnceLock;
 
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
-use qubit_model_metadata::__private::v2;
-use qubit_model_metadata::__private::v2::register_model_capability;
+use qubit_model_metadata::__private::v3;
+use qubit_model_metadata::__private::v3::register_model_capability;
 use qubit_model_metadata::ModelDescriptorExt;
 use qubit_model_metadata::Reflect;
 use qubit_model_metadata::TypeDescriptor;
@@ -34,8 +34,8 @@ impl TypeMetadataProvider for Account {
     fn __type_metadata() -> &'static TypeMetadata {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
-            let role = v2::leak(v2::model_role());
-            v2::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
+            let role = v3::leak(v3::model_role());
+            v3::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
         })
     }
 }

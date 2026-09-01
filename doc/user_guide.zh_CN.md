@@ -73,7 +73,7 @@ use qubit_model_metadata::TypeMetadata;
 
 let account = TypeMetadata::of::<Account>();
 assert!(account.field("id").unwrap().is_identifier());
-assert!(account.property("email").unwrap().is_readable());
+assert!(account.try_property("email").unwrap().unwrap().is_readable());
 ```
 
 待所有模型 crate 都完成链接后，取得三个显式注册表并执行一次解析：

@@ -14,16 +14,16 @@ use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
 
-use crate::PropertyMetadata;
+use crate::ModelImplMetadata;
 use crate::TypeMetadata;
 
 /// The typed capability adapter supplied by generated model declarations.
 #[doc(hidden)]
 pub type ModelMetadataProvider = fn() -> &'static TypeMetadata;
 
-/// The typed capability adapter supplied by `ModelProperties`.
+/// The typed capability adapter supplied by `ModelImpl`.
 #[doc(hidden)]
-pub type ModelPropertiesProvider = fn() -> &'static [PropertyMetadata];
+pub type ModelImplProvider = fn() -> &'static ModelImplMetadata;
 
 /// Returns the stable key used to retrieve a model metadata provider.
 #[doc(hidden)]
@@ -36,8 +36,8 @@ pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider> {
 /// Returns the stable key used to retrieve generated property metadata.
 #[doc(hidden)]
 #[must_use]
-pub fn model_properties_key() -> CapabilityKey<ModelPropertiesProvider> {
-    let id = CapabilityId::new("qubit.model.properties.v1").expect("the model properties capability ID must be valid");
+pub fn model_impl_key() -> CapabilityKey<ModelImplProvider> {
+    let id = CapabilityId::new("qubit.model.impl.v1").expect("the model implementation capability ID must be valid");
     CapabilityKey::new(id)
 }
 

@@ -10,15 +10,23 @@
 
 #[doc(hidden)]
 pub mod __private;
+mod abi_violation;
 mod constraint;
 mod field_metadata;
 mod field_semantics;
 mod generic_model_metadata;
+mod local_property_set;
 mod metadata_registry;
 mod metadata_resolver;
 mod model_id;
+mod model_impl_metadata;
 mod model_registration;
 mod property;
+mod property_build_error;
+mod property_build_error_kind;
+mod property_build_errors;
+mod property_fragment;
+mod property_fragment_source;
 mod reflect_facade;
 mod relation;
 mod role;
@@ -28,6 +36,7 @@ pub use qubit_reflect::*;
 pub use qubit_validator::NamedValidationArgument;
 pub use qubit_validator::ValidationArgument;
 
+pub use crate::abi_violation::AbiViolation;
 pub use crate::constraint::AllowedChars;
 pub use crate::constraint::ConstraintMetadata;
 pub use crate::constraint::DecimalConstraint;
@@ -63,6 +72,7 @@ pub use crate::field_semantics::SerdeFieldMetadata;
 pub use crate::field_semantics::UniqueMetadata as FieldUniqueMetadata;
 pub use crate::field_semantics::ValidatorMetadata;
 pub use crate::generic_model_metadata::GenericModelMetadata;
+pub use crate::local_property_set::LocalPropertySet;
 pub use crate::metadata_registry::ModelRegistry;
 pub use crate::metadata_registry::ModelRegistryError;
 pub use crate::metadata_registry::ModelRegistryErrorKind;
@@ -70,11 +80,13 @@ pub use crate::metadata_resolver::ModelResolveError;
 pub use crate::metadata_resolver::ModelResolveErrorKind;
 pub use crate::metadata_resolver::ModelResolveErrors;
 pub use crate::metadata_resolver::ModelResolver;
+pub use crate::metadata_resolver::ProjectionExecutionError;
 pub use crate::metadata_resolver::QueryField;
 pub use crate::metadata_resolver::QueryMetadata;
 pub use crate::metadata_resolver::ResolveInputs;
 pub use crate::metadata_resolver::ResolvedCodec;
 pub use crate::metadata_resolver::ResolvedModelGraph;
+pub use crate::metadata_resolver::ResolvedProjectionProducer;
 pub use crate::metadata_resolver::ResolvedProjectionSource;
 pub use crate::metadata_resolver::ResolvedReference;
 pub use crate::metadata_resolver::ResolvedValidator;
@@ -82,6 +94,7 @@ pub use crate::metadata_resolver::UniqueQueryKey;
 pub use crate::model_id::ModelId;
 pub use crate::model_id::ModelIdBuf;
 pub use crate::model_id::ModelIdError;
+pub use crate::model_impl_metadata::ModelImplMetadata;
 pub use crate::model_registration::ModelRegistration;
 pub use crate::model_registration::ModelRegistrationFactory;
 pub use crate::model_registration::ModelRegistrationTarget;
@@ -96,15 +109,20 @@ pub use crate::property::PropertyStorageKind;
 pub use crate::property::PropertyValue;
 pub use crate::property::SetterAdapter;
 pub use crate::property::SetterMetadata;
+pub use crate::property_build_error::PropertyBuildError;
+pub use crate::property_build_error_kind::PropertyBuildErrorKind;
+pub use crate::property_build_errors::PropertyBuildErrors;
+pub use crate::property_fragment::PropertyFragment;
+pub use crate::property_fragment_source::PropertyFragmentSource;
 pub use crate::reflect_facade::ModelDescriptorExt;
+#[doc(hidden)]
+pub use crate::reflect_facade::ModelImplProvider;
 #[doc(hidden)]
 pub use crate::reflect_facade::ModelMetadataProvider;
 #[doc(hidden)]
-pub use crate::reflect_facade::ModelPropertiesProvider;
+pub use crate::reflect_facade::model_impl_key;
 #[doc(hidden)]
 pub use crate::reflect_facade::model_metadata_key;
-#[doc(hidden)]
-pub use crate::reflect_facade::model_properties_key;
 pub use crate::relation::PropertyPath;
 pub use crate::role::EntityMetadata;
 pub use crate::role::ModelMetadata;

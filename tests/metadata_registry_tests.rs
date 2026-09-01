@@ -9,7 +9,7 @@
 // qubit-style: allow explicit-imports
 //! Integration tests for frozen model registration indexes.
 
-use qubit_model_metadata::__private::v2;
+use qubit_model_metadata::__private::v3;
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelRegistration;
 use qubit_model_metadata::ModelRegistry;
@@ -30,9 +30,9 @@ struct GenericFixture<T> {
 }
 
 fn registration(id: &'static str, fingerprint: u64) -> &'static ModelRegistration {
-    let role = v2::leak(v2::model_role());
-    let metadata = v2::leak(
-        v2::GeneratedTypeMetadataBuilder::new(
+    let role = v3::leak(v3::model_role());
+    let metadata = v3::leak(
+        v3::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<RegistryFixture>(),
             Some(ModelId::new(id)),
             &[],
@@ -48,7 +48,7 @@ fn registration(id: &'static str, fingerprint: u64) -> &'static ModelRegistratio
         "model",
         fingerprint,
     )));
-    v2::leak(v2::concrete_registration(metadata, source))
+    v3::leak(v3::concrete_registration(metadata, source))
 }
 
 #[test]
@@ -88,10 +88,11 @@ fn test_registry_reports_duplicate_ids_with_both_sources() {
 fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
     let concrete = TypeDescriptor::of::<GenericFixture<u8>>();
     let definition = concrete.concrete_generic().expect("generic substitutions").definition();
-    let generic = v2::leak(v2::generic_model_metadata(
+    let generic = v3::leak(v3::generic_model_metadata(
         ModelId::new("example.GenericFixture"),
         ModelRole::Model,
         definition,
+        &[],
         &[],
     ));
     let source = Box::leak(Box::new(FragmentIdentity::new(
@@ -102,7 +103,7 @@ fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
         "generic-model",
         3,
     )));
-    let registration: &'static ModelRegistration = v2::leak(v2::generic_registration(generic, source));
+    let registration: &'static ModelRegistration = v3::leak(v3::generic_registration(generic, source));
     let registry = ModelRegistry::from_registrations([registration]).expect("generic registry");
 
     assert!(std::ptr::eq(
