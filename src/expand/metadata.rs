@@ -50,6 +50,7 @@ pub(crate) fn expand(kind: MacroKind, args: TokenStream, input: TokenStream) -> 
     expand_result(kind, args, input).unwrap_or_else(Error::into_compile_error)
 }
 
+/// Parses, validates, and expands one declaration into generated tokens.
 fn expand_result(kind: MacroKind, args: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let raw_options = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     if kind == MacroKind::ModelProperties {
@@ -82,209 +83,347 @@ fn expand_result(kind: MacroKind, args: TokenStream, input: TokenStream) -> Resu
     Ok(quote!(#item #display #metadata))
 }
 
+/// Normalized declaration-level options shared by all role macros.
 #[derive(Clone)]
 struct DeclarationOptions {
+    /// Optional stable model identifier.
     id: Option<LitStr>,
+    /// Fixed projection source Rust type.
     source: Option<Type>,
+    /// Fixed projection source identifier.
     source_id: Option<LitStr>,
+    /// Whether a projection accepts an open source.
     open: bool,
+    /// Whether a value uses transparent representation.
     transparent: bool,
+    /// Disables generated `Clone`.
     no_clone: bool,
+    /// Disables generated `Debug`.
     no_debug: bool,
+    /// Disables generated `Display`.
     no_display: bool,
+    /// Disables generated `PartialEq`.
     no_partial_eq: bool,
+    /// Disables generated `Eq`.
     no_eq: bool,
+    /// Disables generated `Hash`.
     no_hash: bool,
+    /// Disables generated serialization.
     no_serialize: bool,
+    /// Disables generated deserialization.
     no_deserialize: bool,
+    /// Disables generated redaction.
     no_redact: bool,
+    /// Disables generated `Copy`.
     no_copy: bool,
+    /// Enables generated `Copy`.
     copy: bool,
+    /// Enables generated `Default`.
     default: bool,
+    /// Enables generated `PartialOrd`.
     partial_ord: bool,
+    /// Enables generated `Ord`.
     ord: bool,
+    /// Canonical value codec type.
     codec: Option<Type>,
 }
 
+/// A single field-level metadata attribute after parsing.
 #[derive(Clone)]
 enum FieldOccurrence {
+    /// Identifier assignment metadata.
     Identifier(IdentifierAssignmentIr),
+    /// Explicit database index marker.
     Indexed,
+    /// Uniqueness metadata.
     Unique(UniqueIr),
+    /// Relationship metadata.
     Reference(ReferenceIr),
+    /// Composite-key position.
     KeyPart(usize),
+    /// Validation constraint.
     Constraint(ConstraintIr),
+    /// Collection selector metadata.
     Selector(SelectorIr),
+    /// Validator metadata.
     Validator(ValidatorIr),
+    /// Codec metadata.
     Codec(CodecIr),
+    /// Redaction metadata.
     Redact(RedactIr),
+    /// Serde metadata.
     Serde(SerdeIr),
+    /// Opaque reflection marker.
     Opaque,
 }
 
+/// Selects the owner of an automatically assigned identifier.
 #[derive(Clone, Copy)]
 enum IdentifierAssignmentIr {
     Application,
     Database,
 }
 
+/// Represents one supported validation constraint.
 #[derive(Clone)]
 enum ConstraintIr {
+    /// Text constraint.
     Text(TextConstraintIr),
+    /// Decimal constraint.
     Decimal(DecimalConstraintIr),
+    /// Time constraint format.
     Time(String),
     Sequence {
+        /// Minimum number of items.
         min: Option<usize>,
+        /// Maximum number of items.
         max: Option<usize>,
+        /// Whether items must be unique.
         unique: bool,
     },
     Map {
+        /// Minimum number of entries.
         min: Option<usize>,
+        /// Maximum number of entries.
         max: Option<usize>,
     },
 }
 
+/// Normalized text constraint parameters.
 #[derive(Clone, Default)]
 struct TextConstraintIr {
+    /// Minimum character count.
     min_chars: Option<u32>,
+    /// Maximum character count.
     max_chars: Option<u32>,
+    /// Minimum UTF-8 byte count.
     min_bytes: Option<u32>,
+    /// Maximum UTF-8 byte count.
     max_bytes: Option<u32>,
+    /// Allowed character set name.
     allowed_chars: Option<String>,
+    /// Whether blank text is rejected.
     non_blank: bool,
+    /// Optional named text format.
     format: Option<String>,
 }
 
+/// Normalized decimal constraint parameters.
 #[derive(Clone)]
 struct DecimalConstraintIr {
+    /// Optional total precision.
     precision: Option<u16>,
+    /// Number of fractional digits.
     scale: u16,
+    /// Named rounding mode.
     rounding: String,
+    /// Whether the decimal represents money.
     money: bool,
+    /// Inclusive or exclusive lower bound literal.
     min: Option<LitStr>,
+    /// Inclusive or exclusive upper bound literal.
     max: Option<LitStr>,
+    /// Whether the lower bound is inclusive.
     min_inclusive: bool,
+    /// Whether the upper bound is inclusive.
     max_inclusive: bool,
 }
 
+/// Metadata for a selector applied to a collection element or map component.
 #[derive(Clone)]
 struct SelectorIr {
+    /// Collection position selected by this rule.
     position: SelectorPositionIr,
+    /// Nested constraints.
     constraints: Vec<ConstraintIr>,
+    /// Nested validators.
     validators: Vec<ValidatorIr>,
+    /// Nested value codec.
     codec: Option<CodecIr>,
+    /// Nested redaction mode.
     redact: Option<RedactIr>,
 }
 
+/// Identifies the collection position targeted by a selector.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum SelectorPositionIr {
+    /// Collection element.
     Element,
+    /// Map key.
     MapKey,
+    /// Map value.
     MapValue,
 }
 
+/// Normalized uniqueness declaration.
 #[derive(Clone)]
 struct UniqueIr {
+    /// Field paths participating in uniqueness comparisons.
     respect_to: Vec<Vec<String>>,
+    /// Whether comparisons ignore case.
     ignore_case: bool,
 }
 
+/// Identifies a reference target by Rust type or stable model ID.
 #[derive(Clone)]
 enum ReferenceTargetIr {
+    /// Target Rust type.
     RustType(Box<Type>),
+    /// Target stable model identifier.
     ModelId(LitStr),
 }
 
+/// Normalized relationship/reference declaration.
 #[derive(Clone)]
 struct ReferenceIr {
+    /// Referenced model target.
     target: ReferenceTargetIr,
+    /// Optional referenced property path.
     property: Option<Vec<String>>,
+    /// Whether the referenced target must already exist.
     existing: bool,
+    /// Optional path that must match the source.
     same_as: Option<Vec<String>>,
 }
 
+/// Literal argument accepted by a validator strategy.
 #[derive(Clone)]
 enum StrategyArgumentIr {
+    /// Boolean literal.
     Bool(bool),
+    /// Signed integer literal.
     Integer(i128),
+    /// Unsigned integer literal.
     Unsigned(u128),
+    /// String literal.
     String(LitStr),
+    /// Boolean list.
     BoolList(Vec<bool>),
+    /// Signed integer list.
     IntegerList(Vec<i128>),
+    /// Unsigned integer list.
     UnsignedList(Vec<u128>),
+    /// String list.
     StringList(Vec<LitStr>),
 }
 
+/// Normalized validator registration and its arguments.
 #[derive(Clone)]
 struct ValidatorIr {
+    /// Stable validator registration identifier.
     id: LitStr,
+    /// Named validator strategy parameters.
     params: Vec<(String, StrategyArgumentIr)>,
+    /// Field paths the validator reads.
     depends_on: Vec<Vec<String>>,
 }
 
+/// Value codec selected by declared ID or Rust type.
 #[derive(Clone)]
 enum CodecIr {
+    /// Codec Rust type.
     RustType(Box<Type>),
+    /// Codec registration identifier.
     DeclaredId(LitStr),
 }
 
+/// Redaction mode attached to a field or selector.
 #[derive(Clone)]
 struct RedactIr {
+    /// Selected redaction behavior.
     mode: RedactModeIr,
 }
 
+/// Supported redaction shapes emitted in metadata.
 #[derive(Clone)]
 enum RedactModeIr {
+    /// Named redaction level.
     Level(String),
+    /// Skip redaction.
     Skip,
+    /// Nested redaction.
     Nested,
+    /// Map redaction.
     Map,
+    /// Redact using another field.
     KeyedBy(String),
+    /// JSON redaction.
     Json,
 }
 
+/// Normalized Serde behavior for one field.
 #[derive(Clone, Default)]
 struct SerdeIr {
+    /// Serialized field name override.
     serialize_name: Option<LitStr>,
+    /// Deserialized field name override.
     deserialize_name: Option<LitStr>,
+    /// Skip this field while serializing.
     skip_serializing: bool,
+    /// Skip this field while deserializing.
     skip_deserializing: bool,
+    /// Flatten nested serialization.
     flatten: bool,
+    /// Custom Serde module path.
     with: Option<LitStr>,
+    /// Use the type's default during deserialization.
     default: bool,
+    /// Whether skip-serializing-if was explicitly set.
     explicit_skip_serializing_if: bool,
+    /// Use the model default source.
     default_from_model: bool,
+    /// Omit this field from the model view.
     omit_from_model: bool,
+    /// Whether omission was explicitly suppressed.
     omit_suppressed: bool,
 }
 
+/// Parsed field metadata and its source type.
 #[derive(Clone)]
 struct FieldIr {
+    /// Zero-based source field index.
     index: usize,
+    /// Rust field type.
     ty: Type,
+    /// Parsed field-level attributes.
     occurrences: Vec<FieldOccurrence>,
+    /// Preserve this field under model serialization.
     keep_serializing: bool,
+    /// Whether the source field has a name.
     named: bool,
 }
 
+/// Parsed enum variant names and fields.
 #[derive(Clone)]
 struct VariantIr {
+    /// Rust source variant name.
     rust_name: String,
+    /// Canonical model variant name.
     canonical_name: String,
+    /// Serialized variant name.
     serialized_name: String,
+    /// Deserialized variant name.
     deserialized_name: String,
+    /// Whether this variant is the default.
     default: bool,
+    /// Parsed variant fields.
     fields: Vec<FieldIr>,
 }
 
+/// Complete normalized declaration consumed by the expansion stage.
 struct DeclarationIr {
+    /// Selected macro role.
     kind: MacroKind,
+    /// Declaration-level options.
     options: DeclarationOptions,
+    /// Struct fields.
     fields: Vec<FieldIr>,
+    /// Enum variants.
     variants: Vec<VariantIr>,
 }
 
 impl DeclarationIr {
+    /// Parses role options and fields, then validates role-specific invariants.
     fn parse(kind: MacroKind, options: Punctuated<Meta, Token![,]>, item: &DeriveInput) -> Result<Self> {
         let options = DeclarationOptions::parse(options)?;
         if kind == MacroKind::Entity && options.id.is_none() {
@@ -300,7 +439,9 @@ impl DeclarationIr {
         let (mut fields, mut variants) = match &item.data {
             Data::Struct(data) => (parse_fields(&data.fields)?, Vec::new()),
             Data::Enum(data) => (Vec::new(), parse_variants(data)?),
-            Data::Union(_) => unreachable!("unions are rejected before IR construction"),
+            Data::Union(_) => {
+                unreachable!("unions are rejected before IR construction")
+            }
         };
         if matches!(kind, MacroKind::Entity | MacroKind::Projection)
             && fields
@@ -336,6 +477,7 @@ impl DeclarationIr {
     }
 }
 
+/// Parses every field and combines independent field diagnostics.
 fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
@@ -351,6 +493,7 @@ fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
     }
 }
 
+/// Parses enum variants, including Serde names and nested field metadata.
 fn parse_variants(data: &syn::DataEnum) -> Result<Vec<VariantIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
@@ -386,6 +529,7 @@ fn parse_variants(data: &syn::DataEnum) -> Result<Vec<VariantIr>> {
     }
 }
 
+/// Validates cross-field and role-level metadata invariants.
 fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     let options = &declaration.options;
@@ -625,6 +769,7 @@ fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> R
     if let Some(error) = errors { Err(error) } else { Ok(()) }
 }
 
+/// Adds implicit container constraints required by selector metadata.
 fn normalize_selector_containers(field: &mut FieldIr) {
     let has_element = field.occurrences.iter().any(|value| {
         matches!(
@@ -670,6 +815,7 @@ fn normalize_selector_containers(field: &mut FieldIr) {
     }
 }
 
+/// Validates that a field's constraints match its Rust type and role.
 fn validate_field_constraints(field: &FieldIr, span: &syn::Ident, errors: &mut Option<Error>) {
     let mut kinds = std::collections::HashSet::new();
     for constraint in field.occurrences.iter().filter_map(|value| match value {
@@ -799,6 +945,7 @@ fn validate_field_constraints(field: &FieldIr, span: &syn::Ident, errors: &mut O
     }
 }
 
+/// Returns the terminal type name for a transparent value candidate.
 fn transparent_type_name(ty: &Type) -> Option<String> {
     let Type::Path(path) = ty else { return None };
     let segment = path.path.segments.last()?;
@@ -814,6 +961,7 @@ fn transparent_type_name(ty: &Type) -> Option<String> {
     Some(segment.ident.to_string())
 }
 
+/// Reports whether `ty` is a recognized sequence container.
 fn is_sequence_type(ty: &Type) -> bool {
     matches!(ty, Type::Array(_) | Type::Slice(_))
         || matches!(
@@ -822,6 +970,7 @@ fn is_sequence_type(ty: &Type) -> bool {
         )
 }
 
+/// Resolves the selected element, map-key, or map-value type.
 fn selector_value_type(ty: &Type, position: SelectorPositionIr) -> &Type {
     let ty = unwrap_transparent_type(ty);
     match ty {
@@ -852,6 +1001,7 @@ fn selector_value_type(ty: &Type, position: SelectorPositionIr) -> &Type {
     }
 }
 
+/// Removes references and supported transparent wrappers from `ty`.
 fn unwrap_transparent_type(mut ty: &Type) -> &Type {
     loop {
         let Type::Path(path) = ty else { return ty };
@@ -874,6 +1024,7 @@ fn unwrap_transparent_type(mut ty: &Type) -> &Type {
     }
 }
 
+/// Reports whether a path name is known to be non-textual.
 fn is_known_non_text_type(name: &str) -> bool {
     matches!(
         name,
@@ -904,6 +1055,7 @@ fn is_known_non_text_type(name: &str) -> bool {
     )
 }
 
+/// Parses variant rename attributes and returns serialized/deserialized names.
 fn parse_variant_serde_names(attributes: &[Attribute], canonical: &str) -> Result<(String, String)> {
     let mut serialize = canonical.to_owned();
     let mut deserialize = canonical.to_owned();
@@ -920,6 +1072,7 @@ fn parse_variant_serde_names(attributes: &[Attribute], canonical: &str) -> Resul
 }
 
 impl DeclarationOptions {
+    /// Parses declaration-level options and rejects duplicates or bad values.
     fn parse(options: Punctuated<Meta, Token![,]>) -> Result<Self> {
         let mut result = Self {
             id: None,
@@ -982,7 +1135,9 @@ impl DeclarationOptions {
                 Meta::Path(path) if path.is_ident("partial_ord") => result.partial_ord = true,
                 Meta::Path(path) if path.is_ident("ord") => result.ord = true,
                 Meta::Path(path) if path.is_ident("redact") => {}
-                other => return Err(Error::new_spanned(other, "unsupported model option")),
+                other => {
+                    return Err(Error::new_spanned(other, "unsupported model option"));
+                }
             }
         }
         Ok(result)
@@ -990,6 +1145,7 @@ impl DeclarationOptions {
 }
 
 impl FieldIr {
+    /// Parses one field's attributes into normalized intermediate metadata.
     fn parse(index: usize, ty: &Type, attributes: &[Attribute], named: bool) -> Result<Self> {
         let mut occurrences = Vec::new();
         let mut keep_serializing = false;
@@ -1054,6 +1210,7 @@ impl FieldIr {
     }
 }
 
+/// Parses an identifier assignment attribute.
 fn parse_identifier(attribute: &Attribute) -> Result<IdentifierAssignmentIr> {
     if matches!(attribute.meta, Meta::Path(_)) {
         return Ok(IdentifierAssignmentIr::Application);
@@ -1067,13 +1224,16 @@ fn parse_identifier(attribute: &Attribute) -> Result<IdentifierAssignmentIr> {
         assignment = Some(match value.as_str() {
             "application" => IdentifierAssignmentIr::Application,
             "database" => IdentifierAssignmentIr::Database,
-            _ => return Err(meta.error("assigned_by must be application or database")),
+            _ => {
+                return Err(meta.error("assigned_by must be application or database"));
+            }
         });
         Ok(())
     })?;
     assignment.ok_or_else(|| Error::new_spanned(attribute, "identifier requires assigned_by"))
 }
 
+/// Sets a string option while rejecting duplicate declarations.
 fn set_lit_str(slot: &mut Option<LitStr>, value: Expr, name: &str) -> Result<()> {
     if slot.is_some() {
         return Err(Error::new_spanned(value, format!("duplicate `{name}` option")));
@@ -1088,6 +1248,7 @@ fn set_lit_str(slot: &mut Option<LitStr>, value: Expr, name: &str) -> Result<()>
     Ok(())
 }
 
+/// Parses a uniqueness declaration and its comparison paths.
 fn parse_unique(attribute: &Attribute) -> Result<UniqueIr> {
     let mut value = UniqueIr {
         respect_to: Vec::new(),
@@ -1121,6 +1282,7 @@ fn parse_unique(attribute: &Attribute) -> Result<UniqueIr> {
     Ok(value)
 }
 
+/// Parses a relationship declaration and target selector.
 fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
     let mut target = None;
     let mut property = None;
@@ -1169,6 +1331,7 @@ fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
     })
 }
 
+/// Parses a zero-based composite-key position.
 fn parse_key_part(attribute: &Attribute) -> Result<usize> {
     let mut order = None;
     attribute.parse_nested_meta(|meta| {
@@ -1185,6 +1348,7 @@ fn parse_key_part(attribute: &Attribute) -> Result<usize> {
     order.ok_or_else(|| Error::new_spanned(attribute, "key_part requires `order = n`"))
 }
 
+/// Reports whether `attribute` names one of the supported constraints.
 fn is_constraint_attribute(attribute: &Attribute) -> bool {
     attribute.path().is_ident("text")
         || attribute.path().is_ident("decimal")
@@ -1194,6 +1358,7 @@ fn is_constraint_attribute(attribute: &Attribute) -> bool {
         || attribute.path().is_ident("map")
 }
 
+/// Parses one textual, decimal, temporal, sequence, or map constraint.
 fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
     if attribute.path().is_ident("text") {
         return parse_text_constraint(attribute).map(ConstraintIr::Text);
@@ -1261,6 +1426,7 @@ fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
     Ok(ConstraintIr::Map { min, max })
 }
 
+/// Parses text length, character-set, blankness, and format options.
 fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
     let mut value = TextConstraintIr::default();
     let mut any = false;
@@ -1297,6 +1463,7 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
     Ok(value)
 }
 
+/// Parses decimal precision, scale, bounds, and rounding options.
 fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<DecimalConstraintIr> {
     let mut precision = None;
     let mut scale = None;
@@ -1392,6 +1559,7 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
     })
 }
 
+/// Splits a decimal literal into sign, digits, and fractional scale.
 fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
     let (negative, unsigned) = value.strip_prefix('-').map_or((false, value), |value| (true, value));
     if unsigned.is_empty() || unsigned.starts_with('+') {
@@ -1417,6 +1585,7 @@ fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
     Some((negative && normalized != "0", normalized, scale))
 }
 
+/// Compares two normalized decimal literal strings without floating point.
 fn compare_decimal_literals(left: &str, right: &str) -> Option<core::cmp::Ordering> {
     let (left_negative, mut left_digits, left_scale) = parse_decimal_literal(left)?;
     let (right_negative, mut right_digits, right_scale) = parse_decimal_literal(right)?;
@@ -1435,6 +1604,7 @@ fn compare_decimal_literals(left: &str, right: &str) -> Option<core::cmp::Orderi
     })
 }
 
+/// Parses a selector and its nested constraints, validators, and redaction.
 fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result<SelectorIr> {
     let Meta::List(list) = &attribute.meta else {
         return Err(Error::new_spanned(attribute, "selector requires nested declarations"));
@@ -1477,6 +1647,7 @@ fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result
     Ok(selector)
 }
 
+/// Converts an identifier expression into its canonical path text.
 fn parse_ident_value(expression: Expr) -> Result<String> {
     match expression {
         Expr::Path(path) if path.path.segments.len() == 1 => Ok(path.path.segments[0].ident.to_string()),
@@ -1484,6 +1655,7 @@ fn parse_ident_value(expression: Expr) -> Result<String> {
     }
 }
 
+/// Parses a validator ID, dependencies, and strategy parameters.
 fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
     let mut id = None;
     let mut params = Vec::new();
@@ -1520,6 +1692,7 @@ fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
     Ok(ValidatorIr { id, params, depends_on })
 }
 
+/// Parses a declared codec ID or Rust codec type.
 fn parse_codec(attribute: &Attribute) -> Result<CodecIr> {
     if let Ok(ty) = attribute.parse_args::<Type>()
         && !matches!(&ty, Type::Path(path) if path.path.is_ident("id"))
@@ -1545,6 +1718,7 @@ fn parse_codec(attribute: &Attribute) -> Result<CodecIr> {
     result.ok_or_else(|| Error::new_spanned(attribute, "codec requires a Rust type or `id = \"...\"`"))
 }
 
+/// Parses a field or selector redaction mode.
 fn parse_redact(attribute: &Attribute) -> Result<RedactIr> {
     let mut mode = None;
     attribute.parse_nested_meta(|meta| {
@@ -1574,6 +1748,7 @@ fn parse_redact(attribute: &Attribute) -> Result<RedactIr> {
     })
 }
 
+/// Parses Serde rename, skip, flatten, default, and custom-handler options.
 fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
     let mut serde = SerdeIr::default();
     attribute.parse_nested_meta(|meta| {
@@ -1623,7 +1798,8 @@ fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
             let _: LitStr = meta.value()?.parse()?;
             Ok(())
         } else {
-            // Serde owns its wider syntax; metadata records only the stable subset.
+            // Serde owns its wider syntax; metadata records only the stable
+            // subset.
             if meta.input.peek(Token![=]) {
                 let _: Expr = meta.value()?.parse()?;
             }
@@ -1633,6 +1809,7 @@ fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
     Ok(serde)
 }
 
+/// Parses one validator strategy argument into a supported literal variant.
 fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
     match expression {
         Expr::Lit(ExprLit {
@@ -1671,6 +1848,7 @@ fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
     }
 }
 
+/// Parses a homogeneous array of validator strategy literals.
 fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
     if values.is_empty() {
         return Ok(StrategyArgumentIr::StringList(Vec::new()));
@@ -1739,6 +1917,7 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
     ))
 }
 
+/// Extracts a signed integer from a literal or unary-minus expression.
 fn strategy_signed_integer(value: &Expr) -> Option<i128> {
     match value {
         Expr::Lit(ExprLit {
@@ -1754,6 +1933,7 @@ fn strategy_signed_integer(value: &Expr) -> Option<i128> {
     }
 }
 
+/// Parses a field path represented as identifiers or string segments.
 fn parse_path_value(expression: Expr) -> Result<Vec<String>> {
     match expression {
         Expr::Path(path) => Ok(path_from_syn(&path.path)),
@@ -1764,14 +1944,17 @@ fn parse_path_value(expression: Expr) -> Result<Vec<String>> {
     }
 }
 
+/// Converts one path expression into its textual segment.
 fn path_text(expression: Expr) -> Result<String> {
     parse_path_value(expression).map(|segments| segments.join("."))
 }
 
+/// Converts a Syn path into owned identifier segments.
 fn path_from_syn(path: &syn::Path) -> Vec<String> {
     path.segments.iter().map(|segment| segment.ident.to_string()).collect()
 }
 
+/// Validates that a model or validator ID is non-empty ASCII text.
 fn validate_ascii_id(value: &LitStr, kind: &str) -> Result<()> {
     let text = value.value();
     let valid = !text.is_empty()
@@ -1787,6 +1970,7 @@ fn validate_ascii_id(value: &LitStr, kind: &str) -> Result<()> {
     }
 }
 
+/// Adds role-dependent default derives while preserving user opt-outs.
 fn apply_default_derives(declaration: &DeclarationIr, item: &mut DeriveInput, runtime: &TokenStream) -> Result<()> {
     let options = &declaration.options;
     if options.copy && options.no_clone {
@@ -1894,6 +2078,7 @@ fn apply_default_derives(declaration: &DeclarationIr, item: &mut DeriveInput, ru
     Ok(())
 }
 
+/// Reports whether a declaration already supplies `serde(rename_all = ...)`.
 fn has_serde_rename_all(attributes: &[Attribute]) -> Result<bool> {
     for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("serde")) {
         let entries = attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
@@ -1904,6 +2089,7 @@ fn has_serde_rename_all(attributes: &[Attribute]) -> Result<bool> {
     Ok(false)
 }
 
+/// Generates the redaction-aware display implementation for a declaration.
 fn expand_display(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let options = &declaration.options;
     if options.no_display || (!options.no_redact && !options.transparent) {
@@ -1913,7 +2099,9 @@ fn expand_display(declaration: &DeclarationIr, item: &DeriveInput, runtime: &Tok
     let mut generics = item.generics.clone();
     let transparent_field = options.transparent.then(|| match &item.data {
         Data::Struct(data) => data.fields.iter().next().expect("validated transparent field"),
-        Data::Enum(_) | Data::Union(_) => unreachable!("transparent is only valid on Value structs"),
+        Data::Enum(_) | Data::Union(_) => {
+            unreachable!("transparent is only valid on Value structs")
+        }
     });
     if options.no_redact {
         let where_clause = generics.make_where_clause();
@@ -1969,6 +2157,7 @@ fn expand_display(declaration: &DeclarationIr, item: &DeriveInput, runtime: &Tok
     }
 }
 
+/// Generates a plain structured display body for non-redacted output.
 fn plain_structured_display_body(name: &syn::Ident, data: &Data) -> TokenStream {
     match data {
         Data::Struct(data) => match &data.fields {
@@ -2025,6 +2214,7 @@ fn plain_structured_display_body(name: &syn::Ident, data: &Data) -> TokenStream 
     }
 }
 
+/// Adds default Serde attributes required by the selected role options.
 fn apply_serde_defaults(declaration: &mut DeclarationIr, item: &mut DeriveInput, runtime: &TokenStream) {
     match (&mut item.data, declaration.kind) {
         (Data::Struct(data), _) => {
@@ -2046,6 +2236,7 @@ fn apply_serde_defaults(declaration: &mut DeclarationIr, item: &mut DeriveInput,
     }
 }
 
+/// Applies the role's Serde default policy to one field.
 fn apply_field_serde_default(field: &mut syn::Field, ir: &mut FieldIr, runtime: &TokenStream) {
     if field.ident.is_none() {
         return;
@@ -2093,11 +2284,13 @@ fn apply_field_serde_default(field: &mut syn::Field, ir: &mut FieldIr, runtime: 
     serde.omit_from_model = true;
 }
 
+/// Identifies container kinds that support omission-on-default behavior.
 enum OmissionKind {
     Option,
     Collection,
 }
 
+/// Returns the omission policy supported by `ty`, if any.
 fn omission_kind(ty: &Type) -> Option<OmissionKind> {
     let Type::Path(path) = ty else {
         return None;
@@ -2113,6 +2306,7 @@ fn omission_kind(ty: &Type) -> Option<OmissionKind> {
     .then_some(OmissionKind::Collection)
 }
 
+/// Collects derive names already present on a declaration.
 fn existing_derive_names(attributes: &[Attribute]) -> Result<Vec<String>> {
     let mut result = Vec::new();
     for attribute in attributes {
@@ -2129,6 +2323,7 @@ fn existing_derive_names(attributes: &[Attribute]) -> Result<Vec<String>> {
     Ok(result)
 }
 
+/// Generates lazy type metadata and registration implementations.
 fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let ident = &item.ident;
     let fields = expand_field_vector(&declaration.fields, quote!(descriptor.fields()), runtime);
@@ -2236,6 +2431,7 @@ fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &To
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Generates registration metadata for a generic model definition.
 fn expand_generic_registration(
     ident: &syn::Ident,
     id: &LitStr,
@@ -2302,6 +2498,7 @@ fn expand_generic_registration(
     }
 }
 
+/// Generates the descriptor template used by generic model instances.
 fn expand_generic_template(
     ident: &syn::Ident,
     fields: &[FieldIr],
@@ -2357,11 +2554,17 @@ fn expand_generic_template(
     let struct_kind = match data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(_) => quote!(#runtime::descriptor::StructKind::Named),
-            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => quote!(#runtime::descriptor::StructKind::Newtype),
-            Fields::Unnamed(_) => quote!(#runtime::descriptor::StructKind::Tuple),
+            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+                quote!(#runtime::descriptor::StructKind::Newtype)
+            }
+            Fields::Unnamed(_) => {
+                quote!(#runtime::descriptor::StructKind::Tuple)
+            }
             Fields::Unit => quote!(#runtime::descriptor::StructKind::Unit),
         },
-        Data::Enum(_) | Data::Union(_) => quote!(#runtime::descriptor::StructKind::Unit),
+        Data::Enum(_) | Data::Union(_) => {
+            quote!(#runtime::descriptor::StructKind::Unit)
+        }
     };
     let query_name = LitStr::new(&ident.to_string(), ident.span());
     quote! {
@@ -2387,6 +2590,7 @@ fn expand_generic_template(
     }
 }
 
+/// Converts a Rust type into the runtime's symbolic type expression.
 fn expand_type_expression(
     ty: &Type,
     type_parameters: &std::collections::HashSet<String>,
@@ -2482,10 +2686,18 @@ fn expand_type_expression(
                 .map(|value| value.ident.to_string())
                 .as_deref()
             {
-                Some("static") => quote!(#runtime::expression::LifetimeExpression::Static),
-                Some("_") => quote!(#runtime::expression::LifetimeExpression::Placeholder),
-                Some(name) => quote!(#runtime::expression::LifetimeExpression::Named(#name.into())),
-                None => quote!(#runtime::expression::LifetimeExpression::Elided),
+                Some("static") => {
+                    quote!(#runtime::expression::LifetimeExpression::Static)
+                }
+                Some("_") => {
+                    quote!(#runtime::expression::LifetimeExpression::Placeholder)
+                }
+                Some(name) => {
+                    quote!(#runtime::expression::LifetimeExpression::Named(#name.into()))
+                }
+                None => {
+                    quote!(#runtime::expression::LifetimeExpression::Elided)
+                }
             };
             let mutable = reference.mutability.is_some();
             quote!(#runtime::expression::TypeExpression::Reference(
@@ -2510,6 +2722,7 @@ fn expand_type_expression(
     }
 }
 
+/// Converts a const expression into the runtime's symbolic representation.
 fn expand_const_expression(
     value: &Expr,
     const_parameters: &std::collections::HashSet<String>,
@@ -2559,6 +2772,7 @@ fn expand_const_expression(
     }
 }
 
+/// Generates the runtime field vector for a declaration.
 fn expand_field_vector(fields: &[FieldIr], descriptor_fields: TokenStream, runtime: &TokenStream) -> TokenStream {
     let bodies = fields
         .iter()
@@ -2569,6 +2783,7 @@ fn expand_field_vector(fields: &[FieldIr], descriptor_fields: TokenStream, runti
     }
 }
 
+/// Generates one field descriptor and its normalized attributes.
 fn expand_field(field: &FieldIr, descriptor_fields: &TokenStream, runtime: &TokenStream) -> TokenStream {
     let index = field.index;
     let validator_irs: Vec<_> = field
@@ -2803,6 +3018,7 @@ fn expand_field(field: &FieldIr, descriptor_fields: &TokenStream, runtime: &Toke
     }
 }
 
+/// Generates runtime metadata for one normalized constraint.
 fn expand_constraint(
     value: &ConstraintIr,
     has_element: bool,
@@ -2818,9 +3034,13 @@ fn expand_constraint(
             let max_bytes = option_number(value.max_bytes);
             let allowed = match value.allowed_chars.as_deref().unwrap_or("unicode") {
                 "unicode" => quote!(#runtime::AllowedChars::Unicode),
-                "printable_unicode" => quote!(#runtime::AllowedChars::PrintableUnicode),
+                "printable_unicode" => {
+                    quote!(#runtime::AllowedChars::PrintableUnicode)
+                }
                 "ascii" => quote!(#runtime::AllowedChars::Ascii),
-                "printable_ascii" => quote!(#runtime::AllowedChars::PrintableAscii),
+                "printable_ascii" => {
+                    quote!(#runtime::AllowedChars::PrintableAscii)
+                }
                 "code" => quote!(#runtime::AllowedChars::Code),
                 _ => quote!(compile_error!("invalid allowed_chars value")),
             };
@@ -2863,8 +3083,12 @@ fn expand_constraint(
         ConstraintIr::Time(value) => {
             let precision = match value.as_str() {
                 "second" => quote!(#runtime::TemporalPrecision::Second),
-                "millisecond" => quote!(#runtime::TemporalPrecision::Millisecond),
-                "microsecond" => quote!(#runtime::TemporalPrecision::Microsecond),
+                "millisecond" => {
+                    quote!(#runtime::TemporalPrecision::Millisecond)
+                }
+                "microsecond" => {
+                    quote!(#runtime::TemporalPrecision::Microsecond)
+                }
                 "nanosecond" => quote!(#runtime::TemporalPrecision::Nanosecond),
                 _ => quote!(compile_error!("invalid time precision")),
             };
@@ -2899,6 +3123,7 @@ fn expand_constraint(
     }
 }
 
+/// Generates runtime metadata for a collection selector.
 fn expand_selector_metadata(
     value: &SelectorIr,
     value_type: &Type,
@@ -2906,9 +3131,15 @@ fn expand_selector_metadata(
     runtime: &TokenStream,
 ) -> TokenStream {
     let position = match value.position {
-        SelectorPositionIr::Element => quote!(#runtime::SelectorPosition::Element),
-        SelectorPositionIr::MapKey => quote!(#runtime::SelectorPosition::MapKey),
-        SelectorPositionIr::MapValue => quote!(#runtime::SelectorPosition::MapValue),
+        SelectorPositionIr::Element => {
+            quote!(#runtime::SelectorPosition::Element)
+        }
+        SelectorPositionIr::MapKey => {
+            quote!(#runtime::SelectorPosition::MapKey)
+        }
+        SelectorPositionIr::MapValue => {
+            quote!(#runtime::SelectorPosition::MapValue)
+        }
     };
     let constraints = value
         .constraints
@@ -2956,10 +3187,12 @@ fn expand_selector_metadata(
     }
 }
 
+/// Converts an optional tokenizable number into runtime option tokens.
 fn option_number<T: quote::ToTokens>(value: Option<T>) -> TokenStream {
     value.map_or_else(|| quote!(None), |value| quote!(Some(#value)))
 }
 
+/// Maps a validated rounding name to runtime enum tokens.
 fn rounding_tokens(value: &str, runtime: &TokenStream) -> TokenStream {
     match value {
         "down" => quote!(#runtime::RoundingMode::Down),
@@ -2974,6 +3207,7 @@ fn rounding_tokens(value: &str, runtime: &TokenStream) -> TokenStream {
     }
 }
 
+/// Generates runtime metadata for one validator declaration.
 fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStream {
     let id = &validator.id;
     let params = validator.params.iter().map(|(name, value)| {
@@ -2988,25 +3222,45 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
     })
 }
 
+/// Generates runtime tokens for one validator strategy argument.
 fn expand_strategy_argument(value: &StrategyArgumentIr, runtime: &TokenStream) -> TokenStream {
     match value {
-        StrategyArgumentIr::Bool(value) => quote!(#runtime::ValidationArgument::Bool(#value)),
-        StrategyArgumentIr::Integer(value) => quote!(#runtime::ValidationArgument::Integer(#value)),
-        StrategyArgumentIr::Unsigned(value) => quote!(#runtime::ValidationArgument::Unsigned(#value)),
-        StrategyArgumentIr::String(value) => quote!(#runtime::ValidationArgument::String(#value)),
-        StrategyArgumentIr::BoolList(values) => quote!(#runtime::ValidationArgument::BoolList(&[#(#values),*])),
-        StrategyArgumentIr::IntegerList(values) => quote!(#runtime::ValidationArgument::IntegerList(&[#(#values),*])),
-        StrategyArgumentIr::UnsignedList(values) => quote!(#runtime::ValidationArgument::UnsignedList(&[#(#values),*])),
-        StrategyArgumentIr::StringList(values) => quote!(#runtime::ValidationArgument::StringList(&[#(#values),*])),
+        StrategyArgumentIr::Bool(value) => {
+            quote!(#runtime::ValidationArgument::Bool(#value))
+        }
+        StrategyArgumentIr::Integer(value) => {
+            quote!(#runtime::ValidationArgument::Integer(#value))
+        }
+        StrategyArgumentIr::Unsigned(value) => {
+            quote!(#runtime::ValidationArgument::Unsigned(#value))
+        }
+        StrategyArgumentIr::String(value) => {
+            quote!(#runtime::ValidationArgument::String(#value))
+        }
+        StrategyArgumentIr::BoolList(values) => {
+            quote!(#runtime::ValidationArgument::BoolList(&[#(#values),*]))
+        }
+        StrategyArgumentIr::IntegerList(values) => {
+            quote!(#runtime::ValidationArgument::IntegerList(&[#(#values),*]))
+        }
+        StrategyArgumentIr::UnsignedList(values) => {
+            quote!(#runtime::ValidationArgument::UnsignedList(&[#(#values),*]))
+        }
+        StrategyArgumentIr::StringList(values) => {
+            quote!(#runtime::ValidationArgument::StringList(&[#(#values),*]))
+        }
     }
 }
 
+/// Generates runtime metadata for one relationship declaration.
 fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStream {
     let target = match &reference.target {
         ReferenceTargetIr::RustType(ty) => {
             quote!(#runtime::DeclaredEntityTarget::RustType(#runtime::TypeMetadata::of::<#ty>))
         }
-        ReferenceTargetIr::ModelId(id) => quote!(#runtime::DeclaredEntityTarget::ModelId(#runtime::ModelId::new(#id))),
+        ReferenceTargetIr::ModelId(id) => {
+            quote!(#runtime::DeclaredEntityTarget::ModelId(#runtime::ModelId::new(#id)))
+        }
     };
     let selection = reference.property.as_ref().map_or_else(
         || quote!(#runtime::ReferenceSelection::Entity),
@@ -3032,6 +3286,7 @@ fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStre
     }
 }
 
+/// Generates runtime metadata for one redaction declaration.
 fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
     let expression = redact_expression(redact, position, runtime);
     quote! {
@@ -3039,6 +3294,7 @@ fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream
     }
 }
 
+/// Generates the redaction expression associated with a redaction mode.
 fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
     let (sensitivity, mode) = match &redact.mode {
         RedactModeIr::Level(level) => {
@@ -3060,9 +3316,12 @@ fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenSt
     quote!(#runtime::RedactMetadata::new(#sensitivity, #mode, #position))
 }
 
+/// Generates runtime metadata for a declared value codec.
 fn codec_reference_expression(codec: &CodecIr, value_type: &Type, runtime: &TokenStream) -> TokenStream {
     match codec {
-        CodecIr::DeclaredId(id) => quote!(#runtime::CodecReference::DeclaredId(#id)),
+        CodecIr::DeclaredId(id) => {
+            quote!(#runtime::CodecReference::DeclaredId(#id))
+        }
         CodecIr::RustType(ty) => {
             quote!(#runtime::CodecReference::RustType(#runtime::__private::v2::leak(
                 #runtime::__private::qubit_codec::ValueCodecDescriptor::of::<#ty, #value_type>(),
@@ -3071,6 +3330,7 @@ fn codec_reference_expression(codec: &CodecIr, value_type: &Type, runtime: &Toke
     }
 }
 
+/// Generates runtime metadata for one Serde behavior declaration.
 fn expand_serde(value: &SerdeIr, runtime: &TokenStream) -> TokenStream {
     let serialize_name = option_lit_str(&value.serialize_name);
     let deserialize_name = option_lit_str(&value.deserialize_name);
@@ -3103,16 +3363,19 @@ fn expand_serde(value: &SerdeIr, runtime: &TokenStream) -> TokenStream {
     }
 }
 
+/// Converts an owned field path into runtime path tokens.
 fn expand_field_path(path: &[String], runtime: &TokenStream) -> TokenStream {
     quote!(#runtime::PropertyPath::new(&[#(#path),*]))
 }
 
+/// Converts an optional string literal into runtime option tokens.
 fn option_lit_str(value: &Option<LitStr>) -> TokenStream {
     value
         .as_ref()
         .map_or_else(|| quote!(None), |value| quote!(Some(#value)))
 }
 
+/// Generates role-specific model metadata for a declaration.
 fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
     match declaration.kind {
         MacroKind::Entity => {
@@ -3178,6 +3441,7 @@ fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStrea
     }
 }
 
+/// Returns the value type encoded by a codec type declaration.
 fn codec_value_type(ty: &Type) -> &Type {
     let Type::Path(path) = ty else { return ty };
     let Some(segment) = path.path.segments.last() else {
@@ -3199,6 +3463,7 @@ fn codec_value_type(ty: &Type) -> &Type {
         .unwrap_or(ty)
 }
 
+/// Generates role metadata for all enum variants.
 fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
     let variants = variants.iter().enumerate().map(|(variant_index, variant)| {
         let fields = expand_field_vector(
@@ -3238,6 +3503,7 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
     }
 }
 
+/// Returns the index of the declaration's identifier field.
 fn identifier_index(fields: &[FieldIr]) -> usize {
     fields
         .iter()
@@ -3250,6 +3516,7 @@ fn identifier_index(fields: &[FieldIr]) -> usize {
         .expect("validated role requires an identifier")
 }
 
+/// Generates inventory registration for a concrete model declaration.
 fn expand_registration(ident: &syn::Ident, runtime: &TokenStream) -> TokenStream {
     let snake_name = ident.to_string().to_snake_case();
     let source_fn = format_ident!("__qubit_model_source_{}", snake_name);
@@ -3283,12 +3550,14 @@ fn expand_registration(ident: &syn::Ident, runtime: &TokenStream) -> TokenStream
     }
 }
 
+/// Computes the stable registration fingerprint for `value`.
 fn stable_fingerprint(value: &str) -> u64 {
     value.bytes().fold(0xcbf29ce484222325_u64, |hash, byte| {
         (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
     })
 }
 
+/// Validates the declaration shape before constructing intermediate metadata.
 fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     for parameter in &item.generics.params {
@@ -3376,6 +3645,7 @@ fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
     if let Some(error) = errors { Err(error) } else { Ok(()) }
 }
 
+/// Rejects user reflection derives that would duplicate generated metadata.
 fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
     for attribute in attributes {
         if !attribute.path().is_ident("derive") {
@@ -3395,6 +3665,7 @@ fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
     Ok(())
 }
 
+/// Rewrites helper attributes used to expose nested field metadata.
 fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr) {
     let fields: Vec<_> = match data {
         Data::Struct(data) => data.fields.iter_mut().zip(&declaration.fields).collect(),
@@ -3466,6 +3737,7 @@ fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr) {
     }
 }
 
+/// Reports whether an attribute is an internal model-field helper.
 fn is_model_field_helper(attribute: &Attribute) -> bool {
     let Some(name) = attribute.path().get_ident().map(ToString::to_string) else {
         return false;
@@ -3494,6 +3766,7 @@ fn is_model_field_helper(attribute: &Attribute) -> bool {
     )
 }
 
+/// Combines one diagnostic into an existing optional error accumulator.
 fn combine(errors: &mut Option<Error>, error: Error) {
     match errors {
         Some(current) => current.combine(error),

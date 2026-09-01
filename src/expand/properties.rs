@@ -50,27 +50,39 @@ pub(crate) fn validate_property_impl(item: &ItemImpl) -> Result<()> {
 /// Classifies the Rust return shape accepted for a property getter.
 #[derive(Clone)]
 enum GetterReturn {
+    /// Getter returns an owned value.
     Owned(Type),
+    /// Getter returns a borrowed value.
     Borrowed(Type),
+    /// Getter returns a borrowed string.
     BorrowedStr,
+    /// Getter returns a borrowed slice.
     BorrowedSlice(Type),
+    /// Getter returns an optional borrowed value.
     OptionalBorrowed(Type),
+    /// Getter returns an optional borrowed string.
     OptionalBorrowedStr,
 }
 
 /// Records the name, method, and return classification of one getter.
 #[derive(Clone)]
 struct GetterIr {
+    /// Canonical property name.
     property: String,
+    /// Source getter method identifier.
     method: Ident,
+    /// Classified getter output.
     output: GetterReturn,
 }
 
 /// Records the name, method, and input type of one setter.
 #[derive(Clone)]
 struct SetterIr {
+    /// Canonical property name.
     property: String,
+    /// Source setter method identifier.
     method: Ident,
+    /// Setter input type.
     input: Type,
 }
 
@@ -84,7 +96,9 @@ pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result
     let mut setters = Vec::new();
     let mut errors = None;
     for impl_item in &item.items {
-        let ImplItem::Fn(method) = impl_item else { continue };
+        let ImplItem::Fn(method) = impl_item else {
+            continue;
+        };
         match parse_property_method(method) {
             Ok(PropertyMethod::Getter(value)) => getters.push(value),
             Ok(PropertyMethod::Setter(value)) => setters.push(value),
@@ -234,7 +248,9 @@ pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result
 
 /// Represents one validated property method.
 enum PropertyMethod {
+    /// Validated getter.
     Getter(GetterIr),
+    /// Validated setter.
     Setter(SetterIr),
 }
 
