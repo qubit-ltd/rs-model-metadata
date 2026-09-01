@@ -29,7 +29,7 @@ doctest = true
 [dependencies]
 bitflags = "2.10.0"
 inventory = "0.3"
-qubit-reflect = { version = "=0.1.0", path = "../rs-reflect" }
+qubit-reflect = { version = "=0.1.0", path = "../rs-reflect", default-features = false, features = ["derive"] }
 qubit-codec = { version = "=0.13.0", path = "../../rust-common/rs-codec" }
 qubit-redact = { version = "=0.5.0", path = "../../rust-common/rs-redact", features = ["derive", "serde"] }
 qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator" }
