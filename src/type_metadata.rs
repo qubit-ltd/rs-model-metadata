@@ -43,11 +43,17 @@ use crate::ValueMetadata;
 /// Domain semantics for one concrete reflected Rust type.
 #[derive(Clone, Copy, Debug)]
 pub struct TypeMetadata {
+    /// The reflection descriptor that owns this metadata overlay.
     descriptor: &'static TypeDescriptor,
+    /// The stable model ID, or `None` for unregistered types.
     model_id: Option<ModelId>,
+    /// Field overlays in reflection declaration order.
     fields: &'static [FieldMetadata],
+    /// Role-specific metadata for the reflected type.
     role: &'static RoleMetadata,
+    /// Merged field and method properties for the reflected type.
     properties: &'static [PropertyMetadata],
+    /// The generic definition that produced this concrete instance, if any.
     generic_definition: Option<&'static GenericModelMetadata>,
 }
 
@@ -71,6 +77,7 @@ impl TypeMetadata {
         }
     }
 
+    /// Adds generated property metadata to this immutable overlay.
     #[doc(hidden)]
     #[must_use]
     pub(crate) const fn with_properties(mut self, properties: &'static [PropertyMetadata]) -> Self {
@@ -78,6 +85,7 @@ impl TypeMetadata {
         self
     }
 
+    /// Records the generic definition that produced this concrete instance.
     #[doc(hidden)]
     #[must_use]
     pub(crate) const fn with_generic_definition(mut self, definition: &'static GenericModelMetadata) -> Self {
@@ -237,6 +245,11 @@ impl TypeMetadata {
         self.assert_valid_descriptor(self.descriptor);
     }
 
+    /// Verifies that this metadata remains attached to `descriptor`.
+    ///
+    /// # Panics
+    ///
+    /// Panics with a stable ABI diagnostic when metadata and reflection differ.
     pub(crate) fn assert_valid_descriptor(&self, descriptor: &TypeDescriptor) {
         if !core::ptr::eq(self.descriptor, descriptor) {
             abi_violation("QMM-ABI-002", "metadata is attached to a different reflection root");
@@ -267,6 +280,7 @@ impl TypeMetadata {
     }
 }
 
+/// Verifies that field overlays mirror the reflection descriptor exactly.
 fn validate_fields(
     metadata: &[FieldMetadata],
     reflected: &[FieldDescriptor],
@@ -295,6 +309,7 @@ fn validate_fields(
     }
 }
 
+/// Verifies mutually compatible field-level semantic declarations.
 fn validate_field_semantics(field: &FieldMetadata) {
     let mut singleton_counts = [0_u8; 9];
     let mut constraints = Vec::new();
@@ -344,6 +359,7 @@ fn validate_field_semantics(field: &FieldMetadata) {
     );
 }
 
+/// Verifies that validator declarations have non-empty, unique dependencies.
 fn validate_validators(validators: &[crate::ValidatorMetadata]) {
     for validator in validators {
         let mut parameter_names = HashSet::with_capacity(validator.params().len());
@@ -362,6 +378,7 @@ fn validate_validators(validators: &[crate::ValidatorMetadata]) {
     }
 }
 
+/// Verifies constraint kinds against the reflected field type.
 fn validate_constraint_kinds(constraints: &[ConstraintMetadata], type_ref: &TypeRef, allow_selectors: bool) {
     let mut kinds = HashSet::with_capacity(constraints.len());
     for constraint in constraints {
@@ -399,6 +416,7 @@ fn validate_constraint_kinds(constraints: &[ConstraintMetadata], type_ref: &Type
     }
 }
 
+/// Verifies one nested selector against its structural position and type.
 fn validate_selector(selector: &crate::SelectorMetadata, position: SelectorPosition, type_ref: &TypeRef) {
     if selector.position() != position {
         abi_violation("QMM-ABI-020", "selector has the wrong structural position");
@@ -415,6 +433,7 @@ fn validate_selector(selector: &crate::SelectorMetadata, position: SelectorPosit
     );
 }
 
+/// Verifies that a codec declaration is valid for its expected type and source.
 fn validate_codec(codec: Option<&crate::CodecMetadata>, expected_type: Option<TypeId>, source: crate::CodecSource) {
     let Some(codec) = codec else {
         return;
@@ -429,6 +448,7 @@ fn validate_codec(codec: Option<&crate::CodecMetadata>, expected_type: Option<Ty
     }
 }
 
+/// Returns the codec-compatible type ID for a field type reference.
 fn field_codec_type_id(type_ref: &TypeRef) -> Option<TypeId> {
     let Some(descriptor) = type_ref.as_resolved() else {
         return type_ref_id(type_ref);
@@ -439,6 +459,7 @@ fn field_codec_type_id(type_ref: &TypeRef) -> Option<TypeId> {
         .or_else(|| Some(descriptor.type_id()))
 }
 
+/// Returns the nested type reference selected by a collection position.
 fn selector_type_ref(type_ref: &TypeRef, position: SelectorPosition) -> Option<&'static TypeRef> {
     let descriptor = transparent_descriptor(type_ref.as_resolved()?)?;
     match position {
@@ -453,6 +474,7 @@ fn selector_type_ref(type_ref: &TypeRef, position: SelectorPosition) -> Option<&
     }
 }
 
+/// Returns the innermost descriptor through transparent smart-pointer layers.
 fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
     loop {
         let element = descriptor
@@ -466,6 +488,7 @@ fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'s
     }
 }
 
+/// Verifies that generated property overlays agree with fields and reflection.
 fn validate_properties(properties: &[PropertyMetadata], fields: &[FieldMetadata], descriptor: &TypeDescriptor) {
     let mut names = HashSet::with_capacity(properties.len());
     for property in properties {
@@ -505,6 +528,7 @@ fn validate_properties(properties: &[PropertyMetadata], fields: &[FieldMetadata]
     }
 }
 
+/// Verifies that role-specific metadata agrees with the reflected type.
 fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) {
     match metadata.role_metadata() {
         RoleMetadata::Entity(role) => validate_identifier(metadata.fields, role.identifier()),
@@ -566,6 +590,7 @@ fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) {
     }
 }
 
+/// Verifies that an identifier belongs to the declaring field collection.
 fn validate_identifier(fields: &[FieldMetadata], identifier: &FieldMetadata) {
     if !contains_field(fields, identifier)
         || !identifier.is_identifier()
@@ -578,10 +603,12 @@ fn validate_identifier(fields: &[FieldMetadata], identifier: &FieldMetadata) {
     }
 }
 
+/// Returns whether `candidate` is one of the declared field overlays.
 fn contains_field(fields: &[FieldMetadata], candidate: &FieldMetadata) -> bool {
     fields.iter().any(|field| core::ptr::eq(field, candidate))
 }
 
+/// Returns the exact type ID for a resolved type reference.
 fn type_ref_id(type_ref: &TypeRef) -> Option<TypeId> {
     type_ref
         .as_resolved()
@@ -589,6 +616,7 @@ fn type_ref_id(type_ref: &TypeRef) -> Option<TypeId> {
         .or_else(|| type_ref.as_opaque().map(OpaqueTypeDescriptor::type_id))
 }
 
+/// Returns whether two type references resolve to the same exact type.
 fn type_refs_equal(left: &TypeRef, right: &TypeRef) -> bool {
     match (type_ref_id(left), type_ref_id(right)) {
         (Some(left), Some(right)) => left == right,
@@ -597,6 +625,7 @@ fn type_refs_equal(left: &TypeRef, right: &TypeRef) -> bool {
     }
 }
 
+/// Returns whether a getter output can satisfy its declared property type.
 fn getter_type_compatible(property: &TypeRef, output: &TypeRef) -> bool {
     if type_refs_equal(property, output) {
         return true;
@@ -623,6 +652,7 @@ fn getter_type_compatible(property: &TypeRef, output: &TypeRef) -> bool {
         .is_some_and(|(property, output)| type_refs_equal(property, output))
 }
 
+/// Panics with a stable ABI diagnostic for invalid generated metadata.
 #[cold]
 #[track_caller]
 fn abi_violation(code: &'static str, message: &'static str) -> ! {

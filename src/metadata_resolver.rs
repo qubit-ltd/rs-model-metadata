@@ -978,6 +978,7 @@ fn value_descriptor_is_closed(
     false
 }
 
+/// Resolves a nested property path against a registered target model.
 fn resolve_property_path(
     target: &'static TypeMetadata,
     path: &PropertyPath<'_>,
@@ -998,18 +999,29 @@ fn resolve_property_path(
 /// A successfully resolved direct reference.
 #[derive(Debug)]
 pub struct ResolvedReference {
+    /// The original field-reference declaration.
     declaration: &'static FieldReferenceMetadata,
+    /// The resolved target model metadata.
     target: &'static TypeMetadata,
+    /// The selected target property, or `None` for an entity-level reference.
     property: Option<&'static PropertyMetadata>,
 }
 
 impl ResolvedReference {
+    /// Returns the original field-reference declaration.
+    #[must_use]
     pub const fn declaration(&self) -> &'static FieldReferenceMetadata {
         self.declaration
     }
+
+    /// Returns the resolved target model metadata.
+    #[must_use]
     pub const fn target(&self) -> &'static TypeMetadata {
         self.target
     }
+
+    /// Returns the selected target property, or `None` for an entity reference.
+    #[must_use]
     pub const fn property(&self) -> Option<&'static PropertyMetadata> {
         self.property
     }
@@ -1018,10 +1030,13 @@ impl ResolvedReference {
 /// A successfully resolved Projection source.
 #[derive(Debug)]
 pub struct ResolvedProjectionSource {
+    /// The resolved entity model supplying the projection.
     target: &'static TypeMetadata,
 }
 
 impl ResolvedProjectionSource {
+    /// Returns the resolved entity model supplying the projection.
+    #[must_use]
     pub const fn target(&self) -> &'static TypeMetadata {
         self.target
     }
@@ -1030,31 +1045,54 @@ impl ResolvedProjectionSource {
 /// Immutable result of a complete successful resolution pass.
 #[derive(Debug)]
 pub struct ResolvedModelGraph<'a> {
+    /// The registry used to resolve the graph.
     registry: &'a ModelRegistry,
+    /// Resolved field references keyed by declaration identity.
     references: HashMap<usize, ResolvedReference>,
+    /// Resolved projection sources keyed by declaration identity.
     projection_sources: HashMap<usize, ResolvedProjectionSource>,
+    /// Resolved validators keyed by declaration identity.
     validators: HashMap<usize, ResolvedValidator<'a>>,
+    /// Resolved codecs keyed by declaration identity.
     codecs: HashMap<usize, ResolvedCodec<'a>>,
+    /// Resolved query metadata keyed by entity declaration identity.
     queries: HashMap<usize, QueryMetadata>,
 }
 
 impl<'a> ResolvedModelGraph<'a> {
+    /// Returns the registry used for this resolution pass.
+    #[must_use]
     pub const fn registry(&self) -> &'a ModelRegistry {
         self.registry
     }
+
+    /// Returns a resolved reference for `field`, or `None` when it has none.
+    #[must_use]
     pub fn reference(&self, field: &FieldMetadata) -> Option<&ResolvedReference> {
         self.references.get(&pointer_key(field))
     }
+
+    /// Returns a resolved source for `projection`, or `None` when it is open.
+    #[must_use]
     pub fn projection_source(&self, projection: &ProjectionMetadata) -> Option<&ResolvedProjectionSource> {
         self.projection_sources
             .get(&(projection as *const ProjectionMetadata as usize))
     }
+
+    /// Returns a resolved validator occurrence, or `None` when not declared.
+    #[must_use]
     pub fn validator(&self, occurrence: &ValidatorMetadata) -> Option<&ResolvedValidator<'a>> {
         self.validators.get(&(occurrence as *const ValidatorMetadata as usize))
     }
+
+    /// Returns a resolved codec occurrence, or `None` when not declared.
+    #[must_use]
     pub fn codec(&self, occurrence: &CodecMetadata) -> Option<&ResolvedCodec<'a>> {
         self.codecs.get(&(occurrence as *const CodecMetadata as usize))
     }
+
+    /// Returns query metadata for `entity`, or `None` when it is not resolved.
+    #[must_use]
     pub fn query(&self, entity: &crate::EntityMetadata) -> Option<&QueryMetadata> {
         self.queries.get(&(entity as *const crate::EntityMetadata as usize))
     }
@@ -1063,8 +1101,11 @@ impl<'a> ResolvedModelGraph<'a> {
 /// A validator occurrence bound to one executable registration.
 #[derive(Debug)]
 pub struct ResolvedValidator<'a> {
+    /// The declaration occurrence resolved by this entry.
     declaration: &'static ValidatorMetadata,
+    /// The executable registry entry matched to the declaration.
     registration: &'a ValidatorRegistration,
+    /// Readable property dependencies resolved in declaration order.
     dependencies: Box<[&'static PropertyMetadata]>,
 }
 
@@ -1088,8 +1129,11 @@ impl ResolvedValidator<'_> {
 /// A codec occurrence bound to one executable descriptor.
 #[derive(Debug)]
 pub struct ResolvedCodec<'a> {
+    /// The declaration occurrence resolved by this entry.
     declaration: &'static CodecMetadata,
+    /// The executable descriptor selected for the declaration.
     descriptor: &'static ValueCodecDescriptor,
+    /// The registry entry for a stable-ID declaration, if used.
     registration: Option<&'a ValueCodecRegistration>,
 }
 
@@ -1113,20 +1157,33 @@ impl ResolvedCodec<'_> {
 /// Queryable indexed fields derived for one resolved entity.
 #[derive(Debug)]
 pub struct QueryMetadata {
+    /// Indexed field paths that can be used as query filters.
     filters: Box<[QueryField]>,
+    /// Identifier and globally unique lookup keys.
     unique_keys: Box<[UniqueQueryKey]>,
 }
 
 impl QueryMetadata {
+    /// Returns queryable indexed fields in deterministic path order.
+    #[must_use]
     pub fn filters(&self) -> &[QueryField] {
         &self.filters
     }
+
+    /// Returns identifier and globally unique keys in deterministic order.
+    #[must_use]
     pub fn unique_keys(&self) -> &[UniqueQueryKey] {
         &self.unique_keys
     }
+
+    /// Finds a queryable field by its complete property path.
+    #[must_use]
     pub fn filter(&self, path: &PropertyPath<'_>) -> Option<&QueryField> {
         self.filters.iter().find(|field| field.path.as_path() == *path)
     }
+
+    /// Finds a queryable field by its flattened external name.
+    #[must_use]
     pub fn filter_by_flat_name(&self, name: &str) -> Option<&QueryField> {
         self.filters.iter().find(|field| field.flat_name.as_ref() == name)
     }
@@ -1135,22 +1192,37 @@ impl QueryMetadata {
 /// One queryable field path.
 #[derive(Clone, Debug)]
 pub struct QueryField {
+    /// The complete property path represented by this field.
     path: OwnedPropertyPath,
+    /// The flattened external name used for queries.
     flat_name: Box<str>,
+    /// The resolved descriptor, or `None` for an opaque type.
     descriptor: Option<&'static TypeDescriptor>,
+    /// The declaration facts that made the field queryable.
     reasons: IndexingReasons,
 }
 
 impl QueryField {
+    /// Returns the complete property path.
+    #[must_use]
     pub fn path(&self) -> PropertyPath<'_> {
         self.path.as_path()
     }
+
+    /// Returns the flattened external name used for queries.
+    #[must_use]
     pub fn flat_name(&self) -> &str {
         &self.flat_name
     }
+
+    /// Returns the resolved descriptor, or `None` for an opaque type.
+    #[must_use]
     pub const fn descriptor(&self) -> Option<&'static TypeDescriptor> {
         self.descriptor
     }
+
+    /// Returns the declaration facts that made the field queryable.
+    #[must_use]
     pub const fn reasons(&self) -> IndexingReasons {
         self.reasons
     }
@@ -1159,18 +1231,26 @@ impl QueryField {
 /// One identifier or global-unique lookup key.
 #[derive(Clone, Debug)]
 pub struct UniqueQueryKey {
+    /// The property paths that form this lookup key.
     paths: Box<[OwnedPropertyPath]>,
 }
 
 impl UniqueQueryKey {
+    /// Creates a lookup key from one or more owned property paths.
     fn new(paths: Vec<OwnedPropertyPath>) -> Self {
         Self {
             paths: paths.into_boxed_slice(),
         }
     }
+
+    /// Iterates over property paths in key-component order.
+    #[must_use]
     pub fn paths(&self) -> impl ExactSizeIterator<Item = PropertyPath<'_>> + '_ {
         self.paths.iter().map(OwnedPropertyPath::as_path)
     }
+
+    /// Returns the sole path, or `None` when this key is composite.
+    #[must_use]
     pub fn path(&self) -> Option<PropertyPath<'_>> {
         (self.paths.len() == 1).then(|| self.paths[0].as_path())
     }
@@ -1197,13 +1277,21 @@ pub enum ModelResolveErrorKind {
 /// One structured deterministic resolution error.
 #[derive(Clone, Debug)]
 pub struct ModelResolveError {
+    /// The machine-readable resolution failure class.
     kind: ModelResolveErrorKind,
+    /// The involved property path, when the failure identifies one.
     path: Option<OwnedPropertyPath>,
+    /// The involved stable model ID, when the failure identifies one.
     model_id: Option<&'static str>,
+    /// The role expected by the resolution step, when applicable.
     expected_role: Option<ModelRole>,
+    /// The role actually observed by the resolution step, when applicable.
     actual_role: Option<ModelRole>,
+    /// The type expected by the resolution step, when applicable.
     expected_type: Option<TypeId>,
+    /// The type actually observed by the resolution step, when applicable.
     actual_type: Option<TypeId>,
+    /// Fragment identities involved in the failure.
     sources: Vec<FragmentIdentity>,
 }
 
@@ -1247,27 +1335,43 @@ impl ModelResolveError {
             .then_with(|| left.sources.cmp(&right.sources))
     }
 
+    /// Returns the machine-readable resolution failure class.
+    #[must_use]
     pub const fn kind(&self) -> ModelResolveErrorKind {
         self.kind
     }
+    /// Returns the involved path, or `None` when the failure is model-wide.
+    #[must_use]
     pub fn path(&self) -> Option<PropertyPath<'_>> {
         self.path.as_ref().map(OwnedPropertyPath::as_path)
     }
+    /// Returns the involved stable model ID, when present.
+    #[must_use]
     pub const fn model_id(&self) -> Option<&str> {
         self.model_id
     }
+    /// Returns the expected role, when role matching was required.
+    #[must_use]
     pub const fn expected_role(&self) -> Option<ModelRole> {
         self.expected_role
     }
+    /// Returns the actual role, when role matching was required.
+    #[must_use]
     pub const fn actual_role(&self) -> Option<ModelRole> {
         self.actual_role
     }
+    /// Returns the expected type identity, when type matching was required.
+    #[must_use]
     pub const fn expected_type(&self) -> Option<TypeId> {
         self.expected_type
     }
+    /// Returns the actual type identity, when type matching was required.
+    #[must_use]
     pub const fn actual_type(&self) -> Option<TypeId> {
         self.actual_type
     }
+    /// Returns the fragment identities involved in this failure.
+    #[must_use]
     pub fn sources(&self) -> &[FragmentIdentity] {
         &self.sources
     }
@@ -1282,13 +1386,19 @@ impl core::fmt::Display for ModelResolveError {
 /// All errors from one complete failed resolution pass.
 #[derive(Debug)]
 pub struct ModelResolveErrors {
+    /// All deterministic failures collected during one resolution pass.
     errors: Vec<ModelResolveError>,
 }
 
 impl ModelResolveErrors {
+    /// Returns every collected resolution failure.
+    #[must_use]
     pub fn errors(&self) -> &[ModelResolveError] {
         &self.errors
     }
+
+    /// Consumes this collection and returns its failures.
+    #[must_use]
     pub fn into_errors(self) -> Vec<ModelResolveError> {
         self.errors
     }
@@ -1302,10 +1412,12 @@ impl core::fmt::Display for ModelResolveErrors {
 
 impl std::error::Error for ModelResolveErrors {}
 
+/// Returns the stable identity key used for a static field declaration.
 fn pointer_key(field: &FieldMetadata) -> usize {
     field as *const FieldMetadata as usize
 }
 
+/// Returns a stable target ID for textual target declarations.
 fn declared_target_id(target: &DeclaredEntityTarget) -> Option<&'static str> {
     target.model_id().map(|id| id.as_str())
 }

@@ -68,7 +68,7 @@ impl ModelRegistration {
     }
 
     /// Returns the stable identifier under which this target is registered.
-    #[must_use]
+    #[must_use = "the stable model ID identifies the registered target"]
     pub const fn model_id(&self) -> ModelId {
         self.model_id
     }
