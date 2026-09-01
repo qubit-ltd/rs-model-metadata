@@ -14,10 +14,11 @@ pub use inventory;
 pub use qubit_codec;
 pub use qubit_id;
 pub use qubit_redact;
-pub use qubit_reflect::__private::*;
 pub use qubit_reflect::capability::TypeCapabilities as ReflectTypeCapabilities;
 pub use qubit_reflect::capability::registered_type_capabilities;
 pub use qubit_reflect::register_type_capabilities;
+pub use qubit_reflect::__private::codegen_v1;
+pub use qubit_reflect::__private::codegen_v1 as reflect_codegen_v1;
 pub use qubit_validator;
 pub use serde;
 
