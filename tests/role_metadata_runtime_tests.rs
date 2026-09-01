@@ -16,6 +16,7 @@ use model_runtime::ResolveInputs;
 use model_runtime::SerdeBehaviorSource;
 use model_runtime::TypeDescriptor;
 use model_runtime::TypeMetadata;
+use qubit_codec::ValueCodecRegistry;
 use qubit_codec::ValueDecoder;
 use qubit_codec::ValueEncoder;
 use qubit_model_derive::Entity;
@@ -23,9 +24,31 @@ use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
+use qubit_validator::ValidationContext;
+use qubit_validator::Validator;
+use qubit_validator::ValidatorRegistry;
 
 #[derive(Default)]
 struct EmailCodec;
+
+#[derive(Default)]
+struct EmailCanonicalCodec;
+
+#[derive(Default)]
+struct AcceptString;
+
+impl Validator<String> for AcceptString {
+    type Error = core::convert::Infallible;
+
+    fn validate(&mut self, _value: &String, _context: &ValidationContext<'_>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+qubit_validator::register_validator!(id = "runtime.email", validator = AcceptString, value = String);
+qubit_validator::register_validator!(id = "runtime.tag", validator = AcceptString, value = String);
+qubit_validator::register_validator!(id = "runtime.map_value", validator = AcceptString, value = String);
+qubit_codec::register_value_codec!(id = "runtime.alias_codec", codec = EmailCodec, value = String);
 
 impl ValueEncoder<String> for EmailCodec {
     type Output = String;
@@ -89,8 +112,26 @@ enum Status {
     Failed { message: String },
 }
 
-#[Value(id = "runtime.Email", transparent, codec = EmailCodec)]
+#[Value(id = "runtime.Email", transparent, codec = EmailCanonicalCodec)]
 struct Email(String);
+
+impl ValueEncoder<Email> for EmailCanonicalCodec {
+    type Output = String;
+    type Error = core::convert::Infallible;
+
+    fn encode(&mut self, input: &Email) -> Result<Self::Output, Self::Error> {
+        Ok(input.0.clone())
+    }
+}
+
+impl ValueDecoder<str> for EmailCanonicalCodec {
+    type Output = Email;
+    type Error = core::convert::Infallible;
+
+    fn decode(&mut self, input: &str) -> Result<Self::Output, Self::Error> {
+        Ok(Email(input.to_owned()))
+    }
+}
 
 #[Model(id = "runtime.Page")]
 struct Page<T> {
@@ -207,6 +248,11 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
         "READY"
     );
     assert_eq!(enum_metadata.variant_by_rust_name("Failed").unwrap().fields().len(), 1);
+    assert_eq!(serde_json::to_string(&Status::Ready).unwrap(), r#""READY""#);
+    assert_eq!(
+        serde_json::to_string(&Status::Failed { message: "x".into() }).unwrap(),
+        r#"{"FAILED":{"message":"x"}}"#,
+    );
 
     let value = TypeMetadata::of::<Email>().as_value().expect("value role");
     assert!(value.is_transparent());
@@ -342,9 +388,13 @@ fn test_generic_model_registers_only_its_definition() {
 #[test]
 fn test_resolver_builds_scoped_unique_and_reference_queries() {
     let registry = ModelRegistry::try_global().expect("generated registrations");
-    let graph = ModelResolver::new(ResolveInputs { models: registry })
-        .resolve_all()
-        .expect("valid generated model graph");
+    let graph = ModelResolver::new(ResolveInputs {
+        models: registry,
+        validators: ValidatorRegistry::global(),
+        codecs: ValueCodecRegistry::global(),
+    })
+    .resolve_all()
+    .expect("valid generated model graph");
     let entity = TypeMetadata::of::<Account>().as_entity().unwrap();
     let query = graph.query(entity).expect("entity query");
 
@@ -355,6 +405,6 @@ fn test_resolver_builds_scoped_unique_and_reference_queries() {
         &["owner_id"]
     );
     assert!(query.unique_keys().iter().any(|key| {
-        key.paths().iter().map(|path| path.to_string()).collect::<Vec<_>>() == vec!["email".to_owned(), "id".to_owned()]
+        key.paths().map(|path| path.to_string()).collect::<Vec<_>>() == vec!["email".to_owned(), "id".to_owned()]
     }));
 }

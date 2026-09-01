@@ -68,7 +68,7 @@ fn expand_result(kind: MacroKind, args: TokenStream, input: TokenStream) -> Resu
     item.attrs.push(parse_quote!(#[derive(#runtime::Reflect)]));
     item.attrs.push(parse_quote!(#[reflect(crate = #runtime)]));
     item.attrs
-        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v1::model_capability))]));
+        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v2::model_capability))]));
     let display = expand_display(&declaration, &item, &runtime);
     let metadata = expand_metadata(&declaration, &item, &runtime);
     Ok(quote!(#item #display #metadata))
@@ -812,6 +812,58 @@ fn is_sequence_type(ty: &Type) -> bool {
             transparent_type_name(ty).as_deref(),
             Some("Vec" | "VecDeque" | "LinkedList" | "BinaryHeap" | "HashSet" | "BTreeSet")
         )
+}
+
+fn selector_value_type(ty: &Type, position: SelectorPositionIr) -> &Type {
+    let ty = unwrap_transparent_type(ty);
+    match ty {
+        Type::Array(array) if position == SelectorPositionIr::Element => &array.elem,
+        Type::Slice(slice) if position == SelectorPositionIr::Element => &slice.elem,
+        Type::Path(path) => {
+            let arguments = path
+                .path
+                .segments
+                .last()
+                .and_then(|segment| match &segment.arguments {
+                    syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
+                    _ => None,
+                })
+                .expect("validated selector container must have generic arguments");
+            let index = usize::from(position == SelectorPositionIr::MapValue);
+            arguments
+                .args
+                .iter()
+                .filter_map(|argument| match argument {
+                    syn::GenericArgument::Type(ty) => Some(ty),
+                    _ => None,
+                })
+                .nth(index)
+                .expect("validated selector position must have a value type")
+        }
+        _ => unreachable!("selector container shape is validated before expansion"),
+    }
+}
+
+fn unwrap_transparent_type(mut ty: &Type) -> &Type {
+    loop {
+        let Type::Path(path) = ty else { return ty };
+        let Some(segment) = path.path.segments.last() else {
+            return ty;
+        };
+        if !matches!(segment.ident.to_string().as_str(), "Option" | "Box" | "Rc" | "Arc") {
+            return ty;
+        }
+        let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+            return ty;
+        };
+        let Some(next) = arguments.args.iter().find_map(|argument| match argument {
+            syn::GenericArgument::Type(ty) => Some(ty),
+            _ => None,
+        }) else {
+            return ty;
+        };
+        ty = next;
+    }
 }
 
 fn is_known_non_text_type(name: &str) -> bool {
@@ -1804,6 +1856,10 @@ fn apply_default_derives(declaration: &DeclarationIr, item: &mut DeriveInput, ru
         let path = format!("{}::__private::serde", runtime.to_string().replace(' ', ""));
         let path = LitStr::new(&path, proc_macro2::Span::call_site());
         item.attrs.push(parse_quote!(#[serde(crate = #path)]));
+        if declaration.kind == MacroKind::Enum && !has_serde_rename_all(&item.attrs)? {
+            item.attrs
+                .push(parse_quote!(#[serde(rename_all = "SCREAMING_SNAKE_CASE")]));
+        }
         if options.transparent {
             item.attrs.push(parse_quote!(#[serde(transparent)]));
         }
@@ -1828,6 +1884,16 @@ fn apply_default_derives(declaration: &DeclarationIr, item: &mut DeriveInput, ru
         )]));
     }
     Ok(())
+}
+
+fn has_serde_rename_all(attributes: &[Attribute]) -> Result<bool> {
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("serde")) {
+        let entries = attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+        if entries.iter().any(|entry| entry.path().is_ident("rename_all")) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn expand_display(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
@@ -2094,7 +2160,7 @@ fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &To
     let generic_definition = if has_generics {
         declaration.options.id.as_ref().map_or_else(TokenStream::new, |_| {
             quote! {
-                let metadata = metadata.with_generic_definition(#generic_metadata());
+                let metadata = metadata.generic_definition(#generic_metadata());
             }
         })
     } else {
@@ -2103,12 +2169,12 @@ fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &To
     let build_metadata = quote! {
         let descriptor = #runtime::TypeDescriptor::of::<Self>();
         #fields
-        let fields: &'static [#runtime::FieldMetadata] = ::std::boxed::Box::leak(fields.into_boxed_slice());
+        let fields: &'static [#runtime::FieldMetadata] = #runtime::__private::v2::leak_slice(fields);
         #role
         let properties: ::std::vec::Vec<_> = fields
             .iter()
             .filter_map(|field| field.name().map(|name| {
-                #runtime::PropertyMetadata::new(
+                #runtime::__private::v2::property_metadata(
                     name,
                     field.type_ref(),
                     Some(field),
@@ -2117,12 +2183,12 @@ fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &To
                 )
             }))
             .collect();
-        let properties: &'static [#runtime::PropertyMetadata] =
-            ::std::boxed::Box::leak(properties.into_boxed_slice());
-        let metadata = #runtime::TypeMetadata::new(descriptor, #model_id, fields, role)
-            .with_properties(properties);
+        let properties: &'static [#runtime::PropertyMetadata] = #runtime::__private::v2::leak_slice(properties);
+        let metadata = #runtime::__private::v2::GeneratedTypeMetadataBuilder::new(
+            descriptor, #model_id, fields, role,
+        ).properties(properties);
         #generic_definition
-        metadata
+        metadata.finish::<Self>()
     };
     let metadata_body = if has_generics {
         quote! {
@@ -2133,13 +2199,13 @@ fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &To
             > = ::std::sync::OnceLock::new();
             let cache = CACHE.get_or_init(|| ::std::sync::Mutex::new(::std::collections::HashMap::new()));
             let type_id = ::std::any::TypeId::of::<Self>();
-            if let Some(metadata) = cache.lock().expect("model metadata cache lock").get(&type_id).copied() {
+            let mut guard = cache.lock().expect("model metadata cache lock");
+            if let Some(metadata) = guard.get(&type_id).copied() {
                 return metadata;
             }
-            let metadata: &'static #runtime::TypeMetadata =
-                ::std::boxed::Box::leak(::std::boxed::Box::new({ #build_metadata }));
-            let mut guard = cache.lock().expect("model metadata cache lock");
-            *guard.entry(type_id).or_insert(metadata)
+            let metadata: &'static #runtime::TypeMetadata = #runtime::__private::v2::leak({ #build_metadata });
+            guard.insert(type_id, metadata);
+            metadata
         }
     } else {
         quote! {
@@ -2151,8 +2217,8 @@ fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &To
     quote! {
         impl #impl_generics #runtime::__private::ModelTypeSeal for #ident #ty_generics #where_clause {}
 
-        impl #impl_generics #runtime::HasTypeMetadata for #ident #ty_generics #where_clause {
-            fn type_metadata() -> &'static #runtime::TypeMetadata {
+        impl #impl_generics #runtime::__private::TypeMetadataProvider for #ident #ty_generics #where_clause {
+            fn __type_metadata() -> &'static #runtime::TypeMetadata {
                 #metadata_body
             }
         }
@@ -2198,9 +2264,8 @@ fn expand_generic_registration(
             METADATA.get_or_init(|| {
                 let template_descriptor = #template_root();
                 #template_fields
-                let fields: &'static [#runtime::FieldMetadata] =
-                    ::std::boxed::Box::leak(fields.into_boxed_slice());
-                #runtime::GenericModelMetadata::new(
+                let fields: &'static [#runtime::FieldMetadata] = #runtime::__private::v2::leak_slice(fields);
+                #runtime::__private::v2::generic_model_metadata(
                     #runtime::ModelId::new(#id),
                     #role,
                     #definition_fn(),
@@ -2220,7 +2285,7 @@ fn expand_generic_registration(
 
         #[doc(hidden)]
         fn #registration_fn() -> #runtime::ModelRegistration {
-            #runtime::ModelRegistration::from_generic(#metadata_fn(), #source_fn())
+            #runtime::__private::v2::generic_registration(#metadata_fn(), #source_fn())
         }
 
         #runtime::__private::inventory::submit! {
@@ -2267,8 +2332,8 @@ fn expand_generic_template(
         let expression = expand_type_expression(&field.ty, &type_parameters, &const_parameters, runtime);
         quote! {
             {
-                let field_type: &'static #runtime::descriptor::TypeRef = ::std::boxed::Box::leak(
-                    ::std::boxed::Box::new(#runtime::descriptor::TypeRef::Symbolic(#expression)),
+                let field_type: &'static #runtime::descriptor::TypeRef = #runtime::__private::v2::leak(
+                    #runtime::descriptor::TypeRef::Symbolic(#expression),
                 );
                 descriptors.push(#runtime::__private::descriptor::field(
                     #root,
@@ -2303,7 +2368,7 @@ fn expand_generic_template(
             DESCRIPTOR.get_or_init(|| {
                 let mut descriptors = ::std::vec::Vec::new();
                 #(#field_descriptors)*
-                let descriptors = ::std::boxed::Box::leak(descriptors.into_boxed_slice());
+                let descriptors = #runtime::__private::v2::leak_slice(descriptors);
                 #runtime::__private::descriptor::struct_type::<#marker>(
                     #query_name,
                     #struct_kind,
@@ -2552,12 +2617,30 @@ fn expand_field(field: &FieldIr, descriptor_fields: &TokenStream, runtime: &Toke
         FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapValue) => Some(value),
         _ => None,
     });
-    let element_selector =
-        element_ir.map(|value| expand_selector_metadata(value, format_ident!("element_selector"), runtime));
-    let map_key_selector =
-        map_key_ir.map(|value| expand_selector_metadata(value, format_ident!("map_key_selector"), runtime));
-    let map_value_selector =
-        map_value_ir.map(|value| expand_selector_metadata(value, format_ident!("map_value_selector"), runtime));
+    let element_selector = element_ir.map(|value| {
+        expand_selector_metadata(
+            value,
+            selector_value_type(&field.ty, SelectorPositionIr::Element),
+            format_ident!("element_selector"),
+            runtime,
+        )
+    });
+    let map_key_selector = map_key_ir.map(|value| {
+        expand_selector_metadata(
+            value,
+            selector_value_type(&field.ty, SelectorPositionIr::MapKey),
+            format_ident!("map_key_selector"),
+            runtime,
+        )
+    });
+    let map_value_selector = map_value_ir.map(|value| {
+        expand_selector_metadata(
+            value,
+            selector_value_type(&field.ty, SelectorPositionIr::MapValue),
+            format_ident!("map_value_selector"),
+            runtime,
+        )
+    });
     let constraint_irs: Vec<_> = field
         .occurrences
         .iter()
@@ -2581,55 +2664,44 @@ fn expand_field(field: &FieldIr, descriptor_fields: &TokenStream, runtime: &Toke
             IdentifierAssignmentIr::Database => quote!(#runtime::IdentifierAssignment::Database),
         };
         quote! {
-            let identifier: &'static #runtime::IdentifierMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
+            let identifier: &'static #runtime::IdentifierMetadata = #runtime::__private::v2::leak(
                 #runtime::IdentifierMetadata::new(#assignment),
-            ));
+            );
         }
     });
     let unique = unique_ir.map(|unique| {
         let paths = unique.respect_to.iter().map(|path| expand_field_path(path, runtime));
         let ignore_case = unique.ignore_case;
         quote! {
-            let unique_paths: &'static [#runtime::PropertyPath] = ::std::boxed::Box::leak(::std::vec![#(#paths),*].into_boxed_slice());
-            let unique: &'static #runtime::FieldUniqueMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
+            let unique_paths: &'static [#runtime::PropertyPath] = #runtime::__private::v2::leak_slice(::std::vec![#(#paths),*]);
+            let unique: &'static #runtime::FieldUniqueMetadata = #runtime::__private::v2::leak(
                 #runtime::FieldUniqueMetadata::new(unique_paths, #ignore_case),
-            ));
+            );
         }
     });
     let reference = reference_ir.map(|value| expand_reference(value, runtime));
     let key_part = key_part_order.map(|order| {
         quote! {
-            let key_part: &'static #runtime::KeyPartMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
+            let key_part: &'static #runtime::KeyPartMetadata = #runtime::__private::v2::leak(
                 #runtime::KeyPartMetadata::new(#order),
-            ));
+            );
         }
     });
     let codec = codec_ir.map(|codec| {
         let value = match codec {
             CodecIr::DeclaredId(id) => quote!(#runtime::CodecReference::DeclaredId(#id)),
-            CodecIr::RustType(ty) => quote!(#runtime::CodecReference::RustType(#runtime::StrategyTypeIdentity::of::<#ty>())),
-        };
-        let assertion = match codec {
-            CodecIr::DeclaredId(_) => TokenStream::new(),
-            CodecIr::RustType(codec_type) => {
+            CodecIr::RustType(ty) => {
                 let value_type = codec_value_type(&field.ty);
-                quote! {
-                    fn assert_codec<C, V>()
-                    where
-                        C: ::core::default::Default
-                            + #runtime::__private::qubit_codec::ValueEncoder<V, Output = ::std::string::String>
-                            + #runtime::__private::qubit_codec::ValueDecoder<str, Output = V>,
-                    {}
-                    assert_codec::<#codec_type, #value_type>();
-                }
+                quote!(#runtime::CodecReference::RustType(#runtime::__private::v2::leak(
+                    #runtime::__private::qubit_codec::ValueCodecDescriptor::of::<#ty, #value_type>(),
+                )))
             }
         };
         quote! {
-            #assertion
-            let codec_reference: &'static #runtime::CodecReference = ::std::boxed::Box::leak(::std::boxed::Box::new(#value));
-            let codec: &'static #runtime::CodecMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
+            let codec_reference: &'static #runtime::CodecReference = #runtime::__private::v2::leak(#value);
+            let codec: &'static #runtime::CodecMetadata = #runtime::__private::v2::leak(
                 #runtime::CodecMetadata::new(codec_reference, #runtime::CodecSource::Field),
-            ));
+            );
         }
     });
     let redact = redact_ir.map(|value| expand_redact(value, quote!(#runtime::RedactPosition::Field), runtime));
@@ -2697,24 +2769,22 @@ fn expand_field(field: &FieldIr, descriptor_fields: &TokenStream, runtime: &Toke
             #unique
             #reference
             #key_part
-            let validators: &'static [#runtime::ValidatorMetadata] = ::std::boxed::Box::leak(
-                ::std::vec![#(#validators),*].into_boxed_slice(),
-            );
+            let validators: &'static [#runtime::ValidatorMetadata] =
+                #runtime::__private::v2::leak_slice(::std::vec![#(#validators),*]);
             #codec
             #redact
             #serde
             #element_selector
             #map_key_selector
             #map_value_selector
-            let constraints: &'static [#runtime::ConstraintMetadata] = ::std::boxed::Box::leak(
-                ::std::vec![#(#constraints),*].into_boxed_slice(),
-            );
+            let constraints: &'static [#runtime::ConstraintMetadata] =
+                #runtime::__private::v2::leak_slice(::std::vec![#(#constraints),*]);
             let mut attributes = ::std::vec::Vec::new();
             #(#occurrence_tokens)*
             #indexed
             let attributes: &'static [#runtime::FieldAttributeMetadata] =
-                ::std::boxed::Box::leak(attributes.into_boxed_slice());
-            fields.push(#runtime::FieldMetadata::with_semantics(
+                #runtime::__private::v2::leak_slice(attributes);
+            fields.push(#runtime::__private::v2::field_metadata(
                 &#descriptor_fields[#index],
                 attributes,
                 constraints,
@@ -2821,7 +2891,12 @@ fn expand_constraint(
     }
 }
 
-fn expand_selector_metadata(value: &SelectorIr, name: syn::Ident, runtime: &TokenStream) -> TokenStream {
+fn expand_selector_metadata(
+    value: &SelectorIr,
+    value_type: &Type,
+    name: syn::Ident,
+    runtime: &TokenStream,
+) -> TokenStream {
     let position = match value.position {
         SelectorPositionIr::Element => quote!(#runtime::SelectorPosition::Element),
         SelectorPositionIr::MapKey => quote!(#runtime::SelectorPosition::MapKey),
@@ -2835,31 +2910,41 @@ fn expand_selector_metadata(value: &SelectorIr, name: syn::Ident, runtime: &Toke
         .validators
         .iter()
         .map(|validator| expand_validator(validator, runtime));
-    let codec = value.codec.as_ref().map_or_else(|| quote!(None), |codec| {
-        let reference = codec_reference_expression(codec, runtime);
-        quote!({
-            let reference: &'static #runtime::CodecReference = ::std::boxed::Box::leak(::std::boxed::Box::new(#reference));
-            Some(::std::boxed::Box::leak(::std::boxed::Box::new(
-                #runtime::CodecMetadata::new(reference, #runtime::CodecSource::Selector(#position)),
-            )) as &'static #runtime::CodecMetadata)
-        })
-    });
-    let redact = value.redact.as_ref().map_or_else(|| quote!(None), |redact| {
-        let expression = redact_expression(redact, match value.position {
-            SelectorPositionIr::Element => quote!(#runtime::RedactPosition::Element),
-            SelectorPositionIr::MapKey => quote!(#runtime::RedactPosition::MapKey),
-            SelectorPositionIr::MapValue => quote!(#runtime::RedactPosition::MapValue),
-        }, runtime);
-        quote!(Some(::std::boxed::Box::leak(::std::boxed::Box::new(#expression)) as &'static #runtime::RedactMetadata))
-    });
+    let codec = value.codec.as_ref().map_or_else(
+        || quote!(None),
+        |codec| {
+            let reference = codec_reference_expression(codec, value_type, runtime);
+            quote!({
+                let reference: &'static #runtime::CodecReference = #runtime::__private::v2::leak(#reference);
+                Some(#runtime::__private::v2::leak(
+                    #runtime::CodecMetadata::new(reference, #runtime::CodecSource::Selector(#position)),
+                ) as &'static #runtime::CodecMetadata)
+            })
+        },
+    );
+    let redact = value.redact.as_ref().map_or_else(
+        || quote!(None),
+        |redact| {
+            let expression = redact_expression(
+                redact,
+                match value.position {
+                    SelectorPositionIr::Element => quote!(#runtime::RedactPosition::Element),
+                    SelectorPositionIr::MapKey => quote!(#runtime::RedactPosition::MapKey),
+                    SelectorPositionIr::MapValue => quote!(#runtime::RedactPosition::MapValue),
+                },
+                runtime,
+            );
+            quote!(Some(#runtime::__private::v2::leak(#expression) as &'static #runtime::RedactMetadata))
+        },
+    );
     quote! {
-        let selector_constraints: &'static [#runtime::ConstraintMetadata] = ::std::boxed::Box::leak(::std::vec![#(#constraints),*].into_boxed_slice());
-        let selector_validators: &'static [#runtime::ValidatorMetadata] = ::std::boxed::Box::leak(::std::vec![#(#validators),*].into_boxed_slice());
+        let selector_constraints: &'static [#runtime::ConstraintMetadata] = #runtime::__private::v2::leak_slice(::std::vec![#(#constraints),*]);
+        let selector_validators: &'static [#runtime::ValidatorMetadata] = #runtime::__private::v2::leak_slice(::std::vec![#(#validators),*]);
         let selector_codec = #codec;
         let selector_redact = #redact;
-        let #name: &'static #runtime::SelectorMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
+        let #name: &'static #runtime::SelectorMetadata = #runtime::__private::v2::leak(
             #runtime::SelectorMetadata::new(#position, selector_constraints, selector_validators, selector_codec, selector_redact),
-        ));
+        );
     }
 }
 
@@ -2885,33 +2970,33 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
     let id = &validator.id;
     let params = validator.params.iter().map(|(name, value)| {
         let value = expand_strategy_argument(value, runtime);
-        quote!(#runtime::NamedStrategyArgument::new(#name, #value))
+        quote!(#runtime::NamedValidationArgument::new(#name, #value))
     });
     let depends_on = validator.depends_on.iter().map(|path| expand_field_path(path, runtime));
     quote!({
-        let params: &'static [#runtime::NamedStrategyArgument] = ::std::boxed::Box::leak(::std::vec![#(#params),*].into_boxed_slice());
-        let depends_on: &'static [#runtime::PropertyPath] = ::std::boxed::Box::leak(::std::vec![#(#depends_on),*].into_boxed_slice());
+        let params: &'static [#runtime::NamedValidationArgument<'static>] = #runtime::__private::v2::leak_slice(::std::vec![#(#params),*]);
+        let depends_on: &'static [#runtime::PropertyPath<'static>] = #runtime::__private::v2::leak_slice(::std::vec![#(#depends_on),*]);
         #runtime::ValidatorMetadata::new(#id, params, depends_on)
     })
 }
 
 fn expand_strategy_argument(value: &StrategyArgumentIr, runtime: &TokenStream) -> TokenStream {
     match value {
-        StrategyArgumentIr::Bool(value) => quote!(#runtime::StrategyArgument::Bool(#value)),
-        StrategyArgumentIr::Integer(value) => quote!(#runtime::StrategyArgument::Integer(#value)),
-        StrategyArgumentIr::Unsigned(value) => quote!(#runtime::StrategyArgument::Unsigned(#value)),
-        StrategyArgumentIr::String(value) => quote!(#runtime::StrategyArgument::String(#value)),
-        StrategyArgumentIr::BoolList(values) => quote!(#runtime::StrategyArgument::BoolList(&[#(#values),*])),
-        StrategyArgumentIr::IntegerList(values) => quote!(#runtime::StrategyArgument::IntegerList(&[#(#values),*])),
-        StrategyArgumentIr::UnsignedList(values) => quote!(#runtime::StrategyArgument::UnsignedList(&[#(#values),*])),
-        StrategyArgumentIr::StringList(values) => quote!(#runtime::StrategyArgument::StringList(&[#(#values),*])),
+        StrategyArgumentIr::Bool(value) => quote!(#runtime::ValidationArgument::Bool(#value)),
+        StrategyArgumentIr::Integer(value) => quote!(#runtime::ValidationArgument::Integer(#value)),
+        StrategyArgumentIr::Unsigned(value) => quote!(#runtime::ValidationArgument::Unsigned(#value)),
+        StrategyArgumentIr::String(value) => quote!(#runtime::ValidationArgument::String(#value)),
+        StrategyArgumentIr::BoolList(values) => quote!(#runtime::ValidationArgument::BoolList(&[#(#values),*])),
+        StrategyArgumentIr::IntegerList(values) => quote!(#runtime::ValidationArgument::IntegerList(&[#(#values),*])),
+        StrategyArgumentIr::UnsignedList(values) => quote!(#runtime::ValidationArgument::UnsignedList(&[#(#values),*])),
+        StrategyArgumentIr::StringList(values) => quote!(#runtime::ValidationArgument::StringList(&[#(#values),*])),
     }
 }
 
 fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStream {
     let target = match &reference.target {
         ReferenceTargetIr::RustType(ty) => {
-            quote!(#runtime::DeclaredEntityTarget::RustType(<#ty as #runtime::HasTypeMetadata>::type_metadata))
+            quote!(#runtime::DeclaredEntityTarget::RustType(#runtime::TypeMetadata::of::<#ty>))
         }
         ReferenceTargetIr::ModelId(id) => quote!(#runtime::DeclaredEntityTarget::ModelId(#runtime::ModelId::new(#id))),
     };
@@ -2926,23 +3011,23 @@ fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStre
         || quote!(None),
         |path| {
             let path = expand_field_path(path, runtime);
-            quote!(Some(::std::boxed::Box::leak(::std::boxed::Box::new(#path)) as &'static #runtime::PropertyPath))
+            quote!(Some(#runtime::__private::v2::leak(#path) as &'static #runtime::PropertyPath<'static>))
         },
     );
     let existing = reference.existing;
     quote! {
-        let reference_target: &'static #runtime::DeclaredEntityTarget = ::std::boxed::Box::leak(::std::boxed::Box::new(#target));
-        let reference_selection: &'static #runtime::ReferenceSelection = ::std::boxed::Box::leak(::std::boxed::Box::new(#selection));
-        let reference: &'static #runtime::FieldReferenceMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
+        let reference_target: &'static #runtime::DeclaredEntityTarget = #runtime::__private::v2::leak(#target);
+        let reference_selection: &'static #runtime::ReferenceSelection = #runtime::__private::v2::leak(#selection);
+        let reference: &'static #runtime::FieldReferenceMetadata = #runtime::__private::v2::leak(
             #runtime::FieldReferenceMetadata::new(reference_target, reference_selection, #existing, #same_as),
-        ));
+        );
     }
 }
 
 fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
     let expression = redact_expression(redact, position, runtime);
     quote! {
-        let redact: &'static #runtime::RedactMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(#expression));
+        let redact: &'static #runtime::RedactMetadata = #runtime::__private::v2::leak(#expression);
     }
 }
 
@@ -2967,11 +3052,13 @@ fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenSt
     quote!(#runtime::RedactMetadata::new(#sensitivity, #mode, #position))
 }
 
-fn codec_reference_expression(codec: &CodecIr, runtime: &TokenStream) -> TokenStream {
+fn codec_reference_expression(codec: &CodecIr, value_type: &Type, runtime: &TokenStream) -> TokenStream {
     match codec {
         CodecIr::DeclaredId(id) => quote!(#runtime::CodecReference::DeclaredId(#id)),
         CodecIr::RustType(ty) => {
-            quote!(#runtime::CodecReference::RustType(#runtime::StrategyTypeIdentity::of::<#ty>()))
+            quote!(#runtime::CodecReference::RustType(#runtime::__private::v2::leak(
+                #runtime::__private::qubit_codec::ValueCodecDescriptor::of::<#ty, #value_type>(),
+            )))
         }
     }
 }
@@ -3001,10 +3088,10 @@ fn expand_serde(value: &SerdeIr, runtime: &TokenStream) -> TokenStream {
         quote!(#runtime::SerdeBehaviorSource::None)
     };
     quote! {
-        let serde: &'static #runtime::SerdeFieldMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
+        let serde: &'static #runtime::SerdeFieldMetadata = #runtime::__private::v2::leak(
             #runtime::SerdeFieldMetadata::new(#serialize_name, #deserialize_name, #skip_serializing, #skip_deserializing, #flatten, #with, #default)
                 .with_sources(#default_source, #omit_source),
-        ));
+        );
     }
 }
 
@@ -3023,35 +3110,32 @@ fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStrea
         MacroKind::Entity => {
             let index = identifier_index(&declaration.fields);
             quote! {
-                let role: &'static #runtime::RoleMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
-                    #runtime::RoleMetadata::Entity(#runtime::EntityMetadata::new(&fields[#index])),
-                ));
+                let role: &'static #runtime::RoleMetadata =
+                    #runtime::__private::v2::leak(#runtime::__private::v2::entity_role(&fields[#index]));
             }
         }
         MacroKind::Projection => {
             let index = identifier_index(&declaration.fields);
             let source = if let Some(source) = declaration.options.source.as_ref() {
-                quote!(Some(::std::boxed::Box::leak(::std::boxed::Box::new(
-                    #runtime::DeclaredEntityTarget::RustType(<#source as #runtime::HasTypeMetadata>::type_metadata),
-                )) as &'static #runtime::DeclaredEntityTarget))
+                quote!(Some(#runtime::__private::v2::leak(
+                    #runtime::DeclaredEntityTarget::RustType(#runtime::TypeMetadata::of::<#source>),
+                ) as &'static #runtime::DeclaredEntityTarget))
             } else if let Some(id) = declaration.options.source_id.as_ref() {
-                quote!(Some(::std::boxed::Box::leak(::std::boxed::Box::new(
+                quote!(Some(#runtime::__private::v2::leak(
                     #runtime::DeclaredEntityTarget::ModelId(#runtime::ModelId::new(#id)),
-                )) as &'static #runtime::DeclaredEntityTarget))
+                ) as &'static #runtime::DeclaredEntityTarget))
             } else {
                 quote!(None)
             };
             quote! {
                 let source = #source;
-                let role: &'static #runtime::RoleMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
-                    #runtime::RoleMetadata::Projection(#runtime::ProjectionMetadata::new(&fields[#index], source)),
-                ));
+                let role: &'static #runtime::RoleMetadata =
+                    #runtime::__private::v2::leak(#runtime::__private::v2::projection_role(&fields[#index], source));
             }
         }
         MacroKind::Model => quote! {
-            let role: &'static #runtime::RoleMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
-                #runtime::RoleMetadata::Model(#runtime::ModelMetadata),
-            ));
+            let role: &'static #runtime::RoleMetadata =
+                #runtime::__private::v2::leak(#runtime::__private::v2::model_role());
         },
         MacroKind::Value => {
             let transparent = if declaration.options.transparent {
@@ -3062,29 +3146,23 @@ fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStrea
             let canonical_codec = declaration.options.codec.as_ref().map_or_else(
                 || quote!(None),
                 |codec_type| {
-                    let value_type = codec_value_type(&declaration.fields[0].ty);
                     quote!({
-                        fn assert_codec<C, V>()
-                        where
-                            C: ::core::default::Default
-                                + #runtime::__private::qubit_codec::ValueEncoder<V, Output = ::std::string::String>
-                                + #runtime::__private::qubit_codec::ValueDecoder<str, Output = V>,
-                        {}
-                        assert_codec::<#codec_type, #value_type>();
-                        let reference: &'static #runtime::CodecReference = ::std::boxed::Box::leak(::std::boxed::Box::new(
-                            #runtime::CodecReference::RustType(#runtime::StrategyTypeIdentity::of::<#codec_type>()),
-                        ));
-                        Some(::std::boxed::Box::leak(::std::boxed::Box::new(
+                        let reference: &'static #runtime::CodecReference = #runtime::__private::v2::leak(
+                            #runtime::CodecReference::RustType(#runtime::__private::v2::leak(
+                                #runtime::__private::qubit_codec::ValueCodecDescriptor::of::<#codec_type, Self>(),
+                            )),
+                        );
+                        Some(#runtime::__private::v2::leak(
                             #runtime::CodecMetadata::new(reference, #runtime::CodecSource::CanonicalValue),
-                        )) as &'static #runtime::CodecMetadata)
+                        ) as &'static #runtime::CodecMetadata)
                     })
                 },
             );
             quote! {
                 let canonical_codec = #canonical_codec;
-                let role: &'static #runtime::RoleMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
-                    #runtime::RoleMetadata::Value(#runtime::ValueMetadata::new(#transparent, canonical_codec)),
-                ));
+                let role: &'static #runtime::RoleMetadata = #runtime::__private::v2::leak(
+                    #runtime::__private::v2::value_role(#transparent, canonical_codec),
+                );
             }
         }
         MacroKind::Enum => expand_enum_role(&declaration.variants, runtime),
@@ -3128,10 +3206,10 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
         quote! {
             {
                 #fields
-                let fields: &'static [#runtime::FieldMetadata] = ::std::boxed::Box::leak(fields.into_boxed_slice());
+                let fields: &'static [#runtime::FieldMetadata] = #runtime::__private::v2::leak_slice(fields);
                 let reflect = &descriptor.variants()[#variant_index];
                 debug_assert_eq!(reflect.rust_name(), #rust_name);
-                variants.push(#runtime::EnumVariantMetadata::new(
+                variants.push(#runtime::__private::v2::enum_variant_metadata(
                     reflect,
                     #canonical,
                     #serialized,
@@ -3145,12 +3223,9 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
     quote! {
         let mut variants = ::std::vec::Vec::new();
         #(#variants)*
-        let variants: &'static [#runtime::EnumVariantMetadata] =
-            ::std::boxed::Box::leak(variants.into_boxed_slice());
-        let enum_metadata = #runtime::EnumMetadata::new(variants);
-        let role: &'static #runtime::RoleMetadata = ::std::boxed::Box::leak(::std::boxed::Box::new(
-            #runtime::RoleMetadata::Enum(enum_metadata),
-        ));
+        let variants: &'static [#runtime::EnumVariantMetadata] = #runtime::__private::v2::leak_slice(variants);
+        let role: &'static #runtime::RoleMetadata =
+            #runtime::__private::v2::leak(#runtime::__private::v2::enum_role(variants));
         let fields: &'static [#runtime::FieldMetadata] = &[];
     }
 }
@@ -3188,8 +3263,8 @@ fn expand_registration(ident: &syn::Ident, runtime: &TokenStream) -> TokenStream
 
         #[doc(hidden)]
         fn #registration_fn() -> #runtime::ModelRegistration {
-            #runtime::ModelRegistration::from_concrete(
-                <#ident as #runtime::HasTypeMetadata>::type_metadata(),
+            #runtime::__private::v2::concrete_registration(
+                #runtime::TypeMetadata::of::<#ident>(),
                 #source_fn(),
             )
         }

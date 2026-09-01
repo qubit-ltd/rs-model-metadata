@@ -17,7 +17,11 @@ fn main() {
         .expect("a missing reference target must not invalidate registration");
     assert!(registry.get("test.linked.Absent").is_none());
     assert!(registry.get("test.linked.MissingTarget").is_some());
-    let errors = ModelResolver::new(ResolveInputs { models: registry })
+    let errors = ModelResolver::new(ResolveInputs {
+        models: registry,
+        validators: qubit_model_metadata::__private::qubit_validator::ValidatorRegistry::global(),
+        codecs: qubit_model_metadata::__private::qubit_codec::ValueCodecRegistry::global(),
+    })
         .resolve_all()
         .expect_err("the missing reference target must be reported by graph validation");
     assert!(errors.errors().iter().any(|error| {

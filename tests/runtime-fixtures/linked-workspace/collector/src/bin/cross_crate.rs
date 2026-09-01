@@ -18,7 +18,11 @@ fn main() {
         .expect("cross-crate registrations should be valid");
     assert!(registry.get("test.linked.Source").is_some());
     assert!(registry.get("test.linked.Target").is_some());
-    let graph = ModelResolver::new(ResolveInputs { models: registry })
+    let graph = ModelResolver::new(ResolveInputs {
+        models: registry,
+        validators: qubit_model_metadata::__private::qubit_validator::ValidatorRegistry::global(),
+        codecs: qubit_model_metadata::__private::qubit_codec::ValueCodecRegistry::global(),
+    })
         .resolve_all()
         .expect("cross-crate reference should resolve");
     let field = TypeMetadata::of::<model_a::Source>()

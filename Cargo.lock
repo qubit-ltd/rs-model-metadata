@@ -264,6 +264,7 @@ dependencies = [
 name = "qubit-codec"
 version = "0.13.0"
 dependencies = [
+ "inventory",
  "qubit-utils",
  "thiserror",
 ]
@@ -306,6 +307,7 @@ dependencies = [
  "qubit-codec",
  "qubit-model-metadata",
  "qubit-redact",
+ "qubit-validator",
  "quote",
  "serde",
  "serde_json",
@@ -322,6 +324,7 @@ dependencies = [
  "qubit-codec",
  "qubit-redact",
  "qubit-reflect",
+ "qubit-validator",
  "serde",
  "thiserror",
 ]
@@ -375,6 +378,14 @@ name = "qubit-utils"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f9bf5cd2e783a8a6edd6536826084ef0a82d1924b14f82e79fe0088b7b33748"
+
+[[package]]
+name = "qubit-validator"
+version = "0.1.0"
+dependencies = [
+ "inventory",
+ "thiserror",
+]
 
 [[package]]
 name = "quote"

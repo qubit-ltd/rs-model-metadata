@@ -116,9 +116,9 @@ pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result
             quote! {
                 {
                     let output_type = #runtime::__private::descriptor::lazy_type_ref::<#ty>().get();
-                    let getter = ::std::boxed::Box::leak(::std::boxed::Box::new(
+                    let getter = #runtime::__private::v2::leak(
                         #runtime::GetterMetadata::new::<#target>(#method, output_type, #kind, #adapter),
-                    ));
+                    );
                     entries.push(Entry::getter(#property, output_type, getter));
                 }
             }
@@ -135,9 +135,9 @@ pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result
             quote! {
                 {
                     let input_type = #runtime::__private::descriptor::lazy_type_ref::<#ty>().get();
-                    let setter = ::std::boxed::Box::leak(::std::boxed::Box::new(
+                    let setter = #runtime::__private::v2::leak(
                         #runtime::SetterMetadata::new::<#target, #ty>(#method, input_type, #adapter),
-                    ));
+                    );
                     entries.push(Entry::setter(#property, input_type, setter));
                 }
             }
@@ -170,7 +170,7 @@ pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result
             static PROPERTIES: ::std::sync::OnceLock<&'static [#runtime::PropertyMetadata]> =
                 ::std::sync::OnceLock::new();
             PROPERTIES.get_or_init(|| {
-                let metadata = #runtime::TypeMetadata::of::<#target>();
+                let metadata = <#target as #runtime::__private::TypeMetadataProvider>::__type_metadata();
                 let mut entries: ::std::vec::Vec<Entry> = metadata.fields().iter().filter_map(|field| {
                     field.reflect().query_name().map(|name| Entry {
                         name,
@@ -193,16 +193,18 @@ pub(crate) fn expand_properties(item: ItemImpl, runtime: &TokenStream) -> Result
                     }
                 }
                 let properties: ::std::vec::Vec<_> = merged.into_iter().map(|entry| {
-                    #runtime::PropertyMetadata::new(
+                    #runtime::__private::v2::property_metadata(
                         entry.name, entry.type_ref, entry.field, entry.getter, entry.setter,
                     )
                 }).collect();
-                ::std::boxed::Box::leak(properties.into_boxed_slice()) as &'static [#runtime::PropertyMetadata]
+                let properties = #runtime::__private::v2::leak_slice(properties);
+                metadata.assert_valid_properties(properties);
+                properties
             })
         }
 
         impl #runtime::__private::ModelPropertiesSeal for #target {}
-        #runtime::__private::v1::register_properties_capability!(
+        #runtime::__private::v2::register_properties_capability!(
             #target,
             #provider as #runtime::ModelPropertiesProvider,
         );

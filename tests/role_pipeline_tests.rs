@@ -94,3 +94,17 @@ fn test_six_entry_points_share_reflection_expansion() {
     let _ = ValueFixture("value".into()).0;
     let _ = GenericModel { value: 3_u64 }.value;
 }
+
+#[test]
+fn test_generic_metadata_initialization_is_unique_across_threads() {
+    let addresses = (0..8)
+        .map(|_| {
+            std::thread::spawn(|| {
+                model_runtime::TypeMetadata::of::<GenericModel<u32>>() as *const model_runtime::TypeMetadata as usize
+            })
+        })
+        .map(|thread| thread.join().expect("metadata thread must complete"))
+        .collect::<Vec<_>>();
+
+    assert!(addresses.iter().all(|address| *address == addresses[0]));
+}
