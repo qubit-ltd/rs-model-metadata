@@ -733,7 +733,7 @@ pub material: Option<ExternalKeyMaterial>,
 - **REQ-OPAQUE-001**：opaque 必须是无参数 marker，并把最终叶子视为外部黑盒。
 - **REQ-OPAQUE-002**：opaque 叶子不得要求 HasTypeDescriptor；默认 validation 不进入叶子，默认生成器不能自行构造。
 - **REQ-OPAQUE-003**：opaque 值必须由调用方提供或通过模型系统之外的类型生成 adapter 提供。
-- **REQ-OPAQUE-004**：opaque 不得与 identifier/reference 组合，不得隐藏 Entity、Projection、Model 以绕过角色检查。
+- **REQ-OPAQUE-004**：opaque 不得与 reference 组合，不得隐藏 Entity、Projection、Model 以绕过角色检查。opaque identifier 可用于无法实现 `Reflect` 的外部稳定主键类型；该字段仍保留 identifier 语义，但其类型结构不可递归查询。
 - **REQ-OPAQUE-005**：opaque 与 indexed/unique 组合只在该类型显式提供查询比较和持久化 adapter 时允许。
 - **REQ-OPAQUE-006**：系统不得提供字段级 generator attribute；未来生成策略如有需求必须单独设计。
 

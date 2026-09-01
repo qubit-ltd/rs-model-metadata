@@ -20,6 +20,16 @@ struct EntityFixture {
     id: u64,
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+struct ExternalIdentifier(u64);
+
+#[Entity(id = "example.OpaqueIdentifierFixture")]
+struct OpaqueIdentifierFixture {
+    #[identifier]
+    #[opaque]
+    id: ExternalIdentifier,
+}
+
 #[Projection(source_id = "example.EntityFixture")]
 struct ProjectionFixture {
     #[identifier]
@@ -55,6 +65,7 @@ impl ModelFixture {
 #[test]
 fn test_six_entry_points_share_reflection_expansion() {
     assert_eq!(TypeDescriptor::of::<EntityFixture>().fields().len(), 1);
+    assert_eq!(TypeDescriptor::of::<OpaqueIdentifierFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<ProjectionFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<ModelFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<EnumFixture>().variants().len(), 2);
@@ -70,6 +81,10 @@ fn test_six_entry_points_share_reflection_expansion() {
     ));
     assert_eq!(ModelFixture { value: "ok".into() }.value(), "ok");
     let _ = EntityFixture { id: 1 }.id;
+    let _ = OpaqueIdentifierFixture {
+        id: ExternalIdentifier(2),
+    }
+    .id;
     let _ = ProjectionFixture { id: 1 }.id;
     let _ = EnumFixture::Ready;
     let EnumFixture::Data(value) = EnumFixture::Data(2) else {

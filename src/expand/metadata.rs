@@ -535,11 +535,11 @@ fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> R
             && field
                 .occurrences
                 .iter()
-                .any(|value| matches!(value, FieldOccurrence::Identifier(_) | FieldOccurrence::Reference(_)))
+                .any(|value| matches!(value, FieldOccurrence::Reference(_)))
         {
             combine(
                 &mut errors,
-                Error::new_spanned(&item.ident, "opaque cannot be combined with identifier or reference"),
+                Error::new_spanned(&item.ident, "opaque cannot be combined with reference"),
             );
         }
         for position in [
@@ -1042,8 +1042,17 @@ fn parse_unique(attribute: &Attribute) -> Result<UniqueIr> {
                 value.respect_to.push(path_from_syn(&path.path));
                 Ok(())
             })
-        } else if meta.path.is_ident("ignore_case") {
+        } else if meta.path.is_ident("respectTo") {
+            let fields: syn::ExprArray = meta.value()?.parse()?;
+            for field in fields.elems {
+                value.respect_to.push(parse_path_value(field)?);
+            }
+            Ok(())
+        } else if meta.path.is_ident("ignore_case") || meta.path.is_ident("ignoreCase") {
             value.ignore_case = meta.value()?.parse::<syn::LitBool>()?.value;
+            Ok(())
+        } else if meta.path.is_ident("name") {
+            let _: LitStr = meta.value()?.parse()?;
             Ok(())
         } else {
             Err(meta.error("unsupported unique option"))
@@ -1059,8 +1068,15 @@ fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
     let mut same_as = None;
     attribute.parse_nested_meta(|meta| {
         if meta.path.is_ident("entity") {
-            let ty: Type = meta.value()?.parse()?;
-            if target.replace(ReferenceTargetIr::RustType(Box::new(ty))).is_some() {
+            let value = meta.value()?;
+            let entity_target = if value.peek(LitStr) {
+                let id: LitStr = value.parse()?;
+                validate_ascii_id(&id, "reference entity ID")?;
+                ReferenceTargetIr::ModelId(id)
+            } else {
+                ReferenceTargetIr::RustType(Box::new(value.parse()?))
+            };
+            if target.replace(entity_target).is_some() {
                 return Err(meta.error("reference requires exactly one entity target"));
             }
             Ok(())
