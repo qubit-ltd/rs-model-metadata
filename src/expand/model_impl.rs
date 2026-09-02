@@ -11,7 +11,6 @@
 // qubit-style: allow multiple-public-types
 // The private getter/setter representations are tightly coupled expansion data.
 
-use heck::ToSnakeCase;
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
@@ -108,11 +107,8 @@ pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result
         return Err(error);
     }
 
-    let target_name = quote!(#target)
-        .to_string()
-        .to_snake_case()
-        .replace([' ', ':', '<', '>', ','], "_");
-    let provider = format_ident!("__qubit_model_impl_{}", target_name);
+    let target_suffix = stable_fingerprint(&quote!(#target).to_string());
+    let provider = format_ident!("__qubit_model_impl_{target_suffix:016x}");
     let getter_adapters: Vec<_> = getters
         .iter()
         .enumerate()
@@ -130,7 +126,7 @@ pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result
         .map(|(index, getter)| {
             let property = &getter.property;
             let method = getter.method.to_string();
-            let adapter = format_ident!("__qubit_model_property_getter_{index}_{}", target_name);
+            let adapter = format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}");
             let (ty, kind) = match &getter.output {
                 GetterReturn::Owned(ty) => (quote!(#ty), quote!(#runtime::GetterOutputKind::Owned)),
                 GetterReturn::Borrowed(ty) => (quote!(#ty), quote!(#runtime::GetterOutputKind::Borrowed)),
@@ -170,7 +166,7 @@ pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result
             let property = &setter.property;
             let method = setter.method.to_string();
             let ty = &setter.input;
-            let adapter = format_ident!("__qubit_model_property_setter_{index}_{}", target_name);
+            let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}");
             quote! {
                 {
                     let input_type = #runtime::__private::reflect_codegen_v1::descriptor::lazy_type_ref::<#ty>().get();
@@ -483,12 +479,9 @@ fn validate_unique_property_methods(getters: &[GetterIr], setters: &[SetterIr], 
 /// `index` makes the generated symbol unique; `getter`, `target`, and
 /// `runtime` supply the validated method contract and emitted type paths.
 fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
+    let target_suffix = stable_fingerprint(&quote!(#target).to_string());
     let adapter = format_ident!(
-        "__qubit_model_property_getter_{index}_{}",
-        quote!(#target)
-            .to_string()
-            .to_snake_case()
-            .replace([' ', ':', '<', '>', ','], "_")
+        "__qubit_model_property_getter_{index}_{target_suffix:016x}",
     );
     let method = &getter.method;
     let value = match &getter.output {
@@ -525,12 +518,9 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
 /// `index` makes the generated symbol unique; `setter`, `target`, and
 /// `runtime` supply the validated method contract and emitted type paths.
 fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
+    let target_suffix = stable_fingerprint(&quote!(#target).to_string());
     let adapter = format_ident!(
-        "__qubit_model_property_setter_{index}_{}",
-        quote!(#target)
-            .to_string()
-            .to_snake_case()
-            .replace([' ', ':', '<', '>', ','], "_")
+        "__qubit_model_property_setter_{index}_{target_suffix:016x}",
     );
     let method = &setter.method;
     let input = &setter.input;
@@ -551,4 +541,11 @@ fn combine(errors: &mut Option<Error>, error: Error) {
         Some(current) => current.combine(error),
         None => *errors = Some(error),
     }
+}
+
+/// Produces a stable FNV-1a fingerprint for generated private identifiers.
+fn stable_fingerprint(value: &str) -> u64 {
+    value.bytes().fold(0xcbf29ce484222325_u64, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+    })
 }
