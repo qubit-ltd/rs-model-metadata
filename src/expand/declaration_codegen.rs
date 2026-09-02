@@ -258,7 +258,7 @@ fn expand_generic_template(
                 let field_type: &'static #runtime::descriptor::TypeRef = #runtime::__private::v3::leak(
                     #runtime::descriptor::TypeRef::Symbolic(#expression),
                 );
-                descriptors.push(#runtime::__private::descriptor::field(
+                descriptors.push(#runtime::__private::reflect_codegen_v1::descriptor::field(
                     #root,
                     #index,
                     #rust_name,
@@ -298,7 +298,7 @@ fn expand_generic_template(
                 let mut descriptors = ::std::vec::Vec::new();
                 #(#field_descriptors)*
                 let descriptors = #runtime::__private::v3::leak_slice(descriptors);
-                #runtime::__private::descriptor::struct_type::<#marker>(
+                #runtime::__private::reflect_codegen_v1::descriptor::struct_type::<#marker>(
                     #query_name,
                     #struct_kind,
                     descriptors,
@@ -355,7 +355,7 @@ fn expand_generic_enum_template(
                     let field_type: &'static #runtime::descriptor::TypeRef =
                         #runtime::__private::v3::leak(#runtime::descriptor::TypeRef::Symbolic(#expression));
                     fields.push(
-                        #runtime::__private::descriptor::field(
+                        #runtime::__private::reflect_codegen_v1::descriptor::field(
                             #root,
                             #field_index,
                             #rust_field_name,
@@ -373,7 +373,7 @@ fn expand_generic_enum_template(
                 let mut fields = ::std::vec::Vec::new();
                 #(#fields)*
                 let fields = #runtime::__private::v3::leak_slice(fields);
-                variants.push(#runtime::__private::descriptor::variant(
+                variants.push(#runtime::__private::reflect_codegen_v1::descriptor::variant(
                     #root,
                     #variant_index,
                     #rust_name,
@@ -406,7 +406,7 @@ fn expand_generic_enum_template(
                 let mut variants = ::std::vec::Vec::new();
                 #(#variants)*
                 let variants = #runtime::__private::v3::leak_slice(variants);
-                #runtime::__private::descriptor::enum_type::<#marker>(#query_name, variants)
+                #runtime::__private::reflect_codegen_v1::descriptor::enum_type::<#marker>(#query_name, variants)
             })
         }
     }
@@ -460,7 +460,7 @@ fn expand_type_expression(
             if path.path.segments.len() == 1 {
                 let name = path.path.segments[0].ident.to_string();
                 if type_parameters.contains(&name) {
-                    return quote!(#runtime::expression::TypeExpression::Parameter(#name.into()));
+                    return quote!(#runtime::__private::reflect_codegen_v1::expression::parameter(#name));
                 }
             }
             let segments: Vec<_> = path
@@ -485,19 +485,17 @@ fn expand_type_expression(
                             let expression = expand_const_expression(value, const_parameters, runtime);
                             let diagnostic = LitStr::new(&quote!(#value).to_string(), proc_macro2::Span::call_site());
                             Some(quote!(#runtime::expression::GenericArgument::Const(
-                                #runtime::expression::ConstGenericArgument {
-                                    declared_type: ::std::boxed::Box::new(
-                                        #runtime::expression::TypeExpression::Concrete(
-                                            #runtime::expression::ConcreteTypeExpression {
-                                                path: ::std::boxed::Box::new(["_".into()]),
-                                                arguments: ::std::boxed::Box::new([]),
-                                                diagnostic: #runtime::expression::DiagnosticText::default(),
-                                            },
+                                #runtime::__private::reflect_codegen_v1::expression::const_argument(
+                                    #runtime::expression::TypeExpression::Concrete(
+                                        #runtime::__private::reflect_codegen_v1::expression::concrete(
+                                            ::std::boxed::Box::new(["_".into()]),
+                                            ::std::boxed::Box::new([]),
+                                            #runtime::expression::DiagnosticText::default(),
                                         ),
                                     ),
-                                    value: #expression,
-                                    normalized_diagnostic: #diagnostic.into(),
-                                },
+                                    #expression,
+                                    #diagnostic,
+                                ),
                             )))
                         }
                         _ => None,
@@ -505,11 +503,11 @@ fn expand_type_expression(
                     .collect()
             });
             quote!(#runtime::expression::TypeExpression::Concrete(
-                #runtime::expression::ConcreteTypeExpression {
-                    path: ::std::boxed::Box::new([#(#segments.into()),*]),
-                    arguments: ::std::boxed::Box::new([#(#arguments),*]),
-                    diagnostic: #runtime::expression::DiagnosticText::default(),
-                },
+                #runtime::__private::reflect_codegen_v1::expression::concrete(
+                    ::std::boxed::Box::new([#(#segments.into()),*]),
+                    ::std::boxed::Box::new([#(#arguments),*]),
+                    #runtime::expression::DiagnosticText::default(),
+                ),
             ))
         }
         Type::Slice(slice) => {
@@ -522,11 +520,10 @@ fn expand_type_expression(
                 expand_type_expression(&array.elem, type_parameters, const_parameters, runtime);
             let length = expand_const_expression(&array.len, const_parameters, runtime);
             quote!(#runtime::expression::TypeExpression::Array(
-                #runtime::expression::ArrayTypeExpression {
-                    element: ::std::boxed::Box::new(#element),
-                    length: #length,
-                    diagnostic: #runtime::expression::DiagnosticText::default(),
-                },
+                #runtime::__private::reflect_codegen_v1::expression::array(
+                    #element,
+                    #length,
+                ),
             ))
         }
         Type::Tuple(tuple) => {
@@ -553,7 +550,7 @@ fn expand_type_expression(
                     quote!(#runtime::expression::LifetimeExpression::Placeholder)
                 }
                 Some(name) => {
-                    quote!(#runtime::expression::LifetimeExpression::Named(#name.into()))
+                    quote!(#runtime::__private::reflect_codegen_v1::expression::named_lifetime(#name))
                 }
                 None => {
                     quote!(#runtime::expression::LifetimeExpression::Elided)
@@ -561,22 +558,21 @@ fn expand_type_expression(
             };
             let mutable = reference.mutability.is_some();
             quote!(#runtime::expression::TypeExpression::Reference(
-                #runtime::expression::ReferenceTypeExpression {
-                    lifetime: #lifetime,
-                    mutable: #mutable,
-                    target: ::std::boxed::Box::new(#target),
-                    diagnostic: #runtime::expression::DiagnosticText::default(),
-                },
+                #runtime::__private::reflect_codegen_v1::expression::reference(
+                    #lifetime,
+                    #mutable,
+                    #target,
+                ),
             ))
         }
         _ => {
             let source = LitStr::new(&quote!(#ty).to_string(), proc_macro2::Span::call_site());
             quote!(#runtime::expression::TypeExpression::Concrete(
-                #runtime::expression::ConcreteTypeExpression {
-                    path: ::std::boxed::Box::new([#source.into()]),
-                    arguments: ::std::boxed::Box::new([]),
-                    diagnostic: #runtime::expression::DiagnosticText::from(#source),
-                },
+                #runtime::__private::reflect_codegen_v1::expression::concrete(
+                    ::std::boxed::Box::new([#source.into()]),
+                    ::std::boxed::Box::new([]),
+                    #runtime::expression::DiagnosticText::from(#source),
+                ),
             ))
         }
     }
@@ -598,11 +594,9 @@ fn expand_const_expression(
                 .collect();
             if segments.len() == 1 && const_parameters.contains(&segments[0]) {
                 let name = &segments[0];
-                quote!(#runtime::expression::ConstExpression::Parameter(#name.into()))
+                quote!(#runtime::__private::reflect_codegen_v1::expression::const_parameter(#name))
             } else {
-                quote!(#runtime::expression::ConstExpression::Path(
-                    ::std::boxed::Box::new([#(#segments.into()),*]),
-                ))
+                quote!(#runtime::__private::reflect_codegen_v1::expression::const_path([#(#segments),*]))
             }
         }
         Expr::Lit(ExprLit {
@@ -628,9 +622,7 @@ fn expand_const_expression(
         }
         _ => {
             let source = quote!(#value).to_string();
-            quote!(#runtime::expression::ConstExpression::Path(
-                ::std::boxed::Box::new([#source.into()]),
-            ))
+            quote!(#runtime::__private::reflect_codegen_v1::expression::const_path([#source]))
         }
     }
 }
