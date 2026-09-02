@@ -5,6 +5,7 @@ use super::declaration_ir::ConstraintIr;
 use super::declaration_ir::DeclarationIr;
 use super::declaration_ir::FieldIr;
 use super::declaration_ir::FieldOccurrence;
+use super::declaration_ir::IdentifierAssignmentIr;
 use super::declaration_ir::RedactModeIr;
 use super::declaration_ir::SelectorIr;
 use super::declaration_ir::SelectorPositionIr;
@@ -154,6 +155,50 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
                     "Enum and Value fields cannot declare references",
                 ),
             );
+        }
+        for occurrence in &field.occurrences {
+            match occurrence {
+                FieldOccurrence::Identifier(IdentifierAssignmentIr::Database)
+                    if declaration.kind != MacroKind::Entity =>
+                {
+                    combine(
+                        &mut errors,
+                        Error::new(
+                            field.index.span(),
+                            "database-assigned identifiers are only valid for Entity",
+                        ),
+                    );
+                }
+                FieldOccurrence::KeyPart(_) if declaration.kind != MacroKind::Model || !field.named => {
+                    combine(
+                        &mut errors,
+                        Error::new(
+                            field.index.span(),
+                            "key_part is only valid on named Model fields",
+                        ),
+                    );
+                }
+                FieldOccurrence::Unique(unique)
+                    if unique.ignore_case && !is_text_type(&field.ty) =>
+                {
+                    combine(
+                        &mut errors,
+                        Error::new(
+                            field.index.span(),
+                            "unique(ignore_case = true) requires a text field",
+                        ),
+                    );
+                }
+                FieldOccurrence::Constraint(ConstraintIr::Text(text)) => {
+                    if text.min_chars.zip(text.max_chars).is_some_and(|(min, max)| min > max) {
+                        combine(&mut errors, Error::new(field.index.span(), "text min_chars cannot exceed max_chars"));
+                    }
+                    if text.min_bytes.zip(text.max_bytes).is_some_and(|(min, max)| min > max) {
+                        combine(&mut errors, Error::new(field.index.span(), "text min_bytes cannot exceed max_bytes"));
+                    }
+                }
+                _ => {}
+            }
         }
         let has_implicit_index = field.occurrences.iter().any(|value| {
             matches!(
@@ -308,6 +353,13 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
     } else {
         Ok(())
     }
+}
+
+/// Reports whether a field is a built-in text type.
+fn is_text_type(ty: &syn::Type) -> bool {
+    matches!(ty, syn::Type::Path(path)
+        if path.qself.is_none()
+            && path.path.segments.last().is_some_and(|segment| segment.ident == "String" || segment.ident == "str"))
 }
 
 /// Adds implicit container constraints required by selector metadata.
