@@ -67,11 +67,15 @@ pub(super) fn parse_variants(data: &syn::DataEnum) -> Result<Vec<VariantIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
     for variant in &data.variants {
-        let canonical_name = variant.ident.to_string().to_shouty_snake_case();
-        let names = parse_variant_serde_names(&variant.attrs, &canonical_name);
+        let default_name = variant.ident.to_string().to_shouty_snake_case();
+        let canonical_name = parse_variant_name(&variant.attrs, &default_name);
+        let names = parse_variant_serde_names(
+            &variant.attrs,
+            canonical_name.as_deref().unwrap_or(&default_name),
+        );
         let fields = parse_fields(&variant.fields);
-        match (names, fields) {
-            (Ok((serialized_name, deserialized_name)), Ok(fields)) => parsed.push(VariantIr {
+        match (canonical_name, names, fields) {
+            (Ok(canonical_name), Ok((serialized_name, deserialized_name)), Ok(fields)) => parsed.push(VariantIr {
                 rust_name: variant.ident.to_string(),
                 canonical_name,
                 serialized_name,
@@ -82,7 +86,10 @@ pub(super) fn parse_variants(data: &syn::DataEnum) -> Result<Vec<VariantIr>> {
                     .any(|attribute| attribute.path().is_ident("default")),
                 fields,
             }),
-            (names, fields) => {
+            (canonical_name, names, fields) => {
+                if let Err(error) = canonical_name {
+                    combine(&mut errors, error);
+                }
                 if let Err(error) = names {
                     combine(&mut errors, error);
                 }
@@ -96,6 +103,28 @@ pub(super) fn parse_variants(data: &syn::DataEnum) -> Result<Vec<VariantIr>> {
         Some(error) => Err(error),
         None => Ok(parsed),
     }
+}
+
+/// Parses an optional stable variant name, defaulting to the Rust name.
+fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String> {
+    let mut name = None;
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("variant")) {
+        attribute.parse_nested_meta(|meta| {
+            if !meta.path.is_ident("name") {
+                return Err(meta.error("unsupported variant option"));
+            }
+            let value: LitStr = meta.value()?.parse()?;
+            validate_ascii_id(&value, "variant name")?;
+            if value.value().is_empty() {
+                return Err(Error::new_spanned(value, "variant name cannot be empty"));
+            }
+            if name.replace(value.value()).is_some() {
+                return Err(meta.error("duplicate variant `name` option"));
+            }
+            Ok(())
+        })?;
+    }
+    Ok(name.unwrap_or_else(|| default.to_owned()))
 }
 
 /// Parses variant rename attributes and returns serialized/deserialized names.

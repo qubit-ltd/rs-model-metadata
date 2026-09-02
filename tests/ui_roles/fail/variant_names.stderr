@@ -1,0 +1,5 @@
+error: Enum variant names must be unique
+  --> tests/ui_roles/fail/variant_names.rs:10:6
+   |
+10 | enum VariantNames {
+   |      ^^^^^^^^^^^^

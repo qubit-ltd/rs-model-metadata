@@ -114,6 +114,7 @@ struct Payload {
 
 #[Enum(id = "runtime.Status")]
 enum Status {
+    #[variant(name = "APPROVED")]
     Ready,
     Failed { message: String },
 }
@@ -256,7 +257,7 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
     assert!(TypeMetadata::of::<Status>().fields().is_empty());
     assert_eq!(
         enum_metadata.variant_by_rust_name("Ready").unwrap().canonical_name(),
-        "READY"
+        "APPROVED"
     );
     assert_eq!(enum_metadata.variant_by_rust_name("Failed").unwrap().fields().len(), 1);
     assert_eq!(serde_json::to_string(&Status::Ready).unwrap(), r#""READY""#);

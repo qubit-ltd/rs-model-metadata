@@ -235,6 +235,11 @@ pub(super) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
             field.attrs.push(parse_quote!(#[reflect(opaque)]));
         }
     }
+    if let Data::Enum(data) = data {
+        for variant in &mut data.variants {
+            variant.attrs.retain(|attribute| !attribute.path().is_ident("variant"));
+        }
+    }
 }
 
 /// Reports whether an attribute is an internal model-field helper.

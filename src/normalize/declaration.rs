@@ -96,6 +96,15 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
                 .flat_map(|variant| &variant.fields),
         )
         .collect();
+    let mut variant_names = std::collections::HashSet::new();
+    for variant in &declaration.variants {
+        if !variant_names.insert(&variant.canonical_name) {
+            combine(
+                &mut errors,
+                Error::new_spanned(&item.ident, "Enum variant names must be unique"),
+            );
+        }
+    }
     if options.no_redact
         && all_fields.iter().any(|field| {
             field.occurrences.iter().any(|value| {
