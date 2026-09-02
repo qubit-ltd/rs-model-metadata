@@ -1,4 +1,42 @@
 // =============================================================================
+
+use super::declaration_ir::CodecIr;
+use super::declaration_ir::ConstraintIr;
+use super::declaration_ir::DecimalConstraintIr;
+use super::declaration_ir::DeclarationOptions;
+use super::declaration_ir::FieldIr;
+use super::declaration_ir::FieldOccurrence;
+use super::declaration_ir::IdentifierAssignmentIr;
+use super::declaration_ir::RedactIr;
+use super::declaration_ir::RedactModeIr;
+use super::declaration_ir::ReferenceIr;
+use super::declaration_ir::ReferenceTargetIr;
+use super::declaration_ir::SelectorIr;
+use super::declaration_ir::SelectorPositionIr;
+use super::declaration_ir::SerdeIr;
+use super::declaration_ir::StrategyArgumentIr;
+use super::declaration_ir::TextConstraintIr;
+use super::declaration_ir::UniqueIr;
+use super::declaration_ir::ValidatorIr;
+use super::declaration_ir::VariantIr;
+use super::declaration_validate::combine;
+use heck::ToShoutySnakeCase;
+use quote::quote;
+use syn::Attribute;
+use syn::Expr;
+use syn::ExprLit;
+use syn::Error;
+use syn::Fields;
+use syn::Lit;
+use syn::LitStr;
+use syn::Meta;
+use syn::Result;
+use syn::Token;
+use syn::Type;
+use syn::parse::Parser;
+use syn::parse_quote;
+use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -7,7 +45,7 @@
 // =============================================================================
 
 /// Parses every field and combines independent field diagnostics.
-fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
+pub(super) fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
     for (index, field) in fields.iter().enumerate() {
@@ -23,7 +61,7 @@ fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
 }
 
 /// Parses enum variants, including Serde names and nested field metadata.
-fn parse_variants(data: &syn::DataEnum) -> Result<Vec<VariantIr>> {
+pub(super) fn parse_variants(data: &syn::DataEnum) -> Result<Vec<VariantIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
     for variant in &data.variants {
@@ -82,7 +120,7 @@ fn parse_variant_serde_names(
 
 impl DeclarationOptions {
     /// Parses declaration-level options and rejects duplicates or bad values.
-    fn parse(options: Punctuated<Meta, Token![,]>) -> Result<Self> {
+    pub(super) fn parse(options: Punctuated<Meta, Token![,]>) -> Result<Self> {
         let mut result = Self {
             id: None,
             source: None,
@@ -1058,7 +1096,7 @@ fn path_from_syn(path: &syn::Path) -> Vec<String> {
 }
 
 /// Validates that a model or validator ID is non-empty ASCII text.
-fn validate_ascii_id(value: &LitStr, kind: &str) -> Result<()> {
+pub(super) fn validate_ascii_id(value: &LitStr, kind: &str) -> Result<()> {
     let text = value.value();
     let valid = !text.is_empty()
         && text.split('.').all(|segment| {

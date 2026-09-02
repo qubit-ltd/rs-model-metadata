@@ -1,4 +1,25 @@
 // =============================================================================
+
+use super::declaration_ir::DeclarationIr;
+use super::declaration_ir::FieldIr;
+use super::declaration_ir::FieldOccurrence;
+use super::declaration_ir::SerdeIr;
+use super::MacroKind;
+use proc_macro2::TokenStream;
+use quote::format_ident;
+use quote::quote;
+use syn::Attribute;
+use syn::Data;
+use syn::DeriveInput;
+use syn::Error;
+use syn::Fields;
+use syn::LitStr;
+use syn::Meta;
+use syn::Result;
+use syn::Token;
+use syn::Type;
+use syn::parse_quote;
+use syn::punctuated::Punctuated;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -7,7 +28,7 @@
 // =============================================================================
 
 /// Adds role-dependent default derives while preserving user opt-outs.
-fn apply_default_derives(
+pub(super) fn apply_default_derives(
     declaration: &DeclarationIr,
     item: &mut DeriveInput,
     runtime: &TokenStream,
@@ -181,7 +202,7 @@ fn has_serde_rename_all(attributes: &[Attribute]) -> Result<bool> {
 }
 
 /// Generates the redaction-aware display implementation for a declaration.
-fn expand_display(
+pub(super) fn expand_display(
     declaration: &DeclarationIr,
     item: &DeriveInput,
     runtime: &TokenStream,
@@ -327,7 +348,7 @@ fn plain_structured_display_body(name: &syn::Ident, data: &Data) -> TokenStream 
 }
 
 /// Adds default Serde attributes required by the selected role options.
-fn apply_serde_defaults(
+pub(super) fn apply_serde_defaults(
     declaration: &mut DeclarationIr,
     item: &mut DeriveInput,
     runtime: &TokenStream,
@@ -407,13 +428,13 @@ fn apply_field_serde_default(field: &mut syn::Field, ir: &mut FieldIr, runtime: 
 }
 
 /// Identifies container kinds that support omission-on-default behavior.
-enum OmissionKind {
+pub(super) enum OmissionKind {
     Option,
     Collection,
 }
 
 /// Returns the omission policy supported by `ty`, if any.
-fn omission_kind(ty: &Type) -> Option<OmissionKind> {
+pub(super) fn omission_kind(ty: &Type) -> Option<OmissionKind> {
     let Type::Path(path) = ty else {
         return None;
     };

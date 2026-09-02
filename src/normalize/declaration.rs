@@ -1,4 +1,18 @@
 // =============================================================================
+
+use super::capabilities::omission_kind;
+use super::declaration_ir::ConstraintIr;
+use super::declaration_ir::DeclarationIr;
+use super::declaration_ir::FieldIr;
+use super::declaration_ir::FieldOccurrence;
+use super::declaration_ir::RedactModeIr;
+use super::declaration_ir::SelectorIr;
+use super::declaration_ir::SelectorPositionIr;
+use super::declaration_validate::combine;
+use super::MacroKind;
+use syn::DeriveInput;
+use syn::Error;
+use syn::Result;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -6,7 +20,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> Result<()> {
+pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     let options = &declaration.options;
     if options.source_id.is_some() && declaration.kind != MacroKind::Projection {
@@ -288,7 +302,7 @@ fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> R
 }
 
 /// Adds implicit container constraints required by selector metadata.
-fn normalize_selector_containers(field: &mut FieldIr) {
+pub(super) fn normalize_selector_containers(field: &mut FieldIr) {
     let has_element = field.occurrences.iter().any(|value| {
         matches!(
             value,
@@ -339,7 +353,7 @@ fn normalize_selector_containers(field: &mut FieldIr) {
 }
 
 /// Validates that a field's constraints match its Rust type and role.
-fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Error>) {
+pub(super) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Error>) {
     let mut kinds = std::collections::HashSet::new();
     for constraint in field.occurrences.iter().filter_map(|value| match value {
         FieldOccurrence::Constraint(value) => Some(value),

@@ -1,4 +1,24 @@
 // =============================================================================
+
+use super::declaration_ir::DeclarationIr;
+use super::declaration_ir::FieldOccurrence;
+use super::declaration_ir::RedactIr;
+use super::declaration_ir::RedactModeIr;
+use super::declaration_ir::SelectorIr;
+use super::declaration_ir::SelectorPositionIr;
+use super::MacroKind;
+use syn::Attribute;
+use syn::Data;
+use syn::DeriveInput;
+use syn::Error;
+use syn::Fields;
+use syn::GenericParam;
+use syn::LitStr;
+use syn::Result;
+use syn::Token;
+use syn::Type;
+use syn::parse_quote;
+use syn::punctuated::Punctuated;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -7,7 +27,7 @@
 // =============================================================================
 
 /// Validates the declaration shape before constructing intermediate metadata.
-fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
+pub(super) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     for parameter in &item.generics.params {
         if matches!(parameter, GenericParam::Lifetime(_)) {
@@ -105,7 +125,7 @@ fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
 }
 
 /// Rejects user reflection derives that would duplicate generated metadata.
-fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
+pub(super) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
     for attribute in attributes {
         if !attribute.path().is_ident("derive") {
             continue;
@@ -127,7 +147,7 @@ fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
 }
 
 /// Rewrites helper attributes used to expose nested field metadata.
-fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr) {
+pub(super) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr) {
     let fields: Vec<_> = match data {
         Data::Struct(data) => data.fields.iter_mut().zip(&declaration.fields).collect(),
         Data::Enum(data) => data
@@ -247,7 +267,7 @@ fn is_model_field_helper(attribute: &Attribute) -> bool {
 }
 
 /// Combines one diagnostic into an existing optional error accumulator.
-fn combine(errors: &mut Option<Error>, error: Error) {
+pub(super) fn combine(errors: &mut Option<Error>, error: Error) {
     match errors {
         Some(current) => current.combine(error),
         None => *errors = Some(error),

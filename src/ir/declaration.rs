@@ -1,4 +1,20 @@
 // =============================================================================
+
+use super::declaration_normalize::normalize_selector_containers;
+use super::declaration_normalize::validate_declaration_ir;
+use super::declaration_parse::parse_fields;
+use super::declaration_parse::parse_variants;
+use super::declaration_parse::validate_ascii_id;
+use super::MacroKind;
+use syn::Data;
+use syn::DeriveInput;
+use syn::Error;
+use syn::LitStr;
+use syn::Meta;
+use syn::Result;
+use syn::Token;
+use syn::Type;
+use syn::punctuated::Punctuated;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -8,52 +24,52 @@
 
 /// Normalized declaration-level options shared by all role macros.
 #[derive(Clone)]
-struct DeclarationOptions {
+pub(super) struct DeclarationOptions {
     /// Optional stable model identifier.
-    id: Option<LitStr>,
+    pub(super) id: Option<LitStr>,
     /// Fixed projection source Rust type.
-    source: Option<Type>,
+    pub(super) source: Option<Type>,
     /// Fixed projection source identifier.
-    source_id: Option<LitStr>,
+    pub(super) source_id: Option<LitStr>,
     /// Whether a projection accepts an open source.
-    open: bool,
+    pub(super) open: bool,
     /// Whether a value uses transparent representation.
-    transparent: bool,
+    pub(super) transparent: bool,
     /// Disables generated `Clone`.
-    no_clone: bool,
+    pub(super) no_clone: bool,
     /// Disables generated `Debug`.
-    no_debug: bool,
+    pub(super) no_debug: bool,
     /// Disables generated `Display`.
-    no_display: bool,
+    pub(super) no_display: bool,
     /// Disables generated `PartialEq`.
-    no_partial_eq: bool,
+    pub(super) no_partial_eq: bool,
     /// Disables generated `Eq`.
-    no_eq: bool,
+    pub(super) no_eq: bool,
     /// Disables generated `Hash`.
-    no_hash: bool,
+    pub(super) no_hash: bool,
     /// Disables generated serialization.
-    no_serialize: bool,
+    pub(super) no_serialize: bool,
     /// Disables generated deserialization.
-    no_deserialize: bool,
+    pub(super) no_deserialize: bool,
     /// Disables generated redaction.
-    no_redact: bool,
+    pub(super) no_redact: bool,
     /// Disables generated `Copy`.
-    no_copy: bool,
+    pub(super) no_copy: bool,
     /// Enables generated `Copy`.
-    copy: bool,
+    pub(super) copy: bool,
     /// Enables generated `Default`.
-    default: bool,
+    pub(super) default: bool,
     /// Enables generated `PartialOrd`.
-    partial_ord: bool,
+    pub(super) partial_ord: bool,
     /// Enables generated `Ord`.
-    ord: bool,
+    pub(super) ord: bool,
     /// Canonical value codec type.
-    codec: Option<Type>,
+    pub(super) codec: Option<Type>,
 }
 
 /// A single field-level metadata attribute after parsing.
 #[derive(Clone)]
-enum FieldOccurrence {
+pub(super) enum FieldOccurrence {
     /// Identifier assignment metadata.
     Identifier(IdentifierAssignmentIr),
     /// Explicit database index marker.
@@ -82,14 +98,14 @@ enum FieldOccurrence {
 
 /// Selects the owner of an automatically assigned identifier.
 #[derive(Clone, Copy)]
-enum IdentifierAssignmentIr {
+pub(super) enum IdentifierAssignmentIr {
     Application,
     Database,
 }
 
 /// Represents one supported validation constraint.
 #[derive(Clone)]
-enum ConstraintIr {
+pub(super) enum ConstraintIr {
     /// Text constraint.
     Text(TextConstraintIr),
     /// Decimal constraint.
@@ -114,62 +130,62 @@ enum ConstraintIr {
 
 /// Normalized text constraint parameters.
 #[derive(Clone, Default)]
-struct TextConstraintIr {
+pub(super) struct TextConstraintIr {
     /// Minimum character count.
-    min_chars: Option<u32>,
+    pub(super) min_chars: Option<u32>,
     /// Maximum character count.
-    max_chars: Option<u32>,
+    pub(super) max_chars: Option<u32>,
     /// Minimum UTF-8 byte count.
-    min_bytes: Option<u32>,
+    pub(super) min_bytes: Option<u32>,
     /// Maximum UTF-8 byte count.
-    max_bytes: Option<u32>,
+    pub(super) max_bytes: Option<u32>,
     /// Allowed character set name.
-    allowed_chars: Option<String>,
+    pub(super) allowed_chars: Option<String>,
     /// Whether blank text is rejected.
-    non_blank: bool,
+    pub(super) non_blank: bool,
     /// Optional named text format.
-    format: Option<String>,
+    pub(super) format: Option<String>,
 }
 
 /// Normalized decimal constraint parameters.
 #[derive(Clone)]
-struct DecimalConstraintIr {
+pub(super) struct DecimalConstraintIr {
     /// Optional total precision.
-    precision: Option<u16>,
+    pub(super) precision: Option<u16>,
     /// Number of fractional digits.
-    scale: u16,
+    pub(super) scale: u16,
     /// Named rounding mode.
-    rounding: String,
+    pub(super) rounding: String,
     /// Whether the decimal represents money.
-    money: bool,
+    pub(super) money: bool,
     /// Inclusive or exclusive lower bound literal.
-    min: Option<LitStr>,
+    pub(super) min: Option<LitStr>,
     /// Inclusive or exclusive upper bound literal.
-    max: Option<LitStr>,
+    pub(super) max: Option<LitStr>,
     /// Whether the lower bound is inclusive.
-    min_inclusive: bool,
+    pub(super) min_inclusive: bool,
     /// Whether the upper bound is inclusive.
-    max_inclusive: bool,
+    pub(super) max_inclusive: bool,
 }
 
 /// Metadata for a selector applied to a collection element or map component.
 #[derive(Clone)]
-struct SelectorIr {
+pub(super) struct SelectorIr {
     /// Collection position selected by this rule.
-    position: SelectorPositionIr,
+    pub(super) position: SelectorPositionIr,
     /// Nested constraints.
-    constraints: Vec<ConstraintIr>,
+    pub(super) constraints: Vec<ConstraintIr>,
     /// Nested validators.
-    validators: Vec<ValidatorIr>,
+    pub(super) validators: Vec<ValidatorIr>,
     /// Nested value codec.
-    codec: Option<CodecIr>,
+    pub(super) codec: Option<CodecIr>,
     /// Nested redaction mode.
-    redact: Option<RedactIr>,
+    pub(super) redact: Option<RedactIr>,
 }
 
 /// Identifies the collection position targeted by a selector.
 #[derive(Clone, Copy, Eq, PartialEq)]
-enum SelectorPositionIr {
+pub(super) enum SelectorPositionIr {
     /// Collection element.
     Element,
     /// Map key.
@@ -180,16 +196,16 @@ enum SelectorPositionIr {
 
 /// Normalized uniqueness declaration.
 #[derive(Clone)]
-struct UniqueIr {
+pub(super) struct UniqueIr {
     /// Field paths participating in uniqueness comparisons.
-    respect_to: Vec<Vec<String>>,
+    pub(super) respect_to: Vec<Vec<String>>,
     /// Whether comparisons ignore case.
-    ignore_case: bool,
+    pub(super) ignore_case: bool,
 }
 
 /// Identifies a reference target by Rust type or stable model ID.
 #[derive(Clone)]
-enum ReferenceTargetIr {
+pub(super) enum ReferenceTargetIr {
     /// Target Rust type.
     RustType(Box<Type>),
     /// Target stable model identifier.
@@ -198,20 +214,20 @@ enum ReferenceTargetIr {
 
 /// Normalized relationship/reference declaration.
 #[derive(Clone)]
-struct ReferenceIr {
+pub(super) struct ReferenceIr {
     /// Referenced model target.
-    target: ReferenceTargetIr,
+    pub(super) target: ReferenceTargetIr,
     /// Optional referenced property path.
-    property: Option<Vec<String>>,
+    pub(super) property: Option<Vec<String>>,
     /// Whether the referenced target must already exist.
-    existing: bool,
+    pub(super) existing: bool,
     /// Optional path that must match the source.
-    same_as: Option<Vec<String>>,
+    pub(super) same_as: Option<Vec<String>>,
 }
 
 /// Literal argument accepted by a validator strategy.
 #[derive(Clone)]
-enum StrategyArgumentIr {
+pub(super) enum StrategyArgumentIr {
     /// Boolean literal.
     Bool(bool),
     /// Signed integer literal.
@@ -232,18 +248,18 @@ enum StrategyArgumentIr {
 
 /// Normalized validator registration and its arguments.
 #[derive(Clone)]
-struct ValidatorIr {
+pub(super) struct ValidatorIr {
     /// Stable validator registration identifier.
-    id: LitStr,
+    pub(super) id: LitStr,
     /// Named validator strategy parameters.
-    params: Vec<(String, StrategyArgumentIr)>,
+    pub(super) params: Vec<(String, StrategyArgumentIr)>,
     /// Field paths the validator reads.
-    depends_on: Vec<Vec<String>>,
+    pub(super) depends_on: Vec<Vec<String>>,
 }
 
 /// Value codec selected by declared ID or Rust type.
 #[derive(Clone)]
-enum CodecIr {
+pub(super) enum CodecIr {
     /// Codec Rust type.
     RustType(Box<Type>),
     /// Codec registration identifier.
@@ -252,14 +268,14 @@ enum CodecIr {
 
 /// Redaction mode attached to a field or selector.
 #[derive(Clone)]
-struct RedactIr {
+pub(super) struct RedactIr {
     /// Selected redaction behavior.
-    mode: RedactModeIr,
+    pub(super) mode: RedactModeIr,
 }
 
 /// Supported redaction shapes emitted in metadata.
 #[derive(Clone)]
-enum RedactModeIr {
+pub(super) enum RedactModeIr {
     /// Named redaction level.
     Level(String),
     /// Skip redaction.
@@ -276,80 +292,80 @@ enum RedactModeIr {
 
 /// Normalized Serde behavior for one field.
 #[derive(Clone, Default)]
-struct SerdeIr {
+pub(super) struct SerdeIr {
     /// Serialized field name override.
-    serialize_name: Option<LitStr>,
+    pub(super) serialize_name: Option<LitStr>,
     /// Deserialized field name override.
-    deserialize_name: Option<LitStr>,
+    pub(super) deserialize_name: Option<LitStr>,
     /// Skip this field while serializing.
-    skip_serializing: bool,
+    pub(super) skip_serializing: bool,
     /// Skip this field while deserializing.
-    skip_deserializing: bool,
+    pub(super) skip_deserializing: bool,
     /// Flatten nested serialization.
-    flatten: bool,
+    pub(super) flatten: bool,
     /// Custom Serde module path.
-    with: Option<LitStr>,
+    pub(super) with: Option<LitStr>,
     /// Use the type's default during deserialization.
-    default: bool,
+    pub(super) default: bool,
     /// Whether skip-serializing-if was explicitly set.
-    explicit_skip_serializing_if: bool,
+    pub(super) explicit_skip_serializing_if: bool,
     /// Use the model default source.
-    default_from_model: bool,
+    pub(super) default_from_model: bool,
     /// Omit this field from the model view.
-    omit_from_model: bool,
+    pub(super) omit_from_model: bool,
     /// Whether omission was explicitly suppressed.
-    omit_suppressed: bool,
+    pub(super) omit_suppressed: bool,
 }
 
 /// Parsed field metadata and its source type.
 #[derive(Clone)]
-struct FieldIr {
+pub(super) struct FieldIr {
     /// Zero-based source field index.
-    index: usize,
+    pub(super) index: usize,
     /// Rust field type.
-    ty: Type,
+    pub(super) ty: Type,
     /// Span of the declared field type for field-local diagnostics.
-    span: proc_macro2::Span,
+    pub(super) span: proc_macro2::Span,
     /// Parsed field-level attributes.
-    occurrences: Vec<FieldOccurrence>,
+    pub(super) occurrences: Vec<FieldOccurrence>,
     /// Preserve this field under model serialization.
-    keep_serializing: bool,
+    pub(super) keep_serializing: bool,
     /// Whether the source field has a name.
-    named: bool,
+    pub(super) named: bool,
 }
 
 /// Parsed enum variant names and fields.
 #[derive(Clone)]
-struct VariantIr {
+pub(super) struct VariantIr {
     /// Rust source variant name.
-    rust_name: String,
+    pub(super) rust_name: String,
     /// Canonical model variant name.
-    canonical_name: String,
+    pub(super) canonical_name: String,
     /// Serialized variant name.
-    serialized_name: String,
+    pub(super) serialized_name: String,
     /// Deserialized variant name.
-    deserialized_name: String,
+    pub(super) deserialized_name: String,
     /// Whether this variant is the default.
-    default: bool,
+    pub(super) default: bool,
     /// Parsed variant fields.
-    fields: Vec<FieldIr>,
+    pub(super) fields: Vec<FieldIr>,
 }
 
 /// Complete normalized declaration consumed by the expansion stage.
-struct DeclarationIr {
+pub(super) struct DeclarationIr {
     /// Selected macro role.
-    kind: MacroKind,
+    pub(super) kind: MacroKind,
     /// Declaration-level options.
-    options: DeclarationOptions,
+    pub(super) options: DeclarationOptions,
     /// Struct fields.
-    fields: Vec<FieldIr>,
+    pub(super) fields: Vec<FieldIr>,
     /// Enum variants.
-    variants: Vec<VariantIr>,
+    pub(super) variants: Vec<VariantIr>,
 }
 
 impl DeclarationIr {
     /// Parses role options and fields, then validates role-specific invariants.
-    fn parse(
+    pub(super) fn parse(
         kind: MacroKind,
         options: Punctuated<Meta, Token![,]>,
         item: &DeriveInput,

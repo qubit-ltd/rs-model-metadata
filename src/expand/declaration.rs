@@ -15,36 +15,45 @@
 // Generated token streams deliberately retain absolute paths for downstream
 // hygiene.
 
-use heck::ToShoutySnakeCase;
-use heck::ToSnakeCase;
 use proc_macro2::TokenStream;
-use quote::format_ident;
 use quote::quote;
-use syn::Attribute;
-use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
-use syn::Expr;
-use syn::ExprLit;
-use syn::Fields;
-use syn::GenericParam;
 use syn::ItemImpl;
-use syn::Lit;
-use syn::LitStr;
 use syn::Meta;
 use syn::Result;
 use syn::Token;
-use syn::Type;
 use syn::parse::Parser;
 use syn::parse_quote;
 use syn::parse2;
 use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
 
 use crate::expand::model_impl::expand_model_impl;
 use crate::expand::model_impl::validate_model_impl;
 use crate::ir::MacroKind;
 use crate::runtime_path::runtime_path;
+
+#[path = "../ir/declaration.rs"]
+mod declaration_ir;
+#[path = "../normalize/declaration.rs"]
+mod declaration_normalize;
+#[path = "../parse/declaration.rs"]
+mod declaration_parse;
+#[path = "../validate/declaration.rs"]
+mod declaration_validate;
+#[path = "capabilities.rs"]
+mod capabilities;
+#[path = "declaration_codegen.rs"]
+mod declaration_codegen;
+
+use capabilities::apply_default_derives;
+use capabilities::apply_serde_defaults;
+use capabilities::expand_display;
+use declaration_codegen::expand_metadata;
+use declaration_ir::DeclarationIr;
+use declaration_validate::reject_duplicate_reflect;
+use declaration_validate::rewrite_field_helpers;
+use declaration_validate::validate_declaration;
 
 /// Expands one declaration and converts all failures to compiler diagnostics.
 pub(crate) fn expand(kind: MacroKind, args: TokenStream, input: TokenStream) -> TokenStream {
@@ -83,10 +92,3 @@ fn expand_result(kind: MacroKind, args: TokenStream, input: TokenStream) -> Resu
     let metadata = expand_metadata(&declaration, &item, &runtime);
     Ok(quote!(#item #display #metadata))
 }
-
-include!("../ir/declaration.rs");
-include!("../parse/declaration.rs");
-include!("../normalize/declaration.rs");
-include!("capabilities.rs");
-include!("declaration_codegen.rs");
-include!("../validate/declaration.rs");

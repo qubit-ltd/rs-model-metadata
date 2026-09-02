@@ -1,4 +1,36 @@
 // =============================================================================
+
+use super::declaration_ir::CodecIr;
+use super::declaration_ir::ConstraintIr;
+use super::declaration_ir::DeclarationIr;
+use super::declaration_ir::FieldIr;
+use super::declaration_ir::FieldOccurrence;
+use super::declaration_ir::IdentifierAssignmentIr;
+use super::declaration_ir::RedactIr;
+use super::declaration_ir::RedactModeIr;
+use super::declaration_ir::ReferenceIr;
+use super::declaration_ir::ReferenceTargetIr;
+use super::declaration_ir::SelectorIr;
+use super::declaration_ir::SelectorPositionIr;
+use super::declaration_ir::SerdeIr;
+use super::declaration_ir::StrategyArgumentIr;
+use super::declaration_ir::ValidatorIr;
+use super::declaration_ir::VariantIr;
+use super::MacroKind;
+use heck::ToSnakeCase;
+use proc_macro2::TokenStream;
+use quote::format_ident;
+use quote::quote;
+use syn::Data;
+use syn::DeriveInput;
+use syn::Error;
+use syn::Expr;
+use syn::ExprLit;
+use syn::Fields;
+use syn::Lit;
+use syn::LitStr;
+use syn::Type;
+use syn::parse_quote;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -7,7 +39,7 @@
 // =============================================================================
 
 /// Generates lazy type metadata and registration implementations.
-fn expand_metadata(
+pub(super) fn expand_metadata(
     declaration: &DeclarationIr,
     item: &DeriveInput,
     runtime: &TokenStream,
