@@ -12,6 +12,8 @@ mod entry;
 mod expand;
 mod ir;
 
+mod compiler;
+
 mod runtime_path;
 
 use ir::MacroKind;

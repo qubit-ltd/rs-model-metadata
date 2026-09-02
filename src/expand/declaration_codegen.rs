@@ -272,7 +272,7 @@ fn expand_generic_template(
         Data::Enum(_) | Data::Union(_) => Vec::new(),
     };
     let field_descriptors = fields.iter().zip(declared_fields).map(|(field, declared)| {
-        let index = field.index;
+        let index = *field.index.value();
         let name = declared
             .ident
             .as_ref()
@@ -680,7 +680,7 @@ fn expand_field(
     descriptor_fields: &TokenStream,
     runtime: &TokenStream,
 ) -> TokenStream {
-    let index = field.index;
+    let index = *field.index.value();
     let field_type = &field.ty;
     let validator_irs: Vec<_> = field
         .occurrences

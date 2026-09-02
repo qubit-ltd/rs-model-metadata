@@ -5,6 +5,8 @@ use super::declaration_normalize::validate_declaration_ir;
 use super::declaration_parse::parse_fields;
 use super::declaration_parse::parse_variants;
 use super::declaration_parse::validate_ascii_id;
+use super::declaration_validate::combine;
+use crate::ir::Located;
 use super::MacroKind;
 use syn::Data;
 use syn::DeriveInput;
@@ -320,12 +322,10 @@ pub(super) struct SerdeIr {
 /// Parsed field metadata and its source type.
 #[derive(Clone)]
 pub(super) struct FieldIr {
-    /// Zero-based source field index.
-    pub(super) index: usize,
+    /// Zero-based source field index and its declaration span.
+    pub(super) index: Located<usize>,
     /// Rust field type.
     pub(super) ty: Type,
-    /// Span of the declared field type for field-local diagnostics.
-    pub(super) span: proc_macro2::Span,
     /// Parsed field-level attributes.
     pub(super) occurrences: Vec<FieldOccurrence>,
     /// Preserve this field under model serialization.
@@ -370,7 +370,43 @@ impl DeclarationIr {
         options: Punctuated<Meta, Token![,]>,
         item: &DeriveInput,
     ) -> Result<Self> {
-        let options = DeclarationOptions::parse(options)?;
+        let mut errors = None;
+        let options = match DeclarationOptions::parse(options) {
+            Ok(options) => Some(options),
+            Err(error) => {
+                combine(&mut errors, error);
+                None
+            }
+        };
+        let (fields, variants) = match &item.data {
+            Data::Struct(data) => match parse_fields(&data.fields) {
+                Ok(fields) => (Some(fields), Some(Vec::new())),
+                Err(error) => {
+                    combine(&mut errors, error);
+                    (None, None)
+                }
+            },
+            Data::Enum(data) => match parse_variants(data) {
+                Ok(variants) => (Some(Vec::new()), Some(variants)),
+                Err(error) => {
+                    combine(&mut errors, error);
+                    (None, None)
+                }
+            },
+            Data::Union(_) => {
+                combine(
+                    &mut errors,
+                    Error::new_spanned(item, "model role macros do not support unions"),
+                );
+                (None, None)
+            }
+        };
+        if let Some(error) = errors {
+            return Err(error);
+        }
+        let options = options.expect("errors returned when declaration options are unavailable");
+        let mut fields = fields.expect("errors returned when fields are unavailable");
+        let mut variants = variants.expect("errors returned when variants are unavailable");
         if kind == MacroKind::Entity && options.id.is_none() {
             return Err(Error::new_spanned(
                 &item.ident,
@@ -384,16 +420,6 @@ impl DeclarationIr {
             validate_ascii_id(source_id, "Projection source ID")?;
         }
 
-        let (mut fields, mut variants) = match &item.data {
-            Data::Struct(data) => (parse_fields(&data.fields)?, Vec::new()),
-            Data::Enum(data) => (Vec::new(), parse_variants(data)?),
-            Data::Union(_) => {
-                return Err(Error::new_spanned(
-                    item,
-                    "model role macros do not support unions",
-                ));
-            }
-        };
         if matches!(kind, MacroKind::Entity | MacroKind::Projection)
             && fields
                 .iter()

@@ -20,6 +20,8 @@ use super::declaration_ir::UniqueIr;
 use super::declaration_ir::ValidatorIr;
 use super::declaration_ir::VariantIr;
 use super::declaration_validate::combine;
+use crate::compiler::diagnostics::Diagnostics;
+use crate::ir::Located;
 use heck::ToShoutySnakeCase;
 use quote::quote;
 use syn::Attribute;
@@ -143,50 +145,80 @@ impl DeclarationOptions {
             ord: false,
             codec: None,
         };
+        let mut diagnostics = Diagnostics::default();
+        let mut markers = std::collections::HashSet::new();
         for option in options {
             match option {
                 Meta::NameValue(value) if value.path.is_ident("id") => {
-                    set_lit_str(&mut result.id, value.value, "id")?;
+                    if let Err(error) = set_lit_str(&mut result.id, value.value, "id") {
+                        diagnostics.push(error);
+                    }
                 }
                 Meta::NameValue(value) if value.path.is_ident("source_id") => {
-                    set_lit_str(&mut result.source_id, value.value, "source_id")?;
+                    if let Err(error) = set_lit_str(&mut result.source_id, value.value, "source_id") {
+                        diagnostics.push(error);
+                    }
                 }
                 Meta::NameValue(value) if value.path.is_ident("source") => {
                     if result.source.is_some() {
-                        return Err(Error::new_spanned(value, "duplicate `source` option"));
+                        diagnostics.push(Error::new_spanned(value, "duplicate `source` option"));
+                        continue;
                     }
                     let expression = value.value;
-                    result.source = Some(syn::parse2(quote!(#expression))?);
+                    match syn::parse2(quote!(#expression)) {
+                        Ok(value) => result.source = Some(value),
+                        Err(error) => diagnostics.push(error),
+                    }
                 }
                 Meta::NameValue(value) if value.path.is_ident("codec") => {
                     if result.codec.is_some() {
-                        return Err(Error::new_spanned(value, "duplicate `codec` option"));
+                        diagnostics.push(Error::new_spanned(value, "duplicate `codec` option"));
+                        continue;
                     }
                     let expression = value.value;
-                    result.codec = Some(syn::parse2(quote!(#expression))?);
+                    match syn::parse2(quote!(#expression)) {
+                        Ok(value) => result.codec = Some(value),
+                        Err(error) => diagnostics.push(error),
+                    }
                 }
-                Meta::Path(path) if path.is_ident("open") => result.open = true,
-                Meta::Path(path) if path.is_ident("transparent") => result.transparent = true,
-                Meta::Path(path) if path.is_ident("no_clone") => result.no_clone = true,
-                Meta::Path(path) if path.is_ident("no_debug") => result.no_debug = true,
-                Meta::Path(path) if path.is_ident("no_display") => result.no_display = true,
-                Meta::Path(path) if path.is_ident("no_partial_eq") => result.no_partial_eq = true,
-                Meta::Path(path) if path.is_ident("no_eq") => result.no_eq = true,
-                Meta::Path(path) if path.is_ident("no_hash") => result.no_hash = true,
-                Meta::Path(path) if path.is_ident("no_serialize") => result.no_serialize = true,
-                Meta::Path(path) if path.is_ident("no_deserialize") => result.no_deserialize = true,
-                Meta::Path(path) if path.is_ident("no_redact") => result.no_redact = true,
-                Meta::Path(path) if path.is_ident("no_copy") => result.no_copy = true,
-                Meta::Path(path) if path.is_ident("copy") => result.copy = true,
-                Meta::Path(path) if path.is_ident("default") => result.default = true,
-                Meta::Path(path) if path.is_ident("partial_ord") => result.partial_ord = true,
-                Meta::Path(path) if path.is_ident("ord") => result.ord = true,
+                Meta::Path(path) if path.is_ident("open") => set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span()),
+                Meta::Path(path) if path.is_ident("transparent") => set_marker_option(&mut markers, &mut diagnostics, "transparent", &mut result.transparent, path.span()),
+                Meta::Path(path) if path.is_ident("no_clone") => set_marker_option(&mut markers, &mut diagnostics, "no_clone", &mut result.no_clone, path.span()),
+                Meta::Path(path) if path.is_ident("no_debug") => set_marker_option(&mut markers, &mut diagnostics, "no_debug", &mut result.no_debug, path.span()),
+                Meta::Path(path) if path.is_ident("no_display") => set_marker_option(&mut markers, &mut diagnostics, "no_display", &mut result.no_display, path.span()),
+                Meta::Path(path) if path.is_ident("no_partial_eq") => set_marker_option(&mut markers, &mut diagnostics, "no_partial_eq", &mut result.no_partial_eq, path.span()),
+                Meta::Path(path) if path.is_ident("no_eq") => set_marker_option(&mut markers, &mut diagnostics, "no_eq", &mut result.no_eq, path.span()),
+                Meta::Path(path) if path.is_ident("no_hash") => set_marker_option(&mut markers, &mut diagnostics, "no_hash", &mut result.no_hash, path.span()),
+                Meta::Path(path) if path.is_ident("no_serialize") => set_marker_option(&mut markers, &mut diagnostics, "no_serialize", &mut result.no_serialize, path.span()),
+                Meta::Path(path) if path.is_ident("no_deserialize") => set_marker_option(&mut markers, &mut diagnostics, "no_deserialize", &mut result.no_deserialize, path.span()),
+                Meta::Path(path) if path.is_ident("no_redact") => set_marker_option(&mut markers, &mut diagnostics, "no_redact", &mut result.no_redact, path.span()),
+                Meta::Path(path) if path.is_ident("no_copy") => set_marker_option(&mut markers, &mut diagnostics, "no_copy", &mut result.no_copy, path.span()),
+                Meta::Path(path) if path.is_ident("copy") => set_marker_option(&mut markers, &mut diagnostics, "copy", &mut result.copy, path.span()),
+                Meta::Path(path) if path.is_ident("default") => set_marker_option(&mut markers, &mut diagnostics, "default", &mut result.default, path.span()),
+                Meta::Path(path) if path.is_ident("partial_ord") => set_marker_option(&mut markers, &mut diagnostics, "partial_ord", &mut result.partial_ord, path.span()),
+                Meta::Path(path) if path.is_ident("ord") => set_marker_option(&mut markers, &mut diagnostics, "ord", &mut result.ord, path.span()),
                 other => {
-                    return Err(Error::new_spanned(other, "unsupported model option"));
+                    diagnostics.push(Error::new_spanned(other, "unsupported model option"));
                 }
             }
         }
+        diagnostics.finish()?;
         Ok(result)
+    }
+}
+
+/// Records one declaration marker while preserving the second occurrence span.
+fn set_marker_option(
+    markers: &mut std::collections::HashSet<&'static str>,
+    diagnostics: &mut Diagnostics,
+    name: &'static str,
+    value: &mut bool,
+    span: proc_macro2::Span,
+) {
+    if !markers.insert(name) {
+        diagnostics.push(Error::new(span, format!("duplicate `{name}` option")));
+    } else {
+        *value = true;
     }
 }
 
@@ -195,64 +227,67 @@ impl FieldIr {
     fn parse(index: usize, ty: &Type, attributes: &[Attribute], named: bool) -> Result<Self> {
         let mut occurrences = Vec::new();
         let mut keep_serializing = false;
+        let mut diagnostics = Diagnostics::default();
         for attribute in attributes {
-            if attribute.path().is_ident("identifier") {
-                occurrences.push(FieldOccurrence::Identifier(parse_identifier(attribute)?));
+            let result = if attribute.path().is_ident("identifier") {
+                parse_identifier(attribute).map(|value| occurrences.push(FieldOccurrence::Identifier(value)))
             } else if attribute.path().is_ident("indexed") {
                 occurrences.push(FieldOccurrence::Indexed);
+                Ok(())
             } else if attribute.path().is_ident("unique") {
-                occurrences.push(FieldOccurrence::Unique(parse_unique(attribute)?));
+                parse_unique(attribute).map(|value| occurrences.push(FieldOccurrence::Unique(value)))
             } else if attribute.path().is_ident("reference") {
-                occurrences.push(FieldOccurrence::Reference(parse_reference(attribute)?));
+                parse_reference(attribute).map(|value| occurrences.push(FieldOccurrence::Reference(value)))
             } else if attribute.path().is_ident("key_part") {
-                occurrences.push(FieldOccurrence::KeyPart(parse_key_part(attribute)?));
+                parse_key_part(attribute).map(|value| occurrences.push(FieldOccurrence::KeyPart(value)))
             } else if is_constraint_attribute(attribute) {
-                occurrences.push(FieldOccurrence::Constraint(parse_constraint(attribute)?));
+                parse_constraint(attribute).map(|value| occurrences.push(FieldOccurrence::Constraint(value)))
             } else if attribute.path().is_ident("element") {
-                occurrences.push(FieldOccurrence::Selector(parse_selector(
-                    attribute,
-                    SelectorPositionIr::Element,
-                )?));
+                parse_selector(attribute, SelectorPositionIr::Element)
+                    .map(|value| occurrences.push(FieldOccurrence::Selector(value)))
             } else if attribute.path().is_ident("map_key") {
-                occurrences.push(FieldOccurrence::Selector(parse_selector(
-                    attribute,
-                    SelectorPositionIr::MapKey,
-                )?));
+                parse_selector(attribute, SelectorPositionIr::MapKey)
+                    .map(|value| occurrences.push(FieldOccurrence::Selector(value)))
             } else if attribute.path().is_ident("map_value") {
-                occurrences.push(FieldOccurrence::Selector(parse_selector(
-                    attribute,
-                    SelectorPositionIr::MapValue,
-                )?));
+                parse_selector(attribute, SelectorPositionIr::MapValue)
+                    .map(|value| occurrences.push(FieldOccurrence::Selector(value)))
             } else if attribute.path().is_ident("validator") {
-                occurrences.push(FieldOccurrence::Validator(parse_validator(attribute)?));
+                parse_validator(attribute).map(|value| occurrences.push(FieldOccurrence::Validator(value)))
             } else if attribute.path().is_ident("codec") {
-                occurrences.push(FieldOccurrence::Codec(parse_codec(attribute)?));
+                parse_codec(attribute).map(|value| occurrences.push(FieldOccurrence::Codec(value)))
             } else if attribute.path().is_ident("redact") {
-                occurrences.push(FieldOccurrence::Redact(parse_redact(attribute)?));
+                parse_redact(attribute).map(|value| occurrences.push(FieldOccurrence::Redact(value)))
             } else if attribute.path().is_ident("serde") {
-                occurrences.push(FieldOccurrence::Serde(parse_serde(attribute)?));
+                parse_serde(attribute).map(|value| occurrences.push(FieldOccurrence::Serde(value)))
             } else if attribute.path().is_ident("opaque") {
                 occurrences.push(FieldOccurrence::Opaque);
+                Ok(())
             } else if attribute.path().is_ident("keep_serializing") {
                 if !matches!(attribute.meta, Meta::Path(_)) {
-                    return Err(Error::new_spanned(
+                    Err(Error::new_spanned(
                         attribute,
                         "keep_serializing is a marker without arguments",
-                    ));
-                }
-                if keep_serializing {
-                    return Err(Error::new_spanned(
+                    ))
+                } else if keep_serializing {
+                    Err(Error::new_spanned(
                         attribute,
                         "duplicate keep_serializing marker",
-                    ));
+                    ))
+                } else {
+                    keep_serializing = true;
+                    Ok(())
                 }
-                keep_serializing = true;
+            } else {
+                Ok(())
+            };
+            if let Err(error) = result {
+                diagnostics.push(error);
             }
         }
+        diagnostics.finish()?;
         Ok(Self {
-            index,
+            index: Located::new(index, ty.span()),
             ty: ty.clone(),
-            span: ty.span(),
             occurrences,
             keep_serializing,
             named,
@@ -314,6 +349,8 @@ fn parse_unique(attribute: &Attribute) -> Result<UniqueIr> {
     if matches!(attribute.meta, Meta::Path(_)) {
         return Ok(value);
     }
+    let mut diagnostics = Diagnostics::default();
+    let mut saw_ignore_case = false;
     attribute.parse_nested_meta(|meta| {
         if meta.path.is_ident("respect_to") {
             meta.parse_nested_meta(|path| {
@@ -321,12 +358,19 @@ fn parse_unique(attribute: &Attribute) -> Result<UniqueIr> {
                 Ok(())
             })
         } else if meta.path.is_ident("ignore_case") {
-            value.ignore_case = meta.value()?.parse::<syn::LitBool>()?.value;
+            let parsed = meta.value()?.parse::<syn::LitBool>()?.value;
+            if saw_ignore_case {
+                diagnostics.push(meta.error("duplicate unique `ignore_case` option"));
+                return Ok(());
+            }
+            saw_ignore_case = true;
+            value.ignore_case = parsed;
             Ok(())
         } else {
             Err(meta.error("unsupported unique option"))
         }
     })?;
+    diagnostics.finish()?;
     Ok(value)
 }
 
@@ -336,6 +380,10 @@ fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
     let mut property = None;
     let mut existing = true;
     let mut same_as = None;
+    let mut diagnostics = Diagnostics::default();
+    let mut saw_property = false;
+    let mut saw_path = false;
+    let mut saw_existing = false;
     attribute.parse_nested_meta(|meta| {
         if meta.path.is_ident("entity") {
             let value = meta.value()?;
@@ -358,18 +406,35 @@ fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
             }
             Ok(())
         } else if meta.path.is_ident("property") {
+            if saw_property {
+                diagnostics.push(meta.error("duplicate reference `property` option"));
+                return Ok(());
+            }
+            saw_property = true;
             property = Some(parse_path_value(meta.value()?.parse()?)?);
             Ok(())
         } else if meta.path.is_ident("path") {
+            if saw_path {
+                diagnostics.push(meta.error("duplicate reference `path` option"));
+                return Ok(());
+            }
+            saw_path = true;
             same_as = Some(parse_path_value(meta.value()?.parse()?)?);
             Ok(())
         } else if meta.path.is_ident("existing") {
-            existing = meta.value()?.parse::<syn::LitBool>()?.value;
+            let parsed = meta.value()?.parse::<syn::LitBool>()?.value;
+            if saw_existing {
+                diagnostics.push(meta.error("duplicate reference `existing` option"));
+                return Ok(());
+            }
+            saw_existing = true;
+            existing = parsed;
             Ok(())
         } else {
             Err(meta.error("unsupported reference option"))
         }
     })?;
+    diagnostics.finish()?;
     let target = target.ok_or_else(|| {
         Error::new_spanned(attribute, "reference requires `entity` or `entity_id`")
     })?;
@@ -486,8 +551,15 @@ fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
 fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
     let mut value = TextConstraintIr::default();
     let mut any = false;
+    let mut seen = std::collections::HashSet::new();
     attribute.parse_nested_meta(|meta| {
         any = true;
+        let option = meta.path.get_ident().map(ToString::to_string);
+        if let Some(option) = option.as_deref()
+            && !seen.insert(option.to_owned())
+        {
+            return Err(meta.error(format!("duplicate text `{option}` option")));
+        }
         if meta.path.is_ident("min_chars") {
             value.min_chars = Some(meta.value()?.parse::<syn::LitInt>()?.base10_parse()?);
             Ok(())
@@ -532,8 +604,15 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
     let mut min_inclusive = true;
     let mut max_inclusive = true;
     let mut any = false;
+    let mut seen = std::collections::HashSet::new();
     attribute.parse_nested_meta(|meta| {
         any = true;
+        let option = meta.path.get_ident().map(ToString::to_string);
+        if let Some(option) = option.as_deref()
+            && !seen.insert(option.to_owned())
+        {
+            return Err(meta.error(format!("duplicate decimal `{option}` option")));
+        }
         if meta.path.is_ident("precision") {
             precision = Some(meta.value()?.parse::<syn::LitInt>()?.base10_parse()?);
             Ok(())
@@ -846,10 +925,15 @@ fn parse_redact(attribute: &Attribute) -> Result<RedactIr> {
 /// Parses Serde rename, skip, flatten, default, and custom-handler options.
 fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
     let mut serde = SerdeIr::default();
+    let mut saw_rename = false;
     attribute.parse_nested_meta(|meta| {
         if meta.path.is_ident("rename") {
             if meta.input.peek(Token![=]) {
                 let value: LitStr = meta.value()?.parse()?;
+                if saw_rename {
+                    return Err(meta.error("duplicate serde `rename` option"));
+                }
+                saw_rename = true;
                 serde.serialize_name = Some(value.clone());
                 serde.deserialize_name = Some(value);
                 Ok(())

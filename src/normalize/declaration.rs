@@ -370,7 +370,7 @@ pub(super) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
         if !kinds.insert(kind) {
             combine(
                 errors,
-                Error::new(field.span, format!("duplicate {kind} constraint")),
+                Error::new(field.index.span(), format!("duplicate {kind} constraint")),
             );
         }
     }
@@ -389,7 +389,7 @@ pub(super) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
             if !selector_kinds.insert(kind) {
                 combine(
                     errors,
-                    Error::new(field.span, format!("duplicate selector {kind} constraint")),
+                    Error::new(field.index.span(), format!("duplicate selector {kind} constraint")),
                 );
             }
         }
@@ -404,7 +404,7 @@ pub(super) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
                 if min.zip(*max).is_some_and(|(min, max)| min > max) {
                     combine(
                         errors,
-                        Error::new(field.span, "sequence min_items cannot exceed max_items"),
+                        Error::new(field.index.span(), "sequence min_items cannot exceed max_items"),
                     );
                 }
             }
@@ -412,7 +412,7 @@ pub(super) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
                 if min.zip(*max).is_some_and(|(min, max)| min > max) => {
                     combine(
                         errors,
-                        Error::new(field.span, "map min_entries cannot exceed max_entries"),
+                    Error::new(field.index.span(), "map min_entries cannot exceed max_entries"),
                     );
                 }
             _ => {}

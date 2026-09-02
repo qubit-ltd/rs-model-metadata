@@ -6,10 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Semantic values shared by the macro compiler stages.
+//! Shared compiler infrastructure for model declaration macros.
 
-mod located;
-mod macro_kind;
-
-pub(crate) use located::Located;
-pub(crate) use macro_kind::MacroKind;
+pub(crate) mod diagnostics;
