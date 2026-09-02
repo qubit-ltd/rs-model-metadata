@@ -33,6 +33,10 @@ use crate::expand::model_impl::validate_model_impl;
 use crate::ir::MacroKind;
 use crate::runtime_path::runtime_path;
 
+#[path = "capabilities.rs"]
+mod capabilities;
+#[path = "declaration_codegen.rs"]
+mod declaration_codegen;
 #[path = "../ir/declaration.rs"]
 mod declaration_ir;
 #[path = "../normalize/declaration.rs"]
@@ -41,10 +45,6 @@ mod declaration_normalize;
 mod declaration_parse;
 #[path = "../validate/declaration.rs"]
 mod declaration_validate;
-#[path = "capabilities.rs"]
-mod capabilities;
-#[path = "declaration_codegen.rs"]
-mod declaration_codegen;
 
 use capabilities::apply_default_derives;
 use capabilities::apply_serde_defaults;

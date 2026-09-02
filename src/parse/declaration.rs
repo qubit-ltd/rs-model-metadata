@@ -1,5 +1,23 @@
 // =============================================================================
 
+use heck::ToShoutySnakeCase;
+use quote::quote;
+use syn::Attribute;
+use syn::Error;
+use syn::Expr;
+use syn::ExprLit;
+use syn::Fields;
+use syn::Lit;
+use syn::LitStr;
+use syn::Meta;
+use syn::Result;
+use syn::Token;
+use syn::Type;
+use syn::parse::Parser;
+use syn::parse_quote;
+use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
+
 use super::declaration_ir::CodecIr;
 use super::declaration_ir::ConstraintIr;
 use super::declaration_ir::DecimalConstraintIr;
@@ -22,23 +40,6 @@ use super::declaration_ir::VariantIr;
 use super::declaration_validate::combine;
 use crate::compiler::diagnostics::Diagnostics;
 use crate::ir::Located;
-use heck::ToShoutySnakeCase;
-use quote::quote;
-use syn::Attribute;
-use syn::Expr;
-use syn::ExprLit;
-use syn::Error;
-use syn::Fields;
-use syn::Lit;
-use syn::LitStr;
-use syn::Meta;
-use syn::Result;
-use syn::Token;
-use syn::Type;
-use syn::parse::Parser;
-use syn::parse_quote;
-use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -69,10 +70,7 @@ pub(super) fn parse_variants(data: &syn::DataEnum) -> Result<Vec<VariantIr>> {
     for variant in &data.variants {
         let default_name = variant.ident.to_string().to_shouty_snake_case();
         let canonical_name = parse_variant_name(&variant.attrs, &default_name);
-        let names = parse_variant_serde_names(
-            &variant.attrs,
-            canonical_name.as_deref().unwrap_or(&default_name),
-        );
+        let names = parse_variant_serde_names(&variant.attrs, canonical_name.as_deref().unwrap_or(&default_name));
         let fields = parse_fields(&variant.fields);
         match (canonical_name, names, fields) {
             (Ok(canonical_name), Ok((serialized_name, deserialized_name)), Ok(fields)) => parsed.push(VariantIr {
@@ -108,7 +106,10 @@ pub(super) fn parse_variants(data: &syn::DataEnum) -> Result<Vec<VariantIr>> {
 /// Parses an optional stable variant name, defaulting to the Rust name.
 fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String> {
     let mut name = None;
-    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("variant")) {
+    for attribute in attributes
+        .iter()
+        .filter(|attribute| attribute.path().is_ident("variant"))
+    {
         attribute.parse_nested_meta(|meta| {
             if !meta.path.is_ident("name") {
                 return Err(meta.error("unsupported variant option"));
@@ -128,16 +129,10 @@ fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String>
 }
 
 /// Parses variant rename attributes and returns serialized/deserialized names.
-fn parse_variant_serde_names(
-    attributes: &[Attribute],
-    canonical: &str,
-) -> Result<(String, String)> {
+fn parse_variant_serde_names(attributes: &[Attribute], canonical: &str) -> Result<(String, String)> {
     let mut serialize = canonical.to_owned();
     let mut deserialize = canonical.to_owned();
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("serde"))
-    {
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("serde")) {
         let value = parse_serde(attribute)?;
         if let Some(name) = value.serialize_name {
             serialize = name.value();
@@ -210,22 +205,102 @@ impl DeclarationOptions {
                         Err(error) => diagnostics.push(error),
                     }
                 }
-                Meta::Path(path) if path.is_ident("open") => set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span()),
-                Meta::Path(path) if path.is_ident("transparent") => set_marker_option(&mut markers, &mut diagnostics, "transparent", &mut result.transparent, path.span()),
-                Meta::Path(path) if path.is_ident("no_clone") => set_marker_option(&mut markers, &mut diagnostics, "no_clone", &mut result.no_clone, path.span()),
-                Meta::Path(path) if path.is_ident("no_debug") => set_marker_option(&mut markers, &mut diagnostics, "no_debug", &mut result.no_debug, path.span()),
-                Meta::Path(path) if path.is_ident("no_display") => set_marker_option(&mut markers, &mut diagnostics, "no_display", &mut result.no_display, path.span()),
-                Meta::Path(path) if path.is_ident("no_partial_eq") => set_marker_option(&mut markers, &mut diagnostics, "no_partial_eq", &mut result.no_partial_eq, path.span()),
-                Meta::Path(path) if path.is_ident("no_eq") => set_marker_option(&mut markers, &mut diagnostics, "no_eq", &mut result.no_eq, path.span()),
-                Meta::Path(path) if path.is_ident("no_hash") => set_marker_option(&mut markers, &mut diagnostics, "no_hash", &mut result.no_hash, path.span()),
-                Meta::Path(path) if path.is_ident("no_serialize") => set_marker_option(&mut markers, &mut diagnostics, "no_serialize", &mut result.no_serialize, path.span()),
-                Meta::Path(path) if path.is_ident("no_deserialize") => set_marker_option(&mut markers, &mut diagnostics, "no_deserialize", &mut result.no_deserialize, path.span()),
-                Meta::Path(path) if path.is_ident("no_redact") => set_marker_option(&mut markers, &mut diagnostics, "no_redact", &mut result.no_redact, path.span()),
-                Meta::Path(path) if path.is_ident("no_copy") => set_marker_option(&mut markers, &mut diagnostics, "no_copy", &mut result.no_copy, path.span()),
-                Meta::Path(path) if path.is_ident("copy") => set_marker_option(&mut markers, &mut diagnostics, "copy", &mut result.copy, path.span()),
-                Meta::Path(path) if path.is_ident("default") => set_marker_option(&mut markers, &mut diagnostics, "default", &mut result.default, path.span()),
-                Meta::Path(path) if path.is_ident("partial_ord") => set_marker_option(&mut markers, &mut diagnostics, "partial_ord", &mut result.partial_ord, path.span()),
-                Meta::Path(path) if path.is_ident("ord") => set_marker_option(&mut markers, &mut diagnostics, "ord", &mut result.ord, path.span()),
+                Meta::Path(path) if path.is_ident("open") => {
+                    set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span())
+                }
+                Meta::Path(path) if path.is_ident("transparent") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "transparent",
+                    &mut result.transparent,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_clone") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_clone",
+                    &mut result.no_clone,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_debug") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_debug",
+                    &mut result.no_debug,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_display") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_display",
+                    &mut result.no_display,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_partial_eq") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_partial_eq",
+                    &mut result.no_partial_eq,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_eq") => {
+                    set_marker_option(&mut markers, &mut diagnostics, "no_eq", &mut result.no_eq, path.span())
+                }
+                Meta::Path(path) if path.is_ident("no_hash") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_hash",
+                    &mut result.no_hash,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_serialize") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_serialize",
+                    &mut result.no_serialize,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_deserialize") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_deserialize",
+                    &mut result.no_deserialize,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_redact") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_redact",
+                    &mut result.no_redact,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_copy") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_copy",
+                    &mut result.no_copy,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("copy") => {
+                    set_marker_option(&mut markers, &mut diagnostics, "copy", &mut result.copy, path.span())
+                }
+                Meta::Path(path) if path.is_ident("default") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "default",
+                    &mut result.default,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("partial_ord") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "partial_ord",
+                    &mut result.partial_ord,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("ord") => {
+                    set_marker_option(&mut markers, &mut diagnostics, "ord", &mut result.ord, path.span())
+                }
                 other => {
                     diagnostics.push(Error::new_spanned(other, "unsupported model option"));
                 }
@@ -298,10 +373,7 @@ impl FieldIr {
                         "keep_serializing is a marker without arguments",
                     ))
                 } else if keep_serializing {
-                    Err(Error::new_spanned(
-                        attribute,
-                        "duplicate keep_serializing marker",
-                    ))
+                    Err(Error::new_spanned(attribute, "duplicate keep_serializing marker"))
                 } else {
                     keep_serializing = true;
                     Ok(())
@@ -350,20 +422,13 @@ fn parse_identifier(attribute: &Attribute) -> Result<IdentifierAssignmentIr> {
 /// Sets a string option while rejecting duplicate declarations.
 fn set_lit_str(slot: &mut Option<LitStr>, value: Expr, name: &str) -> Result<()> {
     if slot.is_some() {
-        return Err(Error::new_spanned(
-            value,
-            format!("duplicate `{name}` option"),
-        ));
+        return Err(Error::new_spanned(value, format!("duplicate `{name}` option")));
     }
     let Expr::Lit(ExprLit {
-        lit: Lit::Str(value),
-        ..
+        lit: Lit::Str(value), ..
     }) = value
     else {
-        return Err(Error::new_spanned(
-            value,
-            format!("`{name}` requires a string literal"),
-        ));
+        return Err(Error::new_spanned(value, format!("`{name}` requires a string literal")));
     };
     *slot = Some(value);
     Ok(())
@@ -464,9 +529,7 @@ fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
         }
     })?;
     diagnostics.finish()?;
-    let target = target.ok_or_else(|| {
-        Error::new_spanned(attribute, "reference requires `entity` or `entity_id`")
-    })?;
+    let target = target.ok_or_else(|| Error::new_spanned(attribute, "reference requires `entity` or `entity_id`"))?;
     Ok(ReferenceIr {
         target,
         property,
@@ -523,9 +586,9 @@ fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
                 Err(meta.error("unsupported time option"))
             }
         })?;
-        return Ok(ConstraintIr::Time(precision.ok_or_else(|| {
-            Error::new_spanned(attribute, "time requires precision")
-        })?));
+        return Ok(ConstraintIr::Time(
+            precision.ok_or_else(|| Error::new_spanned(attribute, "time requires precision"))?,
+        ));
     }
     if attribute.path().is_ident("sequence") {
         let (mut min, mut max, mut unique) = (None, None, false);
@@ -546,10 +609,7 @@ fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
             }
         })?;
         if !any {
-            return Err(Error::new_spanned(
-                attribute,
-                "sequence requires at least one option",
-            ));
+            return Err(Error::new_spanned(attribute, "sequence requires at least one option"));
         }
         return Ok(ConstraintIr::Sequence { min, max, unique });
     }
@@ -568,10 +628,7 @@ fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
         }
     })?;
     if !any {
-        return Err(Error::new_spanned(
-            attribute,
-            "map requires min_entries or max_entries",
-        ));
+        return Err(Error::new_spanned(attribute, "map requires min_entries or max_entries"));
     }
     Ok(ConstraintIr::Map { min, max })
 }
@@ -615,10 +672,7 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
         }
     })?;
     if !any {
-        return Err(Error::new_spanned(
-            attribute,
-            "text requires at least one option",
-        ));
+        return Err(Error::new_spanned(attribute, "text requires at least one option"));
     }
     Ok(value)
 }
@@ -677,18 +731,12 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
         return Err(Error::new_spanned(attribute, "money requires scale"));
     }
     if precision.is_some_and(|precision| scale.is_some_and(|scale| scale > precision)) {
-        return Err(Error::new_spanned(
-            attribute,
-            "decimal scale cannot exceed precision",
-        ));
+        return Err(Error::new_spanned(attribute, "decimal scale cannot exceed precision"));
     }
     if let (Some(minimum), Some(maximum)) = (&min, &max) {
         match compare_decimal_literals(&minimum.value(), &maximum.value()) {
             Some(core::cmp::Ordering::Greater) => {
-                return Err(Error::new_spanned(
-                    attribute,
-                    "decimal min cannot exceed max",
-                ));
+                return Err(Error::new_spanned(attribute, "decimal min cannot exceed max"));
             }
             Some(core::cmp::Ordering::Equal) if !min_inclusive && !max_inclusive => {
                 return Err(Error::new_spanned(
@@ -734,9 +782,7 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
 
 /// Splits a decimal literal into sign, digits, and fractional scale.
 fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
-    let (negative, unsigned) = value
-        .strip_prefix('-')
-        .map_or((false, value), |value| (true, value));
+    let (negative, unsigned) = value.strip_prefix('-').map_or((false, value), |value| (true, value));
     if unsigned.is_empty() || unsigned.starts_with('+') {
         return None;
     }
@@ -755,11 +801,7 @@ fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
     let fraction = fraction.trim_end_matches('0');
     let digits = format!("{integer}{fraction}");
     let digits = digits.trim_start_matches('0').to_owned();
-    let normalized = if digits.is_empty() {
-        "0".to_owned()
-    } else {
-        digits
-    };
+    let normalized = if digits.is_empty() { "0".to_owned() } else { digits };
     let scale = fraction.len();
     Some((negative && normalized != "0", normalized, scale))
 }
@@ -786,10 +828,7 @@ fn compare_decimal_literals(left: &str, right: &str) -> Option<core::cmp::Orderi
 /// Parses a selector and its nested constraints, validators, and redaction.
 fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result<SelectorIr> {
     let Meta::List(list) = &attribute.meta else {
-        return Err(Error::new_spanned(
-            attribute,
-            "selector requires nested declarations",
-        ));
+        return Err(Error::new_spanned(attribute, "selector requires nested declarations"));
     };
     let values = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(list.tokens.clone())?;
     let mut selector = SelectorIr {
@@ -803,11 +842,7 @@ fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result
         let nested: Attribute = parse_quote!(#[#value]);
         if is_constraint_attribute(&nested) {
             if matches!(
-                nested
-                    .path()
-                    .get_ident()
-                    .map(ToString::to_string)
-                    .as_deref(),
+                nested.path().get_ident().map(ToString::to_string).as_deref(),
                 Some("sequence" | "map")
             ) {
                 return Err(Error::new_spanned(
@@ -824,16 +859,10 @@ fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result
             }
         } else if nested.path().is_ident("redact") {
             if selector.redact.replace(parse_redact(&nested)?).is_some() {
-                return Err(Error::new_spanned(
-                    nested,
-                    "selector accepts one redact declaration",
-                ));
+                return Err(Error::new_spanned(nested, "selector accepts one redact declaration"));
             }
         } else {
-            return Err(Error::new_spanned(
-                nested,
-                "unsupported selector declaration",
-            ));
+            return Err(Error::new_spanned(nested, "unsupported selector declaration"));
         }
     }
     Ok(selector)
@@ -842,9 +871,7 @@ fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result
 /// Converts an identifier expression into its canonical path text.
 fn parse_ident_value(expression: Expr) -> Result<String> {
     match expression {
-        Expr::Path(path) if path.path.segments.len() == 1 => {
-            Ok(path.path.segments[0].ident.to_string())
-        }
+        Expr::Path(path) if path.path.segments.len() == 1 => Ok(path.path.segments[0].ident.to_string()),
         other => Err(Error::new_spanned(other, "expected an identifier value")),
     }
 }
@@ -871,9 +898,7 @@ fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
                 let name = parameter
                     .path
                     .get_ident()
-                    .ok_or_else(|| {
-                        parameter.error("validator parameter name must be an identifier")
-                    })?
+                    .ok_or_else(|| parameter.error("validator parameter name must be an identifier"))?
                     .to_string();
                 let expression: Expr = parameter.value()?.parse()?;
                 params.push((name, parse_strategy_argument(expression)?));
@@ -883,14 +908,9 @@ fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
             Err(meta.error("unsupported validator option"))
         }
     })?;
-    let id =
-        id.ok_or_else(|| Error::new_spanned(attribute, "validator requires `id = \"...\"`"))?;
+    let id = id.ok_or_else(|| Error::new_spanned(attribute, "validator requires `id = \"...\"`"))?;
     validate_ascii_id(&id, "validator ID")?;
-    Ok(ValidatorIr {
-        id,
-        params,
-        depends_on,
-    })
+    Ok(ValidatorIr { id, params, depends_on })
 }
 
 /// Parses a declared codec ID or Rust codec type.
@@ -916,9 +936,7 @@ fn parse_codec(attribute: &Attribute) -> Result<CodecIr> {
         }
         Ok(())
     })?;
-    result.ok_or_else(|| {
-        Error::new_spanned(attribute, "codec requires a Rust type or `id = \"...\"`")
-    })
+    result.ok_or_else(|| Error::new_spanned(attribute, "codec requires a Rust type or `id = \"...\"`"))
 }
 
 /// Parses a field or selector redaction mode.
@@ -1021,12 +1039,10 @@ fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
 fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
     match expression {
         Expr::Lit(ExprLit {
-            lit: Lit::Bool(value),
-            ..
+            lit: Lit::Bool(value), ..
         }) => Ok(StrategyArgumentIr::Bool(value.value)),
         Expr::Lit(ExprLit {
-            lit: Lit::Int(value),
-            ..
+            lit: Lit::Int(value), ..
         }) => {
             let text = value.base10_digits();
             if text.starts_with('-') {
@@ -1036,13 +1052,11 @@ fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
             }
         }
         Expr::Lit(ExprLit {
-            lit: Lit::Str(value),
-            ..
+            lit: Lit::Str(value), ..
         }) => Ok(StrategyArgumentIr::String(value)),
         Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Neg(_)) => {
             let Expr::Lit(ExprLit {
-                lit: Lit::Int(value),
-                ..
+                lit: Lit::Int(value), ..
             }) = *unary.expr
             else {
                 return Err(Error::new_spanned(
@@ -1065,19 +1079,12 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
     if values.is_empty() {
         return Ok(StrategyArgumentIr::StringList(Vec::new()));
     }
-    if matches!(
-        values.first(),
-        Some(Expr::Lit(ExprLit {
-            lit: Lit::Bool(_),
-            ..
-        }))
-    ) {
+    if matches!(values.first(), Some(Expr::Lit(ExprLit { lit: Lit::Bool(_), .. }))) {
         return values
             .into_iter()
             .map(|value| match value {
                 Expr::Lit(ExprLit {
-                    lit: Lit::Bool(value),
-                    ..
+                    lit: Lit::Bool(value), ..
                 }) => Ok(value.value),
                 other => Err(Error::new_spanned(
                     other,
@@ -1094,25 +1101,15 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
             .collect::<Result<Vec<_>>>()
             .map(StrategyArgumentIr::IntegerList);
     }
-    if matches!(
-        values.first(),
-        Some(Expr::Lit(ExprLit {
-            lit: Lit::Int(_),
-            ..
-        }))
-    ) {
+    if matches!(values.first(), Some(Expr::Lit(ExprLit { lit: Lit::Int(_), .. }))) {
         return values
             .into_iter()
             .map(|value| match value {
                 Expr::Lit(ExprLit {
-                    lit: Lit::Int(value),
-                    ..
-                }) => value.base10_parse::<u128>().map_err(|error| {
-                    Error::new_spanned(
-                        value,
-                        format!("invalid unsigned validator integer: {error}"),
-                    )
-                }),
+                    lit: Lit::Int(value), ..
+                }) => value
+                    .base10_parse::<u128>()
+                    .map_err(|error| Error::new_spanned(value, format!("invalid unsigned validator integer: {error}"))),
                 other => Err(Error::new_spanned(
                     other,
                     "validator parameter arrays must be homogeneous",
@@ -1121,19 +1118,12 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
             .collect::<Result<Vec<_>>>()
             .map(StrategyArgumentIr::UnsignedList);
     }
-    if matches!(
-        values.first(),
-        Some(Expr::Lit(ExprLit {
-            lit: Lit::Str(_),
-            ..
-        }))
-    ) {
+    if matches!(values.first(), Some(Expr::Lit(ExprLit { lit: Lit::Str(_), .. }))) {
         return values
             .into_iter()
             .map(|value| match value {
                 Expr::Lit(ExprLit {
-                    lit: Lit::Str(value),
-                    ..
+                    lit: Lit::Str(value), ..
                 }) => Ok(value),
                 other => Err(Error::new_spanned(
                     other,
@@ -1153,21 +1143,17 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
 fn parse_strategy_signed_integer(value: &Expr) -> Result<i128> {
     match value {
         Expr::Lit(ExprLit {
-            lit: Lit::Int(value),
-            ..
-        }) => value.base10_parse::<i128>().map_err(|error| {
-            Error::new_spanned(value, format!("invalid signed validator integer: {error}"))
-        }),
+            lit: Lit::Int(value), ..
+        }) => value
+            .base10_parse::<i128>()
+            .map_err(|error| Error::new_spanned(value, format!("invalid signed validator integer: {error}"))),
         Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Neg(_)) => match unary.expr.as_ref() {
             Expr::Lit(ExprLit {
-                lit: Lit::Int(value),
-                ..
+                lit: Lit::Int(value), ..
             }) => value
                 .base10_parse::<i128>()
                 .map(|value| -value)
-                .map_err(|error| {
-                    Error::new_spanned(value, format!("invalid signed validator integer: {error}"))
-                }),
+                .map_err(|error| Error::new_spanned(value, format!("invalid signed validator integer: {error}"))),
             other => Err(Error::new_spanned(
                 other,
                 "negative validator parameters require an integer literal",
@@ -1185,13 +1171,9 @@ fn parse_path_value(expression: Expr) -> Result<Vec<String>> {
     match expression {
         Expr::Path(path) => Ok(path_from_syn(&path.path)),
         Expr::Lit(ExprLit {
-            lit: Lit::Str(value),
-            ..
+            lit: Lit::Str(value), ..
         }) => Ok(value.value().split('.').map(str::to_owned).collect()),
-        other => Err(Error::new_spanned(
-            other,
-            "expected an identifier path or string path",
-        )),
+        other => Err(Error::new_spanned(other, "expected an identifier path or string path")),
     }
 }
 
@@ -1202,10 +1184,7 @@ fn path_text(expression: Expr) -> Result<String> {
 
 /// Converts a Syn path into owned identifier segments.
 fn path_from_syn(path: &syn::Path) -> Vec<String> {
-    path.segments
-        .iter()
-        .map(|segment| segment.ident.to_string())
-        .collect()
+    path.segments.iter().map(|segment| segment.ident.to_string()).collect()
 }
 
 /// Validates that a model or validator ID is non-empty ASCII text.

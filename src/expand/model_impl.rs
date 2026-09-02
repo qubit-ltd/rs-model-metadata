@@ -480,9 +480,7 @@ fn validate_unique_property_methods(getters: &[GetterIr], setters: &[SetterIr], 
 /// `runtime` supply the validated method contract and emitted type paths.
 fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
-    let adapter = format_ident!(
-        "__qubit_model_property_getter_{index}_{target_suffix:016x}",
-    );
+    let adapter = format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}",);
     let method = &getter.method;
     let value = match &getter.output {
         GetterReturn::Owned(_) => {
@@ -519,9 +517,7 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
 /// `runtime` supply the validated method contract and emitted type paths.
 fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
-    let adapter = format_ident!(
-        "__qubit_model_property_setter_{index}_{target_suffix:016x}",
-    );
+    let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}",);
     let method = &setter.method;
     let input = &setter.input;
     quote! {

@@ -36,5 +36,4 @@ impl<T> Located<T> {
     pub(crate) const fn span(&self) -> Span {
         self.span
     }
-
 }

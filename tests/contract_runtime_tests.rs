@@ -67,10 +67,7 @@ impl ContractProperty {
 #[test]
 fn test_public_macros_emit_metadata_for_all_roles() {
     assert_eq!(TypeMetadata::of::<ContractEntity>().role(), ModelRole::Entity);
-    assert_eq!(
-        TypeMetadata::of::<ContractProjection>().role(),
-        ModelRole::Projection
-    );
+    assert_eq!(TypeMetadata::of::<ContractProjection>().role(), ModelRole::Projection);
     assert_eq!(TypeMetadata::of::<ContractModel<String>>().role(), ModelRole::Model);
     assert_eq!(TypeMetadata::of::<ContractEnum<String>>().role(), ModelRole::Enum);
     assert_eq!(TypeMetadata::of::<ContractValue>().role(), ModelRole::Value);

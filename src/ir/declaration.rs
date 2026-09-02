@@ -1,13 +1,5 @@
 // =============================================================================
 
-use super::declaration_normalize::normalize_selector_containers;
-use super::declaration_normalize::validate_declaration_ir;
-use super::declaration_parse::parse_fields;
-use super::declaration_parse::parse_variants;
-use super::declaration_parse::validate_ascii_id;
-use super::declaration_validate::combine;
-use crate::ir::Located;
-use super::MacroKind;
 use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
@@ -17,12 +9,25 @@ use syn::Result;
 use syn::Token;
 use syn::Type;
 use syn::punctuated::Punctuated;
+
+use super::MacroKind;
+use super::declaration_normalize::normalize_selector_containers;
+use super::declaration_normalize::validate_declaration_ir;
+use super::declaration_parse::parse_fields;
+use super::declaration_parse::parse_variants;
+use super::declaration_parse::validate_ascii_id;
+use super::declaration_validate::combine;
+use crate::ir::Located;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+
+// qubit-style: allow multiple-public-types
+// The declaration IR is one private vocabulary shared by parsing,
+// normalization, validation, and expansion.
 
 /// Normalized declaration-level options shared by all role macros.
 #[derive(Clone)]
@@ -365,11 +370,7 @@ pub(super) struct DeclarationIr {
 
 impl DeclarationIr {
     /// Parses role options and fields, then validates role-specific invariants.
-    pub(super) fn parse(
-        kind: MacroKind,
-        options: Punctuated<Meta, Token![,]>,
-        item: &DeriveInput,
-    ) -> Result<Self> {
+    pub(super) fn parse(kind: MacroKind, options: Punctuated<Meta, Token![,]>, item: &DeriveInput) -> Result<Self> {
         let mut errors = None;
         let options = match DeclarationOptions::parse(options) {
             Ok(options) => Some(options),
@@ -408,10 +409,7 @@ impl DeclarationIr {
         let mut fields = fields.expect("errors returned when fields are unavailable");
         let mut variants = variants.expect("errors returned when variants are unavailable");
         if kind == MacroKind::Entity && options.id.is_none() {
-            return Err(Error::new_spanned(
-                &item.ident,
-                "Entity requires `id = \"...\"`",
-            ));
+            return Err(Error::new_spanned(&item.ident, "Entity requires `id = \"...\"`"));
         }
         if let Some(id) = &options.id {
             validate_ascii_id(id, "model ID")?;

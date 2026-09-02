@@ -116,7 +116,9 @@ struct Payload {
 enum Status {
     #[variant(name = "APPROVED")]
     Ready,
-    Failed { message: String },
+    Failed {
+        message: String,
+    },
 }
 
 #[Enum(id = "runtime.GenericStatus")]

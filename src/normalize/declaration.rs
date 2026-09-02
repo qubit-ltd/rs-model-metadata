@@ -1,5 +1,10 @@
 // =============================================================================
 
+use syn::DeriveInput;
+use syn::Error;
+use syn::Result;
+
+use super::MacroKind;
 use super::capabilities::omission_kind;
 use super::declaration_ir::ConstraintIr;
 use super::declaration_ir::DeclarationIr;
@@ -10,10 +15,6 @@ use super::declaration_ir::RedactModeIr;
 use super::declaration_ir::SelectorIr;
 use super::declaration_ir::SelectorPositionIr;
 use super::declaration_validate::combine;
-use super::MacroKind;
-use syn::DeriveInput;
-use syn::Error;
-use syn::Result;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -39,10 +40,7 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
     if options.source.is_some() && options.source_id.is_some() {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "Projection accepts only one of `source` or `source_id`",
-            ),
+            Error::new_spanned(&item.ident, "Projection accepts only one of `source` or `source_id`"),
         );
     }
     if options.open && (options.source.is_some() || options.source_id.is_some()) {
@@ -90,12 +88,7 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
     let all_fields: Vec<_> = declaration
         .fields
         .iter()
-        .chain(
-            declaration
-                .variants
-                .iter()
-                .flat_map(|variant| &variant.fields),
-        )
+        .chain(declaration.variants.iter().flat_map(|variant| &variant.fields))
         .collect();
     let mut variant_names = std::collections::HashSet::new();
     for variant in &declaration.variants {
@@ -111,21 +104,14 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
             field.occurrences.iter().any(|value| {
                 matches!(
                     value,
-                    FieldOccurrence::Redact(_)
-                        | FieldOccurrence::Selector(SelectorIr {
-                            redact: Some(_),
-                            ..
-                        })
+                    FieldOccurrence::Redact(_) | FieldOccurrence::Selector(SelectorIr { redact: Some(_), .. })
                 )
             })
         })
     {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "no_redact cannot be combined with field redaction rules",
-            ),
+            Error::new_spanned(&item.ident, "no_redact cannot be combined with field redaction rules"),
         );
     }
     for field in &all_fields {
@@ -137,23 +123,16 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
             .occurrences
             .iter()
             .any(|value| matches!(value, FieldOccurrence::Reference(_)));
-        if has_identifier && !matches!(declaration.kind, MacroKind::Entity | MacroKind::Projection)
-        {
+        if has_identifier && !matches!(declaration.kind, MacroKind::Entity | MacroKind::Projection) {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    &item.ident,
-                    "identifier is only valid for Entity and Projection",
-                ),
+                Error::new_spanned(&item.ident, "identifier is only valid for Entity and Projection"),
             );
         }
         if has_reference && matches!(declaration.kind, MacroKind::Enum | MacroKind::Value) {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    &item.ident,
-                    "Enum and Value fields cannot declare references",
-                ),
+                Error::new_spanned(&item.ident, "Enum and Value fields cannot declare references"),
             );
         }
         for occurrence in &field.occurrences {
@@ -172,29 +151,27 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
                 FieldOccurrence::KeyPart(_) if declaration.kind != MacroKind::Model || !field.named => {
                     combine(
                         &mut errors,
-                        Error::new(
-                            field.index.span(),
-                            "key_part is only valid on named Model fields",
-                        ),
+                        Error::new(field.index.span(), "key_part is only valid on named Model fields"),
                     );
                 }
-                FieldOccurrence::Unique(unique)
-                    if unique.ignore_case && !is_text_type(&field.ty) =>
-                {
+                FieldOccurrence::Unique(unique) if unique.ignore_case && !is_text_type(&field.ty) => {
                     combine(
                         &mut errors,
-                        Error::new(
-                            field.index.span(),
-                            "unique(ignore_case = true) requires a text field",
-                        ),
+                        Error::new(field.index.span(), "unique(ignore_case = true) requires a text field"),
                     );
                 }
                 FieldOccurrence::Constraint(ConstraintIr::Text(text)) => {
                     if text.min_chars.zip(text.max_chars).is_some_and(|(min, max)| min > max) {
-                        combine(&mut errors, Error::new(field.index.span(), "text min_chars cannot exceed max_chars"));
+                        combine(
+                            &mut errors,
+                            Error::new(field.index.span(), "text min_chars cannot exceed max_chars"),
+                        );
                     }
                     if text.min_bytes.zip(text.max_bytes).is_some_and(|(min, max)| min > max) {
-                        combine(&mut errors, Error::new(field.index.span(), "text min_bytes cannot exceed max_bytes"));
+                        combine(
+                            &mut errors,
+                            Error::new(field.index.span(), "text min_bytes cannot exceed max_bytes"),
+                        );
                     }
                 }
                 _ => {}
@@ -203,9 +180,7 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
         let has_implicit_index = field.occurrences.iter().any(|value| {
             matches!(
                 value,
-                FieldOccurrence::Identifier(_)
-                    | FieldOccurrence::Unique(_)
-                    | FieldOccurrence::Reference(_)
+                FieldOccurrence::Identifier(_) | FieldOccurrence::Unique(_) | FieldOccurrence::Reference(_)
             )
         });
         if has_implicit_index
@@ -240,13 +215,7 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
             |value: &FieldOccurrence| matches!(value, FieldOccurrence::Serde(_)),
         ];
         for predicate in predicates {
-            if field
-                .occurrences
-                .iter()
-                .filter(|value| predicate(value))
-                .count()
-                > 1
-            {
+            if field.occurrences.iter().filter(|value| predicate(value)).count() > 1 {
                 combine(
                     &mut errors,
                     Error::new_spanned(&item.ident, "duplicate singleton field declaration"),
@@ -290,15 +259,10 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
             .occurrences
             .iter()
             .any(|value| matches!(value, FieldOccurrence::Redact(_)));
-        let selector_redact = field.occurrences.iter().any(|value| {
-            matches!(
-                value,
-                FieldOccurrence::Selector(SelectorIr {
-                    redact: Some(_),
-                    ..
-                })
-            )
-        });
+        let selector_redact = field
+            .occurrences
+            .iter()
+            .any(|value| matches!(value, FieldOccurrence::Selector(SelectorIr { redact: Some(_), .. })));
         if field_redact && selector_redact {
             combine(
                 &mut errors,
@@ -342,17 +306,10 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
     {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "key_part orders must be unique and contiguous from zero",
-            ),
+            Error::new_spanned(&item.ident, "key_part orders must be unique and contiguous from zero"),
         );
     }
-    if let Some(error) = errors {
-        Err(error)
-    } else {
-        Ok(())
-    }
+    if let Some(error) = errors { Err(error) } else { Ok(()) }
 }
 
 /// Reports whether a field is a built-in text type.
@@ -383,12 +340,10 @@ pub(super) fn normalize_selector_containers(field: &mut FieldIr) {
         )
     });
     if has_element
-        && !field.occurrences.iter().any(|value| {
-            matches!(
-                value,
-                FieldOccurrence::Constraint(ConstraintIr::Sequence { .. })
-            )
-        })
+        && !field
+            .occurrences
+            .iter()
+            .any(|value| matches!(value, FieldOccurrence::Constraint(ConstraintIr::Sequence { .. })))
     {
         field
             .occurrences
@@ -406,10 +361,7 @@ pub(super) fn normalize_selector_containers(field: &mut FieldIr) {
     {
         field
             .occurrences
-            .push(FieldOccurrence::Constraint(ConstraintIr::Map {
-                min: None,
-                max: None,
-            }));
+            .push(FieldOccurrence::Constraint(ConstraintIr::Map { min: None, max: None }));
     }
 }
 
@@ -469,13 +421,12 @@ pub(super) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
                     );
                 }
             }
-            ConstraintIr::Map { min, max }
-                if min.zip(*max).is_some_and(|(min, max)| min > max) => {
-                    combine(
-                        errors,
+            ConstraintIr::Map { min, max } if min.zip(*max).is_some_and(|(min, max)| min > max) => {
+                combine(
+                    errors,
                     Error::new(field.index.span(), "map min_entries cannot exceed max_entries"),
-                    );
-                }
+                );
+            }
             _ => {}
         }
     }

@@ -1,5 +1,21 @@
 // =============================================================================
 
+use heck::ToSnakeCase;
+use proc_macro2::TokenStream;
+use quote::format_ident;
+use quote::quote;
+use syn::Data;
+use syn::DeriveInput;
+use syn::Error;
+use syn::Expr;
+use syn::ExprLit;
+use syn::Fields;
+use syn::Lit;
+use syn::LitStr;
+use syn::Type;
+use syn::parse_quote;
+
+use super::MacroKind;
 use super::declaration_ir::CodecIr;
 use super::declaration_ir::ConstraintIr;
 use super::declaration_ir::DeclarationIr;
@@ -16,21 +32,6 @@ use super::declaration_ir::SerdeIr;
 use super::declaration_ir::StrategyArgumentIr;
 use super::declaration_ir::ValidatorIr;
 use super::declaration_ir::VariantIr;
-use super::MacroKind;
-use heck::ToSnakeCase;
-use proc_macro2::TokenStream;
-use quote::format_ident;
-use quote::quote;
-use syn::Data;
-use syn::DeriveInput;
-use syn::Error;
-use syn::Expr;
-use syn::ExprLit;
-use syn::Fields;
-use syn::Lit;
-use syn::LitStr;
-use syn::Type;
-use syn::parse_quote;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -39,18 +40,15 @@ use syn::parse_quote;
 // =============================================================================
 
 /// Generates lazy type metadata and registration implementations.
-pub(super) fn expand_metadata(
-    declaration: &DeclarationIr,
-    item: &DeriveInput,
-    runtime: &TokenStream,
-) -> TokenStream {
+pub(super) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let ident = &item.ident;
     let fields = expand_field_vector(&declaration.fields, quote!(descriptor.fields()), runtime);
     let role = expand_role(declaration, runtime);
-    let declared_model_id = declaration.options.id.as_ref().map_or_else(
-        || quote!(None),
-        |id| quote!(Some(#runtime::ModelId::new(#id))),
-    );
+    let declared_model_id = declaration
+        .options
+        .id
+        .as_ref()
+        .map_or_else(|| quote!(None), |id| quote!(Some(#runtime::ModelId::new(#id))));
     let has_generics = !item.generics.params.is_empty();
     let mut impl_generics_source = item.generics.clone();
     for parameter in impl_generics_source.type_params_mut() {
@@ -58,10 +56,7 @@ pub(super) fn expand_metadata(
         parameter.bounds.push(parse_quote!('static));
     }
     let (impl_generics, ty_generics, where_clause) = impl_generics_source.split_for_impl();
-    let generic_metadata = format_ident!(
-        "__qubit_model_generic_metadata_{}",
-        ident.to_string().to_snake_case()
-    );
+    let generic_metadata = format_ident!("__qubit_model_generic_metadata_{}", ident.to_string().to_snake_case());
     let registration = match (declaration.options.id.as_ref(), has_generics) {
         (Some(_), false) => expand_registration(ident, runtime),
         (Some(id), true) => expand_generic_registration(
@@ -83,15 +78,11 @@ pub(super) fn expand_metadata(
         declared_model_id.clone()
     };
     let generic_definition = if has_generics {
-        declaration
-            .options
-            .id
-            .as_ref()
-            .map_or_else(TokenStream::new, |_| {
-                quote! {
-                    let metadata = metadata.generic_definition(#generic_metadata());
-                }
-            })
+        declaration.options.id.as_ref().map_or_else(TokenStream::new, |_| {
+            quote! {
+                let metadata = metadata.generic_definition(#generic_metadata());
+            }
+        })
     } else {
         TokenStream::new()
     };
@@ -200,8 +191,7 @@ fn expand_generic_registration(
     let fingerprint = stable_fingerprint(&ident.to_string());
     let template = expand_generic_template(ident, fields, data, generics, runtime);
     let template_root = format_ident!("__qubit_model_generic_template_{}", snake_name);
-    let template_fields =
-        expand_field_vector(fields, quote!(template_descriptor.fields()), runtime);
+    let template_fields = expand_field_vector(fields, quote!(template_descriptor.fields()), runtime);
     let template_variants = expand_generic_variant_vector(variants, runtime);
     quote! {
         #template
@@ -371,17 +361,14 @@ fn expand_generic_enum_template(
                 .ident
                 .as_ref()
                 .map(|name| LitStr::new(&name.to_string(), name.span()));
-            let rust_field_name = name
-                .as_ref()
-                .map_or_else(|| quote!(None), |name| quote!(Some(#name)));
+            let rust_field_name = name.as_ref().map_or_else(|| quote!(None), |name| quote!(Some(#name)));
             let query_name = rust_field_name.clone();
             let declared_visibility = &field.vis;
             let visibility = LitStr::new(
                 &quote!(#declared_visibility).to_string().replace(' ', ""),
                 proc_macro2::Span::call_site(),
             );
-            let expression =
-                expand_type_expression(&field.ty, &type_parameters, &const_parameters, runtime);
+            let expression = expand_type_expression(&field.ty, &type_parameters, &const_parameters, runtime);
             quote! {
                 {
                     let field_type: &'static #runtime::descriptor::TypeRef =
@@ -543,13 +530,11 @@ fn expand_type_expression(
             ))
         }
         Type::Slice(slice) => {
-            let element =
-                expand_type_expression(&slice.elem, type_parameters, const_parameters, runtime);
+            let element = expand_type_expression(&slice.elem, type_parameters, const_parameters, runtime);
             quote!(#runtime::expression::TypeExpression::Slice(::std::boxed::Box::new(#element)))
         }
         Type::Array(array) => {
-            let element =
-                expand_type_expression(&array.elem, type_parameters, const_parameters, runtime);
+            let element = expand_type_expression(&array.elem, type_parameters, const_parameters, runtime);
             let length = expand_const_expression(&array.len, const_parameters, runtime);
             quote!(#runtime::expression::TypeExpression::Array(
                 #runtime::__private::reflect_codegen_v1::expression::array(
@@ -559,16 +544,16 @@ fn expand_type_expression(
             ))
         }
         Type::Tuple(tuple) => {
-            let elements = tuple.elems.iter().map(|element| {
-                expand_type_expression(element, type_parameters, const_parameters, runtime)
-            });
+            let elements = tuple
+                .elems
+                .iter()
+                .map(|element| expand_type_expression(element, type_parameters, const_parameters, runtime));
             quote!(#runtime::expression::TypeExpression::Tuple(
                 ::std::boxed::Box::new([#(#elements),*]),
             ))
         }
         Type::Reference(reference) => {
-            let target =
-                expand_type_expression(&reference.elem, type_parameters, const_parameters, runtime);
+            let target = expand_type_expression(&reference.elem, type_parameters, const_parameters, runtime);
             let lifetime = match reference
                 .lifetime
                 .as_ref()
@@ -632,28 +617,24 @@ fn expand_const_expression(
             }
         }
         Expr::Lit(ExprLit {
-            lit: Lit::Int(value),
-            ..
+            lit: Lit::Int(value), ..
         }) => {
             let value = match value.base10_parse::<u128>() {
                 Ok(value) => value,
                 Err(_) => {
-                    return Error::new(value.span(), "const integer literal exceeds u128")
-                        .into_compile_error();
+                    return Error::new(value.span(), "const integer literal exceeds u128").into_compile_error();
                 }
             };
             quote!(#runtime::expression::ConstExpression::UnsignedInteger(#value))
         }
         Expr::Lit(ExprLit {
-            lit: Lit::Bool(value),
-            ..
+            lit: Lit::Bool(value), ..
         }) => {
             let value = value.value;
             quote!(#runtime::expression::ConstExpression::Boolean(#value))
         }
         Expr::Lit(ExprLit {
-            lit: Lit::Char(value),
-            ..
+            lit: Lit::Char(value), ..
         }) => {
             let value = value.value();
             quote!(#runtime::expression::ConstExpression::Character(#value))
@@ -666,11 +647,7 @@ fn expand_const_expression(
 }
 
 /// Generates the runtime field vector for a declaration.
-fn expand_field_vector(
-    fields: &[FieldIr],
-    descriptor_fields: TokenStream,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_field_vector(fields: &[FieldIr], descriptor_fields: TokenStream, runtime: &TokenStream) -> TokenStream {
     let bodies = fields
         .iter()
         .map(|field| expand_field(field, &descriptor_fields, runtime));
@@ -681,11 +658,7 @@ fn expand_field_vector(
 }
 
 /// Generates one field descriptor and its normalized attributes.
-fn expand_field(
-    field: &FieldIr,
-    descriptor_fields: &TokenStream,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_field(field: &FieldIr, descriptor_fields: &TokenStream, runtime: &TokenStream) -> TokenStream {
     let index = *field.index.value();
     let field_type = &field.ty;
     let validator_irs: Vec<_> = field
@@ -696,9 +669,7 @@ fn expand_field(
             _ => None,
         })
         .collect();
-    let validators = validator_irs
-        .iter()
-        .map(|value| expand_validator(value, runtime));
+    let validators = validator_irs.iter().map(|value| expand_validator(value, runtime));
     let identifier_assignment = field.occurrences.iter().find_map(|value| match value {
         FieldOccurrence::Identifier(value) => Some(*value),
         _ => None,
@@ -733,61 +704,34 @@ fn expand_field(
         _ => None,
     });
     let element_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value)
-            if matches!(value.position, SelectorPositionIr::Element) =>
-        {
-            Some(value)
-        }
+        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::Element) => Some(value),
         _ => None,
     });
     let map_key_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value)
-            if matches!(value.position, SelectorPositionIr::MapKey) =>
-        {
-            Some(value)
-        }
+        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapKey) => Some(value),
         _ => None,
     });
     let map_value_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value)
-            if matches!(value.position, SelectorPositionIr::MapValue) =>
-        {
-            Some(value)
-        }
+        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapValue) => Some(value),
         _ => None,
     });
     let element_selector = element_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v3::SequenceConstraintTarget>::Element
         );
-        expand_selector_metadata(
-            value,
-            &value_type,
-            format_ident!("element_selector"),
-            runtime,
-        )
+        expand_selector_metadata(value, &value_type, format_ident!("element_selector"), runtime)
     });
     let map_key_selector = map_key_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v3::MapConstraintTarget>::Key
         );
-        expand_selector_metadata(
-            value,
-            &value_type,
-            format_ident!("map_key_selector"),
-            runtime,
-        )
+        expand_selector_metadata(value, &value_type, format_ident!("map_key_selector"), runtime)
     });
     let map_value_selector = map_value_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v3::MapConstraintTarget>::Value
         );
-        expand_selector_metadata(
-            value,
-            &value_type,
-            format_ident!("map_value_selector"),
-            runtime,
-        )
+        expand_selector_metadata(value, &value_type, format_ident!("map_value_selector"), runtime)
     });
     let constraint_irs: Vec<_> = field
         .occurrences
@@ -806,8 +750,7 @@ fn expand_field(
             runtime,
         )
     });
-    let constraint_assertions =
-        expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
+    let constraint_assertions = expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
     let requires_sequence = element_ir.is_some()
         || constraint_irs
             .iter()
@@ -879,8 +822,7 @@ fn expand_field(
             );
         }
     });
-    let redact = redact_ir
-        .map(|value| expand_redact(value, quote!(#runtime::RedactPosition::Field), runtime));
+    let redact = redact_ir.map(|value| expand_redact(value, quote!(#runtime::RedactPosition::Field), runtime));
     let serde = serde_ir.map_or_else(
         || quote!(let serde: &'static #runtime::SerdeFieldMetadata = &#runtime::SerdeFieldMetadata::DEFAULT;),
         |value| expand_serde(value, runtime),
@@ -1099,13 +1041,17 @@ fn expand_constraint_assertions(
             assert_temporal_target::<#target>();
         },
         ConstraintIr::Sequence { min, max, unique } => {
-            let length = (min.is_some() || max.is_some()).then(|| quote! {
-                fn assert_variable_sequence<T: #runtime::__private::v3::VariableLengthSequenceTarget>() {}
-                assert_variable_sequence::<#target>();
+            let length = (min.is_some() || max.is_some()).then(|| {
+                quote! {
+                    fn assert_variable_sequence<T: #runtime::__private::v3::VariableLengthSequenceTarget>() {}
+                    assert_variable_sequence::<#target>();
+                }
             });
-            let uniqueness = unique.then(|| quote! {
-                fn assert_unique_items_target<T: #runtime::__private::v3::UniqueItemsConstraintTarget>() {}
-                assert_unique_items_target::<#target>();
+            let uniqueness = unique.then(|| {
+                quote! {
+                    fn assert_unique_items_target<T: #runtime::__private::v3::UniqueItemsConstraintTarget>() {}
+                    assert_unique_items_target::<#target>();
+                }
             });
             quote! {
                 fn assert_sequence_constraint<T: #runtime::__private::v3::SequenceConstraintTarget>() {}
@@ -1145,8 +1091,7 @@ fn expand_selector_metadata(
         .iter()
         .map(|constraint| expand_constraint(constraint, false, false, false, runtime));
     let constraint_refs: Vec<_> = value.constraints.iter().collect();
-    let constraint_assertions =
-        expand_constraint_assertions(&constraint_refs, value_type.clone(), runtime);
+    let constraint_assertions = expand_constraint_assertions(&constraint_refs, value_type.clone(), runtime);
     let validators = value
         .validators
         .iter()
@@ -1217,10 +1162,7 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
         let value = expand_strategy_argument(value, runtime);
         quote!(#runtime::NamedValidationArgument::new(#name, #value))
     });
-    let depends_on = validator
-        .depends_on
-        .iter()
-        .map(|path| expand_field_path(path, runtime));
+    let depends_on = validator.depends_on.iter().map(|path| expand_field_path(path, runtime));
     quote!({
         let params: &'static [#runtime::NamedValidationArgument<'static>] = #runtime::__private::v3::leak_slice(::std::vec![#(#params),*]);
         let depends_on: &'static [#runtime::PropertyPath<'static>] = #runtime::__private::v3::leak_slice(::std::vec![#(#depends_on),*]);
@@ -1301,11 +1243,7 @@ fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream
 }
 
 /// Generates the redaction expression associated with a redaction mode.
-fn redact_expression(
-    redact: &RedactIr,
-    position: TokenStream,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
     let (sensitivity, mode) = match &redact.mode {
         RedactModeIr::Level(level) => {
             let sensitivity = match level.as_str() {
@@ -1313,22 +1251,14 @@ fn redact_expression(
                 "medium" => quote!(#runtime::Sensitivity::Medium),
                 "high" => quote!(#runtime::Sensitivity::High),
                 "secret" => quote!(#runtime::Sensitivity::Secret),
-                _ => quote!(compile_error!(
-                    "redact level must be low, medium, high, or secret"
-                )),
+                _ => quote!(compile_error!("redact level must be low, medium, high, or secret")),
             };
-            (
-                quote!(Some(#sensitivity)),
-                quote!(#runtime::RedactModeMetadata::Level),
-            )
+            (quote!(Some(#sensitivity)), quote!(#runtime::RedactModeMetadata::Level))
         }
         RedactModeIr::Skip => (quote!(None), quote!(#runtime::RedactModeMetadata::Skip)),
         RedactModeIr::Nested => (quote!(None), quote!(#runtime::RedactModeMetadata::Nested)),
         RedactModeIr::Map => (quote!(None), quote!(#runtime::RedactModeMetadata::Map)),
-        RedactModeIr::KeyedBy(field) => (
-            quote!(None),
-            quote!(#runtime::RedactModeMetadata::KeyedBy(#field)),
-        ),
+        RedactModeIr::KeyedBy(field) => (quote!(None), quote!(#runtime::RedactModeMetadata::KeyedBy(#field))),
         RedactModeIr::Json => (quote!(None), quote!(#runtime::RedactModeMetadata::Json)),
     };
     quote!(#runtime::RedactMetadata::new(#sensitivity, #mode, #position))

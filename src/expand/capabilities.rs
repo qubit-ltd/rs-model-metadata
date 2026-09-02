@@ -1,10 +1,5 @@
 // =============================================================================
 
-use super::declaration_ir::DeclarationIr;
-use super::declaration_ir::FieldIr;
-use super::declaration_ir::FieldOccurrence;
-use super::declaration_ir::SerdeIr;
-use super::MacroKind;
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
@@ -20,6 +15,12 @@ use syn::Token;
 use syn::Type;
 use syn::parse_quote;
 use syn::punctuated::Punctuated;
+
+use super::MacroKind;
+use super::declaration_ir::DeclarationIr;
+use super::declaration_ir::FieldIr;
+use super::declaration_ir::FieldOccurrence;
+use super::declaration_ir::SerdeIr;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -41,22 +42,13 @@ pub(super) fn apply_default_derives(
         ));
     }
     if options.copy && options.no_copy {
-        return Err(Error::new_spanned(
-            &item.ident,
-            "`copy` conflicts with `no_copy`",
-        ));
+        return Err(Error::new_spanned(&item.ident, "`copy` conflicts with `no_copy`"));
     }
     if options.partial_ord && options.no_partial_eq {
-        return Err(Error::new_spanned(
-            &item.ident,
-            "`partial_ord` requires PartialEq",
-        ));
+        return Err(Error::new_spanned(&item.ident, "`partial_ord` requires PartialEq"));
     }
     if options.ord && (options.no_partial_eq || options.no_eq) {
-        return Err(Error::new_spanned(
-            &item.ident,
-            "`ord` requires PartialEq and Eq",
-        ));
+        return Err(Error::new_spanned(&item.ident, "`ord` requires PartialEq and Eq"));
     }
     let existing = existing_derive_names(&item.attrs)?;
     let conflicts = [
@@ -64,10 +56,7 @@ pub(super) fn apply_default_derives(
         (options.no_copy, "Copy"),
         (options.no_partial_eq, "PartialEq"),
         (options.no_partial_eq || options.no_eq, "Eq"),
-        (
-            options.no_partial_eq || options.no_eq || options.no_hash,
-            "Hash",
-        ),
+        (options.no_partial_eq || options.no_eq || options.no_hash, "Hash"),
         (options.no_partial_eq, "PartialOrd"),
         (options.no_partial_eq || options.no_eq, "Ord"),
     ];
@@ -86,10 +75,7 @@ pub(super) fn apply_default_derives(
             "explicit Debug would bypass model redaction; use the generated safe implementation",
         ));
     }
-    if !options.no_redact
-        && !options.no_serialize
-        && existing.iter().any(|name| name == "Serialize")
-    {
+    if !options.no_redact && !options.no_serialize && existing.iter().any(|name| name == "Serialize") {
         return Err(Error::new_spanned(
             &item.ident,
             "explicit Serialize would bypass model redaction; use the generated safe implementation",
@@ -125,10 +111,7 @@ pub(super) fn apply_default_derives(
     let default_copy = !options.no_clone
         && !options.no_copy
         && declaration.kind == MacroKind::Enum
-        && declaration
-            .variants
-            .iter()
-            .all(|variant| variant.fields.is_empty());
+        && declaration.variants.iter().all(|variant| variant.fields.is_empty());
     if options.copy || default_copy {
         add("Copy", quote!(Copy));
     }
@@ -139,10 +122,7 @@ pub(super) fn apply_default_derives(
         add("Serialize", quote!(#runtime::__private::serde::Serialize));
     }
     if !options.no_deserialize {
-        add(
-            "Deserialize",
-            quote!(#runtime::__private::serde::Deserialize),
-        );
+        add("Deserialize", quote!(#runtime::__private::serde::Deserialize));
     }
     if !options.no_redact {
         add("Redact", quote!(#runtime::__private::v3::Redact));
@@ -186,15 +166,9 @@ pub(super) fn apply_default_derives(
 
 /// Reports whether a declaration already supplies `serde(rename_all = ...)`.
 fn has_serde_rename_all(attributes: &[Attribute]) -> Result<bool> {
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("serde"))
-    {
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("serde")) {
         let entries = attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-        if entries
-            .iter()
-            .any(|entry| entry.path().is_ident("rename_all"))
-        {
+        if entries.iter().any(|entry| entry.path().is_ident("rename_all")) {
             return Ok(true);
         }
     }
@@ -202,11 +176,7 @@ fn has_serde_rename_all(attributes: &[Attribute]) -> Result<bool> {
 }
 
 /// Generates the redaction-aware display implementation for a declaration.
-pub(super) fn expand_display(
-    declaration: &DeclarationIr,
-    item: &DeriveInput,
-    runtime: &TokenStream,
-) -> TokenStream {
+pub(super) fn expand_display(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let options = &declaration.options;
     if options.no_display || (!options.no_redact && !options.transparent) {
         return TokenStream::new();
@@ -225,24 +195,16 @@ pub(super) fn expand_display(
         let where_clause = generics.make_where_clause();
         if let Some(field) = transparent_field {
             let ty = &field.ty;
-            where_clause
-                .predicates
-                .push(parse_quote!(#ty: ::core::fmt::Display));
+            where_clause.predicates.push(parse_quote!(#ty: ::core::fmt::Display));
         } else {
             let fields: Vec<_> = match &item.data {
                 Data::Struct(data) => data.fields.iter().collect(),
-                Data::Enum(data) => data
-                    .variants
-                    .iter()
-                    .flat_map(|variant| variant.fields.iter())
-                    .collect(),
+                Data::Enum(data) => data.variants.iter().flat_map(|variant| variant.fields.iter()).collect(),
                 Data::Union(_) => Vec::new(),
             };
             for field in fields {
                 let ty = &field.ty;
-                where_clause
-                    .predicates
-                    .push(parse_quote!(#ty: ::core::fmt::Debug));
+                where_clause.predicates.push(parse_quote!(#ty: ::core::fmt::Debug));
             }
         }
     }
@@ -348,11 +310,7 @@ fn plain_structured_display_body(name: &syn::Ident, data: &Data) -> TokenStream 
 }
 
 /// Adds default Serde attributes required by the selected role options.
-pub(super) fn apply_serde_defaults(
-    declaration: &mut DeclarationIr,
-    item: &mut DeriveInput,
-    runtime: &TokenStream,
-) {
+pub(super) fn apply_serde_defaults(declaration: &mut DeclarationIr, item: &mut DeriveInput, runtime: &TokenStream) {
     match (&mut item.data, declaration.kind) {
         (Data::Struct(data), _) => {
             for (field, ir) in data.fields.iter_mut().zip(&mut declaration.fields) {
@@ -383,17 +341,13 @@ fn apply_field_serde_default(field: &mut syn::Field, ir: &mut FieldIr, runtime: 
     let Some(kind) = kind else {
         return;
     };
-    let serde = match ir
-        .occurrences
-        .iter_mut()
-        .find_map(|occurrence| match occurrence {
-            FieldOccurrence::Serde(value) => Some(value),
-            _ => None,
-        }) {
+    let serde = match ir.occurrences.iter_mut().find_map(|occurrence| match occurrence {
+        FieldOccurrence::Serde(value) => Some(value),
+        _ => None,
+    }) {
         Some(value) => value,
         None => {
-            ir.occurrences
-                .push(FieldOccurrence::Serde(SerdeIr::default()));
+            ir.occurrences.push(FieldOccurrence::Serde(SerdeIr::default()));
             let Some(FieldOccurrence::Serde(value)) = ir.occurrences.last_mut() else {
                 return;
             };
@@ -421,9 +375,7 @@ fn apply_field_serde_default(field: &mut syn::Field, ir: &mut FieldIr, runtime: 
         runtime.to_string().replace(' ', ""),
     );
     let path = LitStr::new(&path, proc_macro2::Span::call_site());
-    field
-        .attrs
-        .push(parse_quote!(#[serde(skip_serializing_if = #path)]));
+    field.attrs.push(parse_quote!(#[serde(skip_serializing_if = #path)]));
     serde.omit_from_model = true;
 }
 
@@ -444,14 +396,7 @@ pub(super) fn omission_kind(ty: &Type) -> Option<OmissionKind> {
     }
     matches!(
         name.as_str(),
-        "Vec"
-            | "VecDeque"
-            | "LinkedList"
-            | "BinaryHeap"
-            | "HashSet"
-            | "BTreeSet"
-            | "HashMap"
-            | "BTreeMap"
+        "Vec" | "VecDeque" | "LinkedList" | "BinaryHeap" | "HashSet" | "BTreeSet" | "HashMap" | "BTreeMap"
     )
     .then_some(OmissionKind::Collection)
 }
@@ -463,13 +408,12 @@ fn existing_derive_names(attributes: &[Attribute]) -> Result<Vec<String>> {
         if !attribute.path().is_ident("derive") {
             continue;
         }
-        let paths =
-            attribute.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)?;
-        result.extend(paths.iter().filter_map(|path| {
-            path.segments
-                .last()
-                .map(|segment| segment.ident.to_string())
-        }));
+        let paths = attribute.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)?;
+        result.extend(
+            paths
+                .iter()
+                .filter_map(|path| path.segments.last().map(|segment| segment.ident.to_string())),
+        );
     }
     Ok(result)
 }
