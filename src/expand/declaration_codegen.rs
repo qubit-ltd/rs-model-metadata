@@ -635,7 +635,13 @@ fn expand_const_expression(
             lit: Lit::Int(value),
             ..
         }) => {
-            let value = value.base10_parse::<u128>().unwrap_or_default();
+            let value = match value.base10_parse::<u128>() {
+                Ok(value) => value,
+                Err(_) => {
+                    return Error::new(value.span(), "const integer literal exceeds u128")
+                        .into_compile_error();
+                }
+            };
             quote!(#runtime::expression::ConstExpression::UnsignedInteger(#value))
         }
         Expr::Lit(ExprLit {
