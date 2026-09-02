@@ -97,6 +97,8 @@ Static metadata lookup through `TypeMetadata::of::<T>()` and
 Use `ModelRegistry`, `ValidatorRegistry`, `ValueCodecRegistry`, and
 `ModelResolver` only after all participating crates are linked, when resolving
 IDs, references, projection sources, queries, validators, or codecs.
+`ValueCodecRegistry` requires a direct `qubit-codec` dependency with
+`features = ["registry"]`; it is not part of that crate's default feature set.
 
 Lower-case `#[validator(...)]` emits a validated occurrence. The resolver binds
 its stable ID to a `qubit-validator` registration and resolves readable

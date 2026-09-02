@@ -27,7 +27,11 @@ ModelImpl impl ----------> property capability
 [dependencies]
 qubit-model-derive = { path = "../rs-model-derive" }
 qubit-model-metadata = { path = "../rs-model-metadata" }
+qubit-codec = { version = "0.14", features = ["registry"] }
 ```
+
+图解析示例会导入 `ValueCodecRegistry`。该类型只有在直接依赖的 `qubit-codec` 启用 `registry` feature
+时才可用。
 
 下面的声明包含透明值对象、实体、带引用的模型，以及字段支持和计算属性：
 

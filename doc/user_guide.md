@@ -38,7 +38,11 @@ workspace layout:
 [dependencies]
 qubit-model-derive = { path = "../rs-model-derive" }
 qubit-model-metadata = { path = "../rs-model-metadata" }
+qubit-codec = { version = "0.14", features = ["registry"] }
 ```
+
+The graph-resolution example imports `ValueCodecRegistry`, which is available
+only when the direct `qubit-codec` dependency enables `registry`.
 
 Declare a transparent value, an entity, a reference-bearing model, and one
 field-backed property plus a computed property:

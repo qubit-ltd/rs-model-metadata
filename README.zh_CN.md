@@ -79,6 +79,8 @@ assert!(metadata.descriptor().model_metadata().is_some());
 
 通过 `TypeMetadata::of::<T>()` 或 `ModelDescriptorExt::model_metadata()` 查询静态元数据不会初始化全局注册表。只有在所有参与 crate 都已链接后，才使用 `ModelRegistry`、`ValidatorRegistry`、
 `ValueCodecRegistry` 和 `ModelResolver` 解析稳定 ID、reference、Projection 来源、Query、validator 或 codec。
+`ValueCodecRegistry` 需要应用直接依赖 `qubit-codec` 并启用 `features = ["registry"]`；该 feature 不在
+默认 feature 集中。
 
 小写 `#[validator(...)]` 生成已校验的 occurrence；resolver 会按稳定 ID 绑定 `qubit-validator`
 注册项并解析可读依赖。Rust codec 会直接生成可执行 `ValueCodecDescriptor`，或按稳定 ID 绑定，且会校验

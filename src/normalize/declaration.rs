@@ -312,11 +312,26 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
     if let Some(error) = errors { Err(error) } else { Ok(()) }
 }
 
-/// Reports whether a field is a built-in text type.
+/// Reports whether a field is a built-in text type or an optional text type.
 fn is_text_type(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Path(path)
-        if path.qself.is_none()
-            && path.path.segments.last().is_some_and(|segment| segment.ident == "String" || segment.ident == "str"))
+    let syn::Type::Path(path) = ty else {
+        return false;
+    };
+    if path.qself.is_some() {
+        return false;
+    }
+    let Some(segment) = path.path.segments.last() else {
+        return false;
+    };
+    if segment.ident == "String" || segment.ident == "str" {
+        return true;
+    }
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return false;
+    };
+    segment.ident == "Option"
+        && arguments.args.len() == 1
+        && matches!(arguments.args.first(), Some(syn::GenericArgument::Type(inner)) if is_text_type(inner))
 }
 
 /// Adds implicit container constraints required by selector metadata.
