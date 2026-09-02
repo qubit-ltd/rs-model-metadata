@@ -20,7 +20,12 @@
 [dependencies]
 qubit-model-metadata = "0.1"
 qubit-model-derive = "0.1"
+# 仅当应用直接导入 ValueCodecRegistry 时需要。
+qubit-codec = { version = "0.14", features = ["registry"] }
 ```
+
+`ValueCodecRegistry` 受 `qubit-codec` 的 `registry` feature 控制。应用若直接导入该注册表并运行
+`ModelResolver`，必须显式启用这一 feature；默认 feature 集不提供 codec registry。
 
 ## 快速开始
 

@@ -45,7 +45,13 @@ Add the runtime and macro crates to the application:
 [dependencies]
 qubit-model-metadata = "0.1"
 qubit-model-derive = "0.1"
+# Required for the ValueCodecRegistry used by the resolution step below.
+qubit-codec = { version = "0.14", features = ["registry"] }
 ```
+
+`ValueCodecRegistry` is available only with `qubit-codec`'s `registry`
+feature. Keep that feature enabled in the application crate that imports and
+supplies the codec registry to `ModelResolver`.
 
 Use a model-role derive macro for every type passed to `TypeMetadata::of`.
 The macro generates the required metadata provider and bounds; a type derived

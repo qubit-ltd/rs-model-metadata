@@ -38,7 +38,12 @@ Rust 声明 -> TypeDescriptor -> TypeMetadata -> ModelRegistry -> ResolvedModelG
 [dependencies]
 qubit-model-metadata = "0.1"
 qubit-model-derive = "0.1"
+# 下方解析步骤使用 ValueCodecRegistry，必须启用此 feature。
+qubit-codec = { version = "0.14", features = ["registry"] }
 ```
+
+`ValueCodecRegistry` 只有启用 `qubit-codec` 的 `registry` feature 后才可用。直接导入它并把它传给
+`ModelResolver` 的应用 crate 必须保留该 feature。
 
 传给 `TypeMetadata::of` 的类型必须使用模型角色派生宏。该宏会生成所需的 metadata provider 与 trait
 bound；仅派生结构反射的类型不能满足这一要求。

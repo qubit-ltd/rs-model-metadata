@@ -22,7 +22,13 @@ and its companion derive crate to an application that declares models:
 [dependencies]
 qubit-model-metadata = "0.1"
 qubit-model-derive = "0.1"
+# Required only when the application imports ValueCodecRegistry directly.
+qubit-codec = { version = "0.14", features = ["registry"] }
 ```
+
+`ValueCodecRegistry` is feature-gated by `qubit-codec`. Applications that run
+`ModelResolver` and import that registry directly must enable `registry`; it
+is not made available by `qubit-codec`'s default feature set.
 
 ## Quick Start
 
