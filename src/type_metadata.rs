@@ -189,9 +189,8 @@ impl TypeMetadata {
     /// Returns unmerged field/getter/setter declarations in source order.
     #[must_use]
     pub fn property_fragments(&'static self) -> &'static [PropertyFragment] {
-        self.descriptor
-            .get_capability(crate::reflect_facade::model_impl_key())
-            .map_or(self.property_fragments, |provider| provider().fragments())
+        crate::reflect_facade::model_impl_metadata(self.descriptor)
+            .map_or(self.property_fragments, |metadata| metadata.fragments())
     }
 
     /// Returns locally merged field and method properties.
@@ -202,9 +201,8 @@ impl TypeMetadata {
     /// `ModelImpl` block disagrees with the model's reflected fields.
     #[must_use = "handle property assembly failures"]
     pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
-        self.descriptor
-            .get_capability(crate::reflect_facade::model_impl_key())
-            .map_or(Ok(&self.properties), |provider| provider().try_properties())
+        crate::reflect_facade::model_impl_metadata(self.descriptor)
+            .map_or(Ok(&self.properties), |metadata| metadata.try_properties())
     }
 
     /// Finds a locally merged property by its public name.

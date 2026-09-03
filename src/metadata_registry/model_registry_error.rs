@@ -45,10 +45,14 @@ pub struct ModelRegistryError {
 impl ModelRegistryError {
     /// Wraps a failure from reflection registry initialization.
     pub(crate) fn reflection(error: RegistryError) -> Self {
+        let sources = error.conflicting_fragments().map_or_else(
+            || error.fragment_identity().into_iter().cloned().collect(),
+            |(left, right)| vec![left.clone(), right.clone()],
+        );
         Self {
             kind: ModelRegistryErrorKind::ReflectionRegistry,
             model_id: None,
-            sources: error.fragment_identity().into_iter().cloned().collect(),
+            sources,
             reflection: Some(error),
         }
     }

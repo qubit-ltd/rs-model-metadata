@@ -13,12 +13,15 @@ use std::any::TypeId;
 
 use qubit_reflect::FieldAccessError;
 use qubit_reflect::FieldSetRecovery;
+use qubit_reflect::InvocationOutput;
 use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::TypeMismatch;
 use qubit_reflect::descriptor::TypeRef;
+use qubit_reflect::invoke::BorrowOrigin;
+use qubit_reflect::value::Local;
 
 use crate::FieldMetadata;
 
@@ -45,6 +48,42 @@ pub enum PropertyValue<'a> {
     BorrowedSlice(BorrowedPropertySlice<'a>),
     /// An owned dynamically typed value.
     Owned(ReflectedOwned),
+}
+
+impl<'a> PropertyValue<'a> {
+    /// Converts a property getter result into the shared reflection invocation
+    /// output contract without erasing optionality or borrowed slices.
+    ///
+    /// Property getter borrows can only originate from their target, so every
+    /// borrowed output records [`BorrowOrigin::Receiver`].
+    #[must_use]
+    pub fn into_invocation_output(self) -> InvocationOutput<'a, Local> {
+        let receiver_origin = || Box::new([BorrowOrigin::Receiver]);
+        match self {
+            Self::Borrowed(value) => InvocationOutput::Ref {
+                value,
+                origins: receiver_origin(),
+            },
+            Self::OptionalBorrowed(value) => InvocationOutput::OptionalRef {
+                value,
+                origins: receiver_origin(),
+            },
+            Self::BorrowedSlice(value) => {
+                let values = (0..value.len())
+                    .map(|index| {
+                        value
+                            .get(index)
+                            .expect("indices below the reported slice length must exist")
+                    })
+                    .collect();
+                InvocationOutput::RefSlice {
+                    values,
+                    origins: receiver_origin(),
+                }
+            }
+            Self::Owned(value) => InvocationOutput::Owned(value),
+        }
+    }
 }
 
 trait PropertySlice<'a> {
@@ -161,7 +200,7 @@ impl PropertyAccessError {
 #[must_use]
 pub struct PropertySetFailure {
     /// The structured reason why the property write failed.
-    error: PropertyAccessError,
+    error: Box<PropertyAccessError>,
     /// The untouched replacement retained for a pre-execution failure.
     replacement: Option<Box<ReflectedOwned>>,
 }
@@ -172,7 +211,7 @@ impl PropertySetFailure {
     #[must_use = "handle the property set failure"]
     pub fn before_execution(error: PropertyAccessError, replacement: ReflectedOwned) -> Self {
         Self {
-            error,
+            error: Box::new(error),
             replacement: Some(Box::new(replacement)),
         }
     }
@@ -181,9 +220,9 @@ impl PropertySetFailure {
     /// boundary.
     #[doc(hidden)]
     #[must_use = "handle the property set failure"]
-    pub const fn after_execution(error: PropertyAccessError) -> Self {
+    pub fn after_execution(error: PropertyAccessError) -> Self {
         Self {
-            error,
+            error: Box::new(error),
             replacement: None,
         }
     }
@@ -204,7 +243,7 @@ impl PropertySetFailure {
     /// Consumes the failure and returns its parts.
     #[must_use = "handle the property error and recovered replacement"]
     pub fn into_parts(self) -> (PropertyAccessError, Option<ReflectedOwned>) {
-        (self.error, self.replacement.map(|replacement| *replacement))
+        (*self.error, self.replacement.map(|replacement| *replacement))
     }
 }
 
@@ -561,7 +600,7 @@ impl PropertyMetadata {
             return field.reflect().set(target, value).map_err(|failure| {
                 let (error, recovery) = failure.into_parts();
                 PropertySetFailure {
-                    error: PropertyAccessError::Field(error),
+                    error: Box::new(PropertyAccessError::Field(error)),
                     replacement: recovery.map(FieldSetRecovery::into_value).map(Box::new),
                 }
             });

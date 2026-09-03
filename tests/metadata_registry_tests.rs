@@ -9,7 +9,12 @@
 // qubit-style: allow explicit-imports
 //! Integration tests for frozen model registration indexes.
 
+use std::sync::OnceLock;
+
+use qubit_model_metadata::__private::ModelTypeSeal;
+use qubit_model_metadata::__private::TypeMetadataProvider;
 use qubit_model_metadata::__private::v3;
+use qubit_model_metadata::__private::v3::register_model_capability;
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelRegistration;
 use qubit_model_metadata::ModelRegistry;
@@ -17,7 +22,9 @@ use qubit_model_metadata::ModelRegistryErrorKind;
 use qubit_model_metadata::ModelRole;
 use qubit_model_metadata::Reflect;
 use qubit_model_metadata::TypeDescriptor;
+use qubit_model_metadata::TypeMetadata;
 use qubit_model_metadata::identity::FragmentIdentity;
+use qubit_model_metadata::registry::ReflectRegistry;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]
@@ -28,6 +35,30 @@ struct RegistryFixture;
 struct GenericFixture<T> {
     value: T,
 }
+
+#[derive(Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+struct ProjectedFixture;
+
+impl ModelTypeSeal for ProjectedFixture {}
+
+impl TypeMetadataProvider for ProjectedFixture {
+    fn __type_metadata() -> &'static TypeMetadata {
+        static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
+        METADATA.get_or_init(|| {
+            let role = v3::leak(v3::model_role());
+            v3::GeneratedTypeMetadataBuilder::new(
+                TypeDescriptor::of::<ProjectedFixture>(),
+                Some(ModelId::new("example.ProjectedFixture")),
+                &[],
+                role,
+            )
+            .finish::<ProjectedFixture>()
+        })
+    }
+}
+
+register_model_capability!(ProjectedFixture, ProjectedFixture::__type_metadata);
 
 fn registration(id: &'static str, fingerprint: u64) -> &'static ModelRegistration {
     let role = v3::leak(v3::model_role());
@@ -112,4 +143,22 @@ fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
     ));
     assert!(registry.metadata("example.GenericFixture").is_none());
     assert_eq!(registry.generic_definitions().len(), 1);
+}
+
+#[test]
+fn test_registry_projects_concrete_models_and_sources_from_reflection() {
+    let reflection = ReflectRegistry::initialize().expect("valid reflection registry");
+    let registry = ModelRegistry::from_reflect_registry(reflection, []).expect("valid model projection");
+    let registration = registry
+        .get("example.ProjectedFixture")
+        .expect("projected concrete registration");
+    let reflected_source = reflection
+        .type_source(TypeDescriptor::of::<ProjectedFixture>().type_id())
+        .expect("reflected type source");
+
+    assert!(std::ptr::eq(registration.source(), reflected_source));
+    assert!(std::ptr::eq(
+        registration.metadata().expect("concrete metadata"),
+        ProjectedFixture::__type_metadata(),
+    ));
 }

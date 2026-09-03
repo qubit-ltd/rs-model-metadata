@@ -10,9 +10,11 @@
 //! Integration tests for safe erased property access.
 
 use qubit_model_metadata::__private::v3;
+use qubit_model_metadata::BorrowedPropertySlice;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::GetterMetadata;
 use qubit_model_metadata::GetterOutputKind;
+use qubit_model_metadata::InvocationOutput;
 use qubit_model_metadata::PropertyAccessError;
 use qubit_model_metadata::PropertySetFailure;
 use qubit_model_metadata::PropertyStorageKind;
@@ -89,6 +91,26 @@ fn test_property_supports_borrowed_and_owned_getters() {
     };
     assert_eq!(count_value.downcast_ref::<u32>(), Some(&7));
     assert_eq!(name.storage_kind(), PropertyStorageKind::Computed);
+}
+
+#[test]
+fn test_property_optional_borrow_and_slice_bridge_to_reflection_output() {
+    let value = 9_u32;
+    let optional = PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(&value))).into_invocation_output();
+    let InvocationOutput::OptionalRef { value, origins } = optional else {
+        panic!("optional property borrow must remain optional");
+    };
+    assert_eq!(value.as_ref().and_then(|value| value.downcast_ref::<u32>()), Some(&9),);
+    assert_eq!(origins.len(), 1);
+
+    let values = [2_u32, 3_u32];
+    let slice = PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values)).into_invocation_output();
+    let InvocationOutput::RefSlice { values, origins } = slice else {
+        panic!("borrowed property slice must remain borrowed");
+    };
+    assert_eq!(values.len(), 2);
+    assert_eq!(values[1].downcast_ref::<u32>(), Some(&3));
+    assert_eq!(origins.len(), 1);
 }
 
 #[test]
