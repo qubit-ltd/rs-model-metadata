@@ -221,10 +221,10 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
     }
     if let (Some(minimum), Some(maximum)) = (&min, &max) {
         match compare_decimal_literals(&minimum.value(), &maximum.value()) {
-            Some(core::cmp::Ordering::Greater) => {
+            Some(Ordering::Greater) => {
                 return Err(Error::new_spanned(attribute, "decimal min cannot exceed max"));
             }
-            Some(core::cmp::Ordering::Equal) if !min_inclusive && !max_inclusive => {
+            Some(Ordering::Equal) if !min_inclusive && !max_inclusive => {
                 return Err(Error::new_spanned(
                     attribute,
                     "equal decimal bounds cannot both be exclusive",

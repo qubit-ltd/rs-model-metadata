@@ -8,16 +8,18 @@
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
+use core::mem::size_of;
+
+use model_a::MissingTarget;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelResolveErrorKind;
 use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::__private::qubit_codec::ValueCodecRegistry;
 use qubit_model_metadata::__private::qubit_validator::ValidatorRegistry;
-use model_a::MissingTarget;
 
 fn main() {
-    let _ = core::mem::size_of::<MissingTarget>();
+    let _ = size_of::<MissingTarget>();
     let registry = ModelRegistry::try_global()
         .expect("a missing reference target must not invalidate registration");
     assert!(registry.get("test.linked.Absent").is_none());
