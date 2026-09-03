@@ -4,7 +4,6 @@
 //    SPDX-License-Identifier: Apache-2.0
 //
 //    Licensed under the Apache License, Version 2.0.
-//
 // =============================================================================
 
 //! Structured failures at the generated-code ABI boundary.

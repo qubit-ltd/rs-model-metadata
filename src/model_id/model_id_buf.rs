@@ -43,6 +43,7 @@ impl ModelIdBuf {
     ///
     /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
     /// protocol.
+    #[must_use = "handle invalid model IDs"]
     pub fn parse(value: &str) -> Result<Self, ModelIdError> {
         ModelId::validate(value)?;
         Ok(Self(value.into()))
@@ -52,7 +53,8 @@ impl ModelIdBuf {
     #[must_use]
     #[inline(always)]
     pub fn as_str(&self) -> &str {
-        &self.0
+        let Self(value) = self;
+        value
     }
 }
 

@@ -68,6 +68,7 @@ impl ModelId {
     ///
     /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
     /// protocol.
+    #[must_use = "handle invalid model IDs"]
     #[inline]
     pub const fn try_new(value: &'static str) -> Result<Self, ModelIdError> {
         match Self::validate(value) {
@@ -86,6 +87,7 @@ impl ModelId {
     ///
     /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
     /// protocol.
+    #[must_use = "handle invalid model IDs"]
     #[inline]
     pub const fn validate(value: &str) -> Result<(), ModelIdError> {
         validate_model_id(value)
@@ -95,29 +97,32 @@ impl ModelId {
     #[must_use]
     #[inline(always)]
     pub const fn as_str(self) -> &'static str {
-        self.0
+        let Self(value) = self;
+        value
     }
 
     /// Returns the final type-name segment of this model ID.
     #[must_use]
     pub const fn type_name(self) -> &'static str {
-        let bytes = self.0.as_bytes();
+        let Self(value) = self;
+        let bytes = value.as_bytes();
         let mut index = bytes.len();
         while index > 0 {
             index -= 1;
             if bytes[index] == b'.' {
-                let (_, type_name) = self.0.split_at(index + 1);
+                let (_, type_name) = value.split_at(index + 1);
                 return type_name;
             }
         }
-        self.0
+        value
     }
 }
 
 impl Borrow<str> for ModelId {
     /// Borrows the stable model ID as a string slice.
     fn borrow(&self) -> &str {
-        self.0
+        let Self(value) = self;
+        value
     }
 }
 

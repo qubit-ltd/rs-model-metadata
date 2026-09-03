@@ -57,9 +57,11 @@ pub fn model_capability<T: crate::HasTypeMetadata>() -> CapabilityDescriptor {
 /// Extends a reflection root with model metadata lookup.
 pub trait ModelDescriptorExt {
     /// Returns the metadata provider attached to this exact descriptor root.
+    #[must_use]
     fn model_metadata(&self) -> Option<&'static TypeMetadata>;
 
     /// Returns whether this exact descriptor root has model metadata.
+    #[must_use]
     fn is_model_type(&self) -> bool {
         self.model_metadata().is_some()
     }

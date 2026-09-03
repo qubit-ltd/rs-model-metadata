@@ -151,6 +151,7 @@ pub enum PropertyAccessError {
 
 impl PropertyAccessError {
     /// Creates an adapter-defined user-method error.
+    #[must_use = "handle the property access error"]
     pub const fn user(message: &'static str) -> Self {
         Self::User(message)
     }
@@ -168,6 +169,7 @@ pub struct PropertySetFailure {
 impl PropertySetFailure {
     /// Creates a pre-execution failure retaining the replacement.
     #[doc(hidden)]
+    #[must_use = "handle the property set failure"]
     pub fn before_execution(error: PropertyAccessError, replacement: ReflectedOwned) -> Self {
         Self {
             error,
@@ -178,6 +180,7 @@ impl PropertySetFailure {
     /// Creates an adapter failure after ownership crossed the execution
     /// boundary.
     #[doc(hidden)]
+    #[must_use = "handle the property set failure"]
     pub const fn after_execution(error: PropertyAccessError) -> Self {
         Self {
             error,
@@ -288,6 +291,7 @@ impl GetterMetadata {
     ///
     /// Returns [`PropertyAccessError::TargetTypeMismatch`] when `target` has
     /// a different concrete type, or propagates the generated adapter error.
+    #[must_use = "handle property access failure"]
     pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         let actual = reflected_ref_type_id(&target);
         let expected = (self.target_type_id)();
@@ -375,6 +379,7 @@ impl SetterMetadata {
     ///
     /// Returns [`PropertySetFailure`] retaining `value` when target or input
     /// validation fails before adapter execution, or reports the adapter error.
+    #[must_use = "handle property write failure and recover the replacement when available"]
     pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         let actual_target = reflected_mut_type_id(&target);
         let expected_target = (self.target_type_id)();
@@ -526,6 +531,7 @@ impl PropertyMetadata {
     ///
     /// Returns [`PropertyAccessError::NotReadable`] when neither a getter nor
     /// a backing field exists, and otherwise propagates access failures.
+    #[must_use = "handle property access failure"]
     pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         if let Some(getter) = self.getter {
             return getter.get(target);
@@ -546,6 +552,7 @@ impl PropertyMetadata {
     ///
     /// Returns [`PropertySetFailure`] retaining the replacement when no write
     /// operation has started, and otherwise reports the setter or field error.
+    #[must_use = "handle property write failure and recover the replacement when available"]
     pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         if let Some(setter) = self.setter {
             return setter.set(target, value);

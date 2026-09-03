@@ -128,6 +128,7 @@ impl TypeMetadata {
     ///
     /// Returns a structured violation when generated metadata disagrees with
     /// the unique reflection descriptor for `T`.
+    #[must_use = "handle generated metadata ABI violations"]
     pub fn try_of<T: HasTypeMetadata>() -> Result<&'static Self, AbiViolation> {
         let metadata = <T as crate::__private::TypeMetadataProvider>::__type_metadata();
         metadata.validate_for::<T>()?;
@@ -199,6 +200,7 @@ impl TypeMetadata {
     ///
     /// Returns deterministic property assembly errors when an independent
     /// `ModelImpl` block disagrees with the model's reflected fields.
+    #[must_use = "handle property assembly failures"]
     pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
         self.descriptor
             .get_capability(crate::reflect_facade::model_impl_key())
@@ -210,6 +212,7 @@ impl TypeMetadata {
     /// # Errors
     ///
     /// Returns the same assembly errors as [`Self::try_properties`].
+    #[must_use = "handle property assembly failures before inspecting the lookup result"]
     pub fn try_property(
         &'static self,
         name: &str,
@@ -304,6 +307,7 @@ impl TypeMetadata {
 
     /// Checks that generated metadata is anchored to `T`.
     #[doc(hidden)]
+    #[must_use = "handle generated metadata ABI violations"]
     pub fn validate_for<T: 'static>(&self) -> Result<(), AbiViolation> {
         if self.descriptor.type_id() != TypeId::of::<T>() {
             return Err(abi_violation(
@@ -360,7 +364,14 @@ impl TypeMetadata {
     }
 
     /// Verifies a property overlay supplied by a generated capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PropertyBuildErrors`] when the supplied properties contain
+    /// duplicate names, missing sources, foreign fields, or incompatible
+    /// field, getter, or setter types.
     #[doc(hidden)]
+    #[must_use = "handle invalid generated property metadata"]
     pub fn validate_properties(&self, properties: &[PropertyMetadata]) -> Result<(), PropertyBuildErrors> {
         validate_properties(properties, self.fields, self.descriptor)
     }

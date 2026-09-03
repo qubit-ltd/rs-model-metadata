@@ -42,6 +42,7 @@ impl ModelRegistry {
     ///
     /// Returns [`ModelRegistryError`] when registrations repeat a model ID or
     /// a concrete registration conflicts with its metadata.
+    #[must_use = "handle invalid model registrations"]
     pub fn from_registrations(
         registrations: impl IntoIterator<Item = &'static ModelRegistration>,
     ) -> Result<Self, ModelRegistryError> {
@@ -102,13 +103,17 @@ impl ModelRegistry {
     ///
     /// Returns [`ModelRegistryError`] when reflection initialization or model
     /// registration validation fails. The result is cached for the process.
+    #[must_use = "handle model registry initialization failure"]
     pub fn try_global() -> Result<&'static Self, ModelRegistryError> {
         static REGISTRY: OnceLock<Result<ModelRegistry, ModelRegistryError>> = OnceLock::new();
         match REGISTRY.get_or_init(|| {
             ReflectRegistry::initialize().map_err(ModelRegistryError::reflection)?;
             let registrations: Vec<_> = inventory::iter::<ModelRegistrationFactory>
                 .into_iter()
-                .map(|factory| (factory.0)())
+                .map(|factory| {
+                    let ModelRegistrationFactory(factory) = *factory;
+                    factory()
+                })
                 .collect();
             Self::build(registrations)
         }) {
@@ -169,7 +174,7 @@ impl ModelRegistry {
     }
 }
 
-/// Orders registrations by stable model ID and then fragment identity.
+/// Compares registrations by stable model ID and then fragment identity.
 fn compare_registrations(left: &ModelRegistration, right: &ModelRegistration) -> std::cmp::Ordering {
     left.model_id()
         .cmp(&right.model_id())

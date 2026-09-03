@@ -4,7 +4,6 @@
 //    SPDX-License-Identifier: Apache-2.0
 //
 //    Licensed under the Apache License, Version 2.0.
-//
 // =============================================================================
 
 //! Generated metadata for one model-aware inherent implementation block.
@@ -45,6 +44,7 @@ impl ModelImplMetadata {
     ///
     /// Returns errors when field, getter, or setter fragments with the same
     /// name do not share a compatible value type.
+    #[must_use = "handle property assembly failures"]
     pub const fn try_properties(&self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
         self.properties
     }

@@ -72,6 +72,13 @@ impl<'a> ModelResolver<'a> {
     }
 
     /// Resolves every registration or returns all deterministic errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelResolveErrors`] when any property, relationship, role,
+    /// validator, codec, projection, value-closure, or query invariant cannot
+    /// be resolved against the configured registries.
+    #[must_use = "handle all model resolution failures"]
     pub fn resolve_all(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
         let mut references = HashMap::new();
         let mut projection_sources = HashMap::new();
@@ -1315,6 +1322,7 @@ impl ResolvedProjectionProducer {
     /// # Errors
     ///
     /// Returns a structured adapter, field-access, or identifier error.
+    #[must_use = "handle projection execution failure"]
     pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
         let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
         let source_identifier = self
@@ -1341,7 +1349,12 @@ impl ResolvedProjectionProducer {
         Ok(result)
     }
 
-    /// Reads a produced Projection identifier as an owned exact ID.
+    /// Reads and validates the identifier from a projected target.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProjectionExecutionError`] when the target is not a valid
+    /// Projection or its identifier field cannot be read as `qubit_id::Id`.
     fn projection_identifier(&self, target: ReflectedRef<'_>) -> Result<Id, ProjectionExecutionError> {
         self.projection
             .as_projection()
