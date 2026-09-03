@@ -8,8 +8,8 @@
 
 //! Validates and expands getter/setter-backed model implementation blocks.
 
-// qubit-style: allow multiple-public-types
-// The private getter/setter representations are tightly coupled expansion data.
+// Groups private representations used by model implementation expansion.
+mod internal;
 
 use proc_macro2::TokenStream;
 use quote::format_ident;
@@ -17,7 +17,6 @@ use quote::quote;
 use syn::Error;
 use syn::FnArg;
 use syn::GenericArgument;
-use syn::Ident;
 use syn::ImplItem;
 use syn::ImplItemFn;
 use syn::ItemImpl;
@@ -29,6 +28,10 @@ use syn::TypePath;
 use syn::TypeReference;
 use syn::Visibility;
 
+use self::internal::GetterIr;
+use self::internal::GetterReturn;
+use self::internal::PropertyMethod;
+use self::internal::SetterIr;
 use crate::compiler::type_path::is_option_path;
 
 /// Validates that `item` is a non-generic inherent implementation.
@@ -43,45 +46,6 @@ pub(crate) fn validate_model_impl(item: &ItemImpl) -> Result<()> {
         return Err(Error::new_spanned(&item.generics, "ModelImpl blocks cannot be generic"));
     }
     Ok(())
-}
-
-/// Classifies the Rust return shape accepted for a property getter.
-#[derive(Clone)]
-enum GetterReturn {
-    /// Getter returns an owned value.
-    Owned(Type),
-    /// Getter returns a borrowed value.
-    Borrowed(Type),
-    /// Getter returns a borrowed string.
-    BorrowedStr,
-    /// Getter returns a borrowed slice.
-    BorrowedSlice(Type),
-    /// Getter returns an optional borrowed value.
-    OptionalBorrowed(Type),
-    /// Getter returns an optional borrowed string.
-    OptionalBorrowedStr,
-}
-
-/// Records the name, method, and return classification of one getter.
-#[derive(Clone)]
-struct GetterIr {
-    /// Canonical property name.
-    property: String,
-    /// Source getter method identifier.
-    method: Ident,
-    /// Classified getter output.
-    output: GetterReturn,
-}
-
-/// Records the name, method, and input type of one setter.
-#[derive(Clone)]
-struct SetterIr {
-    /// Canonical property name.
-    property: String,
-    /// Source setter method identifier.
-    method: Ident,
-    /// Setter input type.
-    input: Type,
 }
 
 /// Expands property adapters and metadata for an already parsed implementation.
@@ -316,14 +280,6 @@ fn getter_output_type(output: &GetterReturn, runtime: &TokenStream) -> TokenStre
             #runtime::__private::v3::OptionalBorrowedPropertyOutput<str>
         ),
     }
-}
-
-/// Represents one validated property method.
-enum PropertyMethod {
-    /// Validated getter.
-    Getter(GetterIr),
-    /// Validated setter.
-    Setter(SetterIr),
 }
 
 /// Parses a property-shaped public method and ignores ordinary business
