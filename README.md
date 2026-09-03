@@ -2,7 +2,6 @@
 
 [![Rust CI](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-derive/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-derive/coverage/)
-[![Crates.io](https://img.shields.io/crates/v/qubit-model-derive.svg?color=blue)](https://crates.io/crates/qubit-model-derive)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
@@ -68,6 +67,11 @@ typed `TypeMetadata` capability to that same descriptor. The generated
 `Debug`, `Display`, and `Serialize` implementations use the redaction policy,
 so the email is not emitted as ordinary plain-text output.
 
+Generated model code uses the hidden model ABI v3 facade and only the
+`qubit-reflect` `codegen_v2` protocol. Concrete models are discovered through
+the unified frozen reflection snapshot; model-owned inventory remains only for
+generic model templates.
+
 `#[key_part(order = n)]` describes the ordered fields that form the logical
 key of a named `Model` or named `Value`. A key may use only some fields, but
 the selected orders must be unique and contiguous from zero. It is not an
@@ -108,9 +112,10 @@ macro detect implementations that would duplicate or bypass redacted output.
 
 ## Boundaries
 
-Static metadata lookup through `TypeMetadata::of::<T>()` and
-`ModelDescriptorExt::model_metadata()` does not initialize a global registry.
-Use `ModelRegistry`, `ValidatorRegistry`, `ValueCodecRegistry`, and
+Direct metadata lookup through `TypeMetadata::of::<T>()` does not initialize
+the global model registry. Descriptor capability and property lookup use the
+frozen reflection snapshot. Use `ModelRegistry`, `ValidatorRegistry`,
+`ValueCodecRegistry`, and
 `ModelResolver` only after all participating crates are linked, when resolving
 IDs, references, projection sources, queries, validators, or codecs.
 `ValueCodecRegistry` requires a direct `qubit-codec` dependency with

@@ -34,7 +34,7 @@ Rust declaration
     │                              │
     │                              └─ TypeMetadata（领域语义覆盖层）
     │
-    └─ ModelRegistration（仅有 ModelId 的类型或泛型定义）
+    └─ 具体类型由 ReflectRegistry 投影；泛型定义保留 ModelRegistration
              └─ ModelRegistry -> ModelResolver -> ResolvedModelGraph
 ```
 
@@ -56,8 +56,8 @@ Rust declaration
   冲突错误。
 - `qubit-reflect` 已有 downstream facade 测试：领域 runtime crate 可以重导出反射 API，领域 derive crate 通过
   `#[reflect(crate = facade)]` 委托生成代码，最终业务 crate 不必直接依赖 `qubit-reflect`。
-- `__private` 已提供宏生产 ABI、`inventory` 重导出、lazy type reference 和 registration fragment；普通用户 API 与
-  生成代码 API 已有清楚边界。
+- `__private::codegen_v2` 已提供宏生产 ABI、lazy type reference 和统一 registration fragment；普通用户 API 与
+  生成代码 API 已有清楚边界。模型生成 facade 固定为 model ABI v3，不再使用 `codegen_v1`。
 
 因此，若 `rs-model-metadata` 再定义 `TypeDescriptor`、`TypeIdentity`、`TypeRef`、字段访问器或 generic expression，
 会产生两个不可避免的问题：同一 Rust 类型出现两棵可能不一致的图；修复递归、泛型和安全访问时必须维护两份实现。
@@ -90,8 +90,8 @@ domain crates
 - codec 直接复用 `qubit-codec` 的 `ValueEncoder`、`ValueDecoder`、`ValueCodecDescriptor`、
   `register_value_codec!` 和注册表契约，不定义平行
   contract。validator 直接复用 `qubit-validator` 的 `Validator`、注册表和解析契约；模型层保存 occurrence，并由显式 resolver 完成绑定与类型检查。
-- `qubit-model-metadata` 可以像 `qubit-reflect` 一样用默认 `derive` feature 重导出六个模型宏。若暂不调整 crate 发布形态，
-  业务代码也可分别依赖 `qubit-model-metadata` 与 `qubit-model-derive`；两种方式生成的 API 完全相同。
+- 当前内部仓库形态下，业务代码通过路径分别依赖 `qubit-model-metadata` 与 `qubit-model-derive`；runtime facade
+  负责生成代码协议，但不通过虚构的默认 `derive` feature 重导出宏。
 
 ## 用户可见的宏 API
 
@@ -807,11 +807,13 @@ impl ModelRegistration {
 }
 ```
 
-Entity 必定生成 concrete registration；其他非泛型角色只有声明 ID 才生成。泛型 Model/Enum/Value 有 ID 时生成 generic
-registration。匿名类型不提交 model registration，避免“能枚举但不能稳定查询”的条目。
+Entity 与其他带 ID 的具体角色不再生成平行的 model inventory registration；它们通过统一反射 fragment
+注册类型与 model metadata capability，`ModelRegistry` 再从冻结快照投影 `Concrete` registration。泛型
+Model/Enum/Value 有 ID 时生成模型层自有的 generic registration。匿名类型不进入稳定 ID 索引，避免
+“能枚举但不能稳定查询”的条目。
 
-模型 registration 使用独立 inventory payload，因为 `qubit-reflect::FragmentKind` 是封闭的通用反射协议，不应被领域
-crate 扩展。registration 的 source identity 复用同样的 crate/module/line/column/fingerprint 规则。
+具体 registration 的 source identity 直接继承权威反射 type fragment；泛型模板没有具体反射根，因此仍使用
+独立模型 inventory payload，并遵循同样的 crate/module/line/column/fingerprint 规则。
 
 ### `ModelRegistry`
 
@@ -837,8 +839,9 @@ impl ModelRegistry {
 `ModelIdBuf::parse()`。`registrations()` 按 `ModelId`、source identity 确定性排序。`by_type_id()` 只索引已注册 concrete
 类型，不公开匿名 concrete cache。
 
-`try_global()` 先初始化 `ReflectRegistry`，再聚合模型 registration；反射 fragment 冲突包装为
-`ModelRegistryErrorKind::ReflectionRegistry`。`global()` 只是在错误时 panic 的便利入口。
+`try_global()` 先初始化 `ReflectRegistry`，从冻结快照投影具体模型 capability 及其权威来源，再聚合仅属于
+模型层的泛型模板 registration；反射 fragment 冲突包装为 `ModelRegistryErrorKind::ReflectionRegistry`。
+`global()` 只是在错误时 panic 的便利入口。
 
 ## 显式 resolver 与解析后视图
 
@@ -951,7 +954,7 @@ pub mod __private {
     pub mod v3 {
         // checked metadata factories
         // model capability registration
-        // concrete/generic model registration
+        // concrete reflection projection / generic model registration
         // property adapters and provider seal
         // compile-time assertion helpers
     }
@@ -965,8 +968,8 @@ pub mod __private {
   property 合并和 adapter TypeId；检查失败表示宏/runtime 版本不兼容，panic 文案必须含 ABI 版本和 source identity。
 - capability adapter 类型必须准确为 `ModelMetadataProvider`，同一 concrete descriptor 重复注册该 key 会由 reflect
   capability conflict 拒绝。
-- inventory fragment 只保存静态 identity 和 factory function；用户代码和 metadata 构造推迟到 registry 初始化或首次
- 静态查询。
+- 统一反射 fragment 与模型层泛型 fragment 都只保存静态 identity 和 factory function；具体模型不再重复提交
+  model inventory。用户代码和 metadata 构造推迟到 registry 初始化或首次静态查询。
 - derive 与 runtime 使用精确 patch-compatible 依赖约束，并保留正常、renamed、missing、invalid-runtime 和 facade
   fixture。
 

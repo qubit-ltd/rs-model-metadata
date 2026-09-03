@@ -13,11 +13,14 @@
 
 ```text
 角色声明 -> Reflect descriptor -> model metadata capability
-                                -> 可选 ModelRegistration
+                                -> 冻结注册表投影
+泛型角色声明 ------------------> generic ModelRegistration
 ModelImpl impl ----------> property capability
 ```
 
-静态查询不依赖全局注册表。只有稳定 ID、reference、Projection 来源和 Query 需要在完整链接的模型集合中解析。
+直接调用 `TypeMetadata::of` 不依赖全局模型注册表；descriptor capability 与 Property 查询会冻结反射快照，
+确保独立 fragment 可见。生成 facade 为 model ABI v3，并只使用反射层 `codegen_v2`。稳定 ID、reference、
+Projection 来源和 Query 则需要在完整链接的模型集合中解析。
 
 ## 安装与最小配置
 
@@ -26,9 +29,9 @@ ModelImpl impl ----------> property capability
 
 ```toml
 [dependencies]
-qubit-model-derive = { path = "../rs-model-derive" }
-qubit-model-metadata = { path = "../rs-model-metadata" }
-qubit-id = "0.6"
+qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 qubit-codec = { version = "0.14", features = ["registry"] }
 serde_json = "1"
 ```

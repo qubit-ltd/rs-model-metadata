@@ -2,7 +2,6 @@
 
 [![Rust CI](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-derive/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-derive/coverage/)
-[![Crates.io](https://img.shields.io/crates/v/qubit-model-derive.svg?color=blue)](https://crates.io/crates/qubit-model-derive)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
@@ -59,6 +58,9 @@ assert!(metadata.descriptor().model_metadata().is_some());
 角色宏会委托 `qubit-reflect` 生成 Rust 结构描述符，再将唯一的 `TypeMetadata` 类型化能力
 附加到同一个描述符上。生成的 `Debug`、`Display`、`Serialize` 会遵守脱敏策略，不会把邮箱按普通明文输出。
 
+生成的模型代码使用隐藏 model ABI v3 facade，并且只使用 `qubit-reflect` 的 `codegen_v2` 协议。
+具体模型通过统一的冻结反射快照发现；模型层自有 inventory 只保留泛型模型模板。
+
 `#[key_part(order = n)]` 描述具名 `Model` 或具名 `Value` 的逻辑复合键及字段顺序。逻辑键可以只选择
 部分字段，但已选择字段的 order 必须从零开始、连续且不重复。它不是 Entity identifier，因此不能用于
 `Entity`、`Projection`、`Enum` 或 tuple/newtype Value。
@@ -89,7 +91,8 @@ assert!(metadata.descriptor().model_metadata().is_some());
 
 ## 边界
 
-通过 `TypeMetadata::of::<T>()` 或 `ModelDescriptorExt::model_metadata()` 查询静态元数据不会初始化全局注册表。只有在所有参与 crate 都已链接后，才使用 `ModelRegistry`、`ValidatorRegistry`、
+直接通过 `TypeMetadata::of::<T>()` 查询静态元数据不会初始化全局模型注册表；descriptor capability 与
+Property 查询会使用冻结的反射快照。只有在所有参与 crate 都已链接后，才使用 `ModelRegistry`、`ValidatorRegistry`、
 `ValueCodecRegistry` 和 `ModelResolver` 解析稳定 ID、reference、Projection 来源、Query、validator 或 codec。
 `ValueCodecRegistry` 需要应用直接依赖 `qubit-codec` 并启用 `features = ["registry"]`；该 feature 不在
 默认 feature 集中。

@@ -18,13 +18,17 @@ getter, and setter.
 
 ```text
 role declaration -> Reflect descriptor -> model metadata capability
-                                       -> optional ModelRegistration
+                                       -> frozen registry projection
+generic role declaration -------------> generic ModelRegistration
 ModelImpl impl -----------------> property capability
 ```
 
-Static lookup has no global-registry dependency. A registry and resolver are
-only needed for stable IDs, references, projection sources, and queries that
-span the complete linked model set.
+Direct `TypeMetadata::of` lookup has no global model-registry dependency.
+Descriptor capability and property lookup freeze the reflection snapshot so
+separate fragments remain visible. The generated facade is model ABI v3 and
+uses only reflection `codegen_v2`. A model registry and resolver are needed for
+stable IDs, references, projection sources, and queries spanning the complete
+linked model set.
 
 ## Installation and Minimal Configuration
 
@@ -34,9 +38,9 @@ and adjust them for your workspace layout:
 
 ```toml
 [dependencies]
-qubit-model-derive = { path = "../rs-model-derive" }
-qubit-model-metadata = { path = "../rs-model-metadata" }
-qubit-id = "0.6"
+qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 qubit-codec = { version = "0.14", features = ["registry"] }
 serde_json = "1"
 ```
