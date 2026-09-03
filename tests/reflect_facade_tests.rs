@@ -11,6 +11,11 @@
 
 use std::sync::OnceLock;
 
+use bigdecimal::BigDecimal;
+use chrono::DateTime;
+use chrono::Utc;
+use qubit_datatype::DataType;
+use qubit_id::Id;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
 use qubit_model_metadata::__private::v3;
@@ -27,6 +32,16 @@ struct Account;
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]
 struct Impostor;
+
+#[derive(Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+struct ExternalTypeFixture {
+    id: Id,
+    created_at: DateTime<Utc>,
+    amount: BigDecimal,
+    request_id: uuid::Uuid,
+    data_type: DataType,
+}
 
 impl ModelTypeSeal for Account {}
 
@@ -74,6 +89,18 @@ fn public_metadata_entry_points_reject_cross_type_providers() {
     let capability = std::panic::catch_unwind(|| TypeDescriptor::of::<Impostor>().model_metadata())
         .expect_err("cross-root capability must fail");
     assert!(panic_message(capability).starts_with("QMM-ABI-002:"));
+}
+
+#[test]
+fn reflect_facade_supports_enabled_ecosystem_and_qubit_types() {
+    let descriptor = TypeDescriptor::of::<ExternalTypeFixture>();
+
+    for field in ["id", "created_at", "amount", "request_id", "data_type"] {
+        assert!(
+            descriptor.field(field).is_some(),
+            "missing reflected field {field}"
+        );
+    }
 }
 
 fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {

@@ -39,5 +39,9 @@ qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator" 
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 
+[dev-dependencies]
+qubit-datatype = { version = "=0.12.0", path = "../../rust-common/rs-datatype" }
+uuid = "1"
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

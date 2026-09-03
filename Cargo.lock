@@ -287,12 +287,14 @@ dependencies = [
  "chrono",
  "inventory",
  "qubit-codec",
+ "qubit-datatype",
  "qubit-id",
  "qubit-redact",
  "qubit-reflect",
  "qubit-validator",
  "serde",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
