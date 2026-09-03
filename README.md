@@ -2,7 +2,6 @@
 
 [![Rust CI](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-metadata/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-metadata/coverage/)
-[![Crates.io](https://img.shields.io/crates/v/qubit-model-metadata.svg?color=blue)](https://crates.io/crates/qubit-model-metadata)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
@@ -15,14 +14,15 @@ creating a second reflection system.
 
 ## Installation
 
-The runtime crate supports Rust 1.94 and edition 2024. Add the runtime crate
-and its companion derive crate to an application that declares models:
+The runtime crate supports Rust 1.94 and edition 2024. The Qubit model crates
+are currently internal and unpublished (`publish = false`), so use checkout
+paths and adjust them for your workspace layout:
 
 ```toml
 [dependencies]
-qubit-model-metadata = "0.1"
-qubit-model-derive = "0.1"
-qubit-id = "0.6"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 `qubit-id` supplies the exact `Id` type required by `Entity` and `Projection`
@@ -56,9 +56,10 @@ assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
 assert!(metadata.descriptor().model_metadata().is_some());
 ```
 
-The result is static metadata for `User`; this lookup does not initialize the
-global model registry. See the user guide for the subsequent cross-crate
-resolution step.
+The result is static metadata for `User`; `TypeMetadata::of` does not initialize
+the global model registry. Descriptor capability and property lookup use the
+frozen `ReflectRegistry` snapshot so separately emitted model overlays remain
+visible. See the user guide for the subsequent cross-crate resolution step.
 
 ## Why This Project Exists
 
@@ -74,8 +75,11 @@ the reflection model.
 `#[Model]`, `#[Enum]`, `#[Value]`, and `#[ModelImpl]` declarations.
 - `TypeMetadata` provides static role, field, property, generic-template, and
   optional `ModelId` metadata for generated types.
-- `ModelRegistry` collects registered models, and `ModelResolver` performs an
-  explicit resolution pass over model, validator, and codec registries.
+- `ModelRegistry` projects concrete models and their source provenance from the
+  frozen `ReflectRegistry` snapshot; only generic model templates keep a
+  model-owned registration fragment.
+- `ModelResolver` performs an explicit resolution pass over model, validator,
+  and codec registries.
 - Resolution produces an immutable `ResolvedModelGraph`, or deterministic
   aggregated errors when relationships, roles, properties, validators, or
   codecs cannot be resolved.
@@ -86,14 +90,15 @@ the reflection model.
 It does not replace `qubit-reflect`, and static metadata lookup does not
 implicitly register models or resolve cross-model relationships. Generated
 metadata is checked against descriptor, field, property, role, and codec
-invariants before it crosses the hidden ABI boundary.
+invariants before it crosses the hidden model ABI v3 boundary. Generated model
+code consumes only `qubit-reflect::__private::codegen_v2`.
 
 ## Learn More
 
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
 - [`qubit-model-derive` declaration guide](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.md)
-- [API documentation](https://docs.rs/qubit-model-metadata)
+- Local API documentation: run `cargo doc --open`
 - [中文版 README](README.zh_CN.md)
 
 ## Testing

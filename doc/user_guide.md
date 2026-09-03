@@ -1,6 +1,6 @@
 # qubit-model-metadata User Guide
 
-[简体中文](user_guide.zh_CN.md) | [README](../README.md) | [API documentation](https://docs.rs/qubit-model-metadata)
+[简体中文](user_guide.zh_CN.md) | [README](../README.md) | Local API docs: `cargo doc --open`
 
 Applies to `qubit-model-metadata` 0.1.x, Rust 1.94, and edition 2024.
 
@@ -10,7 +10,8 @@ This guide is for framework and application developers who declare domain
 models with `qubit-model-derive` and need to inspect their metadata or resolve
 relationships after all model crates have been linked. It explains the boundary
 between structural reflection and domain semantics, then follows an account
-model from declaration to an immutable resolved graph.
+model from declaration to an immutable resolved graph. The model ABI described
+here is v3 and consumes the reflection `codegen_v2` protocol.
 
 ## Conceptual Model
 
@@ -34,19 +35,20 @@ of an opaque or symbolic type, not missing metadata.
 An account service needs to validate its own model declaration immediately and
 resolve a login model's reference after the complete application has linked all
 of its model crates. Success means the account metadata is available without a
-global registry, and the completed registry resolves `Login.account_id` to the
+global model registry, and the completed registry resolves `Login.account_id` to the
 `Account` entity's `id` property.
 
 ## Installation and Minimal Configuration
 
-Add the runtime and macro crates to the application:
+The Qubit model crates are currently internal and unpublished. Add them from
+adjacent checkouts, adjusting paths for your workspace:
 
 ```toml
 [dependencies]
-qubit-model-metadata = "0.1"
-qubit-model-derive = "0.1"
-qubit-id = "0.6"
-qubit-validator = "0.1"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
+qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
 qubit-codec = { version = "0.14", features = ["registry"] }
 ```
 
@@ -87,8 +89,9 @@ pub struct Login {
 }
 ```
 
-Inspect the account locally. This is a static query; it does not initialize the
-global model registry:
+Inspect the account locally. `TypeMetadata::of` is a static query and does not
+initialize the global model registry. Property lookup freezes the reflection
+snapshot to merge separately emitted `ModelImpl` capability fragments:
 
 ```rust,ignore
 use qubit_model_metadata::TypeMetadata;
@@ -140,10 +143,12 @@ hidden-ABI violation; use `TypeMetadata::try_of::<T>()` when that failure must
 remain recoverable.
 
 Use `ModelRegistry` when stable-ID or exact Rust `TypeId` lookup is needed.
-`ModelRegistry::try_global()` freezes all registrations contributed by model
-crates that are actually linked into the final binary. It does not discover
-unlinked crates. `ModelRegistry::from_registrations` is useful for isolated
-tests and tools that need an explicit model set.
+`ModelRegistry::try_global()` first freezes `ReflectRegistry`, projects each
+concrete model capability and its authoritative reflection provenance, then
+adds model-owned generic-template registrations. It does not discover unlinked
+crates. `ModelRegistry::from_registrations` remains useful for isolated tests
+and tools that need an explicit compatibility set; `from_reflect_registry`
+builds directly from a supplied frozen reflection snapshot.
 
 Use `ModelResolver` only after the complete intended model set is available.
 It validates cross-model edges and executable strategy bindings, then returns
@@ -222,7 +227,8 @@ validator and codec bindings, selector types, value closure, and flattened
 query-name conflicts. Optional accessors expose the involved model ID, property
 path, expected and actual role or type, and source fragments when available.
 
-Generated metadata also checks local ABI invariants before publication. A panic
+Generated metadata also checks model ABI v3 invariants before publication and
+uses the reflection `codegen_v2` protocol. A panic
 whose message starts with `QMM-ABI-` indicates that generated or manually
 supplied hidden-ABI metadata was rejected because it violated one of those
 invariants.
@@ -251,8 +257,10 @@ invariants.
 
 Use `ModelId` only for stable linked declarations and parse dynamic input with
 `ModelIdBuf::parse`; Rust diagnostic type names are not persistent IDs. Keep
-ordinary static inspection separate from global registry initialization, and
-resolve only after the complete model set has been linked. This crate does not
+direct `TypeMetadata::of` inspection separate from global model-registry
+initialization, and resolve only after the complete model set has been linked.
+Descriptor capability and property queries intentionally share the frozen
+reflection registry. This crate does not
 provide an alternative reflection system, nor does it implicitly bind
 cross-model references during static inspection.
 
@@ -269,4 +277,4 @@ configuration is unrecoverable.
 - [README](../README.md)
 - [简体中文用户指南](user_guide.zh_CN.md)
 - [`qubit-model-derive` declaration guide](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.md)
-- [API documentation](https://docs.rs/qubit-model-metadata)
+- Local API documentation: run `cargo doc --open`

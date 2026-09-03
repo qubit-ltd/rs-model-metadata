@@ -1,13 +1,14 @@
 # qubit-model-metadata 用户指南
 
-[English](user_guide.md) | [README](../README.zh_CN.md) | [API 文档](https://docs.rs/qubit-model-metadata)
+[English](user_guide.md) | [README](../README.zh_CN.md) | 本地 API 文档：`cargo doc --open`
 
 适用于 `qubit-model-metadata` 0.1.x、Rust 1.94 和 edition 2024。
 
 ## 手册目标与读者
 
 本指南面向使用 `qubit-model-derive` 声明领域模型的框架和应用开发者。它说明结构反射与领域语义的
-边界，并以账户模型为例，展示如何从模型声明走到不可变的解析结果图。
+边界，并以账户模型为例，展示如何从模型声明走到不可变的解析结果图。本指南对应 model ABI v3，
+并使用反射层 `codegen_v2` 协议。
 
 ## 概念模型
 
@@ -27,19 +28,19 @@ Rust 声明 -> TypeDescriptor -> TypeMetadata -> ModelRegistry -> ResolvedModelG
 ## 贯穿场景
 
 一个账户服务需要立即检查自身的模型声明，并在应用链接完全部模型 crate 后，解析登录模型的引用。
-完成标志有两个：不依赖全局注册表即可读取账户的 metadata；完整注册表能够将
+完成标志有两个：不依赖全局模型注册表即可读取账户的 metadata；完整注册表能够将
 `Login.account_id` 解析到 `Account` Entity 的 `id` Property。
 
 ## 安装与最小配置
 
-在应用中加入运行时 crate 与派生宏 crate：
+Qubit 模型 crate 目前仅供内部使用且不发布。请从相邻检出目录加入依赖，并按工作区调整路径：
 
 ```toml
 [dependencies]
-qubit-model-metadata = "0.1"
-qubit-model-derive = "0.1"
-qubit-id = "0.6"
-qubit-validator = "0.1"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
+qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
 qubit-codec = { version = "0.14", features = ["registry"] }
 ```
 
@@ -76,7 +77,8 @@ pub struct Login {
 }
 ```
 
-先对账户模型做静态查询；这一过程不会初始化全局模型注册表：
+先对账户模型做静态查询。`TypeMetadata::of` 不会初始化全局模型注册表；Property 查询会冻结反射快照，
+以合并独立生成的 `ModelImpl` capability fragment：
 
 ```rust,ignore
 use qubit_model_metadata::TypeMetadata;
@@ -125,9 +127,10 @@ fn resolve_models() -> Result<(), Box<dyn std::error::Error>> {
 reflection descriptor；若需要自行处理隐藏 ABI 校验失败，则改用 `TypeMetadata::try_of::<T>()`，避免
 直接 panic。
 
-需要按稳定 ID 或精确 Rust `TypeId` 查找时，使用 `ModelRegistry`。`ModelRegistry::try_global()` 只会
-冻结最终二进制实际链接进来的注册项，不会发现未链接的 crate。测试或工具若要控制模型集合，可通过
-`ModelRegistry::from_registrations` 显式构建注册表。
+需要按稳定 ID 或精确 Rust `TypeId` 查找时，使用 `ModelRegistry`。`ModelRegistry::try_global()` 会先冻结
+`ReflectRegistry`，从中投影每个具体模型 capability 及其权威反射来源，再加入模型层自有的泛型模板注册；
+它不会发现未链接的 crate。测试或工具若要控制兼容模型集合，可通过 `ModelRegistry::from_registrations`
+显式构建；`from_reflect_registry` 则直接从指定的冻结反射快照构建。
 
 只有完整模型集合已经就绪后才运行 `ModelResolver`。它集中校验跨模型关系与可执行策略绑定；全部成功时
 返回一个不可变的 `ResolvedModelGraph`，失败时不会留下可供误用的部分解析图。
@@ -182,7 +185,8 @@ reflection registry 初始化失败。
 Entity 嵌套、opaque 模型、引用、角色与类型、Projection 契约、validator/codec 绑定、selector 类型、
 Value 闭包以及查询名冲突。按错误场景，还可读取模型 ID、Property 路径、预期与实际角色或类型、来源片段。
 
-生成的 metadata 在发布前还会检查局部 ABI 不变量。若 panic 信息以 `QMM-ABI-` 开头，说明生成代码或手写的
+生成的 metadata 在发布前还会检查 model ABI v3 不变量，并使用反射层 `codegen_v2` 协议。若 panic 信息以
+`QMM-ABI-` 开头，说明生成代码或手写的
 隐藏 ABI metadata 违反了相应不变量，已被拒绝。
 
 ## 排障
@@ -201,7 +205,8 @@ Value 闭包以及查询名冲突。按错误场景，还可读取模型 ID、Pr
 ## 限制与最佳实践
 
 稳定链接的声明使用 `ModelId`，动态输入先交给 `ModelIdBuf::parse` 解析；不要把 Rust 诊断类型名用作持久化
-ID。普通静态查询应与全局注册表初始化分离，只有在完整模型集合都链接后才进行解析。本 crate 不提供另一套
+ID。直接调用 `TypeMetadata::of` 的静态查询应与全局模型注册表初始化分离，只有在完整模型集合都链接后才
+进行解析；descriptor capability 与 Property 查询则有意共享冻结的反射注册表。本 crate 不提供另一套
 反射系统，也不会在静态查询时隐式绑定跨模型引用。
 
 最终依赖图中只保留一个 `qubit-model-metadata` 版本；不同版本拥有彼此独立的注册清单，会把模型集合拆开。
@@ -213,4 +218,4 @@ ID。普通静态查询应与全局注册表初始化分离，只有在完整模
 - [README](../README.zh_CN.md)
 - [English user guide](user_guide.md)
 - [`qubit-model-derive` 声明指南](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.zh_CN.md)
-- [API 文档](https://docs.rs/qubit-model-metadata)
+- 本地 API 文档：运行 `cargo doc --open`

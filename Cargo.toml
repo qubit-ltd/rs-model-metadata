@@ -8,10 +8,10 @@ license = "Apache-2.0"
 repository = "https://github.com/qubit-ltd/rs-model-metadata"
 description = "Static, strongly typed metadata for Rust domain models"
 homepage = "https://github.com/qubit-ltd/rs-model-metadata"
-documentation = "https://docs.rs/qubit-model-metadata"
 readme = "README.md"
 keywords = ["metadata", "model", "reflection", "qubit", "rust"]
 categories = ["data-structures", "development-tools"]
+publish = false
 include = [
     "/Cargo.toml",
     "/LICENSE",

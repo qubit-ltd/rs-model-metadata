@@ -2,7 +2,6 @@
 
 [![Rust CI](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-metadata/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-metadata/coverage/)
-[![Crates.io](https://img.shields.io/crates/v/qubit-model-metadata.svg?color=blue)](https://crates.io/crates/qubit-model-metadata)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
@@ -13,14 +12,14 @@
 
 ## 安装
 
-运行时 crate 需要 Rust 1.94，使用 edition 2024。声明模型的应用同时加入运行时 crate 和配套的
-派生宏 crate：
+运行时 crate 需要 Rust 1.94，使用 edition 2024。Qubit 模型 crate 目前仅供内部使用且不发布
+（`publish = false`），请使用检出路径，并按工作区布局调整：
 
 ```toml
 [dependencies]
-qubit-model-metadata = "0.1"
-qubit-model-derive = "0.1"
-qubit-id = "0.6"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 `qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。应用若要运行
@@ -50,7 +49,9 @@ assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
 assert!(metadata.descriptor().model_metadata().is_some());
 ```
 
-得到的是 `User` 的静态元数据；这一步不会初始化全局模型注册表。跨 crate 关系的解析流程请参阅用户指南。
+得到的是 `User` 的静态元数据；`TypeMetadata::of` 不会初始化全局模型注册表。descriptor capability
+和 Property 查询会使用冻结的 `ReflectRegistry` 快照，以便看见独立生成的模型 overlay。跨 crate
+关系的解析流程请参阅用户指南。
 
 ## 为什么需要这个项目
 
@@ -63,21 +64,24 @@ assert!(metadata.descriptor().model_metadata().is_some());
 - `qubit-model-derive` 可为 `#[Entity]`、`#[Projection]`、`#[Model]`、`#[Enum]`、`#[Value]`
 与 `#[ModelImpl]` 声明生成 metadata。
 - `TypeMetadata` 为生成的类型提供静态的角色、Field、Property、泛型模板和可选 `ModelId` 信息。
-- `ModelRegistry` 收集已注册模型；`ModelResolver` 在模型、validator 和 codec 注册表上执行显式解析。
+- `ModelRegistry` 从冻结的 `ReflectRegistry` 快照投影具体模型及其来源；只有泛型模型模板保留模型层
+  自有的 registration fragment。
+- `ModelResolver` 在模型、validator 和 codec 注册表上执行显式解析。
 - 解析成功时得到不可变的 `ResolvedModelGraph`；若引用、角色、Property、validator 或 codec
   无法解析，则按确定顺序汇总返回错误。
 - 解析图提供引用、Projection source 与 producer、可执行 validator/codec 绑定、合并后的
   Property，以及由索引字段生成的查询 metadata。
 
 本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的
-metadata 在穿过隐藏 ABI 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量。
+metadata 在穿过隐藏 model ABI v3 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量；
+生成代码只使用 `qubit-reflect::__private::codegen_v2`。
 
 ## 延伸阅读
 
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
 - [`qubit-model-derive` 声明指南](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.zh_CN.md)
-- [API 文档](https://docs.rs/qubit-model-metadata)
+- 本地 API 文档：运行 `cargo doc --open`
 - [English README](README.md)
 
 ## 测试
