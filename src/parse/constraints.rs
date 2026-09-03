@@ -8,7 +8,9 @@
 
 //! Parses field and selector constraint attributes.
 
+use core::cmp::Ordering;
 use std::collections::HashSet;
+use std::iter::repeat_n;
 
 use syn::Attribute;
 use syn::Error;
@@ -291,19 +293,19 @@ fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
 }
 
 /// Compares two normalized decimal literal strings without floating point.
-fn compare_decimal_literals(left: &str, right: &str) -> Option<core::cmp::Ordering> {
+fn compare_decimal_literals(left: &str, right: &str) -> Option<Ordering> {
     let (left_negative, mut left_digits, left_scale) = parse_decimal_literal(left)?;
     let (right_negative, mut right_digits, right_scale) = parse_decimal_literal(right)?;
     let scale = left_scale.max(right_scale);
-    left_digits.extend(std::iter::repeat_n('0', scale - left_scale));
-    right_digits.extend(std::iter::repeat_n('0', scale - right_scale));
+    left_digits.extend(repeat_n('0', scale - left_scale));
+    right_digits.extend(repeat_n('0', scale - right_scale));
     let magnitude = left_digits
         .len()
         .cmp(&right_digits.len())
         .then_with(|| left_digits.cmp(&right_digits));
     Some(match (left_negative, right_negative) {
-        (true, false) => core::cmp::Ordering::Less,
-        (false, true) => core::cmp::Ordering::Greater,
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
         (true, true) => magnitude.reverse(),
         (false, false) => magnitude,
     })

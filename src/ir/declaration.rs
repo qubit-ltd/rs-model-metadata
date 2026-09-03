@@ -94,7 +94,9 @@ pub(crate) enum FieldOccurrence {
 /// Selects the owner of an automatically assigned identifier.
 #[derive(Clone, Copy)]
 pub(crate) enum IdentifierAssignmentIr {
+    /// Assigns the identifier in application code.
     Application,
+    /// Assigns the identifier in the database.
     Database,
 }
 
@@ -107,6 +109,7 @@ pub(crate) enum ConstraintIr {
     Decimal(DecimalConstraintIr),
     /// Time constraint format.
     Time(String),
+    /// Sequence length and uniqueness constraint.
     Sequence {
         /// Minimum number of items.
         min: Option<usize>,
@@ -115,6 +118,7 @@ pub(crate) enum ConstraintIr {
         /// Whether items must be unique.
         unique: bool,
     },
+    /// Map entry-count constraint.
     Map {
         /// Minimum number of entries.
         min: Option<usize>,

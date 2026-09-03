@@ -14,9 +14,10 @@ use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::__private::qubit_codec::ValueCodecRegistry;
 use qubit_model_metadata::__private::qubit_validator::ValidatorRegistry;
+use model_a::MissingTarget;
 
 fn main() {
-    let _ = core::mem::size_of::<model_a::MissingTarget>();
+    let _ = core::mem::size_of::<MissingTarget>();
     let registry = ModelRegistry::try_global()
         .expect("a missing reference target must not invalidate registration");
     assert!(registry.get("test.linked.Absent").is_none());

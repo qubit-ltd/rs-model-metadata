@@ -14,7 +14,7 @@
 //! structured data, [`Enum`] for domain enumerations, [`Value`] for value
 //! objects, and [`ModelImpl`] for getter/setter-backed properties.
 //!
-//! # Example
+//! # Examples
 //!
 //! ```
 //! use qubit_id::Id;
@@ -71,8 +71,17 @@ use proc_macro::TokenStream;
 /// Compiles an identity-bearing persistent entity declaration.
 ///
 /// The attribute arguments configure the entity's stable model identity and
-/// behavior; `input` is the annotated struct declaration. Returns generated
-/// Rust tokens or compiler diagnostics when the declaration is invalid.
+/// behavior.
+///
+/// # Parameters
+///
+/// * `args` - Entity options such as the stable model identifier.
+/// * `input` - The named struct declaration to compile.
+///
+/// # Returns
+///
+/// Returns generated Rust tokens, or compiler diagnostics when the declaration
+/// is invalid.
 ///
 /// An entity must be a non-generic named struct with exactly one
 /// `#[identifier]` field whose type is `qubit_id::Id`.
@@ -85,8 +94,18 @@ pub fn Entity(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Compiles an entity projection declaration.
 ///
 /// The attribute arguments configure the projection source and identity;
-/// `input` is the annotated struct declaration. Returns generated Rust tokens
-/// or compiler diagnostics when the declaration is invalid.
+/// `input` is the annotated struct declaration.
+///
+/// # Parameters
+///
+/// * `args` - Projection options such as the stable model identifier and
+///   source.
+/// * `input` - The named struct declaration to compile.
+///
+/// # Returns
+///
+/// Returns generated Rust tokens, or compiler diagnostics when the declaration
+/// is invalid.
 ///
 /// A projection must be a non-generic named struct with one `Id` identifier.
 /// It may be open or declare exactly one fixed source by Rust type or model ID.
@@ -98,9 +117,17 @@ pub fn Projection(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Compiles an ordinary structured model declaration.
 ///
-/// The attribute arguments configure model behavior; `input` is the annotated
-/// struct declaration. Returns generated Rust tokens or compiler diagnostics
-/// when the declaration is invalid.
+/// The attribute arguments configure model behavior.
+///
+/// # Parameters
+///
+/// * `args` - Model options controlling generated capabilities.
+/// * `input` - The struct declaration to compile.
+///
+/// # Returns
+///
+/// Returns generated Rust tokens, or compiler diagnostics when the declaration
+/// is invalid.
 ///
 /// Models accept named and unit structs. Named fields may define an ordered
 /// logical key with `#[key_part(order = n)]`.
@@ -112,9 +139,17 @@ pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Compiles a domain model enum declaration.
 ///
-/// The attribute arguments configure enum behavior; `input` is the annotated
-/// enum declaration. Returns generated Rust tokens or compiler diagnostics when
-/// the declaration is invalid.
+/// The attribute arguments configure enum behavior.
+///
+/// # Parameters
+///
+/// * `args` - Enum options controlling generated capabilities.
+/// * `input` - The enum declaration to compile.
+///
+/// # Returns
+///
+/// Returns generated Rust tokens, or compiler diagnostics when the declaration
+/// is invalid.
 ///
 /// Each variant retains distinct Rust, canonical model, and Serde names.
 #[allow(non_snake_case)]
@@ -125,9 +160,17 @@ pub fn Enum(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Compiles a domain value-type declaration.
 ///
-/// The attribute arguments configure value behavior; `input` is the annotated
-/// struct declaration. Returns generated Rust tokens or compiler diagnostics
-/// when the declaration is invalid.
+/// The attribute arguments configure value behavior.
+///
+/// # Parameters
+///
+/// * `args` - Value options controlling representation and capabilities.
+/// * `input` - The struct declaration to compile.
+///
+/// # Returns
+///
+/// Returns generated Rust tokens, or compiler diagnostics when the declaration
+/// is invalid.
 ///
 /// Values accept named structs or one-field tuple structs. Only named value
 /// fields can participate in an ordered `key_part` logical key.
@@ -142,7 +185,17 @@ pub fn Value(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// This attribute accepts no configuration arguments. `input` must be an
 /// inherent implementation whose public, synchronous methods follow the getter
-/// or setter contract. Returns generated Rust tokens or compiler diagnostics.
+/// or setter contract.
+///
+/// # Parameters
+///
+/// * `args` - Must be empty; this attribute accepts no configuration.
+/// * `input` - The inherent implementation containing property methods.
+///
+/// # Returns
+///
+/// Returns generated Rust tokens, or compiler diagnostics when a method does
+/// not satisfy the property contract.
 ///
 /// Getter output may be owned or one of the supported borrowed forms. Setters
 /// require `&mut self`, one owned value parameter, and a unit return type.
