@@ -63,6 +63,12 @@ assert!(metadata.descriptor().model_metadata().is_some());
 部分字段，但已选择字段的 order 必须从零开始、连续且不重复。它不是 Entity identifier，因此不能用于
 `Entity`、`Projection`、`Enum` 或 tuple/newtype Value。
 
+## 为什么需要这个项目
+
+模型框架既要理解 Rust 结构，也要掌握领域规则。若另行维护 schema，字段名、类型、访问器和约束很容易
+逐渐失配。本 crate 直接编译模型声明，并复用唯一的 `qubit-reflect` descriptor，让 metadata 消费者与
+业务代码始终基于同一份结构事实。
+
 ## 提供的能力
 
 六个属性宏共用解析、规范化、校验和展开流程：
@@ -92,6 +98,9 @@ assert!(metadata.descriptor().model_metadata().is_some());
 注册项并解析可读依赖。Rust codec 会直接生成可执行 `ValueCodecDescriptor`，或按稳定 ID 绑定，且会校验
 精确 value type。若多个原始 map key
 脱敏后相同，序列化会失败，避免静默覆盖数据。
+
+本 crate 只描述模型语义，不定义物理数据库索引，不负责执行 validator，也不会把 Rust `type_name()`
+当作稳定模型身份。相关职责由显式的下游消费者和完成解析的模型图承担。
 
 ## 延伸阅读
 

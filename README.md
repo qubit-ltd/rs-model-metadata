@@ -74,6 +74,14 @@ the selected orders must be unique and contiguous from zero. It is not an
 entity identifier and is therefore rejected on `Entity`, `Projection`,
 `Enum`, and tuple/newtype values.
 
+## Why This Project Exists
+
+Model-aware frameworks need both Rust structure and domain rules. Maintaining
+those facts in a separate schema makes field names, types, accessors, and
+constraints drift apart. This crate compiles the model declaration itself and
+reuses the single `qubit-reflect` descriptor, so metadata consumers observe
+the same structure that Rust code uses.
+
 ## What It Provides
 
 Six attribute macros share one parse, normalize, validate, and expand
@@ -115,12 +123,17 @@ or are bound by stable ID; their exact value type is checked.
 For redacted map keys, serialization fails if distinct source keys redact to
 the same output key instead of silently overwriting data.
 
+The crate describes model semantics; it does not define physical database
+indexes, execute validators, or turn Rust `type_name()` output into a stable
+model identity. Those responsibilities remain with explicit downstream
+consumers and the resolved model graph.
+
 ## Learn More
 
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
 - Local API documentation: run `cargo doc --open`
-- [Final design (Chinese)](doc/rs-model-derive-final-design.zh_CN.md)
+- [Final design](doc/rs-model-derive-final-design.md)
 - [中文 README](README.zh_CN.md)
 
 ## Testing
