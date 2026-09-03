@@ -1,4 +1,3 @@
-multiple-public-types | src/relation/reference_metadata.rs | Reference target, path, segments, and metadata form one composite public API
 multiple-public-types | src/__private.rs | Generated code consumes this cohesive hidden ABI as one versioned surface
 multiple-public-types | src/field_semantics.rs | Field semantic occurrences share one ordered metadata vocabulary
 multiple-public-types | src/metadata_registry/model_registry_error.rs | Registry error kind and payload form one diagnostic contract
