@@ -96,10 +96,7 @@ fn reflect_facade_supports_enabled_ecosystem_and_qubit_types() {
     let descriptor = TypeDescriptor::of::<ExternalTypeFixture>();
 
     for field in ["id", "created_at", "amount", "request_id", "data_type"] {
-        assert!(
-            descriptor.field(field).is_some(),
-            "missing reflected field {field}"
-        );
+        assert!(descriptor.field(field).is_some(), "missing reflected field {field}");
     }
 }
 

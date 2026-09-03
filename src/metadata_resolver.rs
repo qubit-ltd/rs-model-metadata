@@ -8,10 +8,6 @@
 
 // qubit-style: allow multiple-public-types
 //! Explicit cross-model resolution and immutable resolved views.
-#![allow(
-    missing_docs,
-    reason = "the resolved graph vocabulary is documented as one cohesive contract in the module guide"
-)]
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -471,7 +467,6 @@ fn push_field_error(
 }
 
 /// Resolves executable strategies declared directly on one field.
-/// Resolves executable strategies declared directly on one field.
 #[allow(clippy::too_many_arguments)]
 fn resolve_field_strategies<'a>(
     metadata: &'static TypeMetadata,
@@ -597,6 +592,7 @@ fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosit
     runtime_type_id(type_ref)
 }
 
+/// Returns the innermost descriptor through transparent wrappers.
 fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
     loop {
         let element = descriptor
@@ -610,6 +606,7 @@ fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'s
     }
 }
 
+/// Returns the concrete type ID represented by a resolved or opaque reference.
 fn runtime_type_id(type_ref: &TypeRef) -> Option<TypeId> {
     type_ref
         .as_resolved()
@@ -617,7 +614,6 @@ fn runtime_type_id(type_ref: &TypeRef) -> Option<TypeId> {
         .or_else(|| type_ref.as_opaque().map(|descriptor| descriptor.type_id()))
 }
 
-/// Resolves one validator registration and its readable dependencies.
 /// Resolves one validator occurrence against the executable validator registry.
 #[allow(clippy::too_many_arguments)]
 fn resolve_validator<'a>(
@@ -690,7 +686,6 @@ fn resolve_validator<'a>(
     }
 }
 
-/// Resolves one statically typed or stable-ID codec declaration.
 /// Resolves one codec occurrence against the executable codec registry.
 #[allow(clippy::too_many_arguments)]
 fn resolve_codec<'a>(
@@ -1253,12 +1248,14 @@ impl ResolvedReference {
 
     /// Returns the resolved target model metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn target(&self) -> &'static TypeMetadata {
         self.target
     }
 
     /// Returns the selected target property, or `None` for an entity reference.
     #[must_use]
+    #[inline(always)]
     pub const fn property(&self) -> Option<&'static PropertyMetadata> {
         self.property
     }
@@ -1287,24 +1284,28 @@ pub struct ResolvedProjectionProducer {
 impl ResolvedProjectionProducer {
     /// Returns the producing Entity metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn source(&self) -> &'static TypeMetadata {
         self.source
     }
 
     /// Returns the produced Projection metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn projection(&self) -> &'static TypeMetadata {
         self.projection
     }
 
     /// Returns the property that declares this edge.
     #[must_use]
+    #[inline(always)]
     pub const fn property(&self) -> &'static PropertyMetadata {
         self.property
     }
 
     /// Returns the executable getter used as projector.
     #[must_use]
+    #[inline(always)]
     pub const fn projector(&self) -> Option<&'static GetterMetadata> {
         self.projector
     }
@@ -1355,6 +1356,7 @@ impl ResolvedProjectionProducer {
 }
 
 /// Failure while executing an automatic Projection producer.
+#[must_use]
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectionExecutionError {
     /// No executable adapter is registered for this producer.
@@ -1380,12 +1382,14 @@ pub enum ProjectionExecutionError {
 impl ResolvedProjectionSource {
     /// Returns the resolved entity model supplying the projection.
     #[must_use]
+    #[inline(always)]
     pub const fn target(&self) -> &'static TypeMetadata {
         self.target
     }
 }
 
 /// Immutable result of a complete successful resolution pass.
+#[must_use]
 #[derive(Debug)]
 pub struct ResolvedModelGraph<'a> {
     /// The registry used to resolve the graph.
@@ -1413,11 +1417,13 @@ impl<'a> ResolvedModelGraph<'a> {
 
     /// Returns all resolved Entity-to-Projection producer edges.
     #[must_use]
+    #[inline(always)]
     pub fn projection_producers(&self) -> &[ResolvedProjectionProducer] {
         &self.projection_producers
     }
     /// Returns the registry used for this resolution pass.
     #[must_use]
+    #[inline(always)]
     pub const fn registry(&self) -> &'a ModelRegistry {
         self.registry
     }
@@ -1467,16 +1473,22 @@ pub struct ResolvedValidator<'a> {
 
 impl ResolvedValidator<'_> {
     /// Returns the declaration occurrence.
+    #[must_use]
+    #[inline(always)]
     pub const fn declaration(&self) -> &'static ValidatorMetadata {
         self.declaration
     }
 
     /// Returns the executable validator registration.
+    #[must_use]
+    #[inline(always)]
     pub const fn registration(&self) -> &ValidatorRegistration {
         self.registration
     }
 
     /// Returns resolved readable dependency properties.
+    #[must_use]
+    #[inline(always)]
     pub fn dependencies(&self) -> &[&'static PropertyMetadata] {
         &self.dependencies
     }
@@ -1495,16 +1507,22 @@ pub struct ResolvedCodec<'a> {
 
 impl ResolvedCodec<'_> {
     /// Returns the declaration occurrence.
+    #[must_use]
+    #[inline(always)]
     pub const fn declaration(&self) -> &'static CodecMetadata {
         self.declaration
     }
 
     /// Returns the executable codec descriptor.
+    #[must_use]
+    #[inline(always)]
     pub const fn descriptor(&self) -> &'static ValueCodecDescriptor {
         self.descriptor
     }
 
     /// Returns the registry entry for stable-ID declarations.
+    #[must_use]
+    #[inline(always)]
     pub const fn registration(&self) -> Option<&ValueCodecRegistration> {
         self.registration
     }
@@ -1522,12 +1540,14 @@ pub struct QueryMetadata {
 impl QueryMetadata {
     /// Returns queryable indexed fields in deterministic path order.
     #[must_use]
+    #[inline(always)]
     pub fn filters(&self) -> &[QueryField] {
         &self.filters
     }
 
     /// Returns identifier and globally unique keys in deterministic order.
     #[must_use]
+    #[inline(always)]
     pub fn unique_keys(&self) -> &[UniqueQueryKey] {
         &self.unique_keys
     }
@@ -1561,24 +1581,28 @@ pub struct QueryField {
 impl QueryField {
     /// Returns the complete property path.
     #[must_use]
+    #[inline(always)]
     pub fn path(&self) -> PropertyPath<'_> {
         self.path.as_path()
     }
 
     /// Returns the flattened external name used for queries.
     #[must_use]
+    #[inline(always)]
     pub fn flat_name(&self) -> &str {
         &self.flat_name
     }
 
     /// Returns the resolved descriptor, or `None` for an opaque type.
     #[must_use]
+    #[inline(always)]
     pub const fn descriptor(&self) -> Option<&'static TypeDescriptor> {
         self.descriptor
     }
 
     /// Returns the declaration facts that made the field queryable.
     #[must_use]
+    #[inline(always)]
     pub const fn reasons(&self) -> IndexingReasons {
         self.reasons
     }
@@ -1652,6 +1676,7 @@ pub enum ModelResolveErrorKind {
 }
 
 /// One structured deterministic resolution error.
+#[must_use]
 #[derive(Clone, Debug)]
 pub struct ModelResolveError {
     /// The machine-readable resolution failure class.
@@ -1673,6 +1698,7 @@ pub struct ModelResolveError {
 }
 
 impl ModelResolveError {
+    /// Creates one resolution error with optional contextual details.
     fn new(
         kind: ModelResolveErrorKind,
         model_id: Option<&'static str>,
@@ -1693,12 +1719,14 @@ impl ModelResolveError {
         }
     }
 
+    /// Adds the expected and observed type identities to this error.
     fn with_types(mut self, expected: TypeId, actual: TypeId) -> Self {
         self.expected_type = Some(expected);
         self.actual_type = Some(actual);
         self
     }
 
+    /// Orders errors by kind, model, path, and source identity.
     fn compare(left: &Self, right: &Self) -> std::cmp::Ordering {
         left.kind
             .cmp(&right.kind)
@@ -1761,6 +1789,7 @@ impl core::fmt::Display for ModelResolveError {
 }
 
 /// All errors from one complete failed resolution pass.
+#[must_use]
 #[derive(Debug)]
 pub struct ModelResolveErrors {
     /// All deterministic failures collected during one resolution pass.
@@ -1769,7 +1798,8 @@ pub struct ModelResolveErrors {
 
 impl ModelResolveErrors {
     /// Returns every collected resolution failure.
-    #[must_use]
+    #[must_use = "inspect the resolution failures"]
+    #[inline(always)]
     pub fn errors(&self) -> &[ModelResolveError] {
         &self.errors
     }

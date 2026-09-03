@@ -2,6 +2,9 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+//
 // =============================================================================
 
 //! One unmerged field, getter, or setter property declaration.
@@ -30,18 +33,21 @@ impl PropertyFragment {
 
     /// Returns the canonical public property name.
     #[must_use]
+    #[inline(always)]
     pub const fn name(&self) -> &'static str {
         self.name
     }
 
     /// Returns the exact type declared by this source fragment.
     #[must_use]
+    #[inline(always)]
     pub const fn type_ref(&self) -> &'static TypeRef {
         self.type_ref
     }
 
     /// Returns the field, getter, or setter that declared this fragment.
     #[must_use]
+    #[inline(always)]
     pub const fn source(&self) -> PropertyFragmentSource {
         self.source
     }

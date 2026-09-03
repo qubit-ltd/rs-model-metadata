@@ -45,6 +45,7 @@ impl EntityMetadata {
 
     /// Returns the entity identifier field.
     #[must_use]
+    #[inline(always)]
     pub const fn identifier(&self) -> &'static FieldMetadata {
         self.identifier
     }
@@ -68,24 +69,28 @@ impl ProjectionMetadata {
 
     /// Returns the projection identifier field.
     #[must_use]
+    #[inline(always)]
     pub const fn identifier(&self) -> &'static FieldMetadata {
         self.identifier
     }
 
     /// Returns the optional declared source without consulting a registry.
     #[must_use]
+    #[inline(always)]
     pub const fn source(&self) -> Option<&'static DeclaredEntityTarget> {
         self.source
     }
 
     /// Returns whether undeclared source fields are accepted.
     #[must_use]
+    #[inline(always)]
     pub const fn is_open(&self) -> bool {
         self.source.is_none()
     }
 
     /// Returns whether the projection field set is fixed.
     #[must_use]
+    #[inline(always)]
     pub const fn is_fixed(&self) -> bool {
         self.source.is_some()
     }
@@ -119,18 +124,21 @@ impl ValueMetadata {
 
     /// Returns whether this value transparently wraps one field.
     #[must_use]
+    #[inline(always)]
     pub const fn is_transparent(&self) -> bool {
         self.transparent_field.is_some()
     }
 
     /// Returns the transparent field, if configured.
     #[must_use]
+    #[inline(always)]
     pub const fn transparent_field(&self) -> Option<&'static FieldMetadata> {
         self.transparent_field
     }
 
     /// Returns the canonical value codec, if configured.
     #[must_use]
+    #[inline(always)]
     pub const fn canonical_codec(&self) -> Option<&'static CodecMetadata> {
         self.canonical_codec
     }
@@ -154,6 +162,7 @@ pub enum RoleMetadata {
 impl RoleMetadata {
     /// Returns this payload's role discriminator.
     #[must_use]
+    #[inline(always)]
     pub const fn role(&self) -> ModelRole {
         match self {
             Self::Entity(_) => ModelRole::Entity,

@@ -9,6 +9,7 @@
 use crate::PropertyBuildError;
 
 /// Deterministically ordered failures produced while merging properties.
+#[must_use]
 #[derive(Clone, Debug)]
 pub struct PropertyBuildErrors {
     /// Failures ordered by property name and stable category.
@@ -17,7 +18,6 @@ pub struct PropertyBuildErrors {
 
 impl PropertyBuildErrors {
     /// Creates and deterministically orders an aggregate failure.
-    #[must_use]
     pub(crate) fn new(mut errors: Vec<PropertyBuildError>) -> Self {
         errors.sort_by(|left, right| {
             left.property_name()
@@ -30,7 +30,8 @@ impl PropertyBuildErrors {
     }
 
     /// Returns every local property failure in deterministic order.
-    #[must_use]
+    #[must_use = "inspect the property assembly failures"]
+    #[inline(always)]
     pub const fn errors(&self) -> &[PropertyBuildError] {
         &self.errors
     }

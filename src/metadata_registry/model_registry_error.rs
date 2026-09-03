@@ -28,6 +28,7 @@ pub enum ModelRegistryErrorKind {
 }
 
 /// A shareable model-registry construction error.
+#[must_use]
 #[derive(Clone, Debug)]
 pub struct ModelRegistryError {
     /// The machine-readable class of registry construction failure.
@@ -74,17 +75,20 @@ impl ModelRegistryError {
 
     /// Returns the machine-readable error class.
     #[must_use]
+    #[inline(always)]
     pub const fn kind(&self) -> ModelRegistryErrorKind {
         self.kind
     }
     /// Returns the conflicting model ID, or `None` when the failure is not
     /// associated with a model.
     #[must_use]
+    #[inline(always)]
     pub const fn model_id(&self) -> Option<ModelId> {
         self.model_id
     }
     /// Returns the registration sources involved in the error.
     #[must_use]
+    #[inline(always)]
     pub fn sources(&self) -> &[FragmentIdentity] {
         &self.sources
     }

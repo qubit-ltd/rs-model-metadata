@@ -79,42 +79,49 @@ impl FieldMetadata {
 
     /// Returns the underlying reflection field descriptor.
     #[must_use]
+    #[inline(always)]
     pub const fn reflect(&self) -> &'static FieldDescriptor {
         self.reflect
     }
 
     /// Returns the source field index.
     #[must_use]
+    #[inline(always)]
     pub const fn index(&self) -> usize {
         self.reflect.index()
     }
 
     /// Returns the field query name, when it has one.
     #[must_use]
+    #[inline(always)]
     pub const fn name(&self) -> Option<&'static str> {
         self.reflect.query_name()
     }
 
     /// Returns the reflected field visibility.
     #[must_use]
+    #[inline(always)]
     pub const fn visibility(&self) -> FieldVisibility<'static> {
         self.reflect.visibility()
     }
 
     /// Returns the exact resolved, opaque, or symbolic field type reference.
     #[must_use]
+    #[inline(always)]
     pub fn type_ref(&self) -> &'static TypeRef {
         self.reflect.field_type()
     }
 
     /// Returns the resolved field type descriptor, when available.
     #[must_use]
+    #[inline(always)]
     pub fn descriptor(&self) -> Option<&'static TypeDescriptor> {
         self.type_ref().as_resolved()
     }
 
     /// Returns all semantic occurrences in source order.
     #[must_use]
+    #[inline(always)]
     pub const fn attributes(&self) -> &'static [FieldAttributeMetadata] {
         self.attributes
     }
@@ -186,6 +193,7 @@ impl FieldMetadata {
 
     /// Returns all standard field constraints.
     #[must_use]
+    #[inline(always)]
     pub const fn constraints(&self) -> &'static [ConstraintMetadata] {
         self.constraints
     }
@@ -237,6 +245,7 @@ impl FieldMetadata {
 
     /// Returns validator declarations in source order.
     #[must_use]
+    #[inline(always)]
     pub const fn validators(&self) -> &'static [ValidatorMetadata] {
         self.validators
     }
@@ -261,6 +270,7 @@ impl FieldMetadata {
 
     /// Returns the effective Serde behavior.
     #[must_use]
+    #[inline(always)]
     pub const fn serde(&self) -> &'static SerdeFieldMetadata {
         self.serde
     }

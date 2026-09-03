@@ -8,10 +8,6 @@
 
 // qubit-style: allow multiple-public-types
 //! Domain semantics attached to reflected model fields.
-#![allow(
-    missing_docs,
-    reason = "the occurrence vocabulary is documented as one cohesive contract in the module guide"
-)]
 
 use bitflags::bitflags;
 use qubit_codec::ValueCodecDescriptor;
@@ -42,12 +38,14 @@ pub struct IdentifierMetadata {
 impl IdentifierMetadata {
     /// Creates identifier metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn new(assigned_by: IdentifierAssignment) -> Self {
         Self { assigned_by }
     }
 
     /// Returns the identifier assignment source.
     #[must_use]
+    #[inline(always)]
     pub const fn assigned_by(&self) -> IdentifierAssignment {
         self.assigned_by
     }
@@ -80,6 +78,7 @@ pub struct UniqueMetadata {
 impl UniqueMetadata {
     /// Creates uniqueness metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn new(respect_to: &'static [PropertyPath<'static>], ignore_case: bool) -> Self {
         Self {
             respect_to,
@@ -89,18 +88,21 @@ impl UniqueMetadata {
 
     /// Returns scope paths in source order.
     #[must_use]
+    #[inline(always)]
     pub const fn respect_to(&self) -> &'static [PropertyPath<'static>] {
         self.respect_to
     }
 
     /// Returns whether text comparison ignores case.
     #[must_use]
+    #[inline(always)]
     pub const fn ignore_case(&self) -> bool {
         self.ignore_case
     }
 
     /// Returns whether uniqueness is scoped by another property.
     #[must_use]
+    #[inline(always)]
     pub const fn is_scoped(&self) -> bool {
         !self.respect_to.is_empty()
     }
@@ -116,12 +118,14 @@ pub struct KeyPartMetadata {
 impl KeyPartMetadata {
     /// Creates key-part metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn new(order: usize) -> Self {
         Self { order }
     }
 
     /// Returns the zero-based component order.
     #[must_use]
+    #[inline(always)]
     pub const fn order(&self) -> usize {
         self.order
     }
@@ -148,6 +152,7 @@ pub enum DeclaredEntityTarget {
 impl DeclaredEntityTarget {
     /// Returns the target representation kind.
     #[must_use]
+    #[inline(always)]
     pub const fn kind(&self) -> DeclaredEntityTargetKind {
         match self {
             Self::RustType(_) => DeclaredEntityTargetKind::RustType,
@@ -166,6 +171,7 @@ impl DeclaredEntityTarget {
 
     /// Returns the declared stable model ID, if any.
     #[must_use]
+    #[inline(always)]
     pub const fn model_id(&self) -> Option<ModelId> {
         match self {
             Self::RustType(_) => None,
@@ -208,6 +214,7 @@ pub struct ReferenceMetadata {
 impl ReferenceMetadata {
     /// Creates reference metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn new(
         target: &'static DeclaredEntityTarget,
         selection: &'static ReferenceSelection,
@@ -224,24 +231,28 @@ impl ReferenceMetadata {
 
     /// Returns the declared entity target.
     #[must_use]
+    #[inline(always)]
     pub const fn target(&self) -> &'static DeclaredEntityTarget {
         self.target
     }
 
     /// Returns the selected entity value or property.
     #[must_use]
+    #[inline(always)]
     pub const fn selection(&self) -> &'static ReferenceSelection {
         self.selection
     }
 
     /// Returns whether the referenced record must already exist.
     #[must_use]
+    #[inline(always)]
     pub const fn existing(&self) -> bool {
         self.existing
     }
 
     /// Returns an equivalent property path, if declared.
     #[must_use]
+    #[inline(always)]
     pub const fn same_as(&self) -> Option<&'static PropertyPath<'static>> {
         self.same_as
     }
@@ -276,18 +287,21 @@ impl ValidatorMetadata {
 
     /// Returns the validated declaration ID.
     #[must_use]
+    #[inline(always)]
     pub const fn declared_id(&self) -> &'static str {
         self.declared_id
     }
 
     /// Returns parameters in source order.
     #[must_use]
+    #[inline(always)]
     pub const fn params(&self) -> &'static [NamedValidationArgument<'static>] {
         self.params
     }
 
     /// Returns dependency paths in source order.
     #[must_use]
+    #[inline(always)]
     pub const fn depends_on(&self) -> &'static [PropertyPath<'static>] {
         self.depends_on
     }
@@ -325,18 +339,21 @@ pub struct CodecMetadata {
 impl CodecMetadata {
     /// Creates codec metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn new(codec: &'static CodecReference, source: CodecSource) -> Self {
         Self { codec, source }
     }
 
     /// Returns the codec declaration.
     #[must_use]
+    #[inline(always)]
     pub const fn codec(&self) -> &'static CodecReference {
         self.codec
     }
 
     /// Returns the declaration source.
     #[must_use]
+    #[inline(always)]
     pub const fn source(&self) -> CodecSource {
         self.source
     }
@@ -397,6 +414,7 @@ pub struct RedactMetadata {
 impl RedactMetadata {
     /// Creates redact declaration metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn new(sensitivity: Option<Sensitivity>, mode: RedactModeMetadata, position: RedactPosition) -> Self {
         Self {
             sensitivity,
@@ -407,18 +425,21 @@ impl RedactMetadata {
 
     /// Returns the configured sensitivity, if applicable.
     #[must_use]
+    #[inline(always)]
     pub const fn sensitivity(&self) -> Option<Sensitivity> {
         self.sensitivity
     }
 
     /// Returns the declaration mode.
     #[must_use]
+    #[inline(always)]
     pub const fn mode(&self) -> RedactModeMetadata {
         self.mode
     }
 
     /// Returns the affected value position.
     #[must_use]
+    #[inline(always)]
     pub const fn position(&self) -> RedactPosition {
         self.position
     }
@@ -504,47 +525,56 @@ impl SerdeFieldMetadata {
     /// Returns the configured serialization name, or `None` when Serde uses
     /// the field name.
     #[must_use]
+    #[inline(always)]
     pub const fn serialize_name(&self) -> Option<&'static str> {
         self.serialize_name
     }
     /// Returns the configured deserialization name, or `None` when Serde uses
     /// the field name.
     #[must_use]
+    #[inline(always)]
     pub const fn deserialize_name(&self) -> Option<&'static str> {
         self.deserialize_name
     }
     /// Returns whether Serde omits this field during serialization.
     #[must_use]
+    #[inline(always)]
     pub const fn skip_serializing(&self) -> bool {
         self.skip_serializing
     }
     /// Returns whether Serde ignores this field during deserialization.
     #[must_use]
+    #[inline(always)]
     pub const fn skip_deserializing(&self) -> bool {
         self.skip_deserializing
     }
     /// Returns whether Serde flattens this field into its parent.
     #[must_use]
+    #[inline(always)]
     pub const fn flatten(&self) -> bool {
         self.flatten
     }
     /// Returns the configured Serde conversion path, if present.
     #[must_use]
+    #[inline(always)]
     pub const fn with(&self) -> Option<&'static str> {
         self.with
     }
     /// Returns whether a missing value uses Serde's default behavior.
     #[must_use]
+    #[inline(always)]
     pub const fn default(&self) -> bool {
         self.default
     }
     /// Returns the declaration source for missing-value defaults.
     #[must_use]
+    #[inline(always)]
     pub const fn default_source(&self) -> SerdeBehaviorSource {
         self.default_source
     }
     /// Returns the declaration source for empty-value omission.
     #[must_use]
+    #[inline(always)]
     pub const fn omit_source(&self) -> SerdeBehaviorSource {
         self.omit_source
     }
@@ -586,26 +616,31 @@ impl SelectorMetadata {
 
     /// Returns the nested collection position described by this metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn position(&self) -> SelectorPosition {
         self.position
     }
     /// Returns constraints in source order.
     #[must_use]
+    #[inline(always)]
     pub const fn constraints(&self) -> &'static [ConstraintMetadata] {
         self.constraints
     }
     /// Returns validators in source order.
     #[must_use]
+    #[inline(always)]
     pub const fn validators(&self) -> &'static [ValidatorMetadata] {
         self.validators
     }
     /// Returns the codec declaration, or `None` when absent.
     #[must_use]
+    #[inline(always)]
     pub const fn codec(&self) -> Option<&'static CodecMetadata> {
         self.codec
     }
     /// Returns the redaction declaration, or `None` when absent.
     #[must_use]
+    #[inline(always)]
     pub const fn redact(&self) -> Option<&'static RedactMetadata> {
         self.redact
     }

@@ -86,6 +86,7 @@ pub trait ModelTypeSeal {}
 /// Generated provider kept out of the public model bound.
 #[doc(hidden)]
 pub trait TypeMetadataProvider {
+    /// Returns the generated metadata for the implementing model type.
     fn __type_metadata() -> &'static crate::TypeMetadata;
 }
 
@@ -356,7 +357,20 @@ pub mod v3 {
     use qubit_reflect::expression::GenericDefinitionDescriptor;
     use qubit_reflect::identity::FragmentIdentity;
 
-    pub use super::compile_assertions::*;
+    pub use super::compile_assertions::BorrowedPropertyOutput;
+    pub use super::compile_assertions::DecimalConstraintTarget;
+    pub use super::compile_assertions::IdentifierType;
+    pub use super::compile_assertions::MapConstraintTarget;
+    pub use super::compile_assertions::OptionalBorrowedPropertyOutput;
+    pub use super::compile_assertions::PropertyOutputCompatible;
+    pub use super::compile_assertions::SequenceConstraintTarget;
+    pub use super::compile_assertions::TemporalConstraintTarget;
+    pub use super::compile_assertions::TextConstraintTarget;
+    pub use super::compile_assertions::UniqueItemsConstraintTarget;
+    pub use super::compile_assertions::VariableLengthSequenceTarget;
+    pub use super::compile_assertions::local_property_set;
+    pub use super::compile_assertions::model_impl_metadata;
+    pub use super::compile_assertions::property_fragment;
     use crate::TypeDescriptor;
     use crate::TypeMetadata;
     pub use crate::reflect_facade::model_capability;

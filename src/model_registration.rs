@@ -71,12 +71,14 @@ impl ModelRegistration {
 
     /// Returns the stable identifier under which this target is registered.
     #[must_use = "the stable model ID identifies the registered target"]
+    #[inline(always)]
     pub const fn model_id(&self) -> ModelId {
         self.model_id
     }
 
     /// Returns the target model role.
     #[must_use]
+    #[inline(always)]
     pub const fn role(&self) -> ModelRole {
         match self.target {
             ModelRegistrationTarget::Concrete(value) => value.role(),
@@ -86,18 +88,21 @@ impl ModelRegistration {
 
     /// Returns the concrete or generic registration target.
     #[must_use]
+    #[inline(always)]
     pub const fn target(&self) -> ModelRegistrationTarget {
         self.target
     }
 
     /// Returns the source fragment identity.
     #[must_use]
+    #[inline(always)]
     pub const fn source(&self) -> &'static FragmentIdentity {
         self.source
     }
 
     /// Returns concrete metadata when this is a concrete registration.
     #[must_use]
+    #[inline(always)]
     pub const fn metadata(&self) -> Option<&'static TypeMetadata> {
         match self.target {
             ModelRegistrationTarget::Concrete(value) => Some(value),
@@ -107,6 +112,7 @@ impl ModelRegistration {
 
     /// Returns generic metadata when this is a generic registration.
     #[must_use]
+    #[inline(always)]
     pub const fn generic(&self) -> Option<&'static GenericModelMetadata> {
         match self.target {
             ModelRegistrationTarget::Generic(value) => Some(value),

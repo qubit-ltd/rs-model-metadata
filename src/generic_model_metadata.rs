@@ -56,22 +56,26 @@ impl GenericModelMetadata {
     }
     /// Returns the semantic role assigned to this generic model.
     #[must_use]
+    #[inline(always)]
     pub const fn role(&self) -> ModelRole {
         self.role
     }
     /// Returns the shared reflection generic definition.
     #[must_use]
+    #[inline(always)]
     pub const fn definition(&self) -> &'static GenericDefinitionDescriptor {
         self.definition
     }
     /// Returns symbolic field overlays for the template.
     #[must_use]
+    #[inline(always)]
     pub const fn fields(&self) -> &'static [FieldMetadata] {
         self.fields
     }
 
     /// Returns symbolic enum-variant overlays for the template.
     #[must_use]
+    #[inline(always)]
     pub const fn variants(&self) -> &'static [EnumVariantMetadata] {
         self.variants
     }

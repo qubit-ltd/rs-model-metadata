@@ -113,6 +113,10 @@ impl TypeMetadata {
     }
 
     /// Returns the static metadata generated for `T`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when generated metadata fails ABI validation for `T`.
     #[must_use]
     pub fn of<T: HasTypeMetadata>() -> &'static Self {
         Self::try_of::<T>().unwrap_or_else(|error| panic!("{error}"))
@@ -132,6 +136,7 @@ impl TypeMetadata {
 
     /// Returns the unique reflection descriptor root.
     #[must_use]
+    #[inline(always)]
     pub const fn descriptor(&self) -> &'static TypeDescriptor {
         self.descriptor
     }
@@ -150,6 +155,7 @@ impl TypeMetadata {
 
     /// Returns the declared model ID, when registered.
     #[must_use]
+    #[inline(always)]
     pub const fn model_id(&self) -> Option<ModelId> {
         self.model_id
     }
@@ -162,6 +168,7 @@ impl TypeMetadata {
 
     /// Returns structural field overlays in reflection order.
     #[must_use]
+    #[inline(always)]
     pub const fn fields(&self) -> &'static [FieldMetadata] {
         self.fields
     }
@@ -212,30 +219,35 @@ impl TypeMetadata {
 
     /// Returns the generic model template that produced this metadata.
     #[must_use]
+    #[inline(always)]
     pub const fn generic_definition(&self) -> Option<&'static GenericModelMetadata> {
         self.generic_definition
     }
 
     /// Returns concrete reflection substitutions for a generic instance.
     #[must_use]
+    #[inline(always)]
     pub const fn concrete_generic(&self) -> Option<&'static ConcreteGenericDescriptor> {
         self.descriptor.concrete_generic()
     }
 
     /// Returns the model role tag.
     #[must_use]
+    #[inline(always)]
     pub const fn role(&self) -> ModelRole {
         self.role.role()
     }
 
     /// Returns the role-specific metadata payload.
     #[must_use]
+    #[inline(always)]
     pub const fn role_metadata(&self) -> &'static RoleMetadata {
         self.role
     }
 
     /// Returns Entity metadata when this is an Entity.
     #[must_use]
+    #[inline(always)]
     pub const fn as_entity(&self) -> Option<&'static EntityMetadata> {
         match self.role {
             RoleMetadata::Entity(value) => Some(value),
@@ -245,6 +257,7 @@ impl TypeMetadata {
 
     /// Returns Projection metadata when this is a Projection.
     #[must_use]
+    #[inline(always)]
     pub const fn as_projection(&self) -> Option<&'static ProjectionMetadata> {
         match self.role {
             RoleMetadata::Projection(value) => Some(value),
@@ -254,6 +267,7 @@ impl TypeMetadata {
 
     /// Returns Model metadata when this is a Model.
     #[must_use]
+    #[inline(always)]
     pub const fn as_model(&self) -> Option<&'static ModelMetadata> {
         match self.role {
             RoleMetadata::Model(value) => Some(value),
@@ -263,6 +277,7 @@ impl TypeMetadata {
 
     /// Returns Enum metadata when this is an Enum.
     #[must_use]
+    #[inline(always)]
     pub const fn as_enum(&self) -> Option<&'static EnumMetadata> {
         match self.role {
             RoleMetadata::Enum(value) => Some(value),
@@ -272,6 +287,7 @@ impl TypeMetadata {
 
     /// Returns Value metadata when this is a Value.
     #[must_use]
+    #[inline(always)]
     pub const fn as_value(&self) -> Option<&'static ValueMetadata> {
         match self.role {
             RoleMetadata::Value(value) => Some(value),

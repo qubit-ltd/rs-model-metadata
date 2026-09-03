@@ -2,6 +2,9 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+//
 // =============================================================================
 
 //! Successfully merged local property metadata.
@@ -24,6 +27,7 @@ impl LocalPropertySet {
 
     /// Returns merged properties in deterministic declaration order.
     #[must_use]
+    #[inline(always)]
     pub const fn properties(&self) -> &'static [PropertyMetadata] {
         self.properties
     }

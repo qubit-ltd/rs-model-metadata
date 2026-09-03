@@ -35,6 +35,7 @@ pub enum PropertyStorageKind {
 
 /// A property getter result that either borrows from its target or owns a
 /// value.
+#[must_use]
 pub enum PropertyValue<'a> {
     /// A dynamically typed borrow tied to the target.
     Borrowed(ReflectedRef<'a>),
@@ -69,6 +70,7 @@ impl<'a, T: 'static> PropertySlice<'a> for TypedPropertySlice<'a, T> {
 }
 
 /// A lifetime-preserving, type-erased borrowed slice returned by a property.
+#[must_use]
 pub struct BorrowedPropertySlice<'a> {
     /// The lifetime-preserving erased slice implementation.
     value: Box<dyn PropertySlice<'a> + 'a>,
@@ -77,7 +79,6 @@ pub struct BorrowedPropertySlice<'a> {
 impl<'a> BorrowedPropertySlice<'a> {
     /// Erases a borrowed slice without extending its lifetime.
     #[doc(hidden)]
-    #[must_use]
     pub fn new<T: 'static>(value: &'a [T]) -> Self {
         Self {
             value: Box::new(TypedPropertySlice { values: value }),
@@ -86,18 +87,21 @@ impl<'a> BorrowedPropertySlice<'a> {
 
     /// Returns the number of elements.
     #[must_use]
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.value.len()
     }
 
     /// Returns whether the slice contains no elements.
     #[must_use]
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns one element as a borrowed reflected value.
     #[must_use]
+    #[inline(always)]
     pub fn get(&self, index: usize) -> Option<ReflectedRef<'a>> {
         self.value.get(index)
     }
@@ -119,6 +123,7 @@ pub type GetterAdapter = for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a
 pub type SetterAdapter = fn(ReflectedMut<'_>, ReflectedOwned) -> Result<(), PropertySetFailure>;
 
 /// A property operation failed before or during adapter execution.
+#[must_use]
 #[derive(Debug, thiserror::Error)]
 pub enum PropertyAccessError {
     /// The target has a different concrete type.
@@ -146,13 +151,13 @@ pub enum PropertyAccessError {
 
 impl PropertyAccessError {
     /// Creates an adapter-defined user-method error.
-    #[must_use]
     pub const fn user(message: &'static str) -> Self {
         Self::User(message)
     }
 }
 
 /// A property set failure with optional untouched replacement ownership.
+#[must_use]
 pub struct PropertySetFailure {
     /// The structured reason why the property write failed.
     error: PropertyAccessError,
@@ -163,7 +168,6 @@ pub struct PropertySetFailure {
 impl PropertySetFailure {
     /// Creates a pre-execution failure retaining the replacement.
     #[doc(hidden)]
-    #[must_use]
     pub fn before_execution(error: PropertyAccessError, replacement: ReflectedOwned) -> Self {
         Self {
             error,
@@ -174,7 +178,6 @@ impl PropertySetFailure {
     /// Creates an adapter failure after ownership crossed the execution
     /// boundary.
     #[doc(hidden)]
-    #[must_use]
     pub const fn after_execution(error: PropertyAccessError) -> Self {
         Self {
             error,
@@ -183,7 +186,8 @@ impl PropertySetFailure {
     }
 
     /// Returns the structured failure.
-    #[must_use]
+    #[must_use = "inspect the property failure before discarding it"]
+    #[inline(always)]
     pub const fn error(&self) -> &PropertyAccessError {
         &self.error
     }
@@ -195,7 +199,7 @@ impl PropertySetFailure {
     }
 
     /// Consumes the failure and returns its parts.
-    #[must_use]
+    #[must_use = "handle the property error and recovered replacement"]
     pub fn into_parts(self) -> (PropertyAccessError, Option<ReflectedOwned>) {
         (self.error, self.replacement.map(|replacement| *replacement))
     }
@@ -254,16 +258,19 @@ impl GetterMetadata {
 
     /// Returns the Rust getter method name.
     #[must_use]
+    #[inline(always)]
     pub const fn rust_method_name(&self) -> &'static str {
         self.rust_method_name
     }
     /// Returns the declared getter output type.
     #[must_use]
+    #[inline(always)]
     pub const fn output_type(&self) -> &'static TypeRef {
         self.output_type
     }
     /// Returns whether the getter borrows or owns its output.
     #[must_use]
+    #[inline(always)]
     pub const fn output_kind(&self) -> GetterOutputKind {
         self.output_kind
     }
@@ -337,11 +344,13 @@ impl SetterMetadata {
 
     /// Returns the Rust setter method name.
     #[must_use]
+    #[inline(always)]
     pub const fn rust_method_name(&self) -> &'static str {
         self.rust_method_name
     }
     /// Returns the exact setter input type.
     #[must_use]
+    #[inline(always)]
     pub const fn input_type(&self) -> &'static TypeRef {
         self.input_type
     }
@@ -432,33 +441,39 @@ impl PropertyMetadata {
 
     /// Returns the public property name.
     #[must_use]
+    #[inline(always)]
     pub const fn name(&self) -> &'static str {
         self.name
     }
     /// Returns the property type reference.
     #[must_use]
+    #[inline(always)]
     pub const fn type_ref(&self) -> &'static TypeRef {
         self.type_ref
     }
     /// Returns the resolved property type descriptor, or `None` for symbolic
     /// and opaque property types.
     #[must_use]
+    #[inline(always)]
     pub const fn descriptor(&self) -> Option<&'static TypeDescriptor> {
         self.type_ref.as_resolved()
     }
     /// Returns the backing field, or `None` for computed and virtual
     /// properties.
     #[must_use]
+    #[inline(always)]
     pub const fn field(&self) -> Option<&'static FieldMetadata> {
         self.field
     }
     /// Returns the explicit getter, or `None` when reads use field fallback.
     #[must_use]
+    #[inline(always)]
     pub const fn getter(&self) -> Option<&'static GetterMetadata> {
         self.getter
     }
     /// Returns the explicit setter, or `None` when writes use field fallback.
     #[must_use]
+    #[inline(always)]
     pub const fn setter(&self) -> Option<&'static SetterMetadata> {
         self.setter
     }

@@ -2,6 +2,9 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+//
 // =============================================================================
 
 //! One structured local property assembly failure.
@@ -9,6 +12,7 @@
 use crate::PropertyBuildErrorKind;
 
 /// Describes one incompatible property fragment combination.
+#[must_use]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PropertyBuildError {
     /// Stable failure category.
@@ -19,19 +23,20 @@ pub struct PropertyBuildError {
 
 impl PropertyBuildError {
     /// Creates one property assembly failure.
-    #[must_use]
     pub(crate) const fn new(kind: PropertyBuildErrorKind, property_name: &'static str) -> Self {
         Self { kind, property_name }
     }
 
     /// Returns the stable failure category.
     #[must_use]
+    #[inline(always)]
     pub const fn kind(&self) -> PropertyBuildErrorKind {
         self.kind
     }
 
     /// Returns the canonical property name associated with the failure.
     #[must_use]
+    #[inline(always)]
     pub const fn property_name(&self) -> &'static str {
         self.property_name
     }

@@ -2,6 +2,9 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+//
 // =============================================================================
 
 //! Generated metadata for one model-aware inherent implementation block.
@@ -31,6 +34,7 @@ impl ModelImplMetadata {
 
     /// Returns every unmerged field/getter/setter source fact.
     #[must_use]
+    #[inline(always)]
     pub const fn fragments(&self) -> &'static [PropertyFragment] {
         self.fragments
     }

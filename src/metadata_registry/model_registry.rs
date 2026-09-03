@@ -156,12 +156,14 @@ impl ModelRegistry {
 
     /// Returns registrations in deterministic order.
     #[must_use]
+    #[inline(always)]
     pub fn registrations(&self) -> &[ModelRegistration] {
         &self.registrations
     }
 
     /// Returns registered generic definitions in deterministic order.
     #[must_use]
+    #[inline(always)]
     pub fn generic_definitions(&self) -> &[&'static GenericModelMetadata] {
         &self.generic_definitions
     }
