@@ -58,7 +58,7 @@ impl Source {
 }
 
 #[test]
-fn resolver_discovers_and_executes_projection_producers() {
+fn test_resolver_discovers_and_executes_projection_producers() {
     let registry = ModelRegistry::try_global().expect("valid registration index");
     let graph = ModelResolver::new(ResolveInputs {
         models: registry,
