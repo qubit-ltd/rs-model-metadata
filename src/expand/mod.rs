@@ -15,4 +15,3 @@ pub(crate) mod metadata;
 pub(crate) mod model_impl;
 pub(crate) mod registration;
 pub(crate) mod role;
-pub(crate) mod type_expression;

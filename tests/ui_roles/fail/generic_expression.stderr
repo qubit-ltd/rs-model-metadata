@@ -1,8 +1,10 @@
-error: const integer literal exceeds u128
-  --> tests/ui_roles/fail/generic_expression.rs:15:16
+error: unsupported const expression in #[reflect] trait: 340282366920938463463374607431768211456
+  --> tests/ui_roles/fail/generic_expression.rs:13:1
    |
-15 |     value: [T; 340282366920938463463374607431768211456],
-   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+13 | #[Model(id = "trybuild.GenericExpression")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the derive macro `::model_runtime::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error: integer literal is too large
   --> tests/ui_roles/fail/generic_expression.rs:15:16

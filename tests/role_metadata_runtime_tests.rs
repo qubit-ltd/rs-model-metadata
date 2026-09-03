@@ -17,10 +17,12 @@ use model_runtime::ModelRegistry;
 use model_runtime::ModelResolver;
 use model_runtime::ModelRole;
 use model_runtime::PropertyPath;
+use model_runtime::Reflect;
 use model_runtime::ResolveInputs;
 use model_runtime::SerdeBehaviorSource;
 use model_runtime::TypeDescriptor;
 use model_runtime::TypeMetadata;
+use model_runtime::expression::ConstExpression;
 use model_runtime::expression::TypeExpression;
 use qubit_codec::ValueCodecRegistry;
 use qubit_codec::ValueDecoder;
@@ -160,6 +162,20 @@ struct Page<T> {
 
 #[Model(id = "runtime.Buffer", no_serialize, no_deserialize)]
 struct Buffer<const N: usize> {
+    bytes: [u8; N],
+}
+
+trait ItemFamily {
+    type Item: Reflect + Clone + core::fmt::Debug;
+}
+
+impl ItemFamily for u8 {
+    type Item = u16;
+}
+
+#[Model(id = "runtime.HTTPEnvelope", no_serialize, no_deserialize, no_redact)]
+struct HTTPEnvelope<T: ItemFamily + Reflect, const N: usize> {
+    item: T::Item,
     bytes: [u8; N],
 }
 
@@ -403,6 +419,22 @@ fn test_generic_model_registers_only_its_definition() {
     let definition = buffer.generic_definition().expect("const generic definition");
     assert_eq!(definition.definition().parameters().len(), 1);
     assert!(definition.fields()[0].type_ref().as_symbolic().is_some());
+
+    let _ = TypeMetadata::of::<HTTPEnvelope<u8, 4>>();
+    let definition = registry
+        .generic("runtime.HTTPEnvelope")
+        .expect("mixed-case generic registration");
+    assert!(matches!(
+        definition.fields()[0].type_ref().as_symbolic(),
+        Some(TypeExpression::Associated(associated))
+            if associated.item() == "Item"
+                && matches!(associated.self_type(), TypeExpression::Parameter(name) if name.as_ref() == "T")
+    ));
+    assert!(matches!(
+        definition.fields()[1].type_ref().as_symbolic(),
+        Some(TypeExpression::Array(array))
+            if matches!(array.length(), ConstExpression::Parameter(name) if name.as_ref() == "N")
+    ));
 }
 
 #[test]
