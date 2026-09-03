@@ -100,7 +100,6 @@ impl ModelId {
 
     /// Returns the final type-name segment of this model ID.
     #[must_use]
-    #[inline]
     pub const fn type_name(self) -> &'static str {
         let bytes = self.0.as_bytes();
         let mut index = bytes.len();
@@ -164,6 +163,7 @@ const fn validate_segment(bytes: &[u8], start: usize, end: usize) -> Result<(), 
     Ok(())
 }
 
+/// Returns whether `byte` is an ASCII alphabetic character.
 const fn is_ascii_letter(byte: u8) -> bool {
     (byte >= b'a' && byte <= b'z') || (byte >= b'A' && byte <= b'Z')
 }

@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Character-set policies for text constraints.
+
 /// The character set accepted by a text constraint.
 ///
 /// # Examples

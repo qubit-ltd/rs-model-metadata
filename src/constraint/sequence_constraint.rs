@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Length, uniqueness, and nested-value policies for sequences.
+
 /// Constraints that apply to an ordered sequence.
 ///
 /// # Examples
@@ -104,6 +106,7 @@ impl SequenceConstraint {
 
     /// Returns element semantics, if declared.
     #[must_use]
+    #[inline(always)]
     pub const fn element(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
         self.element
     }

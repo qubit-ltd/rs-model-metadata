@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Supported temporal precision levels.
+
 /// The resolution retained for temporal values.
 ///
 /// # Examples

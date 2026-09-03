@@ -6,7 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Domain overlay for one reflected enum variant.
+//! Domain metadata overlays for individual reflected enum variants.
 
 use qubit_reflect::VariantDescriptor;
 
@@ -52,42 +52,49 @@ impl EnumVariantMetadata {
 
     /// Returns the underlying structural descriptor.
     #[must_use]
+    #[inline(always)]
     pub const fn reflect(&self) -> &'static VariantDescriptor {
         self.reflect
     }
 
     /// Returns the source declaration index.
     #[must_use]
+    #[inline(always)]
     pub const fn index(&self) -> usize {
         self.reflect.index()
     }
 
     /// Returns the immutable Rust identifier.
     #[must_use]
+    #[inline(always)]
     pub const fn rust_name(&self) -> &'static str {
         self.reflect.rust_name()
     }
 
     /// Returns the canonical model name.
     #[must_use]
+    #[inline(always)]
     pub const fn canonical_name(&self) -> &'static str {
         self.canonical_name
     }
 
     /// Returns the serialization name.
     #[must_use]
+    #[inline(always)]
     pub const fn serialized_name(&self) -> &'static str {
         self.serialized_name
     }
 
     /// Returns the deserialization name.
     #[must_use]
+    #[inline(always)]
     pub const fn deserialized_name(&self) -> &'static str {
         self.deserialized_name
     }
 
     /// Returns payload field overlays in source order.
     #[must_use]
+    #[inline(always)]
     pub const fn fields(&self) -> &'static [FieldMetadata] {
         self.fields
     }
@@ -108,6 +115,7 @@ impl EnumVariantMetadata {
 
     /// Returns whether this is the default variant.
     #[must_use]
+    #[inline(always)]
     pub const fn is_default(&self) -> bool {
         self.default
     }

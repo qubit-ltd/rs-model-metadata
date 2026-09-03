@@ -6,7 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Domain metadata for reflected enums.
+//! Domain metadata indexes for reflected enum variants.
 
 use crate::EnumVariantMetadata;
 
@@ -26,6 +26,7 @@ impl EnumMetadata {
 
     /// Returns variants in source order.
     #[must_use]
+    #[inline(always)]
     pub const fn variants(&self) -> &'static [EnumVariantMetadata] {
         self.variants
     }

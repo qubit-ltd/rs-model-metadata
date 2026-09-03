@@ -30,6 +30,19 @@ pub struct ModelIdBuf(Box<str>);
 
 impl ModelIdBuf {
     /// Parses and owns a dynamic model ID.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The candidate stable model-ID string.
+    ///
+    /// # Returns
+    ///
+    /// An owned validated model ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
+    /// protocol.
     pub fn parse(value: &str) -> Result<Self, ModelIdError> {
         ModelId::validate(value)?;
         Ok(Self(value.into()))

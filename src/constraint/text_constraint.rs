@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Length, character-set, and format policies for text values.
+
 use super::AllowedChars;
 use super::TextFormat;
 

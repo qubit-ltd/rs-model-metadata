@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Rounding policies for decimal constraints.
+
 /// A rounding strategy for decimal constraints.
 ///
 /// # Examples

@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Semantic formats supported by text constraints.
+
 /// A semantic format accepted by a text constraint.
 ///
 /// # Examples

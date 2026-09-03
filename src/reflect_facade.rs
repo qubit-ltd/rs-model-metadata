@@ -45,6 +45,7 @@ pub fn model_impl_key() -> CapabilityKey<ModelImplProvider> {
 #[doc(hidden)]
 #[must_use]
 pub fn model_capability<T: crate::HasTypeMetadata>() -> CapabilityDescriptor {
+    /// Returns the metadata supplied by `T` after descriptor validation.
     fn provide<T: crate::HasTypeMetadata>() -> &'static TypeMetadata {
         let metadata = <T as crate::__private::TypeMetadataProvider>::__type_metadata();
         metadata.assert_valid_for::<T>();

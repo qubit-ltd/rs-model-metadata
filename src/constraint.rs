@@ -33,6 +33,25 @@ pub use self::text_constraint::TextConstraint;
 pub use self::text_format::TextFormat;
 
 /// A standard constraint occurrence on a field or selector.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::AllowedChars;
+/// use qubit_model_metadata::ConstraintMetadata;
+/// use qubit_model_metadata::TextConstraint;
+///
+/// let constraint = ConstraintMetadata::Text(TextConstraint::new(
+///     None,
+///     Some(80),
+///     None,
+///     None,
+///     AllowedChars::Unicode,
+///     false,
+///     None,
+/// ));
+/// assert!(matches!(constraint, ConstraintMetadata::Text(_)));
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub enum ConstraintMetadata {
     /// Text constraints.

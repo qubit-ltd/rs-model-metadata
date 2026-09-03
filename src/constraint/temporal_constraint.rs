@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Precision policies for temporal values.
+
 use super::TemporalPrecision;
 
 /// Constraints for temporal values.

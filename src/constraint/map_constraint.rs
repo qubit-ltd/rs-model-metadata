@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Entry-count and nested-value policies for maps.
+
 /// Constraints that apply to a map.
 ///
 /// # Examples
@@ -96,12 +98,14 @@ impl MapConstraint {
 
     /// Returns key semantics, if declared.
     #[must_use]
+    #[inline(always)]
     pub const fn key(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
         self.key
     }
 
     /// Returns value semantics, if declared.
     #[must_use]
+    #[inline(always)]
     pub const fn value(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
         self.value
     }

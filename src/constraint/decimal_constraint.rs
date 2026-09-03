@@ -6,6 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Precision, range, and rounding policies for decimal values.
+
 use super::DecimalSemantic;
 use super::RoundingMode;
 
@@ -140,24 +142,28 @@ impl DecimalConstraint {
 
     /// Returns the exact lower-bound declaration.
     #[must_use]
+    #[inline(always)]
     pub const fn min(self) -> Option<&'static str> {
         self.min
     }
 
     /// Returns the exact upper-bound declaration.
     #[must_use]
+    #[inline(always)]
     pub const fn max(self) -> Option<&'static str> {
         self.max
     }
 
     /// Returns whether the lower bound includes equality.
     #[must_use]
+    #[inline(always)]
     pub const fn min_inclusive(self) -> bool {
         self.min_inclusive
     }
 
     /// Returns whether the upper bound includes equality.
     #[must_use]
+    #[inline(always)]
     pub const fn max_inclusive(self) -> bool {
         self.max_inclusive
     }
