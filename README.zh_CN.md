@@ -19,6 +19,7 @@
 [dependencies]
 qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-id = "0.6"
 ```
 
 生成代码会通过 `proc-macro-crate` 解析 `qubit-model-metadata` 的实际依赖名，因此支持重命名 runtime
@@ -29,14 +30,15 @@ qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
 以登录服务为例：用户必须有稳定身份，邮箱不能在日志中明文输出，框架还需要发现可写的 `email`
 属性。只需声明一次模型：
 
-```rust,ignore
+```rust
+use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
 use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
 
 #[Entity(id = "example.User")]
 pub struct User {
     #[identifier]
-    id: u64,
+    id: Id,
     #[unique(ignore_case = true)]
     #[redact(level = "medium")]
     email: String,
@@ -56,6 +58,10 @@ assert!(metadata.descriptor().model_metadata().is_some());
 
 角色宏会委托 `qubit-reflect` 生成 Rust 结构描述符，再将唯一的 `TypeMetadata` 类型化能力
 附加到同一个描述符上。生成的 `Debug`、`Display`、`Serialize` 会遵守脱敏策略，不会把邮箱按普通明文输出。
+
+`#[key_part(order = n)]` 描述具名 `Model` 或具名 `Value` 的逻辑复合键及字段顺序。逻辑键可以只选择
+部分字段，但已选择字段的 order 必须从零开始、连续且不重复。它不是 Entity identifier，因此不能用于
+`Entity`、`Projection`、`Enum` 或 tuple/newtype Value。
 
 ## 提供的能力
 

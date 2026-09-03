@@ -38,6 +38,7 @@ workspace layout:
 [dependencies]
 qubit-model-derive = { path = "../rs-model-derive" }
 qubit-model-metadata = { path = "../rs-model-metadata" }
+qubit-id = "0.6"
 qubit-codec = { version = "0.14", features = ["registry"] }
 ```
 
@@ -47,7 +48,8 @@ only when the direct `qubit-codec` dependency enables `registry`.
 Declare a transparent value, an entity, a reference-bearing model, and one
 field-backed property plus a computed property:
 
-```rust,ignore
+```rust
+use qubit_id::Id;
 use qubit_model_derive::{Entity, Model, ModelImpl, Value};
 
 #[Value(transparent)]
@@ -59,7 +61,7 @@ pub struct Email(
 #[Entity(id = "example.User")]
 pub struct User {
     #[identifier(assigned_by = application)]
-    id: u64,
+    id: Id,
     #[unique(ignore_case = true)]
     #[redact(nested)]
     email: Email,
@@ -70,7 +72,7 @@ pub struct User {
 #[Model(id = "example.Login")]
 pub struct Login {
     #[reference(entity_id = "example.User", property = id)]
-    user_id: u64,
+    user_id: Id,
 }
 
 #[ModelImpl]
@@ -161,6 +163,29 @@ Useful field declarations include:
 - `#[redact(level = "medium")]`, `skip`, `nested`, `map`, `keyed_by`, and
   `json` modes;
 - `#[validator(id = "example.rule", params(...), depends_on(...))]`.
+
+`key_part` is a value-semantic key, not persistence identity. It is accepted
+only on real named fields of `Model` and `Value`. A declaration may select a
+subset of its fields, but selected orders must be unique and contiguous from
+zero. For example, a locale-aware code can key on `namespace` and `code`
+while leaving a descriptive label outside the key:
+
+```rust
+use qubit_model_derive::Value;
+
+#[Value]
+struct LocalizedCode {
+    #[key_part(order = 0)]
+    namespace: String,
+    #[key_part(order = 1)]
+    code: String,
+    label: String,
+}
+```
+
+Use `#[identifier]` for Entity/Projection identity. `key_part` is rejected on
+those roles, on `Enum`, and on tuple/newtype values because those shapes do
+not represent an ordered selection of named storage fields.
 
 Selectors accept only `redact(level = "...")` for redaction. `element` and
 `map_value` apply to container values. `map_key` redacts output keys; if two

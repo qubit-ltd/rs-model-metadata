@@ -308,6 +308,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "qubit-codec",
+ "qubit-id",
  "qubit-model-metadata",
  "qubit-validator",
  "quote",

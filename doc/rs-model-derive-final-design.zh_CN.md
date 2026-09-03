@@ -600,6 +600,11 @@ impl KeyPartMetadata {
 }
 ```
 
+`key_part` 表达值语义上的逻辑复合键，而不是持久化身份。它只允许用于具名 `Model` 或具名 `Value`
+的真实存储字段；可选择字段子集，但所选 order 必须从 0 开始、连续且不重复。`Entity`、`Projection`
+应使用 `identifier`，`Enum` 与 tuple/newtype Value 没有可供选择的具名字段，因此这些形状都拒绝
+`key_part`。
+
 `ignore_case()` 只描述当前 unique 字段，默认 true；scope 路径按源码顺序返回。物理索引名、列名、排序和数据库参数不进入
 这些类型。
 

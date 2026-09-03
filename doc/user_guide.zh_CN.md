@@ -27,6 +27,7 @@ ModelImpl impl ----------> property capability
 [dependencies]
 qubit-model-derive = { path = "../rs-model-derive" }
 qubit-model-metadata = { path = "../rs-model-metadata" }
+qubit-id = "0.6"
 qubit-codec = { version = "0.14", features = ["registry"] }
 ```
 
@@ -35,7 +36,8 @@ qubit-codec = { version = "0.14", features = ["registry"] }
 
 下面的声明包含透明值对象、实体、带引用的模型，以及字段支持和计算属性：
 
-```rust,ignore
+```rust
+use qubit_id::Id;
 use qubit_model_derive::{Entity, Model, ModelImpl, Value};
 
 #[Value(transparent)]
@@ -47,7 +49,7 @@ pub struct Email(
 #[Entity(id = "example.User")]
 pub struct User {
     #[identifier(assigned_by = application)]
-    id: u64,
+    id: Id,
     #[unique(ignore_case = true)]
     #[redact(nested)]
     email: Email,
@@ -58,7 +60,7 @@ pub struct User {
 #[Model(id = "example.Login")]
 pub struct Login {
     #[reference(entity_id = "example.User", property = id)]
-    user_id: u64,
+    user_id: Id,
 }
 
 #[ModelImpl]
@@ -131,6 +133,26 @@ assert_eq!(
 - `#[codec(MyCodec)]` 或 `#[codec(id = "example.codec")]`；
 - `#[redact(level = "medium")]`、`skip`、`nested`、`map`、`keyed_by`、`json`；
 - `#[validator(id = "example.rule", params(...), depends_on(...))]`。
+
+`key_part` 表达值语义上的逻辑键，而不是持久化身份。它只允许标在具名 `Model` 或具名 `Value`
+的真实存储字段上。逻辑键可以选择字段子集，但所选 order 必须从零开始、连续且不重复。例如，一个
+带命名空间的编码可把 `namespace` 与 `code` 作为键，而不把展示用 `label` 纳入键：
+
+```rust
+use qubit_model_derive::Value;
+
+#[Value]
+struct LocalizedCode {
+    #[key_part(order = 0)]
+    namespace: String,
+    #[key_part(order = 1)]
+    code: String,
+    label: String,
+}
+```
+
+Entity/Projection 的身份应使用 `#[identifier]`。`key_part` 不能用于这两种角色，也不能用于 `Enum`
+或 tuple/newtype Value，因为这些形状不表示对多个具名存储字段的有序选择。
 
 selector 上的脱敏只接受 `redact(level = "...")`。`element` 和 `map_value` 应用于容器 value；`map_key`
 处理输出 key。若两个原始 key 脱敏后相同，Serde 序列化会返回错误，不会静默覆盖 value。

@@ -24,6 +24,7 @@ workspace layout:
 [dependencies]
 qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-id = "0.6"
 ```
 
 Generated code resolves `qubit-model-metadata` with `proc-macro-crate`; a
@@ -36,14 +37,15 @@ Consider a login service that needs a stable user identity, must avoid exposing
 email addresses in its logs, and wants framework code to discover a writable
 `email` property. Declare the model once:
 
-```rust,ignore
+```rust
+use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
 use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
 
 #[Entity(id = "example.User")]
 pub struct User {
     #[identifier]
-    id: u64,
+    id: Id,
     #[unique(ignore_case = true)]
     #[redact(level = "medium")]
     email: String,
@@ -65,6 +67,12 @@ The role macro delegates Rust structure to `qubit-reflect`, then attaches one
 typed `TypeMetadata` capability to that same descriptor. The generated
 `Debug`, `Display`, and `Serialize` implementations use the redaction policy,
 so the email is not emitted as ordinary plain-text output.
+
+`#[key_part(order = n)]` describes the ordered fields that form the logical
+key of a named `Model` or named `Value`. A key may use only some fields, but
+the selected orders must be unique and contiguous from zero. It is not an
+entity identifier and is therefore rejected on `Entity`, `Projection`,
+`Enum`, and tuple/newtype values.
 
 ## What It Provides
 
