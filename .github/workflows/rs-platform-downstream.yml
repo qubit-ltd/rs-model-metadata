@@ -1,0 +1,90 @@
+name: rs-platform downstream
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+      - dev-starfish
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  platform-compatibility:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out metadata under the platform sibling layout
+        uses: actions/checkout@v6
+        with:
+          path: platform/rs-model-metadata
+
+      - name: Check out platform dependencies
+        uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-reflect
+          ref: main
+          path: platform/rs-reflect
+
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-model-derive
+          ref: main
+          path: platform/rs-model-derive
+
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-platform
+          ref: main
+          path: platform/rs-platform
+
+      - name: Check out Rust common path dependencies
+        uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-id
+          ref: main
+          path: rust-common/rs-id
+
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-datatype
+          ref: main
+          path: rust-common/rs-datatype
+
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-redact
+          ref: main
+          path: rust-common/rs-redact
+
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-redact-derive
+          ref: main
+          path: rust-common/rs-redact-derive
+
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-codec
+          ref: main
+          path: rust-common/rs-codec
+
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-validator
+          ref: main
+          path: rust-common/rs-validator
+
+      - name: Install the platform build toolchain
+        run: rustup toolchain install 1.94.0 --profile minimal
+
+      - name: Test the downstream platform workspace
+        working-directory: platform/rs-platform
+        run: cargo +1.94.0 test --workspace --all-features
+
+      - name: Build downstream platform documentation
+        working-directory: platform/rs-platform
+        run: RUSTDOCFLAGS=-D warnings cargo +1.94.0 doc --workspace --no-deps
