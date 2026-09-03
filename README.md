@@ -22,13 +22,13 @@ and its companion derive crate to an application that declares models:
 [dependencies]
 qubit-model-metadata = "0.1"
 qubit-model-derive = "0.1"
-# Required only when the application imports ValueCodecRegistry directly.
-qubit-codec = { version = "0.14", features = ["registry"] }
+qubit-id = "0.6"
 ```
 
-`ValueCodecRegistry` is feature-gated by `qubit-codec`. Applications that run
-`ModelResolver` and import that registry directly must enable `registry`; it
-is not made available by `qubit-codec`'s default feature set.
+`qubit-id` supplies the exact `Id` type required by `Entity` and `Projection`
+identifiers. Applications that run `ModelResolver` also need direct
+`qubit-validator` and `qubit-codec` dependencies; the complete setup is in the
+user guide.
 
 ## Quick Start
 
@@ -39,12 +39,13 @@ role-aware metadata, while `TypeMetadata` exposes it through the same
 
 ```rust,ignore
 use qubit_model_derive::Entity;
+use qubit_id::Id;
 use qubit_model_metadata::{ModelDescriptorExt, TypeDescriptor, TypeMetadata};
 
 #[Entity(id = "example.User")]
 struct User {
     #[identifier]
-    id: u64,
+    id: Id,
     #[unique(ignore_case = true)]
     email: String,
 }
@@ -78,16 +79,20 @@ the reflection model.
 - Resolution produces an immutable `ResolvedModelGraph`, or deterministic
   aggregated errors when relationships, roles, properties, validators, or
   codecs cannot be resolved.
+- The resolved graph exposes references, projection sources and producers,
+  executable validator and codec bindings, merged properties, and query
+  metadata derived from indexed fields.
 
 It does not replace `qubit-reflect`, and static metadata lookup does not
 implicitly register models or resolve cross-model relationships. Generated
 metadata is checked against descriptor, field, property, role, and codec
-invariants before it crosses the hidden v2 ABI boundary.
+invariants before it crosses the hidden ABI boundary.
 
 ## Learn More
 
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
+- [`qubit-model-derive` declaration guide](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.md)
 - [API documentation](https://docs.rs/qubit-model-metadata)
 - [中文版 README](README.zh_CN.md)
 

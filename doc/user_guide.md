@@ -45,13 +45,18 @@ Add the runtime and macro crates to the application:
 [dependencies]
 qubit-model-metadata = "0.1"
 qubit-model-derive = "0.1"
-# Required for the ValueCodecRegistry used by the resolution step below.
+qubit-id = "0.6"
+qubit-validator = "0.1"
 qubit-codec = { version = "0.14", features = ["registry"] }
 ```
 
 `ValueCodecRegistry` is available only with `qubit-codec`'s `registry`
 feature. Keep that feature enabled in the application crate that imports and
-supplies the codec registry to `ModelResolver`.
+supplies the codec registry to `ModelResolver`. The resolver accepts all three
+registries explicitly, so an application using it needs direct dependencies on
+`qubit-validator` and `qubit-codec` even when a particular model declares no
+validator or codec. `qubit-id` supplies the exact identifier type required by
+`Entity` and `Projection`.
 
 Use a model-role derive macro for every type passed to `TypeMetadata::of`.
 The macro generates the required metadata provider and bounds; a type derived
@@ -63,12 +68,14 @@ Declare an entity and a model that refers to it. The `#[reference]` declaration
 uses the stable entity ID and the public property name to be resolved later.
 
 ```rust,ignore
-use qubit_model_derive::{Entity, Model};
+use qubit_id::Id;
+use qubit_model_derive::Entity;
+use qubit_model_derive::Model;
 
 #[Entity(id = "example.Account")]
 pub struct Account {
     #[identifier]
-    pub id: u64,
+    pub id: Id,
     #[unique(ignore_case = true)]
     pub email: String,
 }
@@ -76,7 +83,7 @@ pub struct Account {
 #[Model(id = "example.Login")]
 pub struct Login {
     #[reference(entity_id = "example.Account", property = id)]
-    pub account_id: u64,
+    pub account_id: Id,
 }
 ```
 
@@ -96,19 +103,28 @@ one resolution pass:
 
 ```rust,ignore
 use qubit_codec::ValueCodecRegistry;
-use qubit_model_metadata::{ModelRegistry, ModelResolver, ResolveInputs, TypeMetadata};
+use qubit_model_metadata::ModelRegistry;
+use qubit_model_metadata::ModelResolver;
+use qubit_model_metadata::ResolveInputs;
+use qubit_model_metadata::TypeMetadata;
 use qubit_validator::ValidatorRegistry;
 
-let models = ModelRegistry::try_global()?;
-let validators = ValidatorRegistry::try_global()?;
-let codecs = ValueCodecRegistry::try_global()?;
-let graph = ModelResolver::new(ResolveInputs { models, validators, codecs }).resolve_all()?;
-let field = TypeMetadata::of::<Login>().field("account_id").unwrap();
-assert_eq!(
-    graph.reference(field).unwrap().target().model_id().unwrap().as_str(),
-    "example.Account",
-);
-# Ok::<(), Box<dyn std::error::Error>>(())
+fn resolve_models() -> Result<(), Box<dyn std::error::Error>> {
+    let models = ModelRegistry::try_global()?;
+    let validators = ValidatorRegistry::try_global()?;
+    let codecs = ValueCodecRegistry::try_global()?;
+    let graph = ModelResolver::new(ResolveInputs {
+        models,
+        validators,
+        codecs,
+    })
+    .resolve_all()?;
+    let field = TypeMetadata::of::<Login>().field("account_id").unwrap();
+    let reference = graph.reference(field).unwrap();
+    assert_eq!(reference.target().model_id().unwrap().as_str(), "example.Account");
+    assert_eq!(reference.property().unwrap().name(), "id");
+    Ok(())
+}
 ```
 
 The resulting `ResolvedModelGraph` is immutable. A successful resolver pass
@@ -116,10 +132,52 @@ publishes a complete graph rather than an incrementally resolved partial view.
 
 ## Advanced Usage
 
+### Choose the Correct Metadata Stage
+
+Use `TypeMetadata::of::<T>()` for local, static inspection. It validates the
+generated metadata against the unique reflection descriptor and panics on a
+hidden-ABI violation; use `TypeMetadata::try_of::<T>()` when that failure must
+remain recoverable.
+
+Use `ModelRegistry` when stable-ID or exact Rust `TypeId` lookup is needed.
+`ModelRegistry::try_global()` freezes all registrations contributed by model
+crates that are actually linked into the final binary. It does not discover
+unlinked crates. `ModelRegistry::from_registrations` is useful for isolated
+tests and tools that need an explicit model set.
+
+Use `ModelResolver` only after the complete intended model set is available.
+It validates cross-model edges and executable strategy bindings, then returns
+one immutable `ResolvedModelGraph`. A failed pass returns no partial graph.
+
+### Roles, Stable IDs, and Generic Models
+
+`Entity` and `Projection` are non-generic named structs with exactly one
+`qubit_id::Id` identifier. An `Entity` requires a stable model ID; a
+`Projection` may be open or fixed to an Entity by Rust type or stable ID.
+`Model`, `Enum`, and `Value` cover structured records, domain enums, and value
+objects. A stable ID makes a declaration eligible for registration; metadata
+without one remains available through `TypeMetadata::of` but not by registry
+ID lookup.
+
+`ModelId` validates static strings without allocation. Use
+`ModelId::try_new` for recoverable validation and `ModelIdBuf::parse` for
+dynamic input. Each dot-separated segment must match
+`[A-Za-z][A-Za-z0-9_]*`; comparison is case-sensitive.
+
+### Fields, Constraints, and Properties
+
 Fields are physical storage slots supplied by reflection. A `Property` combines
 a field and optional getter and setter under one public name. Getter adapters
 preserve borrowed lifetimes; when a setter fails before execution, its
 `PropertySetFailure` retains the replacement value for the caller.
+
+Start with `TypeMetadata::fields`, `field`, or `field_at`. `FieldMetadata`
+delegates structural facts to its reflection `FieldDescriptor`, while typed
+getters expose identifier, uniqueness, reference, key-part, validator, codec,
+redaction, and Serde semantics. Use `text_constraint`, `decimal_constraint`,
+`time_constraint`, `sequence_constraint`, and `map_constraint` when only one
+constraint family is relevant, or iterate `constraints()` to preserve every
+declaration. Check `type_ref()` before assuming `descriptor()` is present.
 
 For generic declarations with a model ID, registration stores one
 `GenericModelMetadata` template. Concrete generic instances have no `ModelId`
@@ -127,15 +185,42 @@ and are not registered; `generic_definition()` points back to the template.
 Template field types may be symbolic while a concrete instance's field types
 may be resolved.
 
+### Resolved Views and Query Metadata
+
+The resolved graph is the lookup point for cross-model results. Use
+`reference` for a field reference, `projection_source` for a fixed Projection,
+and `projection_producers` for readable Entity properties that can produce a
+Projection. A producer with an executable getter can be invoked with `project`;
+the runtime verifies that the Entity and produced Projection keep the same
+`Id`.
+
+`properties(model)` returns the local field/getter/setter merge accepted by
+the resolver. For an Entity, `query(entity)` exposes filters derived from
+indexed fields and unique keys derived from identifiers and uniqueness
+declarations. Flattened query names must be unambiguous; a collision fails the
+resolution pass.
+
+Validator occurrences and codec declarations remain declarative until
+resolution. `validator` returns the matched executable registration and its
+readable property dependencies. `codec` returns the executable codec
+descriptor and, for an ID-based declaration, its registry entry.
+
 ## Errors and Diagnostics
 
-`ModelRegistry::try_global()` reports duplicate model IDs or failure to build
-the reflection registry as `ModelRegistryError`. `resolve_all()` returns
-`ModelResolveErrors`, which aggregates deterministic errors instead of
-publishing a graph with unresolved relationships. Its entries cover missing
-model IDs, incorrect roles, absent or unreadable properties, invalid projection
-sources, and validator or codec registrations that are missing or have an
-incompatible value type.
+`ModelId::try_new` and `ModelIdBuf::parse` return `ModelIdError` for empty IDs,
+empty dot-separated segments, or segments outside the ASCII identifier
+grammar. `ModelRegistry::try_global()` reports duplicate model IDs, conflicting
+registrations, or reflection-registry initialization failure as
+`ModelRegistryError`.
+
+`resolve_all()` returns `ModelResolveErrors`, which aggregates errors in a
+deterministic order instead of publishing a graph with unresolved
+relationships. Inspect `errors()` and each `ModelResolveError::kind()` rather
+than parsing display text. Error kinds cover invalid local properties, entity
+nesting, opaque models, references, roles and types, projection contracts,
+validator and codec bindings, selector types, value closure, and flattened
+query-name conflicts. Optional accessors expose the involved model ID, property
+path, expected and actual role or type, and source fragments when available.
 
 Generated metadata also checks local ABI invariants before publication. A panic
 whose message starts with `QMM-ABI-` indicates that generated or manually
@@ -146,9 +231,15 @@ invariants.
 
 - If `TypeMetadata::of::<T>()` does not compile, confirm that `T` uses a
   model-role macro and satisfies the generated trait bounds.
+- If an Entity or Projection identifier is rejected, use `qubit_id::Id`
+  exactly; integer primitives and application-specific ID wrappers do not meet
+  the role contract.
 - If `descriptor()` returns `None`, inspect `type_ref()` before treating it as
   an error; opaque and symbolic references deliberately have no concrete
   descriptor.
+- If an expected model is absent from `ModelRegistry::try_global()`, make sure
+  its crate is linked into the final binary and that the declaration has a
+  stable model ID. Registry collection cannot see an unlinked crate.
 - If `resolve_all()` returns errors, inspect each `ModelResolveError` and fix
   the stable ID, target role, property name, or matching validator/codec
   registration before retrying the full resolution pass.
@@ -165,8 +256,17 @@ resolve only after the complete model set has been linked. This crate does not
 provide an alternative reflection system, nor does it implicitly bind
 cross-model references during static inspection.
 
+Keep only one version of `qubit-model-metadata` in the final dependency graph.
+Different versions own separate registration inventories and would split the
+model set. Treat model IDs as an application protocol: rename them deliberately
+and update every textual reference together. Prefer recoverable `try_*` entry
+points in libraries and diagnostics; reserve panic-based `of` and `global`
+entry points for startup paths where invalid generated metadata or registry
+configuration is unrecoverable.
+
 ## Further Reading
 
 - [README](../README.md)
 - [简体中文用户指南](user_guide.zh_CN.md)
+- [`qubit-model-derive` declaration guide](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.md)
 - [API documentation](https://docs.rs/qubit-model-metadata)

@@ -20,12 +20,11 @@
 [dependencies]
 qubit-model-metadata = "0.1"
 qubit-model-derive = "0.1"
-# 仅当应用直接导入 ValueCodecRegistry 时需要。
-qubit-codec = { version = "0.14", features = ["registry"] }
+qubit-id = "0.6"
 ```
 
-`ValueCodecRegistry` 受 `qubit-codec` 的 `registry` feature 控制。应用若直接导入该注册表并运行
-`ModelResolver`，必须显式启用这一 feature；默认 feature 集不提供 codec registry。
+`qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。应用若要运行
+`ModelResolver`，还需直接依赖 `qubit-validator` 与 `qubit-codec`；完整配置见用户指南。
 
 ## 快速开始
 
@@ -34,12 +33,13 @@ qubit-codec = { version = "0.14", features = ["registry"] }
 
 ```rust,ignore
 use qubit_model_derive::Entity;
+use qubit_id::Id;
 use qubit_model_metadata::{ModelDescriptorExt, TypeDescriptor, TypeMetadata};
 
 #[Entity(id = "example.User")]
 struct User {
     #[identifier]
-    id: u64,
+    id: Id,
     #[unique(ignore_case = true)]
     email: String,
 }
@@ -66,14 +66,17 @@ assert!(metadata.descriptor().model_metadata().is_some());
 - `ModelRegistry` 收集已注册模型；`ModelResolver` 在模型、validator 和 codec 注册表上执行显式解析。
 - 解析成功时得到不可变的 `ResolvedModelGraph`；若引用、角色、Property、validator 或 codec
   无法解析，则按确定顺序汇总返回错误。
+- 解析图提供引用、Projection source 与 producer、可执行 validator/codec 绑定、合并后的
+  Property，以及由索引字段生成的查询 metadata。
 
 本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的
-metadata 在穿过隐藏 v2 ABI 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量。
+metadata 在穿过隐藏 ABI 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量。
 
 ## 延伸阅读
 
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
+- [`qubit-model-derive` 声明指南](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.zh_CN.md)
 - [API 文档](https://docs.rs/qubit-model-metadata)
 - [English README](README.md)
 
