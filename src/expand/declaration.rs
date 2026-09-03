@@ -9,8 +9,6 @@
 //! Compiles non-property model declarations into reflection and metadata
 //! tokens.
 
-// qubit-style: allow multiple-public-types
-// The private intermediate representations below are one compiler-stage unit.
 // qubit-style: allow explicit-imports
 // Generated token streams deliberately retain absolute paths for downstream
 // hygiene.
@@ -28,32 +26,20 @@ use syn::parse_quote;
 use syn::parse2;
 use syn::punctuated::Punctuated;
 
+use crate::expand::capabilities::apply_default_derives;
+use crate::expand::capabilities::apply_serde_defaults;
+use crate::expand::capabilities::expand_display;
+use crate::expand::metadata::expand_metadata;
 use crate::expand::model_impl::expand_model_impl;
 use crate::expand::model_impl::validate_model_impl;
 use crate::ir::MacroKind;
+use crate::normalize::declaration::normalize_declaration;
+use crate::normalize::declaration::validate_declaration_ir;
+use crate::parse::declaration::parse_declaration;
 use crate::runtime_path::runtime_path;
-
-#[path = "capabilities.rs"]
-mod capabilities;
-#[path = "declaration_codegen.rs"]
-mod declaration_codegen;
-#[path = "../ir/declaration.rs"]
-mod declaration_ir;
-#[path = "../normalize/declaration.rs"]
-mod declaration_normalize;
-#[path = "../parse/declaration.rs"]
-mod declaration_parse;
-#[path = "../validate/declaration.rs"]
-mod declaration_validate;
-
-use capabilities::apply_default_derives;
-use capabilities::apply_serde_defaults;
-use capabilities::expand_display;
-use declaration_codegen::expand_metadata;
-use declaration_ir::DeclarationIr;
-use declaration_validate::reject_duplicate_reflect;
-use declaration_validate::rewrite_field_helpers;
-use declaration_validate::validate_declaration;
+use crate::validate::declaration::reject_duplicate_reflect;
+use crate::validate::declaration::rewrite_field_helpers;
+use crate::validate::declaration::validate_declaration;
 
 /// Expands one declaration and converts all failures to compiler diagnostics.
 pub(crate) fn expand(kind: MacroKind, args: TokenStream, input: TokenStream) -> TokenStream {
@@ -80,7 +66,9 @@ fn expand_result(kind: MacroKind, args: TokenStream, input: TokenStream) -> Resu
     }
     let runtime = runtime?;
     reject_duplicate_reflect(&item.attrs)?;
-    let mut declaration = DeclarationIr::parse(kind, raw_options, &item)?;
+    let mut declaration = parse_declaration(kind, raw_options, &item)?;
+    normalize_declaration(&mut declaration);
+    validate_declaration_ir(&declaration, &item)?;
     apply_default_derives(&declaration, &mut item, &runtime)?;
     apply_serde_defaults(&mut declaration, &mut item, &runtime);
     rewrite_field_helpers(&mut item.data, &declaration);

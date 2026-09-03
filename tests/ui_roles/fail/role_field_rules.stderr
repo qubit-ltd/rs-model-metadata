@@ -1,17 +1,17 @@
 error: identifier is only valid for Entity and Projection
- --> tests/ui_roles/fail/role_field_rules.rs:6:8
-  |
-6 | struct InvalidModelIdentifier {
-  |        ^^^^^^^^^^^^^^^^^^^^^^
+  --> tests/ui_roles/fail/role_field_rules.rs:16:8
+   |
+16 | struct InvalidModelIdentifier {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
 
 error: Enum and Value fields cannot declare references
-  --> tests/ui_roles/fail/role_field_rules.rs:12:8
+  --> tests/ui_roles/fail/role_field_rules.rs:22:8
    |
-12 | struct InvalidValueReference {
+22 | struct InvalidValueReference {
    |        ^^^^^^^^^^^^^^^^^^^^^
 
 error: Enum and Value fields cannot declare references
-  --> tests/ui_roles/fail/role_field_rules.rs:18:6
+  --> tests/ui_roles/fail/role_field_rules.rs:28:6
    |
-18 | enum InvalidEnumReference {
+28 | enum InvalidEnumReference {
    |      ^^^^^^^^^^^^^^^^^^^^

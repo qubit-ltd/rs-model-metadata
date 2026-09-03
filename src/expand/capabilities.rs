@@ -1,26 +1,4 @@
 // =============================================================================
-
-use proc_macro2::TokenStream;
-use quote::format_ident;
-use quote::quote;
-use syn::Attribute;
-use syn::Data;
-use syn::DeriveInput;
-use syn::Error;
-use syn::Fields;
-use syn::LitStr;
-use syn::Meta;
-use syn::Result;
-use syn::Token;
-use syn::Type;
-use syn::parse_quote;
-use syn::punctuated::Punctuated;
-
-use super::MacroKind;
-use super::declaration_ir::DeclarationIr;
-use super::declaration_ir::FieldIr;
-use super::declaration_ir::FieldOccurrence;
-use super::declaration_ir::SerdeIr;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -28,6 +6,36 @@ use super::declaration_ir::SerdeIr;
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Generates default trait capabilities, display behavior, and Serde defaults.
+
+use proc_macro2::Span;
+use proc_macro2::TokenStream;
+use quote::format_ident;
+use quote::quote;
+use syn::Attribute;
+use syn::Data;
+use syn::DeriveInput;
+use syn::Error;
+use syn::Field;
+use syn::Fields;
+use syn::Ident;
+use syn::Index;
+use syn::LitStr;
+use syn::Meta;
+use syn::Path;
+use syn::Result;
+use syn::Token;
+use syn::Type;
+use syn::parse_quote;
+use syn::punctuated::Punctuated;
+
+use crate::compiler::type_path::is_collection_path;
+use crate::compiler::type_path::is_option_path;
+use crate::ir::MacroKind;
+use crate::ir::declaration::DeclarationIr;
+use crate::ir::declaration::FieldIr;
+use crate::ir::declaration::FieldOccurrence;
+use crate::ir::declaration::SerdeIr;
 /// Adds role-dependent default derives while preserving user opt-outs.
 pub(super) fn apply_default_derives(
     declaration: &DeclarationIr,
@@ -40,9 +48,6 @@ pub(super) fn apply_default_derives(
             &item.ident,
             "`copy` requires Clone; remove `no_clone`",
         ));
-    }
-    if options.copy && options.no_copy {
-        return Err(Error::new_spanned(&item.ident, "`copy` conflicts with `no_copy`"));
     }
     if options.partial_ord && options.no_partial_eq {
         return Err(Error::new_spanned(&item.ident, "`partial_ord` requires PartialEq"));
@@ -132,7 +137,7 @@ pub(super) fn apply_default_derives(
     }
     if !options.no_serialize || !options.no_deserialize {
         let path = format!("{}::__private::serde", runtime.to_string().replace(' ', ""));
-        let path = LitStr::new(&path, proc_macro2::Span::call_site());
+        let path = LitStr::new(&path, Span::call_site());
         item.attrs.push(parse_quote!(#[serde(crate = #path)]));
         if declaration.kind == MacroKind::Enum && !has_serde_rename_all(&item.attrs)? {
             item.attrs
@@ -253,7 +258,7 @@ pub(super) fn expand_display(declaration: &DeclarationIr, item: &DeriveInput, ru
 }
 
 /// Generates a plain structured display body for non-redacted output.
-fn plain_structured_display_body(name: &syn::Ident, data: &Data) -> TokenStream {
+fn plain_structured_display_body(name: &Ident, data: &Data) -> TokenStream {
     match data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => {
@@ -265,7 +270,7 @@ fn plain_structured_display_body(name: &syn::Ident, data: &Data) -> TokenStream 
                 }
             }
             Fields::Unnamed(fields) => {
-                let indexes = (0..fields.unnamed.len()).map(syn::Index::from);
+                let indexes = (0..fields.unnamed.len()).map(Index::from);
                 quote! {
                     let mut debug = formatter.debug_tuple(stringify!(#name));
                     #(debug.field(&self.#indexes);)*
@@ -332,7 +337,7 @@ pub(super) fn apply_serde_defaults(declaration: &mut DeclarationIr, item: &mut D
 }
 
 /// Applies the role's Serde default policy to one field.
-fn apply_field_serde_default(field: &mut syn::Field, ir: &mut FieldIr, runtime: &TokenStream) {
+fn apply_field_serde_default(field: &mut Field, ir: &mut FieldIr, runtime: &TokenStream) {
     if field.ident.is_none() {
         return;
     }
@@ -374,31 +379,29 @@ fn apply_field_serde_default(field: &mut syn::Field, ir: &mut FieldIr, runtime: 
         "{}::__private::serde_helpers::{suffix}",
         runtime.to_string().replace(' ', ""),
     );
-    let path = LitStr::new(&path, proc_macro2::Span::call_site());
+    let path = LitStr::new(&path, Span::call_site());
     field.attrs.push(parse_quote!(#[serde(skip_serializing_if = #path)]));
     serde.omit_from_model = true;
 }
 
 /// Identifies container kinds that support omission-on-default behavior.
-pub(super) enum OmissionKind {
+pub(crate) enum OmissionKind {
     Option,
     Collection,
 }
 
 /// Returns the omission policy supported by `ty`, if any.
-pub(super) fn omission_kind(ty: &Type) -> Option<OmissionKind> {
+pub(crate) fn omission_kind(ty: &Type) -> Option<OmissionKind> {
     let Type::Path(path) = ty else {
         return None;
     };
-    let name = path.path.segments.last()?.ident.to_string();
-    if name == "Option" {
+    if path.qself.is_some() {
+        return None;
+    }
+    if is_option_path(&path.path) {
         return Some(OmissionKind::Option);
     }
-    matches!(
-        name.as_str(),
-        "Vec" | "VecDeque" | "LinkedList" | "BinaryHeap" | "HashSet" | "BTreeSet" | "HashMap" | "BTreeMap"
-    )
-    .then_some(OmissionKind::Collection)
+    is_collection_path(&path.path).then_some(OmissionKind::Collection)
 }
 
 /// Collects derive names already present on a declaration.
@@ -408,7 +411,7 @@ fn existing_derive_names(attributes: &[Attribute]) -> Result<Vec<String>> {
         if !attribute.path().is_ident("derive") {
             continue;
         }
-        let paths = attribute.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)?;
+        let paths = attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
         result.extend(
             paths
                 .iter()
@@ -416,4 +419,28 @@ fn existing_derive_names(attributes: &[Attribute]) -> Result<Vec<String>> {
         );
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use syn::Type;
+    use syn::parse_quote;
+
+    use super::OmissionKind;
+    use super::omission_kind;
+
+    /// Ensures similarly named domain types do not acquire standard omission
+    /// behavior.
+    #[test]
+    fn test_omission_kind_rejects_lookalike_paths() {
+        let option: Type = parse_quote!(domain::Option<String>);
+        let vector: Type = parse_quote!(domain::Vec<String>);
+        let map: Type = parse_quote!(domain::HashMap<String, String>);
+        let standard: Type = parse_quote!(std::collections::HashMap<String, String>);
+
+        assert!(omission_kind(&option).is_none());
+        assert!(omission_kind(&vector).is_none());
+        assert!(omission_kind(&map).is_none());
+        assert!(matches!(omission_kind(&standard), Some(OmissionKind::Collection)));
+    }
 }

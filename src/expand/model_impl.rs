@@ -29,6 +29,8 @@ use syn::TypePath;
 use syn::TypeReference;
 use syn::Visibility;
 
+use crate::compiler::type_path::is_option_path;
+
 /// Validates that `item` is a non-generic inherent implementation.
 ///
 /// Returns a diagnostic describing the first unsupported trait or generic
@@ -435,10 +437,10 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
 /// `None` means that the syntax does not represent the supported optional
 /// borrowed getter return shape.
 fn option_borrowed_type(path: &TypePath) -> Option<&TypeReference> {
-    let segment = path.path.segments.last()?;
-    if segment.ident != "Option" {
+    if path.qself.is_some() || !is_option_path(&path.path) {
         return None;
     }
+    let segment = path.path.segments.last()?;
     let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
         return None;
     };

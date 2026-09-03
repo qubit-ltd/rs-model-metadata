@@ -1,0 +1,11 @@
+error: ModelImpl requires an inherent impl
+  --> tests/ui_roles/fail/model_impl_boundaries.rs:20:1
+   |
+20 | impl Named for Account {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: ModelImpl blocks cannot be generic
+  --> tests/ui_roles/fail/model_impl_boundaries.rs:25:5
+   |
+25 | impl<T> Generic<T> {}
+   |     ^^^

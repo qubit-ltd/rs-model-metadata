@@ -8,13 +8,16 @@
 
 //! Aggregates independent macro diagnostics before emitting compiler errors.
 
+use syn::Error;
+use syn::Result;
+
 /// Accumulates recoverable declaration diagnostics.
 #[derive(Default)]
-pub(crate) struct Diagnostics(Option<syn::Error>);
+pub(crate) struct Diagnostics(Option<Error>);
 
 impl Diagnostics {
     /// Adds one diagnostic without discarding previously collected errors.
-    pub(crate) fn push(&mut self, error: syn::Error) {
+    pub(crate) fn push(&mut self, error: Error) {
         if let Some(existing) = &mut self.0 {
             existing.combine(error);
         } else {
@@ -23,7 +26,7 @@ impl Diagnostics {
     }
 
     /// Returns all accumulated diagnostics, if any.
-    pub(crate) fn finish(self) -> syn::Result<()> {
+    pub(crate) fn finish(self) -> Result<()> {
         self.0.map_or(Ok(()), Err)
     }
 }
@@ -35,6 +38,7 @@ mod tests {
 
     use super::Diagnostics;
 
+    /// Confirms independent diagnostics are retained in the emitted error.
     #[test]
     fn test_finish_emits_all_combined_errors() {
         let mut diagnostics = Diagnostics::default();

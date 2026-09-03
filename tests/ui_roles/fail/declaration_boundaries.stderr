@@ -1,0 +1,17 @@
+error: model macros do not support unions
+  --> tests/ui_roles/fail/declaration_boundaries.rs:19:1
+   |
+19 | union UnsupportedUnion {
+   | ^^^^^
+
+error: Entity requires `id = "..."`
+  --> tests/ui_roles/fail/declaration_boundaries.rs:24:8
+   |
+24 | struct MissingEntityId {
+   |        ^^^^^^^^^^^^^^^
+
+error: Entity and Projection require exactly one `#[identifier]` field
+  --> tests/ui_roles/fail/declaration_boundaries.rs:30:8
+   |
+30 | struct MissingProjectionIdentifier {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^

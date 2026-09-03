@@ -1,23 +1,4 @@
 // =============================================================================
-
-use syn::Data;
-use syn::DeriveInput;
-use syn::Error;
-use syn::LitStr;
-use syn::Meta;
-use syn::Result;
-use syn::Token;
-use syn::Type;
-use syn::punctuated::Punctuated;
-
-use super::MacroKind;
-use super::declaration_normalize::normalize_selector_containers;
-use super::declaration_normalize::validate_declaration_ir;
-use super::declaration_parse::parse_fields;
-use super::declaration_parse::parse_variants;
-use super::declaration_parse::validate_ascii_id;
-use super::declaration_validate::combine;
-use crate::ir::Located;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -25,58 +6,65 @@ use crate::ir::Located;
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Defines the source-located intermediate representation for declarations.
+
+use syn::LitStr;
+use syn::Type;
+
+use super::MacroKind;
+use crate::ir::Located;
 // qubit-style: allow multiple-public-types
 // The declaration IR is one private vocabulary shared by parsing,
 // normalization, validation, and expansion.
 
 /// Normalized declaration-level options shared by all role macros.
 #[derive(Clone)]
-pub(super) struct DeclarationOptions {
+pub(crate) struct DeclarationOptions {
     /// Optional stable model identifier.
-    pub(super) id: Option<LitStr>,
+    pub(crate) id: Option<LitStr>,
     /// Fixed projection source Rust type.
-    pub(super) source: Option<Type>,
+    pub(crate) source: Option<Type>,
     /// Fixed projection source identifier.
-    pub(super) source_id: Option<LitStr>,
+    pub(crate) source_id: Option<LitStr>,
     /// Whether a projection accepts an open source.
-    pub(super) open: bool,
+    pub(crate) open: bool,
     /// Whether a value uses transparent representation.
-    pub(super) transparent: bool,
+    pub(crate) transparent: bool,
     /// Disables generated `Clone`.
-    pub(super) no_clone: bool,
+    pub(crate) no_clone: bool,
     /// Disables generated `Debug`.
-    pub(super) no_debug: bool,
+    pub(crate) no_debug: bool,
     /// Disables generated `Display`.
-    pub(super) no_display: bool,
+    pub(crate) no_display: bool,
     /// Disables generated `PartialEq`.
-    pub(super) no_partial_eq: bool,
+    pub(crate) no_partial_eq: bool,
     /// Disables generated `Eq`.
-    pub(super) no_eq: bool,
+    pub(crate) no_eq: bool,
     /// Disables generated `Hash`.
-    pub(super) no_hash: bool,
+    pub(crate) no_hash: bool,
     /// Disables generated serialization.
-    pub(super) no_serialize: bool,
+    pub(crate) no_serialize: bool,
     /// Disables generated deserialization.
-    pub(super) no_deserialize: bool,
+    pub(crate) no_deserialize: bool,
     /// Disables generated redaction.
-    pub(super) no_redact: bool,
+    pub(crate) no_redact: bool,
     /// Disables generated `Copy`.
-    pub(super) no_copy: bool,
+    pub(crate) no_copy: bool,
     /// Enables generated `Copy`.
-    pub(super) copy: bool,
+    pub(crate) copy: bool,
     /// Enables generated `Default`.
-    pub(super) default: bool,
+    pub(crate) default: bool,
     /// Enables generated `PartialOrd`.
-    pub(super) partial_ord: bool,
+    pub(crate) partial_ord: bool,
     /// Enables generated `Ord`.
-    pub(super) ord: bool,
+    pub(crate) ord: bool,
     /// Canonical value codec type.
-    pub(super) codec: Option<Type>,
+    pub(crate) codec: Option<Type>,
 }
 
 /// A single field-level metadata attribute after parsing.
 #[derive(Clone)]
-pub(super) enum FieldOccurrence {
+pub(crate) enum FieldOccurrence {
     /// Identifier assignment metadata.
     Identifier(IdentifierAssignmentIr),
     /// Explicit database index marker.
@@ -105,14 +93,14 @@ pub(super) enum FieldOccurrence {
 
 /// Selects the owner of an automatically assigned identifier.
 #[derive(Clone, Copy)]
-pub(super) enum IdentifierAssignmentIr {
+pub(crate) enum IdentifierAssignmentIr {
     Application,
     Database,
 }
 
 /// Represents one supported validation constraint.
 #[derive(Clone)]
-pub(super) enum ConstraintIr {
+pub(crate) enum ConstraintIr {
     /// Text constraint.
     Text(TextConstraintIr),
     /// Decimal constraint.
@@ -137,62 +125,62 @@ pub(super) enum ConstraintIr {
 
 /// Normalized text constraint parameters.
 #[derive(Clone, Default)]
-pub(super) struct TextConstraintIr {
+pub(crate) struct TextConstraintIr {
     /// Minimum character count.
-    pub(super) min_chars: Option<u32>,
+    pub(crate) min_chars: Option<u32>,
     /// Maximum character count.
-    pub(super) max_chars: Option<u32>,
+    pub(crate) max_chars: Option<u32>,
     /// Minimum UTF-8 byte count.
-    pub(super) min_bytes: Option<u32>,
+    pub(crate) min_bytes: Option<u32>,
     /// Maximum UTF-8 byte count.
-    pub(super) max_bytes: Option<u32>,
+    pub(crate) max_bytes: Option<u32>,
     /// Allowed character set name.
-    pub(super) allowed_chars: Option<String>,
+    pub(crate) allowed_chars: Option<String>,
     /// Whether blank text is rejected.
-    pub(super) non_blank: bool,
+    pub(crate) non_blank: bool,
     /// Optional named text format.
-    pub(super) format: Option<String>,
+    pub(crate) format: Option<String>,
 }
 
 /// Normalized decimal constraint parameters.
 #[derive(Clone)]
-pub(super) struct DecimalConstraintIr {
+pub(crate) struct DecimalConstraintIr {
     /// Optional total precision.
-    pub(super) precision: Option<u16>,
+    pub(crate) precision: Option<u16>,
     /// Number of fractional digits.
-    pub(super) scale: u16,
+    pub(crate) scale: u16,
     /// Named rounding mode.
-    pub(super) rounding: String,
+    pub(crate) rounding: String,
     /// Whether the decimal represents money.
-    pub(super) money: bool,
+    pub(crate) money: bool,
     /// Inclusive or exclusive lower bound literal.
-    pub(super) min: Option<LitStr>,
+    pub(crate) min: Option<LitStr>,
     /// Inclusive or exclusive upper bound literal.
-    pub(super) max: Option<LitStr>,
+    pub(crate) max: Option<LitStr>,
     /// Whether the lower bound is inclusive.
-    pub(super) min_inclusive: bool,
+    pub(crate) min_inclusive: bool,
     /// Whether the upper bound is inclusive.
-    pub(super) max_inclusive: bool,
+    pub(crate) max_inclusive: bool,
 }
 
 /// Metadata for a selector applied to a collection element or map component.
 #[derive(Clone)]
-pub(super) struct SelectorIr {
+pub(crate) struct SelectorIr {
     /// Collection position selected by this rule.
-    pub(super) position: SelectorPositionIr,
+    pub(crate) position: SelectorPositionIr,
     /// Nested constraints.
-    pub(super) constraints: Vec<ConstraintIr>,
+    pub(crate) constraints: Vec<ConstraintIr>,
     /// Nested validators.
-    pub(super) validators: Vec<ValidatorIr>,
+    pub(crate) validators: Vec<ValidatorIr>,
     /// Nested value codec.
-    pub(super) codec: Option<CodecIr>,
+    pub(crate) codec: Option<CodecIr>,
     /// Nested redaction mode.
-    pub(super) redact: Option<RedactIr>,
+    pub(crate) redact: Option<RedactIr>,
 }
 
 /// Identifies the collection position targeted by a selector.
 #[derive(Clone, Copy, Eq, PartialEq)]
-pub(super) enum SelectorPositionIr {
+pub(crate) enum SelectorPositionIr {
     /// Collection element.
     Element,
     /// Map key.
@@ -203,16 +191,16 @@ pub(super) enum SelectorPositionIr {
 
 /// Normalized uniqueness declaration.
 #[derive(Clone)]
-pub(super) struct UniqueIr {
+pub(crate) struct UniqueIr {
     /// Field paths participating in uniqueness comparisons.
-    pub(super) respect_to: Vec<Vec<String>>,
+    pub(crate) respect_to: Vec<Vec<String>>,
     /// Whether comparisons ignore case.
-    pub(super) ignore_case: bool,
+    pub(crate) ignore_case: bool,
 }
 
 /// Identifies a reference target by Rust type or stable model ID.
 #[derive(Clone)]
-pub(super) enum ReferenceTargetIr {
+pub(crate) enum ReferenceTargetIr {
     /// Target Rust type.
     RustType(Box<Type>),
     /// Target stable model identifier.
@@ -221,20 +209,20 @@ pub(super) enum ReferenceTargetIr {
 
 /// Normalized relationship/reference declaration.
 #[derive(Clone)]
-pub(super) struct ReferenceIr {
+pub(crate) struct ReferenceIr {
     /// Referenced model target.
-    pub(super) target: ReferenceTargetIr,
+    pub(crate) target: ReferenceTargetIr,
     /// Optional referenced property path.
-    pub(super) property: Option<Vec<String>>,
+    pub(crate) property: Option<Vec<String>>,
     /// Whether the referenced target must already exist.
-    pub(super) existing: bool,
+    pub(crate) existing: bool,
     /// Optional path that must match the source.
-    pub(super) same_as: Option<Vec<String>>,
+    pub(crate) same_as: Option<Vec<String>>,
 }
 
 /// Literal argument accepted by a validator strategy.
 #[derive(Clone)]
-pub(super) enum StrategyArgumentIr {
+pub(crate) enum StrategyArgumentIr {
     /// Boolean literal.
     Bool(bool),
     /// Signed integer literal.
@@ -255,18 +243,18 @@ pub(super) enum StrategyArgumentIr {
 
 /// Normalized validator registration and its arguments.
 #[derive(Clone)]
-pub(super) struct ValidatorIr {
+pub(crate) struct ValidatorIr {
     /// Stable validator registration identifier.
-    pub(super) id: LitStr,
+    pub(crate) id: LitStr,
     /// Named validator strategy parameters.
-    pub(super) params: Vec<(String, StrategyArgumentIr)>,
+    pub(crate) params: Vec<(String, StrategyArgumentIr)>,
     /// Field paths the validator reads.
-    pub(super) depends_on: Vec<Vec<String>>,
+    pub(crate) depends_on: Vec<Vec<String>>,
 }
 
 /// Value codec selected by declared ID or Rust type.
 #[derive(Clone)]
-pub(super) enum CodecIr {
+pub(crate) enum CodecIr {
     /// Codec Rust type.
     RustType(Box<Type>),
     /// Codec registration identifier.
@@ -275,14 +263,14 @@ pub(super) enum CodecIr {
 
 /// Redaction mode attached to a field or selector.
 #[derive(Clone)]
-pub(super) struct RedactIr {
+pub(crate) struct RedactIr {
     /// Selected redaction behavior.
-    pub(super) mode: RedactModeIr,
+    pub(crate) mode: RedactModeIr,
 }
 
 /// Supported redaction shapes emitted in metadata.
 #[derive(Clone)]
-pub(super) enum RedactModeIr {
+pub(crate) enum RedactModeIr {
     /// Named redaction level.
     Level(String),
     /// Skip redaction.
@@ -299,155 +287,71 @@ pub(super) enum RedactModeIr {
 
 /// Normalized Serde behavior for one field.
 #[derive(Clone, Default)]
-pub(super) struct SerdeIr {
+pub(crate) struct SerdeIr {
     /// Serialized field name override.
-    pub(super) serialize_name: Option<LitStr>,
+    pub(crate) serialize_name: Option<LitStr>,
     /// Deserialized field name override.
-    pub(super) deserialize_name: Option<LitStr>,
+    pub(crate) deserialize_name: Option<LitStr>,
     /// Skip this field while serializing.
-    pub(super) skip_serializing: bool,
+    pub(crate) skip_serializing: bool,
     /// Skip this field while deserializing.
-    pub(super) skip_deserializing: bool,
+    pub(crate) skip_deserializing: bool,
     /// Flatten nested serialization.
-    pub(super) flatten: bool,
+    pub(crate) flatten: bool,
     /// Custom Serde module path.
-    pub(super) with: Option<LitStr>,
+    pub(crate) with: Option<LitStr>,
     /// Use the type's default during deserialization.
-    pub(super) default: bool,
+    pub(crate) default: bool,
     /// Whether skip-serializing-if was explicitly set.
-    pub(super) explicit_skip_serializing_if: bool,
+    pub(crate) explicit_skip_serializing_if: bool,
     /// Use the model default source.
-    pub(super) default_from_model: bool,
+    pub(crate) default_from_model: bool,
     /// Omit this field from the model view.
-    pub(super) omit_from_model: bool,
+    pub(crate) omit_from_model: bool,
     /// Whether omission was explicitly suppressed.
-    pub(super) omit_suppressed: bool,
+    pub(crate) omit_suppressed: bool,
 }
 
 /// Parsed field metadata and its source type.
 #[derive(Clone)]
-pub(super) struct FieldIr {
+pub(crate) struct FieldIr {
     /// Zero-based source field index and its declaration span.
-    pub(super) index: Located<usize>,
+    pub(crate) index: Located<usize>,
     /// Rust field type.
-    pub(super) ty: Type,
+    pub(crate) ty: Type,
     /// Parsed field-level attributes.
-    pub(super) occurrences: Vec<FieldOccurrence>,
+    pub(crate) occurrences: Vec<FieldOccurrence>,
     /// Preserve this field under model serialization.
-    pub(super) keep_serializing: bool,
+    pub(crate) keep_serializing: bool,
     /// Whether the source field has a name.
-    pub(super) named: bool,
+    pub(crate) named: bool,
 }
 
 /// Parsed enum variant names and fields.
 #[derive(Clone)]
-pub(super) struct VariantIr {
+pub(crate) struct VariantIr {
     /// Rust source variant name.
-    pub(super) rust_name: String,
+    pub(crate) rust_name: String,
     /// Canonical model variant name.
-    pub(super) canonical_name: String,
+    pub(crate) canonical_name: String,
     /// Serialized variant name.
-    pub(super) serialized_name: String,
+    pub(crate) serialized_name: String,
     /// Deserialized variant name.
-    pub(super) deserialized_name: String,
+    pub(crate) deserialized_name: String,
     /// Whether this variant is the default.
-    pub(super) default: bool,
+    pub(crate) default: bool,
     /// Parsed variant fields.
-    pub(super) fields: Vec<FieldIr>,
+    pub(crate) fields: Vec<FieldIr>,
 }
 
 /// Complete normalized declaration consumed by the expansion stage.
-pub(super) struct DeclarationIr {
+pub(crate) struct DeclarationIr {
     /// Selected macro role.
-    pub(super) kind: MacroKind,
+    pub(crate) kind: MacroKind,
     /// Declaration-level options.
-    pub(super) options: DeclarationOptions,
+    pub(crate) options: DeclarationOptions,
     /// Struct fields.
-    pub(super) fields: Vec<FieldIr>,
+    pub(crate) fields: Vec<FieldIr>,
     /// Enum variants.
-    pub(super) variants: Vec<VariantIr>,
-}
-
-impl DeclarationIr {
-    /// Parses role options and fields, then validates role-specific invariants.
-    pub(super) fn parse(kind: MacroKind, options: Punctuated<Meta, Token![,]>, item: &DeriveInput) -> Result<Self> {
-        let mut errors = None;
-        let options = match DeclarationOptions::parse(options) {
-            Ok(options) => Some(options),
-            Err(error) => {
-                combine(&mut errors, error);
-                None
-            }
-        };
-        let (fields, variants) = match &item.data {
-            Data::Struct(data) => match parse_fields(&data.fields) {
-                Ok(fields) => (Some(fields), Some(Vec::new())),
-                Err(error) => {
-                    combine(&mut errors, error);
-                    (None, None)
-                }
-            },
-            Data::Enum(data) => match parse_variants(data) {
-                Ok(variants) => (Some(Vec::new()), Some(variants)),
-                Err(error) => {
-                    combine(&mut errors, error);
-                    (None, None)
-                }
-            },
-            Data::Union(_) => {
-                combine(
-                    &mut errors,
-                    Error::new_spanned(item, "model role macros do not support unions"),
-                );
-                (None, None)
-            }
-        };
-        if let Some(error) = errors {
-            return Err(error);
-        }
-        let options = options.expect("errors returned when declaration options are unavailable");
-        let mut fields = fields.expect("errors returned when fields are unavailable");
-        let mut variants = variants.expect("errors returned when variants are unavailable");
-        if kind == MacroKind::Entity && options.id.is_none() {
-            return Err(Error::new_spanned(&item.ident, "Entity requires `id = \"...\"`"));
-        }
-        if let Some(id) = &options.id {
-            validate_ascii_id(id, "model ID")?;
-        }
-        if let Some(source_id) = &options.source_id {
-            validate_ascii_id(source_id, "Projection source ID")?;
-        }
-
-        if matches!(kind, MacroKind::Entity | MacroKind::Projection)
-            && fields
-                .iter()
-                .filter(|field| {
-                    field
-                        .occurrences
-                        .iter()
-                        .any(|value| matches!(value, FieldOccurrence::Identifier(_)))
-                })
-                .count()
-                != 1
-        {
-            return Err(Error::new_spanned(
-                &item.ident,
-                "Entity and Projection require exactly one `#[identifier]` field",
-            ));
-        }
-        for field in fields
-            .iter_mut()
-            .chain(variants.iter_mut().flat_map(|variant| &mut variant.fields))
-        {
-            normalize_selector_containers(field);
-        }
-        let result = Self {
-            kind,
-            options,
-            fields,
-            variants,
-        };
-        validate_declaration_ir(&result, item)?;
-        Ok(result)
-    }
+    pub(crate) variants: Vec<VariantIr>,
 }

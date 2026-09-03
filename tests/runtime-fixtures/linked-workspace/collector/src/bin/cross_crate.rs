@@ -5,11 +5,15 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+// qubit-style: allow test-file-name
+// The filename is part of a Cargo or trybuild fixture protocol.
 
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::__private::qubit_codec::ValueCodecRegistry;
+use qubit_model_metadata::__private::qubit_validator::ValidatorRegistry;
 
 fn main() {
     let _ = core::mem::size_of::<model_a::Source>();
@@ -20,8 +24,8 @@ fn main() {
     assert!(registry.get("test.linked.Target").is_some());
     let graph = ModelResolver::new(ResolveInputs {
         models: registry,
-        validators: qubit_model_metadata::__private::qubit_validator::ValidatorRegistry::global(),
-        codecs: qubit_model_metadata::__private::qubit_codec::ValueCodecRegistry::global(),
+        validators: ValidatorRegistry::global(),
+        codecs: ValueCodecRegistry::global(),
     })
         .resolve_all()
         .expect("cross-crate reference should resolve");

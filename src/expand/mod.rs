@@ -8,5 +8,11 @@
 
 //! Generates Rust tokens from validated model declarations.
 
+pub(crate) mod capabilities;
 pub(crate) mod declaration;
+pub(crate) mod fields;
+pub(crate) mod metadata;
 pub(crate) mod model_impl;
+pub(crate) mod registration;
+pub(crate) mod role;
+pub(crate) mod type_expression;

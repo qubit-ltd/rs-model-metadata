@@ -1,25 +1,4 @@
 // =============================================================================
-
-use syn::Attribute;
-use syn::Data;
-use syn::DeriveInput;
-use syn::Error;
-use syn::Fields;
-use syn::GenericParam;
-use syn::LitStr;
-use syn::Result;
-use syn::Token;
-use syn::Type;
-use syn::parse_quote;
-use syn::punctuated::Punctuated;
-
-use super::MacroKind;
-use super::declaration_ir::DeclarationIr;
-use super::declaration_ir::FieldOccurrence;
-use super::declaration_ir::RedactIr;
-use super::declaration_ir::RedactModeIr;
-use super::declaration_ir::SelectorIr;
-use super::declaration_ir::SelectorPositionIr;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -27,8 +6,32 @@ use super::declaration_ir::SelectorPositionIr;
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Validates declaration shapes and rewrites consumed helper attributes.
+
+use proc_macro2::Span;
+use syn::Attribute;
+use syn::Data;
+use syn::DeriveInput;
+use syn::Error;
+use syn::Fields;
+use syn::GenericParam;
+use syn::LitStr;
+use syn::Path;
+use syn::Result;
+use syn::Token;
+use syn::Type;
+use syn::parse_quote;
+use syn::punctuated::Punctuated;
+
+use crate::ir::MacroKind;
+use crate::ir::declaration::DeclarationIr;
+use crate::ir::declaration::FieldOccurrence;
+use crate::ir::declaration::RedactIr;
+use crate::ir::declaration::RedactModeIr;
+use crate::ir::declaration::SelectorIr;
+use crate::ir::declaration::SelectorPositionIr;
 /// Validates the declaration shape before constructing intermediate metadata.
-pub(super) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
+pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     for parameter in &item.generics.params {
         if matches!(parameter, GenericParam::Lifetime(_)) {
@@ -116,12 +119,12 @@ pub(super) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
 }
 
 /// Rejects user reflection derives that would duplicate generated metadata.
-pub(super) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
+pub(crate) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
     for attribute in attributes {
         if !attribute.path().is_ident("derive") {
             continue;
         }
-        let derives = attribute.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)?;
+        let derives = attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
         if let Some(path) = derives
             .iter()
             .find(|path| path.segments.last().is_some_and(|segment| segment.ident == "Reflect"))
@@ -136,7 +139,7 @@ pub(super) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
 }
 
 /// Rewrites helper attributes used to expose nested field metadata.
-pub(super) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr) {
+pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr) {
     let fields: Vec<_> = match data {
         Data::Struct(data) => data.fields.iter_mut().zip(&declaration.fields).collect(),
         Data::Enum(data) => data
@@ -187,13 +190,13 @@ pub(super) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
             }
         });
         if let Some(level) = element_level.or_else(|| map_value_level.clone().filter(|_| map_key_level.is_none())) {
-            let level = LitStr::new(&level, proc_macro2::Span::call_site());
+            let level = LitStr::new(&level, Span::call_site());
             field.attrs.push(parse_quote!(#[redact(level = #level)]));
         }
         if let Some(key_level) = map_key_level {
-            let key_level = LitStr::new(&key_level, proc_macro2::Span::call_site());
+            let key_level = LitStr::new(&key_level, Span::call_site());
             if let Some(value_level) = map_value_level {
-                let value_level = LitStr::new(&value_level, proc_macro2::Span::call_site());
+                let value_level = LitStr::new(&value_level, Span::call_site());
                 field
                     .attrs
                     .push(parse_quote!(#[redact(map_key_level = #key_level, map_value_level = #value_level)]));
@@ -242,7 +245,7 @@ fn is_model_field_helper(attribute: &Attribute) -> bool {
 }
 
 /// Combines one diagnostic into an existing optional error accumulator.
-pub(super) fn combine(errors: &mut Option<Error>, error: Error) {
+pub(crate) fn combine(errors: &mut Option<Error>, error: Error) {
     match errors {
         Some(current) => current.combine(error),
         None => *errors = Some(error),

@@ -8,6 +8,7 @@
 
 //! Semantic values shared by the macro compiler stages.
 
+pub(crate) mod declaration;
 mod located;
 mod macro_kind;
 

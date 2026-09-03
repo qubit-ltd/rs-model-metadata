@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `u32: PropertyOutputCompatible<std::string::String>` is not satisfied
-  --> tests/ui_roles/fail/property_type_mismatch.rs:15:1
+  --> tests/ui_roles/fail/property_type_mismatch.rs:19:1
    |
-15 | #[ModelImpl]
+19 | #[ModelImpl]
    | ^^^^^^^^^^^^ the trait `PropertyOutputCompatible<std::string::String>` is not implemented for `u32`
    |
    = help: the following other types implement trait `PropertyOutputCompatible<Setter>`:

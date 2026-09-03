@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `u64: TextConstraintTarget` is not satisfied
-  --> tests/ui_roles/fail/constraint_type_targets.rs:12:13
+  --> tests/ui_roles/fail/constraint_type_targets.rs:16:13
    |
-12 |     number: u64,
+16 |     number: u64,
    |             ^^^ the trait `TextConstraintTarget` is not implemented for `u64`
    |
    = help: the following other types implement trait `TextConstraintTarget`:
@@ -12,16 +12,16 @@ error[E0277]: the trait bound `u64: TextConstraintTarget` is not satisfied
              std::sync::Arc<T>
              str
 note: required by a bound in `assert_text_target`
-  --> tests/ui_roles/fail/constraint_type_targets.rs:9:1
+  --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
- 9 | #[Model(no_eq, no_hash)]
+13 | #[Model(no_eq, no_hash)]
    | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_text_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `f64: DecimalConstraintTarget` is not satisfied
-  --> tests/ui_roles/fail/constraint_type_targets.rs:14:14
+  --> tests/ui_roles/fail/constraint_type_targets.rs:18:14
    |
-14 |     decimal: f64,
+18 |     decimal: f64,
    |              ^^^ the trait `DecimalConstraintTarget` is not implemented for `f64`
    |
    = help: the following other types implement trait `DecimalConstraintTarget`:
@@ -35,16 +35,16 @@ error[E0277]: the trait bound `f64: DecimalConstraintTarget` is not satisfied
              u16
            and $N others
 note: required by a bound in `assert_decimal_target`
-  --> tests/ui_roles/fail/constraint_type_targets.rs:9:1
+  --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
- 9 | #[Model(no_eq, no_hash)]
+13 | #[Model(no_eq, no_hash)]
    | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_decimal_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `std::string::String: SequenceConstraintTarget` is not satisfied
-  --> tests/ui_roles/fail/constraint_type_targets.rs:16:13
+  --> tests/ui_roles/fail/constraint_type_targets.rs:20:13
    |
-16 |     scalar: String,
+20 |     scalar: String,
    |             ^^^^^^ the trait `SequenceConstraintTarget` is not implemented for `std::string::String`
    |
    = help: the following other types implement trait `SequenceConstraintTarget`:
@@ -58,16 +58,16 @@ error[E0277]: the trait bound `std::string::String: SequenceConstraintTarget` is
              std::collections::HashSet<T>
            and $N others
 note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>::__type_metadata::{closure#0}::assert_sequence_target`
-  --> tests/ui_roles/fail/constraint_type_targets.rs:9:1
+  --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
- 9 | #[Model(no_eq, no_hash)]
+13 | #[Model(no_eq, no_hash)]
    | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_sequence_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `std::string::String: UniqueItemsConstraintTarget` is not satisfied
-  --> tests/ui_roles/fail/constraint_type_targets.rs:16:13
+  --> tests/ui_roles/fail/constraint_type_targets.rs:20:13
    |
-16 |     scalar: String,
+20 |     scalar: String,
    |             ^^^^^^ the trait `UniqueItemsConstraintTarget` is not implemented for `std::string::String`
    |
    = help: the following other types implement trait `UniqueItemsConstraintTarget`:
@@ -81,16 +81,16 @@ error[E0277]: the trait bound `std::string::String: UniqueItemsConstraintTarget`
              std::rc::Rc<T>
            and $N others
 note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>::__type_metadata::{closure#0}::assert_unique_items_target`
-  --> tests/ui_roles/fail/constraint_type_targets.rs:9:1
+  --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
- 9 | #[Model(no_eq, no_hash)]
+13 | #[Model(no_eq, no_hash)]
    | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_unique_items_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `std::collections::HashSet<u64>: UniqueItemsConstraintTarget` is not satisfied
-  --> tests/ui_roles/fail/constraint_type_targets.rs:18:10
+  --> tests/ui_roles/fail/constraint_type_targets.rs:22:10
    |
-18 |     set: std::collections::HashSet<u64>,
+22 |     set: std::collections::HashSet<u64>,
    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `UniqueItemsConstraintTarget` is not implemented for `std::collections::HashSet<u64>`
    |
    = help: the following other types implement trait `UniqueItemsConstraintTarget`:
@@ -104,16 +104,16 @@ error[E0277]: the trait bound `std::collections::HashSet<u64>: UniqueItemsConstr
              std::rc::Rc<T>
            and $N others
 note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>::__type_metadata::{closure#0}::assert_unique_items_target`
-  --> tests/ui_roles/fail/constraint_type_targets.rs:9:1
+  --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
- 9 | #[Model(no_eq, no_hash)]
+13 | #[Model(no_eq, no_hash)]
    | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_unique_items_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `std::vec::Vec<u64>: MapConstraintTarget` is not satisfied
-  --> tests/ui_roles/fail/constraint_type_targets.rs:20:16
+  --> tests/ui_roles/fail/constraint_type_targets.rs:24:16
    |
-20 |     not_a_map: Vec<u64>,
+24 |     not_a_map: Vec<u64>,
    |                ^^^^^^^^ the trait `MapConstraintTarget` is not implemented for `std::vec::Vec<u64>`
    |
    = help: the following other types implement trait `MapConstraintTarget`:
@@ -124,8 +124,8 @@ error[E0277]: the trait bound `std::vec::Vec<u64>: MapConstraintTarget` is not s
              std::rc::Rc<T>
              std::sync::Arc<T>
 note: required by a bound in `assert_map_target`
-  --> tests/ui_roles/fail/constraint_type_targets.rs:9:1
+  --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
- 9 | #[Model(no_eq, no_hash)]
+13 | #[Model(no_eq, no_hash)]
    | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_map_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)

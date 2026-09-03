@@ -9,3 +9,4 @@
 //! Shared compiler infrastructure for model declaration macros.
 
 pub(crate) mod diagnostics;
+pub(crate) mod type_path;

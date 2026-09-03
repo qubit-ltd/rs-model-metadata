@@ -5,23 +5,14 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+// qubit-style: allow test-file-name
+// The filename is part of a Cargo or trybuild fixture protocol.
+//! Re-exports model declarations used by linked-workspace fixtures.
 
-use qubit_model_derive::Model;
-use qubit_model_metadata::__private::qubit_id::Id;
+mod models;
 
-#[Model(id = "test.linked.Source")]
-pub struct Source {
-    #[reference(entity_id = "test.linked.Target", property = id)]
-    pub target_id: Id,
-}
-
+pub use models::Source;
 #[cfg(feature = "duplicate-fixture")]
-#[Model(id = "test.linked.Duplicate")]
-pub struct Duplicate;
-
+pub use models::Duplicate;
 #[cfg(feature = "missing-fixture")]
-#[Model(id = "test.linked.MissingTarget")]
-pub struct MissingTarget {
-    #[reference(entity_id = "test.linked.Absent", property = id)]
-    pub target_id: Id,
-}
+pub use models::MissingTarget;

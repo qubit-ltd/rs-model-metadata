@@ -1,20 +1,4 @@
 // =============================================================================
-
-use syn::DeriveInput;
-use syn::Error;
-use syn::Result;
-
-use super::MacroKind;
-use super::capabilities::omission_kind;
-use super::declaration_ir::ConstraintIr;
-use super::declaration_ir::DeclarationIr;
-use super::declaration_ir::FieldIr;
-use super::declaration_ir::FieldOccurrence;
-use super::declaration_ir::IdentifierAssignmentIr;
-use super::declaration_ir::RedactModeIr;
-use super::declaration_ir::SelectorIr;
-use super::declaration_ir::SelectorPositionIr;
-use super::declaration_validate::combine;
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
@@ -22,9 +6,73 @@ use super::declaration_validate::combine;
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> Result<()> {
+//! Canonicalizes declaration semantics and validates cross-attribute rules.
+
+use std::collections::HashSet;
+
+use syn::DeriveInput;
+use syn::Error;
+use syn::GenericArgument;
+use syn::PathArguments;
+use syn::Result;
+use syn::Type;
+
+use crate::compiler::type_path::is_option_path;
+use crate::compiler::type_path::is_string_path;
+use crate::expand::capabilities::omission_kind;
+use crate::ir::MacroKind;
+use crate::ir::declaration::ConstraintIr;
+use crate::ir::declaration::DeclarationIr;
+use crate::ir::declaration::FieldIr;
+use crate::ir::declaration::FieldOccurrence;
+use crate::ir::declaration::IdentifierAssignmentIr;
+use crate::ir::declaration::RedactModeIr;
+use crate::ir::declaration::SelectorIr;
+use crate::ir::declaration::SelectorPositionIr;
+use crate::validate::declaration::combine;
+
+/// Applies declaration-wide canonicalization before semantic validation.
+pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
+    for field in declaration
+        .fields
+        .iter_mut()
+        .chain(declaration.variants.iter_mut().flat_map(|variant| &mut variant.fields))
+    {
+        normalize_selector_containers(field);
+    }
+}
+
+/// Validates normalized role, field, capability, and ordering invariants.
+pub(crate) fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     let options = &declaration.options;
+    if declaration.kind == MacroKind::Entity && options.id.is_none() {
+        combine(
+            &mut errors,
+            Error::new_spanned(&item.ident, "Entity requires `id = \"...\"`"),
+        );
+    }
+    if matches!(declaration.kind, MacroKind::Entity | MacroKind::Projection)
+        && declaration
+            .fields
+            .iter()
+            .filter(|field| {
+                field
+                    .occurrences
+                    .iter()
+                    .any(|value| matches!(value, FieldOccurrence::Identifier(_)))
+            })
+            .count()
+            != 1
+    {
+        combine(
+            &mut errors,
+            Error::new_spanned(
+                &item.ident,
+                "Entity and Projection require exactly one `#[identifier]` field",
+            ),
+        );
+    }
     if options.source_id.is_some() && declaration.kind != MacroKind::Projection {
         combine(
             &mut errors,
@@ -90,7 +138,7 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
         .iter()
         .chain(declaration.variants.iter().flat_map(|variant| &variant.fields))
         .collect();
-    let mut variant_names = std::collections::HashSet::new();
+    let mut variant_names = HashSet::new();
     for variant in &declaration.variants {
         if !variant_names.insert(&variant.canonical_name) {
             combine(
@@ -148,10 +196,15 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
                         ),
                     );
                 }
-                FieldOccurrence::KeyPart(_) if declaration.kind != MacroKind::Model || !field.named => {
+                FieldOccurrence::KeyPart(_)
+                    if !matches!(declaration.kind, MacroKind::Model | MacroKind::Value) || !field.named =>
+                {
                     combine(
                         &mut errors,
-                        Error::new(field.index.span(), "key_part is only valid on named Model fields"),
+                        Error::new(
+                            field.index.span(),
+                            "key_part is only valid on named Model or Value fields",
+                        ),
                     );
                 }
                 FieldOccurrence::Unique(unique) if unique.ignore_case && !is_text_type(&field.ty) => {
@@ -313,8 +366,8 @@ pub(super) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
 }
 
 /// Reports whether a field is a built-in text type or an optional text type.
-fn is_text_type(ty: &syn::Type) -> bool {
-    let syn::Type::Path(path) = ty else {
+fn is_text_type(ty: &Type) -> bool {
+    let Type::Path(path) = ty else {
         return false;
     };
     if path.qself.is_some() {
@@ -323,19 +376,19 @@ fn is_text_type(ty: &syn::Type) -> bool {
     let Some(segment) = path.path.segments.last() else {
         return false;
     };
-    if segment.ident == "String" || segment.ident == "str" {
+    if is_string_path(&path.path) || (path.path.segments.len() == 1 && segment.ident == "str") {
         return true;
     }
-    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+    let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
         return false;
     };
-    segment.ident == "Option"
+    is_option_path(&path.path)
         && arguments.args.len() == 1
-        && matches!(arguments.args.first(), Some(syn::GenericArgument::Type(inner)) if is_text_type(inner))
+        && matches!(arguments.args.first(), Some(GenericArgument::Type(inner)) if is_text_type(inner))
 }
 
 /// Adds implicit container constraints required by selector metadata.
-pub(super) fn normalize_selector_containers(field: &mut FieldIr) {
+pub(crate) fn normalize_selector_containers(field: &mut FieldIr) {
     let has_element = field.occurrences.iter().any(|value| {
         matches!(
             value,
@@ -381,8 +434,8 @@ pub(super) fn normalize_selector_containers(field: &mut FieldIr) {
 }
 
 /// Validates that a field's constraints match its Rust type and role.
-pub(super) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Error>) {
-    let mut kinds = std::collections::HashSet::new();
+pub(crate) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Error>) {
+    let mut kinds = HashSet::new();
     for constraint in field.occurrences.iter().filter_map(|value| match value {
         FieldOccurrence::Constraint(value) => Some(value),
         _ => None,
@@ -406,7 +459,7 @@ pub(super) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
         FieldOccurrence::Selector(value) => Some(value),
         _ => None,
     }) {
-        let mut selector_kinds = std::collections::HashSet::new();
+        let mut selector_kinds = HashSet::new();
         for constraint in &selector.constraints {
             let kind = match constraint {
                 ConstraintIr::Text(_) => "text",
@@ -444,5 +497,26 @@ pub(super) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use syn::Type;
+    use syn::parse_quote;
+
+    use super::is_text_type;
+
+    /// Ensures text-only semantics recognize canonical paths but reject
+    /// lookalikes.
+    #[test]
+    fn test_text_type_rejects_lookalike_paths() {
+        let fake_string: Type = parse_quote!(domain::String);
+        let fake_option: Type = parse_quote!(domain::Option<String>);
+        let standard: Type = parse_quote!(core::option::Option<std::string::String>);
+
+        assert!(!is_text_type(&fake_string));
+        assert!(!is_text_type(&fake_option));
+        assert!(is_text_type(&standard));
     }
 }

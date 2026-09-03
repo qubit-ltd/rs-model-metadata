@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `u64: IdentifierType` is not satisfied
-  --> tests/ui_roles/fail/identifier_type.rs:12:9
+  --> tests/ui_roles/fail/identifier_type.rs:16:9
    |
-12 |     id: u64,
+16 |     id: u64,
    |         ^^^ the trait `IdentifierType` is not implemented for `u64`
    |
 help: the trait `IdentifierType` is implemented for `Id`
@@ -10,8 +10,8 @@ help: the trait `IdentifierType` is implemented for `Id`
    |     impl IdentifierType for Id {}
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 note: required by a bound in `assert_identifier_type`
-  --> tests/ui_roles/fail/identifier_type.rs:9:1
+  --> tests/ui_roles/fail/identifier_type.rs:13:1
    |
- 9 | #[Entity(id = "example.InvalidIdentifier")]
+13 | #[Entity(id = "example.InvalidIdentifier")]
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_identifier_type`
    = note: this error originates in the attribute macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)

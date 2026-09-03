@@ -5,6 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+// qubit-style: allow test-file-name
+// The filename is part of a Cargo or trybuild fixture protocol.
 
 //! Compiles the six supported public macro entry points together.
 
@@ -44,6 +46,15 @@ enum ContractEnum<T> {
 #[Value(id = "trybuild.ContractValue", transparent)]
 struct ContractValue(String);
 
+#[Value(id = "trybuild.CompositeValue")]
+struct CompositeValue {
+    #[key_part(order = 0)]
+    namespace: String,
+    #[key_part(order = 1)]
+    value: String,
+    label: Option<String>,
+}
+
 #[Model]
 struct ContractProperty {
     name: String,
@@ -69,6 +80,11 @@ fn main() {
     };
     let _ = ContractEnum::<String>::Ready;
     let _ = ContractValue(String::new());
+    let _ = CompositeValue {
+        namespace: String::new(),
+        value: String::new(),
+        label: None,
+    };
     let _ = ContractProperty {
         name: String::new(),
     };
