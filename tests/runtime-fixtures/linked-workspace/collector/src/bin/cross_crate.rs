@@ -24,8 +24,8 @@ fn main() {
     let _ = size_of::<Target>();
     let registry = ModelRegistry::try_global()
         .expect("cross-crate registrations should be valid");
-    assert!(registry.get("test.linked.Source").is_some());
-    assert!(registry.get("test.linked.Target").is_some());
+    assert!(registry.metadata("test.linked.Source").is_some());
+    assert!(registry.metadata("test.linked.Target").is_some());
     let graph = ModelResolver::new(ResolveInputs {
         models: registry,
         validators: ValidatorRegistry::global(),

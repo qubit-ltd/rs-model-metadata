@@ -22,8 +22,8 @@ fn main() {
     let _ = size_of::<MissingTarget>();
     let registry = ModelRegistry::try_global()
         .expect("a missing reference target must not invalidate registration");
-    assert!(registry.get("test.linked.Absent").is_none());
-    assert!(registry.get("test.linked.MissingTarget").is_some());
+    assert!(registry.metadata("test.linked.Absent").is_none());
+    assert!(registry.metadata("test.linked.MissingTarget").is_some());
     let errors = ModelResolver::new(ResolveInputs {
         models: registry,
         validators: ValidatorRegistry::global(),

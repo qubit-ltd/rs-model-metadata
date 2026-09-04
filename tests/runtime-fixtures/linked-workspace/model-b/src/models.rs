@@ -11,6 +11,7 @@
 //! Defines target-side models for linked registration and resolution fixtures.
 
 use qubit_model_derive::Entity;
+#[cfg(feature = "duplicate-fixture")]
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::qubit_id::Id;
 

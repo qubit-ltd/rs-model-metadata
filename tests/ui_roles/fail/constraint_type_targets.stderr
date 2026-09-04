@@ -5,11 +5,11 @@ error[E0277]: the trait bound `u64: TextConstraintTarget` is not satisfied
    |             ^^^ the trait `TextConstraintTarget` is not implemented for `u64`
    |
    = help: the following other types implement trait `TextConstraintTarget`:
-             std::boxed::Box<T>
+             Arc<T>
+             Box<T>
+             Rc<T>
              std::option::Option<T>
-             std::rc::Rc<T>
              std::string::String
-             std::sync::Arc<T>
              str
 note: required by a bound in `assert_text_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
@@ -48,14 +48,14 @@ error[E0277]: the trait bound `std::string::String: SequenceConstraintTarget` is
    |             ^^^^^^ the trait `SequenceConstraintTarget` is not implemented for `std::string::String`
    |
    = help: the following other types implement trait `SequenceConstraintTarget`:
+             Arc<T>
+             BTreeSet<T>
              BinaryHeap<T>
+             Box<T>
+             HashSet<T>
              LinkedList<T>
-             VecDeque<T>
-             [T; N]
-             [T]
-             std::boxed::Box<T>
-             std::collections::BTreeSet<T>
-             std::collections::HashSet<T>
+             Rc<T>
+             Vec<T>
            and $N others
 note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>::__type_metadata::{closure#0}::assert_sequence_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
@@ -71,14 +71,14 @@ error[E0277]: the trait bound `std::string::String: UniqueItemsConstraintTarget`
    |             ^^^^^^ the trait `UniqueItemsConstraintTarget` is not implemented for `std::string::String`
    |
    = help: the following other types implement trait `UniqueItemsConstraintTarget`:
+             Arc<T>
              BinaryHeap<T>
+             Box<T>
              LinkedList<T>
+             Rc<T>
+             Vec<T>
              VecDeque<T>
              [T; N]
-             [T]
-             std::boxed::Box<T>
-             std::option::Option<T>
-             std::rc::Rc<T>
            and $N others
 note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>::__type_metadata::{closure#0}::assert_unique_items_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
@@ -87,21 +87,21 @@ note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>
    | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_unique_items_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `std::collections::HashSet<u64>: UniqueItemsConstraintTarget` is not satisfied
+error[E0277]: the trait bound `HashSet<u64>: UniqueItemsConstraintTarget` is not satisfied
   --> tests/ui_roles/fail/constraint_type_targets.rs:22:10
    |
 22 |     set: std::collections::HashSet<u64>,
-   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `UniqueItemsConstraintTarget` is not implemented for `std::collections::HashSet<u64>`
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `UniqueItemsConstraintTarget` is not implemented for `HashSet<u64>`
    |
    = help: the following other types implement trait `UniqueItemsConstraintTarget`:
+             Arc<T>
              BinaryHeap<T>
+             Box<T>
              LinkedList<T>
+             Rc<T>
+             Vec<T>
              VecDeque<T>
              [T; N]
-             [T]
-             std::boxed::Box<T>
-             std::option::Option<T>
-             std::rc::Rc<T>
            and $N others
 note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>::__type_metadata::{closure#0}::assert_unique_items_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
@@ -110,19 +110,19 @@ note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>
    | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_unique_items_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `std::vec::Vec<u64>: MapConstraintTarget` is not satisfied
+error[E0277]: the trait bound `Vec<u64>: MapConstraintTarget` is not satisfied
   --> tests/ui_roles/fail/constraint_type_targets.rs:24:16
    |
 24 |     not_a_map: Vec<u64>,
-   |                ^^^^^^^^ the trait `MapConstraintTarget` is not implemented for `std::vec::Vec<u64>`
+   |                ^^^^^^^^ the trait `MapConstraintTarget` is not implemented for `Vec<u64>`
    |
    = help: the following other types implement trait `MapConstraintTarget`:
-             std::boxed::Box<T>
-             std::collections::BTreeMap<K, V>
-             std::collections::HashMap<K, V, S>
+             Arc<T>
+             BTreeMap<K, V>
+             Box<T>
+             HashMap<K, V, S>
+             Rc<T>
              std::option::Option<T>
-             std::rc::Rc<T>
-             std::sync::Arc<T>
 note: required by a bound in `assert_map_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |

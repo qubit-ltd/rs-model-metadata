@@ -11,8 +11,8 @@
 use model_runtime::__private::qubit_id::Id;
 use model_runtime::__private::qubit_redact::Redactor;
 use model_runtime::CodecReference;
+use model_runtime::ConstExpression;
 use model_runtime::IndexingReasons;
-use model_runtime::ModelDescriptorExt;
 use model_runtime::ModelRegistry;
 use model_runtime::ModelResolver;
 use model_runtime::ModelRole;
@@ -21,9 +21,8 @@ use model_runtime::Reflect;
 use model_runtime::ResolveInputs;
 use model_runtime::SerdeBehaviorSource;
 use model_runtime::TypeDescriptor;
+use model_runtime::TypeExpression;
 use model_runtime::TypeMetadata;
-use model_runtime::expression::ConstExpression;
-use model_runtime::expression::TypeExpression;
 use qubit_codec::ValueCodecRegistry;
 use qubit_codec::ValueDecoder;
 use qubit_codec::ValueEncoder;
@@ -219,7 +218,7 @@ fn test_role_macros_generate_metadata_capability_and_registration() {
         assert_eq!(metadata.model_id().map(|value| value.as_str()), Some(id));
         assert!(std::ptr::eq(
             metadata,
-            metadata.descriptor().model_metadata().expect("model capability"),
+            registry.metadata_for(metadata.descriptor()).expect("model capability"),
         ));
         assert!(std::ptr::eq(
             registry.metadata(id).expect("registry metadata"),
@@ -399,10 +398,11 @@ fn test_constraints_and_selectors_are_normalized() {
 fn test_generic_model_registers_only_its_definition() {
     let concrete = TypeMetadata::of::<Page<u64>>();
     assert_eq!(concrete.model_id(), None);
-    assert!(concrete.descriptor().model_metadata().is_some());
+    let registry = ModelRegistry::try_global().expect("generic registration");
+    assert!(registry.metadata_for(concrete.descriptor()).is_some());
     let definition = concrete.generic_definition().expect("generic definition");
     assert_eq!(definition.model_id().as_str(), "runtime.Page");
-    assert_eq!(definition.definition().parameters().len(), 1);
+    assert_eq!(definition.definition().generics().parameters().len(), 1);
     assert_eq!(definition.fields().len(), 1);
     let template_field = &definition.fields()[0];
     assert_eq!(template_field.name(), Some("value"));
@@ -411,13 +411,12 @@ fn test_generic_model_registers_only_its_definition() {
         template_field.type_ref().as_symbolic(),
         Some(TypeExpression::Parameter(name)) if name.as_ref() == "T",
     ));
-    let registry = ModelRegistry::try_global().expect("generic registration");
     assert!(std::ptr::eq(registry.generic("runtime.Page").unwrap(), definition));
     assert!(registry.metadata("runtime.Page").is_none());
 
     let buffer = TypeMetadata::of::<Buffer<4>>();
     let definition = buffer.generic_definition().expect("const generic definition");
-    assert_eq!(definition.definition().parameters().len(), 1);
+    assert_eq!(definition.definition().generics().parameters().len(), 1);
     assert!(definition.fields()[0].type_ref().as_symbolic().is_some());
 
     let _ = TypeMetadata::of::<HTTPEnvelope<u8, 4>>();

@@ -313,7 +313,6 @@ dependencies = [
  "bigdecimal",
  "bitflags",
  "chrono",
- "inventory",
  "qubit-codec",
  "qubit-id",
  "qubit-redact",

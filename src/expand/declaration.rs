@@ -75,7 +75,7 @@ fn expand_result(kind: MacroKind, args: TokenStream, input: TokenStream) -> Resu
     item.attrs.push(parse_quote!(#[derive(#runtime::Reflect)]));
     item.attrs.push(parse_quote!(#[reflect(crate = #runtime)]));
     item.attrs
-        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v3::model_capability))]));
+        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v4::model_capability))]));
     let display = expand_display(&declaration, &item, &runtime);
     let metadata = expand_metadata(&declaration, &item, &runtime);
     Ok(quote!(#item #display #metadata))

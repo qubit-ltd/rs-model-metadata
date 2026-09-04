@@ -111,11 +111,11 @@ pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result
             };
             quote! {
                             {
-                                let output_type = #runtime::__private::reflect_codegen_v2::descriptor::lazy_type_ref::<#ty>().get();
-            let getter = #runtime::__private::v3::leak(
+                                let output_type = #runtime::__private::codegen_v2::descriptor::lazy_type_ref::<#ty>().get();
+            let getter = #runtime::__private::v4::leak(
                                     #runtime::GetterMetadata::new::<#target>(#method, output_type, #kind, #adapter),
                                 );
-                                fragments.push(#runtime::__private::v3::property_fragment(
+                                fragments.push(#runtime::__private::v4::property_fragment(
                                     #property,
                                     output_type,
                                     #runtime::PropertyFragmentSource::Getter(getter),
@@ -135,11 +135,11 @@ pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result
             let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}");
             quote! {
                 {
-                    let input_type = #runtime::__private::reflect_codegen_v2::descriptor::lazy_type_ref::<#ty>().get();
-                    let setter = #runtime::__private::v3::leak(
+                    let input_type = #runtime::__private::codegen_v2::descriptor::lazy_type_ref::<#ty>().get();
+                    let setter = #runtime::__private::v4::leak(
                         #runtime::SetterMetadata::new::<#target, #ty>(#method, input_type, #adapter),
                     );
-                    fragments.push(#runtime::__private::v3::property_fragment(
+                    fragments.push(#runtime::__private::v4::property_fragment(
                         #property,
                         input_type,
                         #runtime::PropertyFragmentSource::Setter(setter),
@@ -161,16 +161,16 @@ pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result
         fn #provider() -> &'static #runtime::ModelImplMetadata {
             struct Entry {
                 name: &'static str,
-                type_ref: &'static #runtime::descriptor::TypeRef,
+                type_ref: &'static #runtime::TypeRef,
                 field: ::core::option::Option<&'static #runtime::FieldMetadata>,
                 getter: ::core::option::Option<&'static #runtime::GetterMetadata>,
                 setter: ::core::option::Option<&'static #runtime::SetterMetadata>,
             }
             impl Entry {
-                fn getter(name: &'static str, type_ref: &'static #runtime::descriptor::TypeRef, getter: &'static #runtime::GetterMetadata) -> Self {
+                fn getter(name: &'static str, type_ref: &'static #runtime::TypeRef, getter: &'static #runtime::GetterMetadata) -> Self {
                     Self { name, type_ref, field: None, getter: Some(getter), setter: None }
                 }
-                fn setter(name: &'static str, type_ref: &'static #runtime::descriptor::TypeRef, setter: &'static #runtime::SetterMetadata) -> Self {
+                fn setter(name: &'static str, type_ref: &'static #runtime::TypeRef, setter: &'static #runtime::SetterMetadata) -> Self {
                     Self { name, type_ref, field: None, getter: None, setter: Some(setter) }
                 }
             }
@@ -181,8 +181,8 @@ pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result
                 let mut entries: ::std::vec::Vec<Entry> = ::std::vec::Vec::new();
                 let mut fragments: ::std::vec::Vec<#runtime::PropertyFragment> = ::std::vec::Vec::new();
                 for field in metadata.fields() {
-                    if let Some(name) = field.reflect().query_name() {
-                        fragments.push(#runtime::__private::v3::property_fragment(
+                    if let Some(name) = field.name() {
+                        fragments.push(#runtime::__private::v4::property_fragment(
                             name,
                             field.type_ref(),
                             #runtime::PropertyFragmentSource::Field(field),
@@ -209,24 +209,24 @@ pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result
                     }
                 }
                 let properties: ::std::vec::Vec<_> = merged.into_iter().map(|entry| {
-                    #runtime::__private::v3::property_metadata(
+                    #runtime::__private::v4::property_metadata(
                         entry.name, entry.type_ref, entry.field, entry.getter, entry.setter,
                     )
                 }).collect();
-                let properties = #runtime::__private::v3::leak_slice(properties);
+                let properties = #runtime::__private::v4::leak_slice(properties);
                 let properties = match metadata.validate_properties(properties) {
-                    Ok(()) => Ok(#runtime::__private::v3::leak(
-                        #runtime::__private::v3::local_property_set(properties),
+                    Ok(()) => Ok(#runtime::__private::v4::leak(
+                        #runtime::__private::v4::local_property_set(properties),
                     )),
-                    Err(errors) => Err(#runtime::__private::v3::leak(errors)),
+                    Err(errors) => Err(#runtime::__private::v4::leak(errors)),
                 };
-                let fragments = #runtime::__private::v3::leak_slice(fragments);
-                #runtime::__private::v3::model_impl_metadata(fragments, properties)
+                let fragments = #runtime::__private::v4::leak_slice(fragments);
+                #runtime::__private::v4::model_impl_metadata(fragments, properties)
             })
         }
 
         impl #runtime::__private::ModelImplSeal for #target {}
-        #runtime::__private::v3::register_model_impl_capability!(
+        #runtime::__private::v4::register_model_impl_capability!(
             #target,
             #provider as #runtime::ModelImplProvider,
         );
@@ -252,7 +252,7 @@ fn expand_property_compatibility_assertions(
                 const _: () = {
                     fn assert_property_types_are_compatible()
                     where
-                        #output: #runtime::__private::v3::PropertyOutputCompatible<#input>,
+                        #output: #runtime::__private::v4::PropertyOutputCompatible<#input>,
                     {}
                 };
             })
@@ -265,19 +265,19 @@ fn getter_output_type(output: &GetterReturn, runtime: &TokenStream) -> TokenStre
     match output {
         GetterReturn::Owned(ty) => quote!(#ty),
         GetterReturn::Borrowed(ty) => quote!(
-            #runtime::__private::v3::BorrowedPropertyOutput<#ty>
+            #runtime::__private::v4::BorrowedPropertyOutput<#ty>
         ),
         GetterReturn::BorrowedStr => quote!(
-            #runtime::__private::v3::BorrowedPropertyOutput<str>
+            #runtime::__private::v4::BorrowedPropertyOutput<str>
         ),
         GetterReturn::BorrowedSlice(element) => quote!(
-            #runtime::__private::v3::BorrowedPropertyOutput<[#element]>
+            #runtime::__private::v4::BorrowedPropertyOutput<[#element]>
         ),
         GetterReturn::OptionalBorrowed(ty) => quote!(
-            #runtime::__private::v3::OptionalBorrowedPropertyOutput<#ty>
+            #runtime::__private::v4::OptionalBorrowedPropertyOutput<#ty>
         ),
         GetterReturn::OptionalBorrowedStr => quote!(
-            #runtime::__private::v3::OptionalBorrowedPropertyOutput<str>
+            #runtime::__private::v4::OptionalBorrowedPropertyOutput<str>
         ),
     }
 }

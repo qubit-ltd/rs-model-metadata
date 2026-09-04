@@ -130,7 +130,7 @@ pub(super) fn apply_default_derives(
         add("Deserialize", quote!(#runtime::__private::serde::Deserialize));
     }
     if !options.no_redact {
-        add("Redact", quote!(#runtime::__private::v3::Redact));
+        add("Redact", quote!(#runtime::__private::v4::Redact));
     }
     if !derives.is_empty() {
         item.attrs.push(parse_quote!(#[derive(#(#derives),*)]));
@@ -227,7 +227,7 @@ pub(super) fn expand_display(declaration: &DeclarationIr, item: &DeriveInput, ru
             None => (format!("{}(", name), ")".to_owned()),
         };
         quote! {
-            let output = #runtime::__private::v3::Redactor::application_default().redact(self);
+            let output = #runtime::__private::v4::Redactor::application_default().redact(self);
             let text = output.text().as_str();
             let text = text
                 .strip_prefix(#prefix)

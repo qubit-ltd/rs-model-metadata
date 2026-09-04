@@ -20,6 +20,7 @@ use syn::LitStr;
 use syn::parse_quote;
 
 use super::fields::expand_field_vector;
+use super::fields::expand_generic_field_vector;
 use super::registration::stable_fingerprint;
 use super::role::expand_role;
 use crate::ir::MacroKind;
@@ -75,12 +76,12 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
     let build_metadata = quote! {
         let descriptor = #runtime::TypeDescriptor::of::<Self>();
         #fields
-        let fields: &'static [#runtime::FieldMetadata] = #runtime::__private::v3::leak_slice(fields);
+        let fields: &'static [#runtime::FieldMetadata] = #runtime::__private::v4::leak_slice(fields);
         #role
         let properties: ::std::vec::Vec<_> = fields
             .iter()
             .filter_map(|field| field.name().map(|name| {
-                #runtime::__private::v3::property_metadata(
+                #runtime::__private::v4::property_metadata(
                     name,
                     field.type_ref(),
                     Some(field),
@@ -92,17 +93,17 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
         let property_fragments: ::std::vec::Vec<_> = fields
             .iter()
             .filter_map(|field| field.name().map(|name| {
-                #runtime::__private::v3::property_fragment(
+                #runtime::__private::v4::property_fragment(
                     name,
                     field.type_ref(),
                     #runtime::PropertyFragmentSource::Field(field),
                 )
             }))
             .collect();
-        let properties: &'static [#runtime::PropertyMetadata] = #runtime::__private::v3::leak_slice(properties);
+        let properties: &'static [#runtime::PropertyMetadata] = #runtime::__private::v4::leak_slice(properties);
         let property_fragments: &'static [#runtime::PropertyFragment] =
-            #runtime::__private::v3::leak_slice(property_fragments);
-        let metadata = #runtime::__private::v3::GeneratedTypeMetadataBuilder::new(
+            #runtime::__private::v4::leak_slice(property_fragments);
+        let metadata = #runtime::__private::v4::GeneratedTypeMetadataBuilder::new(
             descriptor, #model_id, fields, role,
         ).properties(properties).property_fragments(property_fragments);
         #generic_definition
@@ -121,7 +122,7 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
             if let Some(metadata) = guard.get(&type_id).copied() {
                 return metadata;
             }
-            let metadata: &'static #runtime::TypeMetadata = #runtime::__private::v3::leak({ #build_metadata });
+            let metadata: &'static #runtime::TypeMetadata = #runtime::__private::v4::leak({ #build_metadata });
             guard.insert(type_id, metadata);
             metadata
         }
@@ -157,9 +158,8 @@ fn expand_generic_registration(
     runtime: &TokenStream,
 ) -> TokenStream {
     let snake_name = ident.to_string().to_snake_case();
-    let definition_fn = format_ident!("__qubit_reflect_generic_definition_{}", ident);
-    let source_fn = format_ident!("__qubit_model_generic_source_{}", snake_name);
-    let registration_fn = format_ident!("__qubit_model_generic_registration_{}", snake_name);
+    let definition_fn = format_ident!("__qubit_reflect_type_definition_{}", ident);
+    let registration_module = format_ident!("__qubit_model_generic_capability_{}", snake_name);
     let role = match kind {
         MacroKind::Model => quote!(#runtime::ModelRole::Model),
         MacroKind::Enum => quote!(#runtime::ModelRole::Enum),
@@ -173,8 +173,12 @@ fn expand_generic_registration(
         }
     };
     let fingerprint = stable_fingerprint(&ident.to_string());
-    let template_root = format_ident!("__qubit_reflect_generic_template_{}", ident);
-    let template_fields = expand_field_vector(fields, quote!(template_descriptor.fields()), runtime);
+    let template_fields = expand_generic_field_vector(
+        fields,
+        quote!(definition.fields().expect("generic struct fields")),
+        runtime,
+        false,
+    );
     let template_variants = expand_generic_variant_vector(variants, runtime);
     quote! {
         #[doc(hidden)]
@@ -182,14 +186,14 @@ fn expand_generic_registration(
             static METADATA: ::std::sync::OnceLock<#runtime::GenericModelMetadata> =
                 ::std::sync::OnceLock::new();
             METADATA.get_or_init(|| {
-                let template_descriptor = #template_root();
+                let definition = #definition_fn();
                 #template_fields
-                let fields: &'static [#runtime::FieldMetadata] = #runtime::__private::v3::leak_slice(fields);
+                let fields: &'static [#runtime::FieldMetadata] = #runtime::__private::v4::leak_slice(fields);
                 #template_variants
-                #runtime::__private::v3::generic_model_metadata(
+                #runtime::__private::v4::generic_model_metadata(
                     #runtime::ModelId::new(#id),
                     #role,
-                    #definition_fn(),
+                    definition,
                     fields,
                     variants,
                 )
@@ -197,21 +201,35 @@ fn expand_generic_registration(
         }
 
         #[doc(hidden)]
-        fn #source_fn() -> &'static #runtime::identity::FragmentIdentity {
-            static SOURCE: ::std::sync::OnceLock<#runtime::identity::FragmentIdentity> =
-                ::std::sync::OnceLock::new();
-            SOURCE.get_or_init(|| #runtime::identity::FragmentIdentity::new(
-                env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(), "generic-model", #fingerprint,
-            ))
-        }
+        mod #registration_module {
+            fn runtime_identity() -> #runtime::__private::codegen_v2::registration::RuntimeIdentity {
+                #runtime::__private::codegen_v2::registration::RuntimeIdentity::Capabilities(
+                    #runtime::__private::codegen_v2::registration::CapabilityTarget::TypeDefinition(
+                        super::#definition_fn().id(),
+                    ),
+                )
+            }
 
-        #[doc(hidden)]
-        fn #registration_fn() -> #runtime::ModelRegistration {
-            #runtime::__private::v3::generic_registration(#metadata_fn(), #source_fn())
-        }
+            fn payload() -> #runtime::__private::codegen_v2::registration::FragmentPayload {
+                #runtime::__private::codegen_v2::registration::FragmentPayload::Capability(
+                    #runtime::__private::codegen_v2::registration::CapabilityRegistration::for_definition(
+                        super::#definition_fn(),
+                        ::std::vec![#runtime::__private::v4::generic_model_capability(super::#metadata_fn)],
+                    ),
+                )
+            }
 
-        #runtime::__private::inventory::submit! {
-            #runtime::ModelRegistrationFactory(#registration_fn)
+            #runtime::__private::codegen_v2::inventory::submit! {
+                #runtime::__private::codegen_v2::registration::RegistrationFragment::new(
+                    #runtime::__private::codegen_v2::registration::FragmentKind::Capability,
+                    #runtime::__private::codegen_v2::registration::StaticFragmentIdentity::new(
+                        env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(),
+                        "generic-model-capability", #fingerprint,
+                    ),
+                    runtime_identity,
+                    payload,
+                )
+            }
         }
     }
 }
@@ -219,10 +237,11 @@ fn expand_generic_registration(
 /// Generates complete symbolic overlays for generic enum variants.
 fn expand_generic_variant_vector(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
     let bodies = variants.iter().enumerate().map(|(variant_index, variant)| {
-        let fields = expand_field_vector(
+        let fields = expand_generic_field_vector(
             &variant.fields,
-            quote!(template_descriptor.variants()[#variant_index].fields()),
+            quote!(definition.variants().expect("generic enum variants")[#variant_index].fields()),
             runtime,
+            true,
         );
         let canonical = &variant.canonical_name;
         let serialized = &variant.serialized_name;
@@ -232,9 +251,9 @@ fn expand_generic_variant_vector(variants: &[VariantIr], runtime: &TokenStream) 
             {
                 #fields
                 let fields: &'static [#runtime::FieldMetadata] =
-                    #runtime::__private::v3::leak_slice(fields);
-                variants.push(#runtime::__private::v3::enum_variant_metadata(
-                    &template_descriptor.variants()[#variant_index],
+                    #runtime::__private::v4::leak_slice(fields);
+                variants.push(#runtime::__private::v4::generic_enum_variant_metadata(
+                    &definition.variants().expect("generic enum variants")[#variant_index],
                     #canonical,
                     #serialized,
                     #deserialized,
@@ -248,6 +267,6 @@ fn expand_generic_variant_vector(variants: &[VariantIr], runtime: &TokenStream) 
         let mut variants = ::std::vec::Vec::new();
         #(#bodies)*
         let variants: &'static [#runtime::EnumVariantMetadata] =
-            #runtime::__private::v3::leak_slice(variants);
+            #runtime::__private::v4::leak_slice(variants);
     }
 }
