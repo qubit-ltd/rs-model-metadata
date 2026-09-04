@@ -316,16 +316,6 @@ impl TypeMetadata {
         self.validate_descriptor(self.descriptor)
     }
 
-    /// Verifies that this metadata remains attached to `descriptor`.
-    ///
-    /// # Panics
-    ///
-    /// Panics with a stable ABI diagnostic when metadata and reflection differ.
-    pub(crate) fn assert_valid_descriptor(&self, descriptor: &TypeDescriptor) {
-        self.validate_descriptor(descriptor)
-            .unwrap_or_else(|error| panic!("{error}"));
-    }
-
     /// Checks that this metadata remains attached to `descriptor`.
     pub(crate) fn validate_descriptor(&self, descriptor: &TypeDescriptor) -> Result<(), AbiViolation> {
         if !core::ptr::eq(self.descriptor, descriptor) {
@@ -390,8 +380,11 @@ fn validate_fields(
     }
     for (index, (field, reflect)) in metadata.iter().zip(reflected).enumerate() {
         if field.index() != index
-            || !core::ptr::eq(field.reflect(), reflect)
-            || !core::ptr::eq(field.reflect().declaring_type(), descriptor)
+            || !core::ptr::eq(field.reflect().expect("concrete metadata field"), reflect)
+            || !core::ptr::eq(
+                field.reflect().expect("concrete metadata field").declaring_type(),
+                descriptor,
+            )
         {
             return Err(abi_violation(code, "field metadata is not in reflection source order"));
         }
@@ -655,7 +648,12 @@ fn validate_properties(
             ));
         }
         if let Some(field) = property.field() {
-            if !contains_field(fields, field) || !core::ptr::eq(field.reflect().declaring_type(), descriptor) {
+            if !contains_field(fields, field)
+                || !core::ptr::eq(
+                    field.reflect().expect("concrete property field").declaring_type(),
+                    descriptor,
+                )
+            {
                 errors.push(PropertyBuildError::new(
                     PropertyBuildErrorKind::ForeignField,
                     property.name(),
@@ -741,8 +739,11 @@ fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) -> Result
             let mut deserialized_names = HashSet::with_capacity(role.variants().len());
             for (index, (variant, reflect)) in role.variants().iter().zip(reflected).enumerate() {
                 if variant.index() != index
-                    || !core::ptr::eq(variant.reflect(), reflect)
-                    || !core::ptr::eq(variant.reflect().declaring_type(), descriptor)
+                    || !core::ptr::eq(variant.reflect().expect("concrete enum variant"), reflect)
+                    || !core::ptr::eq(
+                        variant.reflect().expect("concrete enum variant").declaring_type(),
+                        descriptor,
+                    )
                 {
                     return Err(abi_violation(
                         "QMM-ABI-012",

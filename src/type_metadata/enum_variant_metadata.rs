@@ -8,6 +8,7 @@
 
 //! Domain metadata overlays for individual reflected enum variants.
 
+use qubit_reflect::VariantDefinitionDescriptor;
 use qubit_reflect::VariantDescriptor;
 
 use crate::FieldMetadata;
@@ -16,7 +17,9 @@ use crate::FieldMetadata;
 #[derive(Clone, Copy, Debug)]
 pub struct EnumVariantMetadata {
     /// The reflection descriptor that defines the variant.
-    reflect: &'static VariantDescriptor,
+    reflect: Option<&'static VariantDescriptor>,
+    /// The source declaration for a generic enum overlay.
+    definition: Option<&'static VariantDefinitionDescriptor>,
     /// The model-level canonical variant name.
     canonical_name: &'static str,
     /// The name emitted while serializing the variant.
@@ -41,7 +44,30 @@ impl EnumVariantMetadata {
         default: bool,
     ) -> Self {
         Self {
-            reflect,
+            reflect: Some(reflect),
+            definition: None,
+            canonical_name,
+            serialized_name,
+            deserialized_name,
+            fields,
+            default,
+        }
+    }
+
+    /// Creates an overlay for one generic enum declaration variant.
+    #[doc(hidden)]
+    #[must_use]
+    pub(crate) const fn from_definition(
+        definition: &'static VariantDefinitionDescriptor,
+        canonical_name: &'static str,
+        serialized_name: &'static str,
+        deserialized_name: &'static str,
+        fields: &'static [FieldMetadata],
+        default: bool,
+    ) -> Self {
+        Self {
+            reflect: None,
+            definition: Some(definition),
             canonical_name,
             serialized_name,
             deserialized_name,
@@ -53,22 +79,36 @@ impl EnumVariantMetadata {
     /// Returns the underlying structural descriptor.
     #[must_use]
     #[inline(always)]
-    pub const fn reflect(&self) -> &'static VariantDescriptor {
+    pub const fn reflect(&self) -> Option<&'static VariantDescriptor> {
         self.reflect
+    }
+
+    /// Returns the generic source declaration variant, when present.
+    #[must_use]
+    pub const fn definition(&self) -> Option<&'static VariantDefinitionDescriptor> {
+        self.definition
     }
 
     /// Returns the source declaration index.
     #[must_use]
     #[inline(always)]
     pub const fn index(&self) -> usize {
-        self.reflect.index()
+        match (self.reflect, self.definition) {
+            (Some(reflect), _) => reflect.index(),
+            (_, Some(definition)) => definition.index(),
+            _ => unreachable!(),
+        }
     }
 
     /// Returns the immutable Rust identifier.
     #[must_use]
     #[inline(always)]
     pub const fn rust_name(&self) -> &'static str {
-        self.reflect.rust_name()
+        match (self.reflect, self.definition) {
+            (Some(reflect), _) => reflect.rust_name(),
+            (_, Some(definition)) => definition.rust_name(),
+            _ => unreachable!(),
+        }
     }
 
     /// Returns the canonical model name.
@@ -102,9 +142,7 @@ impl EnumVariantMetadata {
     /// Finds a named payload field by query name.
     #[must_use]
     pub fn field(&self, name: &str) -> Option<&'static FieldMetadata> {
-        self.fields
-            .iter()
-            .find(|field| field.reflect().query_name() == Some(name))
+        self.fields.iter().find(|field| field.name() == Some(name))
     }
 
     /// Returns a payload field by source index.

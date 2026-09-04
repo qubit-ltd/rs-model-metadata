@@ -30,7 +30,6 @@ doctest = true
 bitflags = "2.10.0"
 bigdecimal = "0.4"
 chrono = { version = "0.4", features = ["std"], default-features = false }
-inventory = "0.3"
 qubit-id = { version = "=0.6.0", path = "../../rust-common/rs-id", features = ["serde"] }
 qubit-reflect = { version = "=0.1.0", path = "../rs-reflect", default-features = false, features = ["derive", "ecosystem-types", "qubit-types"] }
 qubit-codec = { version = "0.14", features = ["registry"] }
@@ -41,6 +40,7 @@ thiserror = "2"
 
 [dev-dependencies]
 qubit-datatype = { version = "=0.12.0", path = "../../rust-common/rs-datatype" }
+trybuild = "1"
 uuid = "1"
 
 [lints.rust]

@@ -8,7 +8,7 @@
 
 //! Metadata for one registered generic model declaration.
 
-use qubit_reflect::expression::GenericDefinitionDescriptor;
+use qubit_reflect::TypeDefinitionDescriptor;
 
 use crate::EnumVariantMetadata;
 use crate::FieldMetadata;
@@ -23,7 +23,7 @@ pub struct GenericModelMetadata {
     /// The semantic role assigned to the model definition.
     role: ModelRole,
     /// The reflection descriptor for the generic definition.
-    definition: &'static GenericDefinitionDescriptor,
+    definition: &'static TypeDefinitionDescriptor,
     /// Symbolic field overlays declared by the generic model.
     fields: &'static [FieldMetadata],
     /// Symbolic enum-variant overlays declared by the generic model.
@@ -36,7 +36,7 @@ impl GenericModelMetadata {
     pub(crate) const fn new(
         model_id: ModelId,
         role: ModelRole,
-        definition: &'static GenericDefinitionDescriptor,
+        definition: &'static TypeDefinitionDescriptor,
         fields: &'static [FieldMetadata],
         variants: &'static [EnumVariantMetadata],
     ) -> Self {
@@ -63,7 +63,7 @@ impl GenericModelMetadata {
     /// Returns the shared reflection generic definition.
     #[must_use]
     #[inline(always)]
-    pub const fn definition(&self) -> &'static GenericDefinitionDescriptor {
+    pub const fn definition(&self) -> &'static TypeDefinitionDescriptor {
         self.definition
     }
     /// Returns symbolic field overlays for the template.

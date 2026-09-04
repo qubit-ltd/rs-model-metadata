@@ -15,6 +15,7 @@ use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::registry::ReflectRegistry;
 
+use crate::GenericModelMetadata;
 use crate::ModelImplMetadata;
 use crate::TypeMetadata;
 
@@ -25,6 +26,10 @@ pub type ModelMetadataProvider = fn() -> &'static TypeMetadata;
 /// The typed capability adapter supplied by `ModelImpl`.
 #[doc(hidden)]
 pub type ModelImplProvider = fn() -> &'static ModelImplMetadata;
+
+/// The typed capability adapter supplied by generic model declarations.
+#[doc(hidden)]
+pub type GenericModelMetadataProvider = fn() -> &'static GenericModelMetadata;
 
 /// Returns the stable key used to retrieve a model metadata provider.
 #[doc(hidden)]
@@ -40,6 +45,22 @@ pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider> {
 pub fn model_impl_key() -> CapabilityKey<ModelImplProvider> {
     let id = CapabilityId::new("qubit.model.impl.v1").expect("the model implementation capability ID must be valid");
     CapabilityKey::new(id)
+}
+
+/// Returns the stable key used to retrieve generic model metadata.
+#[doc(hidden)]
+#[must_use]
+pub fn generic_model_metadata_key() -> CapabilityKey<GenericModelMetadataProvider> {
+    let id = CapabilityId::new("qubit.model.generic_metadata.v1")
+        .expect("the generic model metadata capability ID must be valid");
+    CapabilityKey::new(id)
+}
+
+/// Builds a capability for one generic model declaration.
+#[doc(hidden)]
+#[must_use]
+pub fn generic_model_capability(provider: GenericModelMetadataProvider) -> CapabilityDescriptor {
+    CapabilityDescriptor::with_adapter(generic_model_metadata_key(), provider)
 }
 
 /// Builds an inline model capability for one concrete reflection monomorph.
@@ -58,40 +79,8 @@ pub fn model_capability<T: crate::HasTypeMetadata>() -> CapabilityDescriptor {
 /// Returns the generated model-implementation overlay attached to an exact
 /// descriptor root in the frozen reflection snapshot.
 pub(crate) fn model_impl_metadata(descriptor: &TypeDescriptor) -> Option<&'static ModelImplMetadata> {
-    let registry = ReflectRegistry::initialize()
-        .unwrap_or_else(|error| panic!("QMM-ABI-003: reflection registry initialization failed: {error}"));
+    let registry = ReflectRegistry::initialize().ok()?;
     registry
-        .capabilities(descriptor.type_id())
-        .get(model_impl_key())
+        .capability(descriptor, model_impl_key())
         .map(|provider| provider())
-}
-
-/// Extends a reflection root with model metadata lookup.
-pub trait ModelDescriptorExt {
-    /// Returns the metadata provider attached to this exact descriptor root.
-    #[must_use]
-    fn model_metadata(&self) -> Option<&'static TypeMetadata>;
-
-    /// Returns whether this exact descriptor root has model metadata.
-    #[must_use]
-    fn is_model_type(&self) -> bool {
-        self.model_metadata().is_some()
-    }
-}
-
-impl ModelDescriptorExt for TypeDescriptor {
-    fn model_metadata(&self) -> Option<&'static TypeMetadata> {
-        let registry = ReflectRegistry::initialize()
-            .unwrap_or_else(|error| panic!("QMM-ABI-003: reflection registry initialization failed: {error}"));
-        let capabilities = if registry.get(self.type_id()).is_some() {
-            registry.capabilities(self.type_id())
-        } else {
-            self.capabilities()
-        };
-        capabilities.get(model_metadata_key()).map(|provider| {
-            let metadata = provider();
-            metadata.assert_valid_descriptor(self);
-            metadata
-        })
-    }
 }

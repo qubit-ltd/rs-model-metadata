@@ -578,6 +578,7 @@ impl PropertyMetadata {
         if let Some(field) = self.field {
             return field
                 .reflect()
+                .expect("runtime properties only reference concrete fields")
                 .get(target)
                 .map(PropertyValue::Borrowed)
                 .map_err(Into::into);
@@ -597,13 +598,17 @@ impl PropertyMetadata {
             return setter.set(target, value);
         }
         if let Some(field) = self.field {
-            return field.reflect().set(target, value).map_err(|failure| {
-                let (error, recovery) = failure.into_parts();
-                PropertySetFailure {
-                    error: Box::new(PropertyAccessError::Field(error)),
-                    replacement: recovery.map(FieldSetRecovery::into_value).map(Box::new),
-                }
-            });
+            return field
+                .reflect()
+                .expect("runtime properties only reference concrete fields")
+                .set(target, value)
+                .map_err(|failure| {
+                    let (error, recovery) = failure.into_parts();
+                    PropertySetFailure {
+                        error: Box::new(PropertyAccessError::Field(error)),
+                        replacement: recovery.map(FieldSetRecovery::into_value).map(Box::new),
+                    }
+                });
         }
         Err(PropertySetFailure::before_execution(
             PropertyAccessError::NotWritable,

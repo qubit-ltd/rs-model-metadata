@@ -10,12 +10,10 @@
 // qubit-style: allow multiple-public-types
 // qubit-style: allow type-file-name
 
-pub use inventory;
 pub use qubit_codec;
 pub use qubit_id;
 pub use qubit_redact;
 pub use qubit_reflect::__private::codegen_v2;
-pub use qubit_reflect::__private::codegen_v2 as reflect_codegen_v2;
 pub use qubit_reflect::capability::TypeCapabilities as ReflectTypeCapabilities;
 pub use qubit_reflect::register_type_capabilities;
 pub use qubit_validator;
@@ -343,18 +341,19 @@ mod compile_assertions {
 ///
 /// All intentionally permanent allocations used by generic metadata are
 /// centralized here. Generated code must finish each aggregate through
-/// [`v3::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
+/// [`v4::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
 /// its construction boundary.
 #[doc(hidden)]
-pub mod v3 {
+pub mod v4 {
     pub use qubit_codec::ValueCodecDescriptor;
     pub use qubit_redact::Redact;
     pub use qubit_redact::Redactor;
+    use qubit_reflect::FieldDefinitionDescriptor;
     use qubit_reflect::FieldDescriptor;
+    use qubit_reflect::TypeDefinitionDescriptor;
+    use qubit_reflect::VariantDefinitionDescriptor;
     use qubit_reflect::VariantDescriptor;
     use qubit_reflect::descriptor::TypeRef;
-    use qubit_reflect::expression::GenericDefinitionDescriptor;
-    use qubit_reflect::identity::FragmentIdentity;
 
     pub use super::compile_assertions::BorrowedPropertyOutput;
     pub use super::compile_assertions::DecimalConstraintTarget;
@@ -372,6 +371,8 @@ pub mod v3 {
     pub use super::compile_assertions::property_fragment;
     use crate::TypeDescriptor;
     use crate::TypeMetadata;
+    pub use crate::reflect_facade::generic_model_capability;
+    pub use crate::reflect_facade::generic_model_metadata_key;
     pub use crate::reflect_facade::model_capability;
 
     #[doc(hidden)]
@@ -443,6 +444,29 @@ pub mod v3 {
         crate::FieldMetadata::with_semantics(reflect, attributes, constraints, validators, serde)
     }
 
+    /// Builds a semantic overlay for one generic declaration field.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn generic_field_metadata(
+        definition: &'static FieldDefinitionDescriptor,
+        variant_inherited: bool,
+        attributes: &'static [crate::FieldAttributeMetadata],
+        constraints: &'static [crate::ConstraintMetadata],
+        validators: &'static [crate::ValidatorMetadata],
+        serde: &'static crate::SerdeFieldMetadata,
+    ) -> crate::FieldMetadata {
+        let symbolic_type = leak(TypeRef::Symbolic(definition.ty().clone()));
+        crate::FieldMetadata::with_definition_semantics(
+            definition,
+            symbolic_type,
+            variant_inherited,
+            attributes,
+            constraints,
+            validators,
+            serde,
+        )
+    }
+
     /// Builds one merged property metadata value.
     #[doc(hidden)]
     #[must_use]
@@ -511,6 +535,27 @@ pub mod v3 {
         )
     }
 
+    /// Builds metadata for one generic enum declaration variant.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn generic_enum_variant_metadata(
+        definition: &'static VariantDefinitionDescriptor,
+        canonical_name: &'static str,
+        serialized_name: &'static str,
+        deserialized_name: &'static str,
+        fields: &'static [crate::FieldMetadata],
+        default: bool,
+    ) -> crate::EnumVariantMetadata {
+        crate::EnumVariantMetadata::from_definition(
+            definition,
+            canonical_name,
+            serialized_name,
+            deserialized_name,
+            fields,
+            default,
+        )
+    }
+
     /// Builds enum-role metadata from generated variants.
     #[doc(hidden)]
     #[must_use]
@@ -524,31 +569,11 @@ pub mod v3 {
     pub const fn generic_model_metadata(
         model_id: crate::ModelId,
         role: crate::ModelRole,
-        definition: &'static GenericDefinitionDescriptor,
+        definition: &'static TypeDefinitionDescriptor,
         fields: &'static [crate::FieldMetadata],
         variants: &'static [crate::EnumVariantMetadata],
     ) -> crate::GenericModelMetadata {
         crate::GenericModelMetadata::new(model_id, role, definition, fields, variants)
-    }
-
-    /// Builds a concrete generated model registration.
-    #[doc(hidden)]
-    #[must_use]
-    pub const fn concrete_registration(
-        metadata: &'static crate::TypeMetadata,
-        source: &'static FragmentIdentity,
-    ) -> crate::ModelRegistration {
-        crate::ModelRegistration::from_concrete(metadata, source)
-    }
-
-    /// Builds a generic generated model registration.
-    #[doc(hidden)]
-    #[must_use]
-    pub const fn generic_registration(
-        metadata: &'static crate::GenericModelMetadata,
-        source: &'static FragmentIdentity,
-    ) -> crate::ModelRegistration {
-        crate::ModelRegistration::from_generic(metadata, source)
     }
 
     /// Leaks a generated value for static metadata storage.

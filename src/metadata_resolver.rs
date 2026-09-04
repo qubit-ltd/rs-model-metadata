@@ -32,7 +32,6 @@ use crate::FieldReferenceMetadata;
 use crate::GetterMetadata;
 use crate::IndexingReasons;
 use crate::LocalPropertySet;
-use crate::ModelDescriptorExt;
 use crate::ModelRegistry;
 use crate::ModelRole;
 use crate::ProjectionMetadata;
@@ -89,10 +88,7 @@ impl<'a> ModelResolver<'a> {
         let mut projection_producers = Vec::new();
         let mut errors = Vec::new();
 
-        for registration in self.inputs.models.registrations() {
-            let Some(metadata) = registration.metadata() else {
-                continue;
-            };
+        for (metadata, fragment_source) in self.inputs.models.concrete_entries() {
             match metadata.try_properties() {
                 Ok(local) => {
                     properties.insert(metadata.type_id(), local);
@@ -107,7 +103,7 @@ impl<'a> ModelResolver<'a> {
                             Some(path),
                             None,
                             Some(metadata.role()),
-                            Some(registration.source()),
+                            Some(fragment_source),
                         ));
                     }
                 }
@@ -142,7 +138,7 @@ impl<'a> ModelResolver<'a> {
                             metadata,
                             field,
                             Some(hidden.role()),
-                            registration.source(),
+                            fragment_source,
                         );
                     }
                 } else if metadata.role() == ModelRole::Entity
@@ -157,7 +153,7 @@ impl<'a> ModelResolver<'a> {
                         metadata,
                         field,
                         Some(role),
-                        registration.source(),
+                        fragment_source,
                     );
                 }
                 resolve_field_strategies(
@@ -166,7 +162,7 @@ impl<'a> ModelResolver<'a> {
                     self.inputs,
                     &mut validators,
                     &mut codecs,
-                    registration.source(),
+                    fragment_source,
                     &mut errors,
                 );
                 if let Some(reference) = field.reference() {
@@ -181,7 +177,7 @@ impl<'a> ModelResolver<'a> {
                                     Some(*path),
                                     None,
                                     Some(metadata.role()),
-                                    Some(registration.source()),
+                                    Some(fragment_source),
                                 ));
                                 local_reference_valid = false;
                             }
@@ -192,7 +188,7 @@ impl<'a> ModelResolver<'a> {
                                     Some(*path),
                                     None,
                                     Some(metadata.role()),
-                                    Some(registration.source()),
+                                    Some(fragment_source),
                                 ));
                                 local_reference_valid = false;
                             }
@@ -212,7 +208,7 @@ impl<'a> ModelResolver<'a> {
                                                 Some(*path),
                                                 Some(ModelRole::Entity),
                                                 Some(target.role()),
-                                                Some(registration.source()),
+                                                Some(fragment_source),
                                             ));
                                             continue;
                                         }
@@ -223,7 +219,7 @@ impl<'a> ModelResolver<'a> {
                                                 Some(*path),
                                                 Some(ModelRole::Entity),
                                                 Some(target.role()),
-                                                Some(registration.source()),
+                                                Some(fragment_source),
                                             ));
                                             continue;
                                         }
@@ -244,7 +240,7 @@ impl<'a> ModelResolver<'a> {
                                         reference.selection().property_path().copied(),
                                         Some(ModelRole::Entity),
                                         Some(target.role()),
-                                        Some(registration.source()),
+                                        Some(fragment_source),
                                     )
                                     .with_types(expected.type_id(), actual.type_id()),
                                 );
@@ -267,7 +263,7 @@ impl<'a> ModelResolver<'a> {
                             None,
                             Some(ModelRole::Entity),
                             Some(target.role()),
-                            Some(registration.source()),
+                            Some(fragment_source),
                         )),
                         None => errors.push(ModelResolveError::new(
                             ModelResolveErrorKind::MissingModelId,
@@ -275,7 +271,7 @@ impl<'a> ModelResolver<'a> {
                             None,
                             Some(ModelRole::Entity),
                             None,
-                            Some(registration.source()),
+                            Some(fragment_source),
                         )),
                     }
                 }
@@ -298,7 +294,7 @@ impl<'a> ModelResolver<'a> {
                                     None,
                                     Some(ModelRole::Entity),
                                     Some(target.role()),
-                                    Some(registration.source()),
+                                    Some(fragment_source),
                                 )
                                 .with_types(expected.type_id(), actual.type_id()),
                             );
@@ -315,7 +311,7 @@ impl<'a> ModelResolver<'a> {
                         None,
                         Some(ModelRole::Entity),
                         Some(target.role()),
-                        Some(registration.source()),
+                        Some(fragment_source),
                     )),
                     None => errors.push(ModelResolveError::new(
                         ModelResolveErrorKind::InvalidProjectionSource,
@@ -323,20 +319,14 @@ impl<'a> ModelResolver<'a> {
                         None,
                         Some(ModelRole::Entity),
                         None,
-                        Some(registration.source()),
+                        Some(fragment_source),
                     )),
                 }
             }
 
             if metadata.role() == ModelRole::Value {
                 let mut visited = HashSet::new();
-                validate_value_closure(
-                    metadata,
-                    self.inputs.models,
-                    &mut visited,
-                    registration.source(),
-                    &mut errors,
-                );
+                validate_value_closure(metadata, self.inputs.models, &mut visited, fragment_source, &mut errors);
             }
 
             if let Some(codec) = metadata.as_value().and_then(crate::ValueMetadata::canonical_codec) {
@@ -346,25 +336,22 @@ impl<'a> ModelResolver<'a> {
                     metadata.type_id(),
                     self.inputs.codecs,
                     &mut codecs,
-                    registration.source(),
+                    fragment_source,
                     &mut errors,
                 );
             }
 
             if let Some(entity) = metadata.as_entity()
-                && let Some(query) = build_query(metadata, self.inputs.models, registration.source(), &mut errors)
+                && let Some(query) = build_query(metadata, self.inputs.models, fragment_source, &mut errors)
             {
                 queries.insert(entity as *const crate::EntityMetadata as usize, query);
             }
         }
 
-        for registration in self.inputs.models.registrations() {
-            let Some(source) = registration
-                .metadata()
-                .filter(|metadata| metadata.role() == ModelRole::Entity)
-            else {
+        for (source, fragment_source) in self.inputs.models.concrete_entries() {
+            if source.role() != ModelRole::Entity {
                 continue;
-            };
+            }
             let Some(local_properties) = properties.get(&source.type_id()).copied() else {
                 continue;
             };
@@ -390,7 +377,7 @@ impl<'a> ModelResolver<'a> {
                         None,
                         Some(ModelRole::Entity),
                         Some(source.role()),
-                        Some(registration.source()),
+                        Some(fragment_source),
                     ));
                     continue;
                 }
@@ -408,7 +395,7 @@ impl<'a> ModelResolver<'a> {
                         None,
                         Some(ModelRole::Projection),
                         Some(projection.role()),
-                        Some(registration.source()),
+                        Some(fragment_source),
                     ));
                     continue;
                 }
@@ -767,9 +754,7 @@ fn metadata_for_descriptor(
     descriptor: &'static TypeDescriptor,
     registry: &ModelRegistry,
 ) -> Option<&'static TypeMetadata> {
-    descriptor
-        .model_metadata()
-        .or_else(|| registry.by_type_id(descriptor.type_id()))
+    registry.metadata_for(descriptor)
 }
 
 /// An owned runtime path whose segment names originate in static declarations.
@@ -1331,6 +1316,7 @@ impl ResolvedProjectionProducer {
             .ok_or(ProjectionExecutionError::InvalidProducer)?
             .identifier()
             .reflect()
+            .expect("resolved entity identifiers are concrete fields")
             .get(source.clone())?
             .downcast::<Id>()
             .map_err(|_| ProjectionExecutionError::InvalidIdentifierType)
@@ -1361,6 +1347,7 @@ impl ResolvedProjectionProducer {
             .ok_or(ProjectionExecutionError::InvalidProducer)?
             .identifier()
             .reflect()
+            .expect("resolved projection identifiers are concrete fields")
             .get(target)?
             .downcast::<Id>()
             .map_err(|_| ProjectionExecutionError::InvalidIdentifierType)

@@ -68,10 +68,10 @@ impl ModelRegistryError {
     }
 
     /// Records a registration whose metadata conflicts with its target.
-    pub(crate) fn conflict(model_id: ModelId, sources: Vec<FragmentIdentity>) -> Self {
+    pub(crate) fn conflict(model_id: Option<ModelId>, sources: Vec<FragmentIdentity>) -> Self {
         Self {
             kind: ModelRegistryErrorKind::RegistrationConflict,
-            model_id: Some(model_id),
+            model_id,
             sources,
             reflection: None,
         }
@@ -111,11 +111,10 @@ impl core::fmt::Display for ModelRegistryError {
                 "duplicate model ID {}",
                 self.model_id.expect("duplicate errors retain their ID").as_str(),
             ),
-            ModelRegistryErrorKind::RegistrationConflict => write!(
-                formatter,
-                "model registration conflict for {}",
-                self.model_id.expect("conflict errors retain their ID").as_str(),
-            ),
+            ModelRegistryErrorKind::RegistrationConflict => match self.model_id {
+                Some(model_id) => write!(formatter, "model capability conflict for {}", model_id.as_str()),
+                None => formatter.write_str("model capability conflict without a stable model ID"),
+            },
             ModelRegistryErrorKind::UnsupportedPlatform => formatter.write_str("model registration is unsupported"),
         }
     }

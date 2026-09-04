@@ -8,9 +8,9 @@
 
 //! Integration tests for role-aware type metadata.
 
-use qubit_model_metadata::__private::v3;
+use qubit_model_metadata::__private::v4;
 use qubit_model_metadata::FieldMetadata;
-use qubit_model_metadata::ModelDescriptorExt;
+use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelRole;
 use qubit_model_metadata::Reflect;
 use qubit_model_metadata::TypeDescriptor;
@@ -32,8 +32,8 @@ fn test_type_metadata_delegates_structure_to_reflection() {
             .collect::<Vec<_>>()
             .into_boxed_slice(),
     );
-    let role = v3::leak(v3::model_role());
-    let metadata = v3::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role).finish::<NamedFixture>();
+    let role = v4::leak(v4::model_role());
+    let metadata = v4::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role).finish::<NamedFixture>();
 
     assert!(std::ptr::eq(metadata.descriptor(), descriptor));
     assert_eq!(metadata.role(), ModelRole::Model);
@@ -41,7 +41,11 @@ fn test_type_metadata_delegates_structure_to_reflection() {
     assert!(!metadata.is_registered());
     assert_eq!(metadata.fields().len(), descriptor.fields().len());
     assert!(std::ptr::eq(
-        metadata.field("value").expect("named field").reflect(),
+        metadata
+            .field("value")
+            .expect("named field")
+            .reflect()
+            .expect("concrete field"),
         descriptor.field_at(0).expect("reflected field"),
     ));
 }
@@ -49,6 +53,6 @@ fn test_type_metadata_delegates_structure_to_reflection() {
 #[test]
 fn test_reflect_only_types_do_not_acquire_model_metadata() {
     let descriptor = TypeDescriptor::of::<String>();
-    assert!(descriptor.model_metadata().is_none());
-    assert!(!descriptor.is_model_type());
+    let registry = ModelRegistry::try_global().expect("model registry must initialize");
+    assert!(registry.metadata_for(descriptor).is_none());
 }

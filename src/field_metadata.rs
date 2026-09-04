@@ -8,6 +8,7 @@
 
 //! Immutable domain semantics over one reflected field descriptor.
 
+use qubit_reflect::FieldDefinitionDescriptor;
 use qubit_reflect::FieldDescriptor;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::access::FieldVisibility;
@@ -33,8 +34,14 @@ use crate::ValidatorMetadata;
 /// Model semantics attached to one reflection-owned structural field.
 #[derive(Clone, Copy, Debug)]
 pub struct FieldMetadata {
-    /// The reflection descriptor that defines the structural field.
-    reflect: &'static FieldDescriptor,
+    /// The concrete reflection descriptor, when this is a runtime overlay.
+    reflect: Option<&'static FieldDescriptor>,
+    /// The source-level descriptor, when this is a generic declaration overlay.
+    definition: Option<&'static FieldDefinitionDescriptor>,
+    /// The symbolic type reference used by a generic declaration overlay.
+    symbolic_type: Option<&'static TypeRef>,
+    /// Whether a definition field inherits an enum variant's visibility.
+    variant_inherited: bool,
     /// Source-order declarations attached to the field.
     attributes: &'static [FieldAttributeMetadata],
     /// Standard validation constraints attached to the field.
@@ -50,7 +57,10 @@ impl FieldMetadata {
     #[must_use]
     pub const fn from_reflect(reflect: &'static FieldDescriptor) -> Self {
         Self {
-            reflect,
+            reflect: Some(reflect),
+            definition: None,
+            symbolic_type: None,
+            variant_inherited: false,
             attributes: &[],
             constraints: &[],
             validators: &[],
@@ -69,7 +79,34 @@ impl FieldMetadata {
         serde: &'static SerdeFieldMetadata,
     ) -> Self {
         Self {
-            reflect,
+            reflect: Some(reflect),
+            definition: None,
+            symbolic_type: None,
+            variant_inherited: false,
+            attributes,
+            constraints,
+            validators,
+            serde,
+        }
+    }
+
+    /// Creates a semantic overlay for one generic declaration field.
+    #[doc(hidden)]
+    #[must_use]
+    pub(crate) const fn with_definition_semantics(
+        definition: &'static FieldDefinitionDescriptor,
+        symbolic_type: &'static TypeRef,
+        variant_inherited: bool,
+        attributes: &'static [FieldAttributeMetadata],
+        constraints: &'static [ConstraintMetadata],
+        validators: &'static [ValidatorMetadata],
+        serde: &'static SerdeFieldMetadata,
+    ) -> Self {
+        Self {
+            reflect: None,
+            definition: Some(definition),
+            symbolic_type: Some(symbolic_type),
+            variant_inherited,
             attributes,
             constraints,
             validators,
@@ -80,36 +117,59 @@ impl FieldMetadata {
     /// Returns the underlying reflection field descriptor.
     #[must_use]
     #[inline(always)]
-    pub const fn reflect(&self) -> &'static FieldDescriptor {
+    pub const fn reflect(&self) -> Option<&'static FieldDescriptor> {
         self.reflect
+    }
+
+    /// Returns the source-level field for a generic declaration overlay.
+    #[must_use]
+    pub const fn definition(&self) -> Option<&'static FieldDefinitionDescriptor> {
+        self.definition
     }
 
     /// Returns the source field index.
     #[must_use]
     #[inline(always)]
     pub const fn index(&self) -> usize {
-        self.reflect.index()
+        match (self.reflect, self.definition) {
+            (Some(reflect), _) => reflect.index(),
+            (_, Some(definition)) => definition.index(),
+            _ => unreachable!(),
+        }
     }
 
     /// Returns the field query name, when it has one.
     #[must_use]
     #[inline(always)]
     pub const fn name(&self) -> Option<&'static str> {
-        self.reflect.query_name()
+        match (self.reflect, self.definition) {
+            (Some(reflect), _) => reflect.query_name(),
+            (_, Some(definition)) => definition.query_name(),
+            _ => unreachable!(),
+        }
     }
 
     /// Returns the reflected field visibility.
     #[must_use]
     #[inline(always)]
-    pub const fn visibility(&self) -> FieldVisibility<'static> {
-        self.reflect.visibility()
+    pub const fn visibility(&self) -> FieldVisibility<'_> {
+        match (self.reflect, self.definition) {
+            (Some(reflect), _) => reflect.visibility(),
+            (_, Some(_)) if self.variant_inherited => FieldVisibility::VariantInherited,
+            (_, Some(definition)) => FieldVisibility::Declared(definition.visibility()),
+            _ => unreachable!(),
+        }
     }
 
     /// Returns the exact resolved, opaque, or symbolic field type reference.
     #[must_use]
     #[inline(always)]
     pub fn type_ref(&self) -> &'static TypeRef {
-        self.reflect.field_type()
+        match (self.reflect, self.symbolic_type) {
+            (Some(reflect), _) => reflect.field_type(),
+            (_, Some(symbolic_type)) => symbolic_type,
+            _ => unreachable!(),
+        }
     }
 
     /// Returns the resolved field type descriptor, when available.

@@ -11,14 +11,14 @@
 
 use std::sync::LazyLock;
 
-use qubit_model_metadata::__private::reflect_codegen_v2::descriptor::field as reflect_field;
+use qubit_model_metadata::__private::codegen_v2::descriptor::field as reflect_field;
 use qubit_model_metadata::FieldDescriptor;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::Reflect;
 use qubit_model_metadata::TypeDescriptor;
-use qubit_model_metadata::descriptor::TypeRef;
-use qubit_model_metadata::expression::TypeExpression;
-use qubit_model_metadata::identity::Visibility;
+use qubit_model_metadata::TypeExpression;
+use qubit_model_metadata::TypeRef;
+use qubit_model_metadata::Visibility;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]

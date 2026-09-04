@@ -1,0 +1,11 @@
+error[E0432]: unresolved import `qubit_model_metadata::capability`
+ --> tests/ui/fail/whole_reflect_modules_are_private.rs:2:27
+  |
+2 | use qubit_model_metadata::capability::clone_key;
+  |                           ^^^^^^^^^^ could not find `capability` in `qubit_model_metadata`
+
+error[E0432]: unresolved import `qubit_model_metadata::registry`
+ --> tests/ui/fail/whole_reflect_modules_are_private.rs:3:27
+  |
+3 | use qubit_model_metadata::registry::ReflectRegistry;
+  |                           ^^^^^^^^ could not find `registry` in `qubit_model_metadata`
