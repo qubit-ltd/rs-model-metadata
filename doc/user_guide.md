@@ -143,12 +143,12 @@ hidden-ABI violation; use `TypeMetadata::try_of::<T>()` when that failure must
 remain recoverable.
 
 Use `ModelRegistry` when stable-ID or exact Rust `TypeId` lookup is needed.
-`ModelRegistry::try_global()` first freezes `ReflectRegistry`, projects each
-concrete model capability and its authoritative reflection provenance, then
-adds model-owned generic-template registrations. It does not discover unlinked
-crates. `ModelRegistry::from_registrations` remains useful for isolated tests
-and tools that need an explicit compatibility set; `from_reflect_registry`
-builds directly from a supplied frozen reflection snapshot.
+`ModelRegistry::try_global()` first freezes `ReflectRegistry`, then projects
+both concrete and generic-definition model capabilities with their
+authoritative reflection provenance. It does not discover unlinked crates.
+`ModelRegistry::from_metadata` builds an isolated explicit snapshot for tests;
+`from_reflect_registry` projects directly from a supplied frozen reflection
+snapshot.
 
 Use `ModelResolver` only after the complete intended model set is available.
 It validates cross-model edges and executable strategy bindings, then returns
@@ -184,11 +184,11 @@ redaction, and Serde semantics. Use `text_constraint`, `decimal_constraint`,
 constraint family is relevant, or iterate `constraints()` to preserve every
 declaration. Check `type_ref()` before assuming `descriptor()` is present.
 
-For generic declarations with a model ID, registration stores one
-`GenericModelMetadata` template. Concrete generic instances have no `ModelId`
-and are not registered; `generic_definition()` points back to the template.
-Template field types may be symbolic while a concrete instance's field types
-may be resolved.
+For generic declarations with a model ID, the reflection registry stores one
+first-class `TypeDefinitionDescriptor` carrying a generic-model capability.
+`GenericModelMetadata` points to that definition. Concrete generic instances
+have no `ModelId`; their field types may be resolved while definition fields
+remain symbolic.
 
 ### Resolved Views and Query Metadata
 
@@ -227,8 +227,7 @@ validator and codec bindings, selector types, value closure, and flattened
 query-name conflicts. Optional accessors expose the involved model ID, property
 path, expected and actual role or type, and source fragments when available.
 
-Generated metadata also checks model ABI v3 invariants before publication and
-uses the reflection `codegen_v2` protocol. A panic
+Generated metadata also checks model ABI v4 invariants before publication. A panic
 whose message starts with `QMM-ABI-` indicates that generated or manually
 supplied hidden-ABI metadata was rejected because it violated one of those
 invariants.

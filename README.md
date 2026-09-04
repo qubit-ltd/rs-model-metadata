@@ -33,14 +33,14 @@ user guide.
 ## Quick Start
 
 An account service can describe an account once and inspect the resulting
-metadata without starting a global registry. The derive macro supplies the
-role-aware metadata, while `TypeMetadata` exposes it through the same
-`TypeDescriptor` used by `qubit-reflect`.
+metadata without maintaining a second model-registration pipeline. The derive
+macro supplies the role-aware metadata, while `TypeMetadata` exposes it through
+the same `TypeDescriptor` used by `qubit-reflect`.
 
 ```rust,ignore
 use qubit_model_derive::Entity;
 use qubit_id::Id;
-use qubit_model_metadata::{ModelDescriptorExt, TypeDescriptor, TypeMetadata};
+use qubit_model_metadata::{ModelRegistry, TypeDescriptor, TypeMetadata};
 
 #[Entity(id = "example.User")]
 struct User {
@@ -53,7 +53,8 @@ struct User {
 let metadata = TypeMetadata::of::<User>();
 assert_eq!(metadata.model_id().unwrap().as_str(), "example.User");
 assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
-assert!(metadata.descriptor().model_metadata().is_some());
+let registry = ModelRegistry::try_global().expect("valid linked model graph");
+assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
 ```
 
 The result is static metadata for `User`; `TypeMetadata::of` does not initialize
@@ -73,11 +74,10 @@ the reflection model.
 
 - `qubit-model-derive` generates metadata for `#[Entity]`, `#[Projection]`,
 `#[Model]`, `#[Enum]`, `#[Value]`, and `#[ModelImpl]` declarations.
-- `TypeMetadata` provides static role, field, property, generic-template, and
+- `TypeMetadata` provides static role, field, property, generic-definition, and
   optional `ModelId` metadata for generated types.
-- `ModelRegistry` projects concrete models and their source provenance from the
-  frozen `ReflectRegistry` snapshot; only generic model templates keep a
-  model-owned registration fragment.
+- `ModelRegistry` projects both concrete models and generic definitions from
+  the frozen `ReflectRegistry` snapshot. There is no model-owned inventory.
 - `ModelResolver` performs an explicit resolution pass over model, validator,
   and codec registries.
 - Resolution produces an immutable `ResolvedModelGraph`, or deterministic
@@ -90,8 +90,8 @@ the reflection model.
 It does not replace `qubit-reflect`, and static metadata lookup does not
 implicitly register models or resolve cross-model relationships. Generated
 metadata is checked against descriptor, field, property, role, and codec
-invariants before it crosses the hidden model ABI v3 boundary. Generated model
-code consumes only `qubit-reflect::__private::codegen_v2`.
+invariants before it crosses the hidden model ABI v4 boundary. Generated model
+code uses only the curated model facade and its exact private ABI.
 
 ## Learn More
 

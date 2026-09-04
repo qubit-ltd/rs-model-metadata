@@ -7,8 +7,7 @@
 ## 手册目标与读者
 
 本指南面向使用 `qubit-model-derive` 声明领域模型的框架和应用开发者。它说明结构反射与领域语义的
-边界，并以账户模型为例，展示如何从模型声明走到不可变的解析结果图。本指南对应 model ABI v3，
-并使用反射层 `codegen_v2` 协议。
+边界，并以账户模型为例，展示如何从模型声明走到不可变的解析结果图。本指南对应 model ABI v4。
 
 ## 概念模型
 
@@ -128,9 +127,9 @@ reflection descriptor；若需要自行处理隐藏 ABI 校验失败，则改用
 直接 panic。
 
 需要按稳定 ID 或精确 Rust `TypeId` 查找时，使用 `ModelRegistry`。`ModelRegistry::try_global()` 会先冻结
-`ReflectRegistry`，从中投影每个具体模型 capability 及其权威反射来源，再加入模型层自有的泛型模板注册；
-它不会发现未链接的 crate。测试或工具若要控制兼容模型集合，可通过 `ModelRegistry::from_registrations`
-显式构建；`from_reflect_registry` 则直接从指定的冻结反射快照构建。
+`ReflectRegistry`，从中投影每个具体模型与泛型定义 capability 及其权威反射来源；模型层没有第二套
+inventory，也不会发现未链接的 crate。隔离测试可通过 `ModelRegistry::from_metadata` 显式构建快照；
+`from_reflect_registry` 则直接从指定的冻结反射快照投影。
 
 只有完整模型集合已经就绪后才运行 `ModelResolver`。它集中校验跨模型关系与可执行策略绑定；全部成功时
 返回一个不可变的 `ResolvedModelGraph`，失败时不会留下可供误用的部分解析图。
@@ -157,9 +156,8 @@ validator、codec、redaction 与 Serde 语义。只关注某一类约束时，�
 `decimal_constraint`、`time_constraint`、`sequence_constraint` 或 `map_constraint`；需要保留全部声明时，
 遍历 `constraints()`。使用 `descriptor()` 前应先检查 `type_ref()`，不要假定所有类型引用都有具体 descriptor。
 
-带有模型 ID 的泛型声明只注册一个 `GenericModelMetadata` 模板。具体单态类型没有 `ModelId`，也不会
-进入注册表；可通过 `generic_definition()` 回到该模板。模板字段可以使用 symbolic 类型，而具体实例的
-字段类型可以是已解析的。
+带有模型 ID 的泛型声明在反射注册表中拥有一等 `TypeDefinitionDescriptor`，其 generic-model capability
+指向 `GenericModelMetadata`。具体单态类型没有 `ModelId`；定义字段保持 symbolic，具体实例字段可以已解析。
 
 ### 解析结果与查询 metadata
 
@@ -185,7 +183,7 @@ reflection registry 初始化失败。
 Entity 嵌套、opaque 模型、引用、角色与类型、Projection 契约、validator/codec 绑定、selector 类型、
 Value 闭包以及查询名冲突。按错误场景，还可读取模型 ID、Property 路径、预期与实际角色或类型、来源片段。
 
-生成的 metadata 在发布前还会检查 model ABI v3 不变量，并使用反射层 `codegen_v2` 协议。若 panic 信息以
+生成的 metadata 在发布前还会检查 model ABI v4 不变量。若 panic 信息以
 `QMM-ABI-` 开头，说明生成代码或手写的
 隐藏 ABI metadata 违反了相应不变量，已被拒绝。
 

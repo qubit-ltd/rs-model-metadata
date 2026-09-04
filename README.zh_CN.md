@@ -27,13 +27,13 @@ qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 
 ## 快速开始
 
-账户服务只需声明一次账户类型，就能在不启动全局注册表的前提下读取模型元数据。派生宏生成
+账户服务只需声明一次账户类型，就能在无需维护第二套模型注册流程的前提下读取模型元数据。派生宏生成
 角色感知的元数据，`TypeMetadata` 则通过 `qubit-reflect` 采用的同一个 `TypeDescriptor` 暴露它。
 
 ```rust,ignore
 use qubit_model_derive::Entity;
 use qubit_id::Id;
-use qubit_model_metadata::{ModelDescriptorExt, TypeDescriptor, TypeMetadata};
+use qubit_model_metadata::{ModelRegistry, TypeDescriptor, TypeMetadata};
 
 #[Entity(id = "example.User")]
 struct User {
@@ -46,7 +46,8 @@ struct User {
 let metadata = TypeMetadata::of::<User>();
 assert_eq!(metadata.model_id().unwrap().as_str(), "example.User");
 assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
-assert!(metadata.descriptor().model_metadata().is_some());
+let registry = ModelRegistry::try_global().expect("链接模型图有效");
+assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
 ```
 
 得到的是 `User` 的静态元数据；`TypeMetadata::of` 不会初始化全局模型注册表。descriptor capability
@@ -63,9 +64,8 @@ assert!(metadata.descriptor().model_metadata().is_some());
 
 - `qubit-model-derive` 可为 `#[Entity]`、`#[Projection]`、`#[Model]`、`#[Enum]`、`#[Value]`
 与 `#[ModelImpl]` 声明生成 metadata。
-- `TypeMetadata` 为生成的类型提供静态的角色、Field、Property、泛型模板和可选 `ModelId` 信息。
-- `ModelRegistry` 从冻结的 `ReflectRegistry` 快照投影具体模型及其来源；只有泛型模型模板保留模型层
-  自有的 registration fragment。
+- `TypeMetadata` 为生成的类型提供静态的角色、Field、Property、泛型定义和可选 `ModelId` 信息。
+- `ModelRegistry` 从冻结的 `ReflectRegistry` 快照投影具体模型及泛型定义；模型层不再维护自有 inventory。
 - `ModelResolver` 在模型、validator 和 codec 注册表上执行显式解析。
 - 解析成功时得到不可变的 `ResolvedModelGraph`；若引用、角色、Property、validator 或 codec
   无法解析，则按确定顺序汇总返回错误。
@@ -73,8 +73,8 @@ assert!(metadata.descriptor().model_metadata().is_some());
   Property，以及由索引字段生成的查询 metadata。
 
 本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的
-metadata 在穿过隐藏 model ABI v3 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量；
-生成代码只使用 `qubit-reflect::__private::codegen_v2`。
+metadata 在穿过隐藏 model ABI v4 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量；
+生成代码只依赖经过收窄的模型 facade 及其精确私有 ABI。
 
 ## 延伸阅读
 
