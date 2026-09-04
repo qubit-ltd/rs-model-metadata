@@ -39,7 +39,7 @@ email addresses in its logs, and wants framework code to discover a writable
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
-use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
+use qubit_model_metadata::{ModelRegistry, TypeMetadata};
 
 #[Entity(id = "example.User")]
 pub struct User {
@@ -59,7 +59,8 @@ impl User {
 let metadata = TypeMetadata::of::<User>();
 assert!(metadata.field("id").unwrap().is_identifier());
 assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
-assert!(metadata.descriptor().model_metadata().is_some());
+let registry = ModelRegistry::try_global().expect("valid linked model graph");
+assert!(registry.metadata_for(metadata.descriptor()).is_some());
 ```
 
 The role macro delegates Rust structure to `qubit-reflect`, then attaches one
@@ -67,10 +68,9 @@ typed `TypeMetadata` capability to that same descriptor. The generated
 `Debug`, `Display`, and `Serialize` implementations use the redaction policy,
 so the email is not emitted as ordinary plain-text output.
 
-Generated model code uses the hidden model ABI v3 facade and only the
-`qubit-reflect` `codegen_v2` protocol. Concrete models are discovered through
-the unified frozen reflection snapshot; model-owned inventory remains only for
-generic model templates.
+Generated model code uses the hidden model ABI v4 facade. Concrete models and
+generic definitions are both discovered through the unified frozen reflection
+snapshot; the model layer owns no separate inventory.
 
 `#[key_part(order = n)]` describes the ordered fields that form the logical
 key of a named `Model` or named `Value`. A key may use only some fields, but

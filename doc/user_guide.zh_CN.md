@@ -14,12 +14,12 @@
 ```text
 角色声明 -> Reflect descriptor -> model metadata capability
                                 -> 冻结注册表投影
-泛型角色声明 ------------------> generic ModelRegistration
+泛型角色声明 ------------------> TypeDefinition capability fragment
 ModelImpl impl ----------> property capability
 ```
 
 直接调用 `TypeMetadata::of` 不依赖全局模型注册表；descriptor capability 与 Property 查询会冻结反射快照，
-确保独立 fragment 可见。生成 facade 为 model ABI v3，并只使用反射层 `codegen_v2`。稳定 ID、reference、
+确保独立 fragment 可见。生成 facade 为 model ABI v4，并通过收窄的精确导出使用反射协议。稳定 ID、reference、
 Projection 来源和 Query 则需要在完整链接的模型集合中解析。
 
 ## 安装与最小配置
@@ -113,13 +113,14 @@ assert!(!json.contains("alice@example.com"));
 类型声明完成后即可查询，这条路径不会初始化 `ModelRegistry`：
 
 ```rust,ignore
-use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
+use qubit_model_metadata::{ModelRegistry, TypeMetadata};
 
 let user = TypeMetadata::of::<User>();
 assert!(user.field("id").unwrap().is_identifier());
 assert!(user.try_property("email").unwrap().unwrap().is_writable());
 assert!(user.try_property("alias_slice").unwrap().unwrap().is_computed());
-assert!(user.descriptor().model_metadata().is_some());
+let registry = ModelRegistry::try_global()?;
+assert!(registry.metadata_for(user.descriptor()).is_some());
 ```
 
 `TypeMetadata` 只是唯一 `TypeDescriptor` 的领域 overlay，不会建立第二棵结构图。若字段类型在泛型定义中是 opaque 或 symbolic，`descriptor()` 会返回 `None`；此时请用 `type_ref()` 检查实际的 `Resolved`、`Opaque` 或 `Symbolic` 形式。
@@ -171,7 +172,7 @@ fn inspect_graph() -> Result<(), Box<dyn std::error::Error>> {
 - `Enum` 只接受 enum，并保存每个 variant 的 Rust 名、canonical 名和 Serde 名。
 - `Value` 接受具名字段 struct 或单字段 tuple struct。`transparent` 要求恰好一个字段，并使 `Serialize`、`Deserialize`、`Display` 使用内部表示。
 - `Model`、`Enum`、`Value` 支持 type parameter、where clause 和反射支持的 primitive const generic，不支持 lifetime parameter。
-- 带 ID 的泛型声明只注册 definition；具体单态类型没有 `ModelId`。可通过 `generic_definition()` 查看模板和其中的 symbolic 字段。
+- 带 ID 的泛型声明只注册 definition；具体单态类型没有 `ModelId`。可通过 `generic_definition()` 查看定义级元数据和其中的 symbolic 字段。
 
 ### 字段声明
 

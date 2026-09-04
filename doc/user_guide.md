@@ -19,13 +19,13 @@ getter, and setter.
 ```text
 role declaration -> Reflect descriptor -> model metadata capability
                                        -> frozen registry projection
-generic role declaration -------------> generic ModelRegistration
+generic role declaration -------------> TypeDefinition capability fragment
 ModelImpl impl -----------------> property capability
 ```
 
 Direct `TypeMetadata::of` lookup has no global model-registry dependency.
 Descriptor capability and property lookup freeze the reflection snapshot so
-separate fragments remain visible. The generated facade is model ABI v3 and
+separate fragments remain visible. The generated facade is model ABI v4 and
 uses only reflection `codegen_v2`. A model registry and resolver are needed for
 stable IDs, references, projection sources, and queries spanning the complete
 linked model set.
@@ -128,13 +128,14 @@ The type is usable immediately; this path does not initialize
 `ModelRegistry`:
 
 ```rust,ignore
-use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
+use qubit_model_metadata::{ModelRegistry, TypeMetadata};
 
 let user = TypeMetadata::of::<User>();
 assert!(user.field("id").unwrap().is_identifier());
 assert!(user.try_property("email").unwrap().unwrap().is_writable());
 assert!(user.try_property("alias_slice").unwrap().unwrap().is_computed());
-assert!(user.descriptor().model_metadata().is_some());
+let registry = ModelRegistry::try_global()?;
+assert!(registry.metadata_for(user.descriptor()).is_some());
 ```
 
 `TypeMetadata` overlays the unique `TypeDescriptor`; it does not create a
@@ -200,7 +201,7 @@ also owns Entity query views and Entity-to-Projection producer edges; local
   reflect-supported primitive const generics, but not lifetime parameters.
 - An ID-bearing generic declaration registers its definition. Concrete
   monomorphizations have no `ModelId`; use `generic_definition()` to navigate
-  to the template and its symbolic fields.
+  to the definition metadata and its symbolic fields.
 
 ### Field Declarations
 

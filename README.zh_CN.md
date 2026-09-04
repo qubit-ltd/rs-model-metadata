@@ -32,7 +32,7 @@ qubit-id = "0.6"
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
-use qubit_model_metadata::{ModelDescriptorExt, TypeMetadata};
+use qubit_model_metadata::{ModelRegistry, TypeMetadata};
 
 #[Entity(id = "example.User")]
 pub struct User {
@@ -52,14 +52,14 @@ impl User {
 let metadata = TypeMetadata::of::<User>();
 assert!(metadata.field("id").unwrap().is_identifier());
 assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
-assert!(metadata.descriptor().model_metadata().is_some());
+let registry = ModelRegistry::try_global().expect("链接模型图有效");
+assert!(registry.metadata_for(metadata.descriptor()).is_some());
 ```
 
 角色宏会委托 `qubit-reflect` 生成 Rust 结构描述符，再将唯一的 `TypeMetadata` 类型化能力
 附加到同一个描述符上。生成的 `Debug`、`Display`、`Serialize` 会遵守脱敏策略，不会把邮箱按普通明文输出。
 
-生成的模型代码使用隐藏 model ABI v3 facade，并且只使用 `qubit-reflect` 的 `codegen_v2` 协议。
-具体模型通过统一的冻结反射快照发现；模型层自有 inventory 只保留泛型模型模板。
+生成的模型代码使用隐藏 model ABI v4 facade。具体模型和泛型定义都通过统一的冻结反射快照发现；模型层不再维护独立 inventory。
 
 `#[key_part(order = n)]` 描述具名 `Model` 或具名 `Value` 的逻辑复合键及字段顺序。逻辑键可以只选择
 部分字段，但已选择字段的 order 必须从零开始、连续且不重复。它不是 Entity identifier，因此不能用于

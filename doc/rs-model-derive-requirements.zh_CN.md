@@ -39,7 +39,7 @@
 | 模型声明宏 | `qubit-model-derive` | 解析五种角色、字段属性和 Property impl；编译期校验；生成静态 metadata 与能力实现 | 不执行数据库、validator、codec 或生成器 |
 | 结构反射 | `qubit-reflect` | 提供唯一的 Rust 类型、字段、variant、泛型、类型引用与安全动态访问描述 | 不定义模型角色、领域约束或关系 |
 | 模型 metadata | `qubit-model-metadata` | 在 reflect descriptor 上附加领域角色、Field、Property、约束、关系和输出策略；提供静态查询 | 不复制 Rust 结构图，不保存对象实例，不执行业务逻辑 |
-| 模型注册与解析 | `ModelRegistry` 及 resolver | 按稳定 `ModelId` 动态发现类型或泛型模板；完成跨 crate 关系和策略引用校验 | 不为匿名类型制造 ID，不枚举无限泛型实例 |
+| 模型注册与解析 | `ModelRegistry` 及 resolver | 按稳定 `ModelId` 动态发现具体类型或泛型定义；完成跨 crate 关系和策略引用校验 | 不为匿名类型制造 ID，不枚举无限泛型实例 |
 | Validator 契约 | `rs-validator` | 定义 validator、稳定 ID、注册表、纯 validation 执行协议 | 不访问 repository、网络或外部业务状态 |
 | Codec 契约 | `rs-codec` | 定义领域值与规范文本之间的 codec、稳定 ID 和注册表 | 不替代任意 Serde 格式或数据库专用编码 |
 | 输出安全 | `qubit-redact`、Serde 联动 | 执行字段脱敏以及默认 Debug、Display、Serialize 安全输出 | 不改变字段身份、关系和值合法性 |
@@ -262,7 +262,7 @@ pub struct RefreshCache;
 - **REQ-MDL-002**：Model 必须支持类型参数、`const N: usize` 和 where 子句。
 - **REQ-MDL-003**：Model 不得支持 lifetime 参数；可形成静态 metadata 的 concrete 实例必须满足 `'static`。
 - **REQ-MDL-004**：Model 禁止 identifier 和独立持久化语义，但可以声明 Entity reference。
-- **REQ-MDL-005**：Model 的 `id` 可选；有 id 时注册泛型模板或非泛型类型，无 id 时仍提供静态 metadata。
+- **REQ-MDL-005**：Model 的 `id` 可选；有 id 时通过反射 capability 注册泛型定义或非泛型类型，无 id 时仍提供静态 metadata。
 - **REQ-MDL-006**：单字段领域包装应使用 Value，而不是 tuple Model。
 
 ### 2.6 Enum
@@ -285,7 +285,7 @@ pub enum PaymentResult<T> {
 - **REQ-ENUM-002**：Enum 必须支持类型参数、`const N: usize` 和 where 子句，不得支持 lifetime 或 union。
 - **REQ-ENUM-003**：Enum 禁止 identifier、独立持久化和 direct relation；payload 不得直接包含 Entity 或 Projection。
 - **REQ-ENUM-004**：每个 payload 字段必须拥有完整 TypeDescriptor、约束与输出 metadata。
-- **REQ-ENUM-005**：Enum 的 `id` 可选；声明 id 时注册类型或泛型模板。
+- **REQ-ENUM-005**：Enum 的 `id` 可选；声明 id 时注册具体类型或泛型定义 capability。
 - **REQ-ENUM-006**：全部 unit variant 的 Enum 必须默认 Copy，且可用 `no_copy` 关闭。
 
 ### 2.7 Value
@@ -838,13 +838,14 @@ let optional_infos = TypeDescriptor::of::<Option<Vec<UserInfo>>>();
 assert_eq!(user.role(), ModelRole::Entity);
 assert_eq!(user.type_id(), std::any::TypeId::of::<User>());
 assert_eq!(user.field("username").unwrap().name(), Some("username"));
-assert!(optional_infos.model_metadata().is_none());
+let registry = ModelRegistry::try_global().unwrap();
+assert!(registry.metadata_for(optional_infos).is_none());
 ```
 
 runtime metadata 的公共对象关系必须符合下图；任何被公开方法返回的 metadata 类型都不得只声明名称而没有公共接口定义：
 
 ```text
-TypeDescriptor --ModelDescriptorExt::model_metadata()--> TypeMetadata
+TypeDescriptor --ModelRegistry::metadata_for()--> TypeMetadata
                                   |-- fields() --> FieldMetadata --type_ref()--> TypeRef
                                   |-- try_properties() --> LocalPropertySet --> PropertyMetadata
                                   |-- role_metadata() --> RoleMetadata
@@ -898,9 +899,8 @@ impl TypeMetadata {
 已知任意可描述 Rust 类型时使用：
 
 ```rust
-impl ModelDescriptorExt for TypeDescriptor {
-    fn model_metadata(&self) -> Option<&'static TypeMetadata>;
-    fn is_model_type(&self) -> bool;
+impl ModelRegistry {
+    fn metadata_for(&self, descriptor: &'static TypeDescriptor) -> Option<&'static TypeMetadata>;
 }
 ```
 
@@ -910,8 +910,9 @@ let string = TypeDescriptor::of::<String>();
 let optional_user = TypeDescriptor::of::<Option<User>>();
 
 assert_eq!(user.role(), ModelRole::Entity);
-assert!(string.model_metadata().is_none());
-assert!(TypeDescriptor::of::<User>().model_metadata().is_some());
+let registry = ModelRegistry::try_global().unwrap();
+assert!(registry.metadata_for(string).is_none());
+assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
 ```
 
 - **REQ-META-020**：`TypeMetadata` 只能描述 Entity、Projection、Model、Enum、Value 五种领域声明类型。
@@ -920,8 +921,8 @@ assert!(TypeDescriptor::of::<User>().model_metadata().is_some());
 - **REQ-META-022**：五种角色类型的静态入口必须为上述 `TypeMetadata::try_of::<T>()` 与
   `TypeMetadata::of::<T>()`；类型不满足约束时必须编译失败，不得返回 `Option`。`try_of` 必须以结构化
   `AbiViolation` 报告 hidden ABI 不变量破坏；`of` 仅作为 ABI 完整时的便利入口，遇到同一错误时可以 panic。
-- **REQ-META-023**：任意可描述类型的唯一静态入口必须为 `TypeDescriptor::of::<T>()`；`model_metadata()` 仅在 descriptor
-  对应五种角色类型时返回 `Some`。
+- **REQ-META-023**：任意可描述类型的唯一静态入口必须为 `TypeDescriptor::of::<T>()`；显式
+  `ModelRegistry::metadata_for()` 仅在 descriptor 对应五种角色类型时返回 `Some`。
 - **REQ-META-024**：系统不得同时公开 `metadata_of::<T>()` 自由函数，也不得向用户类型注入 `User::metadata()` 固有
   方法。
 - **REQ-META-025**：`HasTypeMetadata` 必须是 sealed 的公共泛型约束并继承 `Reflect`；业务代码不得手工实现内部
@@ -1000,7 +1001,7 @@ assert_eq!(info.name(), "info");
 - **REQ-META-033**：`generic_definition()` 必须让 concrete 泛型实例返回所属 `GenericModelMetadata`；非泛型类型返回
   `None`。
 - **REQ-META-034**：`is_registered()` 只表示当前 metadata 本身是否直接存在于 registry；不得等价于“可以静态查询”，
-  也不得因为 concrete 实例来自已注册模板就返回 `true`。
+  也不得因为 concrete 实例链接到已注册定义就返回 `true`。
 - **REQ-META-035**：`fields()`、`field()`、`field_at()` 必须具有上述精确签名；`field(name)` 只查具名字段，
   `field_at(index)` 按 Rust 声明顺序查询，查不到返回 `None`。
 - **REQ-META-036**：Entity、Projection、具名 Model 和具名 Value 的 `fields()` 必须返回全部存储字段；unit Model 返回
@@ -1020,10 +1021,10 @@ Field 和 Property 的类型查询必须统一返回 `&'static TypeRef`；只有
 let field = TypeMetadata::of::<User>().field("aliases").unwrap();
 let descriptor: &'static TypeDescriptor = field.descriptor().unwrap();
 
-assert!(descriptor.model_metadata().is_none()); // Vec<String> 本身不是五种角色类型
+assert!(registry.metadata_for(descriptor).is_none()); // Vec<String> 本身不是五种角色类型
 ```
 
-- **REQ-META-040**：`TypeDescriptor::of()` 和 `ModelDescriptorExt::model_metadata()` 必须具有第 8.3 节给出的精确语义。
+- **REQ-META-040**：`TypeDescriptor::of()` 和 `ModelRegistry::metadata_for()` 必须具有第 8.3 节给出的精确语义。
 - **REQ-META-041**：`TypeDescriptor` 必须能够区分并导航 scalar、Option、sequence、set、array、map、tuple、
   `Box`/`Rc`/`Arc`、五种角色、opaque、泛型参数和 concrete 泛型实例，不得通过解析 `type_name()` 字符串推断结构。
 - **REQ-META-042**：公开结构表示、容器导航、descriptor 类型身份、能力查询和 opaque
@@ -1284,13 +1285,13 @@ impl ModelRegistry {
 - **REQ-REG-016**：`ModelRegistry` 必须提供 fallible/panic 全局入口、按稳定 ID 查询 registration/concrete/generic、
   按 `TypeId` 查询 concrete metadata，以及确定性 registration 和 generic definition 迭代。
 
-### 9.4 泛型模板
+### 9.4 泛型定义
 
-- **REQ-GEN-001**：带 id 的泛型 Model、Enum、Value 在链接期只注册泛型定义模板，不得枚举 concrete 实例。
-- **REQ-GEN-002**：模板必须描述类型参数、const 参数、where 约束和使用参数的字段 descriptor shape。
+- **REQ-GEN-001**：带 id 的泛型 Model、Enum、Value 在链接期只注册一等泛型定义，不得枚举 concrete 实例。
+- **REQ-GEN-002**：定义必须描述类型参数、const 参数、where 约束和使用参数的字段 descriptor shape。
 - **REQ-GEN-003**：`TypeMetadata::of::<Concrete>()` 必须按需实例化并按当前进程标准 TypeId 缓存 concrete metadata。
-- **REQ-GEN-004**：模板 id 标识泛型定义；首版不得为 concrete 实例拼接或合成新的 ModelId。
-- **REQ-GEN-005**：未声明 id 的泛型类型不得注册模板，但 concrete 类型仍可静态查询。
+- **REQ-GEN-004**：定义 ID 标识泛型声明；首版不得为 concrete 实例拼接或合成新的 ModelId。
+- **REQ-GEN-005**：未声明模型 ID 的泛型定义仍由反射注册；它没有 generic-model capability，但 concrete 类型仍可静态查询。
 - **REQ-GEN-006**：未来若需要字符串 concrete 泛型身份，必须另行设计 TypeExpression，不得使用 Rust type_name 作为协议。
 
 ```rust
@@ -1310,7 +1311,7 @@ assert!(concrete.generic_definition().is_some());
 以上示例中的 `Page<UserInfo>` 是当前程序内可静态查询、可缓存的 concrete metadata，但不是链接期注册项。
 
 - **REQ-GEN-007**：`GenericModelMetadata`、类型参数、const 参数、where 约束、concrete
-  实参、模板实例化和 registry 枚举的完整公共接口以最终设计和公开 API 为准。
+  实参、定义关联和 registry 枚举的完整公共接口以最终设计和公开 API 为准。
 - **REQ-GEN-008**：讨论记录中对首版 const generic 支持存在不同阶段的结论；最终支持
   边界必须确认后再写入稳定接口。
 
@@ -1419,7 +1420,7 @@ reference(entity = User, property = id)
 - **REQ-ACC-003**：跨 crate ID、注册、source、reference、validator、codec 必须使用真实多 crate fixture 验证。
 - **REQ-ACC-004**：Field/Property erased accessor 必须有内存安全测试；借用 getter 和可写 setter 是高风险必测路径。
 - **REQ-ACC-005**：默认能力矩阵、transparent Value、Serde 省略、keep_serializing、Redact 容器传播必须有行为测试。
-- **REQ-ACC-006**：泛型模板注册、concrete descriptor 实例化和缓存必须有并发与重复查询测试。
+- **REQ-ACC-006**：泛型定义注册、concrete descriptor 实例化和缓存必须有并发与重复查询测试。
 - **REQ-ACC-007**：用户手册中的 API 名称、参数、代码示例和限制必须与本文需求编码一致；修改公共语义时必须同时更新
   本文、用户手册、Rustdoc 和测试。
 - **REQ-ACC-008**：需求规范、最终设计、公开签名、用户手册、Rustdoc 和测试必须同步，不得保留未决 API 占位符。

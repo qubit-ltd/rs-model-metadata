@@ -34,7 +34,7 @@ Rust declaration
     │                              │
     │                              └─ TypeMetadata（领域语义覆盖层）
     │
-    └─ 具体类型由 ReflectRegistry 投影；泛型定义保留 ModelRegistration
+    └─ 具体类型与泛型定义都由 ReflectRegistry 投影
              └─ ModelRegistry -> ModelResolver -> ResolvedModelGraph
 ```
 
@@ -57,7 +57,7 @@ Rust declaration
 - `qubit-reflect` 已有 downstream facade 测试：领域 runtime crate 可以重导出反射 API，领域 derive crate 通过
   `#[reflect(crate = facade)]` 委托生成代码，最终业务 crate 不必直接依赖 `qubit-reflect`。
 - `__private::codegen_v2` 已提供宏生产 ABI、lazy type reference 和统一 registration fragment；普通用户 API 与
-  生成代码 API 已有清楚边界。模型生成 facade 固定为 model ABI v3，不再使用 `codegen_v1`。
+  生成代码 API 已有清楚边界。模型生成 facade 固定为 model ABI v4，不再保留旧 ABI。
 
 因此，若 `rs-model-metadata` 再定义 `TypeDescriptor`、`TypeIdentity`、`TypeRef`、字段访问器或 generic expression，
 会产生两个不可避免的问题：同一 Rust 类型出现两棵可能不一致的图；修复递归、泛型和安全访问时必须维护两份实现。
@@ -208,37 +208,10 @@ impl TypeMetadata {
 
 `type_id()`、`type_name()` 和所有结构信息均委托给 `descriptor()`；`TypeMetadata` 不保存第二份身份。
 
-### 从任意反射 descriptor 查询模型 metadata
+### 从显式注册表查询任意 descriptor 的模型 metadata
 
-Rust 不允许在下游 crate 为 `qubit_reflect::TypeDescriptor` 增加固有方法，因此 原需求
-`TypeDescriptor::metadata()` 改为扩展 trait，并使用领域明确的名称：
-
-```rust
-pub trait ModelDescriptorExt {
-    fn model_metadata(&self) -> Option<&'static TypeMetadata>;
-    fn is_model_type(&self) -> bool {
-        self.model_metadata().is_some()
-    }
-}
-
-impl ModelDescriptorExt for TypeDescriptor { /* typed capability lookup */ }
-```
-
-调用方式：
-
-```rust
-use qubit_model_metadata::{ModelDescriptorExt, TypeDescriptor};
-
-assert!(TypeDescriptor::of::<String>().model_metadata().is_none());
-assert_eq!(
-    TypeDescriptor::of::<User>().model_metadata().unwrap().role(),
-    ModelRole::Entity,
-);
-assert!(std::ptr::eq(
-    TypeMetadata::of::<User>().descriptor(),
-    TypeDescriptor::of::<User>(),
-));
-```
+effective capability 依赖冻结的链接上下文，因此 descriptor 不提供隐式全局查询扩展。调用方显式使用
+`ModelRegistry::metadata_for(descriptor)`；未命中返回 `None`，注册表初始化失败通过 `Result` 报告。
 
 内部 capability 契约为：
 
@@ -250,8 +223,7 @@ pub type ModelMetadataProvider = fn() -> &'static TypeMetadata;
 pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider>;
 ```
 
-稳定 capability ID 固定为 `qubit.model.metadata.v1`。`ModelDescriptorExt::model_metadata()` 只做当前 descriptor 的
-typed capability 查询，不读取 `ModelRegistry::global()`。
+稳定 capability ID 固定为 `qubit.model.metadata.v1`，并由 `ReflectRegistry` 统一解析。
 
 ### `TypeCapabilities` 的最终边界
 
@@ -300,7 +272,7 @@ impl FieldMetadata {
 ```
 
 这里对需求规范 `descriptor() -> &'static TypeDescriptor` 做必要修正：最终返回 `Option`。原因不是放宽实现，而是
-准确遵守 `qubit-reflect::TypeRef`：resolved 字段返回 `Some`，显式 opaque 和 generic template 中的 symbolic 字段返回
+准确遵守 `qubit-reflect::TypeRef`：resolved 字段返回 `Some`，显式 opaque 和泛型定义中的 symbolic 字段返回
 `None`。调用者需要完整分支时使用 `type_ref()`，不得把 opaque 或 symbolic 伪造成根 descriptor。
 
 `name()` 使用反射字段的 query name；需要源代码名时调用 `reflect().rust_name()`。tuple Value 和 Enum tuple payload 的
@@ -443,7 +415,7 @@ PropertyFragment(Field | Getter | Setter)
 ```
 
 字段与独立 impl 宏之间的类型冲突不能由单次宏展开完整证明，因此由 `try_properties()` 返回确定排序的结构化错误；
-普通 metadata 查询不得因此 panic。相同 impl 内同名 getter/setter 的 canonical 类型兼容则由 `__private::v3` trait assertion
+普通 metadata 查询不得因此 panic。相同 impl 内同名 getter/setter 的 canonical 类型兼容则由 `__private::v4` trait assertion
 在编译期证明。
 
 `#[ModelImpl]` 每个目标类型只允许一个 impl。宏通过实现隐藏的 `ModelImplProvider` seal 让重复 impl 产生稳定的
@@ -748,14 +720,14 @@ impl TypeMetadata {
 - Entity 和 Projection 不支持泛型；Model、Enum、Value 支持 type parameter、primitive const parameter 和 where
   clause；所有模型角色拒绝 lifetime parameter。
 - type parameter 需要 `Reflect + 'static`，具体角色闭包需要的更强 bound 由宏准确生成。
-- 带 ID 的泛型声明只注册一个 `GenericModelMetadata` 模板。
+- 带 ID 的泛型声明只注册一个引用 `TypeDefinitionDescriptor` 的 `GenericModelMetadata`。
 - `TypeMetadata::of::<Page<User>>()` 返回 concrete metadata；其 `model_id() == None`、`is_registered() == false`，
-  `generic_definition()` 返回模板。
+  `generic_definition()` 返回定义级模型元数据。
 - concrete descriptor 的参数和 const value 直接从 `ConcreteGenericDescriptor` 导航；首版不生成 concrete ModelId。
 - 未带 ID 的泛型声明不进入 `ModelRegistry`，但 concrete 类型仍可静态查询。
-- generic template 字段的 `type_ref()` 可以是 `TypeRef::Symbolic`；concrete metadata 中可解析的字段使用
+- 泛型定义字段的 `type_ref()` 可以是 `TypeRef::Symbolic`；concrete metadata 中可解析的字段使用
   `TypeRef::Resolved`。
-- 泛型 Enum 的模板 descriptor 必须保存所有 variant 及 payload 字段；variant 字段上的约束、validator、codec、
+- 泛型 Enum 的定义 descriptor 必须保存所有 variant 及 payload 字段；variant 字段上的约束、validator、codec、
   Redact 和 Serde overlay 不得因顶层 `fields()` 为空而丢失。
 
 这关闭了 需求规范关于首版 const generic 的分歧：首版支持 `bool`、`char`、整数和 `usize/isize` 等
@@ -789,31 +761,10 @@ impl ModelIdBuf {
 宏只生成 `ModelId::new("literal")`。动态输入使用 `ModelIdBuf`。两者执行相同的
 `Segment ('.' Segment)*` ASCII 验证，不强制 namespace 大小写风格。
 
-### 注册项
+### 注册来源
 
-```rust
-pub enum ModelRegistrationTarget {
-    Concrete(&'static TypeMetadata),
-    Generic(&'static GenericModelMetadata),
-}
-
-impl ModelRegistration {
-    pub fn model_id(&self) -> ModelId;
-    pub fn role(&self) -> ModelRole;
-    pub fn target(&self) -> ModelRegistrationTarget;
-    pub fn source(&self) -> &'static qubit_reflect::identity::FragmentIdentity;
-    pub fn metadata(&self) -> Option<&'static TypeMetadata>;
-    pub fn generic(&self) -> Option<&'static GenericModelMetadata>;
-}
-```
-
-Entity 与其他带 ID 的具体角色不再生成平行的 model inventory registration；它们通过统一反射 fragment
-注册类型与 model metadata capability，`ModelRegistry` 再从冻结快照投影 `Concrete` registration。泛型
-Model/Enum/Value 有 ID 时生成模型层自有的 generic registration。匿名类型不进入稳定 ID 索引，避免
-“能枚举但不能稳定查询”的条目。
-
-具体 registration 的 source identity 直接继承权威反射 type fragment；泛型模板没有具体反射根，因此仍使用
-独立模型 inventory payload，并遵循同样的 crate/module/line/column/fingerprint 规则。
+具体角色与泛型定义都通过统一反射 fragment 注册相应 model capability，`ModelRegistry` 只从冻结
+`ReflectRegistry` 快照投影。泛型定义是一等反射根并保留权威 source identity；模型层不维护第二套 inventory。
 
 ### `ModelRegistry`
 
@@ -822,25 +773,24 @@ impl ModelRegistry {
     pub fn try_global() -> Result<&'static Self, ModelRegistryError>;
     pub fn global() -> &'static Self;
 
-    pub fn get(&self, id: &str) -> Option<&'static ModelRegistration>;
     pub fn metadata(&self, id: &str) -> Option<&'static TypeMetadata>;
     pub fn generic(&self, id: &str) -> Option<&'static GenericModelMetadata>;
+    pub fn metadata_for(&self, descriptor: &'static TypeDescriptor) -> Option<&'static TypeMetadata>;
+    pub fn generic_metadata_for(&self, id: TypeDefinitionId) -> Option<&'static GenericModelMetadata>;
     pub fn by_type_id(
         &self,
         type_id: std::any::TypeId,
     ) -> Option<&'static TypeMetadata>;
 
-    pub fn registrations(&self) -> &'static [ModelRegistration];
     pub fn generic_definitions(&self) -> &'static [&'static GenericModelMetadata];
 }
 ```
 
-`get(&str)` 对非法格式返回 `None`，适合只读查询；需要区分“ID 非法”和“不存在”时，调用者先使用
-`ModelIdBuf::parse()`。`registrations()` 按 `ModelId`、source identity 确定性排序。`by_type_id()` 只索引已注册 concrete
-类型，不公开匿名 concrete cache。
+按字符串查询对非法格式返回 `None`，适合只读查询；需要区分“ID 非法”和“不存在”时，调用者先使用
+`ModelIdBuf::parse()`。`by_type_id()` 只索引已注册 concrete 类型，不公开匿名 concrete cache。
 
-`try_global()` 先初始化 `ReflectRegistry`，从冻结快照投影具体模型 capability 及其权威来源，再聚合仅属于
-模型层的泛型模板 registration；反射 fragment 冲突包装为 `ModelRegistryErrorKind::ReflectionRegistry`。
+`try_global()` 先初始化 `ReflectRegistry`，从冻结快照投影具体模型与泛型定义 capability 及其权威来源；
+反射 fragment 冲突包装为 `ModelRegistryErrorKind::ReflectionRegistry`。
 `global()` 只是在错误时 panic 的便利入口。
 
 ## 显式 resolver 与解析后视图
@@ -963,13 +913,13 @@ pub mod __private {
 
 规则：
 
-- 当前生成代码只引用 `__private::v3`；旧 `v1/v2` 构造路径不保留兼容别名。
+- 当前生成代码只引用 `__private::v4`；旧构造路径不保留兼容别名。
 - hidden builder 在 `OnceLock` 初始化时检查字段与反射 descriptor 的 index/name/type 对齐、角色与 shape、属性互斥、
   property 合并和 adapter TypeId；检查失败表示宏/runtime 版本不兼容，panic 文案必须含 ABI 版本和 source identity。
 - capability adapter 类型必须准确为 `ModelMetadataProvider`，同一 concrete descriptor 重复注册该 key 会由 reflect
   capability conflict 拒绝。
 - 统一反射 fragment 与模型层泛型 fragment 都只保存静态 identity 和 factory function；具体模型不再重复提交
-  model inventory。用户代码和 metadata 构造推迟到 registry 初始化或首次静态查询。
+  统一反射 inventory。用户代码和 metadata 构造推迟到 registry 初始化或首次静态查询。
 - derive 与 runtime 使用精确 patch-compatible 依赖约束，并保留正常、renamed、missing、invalid-runtime 和 facade
   fixture。
 
@@ -1084,7 +1034,7 @@ src/
 | 字段/Property 动态访问 | runtime test + Miri |
 | capability ID/adapter 冲突 | reflect/model 集成测试 |
 | ModelId 重复、排序、source | registry 单元测试 + linked fixture |
-| generic template/concrete cache | 并发 runtime test |
+| generic definition/concrete cache | 并发 runtime test |
 | source/reference/strategy 跨 crate 解析 | linked workspace fixture |
 | query 一跳、路径冲突、唯一键 | resolver golden test |
 | 默认能力、Serde、Redact | runtime 行为与序列化 snapshot |
