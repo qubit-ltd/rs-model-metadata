@@ -13,5 +13,4 @@ pub(crate) mod declaration;
 pub(crate) mod fields;
 pub(crate) mod metadata;
 pub(crate) mod model_impl;
-pub(crate) mod registration;
 pub(crate) mod role;

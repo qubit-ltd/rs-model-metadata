@@ -32,6 +32,7 @@ use self::internal::GetterIr;
 use self::internal::GetterReturn;
 use self::internal::PropertyMethod;
 use self::internal::SetterIr;
+use crate::compiler::fingerprint::stable_fingerprint;
 use crate::compiler::type_path::is_option_path;
 
 /// Validates that `item` is a non-generic inherent implementation.
@@ -495,11 +496,4 @@ fn combine(errors: &mut Option<Error>, error: Error) {
         Some(current) => current.combine(error),
         None => *errors = Some(error),
     }
-}
-
-/// Produces a stable FNV-1a fingerprint for generated private identifiers.
-fn stable_fingerprint(value: &str) -> u64 {
-    value.bytes().fold(0xcbf29ce484222325_u64, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
-    })
 }

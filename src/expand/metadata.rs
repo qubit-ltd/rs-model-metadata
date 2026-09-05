@@ -21,8 +21,8 @@ use syn::parse_quote;
 
 use super::fields::expand_field_vector;
 use super::fields::expand_generic_field_vector;
-use super::registration::stable_fingerprint;
 use super::role::expand_role;
+use crate::compiler::fingerprint::stable_fingerprint;
 use crate::ir::MacroKind;
 use crate::ir::declaration::DeclarationIr;
 use crate::ir::declaration::FieldIr;
