@@ -11,7 +11,7 @@ models with `qubit-model-derive` and need to inspect their metadata or resolve
 relationships after all model crates have been linked. It explains the boundary
 between structural reflection and domain semantics, then follows an account
 model from declaration to an immutable resolved graph. The model ABI described
-here is v3 and consumes the reflection `codegen_v2` protocol.
+here is v4 and consumes the reflection `codegen_v2` protocol.
 
 ## Conceptual Model
 
@@ -277,3 +277,11 @@ configuration is unrecoverable.
 - [简体中文用户指南](user_guide.zh_CN.md)
 - [`qubit-model-derive` declaration guide](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.md)
 - Local API documentation: run `cargo doc --open`
+
+## Snapshot-scoped property queries
+
+`TypeMetadata::try_properties()` and `try_property(name)` resolve against the global reflection snapshot and return `PropertyResolutionError::Reflection` when initialization fails, or `Assembly` when linked declarations disagree. `property_fragments()` also returns a `Result`; registration failure is never treated as a missing overlay.
+
+For an explicit snapshot, use `try_properties_in(&reflection)`, `try_property_in(&reflection, name)`, and `property_fragments_in(&reflection)`. `ModelRegistry::properties_for(metadata)` uses that model registry's snapshot. Registries created with `from_metadata` use only local field properties. `ModelResolver` follows the same explicit context.
+
+Enumerate concrete and generic models with `ModelRegistry::entries()`. Each immutable `ModelEntry` exposes its ID, concrete or generic metadata, and static fragment source; `get(id)` returns one entry. No second registration system is introduced.

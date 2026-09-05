@@ -78,8 +78,10 @@ pub fn model_capability<T: crate::HasTypeMetadata>() -> CapabilityDescriptor {
 
 /// Returns the generated model-implementation overlay attached to an exact
 /// descriptor root in the frozen reflection snapshot.
-pub(crate) fn model_impl_metadata(descriptor: &TypeDescriptor) -> Option<&'static ModelImplMetadata> {
-    let registry = ReflectRegistry::initialize().ok()?;
+pub(crate) fn model_impl_metadata(
+    descriptor: &TypeDescriptor,
+    registry: &ReflectRegistry,
+) -> Option<&'static ModelImplMetadata> {
     registry
         .capability(descriptor, model_impl_key())
         .map(|provider| provider())

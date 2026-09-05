@@ -19,54 +19,10 @@ use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::ReflectRegistry;
 
 use super::ModelRegistryError;
+use super::model_entry::ModelEntry;
 use crate::GenericModelMetadata;
 use crate::ModelId;
 use crate::TypeMetadata;
-
-#[derive(Clone, Copy, Debug)]
-enum ModelEntryTarget {
-    Concrete(&'static TypeMetadata),
-    Generic(&'static GenericModelMetadata),
-}
-
-#[derive(Clone, Copy, Debug)]
-struct ModelEntry {
-    model_id: ModelId,
-    target: ModelEntryTarget,
-    source: &'static FragmentIdentity,
-}
-
-impl ModelEntry {
-    fn concrete(metadata: &'static TypeMetadata, source: &'static FragmentIdentity) -> Option<Self> {
-        Some(Self {
-            model_id: metadata.model_id()?,
-            target: ModelEntryTarget::Concrete(metadata),
-            source,
-        })
-    }
-
-    const fn generic(metadata: &'static GenericModelMetadata, source: &'static FragmentIdentity) -> Self {
-        Self {
-            model_id: metadata.model_id(),
-            target: ModelEntryTarget::Generic(metadata),
-            source,
-        }
-    }
-
-    const fn metadata(self) -> Option<&'static TypeMetadata> {
-        match self.target {
-            ModelEntryTarget::Concrete(metadata) => Some(metadata),
-            ModelEntryTarget::Generic(_) => None,
-        }
-    }
-
-    const fn generic_metadata(self) -> Option<&'static GenericModelMetadata> {
-        match self.target {
-            ModelEntryTarget::Concrete(_) => None,
-            ModelEntryTarget::Generic(metadata) => Some(metadata),
-        }
-    }
-}
 
 /// An immutable registry sorted by stable model ID and fragment identity.
 #[derive(Debug)]
@@ -235,23 +191,32 @@ impl ModelRegistry {
         Self::try_global().unwrap_or_else(|error| panic!("invalid global model registry: {error}"))
     }
 
-    fn entry(&self, id: &str) -> Option<&ModelEntry> {
+    /// Finds one immutable model entry by stable ID.
+    /// Returns `None` for invalid IDs and IDs absent from this registry.
+    #[must_use]
+    pub fn get(&self, id: &str) -> Option<&ModelEntry> {
         if ModelId::validate(id).is_err() {
             return None;
         }
         self.entries.get(*self.indices.get(id)?)
     }
 
+    /// Enumerates concrete and generic models in stable model-ID order.
+    #[must_use]
+    pub fn entries(&self) -> &[ModelEntry] {
+        &self.entries
+    }
+
     /// Returns concrete metadata for a stable ID.
     #[must_use]
     pub fn metadata(&self, id: &str) -> Option<&'static TypeMetadata> {
-        self.entry(id).and_then(|entry| entry.metadata())
+        self.get(id).and_then(|entry| entry.metadata())
     }
 
     /// Returns generic-definition metadata for a stable ID.
     #[must_use]
     pub fn generic(&self, id: &str) -> Option<&'static GenericModelMetadata> {
-        self.entry(id).and_then(|entry| entry.generic_metadata())
+        self.get(id).and_then(|entry| entry.generic_metadata())
     }
 
     /// Returns registered concrete metadata by exact Rust identity.
@@ -275,6 +240,20 @@ impl ModelRegistry {
         self.by_type_id(descriptor.type_id())
     }
 
+    /// Resolves properties using this model registry's reflection snapshot.
+    ///
+    /// Explicit metadata-only registries use local field properties. Returns
+    /// assembly errors for inconsistent overlays; never consults global state.
+    pub fn properties_for(
+        &self,
+        metadata: &'static TypeMetadata,
+    ) -> Result<&'static crate::LocalPropertySet, &'static crate::PropertyBuildErrors> {
+        self.reflection.map_or_else(
+            || Ok(metadata.local_properties()),
+            |reflection| metadata.try_properties_in(reflection),
+        )
+    }
+
     /// Returns model metadata for one generic declaration identity.
     #[must_use]
     pub fn generic_metadata_for(&self, definition_id: TypeDefinitionId) -> Option<&'static GenericModelMetadata> {
@@ -287,7 +266,7 @@ impl ModelRegistry {
     /// Returns the reflection fragment source for a stable model ID.
     #[must_use]
     pub fn source(&self, id: &str) -> Option<&FragmentIdentity> {
-        Some(self.entry(id)?.source)
+        Some(self.get(id)?.source)
     }
 
     pub(crate) fn concrete_entries(

@@ -158,3 +158,18 @@ fn test_registry_projects_concrete_models_and_sources_from_reflection() {
         ProjectedFixture::__type_metadata(),
     ));
 }
+
+/// Consumers can enumerate immutable model metadata and registration
+/// provenance.
+#[test]
+fn test_registry_exposes_read_only_entries_with_sources() {
+    let item = entry("example.RegistryEntry", 31);
+    let registry = ModelRegistry::from_metadata(&[item], &[]).expect("valid registry");
+    let entries = registry.entries();
+    assert_eq!(entries.len(), 1);
+    let entry = registry.get("example.RegistryEntry").expect("entry");
+    assert_eq!(entry.model_id().as_str(), "example.RegistryEntry");
+    assert!(std::ptr::eq(entry.metadata().expect("concrete metadata"), item.0));
+    assert!(std::ptr::eq(entry.source(), item.1));
+    assert!(entry.generic_metadata().is_none());
+}

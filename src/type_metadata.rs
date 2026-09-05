@@ -24,6 +24,7 @@ use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::OpaqueTypeDescriptor;
 use qubit_reflect::descriptor::TextKind;
 use qubit_reflect::descriptor::TypeRef;
+use qubit_reflect::registry::ReflectRegistry;
 
 pub use self::enum_metadata::EnumMetadata;
 pub use self::enum_variant_metadata::EnumVariantMetadata;
@@ -44,6 +45,7 @@ use crate::PropertyBuildErrorKind;
 use crate::PropertyBuildErrors;
 use crate::PropertyFragment;
 use crate::PropertyMetadata;
+use crate::PropertyResolutionError;
 use crate::RoleMetadata;
 use crate::SelectorPosition;
 use crate::ValueMetadata;
@@ -186,36 +188,72 @@ impl TypeMetadata {
         self.fields.get(index)
     }
 
-    /// Returns unmerged field/getter/setter declarations in source order.
+    /// Returns effective field/getter/setter declarations from the global
+    /// registry.
+    ///
+    /// Returns a reflection error if the global snapshot cannot initialize.
+    pub fn property_fragments(&'static self) -> Result<&'static [PropertyFragment], PropertyResolutionError> {
+        Ok(self.property_fragments_in(ReflectRegistry::initialize()?))
+    }
+
+    /// Returns declarations from `registry`, falling back to local fields when
+    /// no implementation overlay is present. Never accesses the global
+    /// registry.
     #[must_use]
-    pub fn property_fragments(&'static self) -> &'static [PropertyFragment] {
-        crate::reflect_facade::model_impl_metadata(self.descriptor)
+    pub fn property_fragments_in(&'static self, registry: &ReflectRegistry) -> &'static [PropertyFragment] {
+        crate::reflect_facade::model_impl_metadata(self.descriptor, registry)
             .map_or(self.property_fragments, |metadata| metadata.fragments())
     }
 
-    /// Returns locally merged field and method properties.
+    /// Returns effective properties from the process-wide reflection snapshot.
     ///
-    /// # Errors
-    ///
-    /// Returns deterministic property assembly errors when an independent
-    /// `ModelImpl` block disagrees with the model's reflected fields.
-    #[must_use = "handle property assembly failures"]
-    pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
-        crate::reflect_facade::model_impl_metadata(self.descriptor)
+    /// Returns [`PropertyResolutionError::Reflection`] for initialization
+    /// failures and [`PropertyResolutionError::Assembly`] for incompatible
+    /// declarations.
+    pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, PropertyResolutionError> {
+        self.try_properties_in(ReflectRegistry::initialize()?)
+            .map_err(Into::into)
+    }
+
+    /// Returns effective properties in `registry`, or assembly errors when
+    /// linked fields and methods disagree. Never initializes global state.
+    pub fn try_properties_in(
+        &'static self,
+        registry: &ReflectRegistry,
+    ) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
+        crate::reflect_facade::model_impl_metadata(self.descriptor, registry)
             .map_or(Ok(&self.properties), |metadata| metadata.try_properties())
     }
 
-    /// Finds a locally merged property by its public name.
+    /// Returns declaration-local field properties without consulting any
+    /// registry.
+    pub(crate) const fn local_properties(&'static self) -> &'static LocalPropertySet {
+        &self.properties
+    }
+
+    /// Finds an effective property in the global snapshot.
     ///
-    /// # Errors
-    ///
-    /// Returns the same assembly errors as [`Self::try_properties`].
-    #[must_use = "handle property assembly failures before inspecting the lookup result"]
+    /// Returns `None` for an absent name and propagates initialization or
+    /// assembly errors.
     pub fn try_property(
         &'static self,
         name: &str,
-    ) -> Result<Option<&'static PropertyMetadata>, &'static PropertyBuildErrors> {
+    ) -> Result<Option<&'static PropertyMetadata>, PropertyResolutionError> {
         self.try_properties().map(|properties| properties.property(name))
+    }
+
+    /// Finds an effective property in `registry` without accessing global
+    /// state.
+    ///
+    /// Returns `None` for an absent name and propagates property assembly
+    /// errors.
+    pub fn try_property_in(
+        &'static self,
+        registry: &ReflectRegistry,
+        name: &str,
+    ) -> Result<Option<&'static PropertyMetadata>, &'static PropertyBuildErrors> {
+        self.try_properties_in(registry)
+            .map(|properties| properties.property(name))
     }
 
     /// Returns the generic model template that produced this metadata.

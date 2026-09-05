@@ -89,7 +89,7 @@ impl<'a> ModelResolver<'a> {
         let mut errors = Vec::new();
 
         for (metadata, fragment_source) in self.inputs.models.concrete_entries() {
-            match metadata.try_properties() {
+            match self.inputs.models.properties_for(metadata) {
                 Ok(local) => {
                     properties.insert(metadata.type_id(), local);
                 }
@@ -1211,7 +1211,7 @@ fn resolve_property_path(
     let mut current = target;
     let mut result = None;
     for (index, segment) in path.segments().iter().enumerate() {
-        let property = current.try_property(segment).ok().flatten()?;
+        let property = registry.properties_for(current).ok()?.property(segment)?;
         result = Some(property);
         if index + 1 < path.segments().len() {
             current = metadata_for_descriptor(property.descriptor()?, registry)?;
