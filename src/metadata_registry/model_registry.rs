@@ -51,7 +51,10 @@ impl<'reflection> ModelRegistry<'reflection> {
     pub fn from_reflect_registry(reflection: &'reflection ReflectRegistry) -> Result<Self, ModelRegistryError> {
         let mut entries = Vec::new();
         for (descriptor, source) in reflection.types_with_identity() {
-            let Some(provider) = reflection.capability(descriptor, crate::reflect_facade::model_metadata_key()) else {
+            let Some(provider) = reflection
+                .capability(descriptor, crate::reflect_facade::model_metadata_key())
+                .map_err(|error| ModelRegistryError::capability(error, source.clone()))?
+            else {
                 continue;
             };
             let metadata = provider();
@@ -230,16 +233,36 @@ impl<'reflection> ModelRegistry<'reflection> {
     }
 
     /// Returns model metadata resolved for one exact concrete descriptor.
-    #[must_use]
-    pub fn metadata_for(&self, descriptor: &'static TypeDescriptor) -> Option<&'static TypeMetadata> {
-        if let Some(reflection) = self.reflection
-            && let Some(provider) = reflection.capability(descriptor, crate::reflect_facade::model_metadata_key())
-        {
-            let metadata = provider();
-            metadata.validate_descriptor(descriptor).ok()?;
-            return Some(metadata);
+    ///
+    /// `Ok(None)` means no provider or explicit metadata is available.
+    /// Intrinsic capability conflicts and descriptor mismatches retain
+    /// their exact cause.
+    pub fn metadata_for(
+        &self,
+        descriptor: &'static TypeDescriptor,
+    ) -> Result<Option<&'static TypeMetadata>, crate::ModelMetadataError> {
+        let provided = match self.reflection {
+            Some(reflection) => reflection
+                .capability(descriptor, crate::reflect_facade::model_metadata_key())
+                .map_err(|source| crate::ModelMetadataError::Capability {
+                    type_id: descriptor.type_id(),
+                    type_name: descriptor.type_name(),
+                    source,
+                })?
+                .map(|provider| provider()),
+            None => None,
+        };
+        let metadata = provided.or_else(|| self.by_type_id(descriptor.type_id()));
+        if let Some(metadata) = metadata {
+            metadata
+                .validate_descriptor(descriptor)
+                .map_err(|source| crate::ModelMetadataError::Abi {
+                    type_id: descriptor.type_id(),
+                    type_name: descriptor.type_name(),
+                    source,
+                })?;
         }
-        self.by_type_id(descriptor.type_id())
+        Ok(metadata)
     }
 
     /// Resolves properties using this model registry's reflection snapshot.
@@ -249,7 +272,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     pub fn properties_for(
         &self,
         metadata: &'static TypeMetadata,
-    ) -> Result<&'static crate::LocalPropertySet, &'static crate::PropertyBuildErrors> {
+    ) -> Result<&'static crate::LocalPropertySet, crate::PropertyResolutionError> {
         self.reflection.map_or_else(
             || Ok(metadata.local_properties()),
             |reflection| metadata.try_properties_in(reflection),

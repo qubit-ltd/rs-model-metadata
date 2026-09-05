@@ -9,6 +9,7 @@
 //! Deterministic model-registry construction errors.
 // qubit-style: allow multiple-public-types
 
+use qubit_reflect::capability::CapabilityConflict;
 use qubit_reflect::error::RegistryError;
 use qubit_reflect::identity::FragmentIdentity;
 
@@ -17,6 +18,8 @@ use crate::ModelId;
 /// Machine-readable registry failure class.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ModelRegistryErrorKind {
+    /// A concrete descriptor's intrinsic capabilities could not be resolved.
+    CapabilityResolution,
     /// The shared reflection registry could not initialize.
     ReflectionRegistry,
     /// Two linked registrations declared the same model ID.
@@ -40,9 +43,22 @@ pub struct ModelRegistryError {
     /// The underlying reflection failure, when reflection initialization
     /// failed.
     reflection: Option<RegistryError>,
+    /// Complete intrinsic capability conflict, when present.
+    capability: Option<CapabilityConflict>,
 }
 
 impl ModelRegistryError {
+    /// Retains an intrinsic capability conflict and its registration source.
+    pub(crate) fn capability(error: CapabilityConflict, source: FragmentIdentity) -> Self {
+        Self {
+            kind: ModelRegistryErrorKind::CapabilityResolution,
+            model_id: None,
+            sources: vec![source],
+            reflection: None,
+            capability: Some(error),
+        }
+    }
+
     /// Wraps a failure from reflection registry initialization.
     pub(crate) fn reflection(error: RegistryError) -> Self {
         let sources = error.conflicting_fragments().map_or_else(
@@ -54,6 +70,7 @@ impl ModelRegistryError {
             model_id: None,
             sources,
             reflection: Some(error),
+            capability: None,
         }
     }
 
@@ -64,6 +81,7 @@ impl ModelRegistryError {
             model_id: Some(model_id),
             sources,
             reflection: None,
+            capability: None,
         }
     }
 
@@ -74,6 +92,7 @@ impl ModelRegistryError {
             model_id,
             sources,
             reflection: None,
+            capability: None,
         }
     }
 
@@ -101,6 +120,11 @@ impl ModelRegistryError {
 impl core::fmt::Display for ModelRegistryError {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.kind {
+            ModelRegistryErrorKind::CapabilityResolution => write!(
+                formatter,
+                "model capability resolution failed: {}",
+                self.capability.as_ref().expect("capability cause retained")
+            ),
             ModelRegistryErrorKind::ReflectionRegistry => write!(
                 formatter,
                 "reflection registry initialization failed: {}",
@@ -125,5 +149,10 @@ impl std::error::Error for ModelRegistryError {
         self.reflection
             .as_ref()
             .map(|error| error as &(dyn std::error::Error + 'static))
+            .or_else(|| {
+                self.capability
+                    .as_ref()
+                    .map(|error| error as &(dyn std::error::Error + 'static))
+            })
     }
 }

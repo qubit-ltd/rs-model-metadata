@@ -191,38 +191,51 @@ impl TypeMetadata {
     /// Returns effective field/getter/setter declarations from the global
     /// registry.
     ///
-    /// Returns a reflection error if the global snapshot cannot initialize.
+    /// Returns reflection initialization or intrinsic capability conflicts.
     pub fn property_fragments(&'static self) -> Result<&'static [PropertyFragment], PropertyResolutionError> {
-        Ok(self.property_fragments_in(ReflectRegistry::initialize()?))
+        self.property_fragments_in(ReflectRegistry::initialize()?)
     }
 
     /// Returns declarations from `registry`, falling back to local fields when
     /// no implementation overlay is present. Never accesses the global
     /// registry.
-    #[must_use]
-    pub fn property_fragments_in(&'static self, registry: &ReflectRegistry) -> &'static [PropertyFragment] {
-        crate::reflect_facade::model_impl_metadata(self.descriptor, registry)
-            .map_or(self.property_fragments, |metadata| metadata.fragments())
+    ///
+    /// # Errors
+    ///
+    /// Returns intrinsic capability conflicts for an invalid owner.
+    pub fn property_fragments_in(
+        &'static self,
+        registry: &ReflectRegistry,
+    ) -> Result<&'static [PropertyFragment], PropertyResolutionError> {
+        Ok(crate::reflect_facade::model_impl_metadata(self.descriptor, registry)?
+            .map_or(self.property_fragments, |metadata| metadata.fragments()))
     }
 
     /// Returns effective properties from the process-wide reflection snapshot.
     ///
     /// Returns [`PropertyResolutionError::Reflection`] for initialization
-    /// failures and [`PropertyResolutionError::Assembly`] for incompatible
-    /// declarations.
+    /// failures, [`PropertyResolutionError::Capability`] for intrinsic
+    /// conflicts, and [`PropertyResolutionError::Assembly`] for
+    /// incompatible declarations.
     pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, PropertyResolutionError> {
         self.try_properties_in(ReflectRegistry::initialize()?)
-            .map_err(Into::into)
     }
 
-    /// Returns effective properties in `registry`, or assembly errors when
-    /// linked fields and methods disagree. Never initializes global state.
+    /// Returns effective properties in `registry`. Never initializes global
+    /// state.
+    ///
+    /// # Errors
+    ///
+    /// Returns intrinsic capability conflicts or incompatible property
+    /// assembly.
     pub fn try_properties_in(
         &'static self,
         registry: &ReflectRegistry,
-    ) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
-        crate::reflect_facade::model_impl_metadata(self.descriptor, registry)
-            .map_or(Ok(&self.properties), |metadata| metadata.try_properties())
+    ) -> Result<&'static LocalPropertySet, PropertyResolutionError> {
+        crate::reflect_facade::model_impl_metadata(self.descriptor, registry)?
+            .map_or(Ok(&self.properties), |metadata| {
+                metadata.try_properties().map_err(Into::into)
+            })
     }
 
     /// Returns declaration-local field properties without consulting any
@@ -234,7 +247,7 @@ impl TypeMetadata {
     /// Finds an effective property in the global snapshot.
     ///
     /// Returns `None` for an absent name and propagates initialization or
-    /// assembly errors.
+    /// capability or assembly errors.
     pub fn try_property(
         &'static self,
         name: &str,
@@ -245,13 +258,13 @@ impl TypeMetadata {
     /// Finds an effective property in `registry` without accessing global
     /// state.
     ///
-    /// Returns `None` for an absent name and propagates property assembly
-    /// errors.
+    /// Returns `Ok(None)` for an absent name and propagates capability or
+    /// property assembly errors.
     pub fn try_property_in(
         &'static self,
         registry: &ReflectRegistry,
         name: &str,
-    ) -> Result<Option<&'static PropertyMetadata>, &'static PropertyBuildErrors> {
+    ) -> Result<Option<&'static PropertyMetadata>, PropertyResolutionError> {
         self.try_properties_in(registry)
             .map(|properties| properties.property(name))
     }

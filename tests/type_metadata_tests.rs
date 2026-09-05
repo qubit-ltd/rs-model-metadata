@@ -54,5 +54,10 @@ fn test_type_metadata_delegates_structure_to_reflection() {
 fn test_reflect_only_types_do_not_acquire_model_metadata() {
     let descriptor = TypeDescriptor::of::<String>();
     let registry = ModelRegistry::try_global().expect("model registry must initialize");
-    assert!(registry.metadata_for(descriptor).is_none());
+    assert!(
+        registry
+            .metadata_for(descriptor)
+            .expect("valid absent capability")
+            .is_none()
+    );
 }

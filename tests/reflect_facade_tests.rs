@@ -75,7 +75,8 @@ fn model_metadata_reuses_the_reflect_descriptor_root() {
     assert!(std::ptr::eq(
         registry
             .metadata_for(descriptor)
-            .expect("model capability must resolve"),
+            .expect("model capability must resolve")
+            .expect("model capability must exist"),
         metadata
     ));
     assert_eq!(metadata.type_id(), descriptor.type_id());
@@ -88,7 +89,12 @@ fn public_metadata_entry_points_reject_cross_type_providers() {
     assert!(panic_message(direct).starts_with("QMM-ABI-001:"));
 
     let registry = ModelRegistry::try_global().expect("model registry must initialize");
-    assert!(registry.metadata_for(TypeDescriptor::of::<Impostor>()).is_none());
+    assert!(
+        registry
+            .metadata_for(TypeDescriptor::of::<Impostor>())
+            .expect("valid absent capability")
+            .is_none()
+    );
 }
 
 #[test]

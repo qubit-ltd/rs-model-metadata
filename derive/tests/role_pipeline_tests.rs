@@ -114,9 +114,11 @@ fn test_registry_generic_model_providers_preserve_concrete_type() {
         .expect("generic definition without instantiation");
     let first = registry
         .metadata_for(TypeDescriptor::of::<GenericModel<u64>>())
+        .expect("valid u64 model capability")
         .expect("u64 model provider");
     let second = registry
         .metadata_for(TypeDescriptor::of::<GenericModel<String>>())
+        .expect("valid String model capability")
         .expect("String model provider");
     assert_eq!(first.type_id(), std::any::TypeId::of::<GenericModel<u64>>());
     assert_eq!(second.type_id(), std::any::TypeId::of::<GenericModel<String>>());

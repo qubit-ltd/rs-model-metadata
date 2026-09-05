@@ -69,7 +69,12 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
             .properties()
             .is_empty()
     );
-    assert!(metadata.property_fragments_in(&isolated).is_empty());
+    assert!(
+        metadata
+            .property_fragments_in(&isolated)
+            .expect("valid isolated capabilities")
+            .is_empty()
+    );
     let models = ModelRegistry::from_metadata(&[], &[]).expect("isolated model registry");
     assert!(
         models
