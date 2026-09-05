@@ -55,7 +55,11 @@ impl<'a> PropertyValue<'a> {
     /// output contract without erasing optionality or borrowed slices.
     ///
     /// Property getter borrows can only originate from their target, so every
-    /// borrowed output records [`BorrowOrigin::Receiver`].
+    /// borrowed output records [`BorrowOrigin::Receiver`]. Borrowed slices are
+    /// explicitly materialized in O(n) time into per-element borrow wrappers;
+    /// the elements themselves are not cloned. This allocates output storage
+    /// and origin metadata. Direct [`BorrowedPropertySlice::get`] avoids that
+    /// materialization, although constructing the slice adapter also boxes it.
     #[must_use]
     pub fn into_invocation_output(self) -> InvocationOutput<'a, Local> {
         let receiver_origin = || Box::new([BorrowOrigin::Receiver]);
