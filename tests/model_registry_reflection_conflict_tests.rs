@@ -6,6 +6,8 @@
 
 //! Verifies model initialization preserves reflection registration failures.
 
+use std::error::Error as _;
+
 use qubit_model_metadata::__private::v4::register_model_impl_capability;
 use qubit_model_metadata::ModelImplMetadata;
 use qubit_model_metadata::ModelImplProvider;
@@ -33,6 +35,10 @@ fn test_duplicate_concrete_source_is_reported_by_reflection_registry() {
 
     assert_eq!(error.kind(), ModelRegistryErrorKind::ReflectionRegistry);
     assert_eq!(error.sources().len(), 2);
+    assert!(
+        error.source().is_some(),
+        "model registry errors must preserve the reflection cause"
+    );
     assert!(error.to_string().contains("reflection registry error"));
 }
 
@@ -123,7 +129,7 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
         identity,
         payload,
     );
-    let reflection = v4::leak(build_registry(&[&FRAGMENT]).expect("isolated capability snapshot"));
+    let reflection = build_registry(&[&FRAGMENT]).expect("isolated capability snapshot");
     let metadata = v4::leak(
         v4::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
@@ -133,7 +139,7 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
         )
         .finish::<DuplicateReflectionSource>(),
     );
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("isolated model projection");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("isolated model projection");
     assert!(
         models
             .properties_for(metadata)
@@ -151,7 +157,7 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
     assert!(metadata.try_properties().is_err(), "global conflict remains visible");
     assert!(
         metadata
-            .try_property_in(reflection, "computed")
+            .try_property_in(&reflection, "computed")
             .expect("overlay still visible")
             .is_some()
     );

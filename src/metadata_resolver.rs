@@ -50,7 +50,7 @@ use crate::ValidatorMetadata;
 #[derive(Clone, Copy)]
 pub struct ResolveInputs<'a> {
     /// Registry containing concrete and generic model registrations.
-    pub models: &'a ModelRegistry,
+    pub models: &'a ModelRegistry<'a>,
     /// Registry containing executable validators.
     pub validators: &'a ValidatorRegistry,
     /// Registry containing executable value codecs.
@@ -442,7 +442,7 @@ fn push_field_error(
     metadata: &'static TypeMetadata,
     field: &'static FieldMetadata,
     actual_role: Option<ModelRole>,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
 ) {
     let path = field.name().map(|name| {
         let segments = [name];
@@ -468,7 +468,7 @@ fn resolve_field_strategies<'a>(
     inputs: ResolveInputs<'a>,
     validators: &mut HashMap<usize, ResolvedValidator<'a>>,
     codecs: &mut HashMap<usize, ResolvedCodec<'a>>,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) {
     let Some(descriptor) = field.descriptor() else {
@@ -548,7 +548,7 @@ fn resolve_selector_strategies<'a>(
     inputs: ResolveInputs<'a>,
     validators: &mut HashMap<usize, ResolvedValidator<'a>>,
     codecs: &mut HashMap<usize, ResolvedCodec<'a>>,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) {
     let Some(expected_type) = expected_type else {
@@ -616,7 +616,7 @@ fn resolve_validator<'a>(
     expected_type: TypeId,
     inputs: ResolveInputs<'a>,
     validators: &mut HashMap<usize, ResolvedValidator<'a>>,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) {
     let Some(registration) = inputs.validators.get(occurrence.declared_id()) else {
@@ -688,7 +688,7 @@ fn resolve_codec<'a>(
     expected_type: TypeId,
     registry: &'a ValueCodecRegistry,
     codecs: &mut HashMap<usize, ResolvedCodec<'a>>,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) {
     let (descriptor, registration) = match occurrence.codec() {
@@ -786,7 +786,7 @@ impl OwnedPropertyPath {
 fn build_query(
     metadata: &'static TypeMetadata,
     registry: &ModelRegistry,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) -> Option<QueryMetadata> {
     let initial_error_count = errors.len();
@@ -908,7 +908,7 @@ fn collect_query_fields(
     filters: &mut Vec<QueryField>,
     flat_names: &mut HashMap<String, OwnedPropertyPath>,
     root: &'static TypeMetadata,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) -> bool {
     let mut added = false;
@@ -944,7 +944,7 @@ fn collect_indexed_field(
     filters: &mut Vec<QueryField>,
     flat_names: &mut HashMap<String, OwnedPropertyPath>,
     root: &'static TypeMetadata,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) -> bool {
     if let Some(reference) = field.reference() {
@@ -1006,7 +1006,7 @@ fn push_query_field(
     descriptor: Option<&'static TypeDescriptor>,
     reasons: IndexingReasons,
     root: &'static TypeMetadata,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) {
     if let Some(existing) = filters.iter_mut().find(|field| field.path == path) {
@@ -1101,7 +1101,7 @@ fn validate_value_closure(
     metadata: &'static TypeMetadata,
     registry: &ModelRegistry,
     visited: &mut HashSet<TypeId>,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) {
     if !visited.insert(metadata.type_id()) {
@@ -1136,7 +1136,7 @@ fn value_type_ref_is_closed(
     type_ref: &'static TypeRef,
     registry: &ModelRegistry,
     visited: &mut HashSet<TypeId>,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
     path: &[&'static str],
 ) -> bool {
@@ -1150,7 +1150,7 @@ fn value_descriptor_is_closed(
     descriptor: &'static TypeDescriptor,
     registry: &ModelRegistry,
     visited: &mut HashSet<TypeId>,
-    source: &'static FragmentIdentity,
+    source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
     path: &[&'static str],
 ) -> bool {
@@ -1393,7 +1393,7 @@ impl ResolvedProjectionSource {
 #[derive(Debug)]
 pub struct ResolvedModelGraph<'a> {
     /// The registry used to resolve the graph.
-    registry: &'a ModelRegistry,
+    registry: &'a ModelRegistry<'a>,
     /// Resolved field references keyed by declaration identity.
     references: HashMap<usize, ResolvedReference>,
     /// Resolved projection sources keyed by declaration identity.
@@ -1424,7 +1424,7 @@ impl<'a> ResolvedModelGraph<'a> {
     /// Returns the registry used for this resolution pass.
     #[must_use]
     #[inline(always)]
-    pub const fn registry(&self) -> &'a ModelRegistry {
+    pub const fn registry(&self) -> &'a ModelRegistry<'a> {
         self.registry
     }
 

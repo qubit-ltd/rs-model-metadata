@@ -20,13 +20,13 @@ enum ModelEntryTarget {
 
 /// An immutable projection of one model and its registration provenance.
 #[derive(Clone, Copy, Debug)]
-pub struct ModelEntry {
+pub struct ModelEntry<'reflection> {
     pub(super) model_id: ModelId,
     target: ModelEntryTarget,
-    pub(super) source: &'static FragmentIdentity,
+    pub(super) source: &'reflection FragmentIdentity,
 }
 
-impl ModelEntry {
+impl<'reflection> ModelEntry<'reflection> {
     /// Returns the stable model ID shared by concrete and generic entries.
     #[must_use = "inspect the model identity"]
     pub const fn model_id(&self) -> ModelId {
@@ -35,12 +35,12 @@ impl ModelEntry {
 
     /// Returns the static fragment that contributed this entry.
     #[must_use]
-    pub const fn source(&self) -> &'static FragmentIdentity {
+    pub const fn source(&self) -> &'reflection FragmentIdentity {
         self.source
     }
 
     /// Creates an entry only when concrete metadata declares a model ID.
-    pub(super) fn concrete(metadata: &'static TypeMetadata, source: &'static FragmentIdentity) -> Option<Self> {
+    pub(super) fn concrete(metadata: &'static TypeMetadata, source: &'reflection FragmentIdentity) -> Option<Self> {
         Some(Self {
             model_id: metadata.model_id()?,
             target: ModelEntryTarget::Concrete(metadata),
@@ -49,7 +49,10 @@ impl ModelEntry {
     }
 
     /// Creates an entry for a registered generic declaration.
-    pub(super) const fn generic(metadata: &'static GenericModelMetadata, source: &'static FragmentIdentity) -> Self {
+    pub(super) const fn generic(
+        metadata: &'static GenericModelMetadata,
+        source: &'reflection FragmentIdentity,
+    ) -> Self {
         Self {
             model_id: metadata.model_id(),
             target: ModelEntryTarget::Generic(metadata),

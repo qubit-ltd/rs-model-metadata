@@ -50,7 +50,7 @@ use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
 use qubit_validator::ValidatorRegistry;
 
-fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]) -> ModelRegistry {
+fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]) -> ModelRegistry<'static> {
     ModelRegistry::from_metadata(entries, &[]).expect("valid isolated model registry")
 }
 

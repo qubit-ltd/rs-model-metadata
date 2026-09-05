@@ -120,4 +120,10 @@ impl core::fmt::Display for ModelRegistryError {
     }
 }
 
-impl std::error::Error for ModelRegistryError {}
+impl std::error::Error for ModelRegistryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.reflection
+            .as_ref()
+            .map(|error| error as &(dyn std::error::Error + 'static))
+    }
+}
