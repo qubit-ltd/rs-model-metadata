@@ -93,6 +93,20 @@ metadata is checked against descriptor, field, property, role, and codec
 invariants before it crosses the hidden model ABI v4 boundary. Generated model
 code uses only the curated model facade and its exact private ABI.
 
+## Recoverable queries
+
+`ModelRegistry::metadata_for` returns `Result<Option<&TypeMetadata>, ModelMetadataError>`.
+`Ok(None)` means no matching model metadata; capability conflicts and descriptor ABI mismatches
+return structured errors. `TypeMetadata::try_properties_in`, `try_property_in`, and
+`property_fragments_in` propagate `PropertyResolutionError`. Explicit snapshot queries never
+initialize the global registry. `ModelResolveError::cause()` retains the underlying failure with
+model, property path, and provenance. Independent failures are aggregated; underlying failures
+do not become missing-property diagnostics.
+
+Borrowed slices support direct indexed access. Explicit `into_invocation_output` materializes
+per-element borrow wrappers in O(n) time without copying the underlying elements. The slice adapter
+itself also requires boxing. Conversion and original access costs are measured separately.
+
 ## Learn More
 
 - [English user guide](doc/user_guide.md)

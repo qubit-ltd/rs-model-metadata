@@ -220,8 +220,18 @@ ID。直接调用 `TypeMetadata::of` 的静态查询应与全局模型注册表�
 
 ## 使用显式快照查询属性
 
-`TypeMetadata::try_properties()` 和 `try_property(name)` 使用全局反射快照，初始化失败返回 `PropertyResolutionError::Reflection`，字段与方法声明冲突返回 `Assembly`。`property_fragments()` 也返回 `Result`，不会再把注册失败解释为缺少 overlay。
+`TypeMetadata::try_properties()` 和 `try_property(name)` 使用全局反射快照，初始化失败返回 `PropertyResolutionError::Reflection`，intrinsic 能力冲突返回 `Capability`，字段与方法声明冲突返回 `Assembly`。`property_fragments()` 也返回 `Result`，不会再把注册失败解释为缺少 overlay。
 
 显式快照使用 `try_properties_in(&reflection)`、`try_property_in(&reflection, name)` 和 `property_fragments_in(&reflection)`。`ModelRegistry::properties_for(metadata)` 使用该模型注册表自己的快照；`from_metadata` 创建的注册表仅使用本地字段属性。`ModelResolver` 遵循相同的显式上下文。
 
 通过 `ModelRegistry::entries()` 遍历具体模型和泛型定义。不可变的 `ModelEntry` 提供模型 ID、具体或泛型元数据及静态片段来源；`get(id)` 查询单个条目。这些条目只是反射注册表的投影，不构成第二套注册系统。
+
+`ModelRegistry::metadata_for(descriptor)` 返回 `Result<Option<&TypeMetadata>, ModelMetadataError>`。
+先处理 `Err`，再将 `Ok(None)` 视为没有模型元数据。能力错误保留被查询类型和完整冲突；ABI 错误
+保留描述符不匹配原因。失败的 provider 查询不会回退到显式元数据。provider 自身 panic 以及非法生成
+元数据的构造仍遵循原有 panic 契约。
+
+显式属性方法同样返回 `Result`。`ModelResolveError::cause()` 提供 `ModelResolutionCause::Metadata`
+或 `Properties`；错误对象同时提供根模型、属性路径和来源。嵌套路径解析失败不会变成 `MissingProperty`，
+独立的目标和字段错误仍进入聚合结果。`PropertyValue::into_invocation_output` 以 O(n) 时间物化切片元素
+的借用包装，不复制元素；直接索引访问可避免输出物化，但切片的类型擦除 adapter 本身仍需装箱。

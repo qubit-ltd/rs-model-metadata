@@ -76,6 +76,18 @@ assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
 metadata 在穿过隐藏 model ABI v4 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量；
 生成代码只依赖经过收窄的模型 facade 及其精确私有 ABI。
 
+## 可恢复查询
+
+`ModelRegistry::metadata_for` 返回 `Result<Option<&TypeMetadata>, ModelMetadataError>`。
+`Ok(None)` 表示没有匹配的模型元数据；能力冲突和描述符 ABI 不匹配返回结构化错误。
+`TypeMetadata::try_properties_in`、`try_property_in`、`property_fragments_in` 传播
+`PropertyResolutionError`，显式 snapshot 查询不会初始化全局注册表。
+解析器通过 `ModelResolveError::cause()` 保留原始错误，并附加模型、属性路径和来源。
+独立错误继续聚合，基础失败不会被改写成属性缺失。
+
+借用切片可按索引直接读取。显式 `into_invocation_output` 会用 O(n) 时间物化元素借用包装，
+不复制底层元素；切片 adapter 自身也需要一次装箱。该转换的成本与原始访问分别测量。
+
 ## 延伸阅读
 
 - [English user guide](doc/user_guide.md)

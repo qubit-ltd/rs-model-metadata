@@ -280,8 +280,21 @@ configuration is unrecoverable.
 
 ## Snapshot-scoped property queries
 
-`TypeMetadata::try_properties()` and `try_property(name)` resolve against the global reflection snapshot and return `PropertyResolutionError::Reflection` when initialization fails, or `Assembly` when linked declarations disagree. `property_fragments()` also returns a `Result`; registration failure is never treated as a missing overlay.
+`TypeMetadata::try_properties()` and `try_property(name)` resolve against the global reflection snapshot and return `PropertyResolutionError::Reflection` when initialization fails, `Capability` when intrinsic declarations conflict, or `Assembly` when linked declarations disagree. `property_fragments()` also returns a `Result`; registration failure is never treated as a missing overlay.
 
 For an explicit snapshot, use `try_properties_in(&reflection)`, `try_property_in(&reflection, name)`, and `property_fragments_in(&reflection)`. `ModelRegistry::properties_for(metadata)` uses that model registry's snapshot. Registries created with `from_metadata` use only local field properties. `ModelResolver` follows the same explicit context.
 
 Enumerate concrete and generic models with `ModelRegistry::entries()`. Each immutable `ModelEntry` exposes its ID, concrete or generic metadata, and static fragment source; `get(id)` returns one entry. No second registration system is introduced.
+
+`ModelRegistry::metadata_for(descriptor)` returns `Result<Option<&TypeMetadata>, ModelMetadataError>`.
+Handle `Err` before treating `Ok(None)` as a non-model type. Capability errors preserve their
+queried type and complete conflict; ABI errors preserve the descriptor mismatch. This query
+never downgrades a failed provider lookup to explicit-metadata fallback. Provider panics and
+invalid generated construction still follow their existing panic contracts.
+
+The explicit property methods also return `Result`. `ModelResolveError::cause()` exposes
+`ModelResolutionCause::Metadata` or `Properties`, with root model, property path, and source
+available on the diagnostic. A failed nested path is not `MissingProperty`; independent target
+or field failures remain in the returned aggregate. `PropertyValue::into_invocation_output`
+materializes borrowed slices in O(n) time without copying elements; direct indexed slice access
+avoids output materialization, although the erased slice adapter itself is boxed.
