@@ -240,9 +240,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-budget"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc94844f6f5cca8005774cbd1d84e58b9369b50eab393aa9b34d0662edf435fb"
+checksum = "f93253bc135140ca58d3d4f7dffcc330394cf94fec873c5f86ec3bb41dbfa18e"
 dependencies = [
  "thiserror",
 ]
@@ -335,6 +335,8 @@ dependencies = [
 [[package]]
 name = "qubit-redact-derive"
 version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11de7bd4bfb01df3413f87bc57598fc62fa705041e97a1a5d8caae56f5eb46b0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
