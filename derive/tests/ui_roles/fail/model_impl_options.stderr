@@ -1,0 +1,5 @@
+error: ModelImpl does not accept configuration arguments
+  --> tests/ui_roles/fail/model_impl_options.rs:17:13
+   |
+17 | #[ModelImpl(unexpected)]
+   |             ^^^^^^^^^^

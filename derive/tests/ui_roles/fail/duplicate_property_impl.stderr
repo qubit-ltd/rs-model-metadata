@@ -1,0 +1,34 @@
+error[E0428]: the name `__qubit_model_property_getter_0_52cfa1d198476806` is defined multiple times
+  --> tests/ui_roles/fail/duplicate_property_impl.rs:26:1
+   |
+19 | #[ModelImpl]
+   | ------------ previous definition of the value `__qubit_model_property_getter_0_52cfa1d198476806` here
+...
+26 | #[ModelImpl]
+   | ^^^^^^^^^^^^ `__qubit_model_property_getter_0_52cfa1d198476806` redefined here
+   |
+   = note: `__qubit_model_property_getter_0_52cfa1d198476806` must be defined only once in the value namespace of this module
+   = note: this error originates in the attribute macro `ModelImpl` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0428]: the name `__qubit_model_impl_52cfa1d198476806` is defined multiple times
+  --> tests/ui_roles/fail/duplicate_property_impl.rs:26:1
+   |
+19 | #[ModelImpl]
+   | ------------ previous definition of the value `__qubit_model_impl_52cfa1d198476806` here
+...
+26 | #[ModelImpl]
+   | ^^^^^^^^^^^^ `__qubit_model_impl_52cfa1d198476806` redefined here
+   |
+   = note: `__qubit_model_impl_52cfa1d198476806` must be defined only once in the value namespace of this module
+   = note: this error originates in the attribute macro `ModelImpl` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `ModelImplSeal` for type `Item`
+  --> tests/ui_roles/fail/duplicate_property_impl.rs:26:1
+   |
+19 | #[ModelImpl]
+   | ------------ first implementation here
+...
+26 | #[ModelImpl]
+   | ^^^^^^^^^^^^ conflicting implementation for `Item`
+   |
+   = note: this error originates in the attribute macro `ModelImpl` (in Nightly builds, run with -Z macro-backtrace for more info)

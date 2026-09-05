@@ -1,0 +1,45 @@
+[package]
+name = "qubit-model-derive"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+authors = ["Haixing Hu <starfish.hu@gmail.com>"]
+license = "Apache-2.0"
+repository = "https://github.com/qubit-ltd/rs-model-derive"
+description = "Derive macros for Qubit Rust model metadata"
+homepage = "https://github.com/qubit-ltd/rs-model-derive"
+readme = "README.md"
+keywords = ["derive", "macro", "metadata", "model", "qubit"]
+categories = ["development-tools::procedural-macro-helpers"]
+publish = false
+include = [
+    "/Cargo.toml",
+    "/LICENSE",
+    "/README.md",
+    "/README.zh_CN.md",
+    "/src/**",
+    "/doc/**",
+    "/tests/**",
+]
+
+[lib]
+name = "qubit_model_derive"
+proc-macro = true
+
+[dependencies]
+heck = "0.5"
+proc-macro-crate = "3"
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+
+[dev-dependencies]
+bigdecimal = "0.4"
+chrono = { version = "0.4", features = ["std"], default-features = false }
+model_runtime = { package = "qubit-model-metadata", path = "../rs-model-metadata" }
+qubit-codec = { version = "0.14", features = ["registry"] }
+qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
+qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+trybuild = "1"

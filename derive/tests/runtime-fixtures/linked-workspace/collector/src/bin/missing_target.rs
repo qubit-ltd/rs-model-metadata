@@ -1,0 +1,38 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+// qubit-style: allow test-file-name
+// The filename is part of a Cargo or trybuild fixture protocol.
+
+use core::mem::size_of;
+
+use model_a::MissingTarget;
+use qubit_model_metadata::ModelRegistry;
+use qubit_model_metadata::ModelResolveErrorKind;
+use qubit_model_metadata::ModelResolver;
+use qubit_model_metadata::ResolveInputs;
+use qubit_model_metadata::__private::qubit_codec::ValueCodecRegistry;
+use qubit_model_metadata::__private::qubit_validator::ValidatorRegistry;
+
+fn main() {
+    let _ = size_of::<MissingTarget>();
+    let registry = ModelRegistry::try_global()
+        .expect("a missing reference target must not invalidate registration");
+    assert!(registry.metadata("test.linked.Absent").is_none());
+    assert!(registry.metadata("test.linked.MissingTarget").is_some());
+    let errors = ModelResolver::new(ResolveInputs {
+        models: registry,
+        validators: ValidatorRegistry::global(),
+        codecs: ValueCodecRegistry::global(),
+    })
+        .resolve_all()
+        .expect_err("the missing reference target must be reported by graph validation");
+    assert!(errors.errors().iter().any(|error| {
+        error.kind() == ModelResolveErrorKind::MissingModelId
+            && error.model_id() == Some("test.linked.Absent")
+    }));
+}

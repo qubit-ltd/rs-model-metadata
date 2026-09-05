@@ -1,0 +1,5 @@
+error: setter requires `&mut self`
+  --> tests/ui_roles/fail/property_methods.rs:33:22
+   |
+33 |     pub fn set_value(&self, value: String) {
+   |                      ^^^^^

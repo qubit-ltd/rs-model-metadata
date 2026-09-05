@@ -1,0 +1,7 @@
+error: validator parameter arrays cannot be empty because their element type cannot be inferred
+  --> tests/ui_roles/fail/validator_empty_array.rs:15:1
+   |
+15 | #[Model]
+   | ^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)

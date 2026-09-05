@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "name": "core",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-model-derive"],
+      "defaultFeatures": false,
+      "features": []
+    },
+    {
+      "name": "all-root",
+      "commands": ["check", "test", "doc", "clippy"],
+      "allFeatures": true
+    }
+  ]
+}

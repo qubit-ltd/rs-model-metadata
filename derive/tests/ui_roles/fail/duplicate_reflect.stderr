@@ -1,0 +1,5 @@
+error: model macros generate Reflect; remove the duplicate derive
+  --> tests/ui_roles/fail/duplicate_reflect.rs:15:10
+   |
+15 | #[derive(Reflect)]
+   |          ^^^^^^^

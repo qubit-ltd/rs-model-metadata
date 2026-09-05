@@ -1,0 +1,77 @@
+error: source_id is only valid for Projection
+  --> tests/ui_roles/fail/role_option_semantics.rs:21:8
+   |
+21 | struct SourceIdOnModel;
+   |        ^^^^^^^^^^^^^^^
+
+error: source is only valid for Projection
+  --> tests/ui_roles/fail/role_option_semantics.rs:24:8
+   |
+24 | struct SourceOnModel;
+   |        ^^^^^^^^^^^^^
+
+error: Projection accepts only one of `source` or `source_id`
+  --> tests/ui_roles/fail/role_option_semantics.rs:27:8
+   |
+27 | struct ConflictingProjection {
+   |        ^^^^^^^^^^^^^^^^^^^^^
+
+error: open Projection cannot declare a fixed source
+  --> tests/ui_roles/fail/role_option_semantics.rs:27:8
+   |
+27 | struct ConflictingProjection {
+   |        ^^^^^^^^^^^^^^^^^^^^^
+
+error: transparent is only valid for Value
+  --> tests/ui_roles/fail/role_option_semantics.rs:33:8
+   |
+33 | struct ValueOptionsOnModel {
+   |        ^^^^^^^^^^^^^^^^^^^
+
+error: canonical codec is only valid for Value
+  --> tests/ui_roles/fail/role_option_semantics.rs:33:8
+   |
+33 | struct ValueOptionsOnModel {
+   |        ^^^^^^^^^^^^^^^^^^^
+
+error: no_copy is only valid for Enum
+  --> tests/ui_roles/fail/role_option_semantics.rs:38:8
+   |
+38 | struct NoCopyOnModel;
+   |        ^^^^^^^^^^^^^
+
+error: copy and no_copy cannot be combined
+  --> tests/ui_roles/fail/role_option_semantics.rs:41:6
+   |
+41 | enum CopyAndNoCopy {
+   |      ^^^^^^^^^^^^^
+
+error: explicit indexed is redundant with identifier, unique, or reference
+  --> tests/ui_roles/fail/role_option_semantics.rs:46:8
+   |
+46 | struct ConflictingFields {
+   |        ^^^^^^^^^^^^^^^^^
+
+error: opaque cannot be combined with reference
+  --> tests/ui_roles/fail/role_option_semantics.rs:46:8
+   |
+46 | struct ConflictingFields {
+   |        ^^^^^^^^^^^^^^^^^
+
+error: selector redaction currently supports only `redact(level = "...")`; `skip` is forbidden
+  --> tests/ui_roles/fail/role_option_semantics.rs:46:8
+   |
+46 | struct ConflictingFields {
+   |        ^^^^^^^^^^^^^^^^^
+
+error: duplicate selector position
+  --> tests/ui_roles/fail/role_option_semantics.rs:46:8
+   |
+46 | struct ConflictingFields {
+   |        ^^^^^^^^^^^^^^^^^
+
+error: field and selector redaction cannot overlap
+  --> tests/ui_roles/fail/role_option_semantics.rs:46:8
+   |
+46 | struct ConflictingFields {
+   |        ^^^^^^^^^^^^^^^^^

@@ -1,0 +1,35 @@
+error: `copy` requires Clone; remove `no_clone`
+  --> tests/ui_roles/fail/capability_conflicts.rs:16:8
+   |
+16 | struct CopyWithoutClone;
+   |        ^^^^^^^^^^^^^^^^
+
+error: no_copy is only valid for Enum
+  --> tests/ui_roles/fail/capability_conflicts.rs:19:8
+   |
+19 | struct CopyConflict;
+   |        ^^^^^^^^^^^^
+
+error: copy and no_copy cannot be combined
+  --> tests/ui_roles/fail/capability_conflicts.rs:19:8
+   |
+19 | struct CopyConflict;
+   |        ^^^^^^^^^^^^
+
+error: `partial_ord` requires PartialEq
+  --> tests/ui_roles/fail/capability_conflicts.rs:22:8
+   |
+22 | struct PartialOrderConflict;
+   |        ^^^^^^^^^^^^^^^^^^^^
+
+error: `ord` requires PartialEq and Eq
+  --> tests/ui_roles/fail/capability_conflicts.rs:25:8
+   |
+25 | struct OrderConflict;
+   |        ^^^^^^^^^^^^^
+
+error: explicit `Clone` derive conflicts with the model capability switches
+  --> tests/ui_roles/fail/capability_conflicts.rs:29:8
+   |
+29 | struct ExistingCloneConflict;
+   |        ^^^^^^^^^^^^^^^^^^^^^

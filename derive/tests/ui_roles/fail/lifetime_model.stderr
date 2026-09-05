@@ -1,0 +1,5 @@
+error: model roles do not support lifetime parameters
+  --> tests/ui_roles/fail/lifetime_model.rs:14:17
+   |
+14 | struct Borrowed<'a> {
+   |                 ^^

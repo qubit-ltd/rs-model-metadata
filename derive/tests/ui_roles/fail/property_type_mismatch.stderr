@@ -1,0 +1,14 @@
+error[E0277]: the trait bound `u32: PropertyOutputCompatible<std::string::String>` is not satisfied
+  --> tests/ui_roles/fail/property_type_mismatch.rs:19:1
+   |
+19 | #[ModelImpl]
+   | ^^^^^^^^^^^^ the trait `PropertyOutputCompatible<std::string::String>` is not implemented for `u32`
+   |
+   = help: the following other types implement trait `PropertyOutputCompatible<Setter>`:
+             `BorrowedPropertyOutput<T>` implements `PropertyOutputCompatible<T>`
+             `BorrowedPropertyOutput<[T]>` implements `PropertyOutputCompatible<Vec<T>>`
+             `BorrowedPropertyOutput<str>` implements `PropertyOutputCompatible<std::string::String>`
+             `OptionalBorrowedPropertyOutput<T>` implements `PropertyOutputCompatible<std::option::Option<T>>`
+             `OptionalBorrowedPropertyOutput<str>` implements `PropertyOutputCompatible<std::option::Option<std::string::String>>`
+   = help: see issue #48214
+   = note: this error originates in the attribute macro `ModelImpl` (in Nightly builds, run with -Z macro-backtrace for more info)

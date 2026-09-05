@@ -1,0 +1,11 @@
+error: sequence min_items cannot exceed max_items
+  --> tests/ui_roles/fail/constraint_validation.rs:20:15
+   |
+20 |     sequence: Vec<u64>,
+   |               ^^^
+
+error: map min_entries cannot exceed max_entries
+  --> tests/ui_roles/fail/constraint_validation.rs:24:10
+   |
+24 |     map: std::collections::HashMap<String, String>,
+   |          ^^^

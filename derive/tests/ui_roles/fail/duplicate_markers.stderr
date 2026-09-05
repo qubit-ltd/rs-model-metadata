@@ -1,0 +1,23 @@
+error: duplicate identifier marker
+  --> tests/ui_roles/fail/duplicate_markers.rs:18:5
+   |
+18 |     #[identifier]
+   |     ^^^^^^^^^^^^^
+
+error: duplicate identifier `assigned_by` option
+  --> tests/ui_roles/fail/duplicate_markers.rs:20:45
+   |
+20 |     #[identifier(assigned_by = application, assigned_by = database)]
+   |                                             ^^^^^^^^^^^
+
+error: duplicate indexed marker
+  --> tests/ui_roles/fail/duplicate_markers.rs:23:5
+   |
+23 |     #[indexed]
+   |     ^^^^^^^^^^
+
+error: duplicate opaque marker
+  --> tests/ui_roles/fail/duplicate_markers.rs:26:5
+   |
+26 |     #[opaque]
+   |     ^^^^^^^^^

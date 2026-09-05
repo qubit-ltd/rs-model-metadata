@@ -1,0 +1,16 @@
+error[E0277]: the trait bound `Status: std::marker::Copy` is not satisfied
+  --> tests/ui_roles/fail/no_copy.rs:22:21
+   |
+22 |     requires_copy::<Status>();
+   |                     ^^^^^^ the trait `std::marker::Copy` is not implemented for `Status`
+   |
+note: required by a bound in `requires_copy`
+  --> tests/ui_roles/fail/no_copy.rs:19:21
+   |
+19 | fn requires_copy<T: Copy>() {}
+   |                     ^^^^ required by this bound in `requires_copy`
+help: consider annotating `Status` with `#[derive(Copy)]`
+   |
+14 + #[derive(Copy)]
+15 | enum Status {
+   |

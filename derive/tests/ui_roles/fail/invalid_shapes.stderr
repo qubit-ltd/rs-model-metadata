@@ -1,0 +1,19 @@
+error: Model does not support tuple structs
+  --> tests/ui_roles/fail/invalid_shapes.rs:16:18
+   |
+16 | struct TupleModel(u64, u64);
+   |                  ^^^^^^^^^^
+
+error: Value requires named fields or one tuple field
+  --> tests/ui_roles/fail/invalid_shapes.rs:18:1
+   |
+18 | #[Value]
+   | ^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `Value` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Enum only supports enum declarations
+  --> tests/ui_roles/fail/invalid_shapes.rs:22:8
+   |
+22 | struct NotAnEnum {
+   |        ^^^^^^^^^

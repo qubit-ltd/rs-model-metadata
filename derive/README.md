@@ -1,0 +1,177 @@
+# qubit-model-derive
+
+[![Rust CI](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-derive/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-derive/coverage/)
+[![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
+
+`qubit-model-derive` turns Rust domain declarations into Qubit model metadata.
+It is for application and framework authors who need one type to have both
+ordinary Rust structure reflection and model-specific semantics—identity,
+constraints, relations, redaction, serialization policy, and safe properties—
+without maintaining a parallel schema by hand.
+
+## Installation
+
+This crate targets Rust 1.94 and edition 2024. It is not currently published
+to crates.io (`publish = false`), so use checkout paths for the derive crate
+and its `qubit-model-metadata` runtime facade. Adjust the paths to match your
+workspace layout:
+
+```toml
+[dependencies]
+qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-id = "0.6"
+```
+
+Generated code resolves `qubit-model-metadata` with `proc-macro-crate`; a
+renamed runtime dependency is supported. Application crates do not need a
+direct dependency on `qubit-reflect`.
+
+## Quick Start
+
+Consider a login service that needs a stable user identity, must avoid exposing
+email addresses in its logs, and wants framework code to discover a writable
+`email` property. Declare the model once:
+
+```rust
+use qubit_id::Id;
+use qubit_model_derive::{Entity, ModelImpl};
+use qubit_model_metadata::{ModelRegistry, TypeMetadata};
+
+#[Entity(id = "example.User")]
+pub struct User {
+    #[identifier]
+    id: Id,
+    #[unique(ignore_case = true)]
+    #[redact(level = "medium")]
+    email: String,
+}
+
+#[ModelImpl]
+impl User {
+    pub fn email(&self) -> &str { &self.email }
+    pub fn set_email(&mut self, value: String) { self.email = value; }
+}
+
+let metadata = TypeMetadata::of::<User>();
+assert!(metadata.field("id").unwrap().is_identifier());
+assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
+let registry = ModelRegistry::try_global().expect("valid linked model graph");
+assert!(registry.metadata_for(metadata.descriptor()).is_some());
+```
+
+The role macro delegates Rust structure to `qubit-reflect`, then attaches one
+typed `TypeMetadata` capability to that same descriptor. The generated
+`Debug`, `Display`, and `Serialize` implementations use the redaction policy,
+so the email is not emitted as ordinary plain-text output.
+
+Generated model code uses the hidden model ABI v4 facade. Concrete models and
+generic definitions are both discovered through the unified frozen reflection
+snapshot; the model layer owns no separate inventory.
+
+`#[key_part(order = n)]` describes the ordered fields that form the logical
+key of a named `Model` or named `Value`. A key may use only some fields, but
+the selected orders must be unique and contiguous from zero. It is not an
+entity identifier and is therefore rejected on `Entity`, `Projection`,
+`Enum`, and tuple/newtype values.
+
+## Why This Project Exists
+
+Model-aware frameworks need both Rust structure and domain rules. Maintaining
+those facts in a separate schema makes field names, types, accessors, and
+constraints drift apart. This crate compiles the model declaration itself and
+reuses the single `qubit-reflect` descriptor, so metadata consumers observe
+the same structure that Rust code uses.
+
+## What It Provides
+
+Six attribute macros share one parse, normalize, validate, and expand
+pipeline:
+
+- `#[Entity]` declares a persistent, identity-bearing model.
+- `#[Projection]` declares an open or fixed view of an entity.
+- `#[Model]` declares ordinary structured data.
+- `#[Enum]` declares a domain enum and preserves Rust, canonical, and Serde
+  names.
+- `#[Value]` declares a value object; `transparent` supports a one-field
+  wrapper.
+- `#[ModelImpl]` merges public inherent getters and setters with fields
+  into safe property metadata.
+
+The five role macros supply `Clone`, redaction-aware `Debug`, `Display`, and
+`Serialize`, plus `Deserialize`, `PartialEq`, `Eq`, `Hash`, and `Redact` by
+default. Individual `no_*` options disable those interfaces; `copy`,
+`default`, `partial_ord`, and `ord` are opt-in. An all-unit enum is `Copy`
+unless it specifies `no_copy`.
+
+Role attributes must appear before any user `#[derive(...)]`. This lets the
+macro detect implementations that would duplicate or bypass redacted output.
+
+## Boundaries
+
+Direct metadata lookup through `TypeMetadata::of::<T>()` does not initialize
+the global model registry. Descriptor capability and property lookup use the
+frozen reflection snapshot. Use `ModelRegistry`, `ValidatorRegistry`,
+`ValueCodecRegistry`, and
+`ModelResolver` only after all participating crates are linked, when resolving
+IDs, references, projection sources, queries, validators, or codecs.
+`ValueCodecRegistry` requires a direct `qubit-codec` dependency with
+`features = ["registry"]`; it is not part of that crate's default feature set.
+
+Lower-case `#[validator(...)]` emits a validated occurrence. The resolver binds
+its stable ID to a `qubit-validator` registration and resolves readable
+dependencies. Rust codecs become executable `ValueCodecDescriptor`s directly,
+or are bound by stable ID; their exact value type is checked.
+For redacted map keys, serialization fails if distinct source keys redact to
+the same output key instead of silently overwriting data.
+
+The crate describes model semantics; it does not define physical database
+indexes, execute validators, or turn Rust `type_name()` output into a stable
+model identity. Those responsibilities remain with explicit downstream
+consumers and the resolved model graph.
+
+## Learn More
+
+- [English user guide](doc/user_guide.md)
+- [中文用户指南](doc/user_guide.zh_CN.md)
+- Local API documentation: run `cargo doc --open`
+- [Final design](doc/rs-model-derive-final-design.md)
+- [中文 README](README.zh_CN.md)
+
+## Testing
+
+```bash
+# Run tests with the default feature set
+cargo test
+
+# Run tests with all declared features
+cargo test --all-features
+
+# Project CI checks
+./ci-check.sh
+
+# Check code coverage
+./coverage.sh
+```
+
+## License
+
+Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the
+full license text.
+
+## Contributing
+
+Contributions are welcome. Please follow the Rust API guidelines, keep public
+API documentation and tests current, and run `./align-ci.sh` to format code and
+`./ci-check.sh` to satisfy CI requirements before submitting a pull request.
+
+## Author
+
+**Haixing Hu** - *Qubit Co. Ltd.*
+
+Repository: [https://github.com/qubit-ltd/rs-model-derive](https://github.com/qubit-ltd/rs-model-derive)

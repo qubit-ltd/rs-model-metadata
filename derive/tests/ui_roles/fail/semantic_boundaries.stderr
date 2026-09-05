@@ -1,0 +1,47 @@
+error: database-assigned identifiers are only valid for Entity
+  --> tests/ui_roles/fail/semantic_boundaries.rs:27:9
+   |
+27 |     id: Id,
+   |         ^^
+
+error: key_part is only valid on named Model or Value fields
+  --> tests/ui_roles/fail/semantic_boundaries.rs:29:12
+   |
+29 |     value: String,
+   |            ^^^^^^
+
+error: key_part is only valid on named Model or Value fields
+  --> tests/ui_roles/fail/semantic_boundaries.rs:37:12
+   |
+37 |     value: String,
+   |            ^^^^^^
+
+error: key_part is only valid on named Model or Value fields
+  --> tests/ui_roles/fail/semantic_boundaries.rs:44:16
+   |
+44 |         value: String,
+   |                ^^^^^^
+
+error: key_part is only valid on named Model or Value fields
+  --> tests/ui_roles/fail/semantic_boundaries.rs:49:47
+   |
+49 | struct PositionalValue(#[key_part(order = 0)] String);
+   |                                               ^^^^^^
+
+error: unique(ignore_case = true) requires a text field
+  --> tests/ui_roles/fail/semantic_boundaries.rs:54:12
+   |
+54 |     value: u64,
+   |            ^^^
+
+error: text min_chars cannot exceed max_chars
+  --> tests/ui_roles/fail/semantic_boundaries.rs:60:12
+   |
+60 |     value: String,
+   |            ^^^^^^
+
+error: text min_bytes cannot exceed max_bytes
+  --> tests/ui_roles/fail/semantic_boundaries.rs:60:12
+   |
+60 |     value: String,
+   |            ^^^^^^

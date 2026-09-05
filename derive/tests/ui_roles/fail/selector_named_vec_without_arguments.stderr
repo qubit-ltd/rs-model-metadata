@@ -1,0 +1,27 @@
+error[E0277]: the trait bound `Vec: SequenceConstraintTarget` is not satisfied
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:36:12
+   |
+36 |     value: Vec,
+   |            ^^^ unsatisfied trait bound
+   |
+help: the trait `SequenceConstraintTarget` is not implemented for `Vec`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:25:1
+   |
+25 | struct Vec;
+   | ^^^^^^^^^^
+   = help: the following other types implement trait `SequenceConstraintTarget`:
+             Arc<T>
+             BTreeSet<T>
+             BinaryHeap<T>
+             Box<T>
+             HashSet<T>
+             LinkedList<T>
+             Rc<T>
+             VecDeque<T>
+           and $N others
+note: required by a bound in `assert_sequence_target`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:33:1
+   |
+33 | #[Model]
+   | ^^^^^^^^ required by this bound in `assert_sequence_target`
+   = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
