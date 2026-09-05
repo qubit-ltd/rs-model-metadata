@@ -31,12 +31,6 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          repository: qubit-ltd/rs-model-derive
-          ref: main
-          path: platform/rs-model-derive
-
-      - uses: actions/checkout@v6
-        with:
           repository: qubit-ltd/rs-platform
           ref: main
           path: platform/rs-platform

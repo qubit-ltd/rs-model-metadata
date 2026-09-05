@@ -29,7 +29,7 @@ Projection 来源和 Query 则需要在完整链接的模型集合中解析。
 
 ```toml
 [dependencies]
-qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 qubit-codec = { version = "0.14", features = ["registry"] }

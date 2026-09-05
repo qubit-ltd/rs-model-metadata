@@ -2,14 +2,29 @@
   "version": 1,
   "checks": [
     {
-      "name": "core",
+      "name": "metadata-core",
       "commands": ["check", "test", "doc"],
+      "packages": ["qubit-model-metadata"],
       "defaultFeatures": false,
       "features": []
     },
     {
-      "name": "all-root",
+      "name": "metadata-all-features",
       "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-model-metadata"],
+      "allFeatures": true
+    },
+    {
+      "name": "derive-core",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-model-derive"],
+      "defaultFeatures": false,
+      "features": []
+    },
+    {
+      "name": "derive-all-features",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-model-derive"],
       "allFeatures": true
     }
   ]

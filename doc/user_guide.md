@@ -46,7 +46,7 @@ adjacent checkouts, adjusting paths for your workspace:
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
-qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
 qubit-codec = { version = "0.14", features = ["registry"] }
@@ -275,7 +275,7 @@ configuration is unrecoverable.
 
 - [README](../README.md)
 - [简体中文用户指南](user_guide.zh_CN.md)
-- [`qubit-model-derive` declaration guide](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.md)
+- [`qubit-model-derive` declaration guide](../derive/doc/user_guide.md)
 - Local API documentation: run `cargo doc --open`
 
 ## Snapshot-scoped property queries

@@ -5,7 +5,7 @@ error[E0277]: the trait bound `u64: IdentifierType` is not satisfied
    |         ^^^ the trait `IdentifierType` is not implemented for `u64`
    |
 help: the trait `IdentifierType` is implemented for `Id`
-  --> $MODEL_RUNTIME/src/__private.rs
+  --> $WORKSPACE/src/__private.rs
    |
    |     impl IdentifierType for Id {}
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -8,5 +8,5 @@ publish = false
 
 [dependencies]
 qubit-model-derive = { path = "../../../" }
-qubit-model-metadata = { path = "../../../../rs-model-metadata" }
+qubit-model-metadata = { path = "../../../.." }
 serde = { version = "1", features = ["derive"] }

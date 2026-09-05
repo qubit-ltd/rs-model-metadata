@@ -5,3 +5,6 @@ multiple-public-types | src/metadata_resolver.rs | Resolver inputs, outputs, que
 multiple-public-types | src/model_registration.rs | Registration target, record, and factory form one inventory contract
 multiple-public-types | src/property.rs | Property values, adapters, metadata, and failures form one safe access contract
 multiple-public-types | src/role.rs | Role tags and role-specific payloads form one closed metadata vocabulary
+multiple-public-types | derive/src/attribute/reference_attribute.rs | Reference paths and their containing attribute form one composite parsed value
+multiple-public-types | derive/src/expand/metadata.rs | The declaration intermediate representation is intentionally co-located so parsing, normalization, validation, and token generation share one private semantic vocabulary
+multiple-public-types | derive/src/ir/declaration.rs | The declaration IR is one private semantic vocabulary shared by parsing, normalization, validation, and expansion

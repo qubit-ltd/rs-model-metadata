@@ -37,7 +37,7 @@ Qubit 模型 crate 目前仅供内部使用且不发布。请从相邻检出目�
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
-qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
 qubit-codec = { version = "0.14", features = ["registry"] }
@@ -215,7 +215,7 @@ ID。直接调用 `TypeMetadata::of` 的静态查询应与全局模型注册表�
 
 - [README](../README.zh_CN.md)
 - [English user guide](user_guide.md)
-- [`qubit-model-derive` 声明指南](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.zh_CN.md)
+- [`qubit-model-derive` 声明指南](../derive/doc/user_guide.zh_CN.md)
 - 本地 API 文档：运行 `cargo doc --open`
 
 ## 使用显式快照查询属性

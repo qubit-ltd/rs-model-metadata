@@ -18,7 +18,7 @@
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
-qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
@@ -80,7 +80,8 @@ metadata 在穿过隐藏 model ABI v4 边界前，会校验 descriptor、Field�
 
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
-- [`qubit-model-derive` 声明指南](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.zh_CN.md)
+- [`qubit-model-derive` 声明指南](derive/doc/user_guide.zh_CN.md)
+- 配套的 derive crate 位于本仓库的 [`derive/`](derive/) workspace member 中。
 - 本地 API 文档：运行 `cargo doc --open`
 - [English README](README.md)
 

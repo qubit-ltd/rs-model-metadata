@@ -21,7 +21,7 @@ paths and adjust them for your workspace layout:
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
-qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
@@ -97,7 +97,8 @@ code uses only the curated model facade and its exact private ABI.
 
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
-- [`qubit-model-derive` declaration guide](https://github.com/qubit-ltd/rs-model-derive/blob/main/doc/user_guide.md)
+- [`qubit-model-derive` declaration guide](derive/doc/user_guide.md)
+- The paired derive crate lives in this repository's [`derive/`](derive/) workspace member.
 - Local API documentation: run `cargo doc --open`
 - [中文版 README](README.zh_CN.md)
 

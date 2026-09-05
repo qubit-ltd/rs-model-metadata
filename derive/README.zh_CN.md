@@ -1,7 +1,7 @@
 # qubit-model-derive
 
-[![Rust CI](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-derive/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-derive/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-derive/coverage/)
+[![Rust CI](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-metadata/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-metadata/coverage/)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
@@ -16,7 +16,7 @@
 
 ```toml
 [dependencies]
-qubit-model-derive = { version = "0.1", path = "../rs-model-derive" }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
 qubit-id = "0.6"
 ```
@@ -145,4 +145,4 @@ Pull Request 前运行 `./align-ci.sh`格式化代码，运行`./ci-check.sh`对
 
 **Haixing Hu** - *Qubit Co. Ltd.*
 
-仓库地址：[https://github.com/qubit-ltd/rs-model-derive](https://github.com/qubit-ltd/rs-model-derive)
+仓库地址：[https://github.com/qubit-ltd/rs-model-metadata/tree/main/derive](https://github.com/qubit-ltd/rs-model-metadata/tree/main/derive)

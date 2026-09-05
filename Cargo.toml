@@ -22,6 +22,11 @@ include = [
     "/tests/**",
 ]
 
+[workspace]
+members = ["derive"]
+exclude = ["derive/tests/runtime-fixtures/*"]
+resolver = "3"
+
 [lib]
 name = "qubit_model_metadata"
 doctest = true
