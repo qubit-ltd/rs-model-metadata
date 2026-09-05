@@ -218,7 +218,10 @@ fn test_role_macros_generate_metadata_capability_and_registration() {
         assert_eq!(metadata.model_id().map(|value| value.as_str()), Some(id));
         assert!(std::ptr::eq(
             metadata,
-            registry.metadata_for(metadata.descriptor()).expect("model capability"),
+            registry
+                .metadata_for(metadata.descriptor())
+                .expect("valid model capability")
+                .expect("model provider"),
         ));
         assert!(std::ptr::eq(
             registry.metadata(id).expect("registry metadata"),
@@ -293,7 +296,7 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
     assert_eq!(email.to_string(), "a@example.com");
     assert!(format!("{email:?}").starts_with("Email("));
     assert_eq!(serde_json::to_string(&email).unwrap(), r#""a@example.com""#);
-    let redacted = Redactor::application_default().redact(&email);
+    let redacted = Redactor::application_default().redact_text(&email);
     assert_eq!(redacted.text().as_str(), "\"a@example.com\"");
     let restored: Email = serde_json::from_str(r#""restored@example.com""#).unwrap();
     assert_eq!(restored.0, "restored@example.com");
@@ -305,7 +308,7 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
     let restored: Handle = serde_json::from_str(r#""bob""#).unwrap();
     assert_eq!(restored.value, "bob");
     let secret = SecretValue("raw-secret".to_owned());
-    let redacted = Redactor::application_default().redact(&secret);
+    let redacted = Redactor::application_default().redact_text(&secret);
     assert!(!redacted.text().as_str().contains("raw-secret"));
     assert!(format!("{secret:?}").starts_with("SecretValue("));
     assert!(!format!("{secret:?}").contains("raw-secret"));
@@ -339,7 +342,7 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
     assert!(!serialized.contains("key"));
     assert!(!serialized.contains("tag-secret"));
     assert!(!serialized.contains("map-secret"));
-    let redacted = Redactor::application_default().redact(&payload);
+    let redacted = Redactor::application_default().redact_text(&payload);
     assert!(!redacted.text().as_str().contains("key"));
     let _ = Status::Ready;
     let Status::Failed { message } = (Status::Failed { message: "x".into() }) else {
@@ -399,7 +402,12 @@ fn test_generic_model_registers_only_its_definition() {
     let concrete = TypeMetadata::of::<Page<u64>>();
     assert_eq!(concrete.model_id(), None);
     let registry = ModelRegistry::try_global().expect("generic registration");
-    assert!(registry.metadata_for(concrete.descriptor()).is_some());
+    assert!(
+        registry
+            .metadata_for(concrete.descriptor())
+            .expect("valid concrete model capability")
+            .is_some()
+    );
     let definition = concrete.generic_definition().expect("generic definition");
     assert_eq!(definition.model_id().as_str(), "runtime.Page");
     assert_eq!(definition.definition().generics().parameters().len(), 1);

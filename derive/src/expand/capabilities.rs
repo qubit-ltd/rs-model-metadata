@@ -227,7 +227,7 @@ pub(super) fn expand_display(declaration: &DeclarationIr, item: &DeriveInput, ru
             None => (format!("{}(", name), ")".to_owned()),
         };
         quote! {
-            let output = #runtime::__private::v4::Redactor::application_default().redact(self);
+            let output = #runtime::__private::v4::Redactor::application_default().redact_text(self);
             let text = output.text().as_str();
             let text = text
                 .strip_prefix(#prefix)
