@@ -5,12 +5,16 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+// qubit-style: allow test-file-name
+// The filename is part of a Cargo or trybuild fixture protocol.
 
-//! Parses model macro syntax into the compiler intermediate representation.
+//! Rejects configuration arguments supplied to `ModelImpl`.
 
-pub(crate) mod constraints;
-pub(crate) mod declaration;
-pub(crate) mod fields;
-pub(crate) mod options;
-pub(crate) mod validator;
-pub(crate) mod vocabulary;
+use qubit_model_derive::ModelImpl;
+
+struct Account;
+
+#[ModelImpl(unexpected)]
+impl Account {}
+
+fn main() {}

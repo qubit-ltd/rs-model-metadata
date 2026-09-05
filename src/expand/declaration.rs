@@ -50,6 +50,12 @@ pub(crate) fn expand(kind: MacroKind, args: TokenStream, input: TokenStream) -> 
 fn expand_result(kind: MacroKind, args: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let raw_options = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     if kind == MacroKind::ModelImpl {
+        if let Some(option) = raw_options.first() {
+            return Err(Error::new_spanned(
+                option,
+                "ModelImpl does not accept configuration arguments",
+            ));
+        }
         let item: ItemImpl = parse2(input)?;
         validate_model_impl(&item)?;
         let runtime = runtime_path()?;

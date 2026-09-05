@@ -29,6 +29,7 @@ use syn::spanned::Spanned;
 use super::constraints::is_constraint_attribute;
 use super::constraints::parse_constraint;
 use super::validator::parse_validator;
+use super::vocabulary::validate_redact_level;
 use crate::compiler::diagnostics::Diagnostics;
 use crate::ir::Located;
 use crate::ir::declaration::CodecIr;
@@ -49,13 +50,28 @@ impl FieldIr {
     pub(crate) fn parse(index: usize, ty: &Type, attributes: &[Attribute], named: bool) -> Result<Self> {
         let mut occurrences = Vec::new();
         let mut keep_serializing = false;
+        let mut identifier = false;
+        let mut indexed = false;
+        let mut opaque = false;
         let mut diagnostics = Diagnostics::default();
         for attribute in attributes {
             let result = if attribute.path().is_ident("identifier") {
-                parse_identifier(attribute).map(|value| occurrences.push(FieldOccurrence::Identifier(value)))
+                if identifier {
+                    Err(Error::new_spanned(attribute, "duplicate identifier marker"))
+                } else {
+                    identifier = true;
+                    parse_identifier(attribute).map(|value| occurrences.push(FieldOccurrence::Identifier(value)))
+                }
             } else if attribute.path().is_ident("indexed") {
-                occurrences.push(FieldOccurrence::Indexed);
-                Ok(())
+                if !matches!(attribute.meta, Meta::Path(_)) {
+                    Err(Error::new_spanned(attribute, "indexed is a marker without arguments"))
+                } else if indexed {
+                    Err(Error::new_spanned(attribute, "duplicate indexed marker"))
+                } else {
+                    indexed = true;
+                    occurrences.push(FieldOccurrence::Indexed);
+                    Ok(())
+                }
             } else if attribute.path().is_ident("unique") {
                 parse_unique(attribute).map(|value| occurrences.push(FieldOccurrence::Unique(value)))
             } else if attribute.path().is_ident("reference") {
@@ -82,8 +98,15 @@ impl FieldIr {
             } else if attribute.path().is_ident("serde") {
                 parse_serde(attribute).map(|value| occurrences.push(FieldOccurrence::Serde(value)))
             } else if attribute.path().is_ident("opaque") {
-                occurrences.push(FieldOccurrence::Opaque);
-                Ok(())
+                if !matches!(attribute.meta, Meta::Path(_)) {
+                    Err(Error::new_spanned(attribute, "opaque is a marker without arguments"))
+                } else if opaque {
+                    Err(Error::new_spanned(attribute, "duplicate opaque marker"))
+                } else {
+                    opaque = true;
+                    occurrences.push(FieldOccurrence::Opaque);
+                    Ok(())
+                }
             } else if attribute.path().is_ident("keep_serializing") {
                 if !matches!(attribute.meta, Meta::Path(_)) {
                     Err(Error::new_spanned(
@@ -123,6 +146,9 @@ fn parse_identifier(attribute: &Attribute) -> Result<IdentifierAssignmentIr> {
     attribute.parse_nested_meta(|meta| {
         if !meta.path.is_ident("assigned_by") {
             return Err(meta.error("unsupported identifier option"));
+        }
+        if assignment.is_some() {
+            return Err(meta.error("duplicate identifier `assigned_by` option"));
         }
         let value = parse_ident_value(meta.value()?.parse()?)?;
         assignment = Some(match value.as_str() {
@@ -355,7 +381,9 @@ fn parse_redact(attribute: &Attribute) -> Result<RedactIr> {
     let mut mode = None;
     attribute.parse_nested_meta(|meta| {
         let current = if meta.path.is_ident("level") {
-            RedactModeIr::Level(meta.value()?.parse::<LitStr>()?.value())
+            let level = meta.value()?.parse::<LitStr>()?;
+            validate_redact_level(&level)?;
+            RedactModeIr::Level(level.value())
         } else if meta.path.is_ident("skip") {
             RedactModeIr::Skip
         } else if meta.path.is_ident("nested") {
@@ -517,6 +545,23 @@ mod tests {
         assert!(parsed.named);
         assert!(parsed.keep_serializing);
         assert_eq!(parsed.occurrences.len(), 13);
+    }
+
+    /// Confirms singleton field markers and redact levels are rejected early.
+    #[test]
+    fn test_rejects_duplicate_markers_and_unknown_redact_level() {
+        let fields: [Field; 7] = [
+            parse_quote!(#[identifier] #[identifier] value: String),
+            parse_quote!(#[identifier(assigned_by = application, assigned_by = database)] value: String),
+            parse_quote!(#[indexed] #[indexed] value: String),
+            parse_quote!(#[opaque] #[opaque] value: String),
+            parse_quote!(#[indexed(unexpected)] value: String),
+            parse_quote!(#[opaque(unexpected)] value: String),
+            parse_quote!(#[redact(level = "unsupported")] value: String),
+        ];
+        for field in fields {
+            assert!(FieldIr::parse(0, &field.ty, &field.attrs, true).is_err());
+        }
     }
 
     /// Covers invalid field options and marker shapes without panicking.

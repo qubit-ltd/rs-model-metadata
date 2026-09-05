@@ -14,12 +14,14 @@ use std::iter::repeat_n;
 
 use syn::Attribute;
 use syn::Error;
+use syn::Expr;
 use syn::LitBool;
 use syn::LitInt;
 use syn::LitStr;
 use syn::Result;
 
 use super::fields::parse_ident_value;
+use super::vocabulary::validate_closed_value;
 use crate::ir::declaration::ConstraintIr;
 use crate::ir::declaration::DecimalConstraintIr;
 use crate::ir::declaration::TextConstraintIr;
@@ -49,7 +51,14 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
         let mut precision = None;
         attribute.parse_nested_meta(|meta| {
             if meta.path.is_ident("precision") {
-                let value = parse_ident_value(meta.value()?.parse()?)?;
+                let expression: Expr = meta.value()?.parse()?;
+                let value = parse_ident_value(expression.clone())?;
+                validate_closed_value(
+                    &expression,
+                    &value,
+                    &["second", "millisecond", "microsecond", "nanosecond"],
+                    "invalid time precision",
+                )?;
                 if precision.replace(value).is_some() {
                     return Err(meta.error("duplicate time `precision` option"));
                 }
@@ -148,10 +157,26 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
             value.non_blank = true;
             Ok(())
         } else if meta.path.is_ident("allowed_chars") {
-            value.allowed_chars = Some(parse_ident_value(meta.value()?.parse()?)?);
+            let expression: Expr = meta.value()?.parse()?;
+            let allowed_chars = parse_ident_value(expression.clone())?;
+            validate_closed_value(
+                &expression,
+                &allowed_chars,
+                &["unicode", "printable_unicode", "ascii", "printable_ascii", "code"],
+                "invalid allowed_chars value",
+            )?;
+            value.allowed_chars = Some(allowed_chars);
             Ok(())
         } else if meta.path.is_ident("format") {
-            value.format = Some(parse_ident_value(meta.value()?.parse()?)?);
+            let expression: Expr = meta.value()?.parse()?;
+            let format = parse_ident_value(expression.clone())?;
+            validate_closed_value(
+                &expression,
+                &format,
+                &["email", "cn_mobile", "uri", "uuid"],
+                "invalid text format",
+            )?;
+            value.format = Some(format);
             Ok(())
         } else {
             Err(meta.error("unsupported text option"))
@@ -189,7 +214,24 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
             scale = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
             Ok(())
         } else if meta.path.is_ident("rounding") {
-            rounding = Some(parse_ident_value(meta.value()?.parse()?)?);
+            let expression: Expr = meta.value()?.parse()?;
+            let value = parse_ident_value(expression.clone())?;
+            validate_closed_value(
+                &expression,
+                &value,
+                &[
+                    "down",
+                    "up",
+                    "ceiling",
+                    "floor",
+                    "half_up",
+                    "half_down",
+                    "half_even",
+                    "unnecessary",
+                ],
+                "invalid rounding mode",
+            )?;
+            rounding = Some(value);
             Ok(())
         } else if meta.path.is_ident("min") {
             min = Some(meta.value()?.parse()?);
@@ -315,7 +357,10 @@ fn compare_decimal_literals(left: &str, right: &str) -> Option<Ordering> {
 mod tests {
     use core::cmp::Ordering;
 
+    use syn::parse_quote;
+
     use super::compare_decimal_literals;
+    use super::parse_constraint;
     use super::parse_decimal_literal;
 
     /// Verifies the documented decimal spelling boundaries and normalization
@@ -328,5 +373,18 @@ mod tests {
         assert_eq!(parse_decimal_literal("+1"), None);
         assert_eq!(parse_decimal_literal("1.2.3"), None);
         assert_eq!(compare_decimal_literals("001.20", "1.2"), Some(Ordering::Equal));
+    }
+
+    /// Confirms closed-vocabulary constraint options are rejected by parsing.
+    #[test]
+    fn test_rejects_unknown_closed_vocabulary_values() {
+        for attribute in [
+            parse_quote!(#[text(allowed_chars = unsupported)]),
+            parse_quote!(#[text(format = unsupported)]),
+            parse_quote!(#[decimal(rounding = unsupported)]),
+            parse_quote!(#[time(precision = unsupported)]),
+        ] {
+            assert!(parse_constraint(&attribute).is_err());
+        }
     }
 }

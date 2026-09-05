@@ -1,0 +1,29 @@
+error: invalid allowed_chars value
+  --> tests/ui_roles/fail/invalid_closed_values.rs:17:28
+   |
+17 |     #[text(allowed_chars = unsupported)]
+   |                            ^^^^^^^^^^^
+
+error: invalid text format
+  --> tests/ui_roles/fail/invalid_closed_values.rs:19:21
+   |
+19 |     #[text(format = unsupported)]
+   |                     ^^^^^^^^^^^
+
+error: invalid rounding mode
+  --> tests/ui_roles/fail/invalid_closed_values.rs:21:26
+   |
+21 |     #[decimal(rounding = unsupported)]
+   |                          ^^^^^^^^^^^
+
+error: invalid time precision
+  --> tests/ui_roles/fail/invalid_closed_values.rs:23:24
+   |
+23 |     #[time(precision = unsupported)]
+   |                        ^^^^^^^^^^^
+
+error: redact level must be low, medium, high, or secret
+  --> tests/ui_roles/fail/invalid_closed_values.rs:25:22
+   |
+25 |     #[redact(level = "unsupported")]
+   |                      ^^^^^^^^^^^^^
