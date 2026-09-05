@@ -158,7 +158,7 @@ fn expand_generic_registration(
     runtime: &TokenStream,
 ) -> TokenStream {
     let snake_name = ident.to_string().to_snake_case();
-    let definition_fn = format_ident!("__qubit_reflect_type_definition_{}", ident);
+    let definition_fn = format_ident!("__qubit_model_reflect_definition_{}", ident);
     let registration_module = format_ident!("__qubit_model_generic_capability_{}", snake_name);
     let role = match kind {
         MacroKind::Model => quote!(#runtime::ModelRole::Model),

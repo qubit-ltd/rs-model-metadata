@@ -14,6 +14,7 @@
 // hygiene.
 
 use proc_macro2::TokenStream;
+use quote::format_ident;
 use quote::quote;
 use syn::DeriveInput;
 use syn::Error;
@@ -80,6 +81,11 @@ fn expand_result(kind: MacroKind, args: TokenStream, input: TokenStream) -> Resu
     rewrite_field_helpers(&mut item.data, &declaration);
     item.attrs.push(parse_quote!(#[derive(#runtime::Reflect)]));
     item.attrs.push(parse_quote!(#[reflect(crate = #runtime)]));
+    if !item.generics.params.is_empty() && declaration.options.id.is_some() {
+        let provider = format_ident!("__qubit_model_reflect_definition_{}", item.ident);
+        item.attrs
+            .push(parse_quote!(#[reflect(definition_provider_v2 = #provider)]));
+    }
     item.attrs
         .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v4::model_capability))]));
     let display = expand_display(&declaration, &item, &runtime);

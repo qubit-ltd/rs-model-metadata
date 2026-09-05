@@ -135,3 +135,9 @@ Release acceptance requires the style checker, full crate CI, coverage gates,
 and downstream integration to pass without broad exclusions or lowered
 thresholds. The historical discussion log remains archived and is not a
 specification source.
+
+## Snapshot and provider revision, 2026-09-05
+
+Global property queries return `PropertyResolutionError`, distinguishing reflection initialization (`Reflection`) from declaration assembly (`Assembly`). `property_fragments` is also fallible. Explicit `_in` queries and `ModelRegistry::properties_for` use the supplied snapshot, including during `ModelResolver` traversal.
+
+Generic model macros select their own provider identifier through `definition_provider_v2`; its parameterless function returns the canonical static type definition without choosing a monomorph. Model generators never infer reflect's internal function names. Concrete model capabilities must keep providers isolated by `TypeId`.

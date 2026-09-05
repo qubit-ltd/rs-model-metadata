@@ -193,8 +193,8 @@ impl TypeMetadata {
     pub fn field(&self, name: &str) -> Option<&'static FieldMetadata>;
     pub fn field_at(&self, index: usize) -> Option<&'static FieldMetadata>;
 
-    pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors>;
-    pub fn try_property(&'static self, name: &str) -> Result<Option<&'static PropertyMetadata>, &'static PropertyBuildErrors>;
+    pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, PropertyResolutionError>;
+    pub fn try_property(&'static self, name: &str) -> Result<Option<&'static PropertyMetadata>, PropertyResolutionError>;
 
     pub fn role(&self) -> ModelRole;
     pub fn role_metadata(&self) -> &'static RoleMetadata;
@@ -1085,3 +1085,9 @@ cargo doc --manifest-path rs-model-derive/Cargo.toml --all-features --no-deps
 - 需求规范明确排除的旧 API 在公开导出、parser、IR、expansion、README 和用户指南中均不存在。
 - `rs-reflect`、`rs-model-metadata`、`rs-model-derive` 的 test、clippy、rustdoc、style 和 CI 全部通过。
 - 需求规范、本文、公开 Rust API、README 与用户指南使用同一组最终术语和约束。
+
+## 2026-09-05 快照与生成协议修订
+
+全局 `try_properties`/`try_property` 使用 `PropertyResolutionError` 区分 `Reflection` 初始化错误和 `Assembly` 属性组装错误；`property_fragments` 也返回 `Result`，不得将注册失败当作缺少 overlay。显式 `try_properties_in`/`try_property_in`/`property_fragments_in` 使用传入的反射快照，`ModelResolver` 通过自己的 `ModelRegistry::properties_for` 查询，不访问全局反射状态。
+
+泛型模型宏指定自己拥有的 `definition_provider_v2` 函数名；反射宏根据版本化契约生成无参数定义访问入口。模型宏不再推测反射宏的内部命名，所有具体模型 capability 必须使用按 `TypeId` 隔离的 provider。

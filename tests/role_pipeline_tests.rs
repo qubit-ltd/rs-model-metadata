@@ -9,6 +9,7 @@
 //! Runtime smoke coverage for all six shared macro entry points.
 
 use model_runtime::__private::qubit_id::Id;
+use model_runtime::ModelRegistry;
 use model_runtime::TypeDescriptor;
 use model_runtime::TypeMetadata;
 use qubit_model_derive::Entity;
@@ -101,4 +102,30 @@ fn test_generic_metadata_initialization_is_unique_across_threads() {
         .collect::<Vec<_>>();
 
     assert!(addresses.iter().all(|address| *address == addresses[0]));
+}
+
+/// Effective model providers must remain specific to each concrete generic
+/// type.
+#[test]
+fn test_registry_generic_model_providers_preserve_concrete_type() {
+    let registry = ModelRegistry::try_global().expect("valid model registry");
+    let definition = registry
+        .generic("example.GenericModel")
+        .expect("generic definition without instantiation");
+    let first = registry
+        .metadata_for(TypeDescriptor::of::<GenericModel<u64>>())
+        .expect("u64 model provider");
+    let second = registry
+        .metadata_for(TypeDescriptor::of::<GenericModel<String>>())
+        .expect("String model provider");
+    assert_eq!(first.type_id(), std::any::TypeId::of::<GenericModel<u64>>());
+    assert_eq!(second.type_id(), std::any::TypeId::of::<GenericModel<String>>());
+    assert!(std::ptr::eq(
+        first.generic_definition().expect("first definition"),
+        definition
+    ));
+    assert!(std::ptr::eq(
+        second.generic_definition().expect("second definition"),
+        definition
+    ));
 }

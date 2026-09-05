@@ -11,6 +11,7 @@
 use model_runtime::ModelRegistry;
 use model_runtime::ModelResolveErrorKind;
 use model_runtime::ModelResolver;
+use model_runtime::PropertyResolutionError;
 use model_runtime::PropertyStorageKind;
 use model_runtime::PropertyValue;
 use model_runtime::ReflectedMut;
@@ -75,7 +76,10 @@ impl Profile {
 #[test]
 fn test_model_impl_merges_fields_getters_and_setters() {
     let metadata = TypeMetadata::of::<Profile>();
-    assert_eq!(metadata.property_fragments().len(), 10);
+    assert_eq!(
+        metadata.property_fragments().expect("valid reflection registry").len(),
+        10
+    );
     let properties = metadata.try_properties().expect("profile properties must merge");
     let name = properties.property("name").expect("merged name property");
     let visits = properties.property("visits").expect("field property");
@@ -137,6 +141,9 @@ fn test_model_impl_reports_field_getter_mismatch_without_panicking() {
         .try_properties()
         .expect_err("field and getter types must be incompatible");
 
+    let PropertyResolutionError::Assembly(errors) = errors else {
+        panic!("expected property assembly errors");
+    };
     assert_eq!(errors.errors().len(), 1);
     assert_eq!(errors.errors()[0].property_name(), "value");
 
