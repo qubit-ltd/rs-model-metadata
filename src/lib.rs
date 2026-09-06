@@ -175,6 +175,7 @@ pub use crate::validation::ValidationMode;
 pub use crate::validation::ValidationOptions;
 #[cfg(feature = "validation")]
 pub use crate::validation::ModelRuleBinding;
+#[cfg(feature = "validation")]
 pub use crate::validation::ValidationPlan;
 #[cfg(feature = "validation")]
 pub use crate::validation::ValidationSelection;
