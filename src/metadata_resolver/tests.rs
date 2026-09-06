@@ -9,8 +9,8 @@
 //! Regression tests for fallible property path traversal.
 
 use qubit_codec::ValueCodecRegistry;
-use qubit_reflect::__private::testing::build_registry;
 use qubit_reflect::capability::CapabilityDescriptor;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
 use qubit_validator::ValidatorRegistry;
 
 use super::ModelResolutionCause;
@@ -48,7 +48,7 @@ fn broken_overlay<T: 'static>() -> CapabilityDescriptor {
 
 #[test]
 fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
-    let reflection = build_registry(&[]).unwrap();
+    let reflection = RegistrySnapshotBuilder::new().build().unwrap();
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
     let metadata = v4::leak(
         v4::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Broken<1>>(), None, &[], v4::leak(v4::model_role()))
