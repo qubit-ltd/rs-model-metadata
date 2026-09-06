@@ -1,6 +1,6 @@
 //! Errors raised by the model validation execution boundary.
 
-use qubit_validator::next::{ExecutionError, ValidationReport};
+use qubit_validator::{ExecutionError, ValidationReport};
 
 /// An infrastructure error together with the report collected before it.
 pub struct ModelValidationError {

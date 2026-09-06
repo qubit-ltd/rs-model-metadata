@@ -28,7 +28,6 @@ use qubit_model_metadata::TypeMetadata;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
-use qubit_validator::ValidatorRegistry;
 
 #[allow(
     clippy::extra_unused_type_parameters,
@@ -97,7 +96,6 @@ fn test_path_conflict_and_missing_target_are_both_reported() {
     let models = ModelRegistry::try_global().unwrap();
     let errors = ModelResolver::new(ResolveInputs {
         models,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()

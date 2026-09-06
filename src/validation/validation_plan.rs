@@ -2,9 +2,9 @@
 
 #![allow(dead_code)]
 
-use qubit_validator::next::BindError;
-use qubit_validator::next::BindErrorKind;
-use qubit_validator::next::BoundValidator;
+use qubit_validator::BindError;
+use qubit_validator::BindErrorKind;
+use qubit_validator::BoundValidator;
 use qubit_validator::ValidatorId;
 
 use super::compiled_property_path::CompiledPropertyPath;

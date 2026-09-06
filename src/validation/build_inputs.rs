@@ -1,7 +1,7 @@
 //! Inputs for constructing an isolated validation plan.
 
 use crate::ResolvedModelGraph;
-use qubit_validator::next::ValidatorRegistry;
+use qubit_validator::ValidatorRegistry;
 
 /// Immutable registries used by one validation-plan build.
 pub struct ValidationBuildInputs<'a> {

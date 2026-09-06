@@ -5,7 +5,7 @@
 use std::any::TypeId;
 
 use qubit_reflect::TypeDescriptor;
-use qubit_validator::next::InputType;
+use qubit_validator::InputType;
 
 /// Returns the executable input shape for a reflected type in value mode.
 pub(crate) fn input_type(descriptor: &'static TypeDescriptor) -> InputType {

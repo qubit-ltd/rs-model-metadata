@@ -26,7 +26,6 @@ fn main() {
     assert!(registry.metadata("test.linked.MissingTarget").is_some());
     let errors = ModelResolver::new(ResolveInputs {
         models: registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
         .resolve_all()

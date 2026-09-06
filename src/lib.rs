@@ -127,7 +127,6 @@ pub use crate::metadata_resolver::ResolvedModelGraph;
 pub use crate::metadata_resolver::ResolvedProjectionProducer;
 pub use crate::metadata_resolver::ResolvedProjectionSource;
 pub use crate::metadata_resolver::ResolvedReference;
-pub use crate::metadata_resolver::ResolvedValidator;
 pub use crate::metadata_resolver::UniqueQueryKey;
 pub use crate::model_id::ModelId;
 pub use crate::model_id::ModelIdBuf;

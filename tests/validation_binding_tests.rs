@@ -11,20 +11,19 @@ use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::TypeMetadata;
 use qubit_model_metadata::ValidationBuildInputs;
 use qubit_model_metadata::ValidationPlan;
-use qubit_validator::next::BindError;
-use qubit_validator::next::BoundValidationContext;
-use qubit_validator::next::ExecutionError;
-use qubit_validator::next::InputType;
-use qubit_validator::next::PreparedValidator;
+use qubit_validator::BindError;
+use qubit_validator::BoundValidationContext;
+use qubit_validator::ExecutionError;
+use qubit_validator::InputType;
+use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
-use qubit_validator::next::RuleOutcome;
-use qubit_validator::next::ValidationValue;
-use qubit_validator::next::ValidatorDescriptor;
+use qubit_validator::RuleOutcome;
+use qubit_validator::ValidationValue;
+use qubit_validator::ValidatorDescriptor;
 use qubit_validator::ValidatorId;
-use qubit_validator::next::ValidatorRegistry as NextValidatorRegistry;
-use qubit_validator::next::ValidatorRegistration;
-use qubit_validator::next::ValidatorSignature;
-use qubit_validator::ValidatorRegistry as LegacyValidatorRegistry;
+use qubit_validator::ValidatorRegistration;
+use qubit_validator::ValidatorSignature;
+use qubit_validator::ValidatorRegistry;
 
 #[Model(id = "test.Owner")]
 struct Owner {
@@ -80,12 +79,10 @@ fn source() -> &'static FragmentIdentity {
 
 fn inputs<'a>(
     models: &'a ModelRegistry<'a>,
-    validators: &'a LegacyValidatorRegistry,
     codecs: &'a ValueCodecRegistry,
 ) -> ResolveInputs<'a> {
     ResolveInputs {
         models,
-        validators,
         codecs,
     }
 }
@@ -96,11 +93,10 @@ fn structure_resolution_and_binding_are_separate() {
     let fixture = TypeMetadata::of::<BindingFixture>();
     let models = ModelRegistry::from_metadata(&[(owner, source()), (fixture, source())], &[])
         .expect("isolated model registry");
-    let validators = NextValidatorRegistry::from_registrations([TEXT_REGISTRATION])
+    let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION])
         .expect("isolated validator registry");
-    let legacy_validators = LegacyValidatorRegistry::empty();
     let codecs = ValueCodecRegistry::empty();
-    let graph = ModelResolver::new(inputs(&models, &legacy_validators, &codecs))
+    let graph = ModelResolver::new(inputs(&models, &codecs))
         .resolve_structure()
         .expect("structure does not require validator lookup");
 

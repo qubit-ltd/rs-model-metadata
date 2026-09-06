@@ -6,9 +6,9 @@ use std::any::TypeId;
 
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeKind;
-use qubit_validator::next::BindError;
-use qubit_validator::next::BindErrorKind;
-use qubit_validator::next::InputType;
+use qubit_validator::BindError;
+use qubit_validator::BindErrorKind;
+use qubit_validator::InputType;
 
 use crate::PropertyMetadata;
 use crate::PropertyPath;

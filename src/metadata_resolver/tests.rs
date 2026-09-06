@@ -11,7 +11,6 @@
 use qubit_codec::ValueCodecRegistry;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
-use qubit_validator::ValidatorRegistry;
 
 use super::ModelResolutionCause;
 use super::resolve_property_path;
@@ -83,7 +82,6 @@ fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
     let models = ModelRegistry::try_global().unwrap();
     let errors = super::ModelResolver::new(super::ResolveInputs {
         models,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()

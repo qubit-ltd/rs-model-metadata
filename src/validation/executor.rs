@@ -1,7 +1,7 @@
 //! Borrow-preserving execution of a bound validation plan.
 
 use qubit_reflect::ReflectedRef;
-use qubit_validator::next::{BoundValidationContext, ExecutionError, ExecutionErrorKind, RuleOutcome, SkipReason, SkippedValidation, ValidationPath, ValidationReport, ValidationValue, Violation, ViolationCode};
+use qubit_validator::{BoundValidationContext, ExecutionError, ExecutionErrorKind, RuleOutcome, SkipReason, SkippedValidation, ValidationPath, ValidationReport, ValidationValue, Violation, ViolationCode};
 
 use super::compiled_property_path::CompiledPropertyPath;
 use super::model_validation_error::ModelValidationError;
@@ -57,7 +57,7 @@ fn read_direct_values<'a>(paths: &[CompiledPropertyPath], root: ReflectedRef<'a>
 fn execute_path(
     path: &CompiledPropertyPath,
     root: ReflectedRef<'_>,
-    validator: &qubit_validator::next::BoundValidator,
+    validator: &qubit_validator::BoundValidator,
     dependencies: &[PropertyValue<'_>],
     on_none: OnNone,
     report: &mut ValidationReport,
@@ -154,17 +154,17 @@ fn selected(selection: &ValidationSelection, path: &ValidationPath) -> bool {
 }
 
 fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
-    let fields: Vec<&str> = path.as_segments().iter().filter_map(|segment| match segment { qubit_validator::next::PathSegment::Field(name) => Some(name.as_ref()), _ => None }).collect();
+    let fields: Vec<&str> = path.as_segments().iter().filter_map(|segment| match segment { qubit_validator::PathSegment::Field(name) => Some(name.as_ref()), _ => None }).collect();
     field.segments().iter().map(String::as_str).eq(fields)
 }
 
 fn prefix_violation(violation: Violation, prefix: &ValidationPath) -> Violation {
     let path = prefix.as_segments().iter().chain(violation.path().as_segments()).fold(ValidationPath::root(), |path, segment| match segment {
-        qubit_validator::next::PathSegment::Field(field) => path.with_field(field.clone()),
-        qubit_validator::next::PathSegment::Index(index) => path.with_index(*index),
-        qubit_validator::next::PathSegment::MapEntry(index) => path.with_map_entry(*index),
-        qubit_validator::next::PathSegment::MapKey => path.with_map_key(),
-        qubit_validator::next::PathSegment::MapValue => path.with_map_value(),
+        qubit_validator::PathSegment::Field(field) => path.with_field(field.clone()),
+        qubit_validator::PathSegment::Index(index) => path.with_index(*index),
+        qubit_validator::PathSegment::MapEntry(index) => path.with_map_entry(*index),
+        qubit_validator::PathSegment::MapKey => path.with_map_key(),
+        qubit_validator::PathSegment::MapValue => path.with_map_value(),
     });
     violation.with_path(path)
 }

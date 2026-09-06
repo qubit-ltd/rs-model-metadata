@@ -15,7 +15,6 @@ use model_runtime::ModelResolver;
 use model_runtime::ResolveInputs;
 use qubit_codec::ValueCodecRegistry;
 use qubit_model_derive::Entity;
-use qubit_validator::ValidatorRegistry;
 
 #[Entity(id = "graph.Nested")]
 struct Nested {
@@ -43,7 +42,6 @@ fn test_resolver_rejects_entity_embedding_and_opaque_model_hiding() {
     let registry = ModelRegistry::try_global().expect("valid registration index");
     let errors = ModelResolver::new(ResolveInputs {
         models: registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()
