@@ -24,11 +24,8 @@ use qubit_reflect::FieldAccessError;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::identity::FragmentIdentity;
-use qubit_validator::ValidatorRegistration;
-use qubit_validator::ValidatorRegistry;
 
 use crate::CodecMetadata;
-use crate::ConstraintMetadata;
 use crate::DeclaredEntityTarget;
 use crate::FieldMetadata;
 use crate::FieldReferenceMetadata;
@@ -46,18 +43,14 @@ use crate::PropertyResolutionError;
 use crate::PropertyValue;
 use crate::ReferenceSelection;
 use crate::ReflectedRef;
-use crate::SelectorMetadata;
 use crate::SelectorPosition;
 use crate::TypeMetadata;
-use crate::ValidatorMetadata;
 
 /// Inputs used for one complete resolution attempt.
 #[derive(Clone, Copy)]
 pub struct ResolveInputs<'a> {
     /// Registry containing concrete and generic model registrations.
     pub models: &'a ModelRegistry<'a>,
-    /// Registry containing executable validators.
-    pub validators: &'a ValidatorRegistry,
     /// Registry containing executable value codecs.
     pub codecs: &'a ValueCodecRegistry,
 }
@@ -80,13 +73,25 @@ impl<'a> ModelResolver<'a> {
     /// # Errors
     ///
     /// Returns [`ModelResolveErrors`] when any property, relationship, role,
-    /// validator, codec, projection, value-closure, or query invariant cannot
-    /// be resolved against the configured registries.
+    /// codec, projection, value-closure, or query invariant cannot be
+    /// resolved against the configured registries.
     #[must_use = "handle all model resolution failures"]
     pub fn resolve_all(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
+        self.resolve_internal()
+    }
+
+    /// Resolves model structure and property capabilities without requiring
+    /// validator registrations. Validation declarations remain available from
+    /// the metadata and are bound later by [`crate::ValidationPlan`].
+    #[cfg(feature = "validation")]
+    #[must_use = "handle all model structure resolution failures"]
+    pub fn resolve_structure(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
+        self.resolve_internal()
+    }
+
+    fn resolve_internal(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
         let mut references = HashMap::new();
         let mut projection_sources = HashMap::new();
-        let mut validators = HashMap::new();
         let mut codecs = HashMap::new();
         let mut queries = HashMap::new();
         let mut properties = HashMap::new();
@@ -181,15 +186,7 @@ impl<'a> ModelResolver<'a> {
                         )),
                     }
                 }
-                resolve_field_strategies(
-                    metadata,
-                    field,
-                    self.inputs,
-                    &mut validators,
-                    &mut codecs,
-                    fragment_source,
-                    &mut errors,
-                );
+                resolve_field_codecs(metadata, field, self.inputs, &mut codecs, fragment_source, &mut errors);
                 if let Some(reference) = field.reference() {
                     let mut local_reference_valid = true;
                     if let Some(path) = reference.same_as() {
@@ -467,7 +464,6 @@ impl<'a> ModelResolver<'a> {
                 registry: self.inputs.models,
                 references,
                 projection_sources,
-                validators,
                 codecs,
                 queries,
                 properties,
@@ -514,13 +510,13 @@ fn push_field_error(
     errors.push(error);
 }
 
-/// Resolves executable strategies declared directly on one field.
+/// Resolves field codecs while deliberately leaving validator declarations
+/// for the validation-plan binding phase.
 #[allow(clippy::too_many_arguments)]
-fn resolve_field_strategies<'a>(
+fn resolve_field_codecs<'a>(
     metadata: &'static TypeMetadata,
     field: &'static FieldMetadata,
     inputs: ResolveInputs<'a>,
-    validators: &mut HashMap<usize, ResolvedValidator<'a>>,
     codecs: &mut HashMap<usize, ResolvedCodec<'a>>,
     source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
@@ -528,17 +524,6 @@ fn resolve_field_strategies<'a>(
     let Some(descriptor) = field.descriptor() else {
         return;
     };
-    for occurrence in field.validators() {
-        resolve_validator(
-            metadata,
-            occurrence,
-            descriptor.type_id(),
-            inputs,
-            validators,
-            source,
-            errors,
-        );
-    }
     if let Some(codec) = field.codec() {
         resolve_codec(
             metadata,
@@ -553,74 +538,30 @@ fn resolve_field_strategies<'a>(
             errors,
         );
     }
-    for constraint in field.constraints() {
-        match constraint {
-            ConstraintMetadata::Sequence(sequence) => {
-                if let Some(selector) = sequence.element() {
-                    resolve_selector_strategies(
-                        metadata,
-                        selector,
-                        selector_type_id(descriptor, SelectorPosition::Element),
-                        inputs,
-                        validators,
-                        codecs,
-                        source,
-                        errors,
-                    );
-                }
-            }
-            ConstraintMetadata::Map(map) => {
-                for (selector, position) in [
-                    (map.key(), SelectorPosition::MapKey),
-                    (map.value(), SelectorPosition::MapValue),
-                ] {
-                    if let Some(selector) = selector {
-                        resolve_selector_strategies(
-                            metadata,
-                            selector,
-                            selector_type_id(descriptor, position),
-                            inputs,
-                            validators,
-                            codecs,
-                            source,
-                            errors,
-                        );
-                    }
-                }
-            }
-            _ => {}
+    let sequence_selector = field.sequence_constraint().and_then(|sequence| sequence.element());
+    let map = field.map_constraint();
+    for (selector, position) in [
+        (sequence_selector, SelectorPosition::Element),
+        (map.and_then(|map| map.key()), SelectorPosition::MapKey),
+        (map.and_then(|map| map.value()), SelectorPosition::MapValue),
+    ] {
+        let Some(selector) = selector else {
+            continue;
+        };
+        let Some(expected_type) = selector_type_id(descriptor, position) else {
+            errors.push(ModelResolveError::new(
+                ModelResolveErrorKind::UnresolvedSelectorType,
+                metadata.model_id().map(|id| id.as_str()),
+                None,
+                None,
+                Some(metadata.role()),
+                Some(source),
+            ));
+            continue;
+        };
+        if let Some(codec) = selector.codec() {
+            resolve_codec(metadata, codec, expected_type, inputs.codecs, codecs, source, errors);
         }
-    }
-}
-
-/// Resolves validator and codec strategies attached to a nested selector.
-#[allow(clippy::too_many_arguments)]
-fn resolve_selector_strategies<'a>(
-    metadata: &'static TypeMetadata,
-    selector: &'static SelectorMetadata,
-    expected_type: Option<TypeId>,
-    inputs: ResolveInputs<'a>,
-    validators: &mut HashMap<usize, ResolvedValidator<'a>>,
-    codecs: &mut HashMap<usize, ResolvedCodec<'a>>,
-    source: &FragmentIdentity,
-    errors: &mut Vec<ModelResolveError>,
-) {
-    let Some(expected_type) = expected_type else {
-        errors.push(ModelResolveError::new(
-            ModelResolveErrorKind::UnresolvedSelectorType,
-            metadata.model_id().map(|id| id.as_str()),
-            None,
-            None,
-            Some(metadata.role()),
-            Some(source),
-        ));
-        return;
-    };
-    for validator in selector.validators() {
-        resolve_validator(metadata, validator, expected_type, inputs, validators, source, errors);
-    }
-    if let Some(codec) = selector.codec() {
-        resolve_codec(metadata, codec, expected_type, inputs.codecs, codecs, source, errors);
     }
 }
 
@@ -660,79 +601,6 @@ fn runtime_type_id(type_ref: &TypeRef) -> Option<TypeId> {
         .as_resolved()
         .map(TypeDescriptor::type_id)
         .or_else(|| type_ref.as_opaque().map(|descriptor| descriptor.type_id()))
-}
-
-/// Resolves one validator occurrence against the executable validator registry.
-#[allow(clippy::too_many_arguments)]
-fn resolve_validator<'a>(
-    metadata: &'static TypeMetadata,
-    occurrence: &'static ValidatorMetadata,
-    expected_type: TypeId,
-    inputs: ResolveInputs<'a>,
-    validators: &mut HashMap<usize, ResolvedValidator<'a>>,
-    source: &FragmentIdentity,
-    errors: &mut Vec<ModelResolveError>,
-) {
-    let Some(registration) = inputs.validators.get(occurrence.declared_id()) else {
-        errors.push(ModelResolveError::new(
-            ModelResolveErrorKind::MissingValidator,
-            metadata.model_id().map(|id| id.as_str()),
-            None,
-            None,
-            Some(metadata.role()),
-            Some(source),
-        ));
-        return;
-    };
-    let actual_type = registration.descriptor().value_type_id();
-    if actual_type != expected_type {
-        errors.push(
-            ModelResolveError::new(
-                ModelResolveErrorKind::ValidatorTypeMismatch,
-                metadata.model_id().map(|id| id.as_str()),
-                None,
-                None,
-                Some(metadata.role()),
-                Some(source),
-            )
-            .with_types(expected_type, actual_type),
-        );
-        return;
-    }
-    let mut dependencies = Vec::with_capacity(occurrence.depends_on().len());
-    let initial_error_count = errors.len();
-    for path in occurrence.depends_on() {
-        match resolve_property_path(metadata, path, inputs.models) {
-            Ok(Some(property)) if property.is_readable() => dependencies.push(property),
-            Ok(Some(_)) => errors.push(ModelResolveError::new(
-                ModelResolveErrorKind::UnreadableProperty,
-                metadata.model_id().map(|id| id.as_str()),
-                Some(*path),
-                None,
-                Some(metadata.role()),
-                Some(source),
-            )),
-            Ok(None) => errors.push(ModelResolveError::new(
-                ModelResolveErrorKind::MissingProperty,
-                metadata.model_id().map(|id| id.as_str()),
-                Some(*path),
-                None,
-                Some(metadata.role()),
-                Some(source),
-            )),
-            Err(error) => errors.push(ModelResolveError::resolution(metadata, Some(*path), source, error)),
-        }
-    }
-    if errors.len() == initial_error_count {
-        validators.insert(
-            occurrence as *const ValidatorMetadata as usize,
-            ResolvedValidator {
-                declaration: occurrence,
-                registration,
-                dependencies: dependencies.into_boxed_slice(),
-            },
-        );
-    }
 }
 
 /// Resolves one codec occurrence against the executable codec registry.
@@ -1569,8 +1437,6 @@ pub struct ResolvedModelGraph<'a> {
     references: HashMap<usize, ResolvedReference>,
     /// Resolved projection sources keyed by declaration identity.
     projection_sources: HashMap<usize, ResolvedProjectionSource>,
-    /// Resolved validators keyed by declaration identity.
-    validators: HashMap<usize, ResolvedValidator<'a>>,
     /// Resolved codecs keyed by declaration identity.
     codecs: HashMap<usize, ResolvedCodec<'a>>,
     /// Resolved query metadata keyed by entity declaration identity.
@@ -1612,12 +1478,6 @@ impl<'a> ResolvedModelGraph<'a> {
             .get(&(projection as *const ProjectionMetadata as usize))
     }
 
-    /// Returns a resolved validator occurrence, or `None` when not declared.
-    #[must_use]
-    pub fn validator(&self, occurrence: &ValidatorMetadata) -> Option<&ResolvedValidator<'a>> {
-        self.validators.get(&(occurrence as *const ValidatorMetadata as usize))
-    }
-
     /// Returns a resolved codec occurrence, or `None` when not declared.
     #[must_use]
     pub fn codec(&self, occurrence: &CodecMetadata) -> Option<&ResolvedCodec<'a>> {
@@ -1628,40 +1488,6 @@ impl<'a> ResolvedModelGraph<'a> {
     #[must_use]
     pub fn query(&self, entity: &crate::EntityMetadata) -> Option<&QueryMetadata> {
         self.queries.get(&(entity as *const crate::EntityMetadata as usize))
-    }
-}
-
-/// A validator occurrence bound to one executable registration.
-#[derive(Debug)]
-pub struct ResolvedValidator<'a> {
-    /// The declaration occurrence resolved by this entry.
-    declaration: &'static ValidatorMetadata,
-    /// The executable registry entry matched to the declaration.
-    registration: &'a ValidatorRegistration,
-    /// Readable property dependencies resolved in declaration order.
-    dependencies: Box<[&'static PropertyMetadata]>,
-}
-
-impl ResolvedValidator<'_> {
-    /// Returns the declaration occurrence.
-    #[must_use]
-    #[inline(always)]
-    pub const fn declaration(&self) -> &'static ValidatorMetadata {
-        self.declaration
-    }
-
-    /// Returns the executable validator registration.
-    #[must_use]
-    #[inline(always)]
-    pub const fn registration(&self) -> &ValidatorRegistration {
-        self.registration
-    }
-
-    /// Returns resolved readable dependency properties.
-    #[must_use]
-    #[inline(always)]
-    pub fn dependencies(&self) -> &[&'static PropertyMetadata] {
-        &self.dependencies
     }
 }
 
@@ -1832,10 +1658,6 @@ pub enum ModelResolveErrorKind {
     UnreadableProperty,
     /// The expected and actual types differ.
     TypeMismatch,
-    /// A declared validator is not registered.
-    MissingValidator,
-    /// A validator registration has the wrong input type.
-    ValidatorTypeMismatch,
     /// A declared codec is not registered.
     MissingCodec,
     /// A codec registration has the wrong value type.

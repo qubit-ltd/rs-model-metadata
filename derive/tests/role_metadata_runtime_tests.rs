@@ -32,10 +32,6 @@ use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
-use qubit_validator::ValidationContext;
-use qubit_validator::Validator;
-use qubit_validator::ValidatorRegistry;
-use qubit_validator::register_validator;
 
 #[derive(Default)]
 struct EmailCodec;
@@ -43,20 +39,6 @@ struct EmailCodec;
 #[derive(Default)]
 struct EmailCanonicalCodec;
 
-#[derive(Default)]
-struct AcceptString;
-
-impl Validator<String> for AcceptString {
-    type Error = core::convert::Infallible;
-
-    fn validate(&mut self, _value: &String, _context: &ValidationContext<'_>) -> Result<(), Self::Error> {
-        Ok(())
-    }
-}
-
-register_validator!(id = "runtime.email", validator = AcceptString, value = String);
-register_validator!(id = "runtime.tag", validator = AcceptString, value = String);
-register_validator!(id = "runtime.map_value", validator = AcceptString, value = String);
 register_value_codec!(id = "runtime.alias_codec", codec = EmailCodec, value = String);
 
 impl ValueEncoder<String> for EmailCodec {
@@ -470,7 +452,6 @@ fn test_resolver_builds_scoped_unique_and_reference_queries() {
     let registry = ModelRegistry::try_global().expect("generated registrations");
     let graph = ModelResolver::new(ResolveInputs {
         models: registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()

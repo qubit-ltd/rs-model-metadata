@@ -32,6 +32,8 @@ mod reflect_facade;
 mod relation;
 mod role;
 mod type_metadata;
+#[cfg(feature = "validation")]
+pub mod validation;
 pub use qubit_redact::Sensitivity;
 pub use qubit_reflect::FieldDefinitionDescriptor;
 pub use qubit_reflect::FieldDescriptor;
@@ -79,11 +81,13 @@ pub use crate::field_semantics::CodecReference;
 pub use crate::field_semantics::CodecSource;
 pub use crate::field_semantics::DeclaredEntityTarget;
 pub use crate::field_semantics::DeclaredEntityTargetKind;
+pub use crate::field_semantics::DependencyBindingMetadata;
 pub use crate::field_semantics::FieldAttributeMetadata;
 pub use crate::field_semantics::IdentifierAssignment;
 pub use crate::field_semantics::IdentifierMetadata;
 pub use crate::field_semantics::IndexingReasons;
 pub use crate::field_semantics::KeyPartMetadata;
+pub use crate::field_semantics::OnNone;
 pub use crate::field_semantics::RedactMetadata;
 pub use crate::field_semantics::RedactModeMetadata;
 pub use crate::field_semantics::RedactPosition;
@@ -93,7 +97,9 @@ pub use crate::field_semantics::SelectorMetadata;
 pub use crate::field_semantics::SelectorPosition;
 pub use crate::field_semantics::SerdeBehaviorSource;
 pub use crate::field_semantics::SerdeFieldMetadata;
+pub use crate::field_semantics::TargetMode;
 pub use crate::field_semantics::UniqueMetadata as FieldUniqueMetadata;
+pub use crate::field_semantics::ValidationTarget;
 pub use crate::field_semantics::ValidatorMetadata;
 pub use crate::generic_model_metadata::GenericModelMetadata;
 pub use crate::local_property_set::LocalPropertySet;
@@ -115,7 +121,6 @@ pub use crate::metadata_resolver::ResolvedModelGraph;
 pub use crate::metadata_resolver::ResolvedProjectionProducer;
 pub use crate::metadata_resolver::ResolvedProjectionSource;
 pub use crate::metadata_resolver::ResolvedReference;
-pub use crate::metadata_resolver::ResolvedValidator;
 pub use crate::metadata_resolver::UniqueQueryKey;
 pub use crate::model_id::ModelId;
 pub use crate::model_id::ModelIdBuf;
@@ -158,3 +163,19 @@ pub use crate::type_metadata::EnumMetadata;
 pub use crate::type_metadata::EnumVariantMetadata;
 pub use crate::type_metadata::HasTypeMetadata;
 pub use crate::type_metadata::TypeMetadata;
+#[cfg(feature = "validation")]
+pub use crate::validation::FieldPath;
+#[cfg(feature = "validation")]
+pub use crate::validation::ModelValidationError;
+#[cfg(feature = "validation")]
+pub use crate::validation::ValidationBuildInputs;
+#[cfg(feature = "validation")]
+pub use crate::validation::ValidationMode;
+#[cfg(feature = "validation")]
+pub use crate::validation::ValidationOptions;
+#[cfg(feature = "validation")]
+pub use crate::validation::ModelRuleBinding;
+#[cfg(feature = "validation")]
+pub use crate::validation::ValidationPlan;
+#[cfg(feature = "validation")]
+pub use crate::validation::ValidationSelection;

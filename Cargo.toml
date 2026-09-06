@@ -32,6 +32,10 @@ resolver = "3"
 name = "qubit_model_metadata"
 doctest = true
 
+[features]
+default = []
+validation = ["dep:qubit-validation-rules"]
+
 [dependencies]
 bitflags = "2.10.0"
 bigdecimal = "0.4"
@@ -41,6 +45,7 @@ qubit-reflect = { version = "=0.1.0", path = "../rs-reflect", default-features =
 qubit-codec = { version = "0.14", features = ["registry"] }
 qubit-redact = { version = "=0.6.0", path = "../../rust-common/rs-redact", features = ["derive", "serde"] }
 qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator" }
+qubit-validation-rules = { version = "=0.1.0", path = "../../rust-common/rs-validation-rules", features = ["registry", "formats", "chrono", "decimal"], optional = true }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 

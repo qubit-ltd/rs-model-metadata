@@ -25,7 +25,6 @@ use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::registry::ReflectRegistry;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
-use qubit_validator::ValidatorRegistry;
 
 /// The conflicting intrinsic contract used on unregistered const instances.
 fn conflict_key() -> CapabilityKey<usize> {
@@ -119,7 +118,6 @@ fn test_resolver_aggregates_real_causes_without_false_role_errors() {
     let models = ModelRegistry::from_reflect_registry(reflection).unwrap();
     let errors = ModelResolver::new(ResolveInputs {
         models: &models,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()

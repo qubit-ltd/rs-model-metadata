@@ -19,7 +19,6 @@ use qubit_codec::ValueCodecRegistry;
 use qubit_model_derive::Entity;
 use qubit_model_derive::ModelImpl;
 use qubit_model_derive::Projection;
-use qubit_validator::ValidatorRegistry;
 
 #[Entity(id = "projection.Source")]
 struct Source {
@@ -62,7 +61,6 @@ fn test_resolver_discovers_and_executes_projection_producers() {
     let registry = ModelRegistry::try_global().expect("valid registration index");
     let graph = ModelResolver::new(ResolveInputs {
         models: registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()

@@ -66,11 +66,13 @@ assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
 与 `#[ModelImpl]` 声明生成 metadata。
 - `TypeMetadata` 为生成的类型提供静态的角色、Field、Property、泛型定义和可选 `ModelId` 信息。
 - `ModelRegistry` 从冻结的 `ReflectRegistry` 快照投影具体模型及泛型定义；模型层不再维护自有 inventory。
-- `ModelResolver` 在模型、validator 和 codec 注册表上执行显式解析。
-- 解析成功时得到不可变的 `ResolvedModelGraph`；若引用、角色、Property、validator 或 codec
-  无法解析，则按确定顺序汇总返回错误。
-- 解析图提供引用、Projection source 与 producer、可执行 validator/codec 绑定、合并后的
-  Property，以及由索引字段生成的查询 metadata。
+- `ModelResolver::resolve_structure` 对已链接的模型 metadata 执行显式结构解析，不创建可执行的
+  validator 绑定。
+- 启用 `validation` feature 后，`ValidationPlan::build` 编译 Property 路径，并绑定调用方提供的
+  `qubit-validator::ValidatorRegistry`；`ValidationPlan::validate` 执行这些不可变绑定并返回结构化的
+  `ValidationReport`。
+- 结构解析成功时得到不可变的 `ResolvedModelGraph`；若引用、角色、Property 或 codec 无法解析，
+  则按确定顺序汇总返回错误。validator 绑定错误在构建 plan 时单独返回。
 
 本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的
 metadata 在穿过隐藏 model ABI v4 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量；

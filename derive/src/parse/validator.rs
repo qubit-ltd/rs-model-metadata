@@ -17,12 +17,16 @@ use syn::Expr;
 use syn::ExprLit;
 use syn::Lit;
 use syn::LitStr;
+use syn::Path;
 use syn::Result;
+use syn::Token;
 use syn::UnOp;
 
 use super::fields::path_from_syn;
 use super::fields::validate_ascii_id;
 use crate::ir::declaration::StrategyArgumentIr;
+use crate::ir::declaration::OnNoneIr;
+use crate::ir::declaration::TargetModeIr;
 use crate::ir::declaration::ValidatorIr;
 
 /// Parses a validator ID, dependencies, and strategy parameters.
@@ -30,8 +34,16 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
     let mut id = None;
     let mut params = Vec::new();
     let mut depends_on = Vec::new();
+    let mut dependency_bindings = Vec::new();
     let mut parameter_names = HashSet::new();
     let mut dependency_paths = HashSet::new();
+    let mut dependency_names = HashSet::new();
+    let mut saw_named_dependency = false;
+    let mut saw_bare_dependency = false;
+    let mut target = TargetModeIr::Value;
+    let mut on_none = OnNoneIr::Skip;
+    let mut saw_target = false;
+    let mut saw_on_none = false;
     attribute.parse_nested_meta(|meta| {
         if meta.path.is_ident("id") {
             let value: LitStr = meta.value()?.parse()?;
@@ -41,11 +53,45 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
             Ok(())
         } else if meta.path.is_ident("depends_on") {
             meta.parse_nested_meta(|path| {
-                let dependency = path_from_syn(&path.path);
-                if !dependency_paths.insert(dependency.clone()) {
-                    return Err(path.error("duplicate validator dependency path"));
+                if path.input.peek(Token![=]) {
+                    if saw_bare_dependency {
+                        return Err(path.error(
+                            "validator dependencies cannot mix named and bare forms",
+                        ));
+                    }
+                    saw_named_dependency = true;
+                    let name = path
+                        .path
+                        .get_ident()
+                        .ok_or_else(|| path.error("named validator dependency must be an identifier"))?
+                        .to_string();
+                    if !dependency_names.insert(name.clone()) {
+                        return Err(path.error("duplicate validator dependency slot"));
+                    }
+                    let value: Path = path.value()?.parse()?;
+                    let dependency = path_from_syn(&value);
+                    if dependency.is_empty() {
+                        return Err(path.error("validator dependency path cannot be empty"));
+                    }
+                    depends_on.push(dependency.clone());
+                    dependency_bindings.push((name, dependency));
+                } else {
+                    if saw_named_dependency {
+                        return Err(path.error(
+                            "validator dependencies cannot mix named and bare forms",
+                        ));
+                    }
+                    saw_bare_dependency = true;
+                    let dependency = path_from_syn(&path.path);
+                    let name = dependency.join(".");
+                    if !dependency_paths.insert(dependency.clone()) {
+                        return Err(path.error("duplicate validator dependency path"));
+                    }
+                    if !dependency_names.insert(name) {
+                        return Err(path.error("duplicate validator dependency slot"));
+                    }
+                    depends_on.push(dependency);
                 }
-                depends_on.push(dependency);
                 Ok(())
             })
         } else if meta.path.is_ident("params") {
@@ -62,13 +108,50 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
                 params.push((name, parse_strategy_argument(expression)?));
                 Ok(())
             })
+        } else if meta.path.is_ident("target") {
+            if saw_target {
+                return Err(meta.error("duplicate validator `target` option"));
+            }
+            saw_target = true;
+            let value: LitStr = meta.value()?.parse()?;
+            target = match value.value().as_str() {
+                "value" => TargetModeIr::Value,
+                "container" => TargetModeIr::Container,
+                _ => return Err(meta.error("validator target must be value or container")),
+            };
+            Ok(())
+        } else if meta.path.is_ident("on_none") {
+            if saw_on_none {
+                return Err(meta.error("duplicate validator `on_none` option"));
+            }
+            saw_on_none = true;
+            let value: LitStr = meta.value()?.parse()?;
+            on_none = match value.value().as_str() {
+                "skip" => OnNoneIr::Skip,
+                "reject" => OnNoneIr::Reject,
+                _ => return Err(meta.error("validator on_none must be skip or reject")),
+            };
+            Ok(())
         } else {
             Err(meta.error("unsupported validator option"))
         }
     })?;
     let id = id.ok_or_else(|| Error::new_spanned(attribute, "validator requires `id = \"...\"`"))?;
     validate_ascii_id(&id, "validator ID")?;
-    Ok(ValidatorIr { id, params, depends_on })
+    if matches!(target, TargetModeIr::Container) && matches!(on_none, OnNoneIr::Reject) {
+        return Err(Error::new_spanned(
+            attribute,
+            "validator `on_none = \"reject\"` requires target = \"value\"",
+        ));
+    }
+    Ok(ValidatorIr {
+        id,
+        params,
+        depends_on,
+        dependency_bindings,
+        target,
+        on_none,
+    })
 }
 
 /// Parses one validator strategy argument into a supported literal variant.
@@ -250,10 +333,31 @@ mod tests {
         assert!(matches!(validator.params[7].1, StrategyArgumentIr::StringList(_)));
     }
 
+    /// Preserves a named dependency slot separately from its source path.
+    #[test]
+    fn test_parse_named_validator_dependency() {
+        let attribute: Attribute = parse_quote!(
+            #[validator(
+                id = "example.rule",
+                depends_on(kind = owner::kind),
+                target = "container",
+                on_none = "skip"
+            )]
+        );
+        let validator = parse_validator(&attribute).expect("named dependency");
+
+        assert_eq!(
+            validator.dependency_bindings,
+            vec![("kind".to_owned(), vec!["owner".to_owned(), "kind".to_owned()])]
+        );
+        assert_eq!(validator.target, crate::ir::declaration::TargetModeIr::Container);
+        assert_eq!(validator.on_none, crate::ir::declaration::OnNoneIr::Skip);
+    }
+
     /// Covers missing IDs, unsupported options, and heterogeneous arrays.
     #[test]
     fn test_parse_validator_errors() {
-        let cases: [Attribute; 7] = [
+        let cases: [Attribute; 10] = [
             parse_quote!(#[validator(params(value = 1))]),
             parse_quote!(#[validator(id = "bad id")]),
             parse_quote!(#[validator(id = "a", id = "b")]),
@@ -261,6 +365,9 @@ mod tests {
             parse_quote!(#[validator(id = "a", params(value = [true, 1]))]),
             parse_quote!(#[validator(id = "a", params(value = [-true]))]),
             parse_quote!(#[validator(id = "a", params(value = [path]))]),
+            parse_quote!(#[validator(id = "a", depends_on(value = first, value = second))]),
+            parse_quote!(#[validator(id = "a", target = "unknown")]),
+            parse_quote!(#[validator(id = "a", target = "container", on_none = "reject")]),
         ];
 
         for attribute in cases {

@@ -28,7 +28,6 @@ fn main() {
     assert!(registry.metadata("test.linked.Target").is_some());
     let graph = ModelResolver::new(ResolveInputs {
         models: registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
         .resolve_all()

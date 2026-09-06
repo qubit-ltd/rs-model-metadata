@@ -89,6 +89,8 @@ pub(crate) enum FieldOccurrence {
     Serde(SerdeIr),
     /// Opaque reflection marker.
     Opaque,
+    /// Recursively validate the value described by this field.
+    ValidateNested,
 }
 
 /// Selects the owner of an automatically assigned identifier.
@@ -254,6 +256,32 @@ pub(crate) struct ValidatorIr {
     pub(crate) params: Vec<(String, StrategyArgumentIr)>,
     /// Field paths the validator reads.
     pub(crate) depends_on: Vec<Vec<String>>,
+    /// Named dependency slots and the field paths supplying them.
+    pub(crate) dependency_bindings: Vec<(String, Vec<String>)>,
+    /// Whether the validator receives the expanded value or its container.
+    pub(crate) target: TargetModeIr,
+    /// How an expanded optional value with no value is handled.
+    pub(crate) on_none: OnNoneIr,
+}
+
+/// Selects the value shape supplied to a validator declaration.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum TargetModeIr {
+    /// Expand supported optional and transparent smart-pointer wrappers.
+    #[default]
+    Value,
+    /// Preserve the declared container type.
+    Container,
+}
+
+/// Selects the behavior for an absent expanded optional value.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum OnNoneIr {
+    /// Skip the validator occurrence.
+    #[default]
+    Skip,
+    /// Report the absent value as a required-value violation.
+    Reject,
 }
 
 /// Value codec selected by declared ID or Rust type.

@@ -114,16 +114,19 @@ macro detect implementations that would duplicate or bypass redacted output.
 
 Direct metadata lookup through `TypeMetadata::of::<T>()` does not initialize
 the global model registry. Descriptor capability and property lookup use the
-frozen reflection snapshot. Use `ModelRegistry`, `ValidatorRegistry`,
-`ValueCodecRegistry`, and
+frozen reflection snapshot. Use `ModelRegistry`, `ValueCodecRegistry`, and
 `ModelResolver` only after all participating crates are linked, when resolving
-IDs, references, projection sources, queries, validators, or codecs.
+IDs, references, projection sources, queries, or codecs. With the metadata
+runtime's `validation` feature, the downstream `ValidationPlan::build` receives
+an explicit `qubit-validator::ValidatorRegistry` and owns validator binding and
+execution.
 `ValueCodecRegistry` requires a direct `qubit-codec` dependency with
 `features = ["registry"]`; it is not part of that crate's default feature set.
 
-Lower-case `#[validator(...)]` emits a validated occurrence. The resolver binds
-its stable ID to a `qubit-validator` registration and resolves readable
-dependencies. Rust codecs become executable `ValueCodecDescriptor`s directly,
+Lower-case `#[validator(...)]` emits a syntax-checked occurrence. The
+downstream validation plan binds its stable ID to a prepared `qubit-validator`
+rule and resolves readable dependencies. Rust codecs become executable
+`ValueCodecDescriptor`s directly,
 or are bound by stable ID; their exact value type is checked.
 For redacted map keys, serialization fails if distinct source keys redact to
 the same output key instead of silently overwriting data.

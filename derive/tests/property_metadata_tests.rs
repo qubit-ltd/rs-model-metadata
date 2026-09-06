@@ -22,7 +22,6 @@ use model_runtime::TypeMetadata;
 use qubit_codec::ValueCodecRegistry;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
-use qubit_validator::ValidatorRegistry;
 
 #[Model]
 struct Profile {
@@ -150,7 +149,6 @@ fn test_model_impl_reports_field_getter_mismatch_without_panicking() {
     let registry = ModelRegistry::try_global().expect("valid registration index");
     let errors = ModelResolver::new(ResolveInputs {
         models: registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()

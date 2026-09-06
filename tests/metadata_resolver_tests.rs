@@ -42,13 +42,6 @@ use qubit_model_metadata::SerdeFieldMetadata;
 use qubit_model_metadata::TypeDescriptor;
 use qubit_model_metadata::TypeMetadata;
 use qubit_model_metadata::ValidatorMetadata;
-use qubit_validator::RegistrationSource;
-use qubit_validator::ValidationContext;
-use qubit_validator::Validator;
-use qubit_validator::ValidatorDescriptor;
-use qubit_validator::ValidatorId;
-use qubit_validator::ValidatorRegistration;
-use qubit_validator::ValidatorRegistry;
 
 fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]) -> ModelRegistry<'static> {
     ModelRegistry::from_metadata(entries, &[]).expect("valid isolated model registry")
@@ -107,28 +100,6 @@ struct StrategyFixture {
 }
 
 #[derive(Default)]
-struct AcceptString;
-
-impl Validator<String> for AcceptString {
-    type Error = core::convert::Infallible;
-
-    fn validate(&mut self, _value: &String, _context: &ValidationContext<'_>) -> Result<(), Self::Error> {
-        Ok(())
-    }
-}
-
-#[derive(Default)]
-struct AcceptU64;
-
-impl Validator<u64> for AcceptU64 {
-    type Error = core::convert::Infallible;
-
-    fn validate(&mut self, _value: &u64, _context: &ValidationContext<'_>) -> Result<(), Self::Error> {
-        Ok(())
-    }
-}
-
-#[derive(Default)]
 struct StringCodec;
 
 impl ValueEncoder<String> for StringCodec {
@@ -170,23 +141,11 @@ impl ValueDecoder<str> for U64Codec {
     }
 }
 
-static STRING_VALIDATOR_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::of::<AcceptString, String>();
-static STRING_VALIDATOR_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
-    ValidatorId::new("test.strategy.validator"),
-    &STRING_VALIDATOR_DESCRIPTOR,
-    RegistrationSource::new("fixture", "tests", file!(), line!()),
-);
 static STRING_CODEC_DESCRIPTOR: ValueCodecDescriptor = ValueCodecDescriptor::of::<StringCodec, String>();
 static STRING_CODEC_REGISTRATION: ValueCodecRegistration = ValueCodecRegistration::new(
     ValueCodecId::new("test.strategy.codec"),
     &STRING_CODEC_DESCRIPTOR,
     ValueCodecRegistrationSource::new("fixture", "tests", file!(), line!()),
-);
-static U64_VALIDATOR_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::of::<AcceptU64, u64>();
-static U64_VALIDATOR_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
-    ValidatorId::new("test.strategy.validator"),
-    &U64_VALIDATOR_DESCRIPTOR,
-    RegistrationSource::new("fixture", "tests", file!(), line!()),
 );
 static U64_CODEC_DESCRIPTOR: ValueCodecDescriptor = ValueCodecDescriptor::of::<U64Codec, u64>();
 static U64_CODEC_REGISTRATION: ValueCodecRegistration = ValueCodecRegistration::new(
@@ -286,7 +245,6 @@ fn test_resolver_resolves_reference_targets_and_properties() {
     ]);
     let graph = ModelResolver::new(ResolveInputs {
         models: &registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()
@@ -325,7 +283,6 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
     let registry = model_registry(&[(metadata, source_identity(3))]);
     let errors = ModelResolver::new(ResolveInputs {
         models: &registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()
@@ -391,7 +348,6 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     let registry = model_registry(&[(nested, source_identity(10)), (root, source_identity(11))]);
     let graph = ModelResolver::new(ResolveInputs {
         models: &registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()
@@ -421,7 +377,6 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     let registry = model_registry(&[(nested, source_identity(10)), (conflict, source_identity(12))]);
     let errors = ModelResolver::new(ResolveInputs {
         models: &registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()
@@ -465,7 +420,6 @@ fn test_resolver_rejects_value_closure_over_model_role() {
     let registry = model_registry(&[(model, source_identity(20)), (value, source_identity(21))]);
     let errors = ModelResolver::new(ResolveInputs {
         models: &registry,
-        validators: ValidatorRegistry::global(),
         codecs: ValueCodecRegistry::global(),
     })
     .resolve_all()
@@ -478,12 +432,7 @@ fn test_resolver_rejects_value_closure_over_model_role() {
     );
 }
 
-fn strategy_metadata() -> (
-    &'static TypeMetadata,
-    &'static ValidatorMetadata,
-    &'static CodecMetadata,
-    &'static CodecMetadata,
-) {
+fn strategy_metadata() -> (&'static TypeMetadata, &'static CodecMetadata, &'static CodecMetadata) {
     let descriptor = TypeDescriptor::of::<StrategyFixture>();
     let dependency = PropertyPath::new(&["other"]);
     let validators = v4::leak_slice(vec![ValidatorMetadata::new(
@@ -537,29 +486,21 @@ fn strategy_metadata() -> (
             .properties(properties)
             .finish::<StrategyFixture>(),
     );
-    (metadata, validator, direct_codec, id_codec)
+    (metadata, direct_codec, id_codec)
 }
 
 #[test]
-fn test_resolver_binds_executable_validator_and_codec_descriptors() {
-    let (metadata, validator, direct_codec, id_codec) = strategy_metadata();
+fn test_resolver_binds_executable_codec_descriptors() {
+    let (metadata, direct_codec, id_codec) = strategy_metadata();
     let models = model_registry(&[(metadata, source_identity(30))]);
-    let validators = ValidatorRegistry::from_registrations([&STRING_VALIDATOR_REGISTRATION]).unwrap();
     let codecs = ValueCodecRegistry::from_registrations([&STRING_CODEC_REGISTRATION]).unwrap();
     let graph = ModelResolver::new(ResolveInputs {
         models: &models,
-        validators: &validators,
         codecs: &codecs,
     })
     .resolve_all()
-    .expect("all executable strategies must resolve");
+    .expect("all executable codecs must resolve");
 
-    let resolved_validator = graph.validator(validator).expect("validator binding");
-    assert_eq!(resolved_validator.dependencies()[0].name(), "other");
-    assert_eq!(
-        resolved_validator.registration().descriptor().value_type_id(),
-        TypeDescriptor::of::<String>().type_id(),
-    );
     assert!(graph.codec(direct_codec).unwrap().registration().is_none());
     assert_eq!(
         graph.codec(id_codec).unwrap().registration().unwrap().id().as_str(),
@@ -568,25 +509,17 @@ fn test_resolver_binds_executable_validator_and_codec_descriptors() {
 }
 
 #[test]
-fn test_resolver_aggregates_missing_validator_and_codec_ids() {
-    let (metadata, _, _, _) = strategy_metadata();
+fn test_resolver_aggregates_missing_codec_ids() {
+    let (metadata, _, _) = strategy_metadata();
     let models = model_registry(&[(metadata, source_identity(31))]);
-    let validators = ValidatorRegistry::empty();
     let codecs = ValueCodecRegistry::empty();
     let errors = ModelResolver::new(ResolveInputs {
         models: &models,
-        validators: &validators,
         codecs: &codecs,
     })
     .resolve_all()
-    .expect_err("missing executable strategy IDs must reject the graph");
+    .expect_err("missing executable codec IDs must reject the graph");
 
-    assert!(
-        errors
-            .errors()
-            .iter()
-            .any(|error| error.kind() == ModelResolveErrorKind::MissingValidator)
-    );
     assert!(
         errors
             .errors()
@@ -596,25 +529,16 @@ fn test_resolver_aggregates_missing_validator_and_codec_ids() {
 }
 
 #[test]
-fn test_resolver_aggregates_validator_and_codec_type_mismatches() {
-    let (metadata, _, _, _) = strategy_metadata();
+fn test_resolver_aggregates_codec_type_mismatches() {
+    let (metadata, _, _) = strategy_metadata();
     let models = model_registry(&[(metadata, source_identity(32))]);
-    let validators = ValidatorRegistry::from_registrations([&U64_VALIDATOR_REGISTRATION]).unwrap();
     let codecs = ValueCodecRegistry::from_registrations([&U64_CODEC_REGISTRATION]).unwrap();
     let errors = ModelResolver::new(ResolveInputs {
         models: &models,
-        validators: &validators,
         codecs: &codecs,
     })
     .resolve_all()
-    .expect_err("strategy value-type mismatches must reject the graph");
-
-    assert!(
-        errors
-            .errors()
-            .iter()
-            .any(|error| error.kind() == ModelResolveErrorKind::ValidatorTypeMismatch)
-    );
+    .expect_err("codec value-type mismatches must reject the graph");
     assert!(
         errors
             .errors()
