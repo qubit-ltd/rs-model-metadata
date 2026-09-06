@@ -1,10 +1,14 @@
 //! Binding of metadata constraints to the shared standard rule set.
 
+// qubit-style: allow multiple-public-types
+
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 use qubit_validator::BoundValidator;
+use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
 use qubit_validator::ValidationArgument;
+use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistry;
 
 use crate::AllowedChars;
@@ -35,8 +39,7 @@ pub(crate) struct StandardBinding {
 pub(crate) fn registry(validators: &ValidatorRegistry) -> Result<ValidatorRegistry, BindError> {
     let mut registrations = qubit_validation_rules::registrations();
     registrations.extend(validators.registrations().iter().copied());
-    ValidatorRegistry::from_registrations(registrations)
-        .map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
+    ValidatorRegistry::from_registrations(registrations).map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
 }
 
 /// Binds the executable portion of one metadata constraint.
@@ -105,14 +108,7 @@ pub(crate) fn bind(
                     TextFormat::Uri => "qubit.rules.text.uri",
                     TextFormat::Uuid => "qubit.rules.text.uuid",
                 };
-                bind_one(
-                    &mut bindings,
-                    &mut errors,
-                    validators,
-                    id,
-                    &[],
-                    StandardTarget::Value,
-                );
+                bind_one(&mut bindings, &mut errors, validators, id, &[], StandardTarget::Value);
             }
         }
         ConstraintMetadata::Sequence(sequence) => {
@@ -129,9 +125,8 @@ pub(crate) fn bind(
             }
             if sequence.unique_items() {
                 errors.push(
-                    BindError::new(BindErrorKind::UnsupportedConstraint).with_rule(
-                        qubit_validator::ValidatorId::new("qubit.rules.collection.unique"),
-                    ),
+                    BindError::new(BindErrorKind::UnsupportedConstraint)
+                        .with_rule(ValidatorId::new("qubit.rules.collection.unique")),
                 );
             }
         }
@@ -142,11 +137,7 @@ pub(crate) fn bind(
             errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
         }
     }
-    if errors.is_empty() {
-        Ok(bindings)
-    } else {
-        Err(errors)
-    }
+    if errors.is_empty() { Ok(bindings) } else { Err(errors) }
 }
 
 fn bind_one(
@@ -163,10 +154,10 @@ fn bind_one(
     }
 }
 
-fn input_type(target: StandardTarget) -> qubit_validator::InputType {
+fn input_type(target: StandardTarget) -> InputType {
     match target {
-        StandardTarget::Value => qubit_validator::InputType::Text,
-        StandardTarget::SequenceCount => qubit_validator::InputType::of::<usize>(),
+        StandardTarget::Value => InputType::Text,
+        StandardTarget::SequenceCount => InputType::of::<usize>(),
     }
 }
 
@@ -187,10 +178,7 @@ fn optional_u32_args(min: Option<u32>, max: Option<u32>) -> Vec<NamedValidationA
     args
 }
 
-fn optional_usize_args(
-    min: Option<usize>,
-    max: Option<usize>,
-) -> Vec<NamedValidationArgument<'static>> {
+fn optional_usize_args(min: Option<usize>, max: Option<usize>) -> Vec<NamedValidationArgument<'static>> {
     let mut args = Vec::with_capacity(2);
     if let Some(value) = min {
         args.push(NamedValidationArgument::new(

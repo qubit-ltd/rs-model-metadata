@@ -24,8 +24,8 @@ use syn::UnOp;
 
 use super::fields::path_from_syn;
 use super::fields::validate_ascii_id;
-use crate::ir::declaration::StrategyArgumentIr;
 use crate::ir::declaration::OnNoneIr;
+use crate::ir::declaration::StrategyArgumentIr;
 use crate::ir::declaration::TargetModeIr;
 use crate::ir::declaration::ValidatorIr;
 
@@ -55,9 +55,7 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
             meta.parse_nested_meta(|path| {
                 if path.input.peek(Token![=]) {
                     if saw_bare_dependency {
-                        return Err(path.error(
-                            "validator dependencies cannot mix named and bare forms",
-                        ));
+                        return Err(path.error("validator dependencies cannot mix named and bare forms"));
                     }
                     saw_named_dependency = true;
                     let name = path
@@ -77,9 +75,7 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
                     dependency_bindings.push((name, dependency));
                 } else {
                     if saw_named_dependency {
-                        return Err(path.error(
-                            "validator dependencies cannot mix named and bare forms",
-                        ));
+                        return Err(path.error("validator dependencies cannot mix named and bare forms"));
                     }
                     saw_bare_dependency = true;
                     let dependency = path_from_syn(&path.path);

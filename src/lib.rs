@@ -166,6 +166,8 @@ pub use crate::type_metadata::TypeMetadata;
 #[cfg(feature = "validation")]
 pub use crate::validation::FieldPath;
 #[cfg(feature = "validation")]
+pub use crate::validation::ModelRuleBinding;
+#[cfg(feature = "validation")]
 pub use crate::validation::ModelValidationError;
 #[cfg(feature = "validation")]
 pub use crate::validation::ValidationBuildInputs;
@@ -173,8 +175,6 @@ pub use crate::validation::ValidationBuildInputs;
 pub use crate::validation::ValidationMode;
 #[cfg(feature = "validation")]
 pub use crate::validation::ValidationOptions;
-#[cfg(feature = "validation")]
-pub use crate::validation::ModelRuleBinding;
 #[cfg(feature = "validation")]
 pub use crate::validation::ValidationPlan;
 #[cfg(feature = "validation")]
