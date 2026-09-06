@@ -56,7 +56,10 @@ impl<'a> ValidationPlan<'a> {
                 ));
             }
             nodes += 1;
-            let dependencies = match read_dependency_values(binding.dependencies(), value.clone()) {
+            let (dependencies, dependency_paths) = match read_dependency_values(
+                binding.dependencies(),
+                value.clone(),
+            ) {
                 Ok(values) => values,
                 Err(error) => {
                     return Err(ModelValidationError::new(
@@ -70,6 +73,7 @@ impl<'a> ValidationPlan<'a> {
                 value.clone(),
                 binding.validator(),
                 &dependencies,
+                &dependency_paths,
                 binding.on_none(),
                 &mut report,
                 &path,
@@ -98,11 +102,14 @@ impl<'a> ValidationPlan<'a> {
 fn read_dependency_values<'a>(
     paths: &[CompiledPropertyPath],
     root: ReflectedRef<'a>,
-) -> Result<Vec<PropertyValue<'a>>, ExecutionError> {
-    paths
-        .iter()
-        .map(|path| read_path(path, root.clone()))
-        .collect()
+) -> Result<(Vec<PropertyValue<'a>>, Vec<ValidationPath>), ExecutionError> {
+    let mut values = Vec::with_capacity(paths.len());
+    let mut dependency_paths = Vec::with_capacity(paths.len());
+    for path in paths {
+        values.push(read_path(path, root.clone())?);
+        dependency_paths.push(path_for(path));
+    }
+    Ok((values, dependency_paths))
 }
 
 /// Reads every step of a compiled path while preserving the root borrow.
@@ -139,6 +146,7 @@ fn execute_path(
     root: ReflectedRef<'_>,
     validator: &BoundValidator,
     dependencies: &[PropertyValue<'_>],
+    dependency_paths: &[ValidationPath],
     on_none: OnNone,
     report: &mut ValidationReport,
     rule_path: &ValidationPath,
@@ -157,12 +165,11 @@ fn execute_path(
         }
         PropertyValue::OptionalBorrowed(None) => ValidationValue::Missing,
     };
-    eprintln!("input={:?} expected={:?}", input.input_type(), validator.input_type());
     let mut values = Vec::with_capacity(dependencies.len());
     for dependency in dependencies {
         values.push(property_value(dependency));
     }
-    let context = BoundValidationContext::new(&values);
+    let context = BoundValidationContext::new_with_paths(&values, dependency_paths)?;
     match input {
         ValidationValue::Missing if path.is_optional() => {
             if on_none == OnNone::Reject {
