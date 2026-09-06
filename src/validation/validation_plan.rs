@@ -93,6 +93,19 @@ impl<'a> ValidationPlan<'a> {
                         errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
                         continue;
                     }
+                    let Some(getter) = property.getter() else {
+                        errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
+                        continue;
+                    };
+                    if !matches!(getter.output_kind(), crate::GetterOutputKind::Borrowed)
+                        || !matches!(
+                            getter.output_type().as_resolved().map(|value| value.kind()),
+                            Some(qubit_reflect::descriptor::TypeKind::Slice)
+                        )
+                    {
+                        errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
+                        continue;
+                    }
                     let Some(descriptor) =
                         selector_descriptor(property.descriptor(), selector.position())
                     else {
