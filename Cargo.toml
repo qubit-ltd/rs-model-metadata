@@ -51,6 +51,7 @@ thiserror = "2"
 [dev-dependencies]
 criterion = "0.5"
 qubit-datatype = { version = "=0.12.0", path = "../../rust-common/rs-datatype" }
+qubit-model-derive = { version = "=0.1.0", path = "derive" }
 trybuild = "1"
 uuid = "1"
 

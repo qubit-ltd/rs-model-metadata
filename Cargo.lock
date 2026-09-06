@@ -552,6 +552,7 @@ dependencies = [
  "qubit-codec",
  "qubit-datatype",
  "qubit-id",
+ "qubit-model-derive",
  "qubit-redact",
  "qubit-reflect",
  "qubit-validator",
