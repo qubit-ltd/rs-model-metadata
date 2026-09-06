@@ -15,6 +15,13 @@
       "allFeatures": true
     },
     {
+      "name": "metadata-validation-fixtures",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-model-metadata"],
+      "defaultFeatures": false,
+      "features": ["validation"]
+    },
+    {
       "name": "derive-core",
       "commands": ["check", "test", "doc"],
       "packages": ["qubit-model-derive"],

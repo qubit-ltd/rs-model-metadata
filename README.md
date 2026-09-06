@@ -78,14 +78,16 @@ the reflection model.
   optional `ModelId` metadata for generated types.
 - `ModelRegistry` projects both concrete models and generic definitions from
   the frozen `ReflectRegistry` snapshot. There is no model-owned inventory.
-- `ModelResolver` performs an explicit resolution pass over model, validator,
-  and codec registries.
+- `ModelResolver::resolve_structure` performs the explicit structural pass over
+  linked model metadata. It does not construct executable validator bindings.
+- With the `validation` feature, `ValidationPlan::build` compiles declared
+  property paths and binds them to the supplied `qubit-validator::ValidatorRegistry`.
+  `ValidationPlan::validate` executes those immutable bindings and returns a
+  structured `ValidationReport`.
 - Resolution produces an immutable `ResolvedModelGraph`, or deterministic
-  aggregated errors when relationships, roles, properties, validators, or
-  codecs cannot be resolved.
-- The resolved graph exposes references, projection sources and producers,
-  executable validator and codec bindings, merged properties, and query
-  metadata derived from indexed fields.
+  aggregated errors when relationships, roles, properties, or codecs cannot be
+  resolved. Validation binding errors are returned separately during plan
+  construction.
 
 It does not replace `qubit-reflect`, and static metadata lookup does not
 implicitly register models or resolve cross-model relationships. Generated

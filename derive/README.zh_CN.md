@@ -92,13 +92,15 @@ assert!(registry.metadata_for(metadata.descriptor()).is_some());
 ## 边界
 
 直接通过 `TypeMetadata::of::<T>()` 查询静态元数据不会初始化全局模型注册表；descriptor capability 与
-Property 查询会使用冻结的反射快照。只有在所有参与 crate 都已链接后，才使用 `ModelRegistry`、`ValidatorRegistry`、
-`ValueCodecRegistry` 和 `ModelResolver` 解析稳定 ID、reference、Projection 来源、Query、validator 或 codec。
+Property 查询会使用冻结的反射快照。只有在所有参与 crate 都已链接后，才使用 `ModelRegistry`、
+`ValueCodecRegistry` 和 `ModelResolver` 解析稳定 ID、reference、Projection 来源、Query 或 codec。
+启用 metadata runtime 的 `validation` feature 后，由下游 `ValidationPlan::build` 接收显式的
+`qubit-validator::ValidatorRegistry`，负责 validator 绑定与执行。
 `ValueCodecRegistry` 需要应用直接依赖 `qubit-codec` 并启用 `features = ["registry"]`；该 feature 不在
 默认 feature 集中。
 
-小写 `#[validator(...)]` 生成已校验的 occurrence；resolver 会按稳定 ID 绑定 `qubit-validator`
-注册项并解析可读依赖。Rust codec 会直接生成可执行 `ValueCodecDescriptor`，或按稳定 ID 绑定，且会校验
+小写 `#[validator(...)]` 生成经过语法校验的 occurrence；下游 validation plan 会按稳定 ID 绑定已准备的
+`qubit-validator` 规则并解析可读依赖。Rust codec 会直接生成可执行 `ValueCodecDescriptor`，或按稳定 ID 绑定，且会校验
 精确 value type。若多个原始 map key
 脱敏后相同，序列化会失败，避免静默覆盖数据。
 
