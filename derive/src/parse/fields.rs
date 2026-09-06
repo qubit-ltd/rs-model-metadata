@@ -58,6 +58,7 @@ impl FieldIr {
         let mut identifier = false;
         let mut indexed = false;
         let mut opaque = false;
+        let mut validate_nested = false;
         let mut diagnostics = Diagnostics::default();
         for attribute in attributes {
             let result = if attribute.path().is_ident("identifier") {
@@ -126,10 +127,21 @@ impl FieldIr {
                     Ok(())
                 }
             } else if attribute.path().is_ident("validate_nested") {
-                Err(Error::new_spanned(
-                    attribute,
-                    "validate_nested is not supported by this validation-plan implementation",
-                ))
+                if !matches!(attribute.meta, Meta::Path(_)) {
+                    Err(Error::new_spanned(
+                        attribute,
+                        "validate_nested is a marker without arguments",
+                    ))
+                } else if validate_nested {
+                    Err(Error::new_spanned(
+                        attribute,
+                        "duplicate validate_nested marker",
+                    ))
+                } else {
+                    validate_nested = true;
+                    occurrences.push(FieldOccurrence::ValidateNested);
+                    Ok(())
+                }
             } else if attribute.path().is_ident("keep_serializing") {
                 if !matches!(attribute.meta, Meta::Path(_)) {
                     Err(Error::new_spanned(

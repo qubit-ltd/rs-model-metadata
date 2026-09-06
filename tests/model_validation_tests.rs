@@ -10,6 +10,7 @@ use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::FragmentIdentity;
 use qubit_model_metadata::ModelRegistry;
+use qubit_model_metadata::ModelRuleBinding;
 use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::ReflectRegistry;
 use qubit_model_metadata::ReflectedRef;
@@ -48,6 +49,25 @@ struct SelectorFixture {
     values: Vec<String>,
 }
 
+#[Model(id = "validation.NestedModel")]
+struct NestedModel {
+    #[validator(id = "test.reject")]
+    name: String,
+}
+
+#[Model(id = "validation.NestedRoot")]
+struct NestedRoot {
+    #[validate_nested]
+    child: Option<NestedModel>,
+}
+
+#[ModelImpl]
+impl NestedRoot {
+    pub fn child(&self) -> Option<&NestedModel> {
+        self.child.as_ref()
+    }
+}
+
 #[ModelImpl]
 impl SelectorFixture {
     pub fn values(&self) -> &[String] {
@@ -71,6 +91,21 @@ impl PreparedValidator for Reject {
 }
 fn prepare(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(Reject))
+}
+
+struct RejectModel;
+impl PreparedValidator for RejectModel {
+    fn validate(
+        &self,
+        value: ValidationValue<'_>,
+        _: &BoundValidationContext<'_>,
+    ) -> Result<RuleOutcome, ExecutionError> {
+        assert!(value.typed::<TestModel>().is_some());
+        Ok(RuleOutcome::Invalid(vec![Violation::new(
+            ValidatorId::new("test.model-reject"),
+            ViolationCode::new("model.invalid"),
+        )]))
+    }
 }
 static SIGNATURES: &[ValidatorSignature] =
     &[ValidatorSignature::new(InputType::Text, &[], prepare)];
@@ -97,6 +132,11 @@ fn executes_bound_rule_and_prefixes_field_path() {
     let metadata = TypeMetadata::of::<TestModel>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    assert!(
+        models
+            .by_type_id(TypeMetadata::of::<NestedModel>().type_id())
+            .is_some()
+    );
     let codecs = ValueCodecRegistry::empty();
     let graph = ModelResolver::new(ResolveInputs {
         models: &models,
@@ -125,6 +165,44 @@ fn executes_bound_rule_and_prefixes_field_path() {
     assert!(!report.is_valid());
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "name");
+}
+
+#[test]
+fn executes_typed_model_rule_binding() {
+    let metadata = TypeMetadata::of::<TestModel>();
+    let reflection = ReflectRegistry::initialize().expect("reflection registry");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let codecs = ValueCodecRegistry::empty();
+    let graph = ModelResolver::new(ResolveInputs {
+        models: &models,
+        codecs: &codecs,
+    })
+    .resolve_structure()
+    .expect("structure");
+    let validators =
+        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let plan = ValidationPlan::build(
+        metadata,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("binding")
+    .with_model_rule(ModelRuleBinding::from_prepared::<TestModel>(
+        ValidatorId::new("test.model-reject"),
+        Arc::new(RejectModel),
+    ));
+    let report = plan
+        .validate(
+            ReflectedRef::new(&TestModel {
+                name: "bad".to_owned(),
+            }),
+            &ValidationOptions::default(),
+        )
+        .expect("execution");
+    assert_eq!(report.violations().len(), 2);
+    assert_eq!(report.violations()[1].path().render(), "");
 }
 
 #[test]
@@ -170,6 +248,57 @@ fn executes_element_selector_for_borrowed_slice() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn executes_validators_declared_by_an_optional_nested_model() {
+    let metadata = TypeMetadata::of::<NestedRoot>();
+    let reflection = ReflectRegistry::initialize().expect("reflection registry");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    assert!(
+        models
+            .by_type_id(TypeMetadata::of::<NestedModel>().type_id())
+            .is_some()
+    );
+    let codecs = ValueCodecRegistry::empty();
+    let graph = ModelResolver::new(ResolveInputs {
+        models: &models,
+        codecs: &codecs,
+    })
+    .resolve_structure()
+    .expect("structure");
+    let validators =
+        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let plan = ValidationPlan::build(
+        metadata,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("nested binding");
+    assert_eq!(plan.binding_count(), 1);
+
+    let report = plan
+        .validate(
+            ReflectedRef::new(&NestedRoot {
+                child: Some(NestedModel {
+                    name: "bad".to_owned(),
+                }),
+            }),
+            &ValidationOptions::default(),
+        )
+        .expect("nested execution");
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].path().render(), "child.name");
+
+    let report = plan
+        .validate(
+            ReflectedRef::new(&NestedRoot { child: None }),
+            &ValidationOptions::default(),
+        )
+        .expect("missing optional nested value");
+    assert!(report.is_valid());
 }
 
 #[test]

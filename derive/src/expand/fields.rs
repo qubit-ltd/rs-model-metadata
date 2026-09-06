@@ -82,7 +82,9 @@ fn expand_field(
             _ => None,
         })
         .collect();
-    let validators = validator_irs.iter().map(|value| expand_validator(value, runtime));
+    let validators = validator_irs
+        .iter()
+        .map(|value| expand_validator(value, runtime));
     let identifier_assignment = field.occurrences.iter().find_map(|value| match value {
         FieldOccurrence::Identifier(value) => Some(*value),
         _ => None,
@@ -117,34 +119,61 @@ fn expand_field(
         _ => None,
     });
     let element_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::Element) => Some(value),
+        FieldOccurrence::Selector(value)
+            if matches!(value.position, SelectorPositionIr::Element) =>
+        {
+            Some(value)
+        }
         _ => None,
     });
     let map_key_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapKey) => Some(value),
+        FieldOccurrence::Selector(value)
+            if matches!(value.position, SelectorPositionIr::MapKey) =>
+        {
+            Some(value)
+        }
         _ => None,
     });
     let map_value_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapValue) => Some(value),
+        FieldOccurrence::Selector(value)
+            if matches!(value.position, SelectorPositionIr::MapValue) =>
+        {
+            Some(value)
+        }
         _ => None,
     });
     let element_selector = element_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v4::SequenceConstraintTarget>::Element
         );
-        expand_selector_metadata(value, &value_type, format_ident!("element_selector"), runtime)
+        expand_selector_metadata(
+            value,
+            &value_type,
+            format_ident!("element_selector"),
+            runtime,
+        )
     });
     let map_key_selector = map_key_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v4::MapConstraintTarget>::Key
         );
-        expand_selector_metadata(value, &value_type, format_ident!("map_key_selector"), runtime)
+        expand_selector_metadata(
+            value,
+            &value_type,
+            format_ident!("map_key_selector"),
+            runtime,
+        )
     });
     let map_value_selector = map_value_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v4::MapConstraintTarget>::Value
         );
-        expand_selector_metadata(value, &value_type, format_ident!("map_value_selector"), runtime)
+        expand_selector_metadata(
+            value,
+            &value_type,
+            format_ident!("map_value_selector"),
+            runtime,
+        )
     });
     let constraint_irs: Vec<_> = field
         .occurrences
@@ -163,7 +192,8 @@ fn expand_field(
             runtime,
         )
     });
-    let constraint_assertions = expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
+    let constraint_assertions =
+        expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
     let requires_sequence = element_ir.is_some()
         || constraint_irs
             .iter()
@@ -235,7 +265,8 @@ fn expand_field(
             );
         }
     });
-    let redact = redact_ir.map(|value| expand_redact(value, quote!(#runtime::RedactPosition::Field), runtime));
+    let redact = redact_ir
+        .map(|value| expand_redact(value, quote!(#runtime::RedactPosition::Field), runtime));
     let serde = serde_ir.map_or_else(
         || quote!(let serde: &'static #runtime::SerdeFieldMetadata = &#runtime::SerdeFieldMetadata::DEFAULT;),
         |value| expand_serde(value, runtime),
@@ -271,6 +302,9 @@ fn expand_field(
             FieldOccurrence::Redact(_) => quote!(attributes.push(#runtime::FieldAttributeMetadata::Redact(redact));),
             FieldOccurrence::Serde(_) => quote!(attributes.push(#runtime::FieldAttributeMetadata::Serde(serde));),
             FieldOccurrence::Opaque => quote!(attributes.push(#runtime::FieldAttributeMetadata::Opaque);),
+            FieldOccurrence::ValidateNested => {
+                quote!(attributes.push(#runtime::FieldAttributeMetadata::ValidateNested);)
+            }
         });
     }
     let mut reason_parts = Vec::new();
@@ -519,7 +553,8 @@ fn expand_selector_metadata(
         .iter()
         .map(|constraint| expand_constraint(constraint, false, false, false, runtime));
     let constraint_refs: Vec<_> = value.constraints.iter().collect();
-    let constraint_assertions = expand_constraint_assertions(&constraint_refs, value_type.clone(), runtime);
+    let constraint_assertions =
+        expand_constraint_assertions(&constraint_refs, value_type.clone(), runtime);
     let validators = value
         .validators
         .iter()
@@ -590,7 +625,10 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
         let value = expand_strategy_argument(value, runtime);
         quote!(#runtime::NamedValidationArgument::new(#name, #value))
     });
-    let depends_on = validator.depends_on.iter().map(|path| expand_field_path(path, runtime));
+    let depends_on = validator
+        .depends_on
+        .iter()
+        .map(|path| expand_field_path(path, runtime));
     let dependency_bindings = validator.dependency_bindings.iter().map(|(name, path)| {
         let path = expand_field_path(path, runtime);
         quote!(#runtime::DependencyBindingMetadata::new(#name, #path))
@@ -699,7 +737,11 @@ fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream
 }
 
 /// Generates the redaction expression associated with a redaction mode.
-fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
+fn redact_expression(
+    redact: &RedactIr,
+    position: TokenStream,
+    runtime: &TokenStream,
+) -> TokenStream {
     let (sensitivity, mode) = match &redact.mode {
         RedactModeIr::Level(level) => {
             let sensitivity = match level.as_str() {
@@ -707,21 +749,33 @@ fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenSt
                 "medium" => quote!(#runtime::Sensitivity::Medium),
                 "high" => quote!(#runtime::Sensitivity::High),
                 "secret" => quote!(#runtime::Sensitivity::Secret),
-                _ => quote!(compile_error!("redact level must be low, medium, high, or secret")),
+                _ => quote!(compile_error!(
+                    "redact level must be low, medium, high, or secret"
+                )),
             };
-            (quote!(Some(#sensitivity)), quote!(#runtime::RedactModeMetadata::Level))
+            (
+                quote!(Some(#sensitivity)),
+                quote!(#runtime::RedactModeMetadata::Level),
+            )
         }
         RedactModeIr::Skip => (quote!(None), quote!(#runtime::RedactModeMetadata::Skip)),
         RedactModeIr::Nested => (quote!(None), quote!(#runtime::RedactModeMetadata::Nested)),
         RedactModeIr::Map => (quote!(None), quote!(#runtime::RedactModeMetadata::Map)),
-        RedactModeIr::KeyedBy(field) => (quote!(None), quote!(#runtime::RedactModeMetadata::KeyedBy(#field))),
+        RedactModeIr::KeyedBy(field) => (
+            quote!(None),
+            quote!(#runtime::RedactModeMetadata::KeyedBy(#field)),
+        ),
         RedactModeIr::Json => (quote!(None), quote!(#runtime::RedactModeMetadata::Json)),
     };
     quote!(#runtime::RedactMetadata::new(#sensitivity, #mode, #position))
 }
 
 /// Generates runtime metadata for a declared value codec.
-fn codec_reference_expression<T: ToTokens>(codec: &CodecIr, value_type: &T, runtime: &TokenStream) -> TokenStream {
+fn codec_reference_expression<T: ToTokens>(
+    codec: &CodecIr,
+    value_type: &T,
+    runtime: &TokenStream,
+) -> TokenStream {
     match codec {
         CodecIr::DeclaredId(id) => {
             quote!(#runtime::CodecReference::DeclaredId(#id))
@@ -866,7 +920,13 @@ mod tests {
             });
             assert!(!expand_constraint(&value, false, false, false, &runtime).is_empty());
         }
-        for precision in ["second", "millisecond", "microsecond", "nanosecond", "invalid"] {
+        for precision in [
+            "second",
+            "millisecond",
+            "microsecond",
+            "nanosecond",
+            "invalid",
+        ] {
             let value = ConstraintIr::Time(precision.to_owned());
             assert!(!expand_constraint(&value, false, false, false, &runtime).is_empty());
         }
@@ -927,7 +987,14 @@ mod tests {
         for reference in &references {
             assert!(!expand_reference(reference, &runtime).is_empty());
         }
-        assert!(!codec_reference_expression(&CodecIr::RustType(Box::new(ty)), &quote!(String), &runtime).is_empty());
+        assert!(
+            !codec_reference_expression(
+                &CodecIr::RustType(Box::new(ty)),
+                &quote!(String),
+                &runtime
+            )
+            .is_empty()
+        );
         assert!(
             !codec_reference_expression(
                 &CodecIr::DeclaredId(literal("example.codec")),

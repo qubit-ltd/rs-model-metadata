@@ -89,6 +89,8 @@ pub(crate) enum FieldOccurrence {
     Serde(SerdeIr),
     /// Opaque reflection marker.
     Opaque,
+    /// Recursively validate the value described by this field.
+    ValidateNested,
 }
 
 /// Selects the owner of an automatically assigned identifier.

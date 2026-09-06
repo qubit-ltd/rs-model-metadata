@@ -20,6 +20,7 @@ use qubit_validator::ViolationCode;
 use super::ValidationPlan;
 use super::compiled_property_path::CompiledPropertyPath;
 use super::model_validation_error::ModelValidationError;
+use super::standard_constraints::StandardTarget;
 use super::validation_options::FieldPath;
 use super::validation_options::ValidationMode;
 use super::validation_options::ValidationOptions;
@@ -94,6 +95,7 @@ impl<'a> ValidationPlan<'a> {
                     binding.occurrence(),
                     binding.rule_id(),
                     options,
+                    binding.standard_target(),
                 ),
             };
             if let Err(error) = result {
@@ -184,15 +186,27 @@ fn execute_path(
     occurrence: usize,
     rule_id: ValidatorId,
     options: &ValidationOptions,
+    standard_target: Option<StandardTarget>,
 ) -> Result<(), ExecutionError> {
     let value = read_path(path, root)?;
+    let sequence_count = match &value {
+        PropertyValue::BorrowedSlice(values)
+            if matches!(standard_target, Some(StandardTarget::SequenceCount)) =>
+        {
+            Some(values.len())
+        }
+        _ => None,
+    };
     let input = match &value {
         PropertyValue::OptionalBorrowed(None) if path.is_optional() => ValidationValue::Missing,
         PropertyValue::OptionalBorrowed(Some(value)) => reflected_value(value),
         PropertyValue::Borrowed(value) => reflected_value(value),
         PropertyValue::Owned(value) => owned_value(value),
         PropertyValue::BorrowedSlice(_) => {
-            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
+            if !matches!(standard_target, Some(StandardTarget::SequenceCount)) {
+                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
+            }
+            ValidationValue::Typed(sequence_count.as_ref().expect("slice count"))
         }
         PropertyValue::OptionalBorrowed(None) => ValidationValue::Missing,
     };

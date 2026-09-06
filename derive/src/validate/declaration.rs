@@ -65,7 +65,10 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
     {
         combine(
             &mut errors,
-            Error::new_spanned(&item.generics, "Entity and Projection declarations cannot be generic"),
+            Error::new_spanned(
+                &item.generics,
+                "Entity and Projection declarations cannot be generic",
+            ),
         );
     }
 
@@ -96,7 +99,10 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
             if !valid_shape {
                 combine(
                     &mut errors,
-                    Error::new_spanned(&data.fields, "Value requires named fields or one tuple field"),
+                    Error::new_spanned(
+                        &data.fields,
+                        "Value requires named fields or one tuple field",
+                    ),
                 );
             }
         }
@@ -115,7 +121,11 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
         _ => {}
     }
 
-    if let Some(error) = errors { Err(error) } else { Ok(()) }
+    if let Some(error) = errors {
+        Err(error)
+    } else {
+        Ok(())
+    }
 }
 
 /// Rejects user reflection derives that would duplicate generated metadata.
@@ -125,10 +135,11 @@ pub(crate) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
             continue;
         }
         let derives = attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
-        if let Some(path) = derives
-            .iter()
-            .find(|path| path.segments.last().is_some_and(|segment| segment.ident == "Reflect"))
-        {
+        if let Some(path) = derives.iter().find(|path| {
+            path.segments
+                .last()
+                .is_some_and(|segment| segment.ident == "Reflect")
+        }) {
             return Err(Error::new_spanned(
                 path,
                 "model macros generate Reflect; remove the duplicate derive",
@@ -151,37 +162,52 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
         Data::Union(_) => Vec::new(),
     };
     for (field, ir) in fields {
-        let opaque = field.attrs.iter().any(|attribute| attribute.path().is_ident("opaque"));
-        let element_level = ir.occurrences.iter().find_map(|occurrence| match occurrence {
-            FieldOccurrence::Selector(SelectorIr {
-                position: SelectorPositionIr::Element,
-                redact: Some(RedactIr {
-                    mode: RedactModeIr::Level(level),
-                }),
-                ..
-            }) => Some(level.clone()),
-            _ => None,
-        });
-        let map_key_level = ir.occurrences.iter().find_map(|occurrence| match occurrence {
-            FieldOccurrence::Selector(SelectorIr {
-                position: SelectorPositionIr::MapKey,
-                redact: Some(RedactIr {
-                    mode: RedactModeIr::Level(level),
-                }),
-                ..
-            }) => Some(level.clone()),
-            _ => None,
-        });
-        let map_value_level = ir.occurrences.iter().find_map(|occurrence| match occurrence {
-            FieldOccurrence::Selector(SelectorIr {
-                position: SelectorPositionIr::MapValue,
-                redact: Some(RedactIr {
-                    mode: RedactModeIr::Level(level),
-                }),
-                ..
-            }) => Some(level.clone()),
-            _ => None,
-        });
+        let opaque = field
+            .attrs
+            .iter()
+            .any(|attribute| attribute.path().is_ident("opaque"));
+        let element_level = ir
+            .occurrences
+            .iter()
+            .find_map(|occurrence| match occurrence {
+                FieldOccurrence::Selector(SelectorIr {
+                    position: SelectorPositionIr::Element,
+                    redact:
+                        Some(RedactIr {
+                            mode: RedactModeIr::Level(level),
+                        }),
+                    ..
+                }) => Some(level.clone()),
+                _ => None,
+            });
+        let map_key_level = ir
+            .occurrences
+            .iter()
+            .find_map(|occurrence| match occurrence {
+                FieldOccurrence::Selector(SelectorIr {
+                    position: SelectorPositionIr::MapKey,
+                    redact:
+                        Some(RedactIr {
+                            mode: RedactModeIr::Level(level),
+                        }),
+                    ..
+                }) => Some(level.clone()),
+                _ => None,
+            });
+        let map_value_level = ir
+            .occurrences
+            .iter()
+            .find_map(|occurrence| match occurrence {
+                FieldOccurrence::Selector(SelectorIr {
+                    position: SelectorPositionIr::MapValue,
+                    redact:
+                        Some(RedactIr {
+                            mode: RedactModeIr::Level(level),
+                        }),
+                    ..
+                }) => Some(level.clone()),
+                _ => None,
+            });
         field.attrs.retain(|attribute| {
             if attribute.path().is_ident("redact") {
                 !declaration.options.no_redact
@@ -189,7 +215,9 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
                 !is_model_field_helper(attribute)
             }
         });
-        if let Some(level) = element_level.or_else(|| map_value_level.clone().filter(|_| map_key_level.is_none())) {
+        if let Some(level) =
+            element_level.or_else(|| map_value_level.clone().filter(|_| map_key_level.is_none()))
+        {
             let level = LitStr::new(&level, Span::call_site());
             field.attrs.push(parse_quote!(#[redact(level = #level)]));
         }
@@ -201,7 +229,9 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
                     .attrs
                     .push(parse_quote!(#[redact(map_key_level = #key_level, map_value_level = #value_level)]));
             } else {
-                field.attrs.push(parse_quote!(#[redact(map_key_level = #key_level)]));
+                field
+                    .attrs
+                    .push(parse_quote!(#[redact(map_key_level = #key_level)]));
             }
         }
         if opaque {
@@ -210,7 +240,9 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
     }
     if let Data::Enum(data) = data {
         for variant in &mut data.variants {
-            variant.attrs.retain(|attribute| !attribute.path().is_ident("variant"));
+            variant
+                .attrs
+                .retain(|attribute| !attribute.path().is_ident("variant"));
         }
     }
 }
@@ -240,6 +272,7 @@ fn is_model_field_helper(attribute: &Attribute) -> bool {
             | "codec"
             | "redact"
             | "opaque"
+            | "validate_nested"
             | "keep_serializing"
     )
 }
