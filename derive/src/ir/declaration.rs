@@ -263,33 +263,23 @@ pub(crate) struct ValidatorIr {
 }
 
 /// Selects the value shape supplied to a validator declaration.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum TargetModeIr {
     /// Expand supported optional and transparent smart-pointer wrappers.
+    #[default]
     Value,
     /// Preserve the declared container type.
     Container,
 }
 
-impl Default for TargetModeIr {
-    fn default() -> Self {
-        Self::Value
-    }
-}
-
 /// Selects the behavior for an absent expanded optional value.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum OnNoneIr {
     /// Skip the validator occurrence.
+    #[default]
     Skip,
     /// Report the absent value as a required-value violation.
     Reject,
-}
-
-impl Default for OnNoneIr {
-    fn default() -> Self {
-        Self::Skip
-    }
 }
 
 /// Value codec selected by declared ID or Rust type.

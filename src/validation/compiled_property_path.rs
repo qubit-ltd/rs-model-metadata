@@ -144,11 +144,7 @@ fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDe
         let Some(element) = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| {
-                descriptor
-                    .as_smart_pointer()
-                    .map(|view| view.pointee_type())
-            })
+            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()))
         else {
             return (descriptor, optional);
         };

@@ -428,11 +428,7 @@ impl ValidatorMetadata {
     }
 }
 
-const fn contains_dependency_name(
-    bindings: &[DependencyBindingMetadata],
-    end: usize,
-    name: &str,
-) -> bool {
+const fn contains_dependency_name(bindings: &[DependencyBindingMetadata], end: usize, name: &str) -> bool {
     let mut index = 0;
     while index < end {
         if same_str(bindings[index].name(), name) {

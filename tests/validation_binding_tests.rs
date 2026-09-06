@@ -53,14 +53,11 @@ impl PreparedValidator for AcceptText {
     }
 }
 
-fn prepare_text(
-    _: &[NamedValidationArgument<'_>],
-) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_text(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(AcceptText))
 }
 
-static TEXT_SIGNATURES: &[ValidatorSignature] =
-    &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
+static TEXT_SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
 static TEXT_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(TEXT_SIGNATURES);
 static TEXT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("test.text"),
@@ -87,10 +84,9 @@ fn inputs<'a>(models: &'a ModelRegistry<'a>, codecs: &'a ValueCodecRegistry) -> 
 fn structure_resolution_and_binding_are_separate() {
     let owner = TypeMetadata::of::<Owner>();
     let fixture = TypeMetadata::of::<BindingFixture>();
-    let models = ModelRegistry::from_metadata(&[(owner, source()), (fixture, source())], &[])
-        .expect("isolated model registry");
-    let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION])
-        .expect("isolated validator registry");
+    let models =
+        ModelRegistry::from_metadata(&[(owner, source()), (fixture, source())], &[]).expect("isolated model registry");
+    let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION]).expect("isolated validator registry");
     let codecs = ValueCodecRegistry::empty();
     let graph = ModelResolver::new(inputs(&models, &codecs))
         .resolve_structure()

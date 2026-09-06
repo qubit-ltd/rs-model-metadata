@@ -55,8 +55,7 @@ impl PreparedValidator for Reject {
 fn prepare(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(Reject))
 }
-static SIGNATURES: &[ValidatorSignature] =
-    &[ValidatorSignature::new(InputType::Text, &[], prepare)];
+static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare)];
 static DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("test.reject"),
@@ -78,8 +77,7 @@ fn source() -> &'static FragmentIdentity {
 #[test]
 fn executes_bound_rule_and_prefixes_field_path() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let models =
-        ModelRegistry::from_metadata(&[(metadata, source())], &[]).expect("model registry");
+    let models = ModelRegistry::from_metadata(&[(metadata, source())], &[]).expect("model registry");
     let codecs = ValueCodecRegistry::empty();
     let graph = ModelResolver::new(ResolveInputs {
         models: &models,
@@ -87,8 +85,7 @@ fn executes_bound_rule_and_prefixes_field_path() {
     })
     .resolve_structure()
     .expect("structure");
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -99,9 +96,7 @@ fn executes_bound_rule_and_prefixes_field_path() {
     .expect("binding");
     let report = plan
         .validate(
-            ReflectedRef::new(&TestModel {
-                name: "bad".to_owned(),
-            }),
+            ReflectedRef::new(&TestModel { name: "bad".to_owned() }),
             &ValidationOptions::default(),
         )
         .expect("execution");

@@ -35,10 +35,7 @@ pub struct ValidationPlan<'a> {
 
 impl<'a> ValidationPlan<'a> {
     /// Binds all direct field validator declarations on `root`.
-    pub fn build(
-        root: &'static TypeMetadata,
-        inputs: ValidationBuildInputs<'a>,
-    ) -> Result<Self, Vec<BindError>> {
+    pub fn build(root: &'static TypeMetadata, inputs: ValidationBuildInputs<'a>) -> Result<Self, Vec<BindError>> {
         let mut bindings = Vec::new();
         let mut errors = Vec::new();
         let Some(properties) = inputs.graph.properties(root) else {
@@ -53,14 +50,8 @@ impl<'a> ValidationPlan<'a> {
             };
             for constraint in field.constraints() {
                 let selectors = match constraint {
-                    crate::ConstraintMetadata::Sequence(sequence) => {
-                        sequence.element().into_iter().collect::<Vec<_>>()
-                    }
-                    crate::ConstraintMetadata::Map(map) => map
-                        .key()
-                        .into_iter()
-                        .chain(map.value())
-                        .collect::<Vec<_>>(),
+                    crate::ConstraintMetadata::Sequence(sequence) => sequence.element().into_iter().collect::<Vec<_>>(),
+                    crate::ConstraintMetadata::Map(map) => map.key().into_iter().chain(map.value()).collect::<Vec<_>>(),
                     _ => Vec::new(),
                 };
                 for selector in selectors {
@@ -75,29 +66,24 @@ impl<'a> ValidationPlan<'a> {
             for (occurrence, declaration) in field.validators().iter().enumerate() {
                 let segments = [name];
                 let path = crate::PropertyPath::new(&segments);
-                let value = match CompiledPropertyPath::compile(
-                    root,
-                    &path,
-                    inputs.graph,
-                    declaration.target(),
-                ) {
+                let value = match CompiledPropertyPath::compile(root, &path, inputs.graph, declaration.target()) {
                     Ok(path) => path,
                     Err(error) => {
                         errors.push(error);
                         continue;
                     }
                 };
-                let validator = match inputs.validators.bind(
-                    declaration.declared_id(),
-                    value.input_type(),
-                    declaration.params(),
-                ) {
-                    Ok(validator) => validator,
-                    Err(error) => {
-                        errors.push(error);
-                        continue;
-                    }
-                };
+                let validator =
+                    match inputs
+                        .validators
+                        .bind(declaration.declared_id(), value.input_type(), declaration.params())
+                    {
+                        Ok(validator) => validator,
+                        Err(error) => {
+                            errors.push(error);
+                            continue;
+                        }
+                    };
                 let mut dependencies = Vec::new();
                 let specs = validator.dependency_specs();
                 let declared_dependencies = declaration.dependency_bindings();
@@ -138,9 +124,7 @@ impl<'a> ValidationPlan<'a> {
                         else {
                             errors.push(
                                 BindError::new(BindErrorKind::UnknownDependencyDeclaration)
-                                    .with_rule(
-                                        validator.rule_id().expect("registry binding sets rule ID"),
-                                    )
+                                    .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
                                     .with_dependency(spec.name()),
                             );
                             continue;
@@ -150,25 +134,16 @@ impl<'a> ValidationPlan<'a> {
                     if spec.name() != dependency_name {
                         errors.push(
                             BindError::new(BindErrorKind::UnknownDependencyDeclaration)
-                                .with_rule(
-                                    validator.rule_id().expect("registry binding sets rule ID"),
-                                )
+                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
                                 .with_dependency(spec.name()),
                         );
                         continue;
                     }
-                    match CompiledPropertyPath::compile(
-                        root,
-                        &dependency,
-                        inputs.graph,
-                        TargetMode::Value,
-                    ) {
+                    match CompiledPropertyPath::compile(root, &dependency, inputs.graph, TargetMode::Value) {
                         Ok(path) => dependencies.push(path),
                         Err(error) => errors.push(
                             error
-                                .with_rule(
-                                    validator.rule_id().expect("registry binding sets rule ID"),
-                                )
+                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
                                 .with_dependency(spec.name()),
                         ),
                     }

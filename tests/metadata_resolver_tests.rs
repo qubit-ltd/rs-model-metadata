@@ -432,11 +432,7 @@ fn test_resolver_rejects_value_closure_over_model_role() {
     );
 }
 
-fn strategy_metadata() -> (
-    &'static TypeMetadata,
-    &'static CodecMetadata,
-    &'static CodecMetadata,
-) {
+fn strategy_metadata() -> (&'static TypeMetadata, &'static CodecMetadata, &'static CodecMetadata) {
     let descriptor = TypeDescriptor::of::<StrategyFixture>();
     let dependency = PropertyPath::new(&["other"]);
     let validators = v4::leak_slice(vec![ValidatorMetadata::new(

@@ -186,14 +186,7 @@ impl<'a> ModelResolver<'a> {
                         )),
                     }
                 }
-                resolve_field_codecs(
-                    metadata,
-                    field,
-                    self.inputs,
-                    &mut codecs,
-                    fragment_source,
-                    &mut errors,
-                );
+                resolve_field_codecs(metadata, field, self.inputs, &mut codecs, fragment_source, &mut errors);
                 if let Some(reference) = field.reference() {
                     let mut local_reference_valid = true;
                     if let Some(path) = reference.same_as() {
@@ -545,9 +538,7 @@ fn resolve_field_codecs<'a>(
             errors,
         );
     }
-    let sequence_selector = field
-        .sequence_constraint()
-        .and_then(|sequence| sequence.element());
+    let sequence_selector = field.sequence_constraint().and_then(|sequence| sequence.element());
     let map = field.map_constraint();
     for (selector, position) in [
         (sequence_selector, SelectorPosition::Element),
