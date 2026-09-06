@@ -11,3 +11,4 @@ multiple-public-types | derive/src/ir/declaration.rs | The declaration IR is one
 multiple-public-types | src/validation/compiled_property_path.rs | Property path steps and their compiled path form one private binding contract
 multiple-public-types | src/validation/validation_options.rs | Validation modes, selections, paths, and options form one public execution-options contract
 multiple-public-types | src/validation/validation_plan.rs | Rule bindings and the owning plan form one private-to-public binding contract
+multiple-public-types | src/validation/standard_constraints.rs | Standard constraint target and bound validator form one private binding contract
