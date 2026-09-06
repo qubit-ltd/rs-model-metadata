@@ -38,6 +38,8 @@ pub mod validation;
 pub use crate::validation::ValidationBuildInputs;
 #[cfg(feature = "validation")]
 pub use crate::validation::ValidationPlan;
+#[cfg(feature = "validation")]
+pub use crate::validation::{FieldPath, ModelValidationError, ValidationMode, ValidationOptions, ValidationSelection};
 pub use qubit_redact::Sensitivity;
 pub use qubit_reflect::FieldDefinitionDescriptor;
 pub use qubit_reflect::FieldDescriptor;

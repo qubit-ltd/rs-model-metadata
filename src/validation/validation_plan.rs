@@ -10,6 +10,7 @@ use qubit_validator::ValidatorId;
 use super::compiled_property_path::CompiledPropertyPath;
 use super::ValidationBuildInputs;
 use crate::TypeMetadata;
+use crate::{OnNone, TargetMode};
 
 /// One declaration bound to an executable validator and compiled paths.
 #[derive(Clone, Debug)]
@@ -19,6 +20,7 @@ pub(crate) struct ModelRuleBinding {
     value: CompiledPropertyPath,
     dependencies: Box<[CompiledPropertyPath]>,
     validator: BoundValidator,
+    on_none: OnNone,
 }
 
 /// A read-only plan containing no model instance or getter output.
@@ -49,7 +51,7 @@ impl<'a> ValidationPlan<'a> {
             for (occurrence, declaration) in field.validators().iter().enumerate() {
                 let segments = [name];
                 let path = crate::PropertyPath::new(&segments);
-                let value = match CompiledPropertyPath::compile(root, &path, inputs.graph) {
+                let value = match CompiledPropertyPath::compile(root, &path, inputs.graph, declaration.target()) {
                     Ok(path) => path,
                     Err(error) => {
                         errors.push(error);
@@ -69,9 +71,15 @@ impl<'a> ValidationPlan<'a> {
                 };
                 let mut dependencies = Vec::new();
                 let specs = validator.dependency_specs();
-                if specs.len() != declaration.depends_on().len() {
+                let declared_dependencies = declaration.dependency_bindings();
+                let legacy_dependencies = declaration.depends_on();
+                if specs.len() != if declared_dependencies.is_empty() {
+                    legacy_dependencies.len()
+                } else {
+                    declared_dependencies.len()
+                } {
                     errors.push(
-                        BindError::new(if specs.len() > declaration.depends_on().len() {
+                        BindError::new(if specs.len() > if declared_dependencies.is_empty() { legacy_dependencies.len() } else { declared_dependencies.len() } {
                             BindErrorKind::MissingDependencyDeclaration
                         } else {
                             BindErrorKind::UnknownDependencyDeclaration
@@ -80,8 +88,22 @@ impl<'a> ValidationPlan<'a> {
                     );
                     continue;
                 }
-                for (spec, dependency) in specs.iter().zip(declaration.depends_on()) {
-                    if spec.name() != dependency.to_string() {
+                for (slot, spec) in specs.iter().enumerate() {
+                    let (dependency_name, dependency) = if declared_dependencies.is_empty() {
+                        let dependency = legacy_dependencies[slot];
+                        (dependency.to_string(), dependency)
+                    } else {
+                        let Some(binding) = declared_dependencies.iter().find(|binding| binding.name() == spec.name()) else {
+                            errors.push(
+                                BindError::new(BindErrorKind::UnknownDependencyDeclaration)
+                                    .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                    .with_dependency(spec.name()),
+                            );
+                            continue;
+                        };
+                        (binding.name().to_owned(), binding.path())
+                    };
+                    if spec.name() != dependency_name {
                         errors.push(
                             BindError::new(BindErrorKind::UnknownDependencyDeclaration)
                                 .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
@@ -89,7 +111,7 @@ impl<'a> ValidationPlan<'a> {
                         );
                         continue;
                     }
-                    match CompiledPropertyPath::compile(root, dependency, inputs.graph) {
+                    match CompiledPropertyPath::compile(root, &dependency, inputs.graph, TargetMode::Value) {
                         Ok(path) => dependencies.push(path),
                         Err(error) => errors.push(
                             error
@@ -105,6 +127,7 @@ impl<'a> ValidationPlan<'a> {
                         value,
                         dependencies: dependencies.into_boxed_slice(),
                         validator,
+                        on_none: declaration.on_none(),
                     });
                 }
             }
@@ -144,4 +167,13 @@ impl<'a> ValidationPlan<'a> {
     pub(crate) fn bindings(&self) -> &[ModelRuleBinding] {
         &self.bindings
     }
+}
+
+impl ModelRuleBinding {
+    pub(crate) const fn occurrence(&self) -> usize { self.occurrence }
+    pub(crate) const fn rule_id(&self) -> ValidatorId { self.rule_id }
+    pub(crate) const fn value(&self) -> &CompiledPropertyPath { &self.value }
+    pub(crate) fn dependencies(&self) -> &[CompiledPropertyPath] { &self.dependencies }
+    pub(crate) const fn validator(&self) -> &BoundValidator { &self.validator }
+    pub(crate) const fn on_none(&self) -> OnNone { self.on_none }
 }

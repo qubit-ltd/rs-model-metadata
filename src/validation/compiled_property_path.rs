@@ -13,6 +13,7 @@ use qubit_validator::next::InputType;
 use crate::PropertyMetadata;
 use crate::PropertyPath;
 use crate::ResolvedModelGraph;
+use crate::TargetMode;
 use crate::TypeMetadata;
 use super::build_error::path_error;
 
@@ -56,6 +57,7 @@ impl CompiledPropertyPath {
         root: &'static TypeMetadata,
         path: &PropertyPath<'_>,
         graph: &ResolvedModelGraph<'_>,
+        target: TargetMode,
     ) -> Result<Self, BindError> {
         if path.is_empty() {
             return Err(path_error(BindErrorKind::UnreadablePath));
@@ -76,7 +78,10 @@ impl CompiledPropertyPath {
             let descriptor = property
                 .descriptor()
                 .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
-            let (value_descriptor, optional) = value_descriptor(descriptor);
+            let (value_descriptor, optional) = match target {
+                TargetMode::Value => value_descriptor(descriptor),
+                TargetMode::Container => (descriptor, false),
+            };
             let value_type = value_descriptor.type_id();
             steps.push(PropertyStep {
                 property,
@@ -100,7 +105,10 @@ impl CompiledPropertyPath {
             .property(path.segments().last().copied().expect("non-empty path"))
             .and_then(PropertyMetadata::descriptor)
             .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
-        let (descriptor, optional) = value_descriptor(descriptor);
+        let (descriptor, optional) = match target {
+            TargetMode::Value => value_descriptor(descriptor),
+            TargetMode::Container => (descriptor, false),
+        };
         let input = if matches!(descriptor.kind(), TypeKind::Text(_)) {
             InputType::Text
         } else {
