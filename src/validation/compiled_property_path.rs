@@ -109,7 +109,7 @@ impl CompiledPropertyPath {
             .property(path.segments().last().copied().expect("non-empty path"))
             .and_then(PropertyMetadata::descriptor)
             .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
-        let (descriptor, optional) = match target {
+        let (descriptor, _optional) = match target {
             TargetMode::Value => value_descriptor(descriptor),
             TargetMode::Container => (descriptor, false),
         };
