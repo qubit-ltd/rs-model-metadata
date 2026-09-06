@@ -19,8 +19,9 @@ use qubit_model_metadata::TypeDescriptor;
 use qubit_model_metadata::TypeRef;
 use qubit_model_metadata::model_impl_key;
 use qubit_model_metadata::register_reflected_type;
-use qubit_reflect::__private::testing::build_registry;
 use qubit_reflect::capability::CapabilityDescriptor;
+use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]
@@ -61,7 +62,9 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
         "registry failure must not become an empty property set"
     );
     assert!(metadata.property_fragments().is_err());
-    let isolated = build_registry(&[]).expect("empty isolated reflection");
+    let isolated = RegistrySnapshotBuilder::new()
+        .build()
+        .expect("empty isolated reflection");
     assert!(
         metadata
             .try_properties_in(&isolated)
@@ -104,37 +107,16 @@ register_model_impl_capability!(DuplicateReflectionSource, overlay_provider);
 #[test]
 fn test_isolated_snapshot_selects_its_own_property_overlay() {
     use qubit_model_metadata::__private::v4;
-    use qubit_reflect::__private::codegen_v2::registration::CapabilityRegistration;
-    use qubit_reflect::__private::codegen_v2::registration::CapabilityTarget;
-    use qubit_reflect::__private::codegen_v2::registration::FragmentKind;
-    use qubit_reflect::__private::codegen_v2::registration::FragmentPayload;
-    use qubit_reflect::__private::codegen_v2::registration::RegistrationFragment;
-    use qubit_reflect::__private::codegen_v2::registration::RuntimeIdentity;
-    use qubit_reflect::__private::codegen_v2::registration::StaticFragmentIdentity;
-    /// Returns the exact concrete target claimed by this isolated fragment.
-    fn identity() -> RuntimeIdentity {
-        RuntimeIdentity::Capabilities(CapabilityTarget::Type(
-            std::any::TypeId::of::<DuplicateReflectionSource>(),
-        ))
-    }
-    /// Supplies the same generated overlay without the conflicting type
-    /// fragments.
-    fn payload() -> FragmentPayload {
-        FragmentPayload::Capability(CapabilityRegistration::for_type(
-            TypeDescriptor::of::<DuplicateReflectionSource>(),
-            vec![CapabilityDescriptor::with_adapter(
-                model_impl_key(),
-                overlay_provider as ModelImplProvider,
-            )],
-        ))
-    }
-    static FRAGMENT: RegistrationFragment = RegistrationFragment::new(
-        FragmentKind::Capability,
-        StaticFragmentIdentity::new("model-test", "isolated", 1, 1, "capability", 1),
-        identity,
-        payload,
+    let mut snapshot = RegistrySnapshotBuilder::new();
+    snapshot.add_type_capabilities(
+        TypeDescriptor::of::<DuplicateReflectionSource>(),
+        vec![CapabilityDescriptor::with_adapter(
+            model_impl_key(),
+            overlay_provider as ModelImplProvider,
+        )],
+        FragmentIdentity::new("model-test", "isolated", 1, 1, "capability", 1),
     );
-    let reflection = build_registry(&[&FRAGMENT]).expect("isolated capability snapshot");
+    let reflection = snapshot.build().expect("isolated capability snapshot");
     let metadata = v4::leak(
         v4::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
@@ -152,7 +134,7 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
             .property("computed")
             .is_some()
     );
-    let empty = build_registry(&[]).expect("empty snapshot");
+    let empty = RegistrySnapshotBuilder::new().build().expect("empty snapshot");
     assert!(
         metadata
             .try_property_in(&empty, "computed")

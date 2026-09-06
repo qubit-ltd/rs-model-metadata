@@ -20,11 +20,11 @@ use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::TypeDescriptor;
 use qubit_model_metadata::TypeMetadata;
 use qubit_model_metadata::model_metadata_key;
-use qubit_reflect::__private::testing::build_registry;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::registry::ReflectRegistry;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
 use qubit_validator::ValidatorRegistry;
 
 /// The conflicting intrinsic contract used on unregistered const instances.
@@ -53,7 +53,7 @@ struct Invalid<const N: usize>;
 
 #[test]
 fn test_metadata_and_properties_preserve_intrinsic_conflicts() {
-    let reflection = build_registry(&[]).unwrap();
+    let reflection = RegistrySnapshotBuilder::new().build().unwrap();
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
     let descriptor = TypeDescriptor::of::<Invalid<1>>();
     assert!(models.metadata_for(descriptor).is_err());
@@ -105,7 +105,7 @@ struct Wrong<const N: usize>;
 
 #[test]
 fn test_metadata_abi_failure_is_distinct_from_absence() {
-    let reflection = build_registry(&[]).unwrap();
+    let reflection = RegistrySnapshotBuilder::new().build().unwrap();
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
     let error = models.metadata_for(TypeDescriptor::of::<Wrong<1>>()).unwrap_err();
     assert!(matches!(error, ModelMetadataError::Abi { .. }));
