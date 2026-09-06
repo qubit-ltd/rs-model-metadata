@@ -93,6 +93,8 @@ metadata is checked against descriptor, field, property, role, and codec
 invariants before it crosses the hidden model ABI v4 boundary. Generated model
 code uses only the curated model facade and its exact private ABI.
 
+When a consumer needs an isolated reflection context, construct it with `RegistrySnapshotBuilder` from `qubit-reflect` and pass it to the explicit `*_in` queries. Do not use the old hidden testing registry helper. Global initialization failures remain structured: `ModelRegistry::try_global()` preserves the reflection registry error and its capability conflict as the source chain.
+
 ## Recoverable queries
 
 `ModelRegistry::metadata_for` returns `Result<Option<&TypeMetadata>, ModelMetadataError>`.

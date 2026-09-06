@@ -76,6 +76,8 @@ assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
 metadata 在穿过隐藏 model ABI v4 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量；
 生成代码只依赖经过收窄的模型 facade 及其精确私有 ABI。
 
+需要隔离反射上下文时，应使用 `qubit-reflect` 的 `RegistrySnapshotBuilder` 构造快照，再传给显式的 `*_in` 查询；不要继续使用旧的隐藏 testing registry helper。全局初始化失败仍保持结构化错误：`ModelRegistry::try_global()` 的 source chain 会保留反射 registry 错误及其 capability conflict。
+
 ## 可恢复查询
 
 `ModelRegistry::metadata_for` 返回 `Result<Option<&TypeMetadata>, ModelMetadataError>`。
