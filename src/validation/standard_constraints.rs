@@ -2,6 +2,7 @@
 
 // qubit-style: allow multiple-public-types
 
+use qubit_validation_rules::registrations;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 use qubit_validator::BoundValidator;
@@ -37,7 +38,7 @@ pub(crate) struct StandardBinding {
 /// Built-in IDs are deliberately not overrideable: the registry's duplicate
 /// check makes an accidental semantic change visible during plan binding.
 pub(crate) fn registry(validators: &ValidatorRegistry) -> Result<ValidatorRegistry, BindError> {
-    let mut registrations = qubit_validation_rules::registrations();
+    let mut registrations = registrations();
     registrations.extend(validators.registrations().iter().copied());
     ValidatorRegistry::from_registrations(registrations).map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
 }
