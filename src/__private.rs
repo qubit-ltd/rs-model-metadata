@@ -19,6 +19,9 @@ pub use qubit_reflect::register_type_capabilities;
 pub use qubit_validator;
 pub use serde;
 
+#[path = "private/reflect_codegen.rs"]
+mod reflect_codegen;
+
 /// Serde predicates used by generated omission defaults.
 #[doc(hidden)]
 pub mod serde_helpers {
@@ -369,6 +372,7 @@ pub mod v4 {
     pub use super::compile_assertions::local_property_set;
     pub use super::compile_assertions::model_impl_metadata;
     pub use super::compile_assertions::property_fragment;
+    pub use super::reflect_codegen::reflected_type_ref;
     use crate::TypeDescriptor;
     use crate::TypeMetadata;
     pub use crate::reflect_facade::generic_model_capability;
@@ -590,6 +594,8 @@ pub mod v4 {
         Box::leak(values.into_boxed_slice())
     }
 
+    #[doc(hidden)]
+    pub use crate::__qubit_model_register_generic_model_capability as register_generic_model_capability;
     #[doc(hidden)]
     pub use crate::__qubit_model_register_model_capability as register_model_capability;
     pub use crate::__qubit_model_register_model_impl_capability as register_model_impl_capability;
