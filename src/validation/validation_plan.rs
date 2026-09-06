@@ -51,6 +51,27 @@ impl<'a> ValidationPlan<'a> {
             let Some(property) = properties.property(name) else {
                 continue;
             };
+            for constraint in field.constraints() {
+                let selectors = match constraint {
+                    crate::ConstraintMetadata::Sequence(sequence) => {
+                        sequence.element().into_iter().collect::<Vec<_>>()
+                    }
+                    crate::ConstraintMetadata::Map(map) => map
+                        .key()
+                        .into_iter()
+                        .chain(map.value())
+                        .collect::<Vec<_>>(),
+                    _ => Vec::new(),
+                };
+                for selector in selectors {
+                    for declaration in selector.validators() {
+                        errors.push(
+                            BindError::new(BindErrorKind::UnsupportedInput)
+                                .with_rule(ValidatorId::new(declaration.declared_id())),
+                        );
+                    }
+                }
+            }
             for (occurrence, declaration) in field.validators().iter().enumerate() {
                 let segments = [name];
                 let path = crate::PropertyPath::new(&segments);

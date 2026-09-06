@@ -73,8 +73,8 @@ impl<'a> ModelResolver<'a> {
     /// # Errors
     ///
     /// Returns [`ModelResolveErrors`] when any property, relationship, role,
-    /// validator, codec, projection, value-closure, or query invariant cannot
-    /// be resolved against the configured registries.
+    /// codec, projection, value-closure, or query invariant cannot be
+    /// resolved against the configured registries.
     #[must_use = "handle all model resolution failures"]
     pub fn resolve_all(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
         self.resolve_internal()
@@ -1667,10 +1667,6 @@ pub enum ModelResolveErrorKind {
     UnreadableProperty,
     /// The expected and actual types differ.
     TypeMismatch,
-    /// A declared validator is not registered.
-    MissingValidator,
-    /// A validator registration has the wrong input type.
-    ValidatorTypeMismatch,
     /// A declared codec is not registered.
     MissingCodec,
     /// A codec registration has the wrong value type.

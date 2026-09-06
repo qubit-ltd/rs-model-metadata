@@ -38,6 +38,8 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
     let mut parameter_names = HashSet::new();
     let mut dependency_paths = HashSet::new();
     let mut dependency_names = HashSet::new();
+    let mut saw_named_dependency = false;
+    let mut saw_bare_dependency = false;
     let mut target = TargetModeIr::Value;
     let mut on_none = OnNoneIr::Skip;
     let mut saw_target = false;
@@ -52,6 +54,12 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
         } else if meta.path.is_ident("depends_on") {
             meta.parse_nested_meta(|path| {
                 if path.input.peek(Token![=]) {
+                    if saw_bare_dependency {
+                        return Err(path.error(
+                            "validator dependencies cannot mix named and bare forms",
+                        ));
+                    }
+                    saw_named_dependency = true;
                     let name = path
                         .path
                         .get_ident()
@@ -68,6 +76,12 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
                     depends_on.push(dependency.clone());
                     dependency_bindings.push((name, dependency));
                 } else {
+                    if saw_named_dependency {
+                        return Err(path.error(
+                            "validator dependencies cannot mix named and bare forms",
+                        ));
+                    }
+                    saw_bare_dependency = true;
                     let dependency = path_from_syn(&path.path);
                     let name = dependency.join(".");
                     if !dependency_paths.insert(dependency.clone()) {

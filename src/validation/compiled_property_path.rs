@@ -66,6 +66,7 @@ impl CompiledPropertyPath {
         }
         let mut current = root;
         let mut steps = Vec::with_capacity(path.segments().len());
+        let mut path_optional = false;
         for (index, segment) in path.segments().iter().enumerate() {
             let properties = graph
                 .registry()
@@ -85,6 +86,7 @@ impl CompiledPropertyPath {
                 TargetMode::Container => (descriptor, false),
             };
             let value_type = value_descriptor.type_id();
+            path_optional |= optional;
             steps.push(PropertyStep {
                 property,
                 receiver_type: current.type_id(),
@@ -119,7 +121,7 @@ impl CompiledPropertyPath {
         Ok(Self {
             steps: steps.into_boxed_slice(),
             input,
-            optional: optional || last.optional(),
+            optional: path_optional || last.optional(),
         })
     }
 

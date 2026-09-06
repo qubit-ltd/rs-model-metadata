@@ -1,3 +1,5 @@
+#![cfg(feature = "validation")]
+
 //! Binding-only validation plan tests.
 
 use std::sync::Arc;

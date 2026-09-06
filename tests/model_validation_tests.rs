@@ -1,3 +1,5 @@
+#![cfg(feature = "validation")]
+
 //! Focused model validation execution tests.
 
 use std::sync::Arc;

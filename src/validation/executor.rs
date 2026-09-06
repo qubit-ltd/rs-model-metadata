@@ -56,7 +56,7 @@ impl<'a> ValidationPlan<'a> {
                 ));
             }
             nodes += 1;
-            let dependencies = match read_direct_values(binding.dependencies(), value.clone()) {
+            let dependencies = match read_dependency_values(binding.dependencies(), value.clone()) {
                 Ok(values) => values,
                 Err(error) => {
                     return Err(ModelValidationError::new(
@@ -95,22 +95,42 @@ impl<'a> ValidationPlan<'a> {
     }
 }
 
-fn read_direct_values<'a>(
+fn read_dependency_values<'a>(
     paths: &[CompiledPropertyPath],
     root: ReflectedRef<'a>,
 ) -> Result<Vec<PropertyValue<'a>>, ExecutionError> {
     paths
         .iter()
-        .map(|path| {
-            if path.steps().len() != 1 {
+        .map(|path| read_path(path, root.clone()))
+        .collect()
+}
+
+/// Reads every step of a compiled path while preserving the root borrow.
+fn read_path<'a>(
+    path: &CompiledPropertyPath,
+    root: ReflectedRef<'a>,
+) -> Result<PropertyValue<'a>, ExecutionError> {
+    let mut receiver = root;
+    for (index, step) in path.steps().iter().enumerate() {
+        let output = step
+            .property()
+            .get(receiver)
+            .map_err(|_| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed))?;
+        if index + 1 == path.steps().len() {
+            return Ok(output);
+        }
+        receiver = match output {
+            PropertyValue::Borrowed(value) => value,
+            PropertyValue::OptionalBorrowed(Some(value)) => value,
+            PropertyValue::OptionalBorrowed(None) => {
+                return Ok(PropertyValue::OptionalBorrowed(None));
+            }
+            PropertyValue::Owned(_) | PropertyValue::BorrowedSlice(_) => {
                 return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
             }
-            path.steps()[0]
-                .property()
-                .get(root.clone())
-                .map_err(|_| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed))
-        })
-        .collect()
+        };
+    }
+    Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -126,13 +146,7 @@ fn execute_path(
     rule_id: ValidatorId,
     options: &ValidationOptions,
 ) -> Result<(), ExecutionError> {
-    if path.steps().len() != 1 {
-        return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
-    }
-    let property = path.steps()[0].property();
-    let value = property
-        .get(root)
-        .map_err(|_| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed))?;
+    let value = read_path(path, root)?;
     let input = match &value {
         PropertyValue::OptionalBorrowed(None) if path.is_optional() => ValidationValue::Missing,
         PropertyValue::OptionalBorrowed(Some(value)) => reflected_value(value),
@@ -143,6 +157,7 @@ fn execute_path(
         }
         PropertyValue::OptionalBorrowed(None) => ValidationValue::Missing,
     };
+    eprintln!("input={:?} expected={:?}", input.input_type(), validator.input_type());
     let mut values = Vec::with_capacity(dependencies.len());
     for dependency in dependencies {
         values.push(property_value(dependency));
