@@ -84,6 +84,19 @@ impl<'a> ModelResolver<'a> {
     /// be resolved against the configured registries.
     #[must_use = "handle all model resolution failures"]
     pub fn resolve_all(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
+        self.resolve_internal(true)
+    }
+
+    /// Resolves model structure and property capabilities without requiring
+    /// validator registrations. Validation declarations remain available from
+    /// the metadata and are bound later by [`crate::ValidationPlan`].
+    #[cfg(feature = "validation")]
+    #[must_use = "handle all model structure resolution failures"]
+    pub fn resolve_structure(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
+        self.resolve_internal(false)
+    }
+
+    fn resolve_internal(&self, resolve_validators: bool) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
         let mut references = HashMap::new();
         let mut projection_sources = HashMap::new();
         let mut validators = HashMap::new();
@@ -181,15 +194,26 @@ impl<'a> ModelResolver<'a> {
                         )),
                     }
                 }
-                resolve_field_strategies(
-                    metadata,
-                    field,
-                    self.inputs,
-                    &mut validators,
-                    &mut codecs,
-                    fragment_source,
-                    &mut errors,
-                );
+                if resolve_validators {
+                    resolve_field_strategies(
+                        metadata,
+                        field,
+                        self.inputs,
+                        &mut validators,
+                        &mut codecs,
+                        fragment_source,
+                        &mut errors,
+                    );
+                } else {
+                    resolve_field_codecs(
+                        metadata,
+                        field,
+                        self.inputs,
+                        &mut codecs,
+                        fragment_source,
+                        &mut errors,
+                    );
+                }
                 if let Some(reference) = field.reference() {
                     let mut local_reference_valid = true;
                     if let Some(path) = reference.same_as() {
@@ -512,6 +536,63 @@ fn push_field_error(
     );
     error.path = path;
     errors.push(error);
+}
+
+/// Resolves field codecs while deliberately leaving validator declarations
+/// for the validation-plan binding phase.
+#[allow(clippy::too_many_arguments)]
+fn resolve_field_codecs<'a>(
+    metadata: &'static TypeMetadata,
+    field: &'static FieldMetadata,
+    inputs: ResolveInputs<'a>,
+    codecs: &mut HashMap<usize, ResolvedCodec<'a>>,
+    source: &FragmentIdentity,
+    errors: &mut Vec<ModelResolveError>,
+) {
+    let Some(descriptor) = field.descriptor() else {
+        return;
+    };
+    if let Some(codec) = field.codec() {
+        resolve_codec(
+            metadata,
+            codec,
+            descriptor
+                .as_optional()
+                .and_then(|view| runtime_type_id(view.element_type()))
+                .unwrap_or_else(|| descriptor.type_id()),
+            inputs.codecs,
+            codecs,
+            source,
+            errors,
+        );
+    }
+    let sequence_selector = field
+        .sequence_constraint()
+        .and_then(|sequence| sequence.element());
+    let map = field.map_constraint();
+    for (selector, position) in [
+        (sequence_selector, SelectorPosition::Element),
+        (map.and_then(|map| map.key()), SelectorPosition::MapKey),
+        (map.and_then(|map| map.value()), SelectorPosition::MapValue),
+    ] {
+        let Some(selector) = selector else {
+            continue;
+        };
+        let Some(expected_type) = selector_type_id(descriptor, position) else {
+            errors.push(ModelResolveError::new(
+                ModelResolveErrorKind::UnresolvedSelectorType,
+                metadata.model_id().map(|id| id.as_str()),
+                None,
+                None,
+                Some(metadata.role()),
+                Some(source),
+            ));
+            continue;
+        };
+        if let Some(codec) = selector.codec() {
+            resolve_codec(metadata, codec, expected_type, inputs.codecs, codecs, source, errors);
+        }
+    }
 }
 
 /// Resolves executable strategies declared directly on one field.

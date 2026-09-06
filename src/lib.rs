@@ -32,6 +32,12 @@ mod reflect_facade;
 mod relation;
 mod role;
 mod type_metadata;
+#[cfg(feature = "validation")]
+pub mod validation;
+#[cfg(feature = "validation")]
+pub use crate::validation::ValidationBuildInputs;
+#[cfg(feature = "validation")]
+pub use crate::validation::ValidationPlan;
 pub use qubit_redact::Sensitivity;
 pub use qubit_reflect::FieldDefinitionDescriptor;
 pub use qubit_reflect::FieldDescriptor;

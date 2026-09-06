@@ -1,0 +1,147 @@
+//! Immutable validation binding plans.
+
+#![allow(dead_code)]
+
+use qubit_validator::next::BindError;
+use qubit_validator::next::BindErrorKind;
+use qubit_validator::next::BoundValidator;
+use qubit_validator::ValidatorId;
+
+use super::compiled_property_path::CompiledPropertyPath;
+use super::ValidationBuildInputs;
+use crate::TypeMetadata;
+
+/// One declaration bound to an executable validator and compiled paths.
+#[derive(Clone, Debug)]
+pub(crate) struct ModelRuleBinding {
+    occurrence: usize,
+    rule_id: ValidatorId,
+    value: CompiledPropertyPath,
+    dependencies: Box<[CompiledPropertyPath]>,
+    validator: BoundValidator,
+}
+
+/// A read-only plan containing no model instance or getter output.
+pub struct ValidationPlan<'a> {
+    root: &'static TypeMetadata,
+    graph: &'a crate::ResolvedModelGraph<'a>,
+    bindings: Box<[ModelRuleBinding]>,
+}
+
+impl<'a> ValidationPlan<'a> {
+    /// Binds all direct field validator declarations on `root`.
+    pub fn build(
+        root: &'static TypeMetadata,
+        inputs: ValidationBuildInputs<'a>,
+    ) -> Result<Self, Vec<BindError>> {
+        let mut bindings = Vec::new();
+        let mut errors = Vec::new();
+        let Some(properties) = inputs.graph.properties(root) else {
+            return Err(vec![BindError::new(BindErrorKind::UnreadablePath)]);
+        };
+        for field in root.fields() {
+            let Some(name) = field.name() else {
+                continue;
+            };
+            let Some(property) = properties.property(name) else {
+                continue;
+            };
+            for (occurrence, declaration) in field.validators().iter().enumerate() {
+                let segments = [name];
+                let path = crate::PropertyPath::new(&segments);
+                let value = match CompiledPropertyPath::compile(root, &path, inputs.graph) {
+                    Ok(path) => path,
+                    Err(error) => {
+                        errors.push(error);
+                        continue;
+                    }
+                };
+                let validator = match inputs.validators.bind(
+                    declaration.declared_id(),
+                    value.input_type(),
+                    declaration.params(),
+                ) {
+                    Ok(validator) => validator,
+                    Err(error) => {
+                        errors.push(error);
+                        continue;
+                    }
+                };
+                let mut dependencies = Vec::new();
+                let specs = validator.dependency_specs();
+                if specs.len() != declaration.depends_on().len() {
+                    errors.push(
+                        BindError::new(if specs.len() > declaration.depends_on().len() {
+                            BindErrorKind::MissingDependencyDeclaration
+                        } else {
+                            BindErrorKind::UnknownDependencyDeclaration
+                        })
+                        .with_rule(validator.rule_id().expect("registry binding sets rule ID")),
+                    );
+                    continue;
+                }
+                for (spec, dependency) in specs.iter().zip(declaration.depends_on()) {
+                    if spec.name() != dependency.to_string() {
+                        errors.push(
+                            BindError::new(BindErrorKind::UnknownDependencyDeclaration)
+                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                .with_dependency(spec.name()),
+                        );
+                        continue;
+                    }
+                    match CompiledPropertyPath::compile(root, dependency, inputs.graph) {
+                        Ok(path) => dependencies.push(path),
+                        Err(error) => errors.push(
+                            error
+                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                .with_dependency(spec.name()),
+                        ),
+                    }
+                }
+                if dependencies.len() == specs.len() {
+                    bindings.push(ModelRuleBinding {
+                        occurrence,
+                        rule_id: validator.rule_id().expect("registry binding sets rule ID"),
+                        value,
+                        dependencies: dependencies.into_boxed_slice(),
+                        validator,
+                    });
+                }
+            }
+            let _ = property;
+        }
+        if errors.is_empty() {
+            Ok(Self {
+                root,
+                graph: inputs.graph,
+                bindings: bindings.into_boxed_slice(),
+            })
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Returns the number of bound validator occurrences.
+    #[must_use]
+    pub const fn binding_count(&self) -> usize {
+        self.bindings.len()
+    }
+
+    /// Returns the model root this plan was built for.
+    #[must_use]
+    pub const fn root(&self) -> &'static TypeMetadata {
+        self.root
+    }
+
+    /// Returns the structure graph retained by this plan.
+    #[must_use]
+    pub const fn graph(&self) -> &'a crate::ResolvedModelGraph<'a> {
+        self.graph
+    }
+
+    /// Returns the immutable bound occurrences for the executor.
+    #[must_use]
+    pub(crate) fn bindings(&self) -> &[ModelRuleBinding] {
+        &self.bindings
+    }
+}

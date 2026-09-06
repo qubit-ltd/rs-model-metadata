@@ -32,6 +32,10 @@ resolver = "3"
 name = "qubit_model_metadata"
 doctest = true
 
+[features]
+default = []
+validation = []
+
 [dependencies]
 bitflags = "2.10.0"
 bigdecimal = "0.4"
