@@ -202,33 +202,10 @@ fn expand_generic_registration(
 
         #[doc(hidden)]
         mod #registration_module {
-            fn runtime_identity() -> #runtime::__private::codegen_v2::registration::RuntimeIdentity {
-                #runtime::__private::codegen_v2::registration::RuntimeIdentity::Capabilities(
-                    #runtime::__private::codegen_v2::registration::CapabilityTarget::TypeDefinition(
-                        super::#definition_fn().id(),
-                    ),
-                )
-            }
-
-            fn payload() -> #runtime::__private::codegen_v2::registration::FragmentPayload {
-                #runtime::__private::codegen_v2::registration::FragmentPayload::Capability(
-                    #runtime::__private::codegen_v2::registration::CapabilityRegistration::for_definition(
-                        super::#definition_fn(),
-                        ::std::vec![#runtime::__private::v4::generic_model_capability(super::#metadata_fn)],
-                    ),
-                )
-            }
-
-            #runtime::__private::codegen_v2::inventory::submit! {
-                #runtime::__private::codegen_v2::registration::RegistrationFragment::new(
-                    #runtime::__private::codegen_v2::registration::FragmentKind::Capability,
-                    #runtime::__private::codegen_v2::registration::StaticFragmentIdentity::new(
-                        env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(),
-                        "generic-model-capability", #fingerprint,
-                    ),
-                    runtime_identity,
-                    payload,
-                )
+            #runtime::__private::v4::register_generic_model_capability! {
+                definition = super::#definition_fn,
+                metadata = super::#metadata_fn,
+                source = (env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(), #fingerprint),
             }
         }
     }
