@@ -8,12 +8,14 @@
 
 //! Model-owned adapters over the reflection codegen protocol.
 
+use qubit_reflect::__private as reflect_private;
+
 /// Returns reflection's resolved root reference for `T`.
 #[doc(hidden)]
 #[must_use]
 #[inline(always)]
 pub fn reflected_type_ref<T: crate::Reflect + ?Sized>() -> &'static crate::TypeRef {
-    qubit_reflect::__private::codegen_v2::descriptor::lazy_type_ref::<T>().get()
+    reflect_private::codegen_v2::descriptor::lazy_type_ref::<T>().get()
 }
 
 /// Registers generated model metadata on a generic reflection definition.

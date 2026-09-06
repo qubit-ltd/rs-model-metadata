@@ -18,6 +18,7 @@ use qubit_reflect::capability::CapabilityConflict;
 use qubit_reflect::capability::CapabilityConflictKind;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
+use qubit_reflect::error::RegistryError;
 use qubit_reflect::error::RegistryErrorKind;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
@@ -56,7 +57,7 @@ fn test_model_registry_global_preserves_nested_reflection_error_chain() {
     let error = ModelRegistry::try_global().expect_err("global capability conflict must fail");
     assert_eq!(error.kind(), ModelRegistryErrorKind::ReflectionRegistry);
     let reflection = std::error::Error::source(&error)
-        .and_then(|cause| cause.downcast_ref::<qubit_reflect::error::RegistryError>())
+        .and_then(|cause| cause.downcast_ref::<RegistryError>())
         .expect("model error must expose registry error");
     assert_eq!(
         reflection.capability_target(),
