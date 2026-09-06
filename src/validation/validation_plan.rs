@@ -21,9 +21,50 @@ use crate::SelectorPosition;
 use crate::TargetMode;
 use crate::TypeMetadata;
 
+/// A typed model-level validator prepared for execution against the plan root.
+#[derive(Clone)]
+pub struct ModelRuleBinding {
+    rule_id: ValidatorId,
+    input_type: qubit_validator::InputType,
+    validator: std::sync::Arc<dyn qubit_validator::PreparedValidator>,
+}
+
+impl std::fmt::Debug for ModelRuleBinding {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ModelRuleBinding")
+            .field("rule_id", &self.rule_id)
+            .finish()
+    }
+}
+
+impl ModelRuleBinding {
+    /// Creates a model-level binding for a prepared validator accepting `T`.
+    #[must_use]
+    pub fn from_prepared<T: 'static>(
+        rule_id: ValidatorId,
+        validator: std::sync::Arc<dyn qubit_validator::PreparedValidator>,
+    ) -> Self {
+        Self {
+            rule_id,
+            input_type: qubit_validator::InputType::of::<T>(),
+            validator,
+        }
+    }
+    pub(crate) const fn rule_id(&self) -> ValidatorId {
+        self.rule_id
+    }
+    pub(crate) const fn input_type(&self) -> qubit_validator::InputType {
+        self.input_type
+    }
+    pub(crate) fn validator(&self) -> &dyn qubit_validator::PreparedValidator {
+        self.validator.as_ref()
+    }
+}
+
 /// One declaration bound to an executable validator and compiled paths.
 #[derive(Clone, Debug)]
-pub(crate) struct ModelRuleBinding {
+pub(crate) struct FieldRuleBinding {
     occurrence: usize,
     rule_id: ValidatorId,
     value: CompiledPropertyPath,
@@ -50,7 +91,8 @@ impl SelectorBinding {
 pub struct ValidationPlan<'a> {
     root: &'static TypeMetadata,
     graph: &'a crate::ResolvedModelGraph<'a>,
-    bindings: Box<[ModelRuleBinding]>,
+    bindings: Box<[FieldRuleBinding]>,
+    model_rules: Box<[ModelRuleBinding]>,
 }
 
 impl<'a> ValidationPlan<'a> {
@@ -104,7 +146,7 @@ impl<'a> ValidationPlan<'a> {
                         .validator
                         .rule_id()
                         .expect("registry binding sets rule ID");
-                    bindings.push(ModelRuleBinding {
+                    bindings.push(FieldRuleBinding {
                         occurrence: bindings.len(),
                         rule_id,
                         value,
@@ -174,7 +216,7 @@ impl<'a> ValidationPlan<'a> {
                             );
                             continue;
                         }
-                        bindings.push(ModelRuleBinding {
+                        bindings.push(FieldRuleBinding {
                             occurrence: bindings.len(),
                             rule_id: validator.rule_id().expect("registry binding sets rule ID"),
                             value: match CompiledPropertyPath::compile(
@@ -302,7 +344,7 @@ impl<'a> ValidationPlan<'a> {
                     }
                 }
                 if dependencies.len() == specs.len() {
-                    bindings.push(ModelRuleBinding {
+                    bindings.push(FieldRuleBinding {
                         occurrence,
                         rule_id: validator.rule_id().expect("registry binding sets rule ID"),
                         value,
@@ -332,6 +374,7 @@ impl<'a> ValidationPlan<'a> {
                 root,
                 graph: inputs.graph,
                 bindings: bindings.into_boxed_slice(),
+                model_rules: Box::new([]),
             })
         } else {
             Err(errors)
@@ -341,7 +384,7 @@ impl<'a> ValidationPlan<'a> {
     /// Returns the number of bound validator occurrences.
     #[must_use]
     pub const fn binding_count(&self) -> usize {
-        self.bindings.len()
+        self.bindings.len() + self.model_rules.len()
     }
 
     /// Returns the model root this plan was built for.
@@ -355,13 +398,26 @@ impl<'a> ValidationPlan<'a> {
         self.graph
     }
 
+    /// Adds a typed model-level prepared validator to this plan.
+    #[must_use]
+    pub fn with_model_rule(mut self, binding: ModelRuleBinding) -> Self {
+        self.model_rules = self
+            .model_rules
+            .into_iter()
+            .chain(std::iter::once(binding))
+            .collect();
+        self
+    }
+
+    pub(crate) fn model_rules(&self) -> &[ModelRuleBinding] {
+        &self.model_rules
+    }
 
     /// Returns the immutable bound occurrences for the executor.
     #[must_use]
-    pub(crate) fn bindings(&self) -> &[ModelRuleBinding] {
+    pub(crate) fn bindings(&self) -> &[FieldRuleBinding] {
         &self.bindings
     }
-
 }
 
 /// Adds validators declared by fields marked with `#[validate_nested]`.
@@ -377,7 +433,7 @@ fn collect_nested_bindings<'a>(
     prefix: &[&'static str],
     graph: &'a crate::ResolvedModelGraph<'a>,
     validators: &qubit_validator::ValidatorRegistry,
-    bindings: &mut Vec<ModelRuleBinding>,
+    bindings: &mut Vec<FieldRuleBinding>,
     errors: &mut Vec<BindError>,
     stack: &mut HashSet<TypeId>,
 ) {
@@ -501,7 +557,7 @@ fn collect_nested_bindings<'a>(
                     }
                 }
                 if dependencies.len() == specs.len() {
-                    bindings.push(ModelRuleBinding {
+                    bindings.push(FieldRuleBinding {
                         occurrence: bindings.len(),
                         rule_id: validator.rule_id().expect("registry binding sets rule ID"),
                         value,
@@ -613,13 +669,29 @@ fn selector_input_type(
     }
 }
 
-impl ModelRuleBinding {
-    pub(crate) const fn occurrence(&self) -> usize { self.occurrence }
-    pub(crate) const fn rule_id(&self) -> ValidatorId { self.rule_id }
-    pub(crate) const fn value(&self) -> &CompiledPropertyPath { &self.value }
-    pub(crate) fn dependencies(&self) -> &[CompiledPropertyPath] { &self.dependencies }
-    pub(crate) const fn validator(&self) -> &BoundValidator { &self.validator }
-    pub(crate) const fn on_none(&self) -> OnNone { self.on_none }
-    pub(crate) const fn selector(&self) -> Option<&SelectorBinding> { self.selector.as_ref() }
-    pub(crate) const fn standard_target(&self) -> Option<StandardTarget> { self.standard_target }
+impl FieldRuleBinding {
+    pub(crate) const fn occurrence(&self) -> usize {
+        self.occurrence
+    }
+    pub(crate) const fn rule_id(&self) -> ValidatorId {
+        self.rule_id
+    }
+    pub(crate) const fn value(&self) -> &CompiledPropertyPath {
+        &self.value
+    }
+    pub(crate) fn dependencies(&self) -> &[CompiledPropertyPath] {
+        &self.dependencies
+    }
+    pub(crate) const fn validator(&self) -> &BoundValidator {
+        &self.validator
+    }
+    pub(crate) const fn on_none(&self) -> OnNone {
+        self.on_none
+    }
+    pub(crate) const fn selector(&self) -> Option<&SelectorBinding> {
+        self.selector.as_ref()
+    }
+    pub(crate) const fn standard_target(&self) -> Option<StandardTarget> {
+        self.standard_target
+    }
 }

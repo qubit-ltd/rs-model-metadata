@@ -45,6 +45,69 @@ impl<'a> ValidationPlan<'a> {
                 report,
             ));
         }
+        for binding in self.model_rules() {
+            let path = ValidationPath::root();
+            if !selected(options.selection(), &path) {
+                continue;
+            }
+            if let Err(error) = consume_node(&mut nodes, options, binding.rule_id(), &path) {
+                return Err(ModelValidationError::new(error, report));
+            }
+            let input = reflected_value(&value);
+            if !binding.input_type().accepts(input) {
+                return Err(ModelValidationError::new(
+                    ExecutionError::new(ExecutionErrorKind::InputTypeMismatch)
+                        .with_rule(binding.rule_id()),
+                    report,
+                ));
+            }
+            let context = match BoundValidationContext::new_with_paths(&[], &[]) {
+                Ok(context) => context,
+                Err(error) => return Err(ModelValidationError::new(error, report)),
+            };
+            match binding.validator().validate(input, &context) {
+                Ok(RuleOutcome::Valid) => {}
+                Ok(RuleOutcome::Invalid(violations)) => {
+                    if violations.is_empty() {
+                        return Err(ModelValidationError::new(
+                            ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+                                .with_rule(binding.rule_id()),
+                            report,
+                        ));
+                    }
+                    for violation in violations {
+                        if report.violations().len() >= options.max_violations() {
+                            report.mark_truncated();
+                            break;
+                        }
+                        report.push(prefix_violation(violation, &path));
+                    }
+                }
+                Ok(RuleOutcome::Skipped {
+                    reason,
+                    prerequisites,
+                }) => {
+                    for violation in prerequisites {
+                        report.push(prefix_violation(violation, &path));
+                    }
+                    report.record_skip(SkippedValidation::new(0, path.clone(), reason));
+                }
+                Err(error) => {
+                    return Err(ModelValidationError::new(
+                        error.with_rule(binding.rule_id()).with_path(path),
+                        report,
+                    ));
+                }
+            }
+            if options.mode() == ValidationMode::FailFast && !report.violations().is_empty() {
+                report.mark_truncated();
+                break;
+            }
+            if report.violations().len() >= options.max_violations() {
+                report.mark_truncated();
+                break;
+            }
+        }
         for binding in self.bindings() {
             let path = path_for(binding.value());
             if !selected(options.selection(), &path) {

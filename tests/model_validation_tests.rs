@@ -102,7 +102,7 @@ impl PreparedValidator for RejectModel {
     ) -> Result<RuleOutcome, ExecutionError> {
         assert!(value.typed::<TestModel>().is_some());
         Ok(RuleOutcome::Invalid(vec![Violation::new(
-            ValidatorId::new("test.model-reject"),
+            ValidatorId::new("test.model.reject"),
             ViolationCode::new("model.invalid"),
         )]))
     }
@@ -190,7 +190,7 @@ fn executes_typed_model_rule_binding() {
     )
     .expect("binding")
     .with_model_rule(ModelRuleBinding::from_prepared::<TestModel>(
-        ValidatorId::new("test.model-reject"),
+        ValidatorId::new("test.model.reject"),
         Arc::new(RejectModel),
     ));
     let report = plan
@@ -202,7 +202,7 @@ fn executes_typed_model_rule_binding() {
         )
         .expect("execution");
     assert_eq!(report.violations().len(), 2);
-    assert_eq!(report.violations()[1].path().render(), "");
+    assert_eq!(report.violations()[0].path().render(), "");
 }
 
 #[test]

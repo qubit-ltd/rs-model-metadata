@@ -16,4 +16,5 @@ pub use validation_options::FieldPath;
 pub use validation_options::ValidationMode;
 pub use validation_options::ValidationOptions;
 pub use validation_options::ValidationSelection;
+pub use validation_plan::ModelRuleBinding;
 pub use validation_plan::ValidationPlan;
