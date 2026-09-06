@@ -75,7 +75,7 @@ fn execute_path(
         PropertyValue::OptionalBorrowed(None) if path.is_optional() => ValidationValue::Missing,
         PropertyValue::OptionalBorrowed(Some(value)) => reflected_value(value),
         PropertyValue::Borrowed(value) => reflected_value(value),
-        PropertyValue::Owned(value) => ValidationValue::Typed(value.as_any().expect("owned values are Any-compatible")),
+        PropertyValue::Owned(value) => owned_value(value),
         PropertyValue::BorrowedSlice(_) => return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)),
         PropertyValue::OptionalBorrowed(None) => ValidationValue::Missing,
     };
@@ -130,9 +130,16 @@ fn property_value<'a>(value: &'a PropertyValue<'_>) -> ValidationValue<'a> {
         PropertyValue::Borrowed(value) => reflected_value(value),
         PropertyValue::OptionalBorrowed(Some(value)) => reflected_value(value),
         PropertyValue::OptionalBorrowed(None) => ValidationValue::Missing,
-        PropertyValue::Owned(value) => ValidationValue::Typed(value.as_any().expect("owned values are Any-compatible")),
+        PropertyValue::Owned(value) => owned_value(value),
         PropertyValue::BorrowedSlice(_) => ValidationValue::Missing,
     }
+}
+
+fn owned_value<'a>(value: &'a qubit_reflect::ReflectedOwned) -> ValidationValue<'a> {
+    if let Some(text) = value.downcast_ref::<String>() {
+        return ValidationValue::Text(text.as_str());
+    }
+    ValidationValue::Typed(value.as_any().expect("owned values are Any-compatible"))
 }
 
 fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
