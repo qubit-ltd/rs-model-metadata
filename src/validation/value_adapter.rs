@@ -5,12 +5,13 @@
 use std::any::TypeId;
 
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::descriptor::TypeKind;
 use qubit_validator::InputType;
 
 /// Returns the executable input shape for a reflected type in value mode.
 pub(crate) fn input_type(descriptor: &'static TypeDescriptor) -> InputType {
     let descriptor = innermost_descriptor(descriptor);
-    if matches!(descriptor.kind(), qubit_reflect::descriptor::TypeKind::Text(_)) {
+    if matches!(descriptor.kind(), TypeKind::Text(_)) {
         InputType::Text
     } else {
         InputType::Typed(descriptor.type_id())
@@ -27,7 +28,11 @@ fn innermost_descriptor(mut descriptor: &'static TypeDescriptor) -> &'static Typ
         let Some(element) = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()))
+            .or_else(|| {
+                descriptor
+                    .as_smart_pointer()
+                    .map(|view| view.pointee_type())
+            })
         else {
             return descriptor;
         };

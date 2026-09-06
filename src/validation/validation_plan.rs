@@ -2,15 +2,18 @@
 
 #![allow(dead_code)]
 
+// qubit-style: allow multiple-public-types
+
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 use qubit_validator::BoundValidator;
 use qubit_validator::ValidatorId;
 
-use super::compiled_property_path::CompiledPropertyPath;
 use super::ValidationBuildInputs;
+use super::compiled_property_path::CompiledPropertyPath;
+use crate::OnNone;
+use crate::TargetMode;
 use crate::TypeMetadata;
-use crate::{OnNone, TargetMode};
 
 /// One declaration bound to an executable validator and compiled paths.
 #[derive(Clone, Debug)]
@@ -51,7 +54,12 @@ impl<'a> ValidationPlan<'a> {
             for (occurrence, declaration) in field.validators().iter().enumerate() {
                 let segments = [name];
                 let path = crate::PropertyPath::new(&segments);
-                let value = match CompiledPropertyPath::compile(root, &path, inputs.graph, declaration.target()) {
+                let value = match CompiledPropertyPath::compile(
+                    root,
+                    &path,
+                    inputs.graph,
+                    declaration.target(),
+                ) {
                     Ok(path) => path,
                     Err(error) => {
                         errors.push(error);
@@ -73,17 +81,27 @@ impl<'a> ValidationPlan<'a> {
                 let specs = validator.dependency_specs();
                 let declared_dependencies = declaration.dependency_bindings();
                 let legacy_dependencies = declaration.depends_on();
-                if specs.len() != if declared_dependencies.is_empty() {
-                    legacy_dependencies.len()
-                } else {
-                    declared_dependencies.len()
-                } {
+                if specs.len()
+                    != if declared_dependencies.is_empty() {
+                        legacy_dependencies.len()
+                    } else {
+                        declared_dependencies.len()
+                    }
+                {
                     errors.push(
-                        BindError::new(if specs.len() > if declared_dependencies.is_empty() { legacy_dependencies.len() } else { declared_dependencies.len() } {
-                            BindErrorKind::MissingDependencyDeclaration
-                        } else {
-                            BindErrorKind::UnknownDependencyDeclaration
-                        })
+                        BindError::new(
+                            if specs.len()
+                                > if declared_dependencies.is_empty() {
+                                    legacy_dependencies.len()
+                                } else {
+                                    declared_dependencies.len()
+                                }
+                            {
+                                BindErrorKind::MissingDependencyDeclaration
+                            } else {
+                                BindErrorKind::UnknownDependencyDeclaration
+                            },
+                        )
                         .with_rule(validator.rule_id().expect("registry binding sets rule ID")),
                     );
                     continue;
@@ -93,10 +111,15 @@ impl<'a> ValidationPlan<'a> {
                         let dependency = legacy_dependencies[slot];
                         (dependency.to_string(), dependency)
                     } else {
-                        let Some(binding) = declared_dependencies.iter().find(|binding| binding.name() == spec.name()) else {
+                        let Some(binding) = declared_dependencies
+                            .iter()
+                            .find(|binding| binding.name() == spec.name())
+                        else {
                             errors.push(
                                 BindError::new(BindErrorKind::UnknownDependencyDeclaration)
-                                    .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                    .with_rule(
+                                        validator.rule_id().expect("registry binding sets rule ID"),
+                                    )
                                     .with_dependency(spec.name()),
                             );
                             continue;
@@ -106,16 +129,25 @@ impl<'a> ValidationPlan<'a> {
                     if spec.name() != dependency_name {
                         errors.push(
                             BindError::new(BindErrorKind::UnknownDependencyDeclaration)
-                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                .with_rule(
+                                    validator.rule_id().expect("registry binding sets rule ID"),
+                                )
                                 .with_dependency(spec.name()),
                         );
                         continue;
                     }
-                    match CompiledPropertyPath::compile(root, &dependency, inputs.graph, TargetMode::Value) {
+                    match CompiledPropertyPath::compile(
+                        root,
+                        &dependency,
+                        inputs.graph,
+                        TargetMode::Value,
+                    ) {
                         Ok(path) => dependencies.push(path),
                         Err(error) => errors.push(
                             error
-                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                .with_rule(
+                                    validator.rule_id().expect("registry binding sets rule ID"),
+                                )
                                 .with_dependency(spec.name()),
                         ),
                     }
@@ -157,7 +189,6 @@ impl<'a> ValidationPlan<'a> {
     }
 
     /// Returns the structure graph retained by this plan.
-    #[must_use]
     pub const fn graph(&self) -> &'a crate::ResolvedModelGraph<'a> {
         self.graph
     }
@@ -170,10 +201,22 @@ impl<'a> ValidationPlan<'a> {
 }
 
 impl ModelRuleBinding {
-    pub(crate) const fn occurrence(&self) -> usize { self.occurrence }
-    pub(crate) const fn rule_id(&self) -> ValidatorId { self.rule_id }
-    pub(crate) const fn value(&self) -> &CompiledPropertyPath { &self.value }
-    pub(crate) fn dependencies(&self) -> &[CompiledPropertyPath] { &self.dependencies }
-    pub(crate) const fn validator(&self) -> &BoundValidator { &self.validator }
-    pub(crate) const fn on_none(&self) -> OnNone { self.on_none }
+    pub(crate) const fn occurrence(&self) -> usize {
+        self.occurrence
+    }
+    pub(crate) const fn rule_id(&self) -> ValidatorId {
+        self.rule_id
+    }
+    pub(crate) const fn value(&self) -> &CompiledPropertyPath {
+        &self.value
+    }
+    pub(crate) fn dependencies(&self) -> &[CompiledPropertyPath] {
+        &self.dependencies
+    }
+    pub(crate) const fn validator(&self) -> &BoundValidator {
+        &self.validator
+    }
+    pub(crate) const fn on_none(&self) -> OnNone {
+        self.on_none
+    }
 }

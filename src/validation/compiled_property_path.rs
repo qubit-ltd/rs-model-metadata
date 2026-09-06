@@ -2,6 +2,8 @@
 
 #![allow(dead_code)]
 
+// qubit-style: allow multiple-public-types
+
 use std::any::TypeId;
 
 use qubit_reflect::TypeDescriptor;
@@ -10,12 +12,12 @@ use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 use qubit_validator::InputType;
 
+use super::build_error::path_error;
 use crate::PropertyMetadata;
 use crate::PropertyPath;
 use crate::ResolvedModelGraph;
 use crate::TargetMode;
 use crate::TypeMetadata;
-use super::build_error::path_error;
 
 /// One property access step retained for a later executor.
 #[derive(Clone, Copy, Debug)]
@@ -140,7 +142,11 @@ fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDe
         let Some(element) = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()))
+            .or_else(|| {
+                descriptor
+                    .as_smart_pointer()
+                    .map(|view| view.pointee_type())
+            })
         else {
             return (descriptor, optional);
         };

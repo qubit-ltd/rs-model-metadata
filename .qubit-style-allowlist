@@ -8,3 +8,6 @@ multiple-public-types | src/role.rs | Role tags and role-specific payloads form 
 multiple-public-types | derive/src/attribute/reference_attribute.rs | Reference paths and their containing attribute form one composite parsed value
 multiple-public-types | derive/src/expand/metadata.rs | The declaration intermediate representation is intentionally co-located so parsing, normalization, validation, and token generation share one private semantic vocabulary
 multiple-public-types | derive/src/ir/declaration.rs | The declaration IR is one private semantic vocabulary shared by parsing, normalization, validation, and expansion
+multiple-public-types | src/validation/compiled_property_path.rs | Property path steps and their compiled path form one private binding contract
+multiple-public-types | src/validation/validation_options.rs | Validation modes, selections, paths, and options form one public execution-options contract
+multiple-public-types | src/validation/validation_plan.rs | Rule bindings and the owning plan form one private-to-public binding contract

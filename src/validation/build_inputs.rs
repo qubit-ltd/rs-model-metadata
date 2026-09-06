@@ -1,7 +1,10 @@
 //! Inputs for constructing an isolated validation plan.
 
-use crate::ResolvedModelGraph;
+// qubit-style: allow type-file-name
+
 use qubit_validator::ValidatorRegistry;
+
+use crate::ResolvedModelGraph;
 
 /// Immutable registries used by one validation-plan build.
 pub struct ValidationBuildInputs<'a> {

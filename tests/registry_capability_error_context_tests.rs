@@ -18,6 +18,7 @@ use qubit_reflect::capability::CapabilityConflict;
 use qubit_reflect::capability::CapabilityConflictKind;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
+use qubit_reflect::error::RegistryError;
 use qubit_reflect::error::RegistryErrorKind;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
@@ -56,7 +57,7 @@ fn test_model_registry_global_preserves_nested_reflection_error_chain() {
     let error = ModelRegistry::try_global().expect_err("global capability conflict must fail");
     assert_eq!(error.kind(), ModelRegistryErrorKind::ReflectionRegistry);
     let reflection = std::error::Error::source(&error)
-        .and_then(|cause| cause.downcast_ref::<qubit_reflect::error::RegistryError>())
+        .and_then(|cause| cause.downcast_ref::<RegistryError>())
         .expect("model error must expose registry error");
     assert_eq!(
         reflection.capability_target(),
@@ -80,7 +81,8 @@ fn test_model_registry_global_preserves_nested_reflection_error_chain() {
     assert!(adapter_types.contains(&TypeId::of::<u32>()));
     assert!(adapter_types.contains(&TypeId::of::<u64>()));
     assert_eq!(
-        std::error::Error::source(reflection).and_then(|cause| cause.downcast_ref::<CapabilityConflict>()),
+        std::error::Error::source(reflection)
+            .and_then(|cause| cause.downcast_ref::<CapabilityConflict>()),
         Some(details)
     );
 }
@@ -91,16 +93,24 @@ fn test_public_builder_preserves_conflict_context_and_error_chain() {
     let mut builder = RegistrySnapshotBuilder::new();
     builder.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(key("model.test.context"), 7_u32)],
+        vec![CapabilityDescriptor::with_adapter(
+            key("model.test.context"),
+            7_u32,
+        )],
         source("context-left", 10),
     );
     builder.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(key("model.test.context"), 9_u64)],
+        vec![CapabilityDescriptor::with_adapter(
+            key("model.test.context"),
+            9_u64,
+        )],
         source("context-right", 20),
     );
 
-    let error = builder.build().expect_err("adapter mismatch must be rejected");
+    let error = builder
+        .build()
+        .expect_err("adapter mismatch must be rejected");
 
     assert_eq!(error.kind(), RegistryErrorKind::CapabilityConflict);
     assert_eq!(
@@ -120,7 +130,8 @@ fn test_public_builder_preserves_conflict_context_and_error_chain() {
     assert_eq!(left, &source("context-left", 10));
     assert_eq!(right, &source("context-right", 20));
     assert_eq!(
-        std::error::Error::source(&error).and_then(|cause| cause.downcast_ref::<CapabilityConflict>()),
+        std::error::Error::source(&error)
+            .and_then(|cause| cause.downcast_ref::<CapabilityConflict>()),
         Some(detail)
     );
 }
@@ -131,24 +142,36 @@ fn test_public_builder_normalizes_source_order_for_duplicate_category() {
     let mut forward = RegistrySnapshotBuilder::new();
     forward.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(key("model.test.duplicate"), 1_u32)],
+        vec![CapabilityDescriptor::with_adapter(
+            key("model.test.duplicate"),
+            1_u32,
+        )],
         source("duplicate-left", 30),
     );
     forward.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(key("model.test.duplicate"), 2_u32)],
+        vec![CapabilityDescriptor::with_adapter(
+            key("model.test.duplicate"),
+            2_u32,
+        )],
         source("duplicate-right", 40),
     );
 
     let mut reverse = RegistrySnapshotBuilder::new();
     reverse.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(key("model.test.duplicate"), 2_u32)],
+        vec![CapabilityDescriptor::with_adapter(
+            key("model.test.duplicate"),
+            2_u32,
+        )],
         source("duplicate-right", 40),
     );
     reverse.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(key("model.test.duplicate"), 1_u32)],
+        vec![CapabilityDescriptor::with_adapter(
+            key("model.test.duplicate"),
+            1_u32,
+        )],
         source("duplicate-left", 30),
     );
 
@@ -160,7 +183,10 @@ fn test_public_builder_normalizes_source_order_for_duplicate_category() {
         Some(CapabilityTarget::Type(TypeId::of::<DiagnosticsTarget>()))
     );
     assert_eq!(
-        forward.capability_details().expect("conflict details").kind(),
+        forward
+            .capability_details()
+            .expect("conflict details")
+            .kind(),
         CapabilityConflictKind::DuplicateId
     );
     assert_eq!(

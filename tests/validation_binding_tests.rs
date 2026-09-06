@@ -15,6 +15,7 @@ use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
+use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
 use qubit_validator::RuleOutcome;
@@ -22,8 +23,8 @@ use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorDescriptor;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
-use qubit_validator::ValidatorSignature;
 use qubit_validator::ValidatorRegistry;
+use qubit_validator::ValidatorSignature;
 
 #[Model(id = "test.Owner")]
 struct Owner {
@@ -50,15 +51,14 @@ impl PreparedValidator for AcceptText {
     }
 }
 
-fn prepare_text(_: &[qubit_validator::NamedValidationArgument<'_>])
-    -> Result<Arc<dyn PreparedValidator>, BindError>
-{
+fn prepare_text(
+    _: &[NamedValidationArgument<'_>],
+) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(AcceptText))
 }
 
-static TEXT_SIGNATURES: &[ValidatorSignature] = &[
-    ValidatorSignature::new(InputType::Text, &[], prepare_text),
-];
+static TEXT_SIGNATURES: &[ValidatorSignature] =
+    &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
 static TEXT_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(TEXT_SIGNATURES);
 static TEXT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("test.text"),
@@ -77,14 +77,8 @@ fn source() -> &'static FragmentIdentity {
     )))
 }
 
-fn inputs<'a>(
-    models: &'a ModelRegistry<'a>,
-    codecs: &'a ValueCodecRegistry,
-) -> ResolveInputs<'a> {
-    ResolveInputs {
-        models,
-        codecs,
-    }
+fn inputs<'a>(models: &'a ModelRegistry<'a>, codecs: &'a ValueCodecRegistry) -> ResolveInputs<'a> {
+    ResolveInputs { models, codecs }
 }
 
 #[test]
