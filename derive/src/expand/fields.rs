@@ -22,6 +22,7 @@ use crate::ir::declaration::ConstraintIr;
 use crate::ir::declaration::FieldIr;
 use crate::ir::declaration::FieldOccurrence;
 use crate::ir::declaration::IdentifierAssignmentIr;
+use crate::ir::declaration::OnNoneIr;
 use crate::ir::declaration::RedactIr;
 use crate::ir::declaration::RedactModeIr;
 use crate::ir::declaration::ReferenceIr;
@@ -30,6 +31,7 @@ use crate::ir::declaration::SelectorIr;
 use crate::ir::declaration::SelectorPositionIr;
 use crate::ir::declaration::SerdeIr;
 use crate::ir::declaration::StrategyArgumentIr;
+use crate::ir::declaration::TargetModeIr;
 use crate::ir::declaration::ValidatorIr;
 
 /// Generates the runtime field vector for a declaration.
@@ -589,10 +591,38 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
         quote!(#runtime::NamedValidationArgument::new(#name, #value))
     });
     let depends_on = validator.depends_on.iter().map(|path| expand_field_path(path, runtime));
+    let dependency_bindings = validator.dependency_bindings.iter().map(|(name, path)| {
+        let path = expand_field_path(path, runtime);
+        quote!(#runtime::DependencyBindingMetadata::new(#name, #path))
+    });
+    let target = match validator.target {
+        TargetModeIr::Value => quote!(#runtime::TargetMode::Value),
+        TargetModeIr::Container => quote!(#runtime::TargetMode::Container),
+    };
+    let on_none = match validator.on_none {
+        OnNoneIr::Skip => quote!(#runtime::OnNone::Skip),
+        OnNoneIr::Reject => quote!(#runtime::OnNone::Reject),
+    };
+    let constructor = if validator.dependency_bindings.is_empty()
+        && matches!(validator.target, TargetModeIr::Value)
+        && matches!(validator.on_none, OnNoneIr::Skip)
+    {
+        quote!(#runtime::ValidatorMetadata::new(#id, params, depends_on))
+    } else {
+        quote!(#runtime::ValidatorMetadata::new_bound(
+            #id,
+            params,
+            depends_on,
+            dependency_bindings,
+            #target,
+            #on_none,
+        ))
+    };
     quote!({
         let params: &'static [#runtime::NamedValidationArgument<'static>] = #runtime::__private::v4::leak_slice(::std::vec![#(#params),*]);
         let depends_on: &'static [#runtime::PropertyPath<'static>] = #runtime::__private::v4::leak_slice(::std::vec![#(#depends_on),*]);
-        #runtime::ValidatorMetadata::new(#id, params, depends_on)
+        let dependency_bindings: &'static [#runtime::DependencyBindingMetadata] = #runtime::__private::v4::leak_slice(::std::vec![#(#dependency_bindings),*]);
+        #constructor
     })
 }
 
@@ -873,6 +903,9 @@ mod tests {
                 .map(|(index, value)| (format!("value_{index}"), value))
                 .collect(),
             depends_on: vec![vec!["owner".to_owned(), "id".to_owned()]],
+            dependency_bindings: Vec::new(),
+            target: Default::default(),
+            on_none: Default::default(),
         };
         assert!(!expand_validator(&validator, &runtime).is_empty());
 

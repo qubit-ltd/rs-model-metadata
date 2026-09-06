@@ -258,6 +258,61 @@ impl ReferenceMetadata {
     }
 }
 
+/// Names one validator dependency slot and the property path supplying it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DependencyBindingMetadata {
+    /// The name used by the validator signature.
+    name: &'static str,
+    /// The model property path supplying this dependency.
+    path: PropertyPath<'static>,
+}
+
+impl DependencyBindingMetadata {
+    /// Creates a named dependency binding.
+    #[must_use]
+    #[inline(always)]
+    pub const fn new(name: &'static str, path: PropertyPath<'static>) -> Self {
+        assert!(!name.is_empty(), "validator dependency name cannot be empty");
+        assert!(!path.is_empty(), "validator dependency path cannot be empty");
+        Self { name, path }
+    }
+
+    /// Returns the validator signature slot name.
+    #[must_use]
+    #[inline(always)]
+    pub const fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// Returns the model property path supplying the slot.
+    #[must_use]
+    #[inline(always)]
+    pub const fn path(&self) -> PropertyPath<'static> {
+        self.path
+    }
+}
+
+/// Selects the value shape supplied to a validator occurrence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TargetMode {
+    /// Expand supported optional and transparent smart-pointer wrappers.
+    Value,
+    /// Preserve the declared container type.
+    Container,
+}
+
+/// Compatibility name for [`TargetMode`].
+pub type ValidationTarget = TargetMode;
+
+/// Selects the behavior for an absent expanded optional value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OnNone {
+    /// Skip the validator occurrence.
+    Skip,
+    /// Reject an absent value before invoking the validator.
+    Reject,
+}
+
 /// One declared validator occurrence.
 #[derive(Clone, Copy, Debug)]
 pub struct ValidatorMetadata {
@@ -267,6 +322,12 @@ pub struct ValidatorMetadata {
     params: &'static [NamedValidationArgument<'static>],
     /// Property paths that must be available to the validator.
     depends_on: &'static [PropertyPath<'static>],
+    /// Named dependency slots for the typed validator contract.
+    dependency_bindings: &'static [DependencyBindingMetadata],
+    /// Value shape selected for the occurrence.
+    target: TargetMode,
+    /// Behavior for an absent expanded value.
+    on_none: OnNone,
 }
 
 impl ValidatorMetadata {
@@ -282,6 +343,45 @@ impl ValidatorMetadata {
             declared_id,
             params,
             depends_on,
+            dependency_bindings: &[],
+            target: TargetMode::Value,
+            on_none: OnNone::Skip,
+        }
+    }
+
+    /// Creates a validator occurrence with named dependency bindings.
+    #[must_use]
+    pub const fn new_bound(
+        declared_id: &'static str,
+        params: &'static [NamedValidationArgument<'static>],
+        depends_on: &'static [PropertyPath<'static>],
+        dependency_bindings: &'static [DependencyBindingMetadata],
+        target: TargetMode,
+        on_none: OnNone,
+    ) -> Self {
+        assert!(!declared_id.is_empty(), "validator ID cannot be empty");
+        assert!(
+            !(matches!(target, TargetMode::Container) && matches!(on_none, OnNone::Reject)),
+            "container validators cannot reject missing expanded values",
+        );
+        let mut index = 0;
+        while index < dependency_bindings.len() {
+            let binding = dependency_bindings[index];
+            assert!(!binding.name().is_empty(), "validator dependency name cannot be empty");
+            assert!(!binding.path().is_empty(), "validator dependency path cannot be empty");
+            assert!(
+                !contains_dependency_name(dependency_bindings, index, binding.name()),
+                "validator dependency names must be unique",
+            );
+            index += 1;
+        }
+        Self {
+            declared_id,
+            params,
+            depends_on,
+            dependency_bindings,
+            target,
+            on_none,
         }
     }
 
@@ -305,6 +405,58 @@ impl ValidatorMetadata {
     pub const fn depends_on(&self) -> &'static [PropertyPath<'static>] {
         self.depends_on
     }
+
+    /// Returns named dependency bindings in declaration order.
+    #[must_use]
+    #[inline(always)]
+    pub const fn dependency_bindings(&self) -> &'static [DependencyBindingMetadata] {
+        self.dependency_bindings
+    }
+
+    /// Returns the selected validator value shape.
+    #[must_use]
+    #[inline(always)]
+    pub const fn target(&self) -> TargetMode {
+        self.target
+    }
+
+    /// Returns the behavior for an absent expanded value.
+    #[must_use]
+    #[inline(always)]
+    pub const fn on_none(&self) -> OnNone {
+        self.on_none
+    }
+}
+
+const fn contains_dependency_name(
+    bindings: &[DependencyBindingMetadata],
+    end: usize,
+    name: &str,
+) -> bool {
+    let mut index = 0;
+    while index < end {
+        if same_str(bindings[index].name(), name) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+const fn same_str(left: &str, right: &str) -> bool {
+    let left = left.as_bytes();
+    let right = right.as_bytes();
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < left.len() {
+        if left[index] != right[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
 }
 
 /// A codec declared by Rust type or stable textual ID.

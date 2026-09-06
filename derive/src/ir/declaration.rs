@@ -254,6 +254,42 @@ pub(crate) struct ValidatorIr {
     pub(crate) params: Vec<(String, StrategyArgumentIr)>,
     /// Field paths the validator reads.
     pub(crate) depends_on: Vec<Vec<String>>,
+    /// Named dependency slots and the field paths supplying them.
+    pub(crate) dependency_bindings: Vec<(String, Vec<String>)>,
+    /// Whether the validator receives the expanded value or its container.
+    pub(crate) target: TargetModeIr,
+    /// How an expanded optional value with no value is handled.
+    pub(crate) on_none: OnNoneIr,
+}
+
+/// Selects the value shape supplied to a validator declaration.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TargetModeIr {
+    /// Expand supported optional and transparent smart-pointer wrappers.
+    Value,
+    /// Preserve the declared container type.
+    Container,
+}
+
+impl Default for TargetModeIr {
+    fn default() -> Self {
+        Self::Value
+    }
+}
+
+/// Selects the behavior for an absent expanded optional value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum OnNoneIr {
+    /// Skip the validator occurrence.
+    Skip,
+    /// Report the absent value as a required-value violation.
+    Reject,
+}
+
+impl Default for OnNoneIr {
+    fn default() -> Self {
+        Self::Skip
+    }
 }
 
 /// Value codec selected by declared ID or Rust type.
