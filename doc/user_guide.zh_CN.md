@@ -223,6 +223,7 @@ ID。直接调用 `TypeMetadata::of` 的静态查询应与全局模型注册表�
 `TypeMetadata::try_properties()` 和 `try_property(name)` 使用全局反射快照，初始化失败返回 `PropertyResolutionError::Reflection`，intrinsic 能力冲突返回 `Capability`，字段与方法声明冲突返回 `Assembly`。`property_fragments()` 也返回 `Result`，不会再把注册失败解释为缺少 overlay。
 
 显式快照使用 `try_properties_in(&reflection)`、`try_property_in(&reflection, name)` 和 `property_fragments_in(&reflection)`。`ModelRegistry::properties_for(metadata)` 使用该模型注册表自己的快照；`from_metadata` 创建的注册表仅使用本地字段属性。`ModelResolver` 遵循相同的显式上下文。
+隔离的 `reflection` 值应使用 `qubit-reflect::registry::RegistrySnapshotBuilder` 构造；它是旧隐藏 testing registry helper 的公开替代。`ModelRegistry::try_global()` 会通过 source chain 暴露反射初始化失败，包括底层 capability conflict。
 
 通过 `ModelRegistry::entries()` 遍历具体模型和泛型定义。不可变的 `ModelEntry` 提供模型 ID、具体或泛型元数据及静态片段来源；`get(id)` 查询单个条目。这些条目只是反射注册表的投影，不构成第二套注册系统。
 
