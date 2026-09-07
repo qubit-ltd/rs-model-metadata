@@ -142,6 +142,10 @@ pub use crate::validation::ModelRuleBinding;
 #[cfg(feature = "validation")]
 pub use crate::validation::ModelValidationError;
 #[cfg(feature = "validation")]
+pub use crate::validation::ValidationBuildError;
+#[cfg(feature = "validation")]
+pub use crate::validation::ValidationBuildErrors;
+#[cfg(feature = "validation")]
 pub use crate::validation::ValidationBuildInputs;
 #[cfg(feature = "validation")]
 pub use crate::validation::ValidationMode;

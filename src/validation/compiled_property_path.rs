@@ -1,7 +1,5 @@
 //! Structural, getter-free compilation of property paths.
 
-#![allow(dead_code)]
-
 // qubit-style: allow multiple-public-types
 
 use std::any::TypeId;

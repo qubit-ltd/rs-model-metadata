@@ -1,7 +1,5 @@
 //! Immutable validation binding plans.
 
-#![allow(dead_code)]
-
 use std::any::TypeId;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -17,6 +15,7 @@ use qubit_validator::PreparedValidator;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistry;
 
+use super::ValidationBuildErrors;
 use super::ValidationBuildInputs;
 use super::compiled_property_path::CompiledPropertyPath;
 use super::standard_constraints;
@@ -99,7 +98,7 @@ pub struct ValidationPlan<'a> {
 
 impl<'a> ValidationPlan<'a> {
     /// Binds all direct field validator declarations on `root`.
-    pub fn build(root: &'static TypeMetadata, inputs: ValidationBuildInputs<'a>) -> Result<Self, Vec<BindError>> {
+    pub fn build(root: &'static TypeMetadata, inputs: ValidationBuildInputs<'a>) -> Result<Self, ValidationBuildErrors> {
         let mut bindings = Vec::new();
         let mut errors = Vec::new();
         let validators = match standard_constraints::registry(inputs.validators) {
@@ -341,7 +340,7 @@ impl<'a> ValidationPlan<'a> {
                 model_rules: Box::new([]),
             })
         } else {
-            Err(errors)
+            Err(ValidationBuildErrors::from_bind_errors(root.type_name(), errors))
         }
     }
 
