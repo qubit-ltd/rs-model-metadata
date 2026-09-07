@@ -8,15 +8,15 @@
 
 //! Runtime coverage for generated model property adapters.
 
+use model_runtime::__private::ReflectedMut;
+use model_runtime::__private::ReflectedOwned;
+use model_runtime::__private::ReflectedRef;
 use model_runtime::ModelRegistry;
 use model_runtime::ModelResolveErrorKind;
 use model_runtime::ModelResolver;
 use model_runtime::PropertyResolutionError;
 use model_runtime::PropertyStorageKind;
 use model_runtime::PropertyValue;
-use model_runtime::__private::ReflectedMut;
-use model_runtime::__private::ReflectedOwned;
-use model_runtime::__private::ReflectedRef;
 use model_runtime::ResolveInputs;
 use model_runtime::TypeMetadata;
 use qubit_codec::ValueCodecRegistry;

@@ -18,6 +18,9 @@
 
 //! The compiler's declaration vocabulary, organized by semantic concern.
 
+// qubit-style: allow public-type-layout
+// qubit-style: allow multiple-public-types
+
 mod codec;
 mod constraints;
 mod fields;
@@ -28,15 +31,26 @@ mod serde;
 mod validation;
 
 pub(crate) use codec::CodecIr;
-pub(crate) use constraints::{ConstraintIr, DecimalConstraintIr, TextConstraintIr};
-pub(crate) use fields::{FieldIr, FieldOccurrence, IdentifierAssignmentIr, VariantIr};
+pub(crate) use constraints::ConstraintIr;
+pub(crate) use constraints::DecimalConstraintIr;
+pub(crate) use constraints::TextConstraintIr;
+pub(crate) use fields::FieldIr;
+pub(crate) use fields::FieldOccurrence;
+pub(crate) use fields::IdentifierAssignmentIr;
+pub(crate) use fields::VariantIr;
 pub(crate) use options::DeclarationOptions;
-pub(crate) use redact::{RedactIr, RedactModeIr};
-pub(crate) use references::{ReferenceIr, ReferenceTargetIr, UniqueIr};
+pub(crate) use redact::RedactIr;
+pub(crate) use redact::RedactModeIr;
+pub(crate) use references::ReferenceIr;
+pub(crate) use references::ReferenceTargetIr;
+pub(crate) use references::UniqueIr;
 pub(crate) use serde::SerdeIr;
-pub(crate) use validation::{
-    OnNoneIr, SelectorIr, SelectorPositionIr, StrategyArgumentIr, TargetModeIr, ValidatorIr,
-};
+pub(crate) use validation::OnNoneIr;
+pub(crate) use validation::SelectorIr;
+pub(crate) use validation::SelectorPositionIr;
+pub(crate) use validation::StrategyArgumentIr;
+pub(crate) use validation::TargetModeIr;
+pub(crate) use validation::ValidatorIr;
 
 use super::MacroKind;
 

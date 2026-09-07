@@ -18,9 +18,13 @@
 
 //! Selector and validator IR.
 
+// qubit-style: allow multiple-public-types
+
 use syn::LitStr;
 
-use super::{CodecIr, ConstraintIr, RedactIr};
+use super::CodecIr;
+use super::ConstraintIr;
+use super::RedactIr;
 
 #[derive(Clone)]
 pub(crate) struct SelectorIr {

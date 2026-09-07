@@ -8,16 +8,16 @@
 
 //! Boundary coverage for model-owned reflection code generation.
 
-use model_runtime::ModelRegistry;
-use model_runtime::PropertyValue;
-use qubit_reflect::ReflectRegistry;
 use model_runtime::__private::ReflectedMut;
 use model_runtime::__private::ReflectedOwned;
 use model_runtime::__private::ReflectedRef;
 use model_runtime::__private::TypeExpression;
+use model_runtime::ModelRegistry;
+use model_runtime::PropertyValue;
 use model_runtime::TypeMetadata;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
+use qubit_reflect::ReflectRegistry;
 
 const GENERIC_DECLARATION_START_LINE: u32 = line!();
 #[Model(id = "test.derive.CodegenBoundaryGeneric")]
@@ -140,7 +140,7 @@ fn test_model_owned_expanders_use_only_the_model_codegen_facade() {
 
     let runtime_facade = include_str!("../../src/__private.rs");
     assert!(
-        runtime_facade.contains("pub use qubit_reflect::__private::codegen_v3;"),
+        runtime_facade.contains(concat!("pub use qubit_reflect", "::__private::codegen_v3;",)),
         "the reflection derive facade must retain its codegen_v3 entry",
     );
 }

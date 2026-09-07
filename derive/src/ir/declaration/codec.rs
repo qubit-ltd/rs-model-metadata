@@ -18,7 +18,10 @@
 
 //! Codec IR.
 
-use syn::{LitStr, Type};
+// qubit-style: allow public-type-layout
+
+use syn::LitStr;
+use syn::Type;
 
 #[derive(Clone)]
 pub(crate) enum CodecIr {

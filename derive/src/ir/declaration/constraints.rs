@@ -18,6 +18,8 @@
 
 //! Normalized validation constraints.
 
+// qubit-style: allow multiple-public-types
+
 use syn::LitStr;
 
 #[derive(Clone)]

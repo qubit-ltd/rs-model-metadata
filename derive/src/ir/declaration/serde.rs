@@ -18,6 +18,8 @@
 
 //! Serde overlay IR.
 
+// qubit-style: allow public-type-layout
+
 use syn::LitStr;
 
 #[derive(Clone, Default)]

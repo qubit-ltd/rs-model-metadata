@@ -21,16 +21,16 @@
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
-use syn::parse::Parser;
-use syn::parse2;
-use syn::parse_quote;
-use syn::punctuated::Punctuated;
 use syn::DeriveInput;
 use syn::Error;
 use syn::ItemImpl;
 use syn::Meta;
 use syn::Result;
 use syn::Token;
+use syn::parse::Parser;
+use syn::parse_quote;
+use syn::parse2;
+use syn::punctuated::Punctuated;
 
 use crate::expand::capabilities::apply_default_derives;
 use crate::expand::capabilities::apply_serde_defaults;

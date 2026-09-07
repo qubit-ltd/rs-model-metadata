@@ -18,10 +18,18 @@
 
 //! Field and enum-variant IR.
 
+// qubit-style: allow multiple-public-types
+
 use syn::Type;
 
 use super::super::Located;
-use super::{CodecIr, ConstraintIr, RedactIr, ReferenceIr, SelectorIr, SerdeIr, ValidatorIr};
+use super::CodecIr;
+use super::ConstraintIr;
+use super::RedactIr;
+use super::ReferenceIr;
+use super::SelectorIr;
+use super::SerdeIr;
+use super::ValidatorIr;
 
 #[derive(Clone)]
 pub(crate) enum FieldOccurrence {

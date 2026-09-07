@@ -18,7 +18,10 @@
 
 //! Relationship and uniqueness IR.
 
-use syn::{LitStr, Type};
+// qubit-style: allow multiple-public-types
+
+use syn::LitStr;
+use syn::Type;
 
 #[derive(Clone)]
 pub(crate) struct UniqueIr {

@@ -18,6 +18,8 @@
 
 //! Redaction IR.
 
+// qubit-style: allow multiple-public-types
+
 #[derive(Clone)]
 pub(crate) struct RedactIr {
     pub(crate) mode: RedactModeIr,

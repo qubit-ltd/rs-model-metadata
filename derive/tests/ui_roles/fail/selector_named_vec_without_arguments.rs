@@ -9,6 +9,7 @@
 // The filename is part of a Cargo or trybuild fixture protocol.
 
 use qubit_model_derive::Model;
+use qubit_reflect::Reflect;
 
 #[derive(
     Clone,
@@ -17,7 +18,7 @@ use qubit_model_derive::Model;
     Eq,
     Hash,
     PartialEq,
-    qubit_reflect::Reflect,
+    Reflect,
     serde::Deserialize,
     serde::Serialize,
 )]

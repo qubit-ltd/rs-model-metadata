@@ -8,9 +8,9 @@
 
 //! Runtime smoke coverage for all six shared macro entry points.
 
+use model_runtime::__private::TypeDescriptor;
 use model_runtime::__private::qubit_id::Id;
 use model_runtime::ModelRegistry;
-use model_runtime::__private::TypeDescriptor;
 use model_runtime::TypeMetadata;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
