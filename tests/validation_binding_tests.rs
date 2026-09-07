@@ -6,13 +6,13 @@ use std::sync::Arc;
 
 use qubit_codec::ValueCodecRegistry;
 use qubit_model_derive::Model;
-use qubit_reflect::identity::FragmentIdentity;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::TypeMetadata;
 use qubit_model_metadata::ValidationBuildInputs;
 use qubit_model_metadata::ValidationPlan;
+use qubit_reflect::identity::FragmentIdentity;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;

@@ -10,11 +10,11 @@
 
 use model_runtime::ModelRegistry;
 use model_runtime::PropertyValue;
-use model_runtime::ReflectRegistry;
-use model_runtime::ReflectedMut;
-use model_runtime::ReflectedOwned;
-use model_runtime::ReflectedRef;
-use model_runtime::TypeExpression;
+use qubit_reflect::ReflectRegistry;
+use model_runtime::__private::ReflectedMut;
+use model_runtime::__private::ReflectedOwned;
+use model_runtime::__private::ReflectedRef;
+use model_runtime::__private::TypeExpression;
 use model_runtime::TypeMetadata;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;

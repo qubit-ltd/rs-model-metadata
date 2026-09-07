@@ -591,7 +591,7 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
     let id = &validator.id;
     let params = validator.params.iter().map(|(name, value)| {
         let value = expand_strategy_argument(value, runtime);
-        quote!(#runtime::NamedValidationArgument::new(#name, #value))
+        quote!(#runtime::__private::NamedValidationArgument::new(#name, #value))
     });
     let depends_on = validator.depends_on.iter().map(|path| expand_field_path(path, runtime));
     let dependency_bindings = validator.dependency_bindings.iter().map(|(name, path)| {
@@ -622,7 +622,7 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
         ))
     };
     quote!({
-        let params: &'static [#runtime::NamedValidationArgument<'static>] = #runtime::__private::v4::leak_slice(::std::vec![#(#params),*]);
+        let params: &'static [#runtime::__private::NamedValidationArgument<'static>] = #runtime::__private::v4::leak_slice(::std::vec![#(#params),*]);
         let depends_on: &'static [#runtime::PropertyPath<'static>] = #runtime::__private::v4::leak_slice(::std::vec![#(#depends_on),*]);
         let dependency_bindings: &'static [#runtime::DependencyBindingMetadata] = #runtime::__private::v4::leak_slice(::std::vec![#(#dependency_bindings),*]);
         #constructor
@@ -633,28 +633,28 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
 fn expand_strategy_argument(value: &StrategyArgumentIr, runtime: &TokenStream) -> TokenStream {
     match value {
         StrategyArgumentIr::Bool(value) => {
-            quote!(#runtime::ValidationArgument::Bool(#value))
+            quote!(#runtime::__private::ValidationArgument::Bool(#value))
         }
         StrategyArgumentIr::Integer(value) => {
-            quote!(#runtime::ValidationArgument::Integer(#value))
+            quote!(#runtime::__private::ValidationArgument::Integer(#value))
         }
         StrategyArgumentIr::Unsigned(value) => {
-            quote!(#runtime::ValidationArgument::Unsigned(#value))
+            quote!(#runtime::__private::ValidationArgument::Unsigned(#value))
         }
         StrategyArgumentIr::String(value) => {
-            quote!(#runtime::ValidationArgument::String(#value))
+            quote!(#runtime::__private::ValidationArgument::String(#value))
         }
         StrategyArgumentIr::BoolList(values) => {
-            quote!(#runtime::ValidationArgument::BoolList(&[#(#values),*]))
+            quote!(#runtime::__private::ValidationArgument::BoolList(&[#(#values),*]))
         }
         StrategyArgumentIr::IntegerList(values) => {
-            quote!(#runtime::ValidationArgument::IntegerList(&[#(#values),*]))
+            quote!(#runtime::__private::ValidationArgument::IntegerList(&[#(#values),*]))
         }
         StrategyArgumentIr::UnsignedList(values) => {
-            quote!(#runtime::ValidationArgument::UnsignedList(&[#(#values),*]))
+            quote!(#runtime::__private::ValidationArgument::UnsignedList(&[#(#values),*]))
         }
         StrategyArgumentIr::StringList(values) => {
-            quote!(#runtime::ValidationArgument::StringList(&[#(#values),*]))
+            quote!(#runtime::__private::ValidationArgument::StringList(&[#(#values),*]))
         }
     }
 }
@@ -706,10 +706,10 @@ fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenSt
     let (sensitivity, mode) = match &redact.mode {
         RedactModeIr::Level(level) => {
             let sensitivity = match level.as_str() {
-                "low" => quote!(#runtime::Sensitivity::Low),
-                "medium" => quote!(#runtime::Sensitivity::Medium),
-                "high" => quote!(#runtime::Sensitivity::High),
-                "secret" => quote!(#runtime::Sensitivity::Secret),
+                "low" => quote!(#runtime::__private::Sensitivity::Low),
+                "medium" => quote!(#runtime::__private::Sensitivity::Medium),
+                "high" => quote!(#runtime::__private::Sensitivity::High),
+                "secret" => quote!(#runtime::__private::Sensitivity::Secret),
                 _ => quote!(compile_error!("redact level must be low, medium, high, or secret")),
             };
             (quote!(Some(#sensitivity)), quote!(#runtime::RedactModeMetadata::Level))

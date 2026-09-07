@@ -22,10 +22,8 @@ use qubit_model_metadata::CodecReference;
 use qubit_model_metadata::CodecSource;
 use qubit_model_metadata::DeclaredEntityTarget;
 use qubit_model_metadata::FieldAttributeMetadata;
-use qubit_reflect::FieldDescriptor;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::FieldReferenceMetadata;
-use qubit_reflect::identity::FragmentIdentity;
 use qubit_model_metadata::IdentifierAssignment;
 use qubit_model_metadata::IdentifierMetadata;
 use qubit_model_metadata::IndexingReasons;
@@ -36,12 +34,14 @@ use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::PropertyMetadata;
 use qubit_model_metadata::PropertyPath;
 use qubit_model_metadata::ReferenceSelection;
-use qubit_reflect::Reflect;
 use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::SerdeFieldMetadata;
-use qubit_reflect::TypeDescriptor;
 use qubit_model_metadata::TypeMetadata;
 use qubit_model_metadata::ValidatorMetadata;
+use qubit_reflect::FieldDescriptor;
+use qubit_reflect::Reflect;
+use qubit_reflect::TypeDescriptor;
+use qubit_reflect::identity::FragmentIdentity;
 
 fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]) -> ModelRegistry<'static> {
     ModelRegistry::from_metadata(entries, &[]).expect("valid isolated model registry")

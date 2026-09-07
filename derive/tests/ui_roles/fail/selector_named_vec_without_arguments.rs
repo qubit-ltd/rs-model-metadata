@@ -17,11 +17,11 @@ use qubit_model_derive::Model;
     Eq,
     Hash,
     PartialEq,
-    model_runtime::Reflect,
+    qubit_reflect::Reflect,
     serde::Deserialize,
     serde::Serialize,
 )]
-#[reflect(crate = model_runtime)]
+#[reflect(crate = qubit_reflect)]
 struct Vec;
 
 impl model_runtime::__private::serde_helpers::IsEmpty for Vec {

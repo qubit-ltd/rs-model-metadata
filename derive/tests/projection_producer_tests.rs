@@ -13,7 +13,7 @@ use model_runtime::ModelRegistry;
 use model_runtime::ModelResolver;
 use model_runtime::ProjectionExecutionError;
 use model_runtime::PropertyValue;
-use model_runtime::ReflectedRef;
+use model_runtime::__private::ReflectedRef;
 use model_runtime::ResolveInputs;
 use qubit_codec::ValueCodecRegistry;
 use qubit_model_derive::Entity;

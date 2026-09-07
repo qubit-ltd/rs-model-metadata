@@ -41,7 +41,7 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
     let has_generics = !item.generics.params.is_empty();
     let mut impl_generics_source = item.generics.clone();
     for parameter in impl_generics_source.type_params_mut() {
-        parameter.bounds.push(parse_quote!(#runtime::Reflect));
+        parameter.bounds.push(parse_quote!(#runtime::__private::Reflect));
         parameter.bounds.push(parse_quote!('static));
     }
     let (impl_generics, ty_generics, where_clause) = impl_generics_source.split_for_impl();
@@ -74,7 +74,7 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
         TokenStream::new()
     };
     let build_metadata = quote! {
-        let descriptor = #runtime::TypeDescriptor::of::<Self>();
+        let descriptor = #runtime::__private::TypeDescriptor::of::<Self>();
         #fields
         let fields: &'static [#runtime::FieldMetadata] = #runtime::__private::v4::leak_slice(fields);
         #role

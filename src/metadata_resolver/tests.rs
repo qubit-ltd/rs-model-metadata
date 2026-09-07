@@ -9,6 +9,8 @@
 //! Regression tests for fallible property path traversal.
 
 use qubit_codec::ValueCodecRegistry;
+use qubit_reflect::Reflect;
+use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
@@ -22,8 +24,6 @@ use crate::PropertyBuildErrorKind;
 use crate::PropertyBuildErrors;
 use crate::PropertyPath;
 use crate::PropertyResolutionError;
-use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
 
 #[derive(Reflect)]
 #[reflect(crate = crate, capabilities(broken_overlay))]

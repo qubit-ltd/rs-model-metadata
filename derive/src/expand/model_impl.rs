@@ -162,16 +162,16 @@ pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result
         fn #provider() -> &'static #runtime::ModelImplMetadata {
             struct Entry {
                 name: &'static str,
-                type_ref: &'static #runtime::TypeRef,
+                type_ref: &'static #runtime::__private::TypeRef,
                 field: ::core::option::Option<&'static #runtime::FieldMetadata>,
                 getter: ::core::option::Option<&'static #runtime::GetterMetadata>,
                 setter: ::core::option::Option<&'static #runtime::SetterMetadata>,
             }
             impl Entry {
-                fn getter(name: &'static str, type_ref: &'static #runtime::TypeRef, getter: &'static #runtime::GetterMetadata) -> Self {
+                fn getter(name: &'static str, type_ref: &'static #runtime::__private::TypeRef, getter: &'static #runtime::GetterMetadata) -> Self {
                     Self { name, type_ref, field: None, getter: Some(getter), setter: None }
                 }
-                fn setter(name: &'static str, type_ref: &'static #runtime::TypeRef, setter: &'static #runtime::SetterMetadata) -> Self {
+                fn setter(name: &'static str, type_ref: &'static #runtime::__private::TypeRef, setter: &'static #runtime::SetterMetadata) -> Self {
                     Self { name, type_ref, field: None, getter: None, setter: Some(setter) }
                 }
             }
@@ -443,27 +443,27 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
     let method = &getter.method;
     let value = match &getter.output {
         GetterReturn::Owned(_) => {
-            quote!(#runtime::PropertyValue::Owned(#runtime::ReflectedOwned::new(target.#method())))
+            quote!(#runtime::PropertyValue::Owned(#runtime::__private::ReflectedOwned::new(target.#method())))
         }
         GetterReturn::Borrowed(_) => {
-            quote!(#runtime::PropertyValue::Borrowed(#runtime::ReflectedRef::new(target.#method())))
+            quote!(#runtime::PropertyValue::Borrowed(#runtime::__private::ReflectedRef::new(target.#method())))
         }
         GetterReturn::BorrowedStr => {
-            quote!(#runtime::PropertyValue::Borrowed(#runtime::ReflectedRef::new_str(target.#method())))
+            quote!(#runtime::PropertyValue::Borrowed(#runtime::__private::ReflectedRef::new_str(target.#method())))
         }
         GetterReturn::BorrowedSlice(_) => {
             quote!(#runtime::PropertyValue::BorrowedSlice(#runtime::BorrowedPropertySlice::new(target.#method())))
         }
         GetterReturn::OptionalBorrowed(_) => {
-            quote!(#runtime::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::ReflectedRef::new)))
+            quote!(#runtime::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::__private::ReflectedRef::new)))
         }
         GetterReturn::OptionalBorrowedStr => {
-            quote!(#runtime::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::ReflectedRef::new_str)))
+            quote!(#runtime::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::__private::ReflectedRef::new_str)))
         }
     };
     quote! {
         #[doc(hidden)]
-        fn #adapter<'a>(target: #runtime::ReflectedRef<'a>) -> ::core::result::Result<#runtime::PropertyValue<'a>, #runtime::PropertyAccessError> {
+        fn #adapter<'a>(target: #runtime::__private::ReflectedRef<'a>) -> ::core::result::Result<#runtime::PropertyValue<'a>, #runtime::PropertyAccessError> {
             let target = target.downcast::<#target>().map_err(|_| #runtime::PropertyAccessError::user("property target was not prevalidated"))?;
             Ok(#value)
         }
@@ -481,7 +481,7 @@ fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime
     let input = &setter.input;
     quote! {
         #[doc(hidden)]
-        fn #adapter(target: #runtime::ReflectedMut<'_>, value: #runtime::ReflectedOwned) -> ::core::result::Result<(), #runtime::PropertySetFailure> {
+        fn #adapter(target: #runtime::__private::ReflectedMut<'_>, value: #runtime::__private::ReflectedOwned) -> ::core::result::Result<(), #runtime::PropertySetFailure> {
             let target = target.downcast::<#target>().map_err(|_| #runtime::PropertySetFailure::after_execution(#runtime::PropertyAccessError::user("property target was not prevalidated")))?;
             let value = value.downcast::<#input>().map_err(|value| #runtime::PropertySetFailure::before_execution(#runtime::PropertyAccessError::user("property value was not prevalidated"), value))?;
             target.#method(value);

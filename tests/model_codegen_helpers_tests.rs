@@ -20,17 +20,17 @@ use qubit_model_metadata::__private::codegen_v3::registration::RuntimeIdentity;
 use qubit_model_metadata::__private::codegen_v3::registration::StaticFragmentIdentity;
 use qubit_model_metadata::__private::v4;
 use qubit_model_metadata::__private::v4::register_generic_model_capability;
-use qubit_reflect::identity::FragmentIdentity;
 use qubit_model_metadata::GenericModelMetadata;
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelRole;
+use qubit_reflect::__private::testing::build_registry;
 use qubit_reflect::Reflect;
 use qubit_reflect::ReflectRegistry;
 use qubit_reflect::TypeDefinitionDescriptor;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeRef;
-use qubit_reflect::__private::testing::build_registry;
+use qubit_reflect::identity::FragmentIdentity;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata, definition_provider_v2 = first_definition)]

@@ -14,16 +14,16 @@ use qubit_model_metadata::BorrowedPropertySlice;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::GetterMetadata;
 use qubit_model_metadata::GetterOutputKind;
-use qubit_reflect::InvocationOutput;
 use qubit_model_metadata::PropertyAccessError;
 use qubit_model_metadata::PropertySetFailure;
 use qubit_model_metadata::PropertyStorageKind;
 use qubit_model_metadata::PropertyValue;
+use qubit_model_metadata::SetterMetadata;
+use qubit_reflect::InvocationOutput;
 use qubit_reflect::Reflect;
 use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
-use qubit_model_metadata::SetterMetadata;
 use qubit_reflect::TypeDescriptor;
 
 #[derive(Reflect)]

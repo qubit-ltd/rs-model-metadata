@@ -79,7 +79,7 @@ pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Res
     apply_default_derives(&declaration, &mut item, &runtime)?;
     apply_serde_defaults(&mut declaration, &mut item, &runtime);
     rewrite_field_helpers(&mut item.data, &declaration);
-    item.attrs.push(parse_quote!(#[derive(#runtime::Reflect)]));
+    item.attrs.push(parse_quote!(#[derive(#runtime::__private::Reflect)]));
     item.attrs.push(parse_quote!(#[reflect(crate = #runtime)]));
     if !item.generics.params.is_empty() && declaration.options.id.is_some() {
         let provider = format_ident!("__qubit_model_reflect_definition_{}", item.ident);

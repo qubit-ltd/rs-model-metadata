@@ -12,7 +12,6 @@ use qubit_model_metadata::__private::register_type_capabilities;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelRegistryErrorKind;
 use qubit_reflect::Reflect;
-use qubit_reflect::register_reflected_type;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityConflict;
 use qubit_reflect::capability::CapabilityConflictKind;
@@ -22,6 +21,7 @@ use qubit_reflect::error::RegistryError;
 use qubit_reflect::error::RegistryErrorKind;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::register_reflected_type;
 use qubit_reflect::registry::CapabilityTarget;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 

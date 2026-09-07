@@ -17,9 +17,9 @@ use criterion::criterion_group;
 use criterion::criterion_main;
 use qubit_model_metadata::BorrowedPropertySlice;
 use qubit_model_metadata::PropertyValue;
+use qubit_model_metadata::TypeMetadata;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
-use qubit_model_metadata::TypeMetadata;
 
 /// Synthetic model used to measure generated getter adapters.
 #[qubit_model_derive::Model]

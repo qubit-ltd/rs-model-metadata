@@ -14,9 +14,15 @@ pub use qubit_codec;
 pub use qubit_id;
 pub use qubit_redact;
 pub use qubit_reflect::__private::codegen_v3;
+pub use qubit_reflect::{Reflect, ReflectedMut, ReflectedOwned, ReflectedRef, TypeDescriptor};
+pub use qubit_reflect::expression::{ConstExpression, TypeExpression};
+pub use qubit_reflect::descriptor::TypeRef;
 pub use qubit_reflect::capability::TypeCapabilities as ReflectTypeCapabilities;
 pub use qubit_reflect::register_type_capabilities;
 pub use qubit_validator;
+pub use qubit_validator::NamedValidationArgument;
+pub use qubit_validator::ValidationArgument;
+pub use qubit_redact::Sensitivity;
 pub use serde;
 
 #[path = "private/reflect_codegen.rs"]
@@ -354,6 +360,7 @@ pub mod v4 {
     use qubit_reflect::FieldDefinitionDescriptor;
     use qubit_reflect::FieldDescriptor;
     use qubit_reflect::TypeDefinitionDescriptor;
+    use qubit_reflect::TypeDescriptor;
     use qubit_reflect::VariantDefinitionDescriptor;
     use qubit_reflect::VariantDescriptor;
     use qubit_reflect::descriptor::TypeRef;
@@ -373,7 +380,6 @@ pub mod v4 {
     pub use super::compile_assertions::model_impl_metadata;
     pub use super::compile_assertions::property_fragment;
     pub use super::reflect_codegen::reflected_type_ref;
-    use qubit_reflect::TypeDescriptor;
     use crate::TypeMetadata;
     pub use crate::reflect_facade::generic_model_capability;
     pub use crate::reflect_facade::generic_model_metadata_key;

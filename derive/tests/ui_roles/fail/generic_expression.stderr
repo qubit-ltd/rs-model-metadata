@@ -4,7 +4,7 @@ error: unsupported const expression in #[reflect] trait: 34028236692093846346337
 13 | #[Model(id = "trybuild.GenericExpression")]
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = note: this error originates in the derive macro `::model_runtime::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the derive macro `::model_runtime::__private::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error: integer literal is too large
   --> tests/ui_roles/fail/generic_expression.rs:15:16

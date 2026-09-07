@@ -8,7 +8,7 @@
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
-use model_runtime::Reflect;
+use qubit_reflect::Reflect;
 use qubit_model_derive::Model;
 
 #[Model]

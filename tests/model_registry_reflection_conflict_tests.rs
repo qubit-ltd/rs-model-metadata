@@ -14,13 +14,13 @@ use qubit_model_metadata::ModelImplProvider;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelRegistryErrorKind;
 use qubit_model_metadata::PropertyResolutionError;
+use qubit_model_metadata::model_impl_key;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::descriptor::TypeRef;
-use qubit_model_metadata::model_impl_key;
-use qubit_reflect::register_reflected_type;
 use qubit_reflect::capability::CapabilityDescriptor;
+use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::register_reflected_type;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
 #[derive(Reflect)]
