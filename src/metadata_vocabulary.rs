@@ -272,14 +272,8 @@ impl DependencyBindingMetadata {
     #[must_use]
     #[inline(always)]
     pub const fn new(name: &'static str, path: PropertyPath<'static>) -> Self {
-        assert!(
-            !name.is_empty(),
-            "validator dependency name cannot be empty"
-        );
-        assert!(
-            !path.is_empty(),
-            "validator dependency path cannot be empty"
-        );
+        assert!(!name.is_empty(), "validator dependency name cannot be empty");
+        assert!(!path.is_empty(), "validator dependency path cannot be empty");
         Self { name, path }
     }
 
@@ -373,14 +367,8 @@ impl ValidatorMetadata {
         let mut index = 0;
         while index < dependency_bindings.len() {
             let binding = dependency_bindings[index];
-            assert!(
-                !binding.name().is_empty(),
-                "validator dependency name cannot be empty"
-            );
-            assert!(
-                !binding.path().is_empty(),
-                "validator dependency path cannot be empty"
-            );
+            assert!(!binding.name().is_empty(), "validator dependency name cannot be empty");
+            assert!(!binding.path().is_empty(), "validator dependency path cannot be empty");
             assert!(
                 !contains_dependency_name(dependency_bindings, index, binding.name()),
                 "validator dependency names must be unique",
@@ -440,11 +428,7 @@ impl ValidatorMetadata {
     }
 }
 
-const fn contains_dependency_name(
-    bindings: &[DependencyBindingMetadata],
-    end: usize,
-    name: &str,
-) -> bool {
+const fn contains_dependency_name(bindings: &[DependencyBindingMetadata], end: usize, name: &str) -> bool {
     let mut index = 0;
     while index < end {
         if same_str(bindings[index].name(), name) {
@@ -579,11 +563,7 @@ impl RedactMetadata {
     /// Creates redact declaration metadata.
     #[must_use]
     #[inline(always)]
-    pub const fn new(
-        sensitivity: Option<Sensitivity>,
-        mode: RedactModeMetadata,
-        position: RedactPosition,
-    ) -> Self {
+    pub const fn new(sensitivity: Option<Sensitivity>, mode: RedactModeMetadata, position: RedactPosition) -> Self {
         Self {
             sensitivity,
             mode,
@@ -684,11 +664,7 @@ impl SerdeFieldMetadata {
     /// Records whether missing-value defaults and empty-value omission were
     /// explicit, generated, or suppressed.
     #[must_use]
-    pub const fn with_sources(
-        mut self,
-        default_source: SerdeBehaviorSource,
-        omit_source: SerdeBehaviorSource,
-    ) -> Self {
+    pub const fn with_sources(mut self, default_source: SerdeBehaviorSource, omit_source: SerdeBehaviorSource) -> Self {
         self.default_source = default_source;
         self.omit_source = omit_source;
         self

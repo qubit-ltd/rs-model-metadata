@@ -325,9 +325,7 @@ mod compile_assertions {
     /// Wraps a successfully validated merged property slice.
     #[doc(hidden)]
     #[must_use]
-    pub const fn local_property_set(
-        properties: &'static [crate::PropertyMetadata],
-    ) -> crate::LocalPropertySet {
+    pub const fn local_property_set(properties: &'static [crate::PropertyMetadata]) -> crate::LocalPropertySet {
         crate::LocalPropertySet::new(properties)
     }
 
@@ -418,19 +416,13 @@ pub mod v4 {
         }
 
         /// Adds generated field property fragments to the builder.
-        pub const fn property_fragments(
-            mut self,
-            fragments: &'static [crate::PropertyFragment],
-        ) -> Self {
+        pub const fn property_fragments(mut self, fragments: &'static [crate::PropertyFragment]) -> Self {
             self.metadata = self.metadata.with_property_fragments(fragments);
             self
         }
 
         /// Records the generic definition represented by this metadata.
-        pub const fn generic_definition(
-            mut self,
-            definition: &'static crate::GenericModelMetadata,
-        ) -> Self {
+        pub const fn generic_definition(mut self, definition: &'static crate::GenericModelMetadata) -> Self {
             self.metadata = self.metadata.with_generic_definition(definition);
             self
         }
@@ -534,10 +526,7 @@ pub mod v4 {
         transparent_field: Option<&'static crate::FieldMetadata>,
         canonical_codec: Option<&'static crate::CodecMetadata>,
     ) -> crate::RoleMetadata {
-        crate::RoleMetadata::Value(crate::ValueMetadata::new(
-            transparent_field,
-            canonical_codec,
-        ))
+        crate::RoleMetadata::Value(crate::ValueMetadata::new(transparent_field, canonical_codec))
     }
 
     /// Builds metadata for one generated enum variant.

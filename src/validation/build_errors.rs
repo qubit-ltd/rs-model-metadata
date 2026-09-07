@@ -79,12 +79,7 @@ impl fmt::Debug for ValidationBuildError {
 
 impl fmt::Display for ValidationBuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "validation plan for {} failed: {}",
-            self.model,
-            self.kind()
-        )?;
+        write!(f, "validation plan for {} failed: {}", self.model, self.kind())?;
         if let Some(path) = &self.path {
             write!(f, " at {path}")?;
         }
