@@ -52,13 +52,12 @@ qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
 qubit-codec = { version = "0.14", features = ["registry"] }
 ```
 
-`ValueCodecRegistry` is available only with `qubit-codec`'s `registry`
-feature. Keep that feature enabled in the application crate that imports and
-supplies the codec registry to `ModelResolver`. The resolver accepts all three
-registries explicitly, so an application using it needs direct dependencies on
-`qubit-validator` and `qubit-codec` even when a particular model declares no
-validator or codec. `qubit-id` supplies the exact identifier type required by
-`Entity` and `Projection`.
+`ValueCodecRegistry` is available only with `qubit-codec`'s `registry` feature.
+Keep that feature enabled in the application crate that supplies the codec
+registry to `ModelResolver`. Structural resolution accepts model and codec
+registries; validator bindings belong to `ValidationPlan::build` and are
+configured independently. `qubit-id` supplies the exact identifier type
+required by `Entity` and `Projection`.
 
 Use a model-role derive macro for every type passed to `TypeMetadata::of`.
 The macro generates the required metadata provider and bounds; a type derived
@@ -110,15 +109,12 @@ use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::TypeMetadata;
-use qubit_validator::ValidatorRegistry;
 
 fn resolve_models() -> Result<(), Box<dyn std::error::Error>> {
     let models = ModelRegistry::try_global()?;
-    let validators = ValidatorRegistry::try_global()?;
     let codecs = ValueCodecRegistry::try_global()?;
     let graph = ModelResolver::new(ResolveInputs {
         models,
-        validators,
         codecs,
     })
     .resolve_structure()?;
@@ -218,7 +214,7 @@ grammar. `ModelRegistry::try_global()` reports duplicate model IDs, conflicting
 registrations, or reflection-registry initialization failure as
 `ModelRegistryError`.
 
-`resolve_all()` returns `ModelResolveErrors`, which aggregates errors in a
+`resolve_structure()` returns `ModelResolveErrors`, which aggregates errors in a
 deterministic order instead of publishing a graph with unresolved
 relationships. Inspect `errors()` and each `ModelResolveError::kind()` rather
 than parsing display text. Error kinds cover invalid local properties, entity
@@ -245,7 +241,7 @@ invariants.
 - If an expected model is absent from `ModelRegistry::try_global()`, make sure
   its crate is linked into the final binary and that the declaration has a
   stable model ID. Registry collection cannot see an unlinked crate.
-- If `resolve_all()` returns errors, inspect each `ModelResolveError` and fix
+- If `resolve_structure()` returns errors, inspect each `ModelResolveError` and fix
   the stable ID, target role, property name, or matching validator/codec
   registration before retrying the full resolution pass.
 - A resolved validator exposes its typed registration and readable dependency

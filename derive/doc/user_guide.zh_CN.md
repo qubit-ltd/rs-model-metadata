@@ -134,13 +134,11 @@ use qubit_codec::ValueCodecRegistry;
 use qubit_model_metadata::{
     ModelRegistry, ModelResolver, PropertyPath, ResolveInputs, TypeMetadata,
 };
-use qubit_validator::ValidatorRegistry;
 
 fn inspect_graph() -> Result<(), Box<dyn std::error::Error>> {
     let models = ModelRegistry::try_global()?;
-    let validators = ValidatorRegistry::try_global()?;
     let codecs = ValueCodecRegistry::try_global()?;
-    let graph = ModelResolver::new(ResolveInputs { models, validators, codecs })
+    let graph = ModelResolver::new(ResolveInputs { models, codecs })
         .resolve_structure()?;
 
     let field = TypeMetadata::of::<Login>().field("user_id").unwrap();
@@ -292,7 +290,7 @@ getter 使用 `&self`，返回值可为 `T`、`&T`、`&str`、`&[T]` 或 `Option
 - `ModelRegistry::try_global()`、`ValidatorRegistry::try_global()` 和
   `ValueCodecRegistry::try_global()` 会返回初始化错误；对应的 `global()` 快捷方法会在缓存的注册表无效时
   panic，因此应用启动阶段应优先使用可失败接口。
-- `resolve_all()` 失败时返回顺序确定的 `ModelResolveErrors`，不会发布部分成功的图。排查时应逐项查看错误
+- `resolve_structure()` 失败时返回顺序确定的 `ModelResolveErrors`，不会发布部分成功的图。排查时应逐项查看错误
   kind、model ID、Property 路径、期望/实际角色或类型，以及来源 identity。
 - `TypeRef::Opaque` 与 `TypeRef::Symbolic` 没有 concrete descriptor。请检查 `type_ref()`，不要把 `descriptor() == None` 当作 metadata 缺失。
 - codec bound 失败时，请实现准确的 `ValueEncoder` 与 `ValueDecoder` 契约；不要额外引入不存在的 codec contract ID 类型。

@@ -13,9 +13,9 @@
 | 合计 | 131 |
 
 这些声明已通过 `cargo check --workspace --all-targets`，因此能够证明五种角色、现有字段规则、注册和主要下游依赖迁移闭环。
-它不能单独证明所有高级能力均已成熟：当前业务模块没有 `ModelImpl`、validator attribute、codec、key_part、money、
-map_key 或 map_value 的真实声明。这些能力必须由 `rs-model-derive` 与 `rs-model-metadata` 的专门 runtime、resolver 和
-trybuild 测试验证，不能用下游编译通过替代。
+当前业务模块包含 2 个 `ModelImpl` 声明，但没有 validator attribute、codec、key_part、money、map_key 或 map_value
+的真实声明。因此它不能单独证明所有高级能力均已成熟；这些能力必须由 `rs-model-derive` 与 `rs-model-metadata` 的
+专门 runtime、resolver 和 trybuild 测试验证，不能用下游编译通过替代。
 
 Entity 的默认 `Eq`/`Hash` 是结构语义：全部字段共同参与比较和哈希，不代表按 identifier 比较。可变 Entity 放入
 `HashSet` 或作为 `HashMap` key 后，如果任何参与哈希的字段发生变化，将破坏集合不变量。业务代码应避免这种用法；若领域

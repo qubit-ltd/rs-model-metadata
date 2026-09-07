@@ -43,10 +43,9 @@ qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
 qubit-codec = { version = "0.14", features = ["registry"] }
 ```
 
-`ValueCodecRegistry` 只有启用 `qubit-codec` 的 `registry` feature 后才可用。直接导入它并把它传给
-`ModelResolver` 的应用 crate 必须保留该 feature。resolver 要求显式传入三个注册表，因此即使当前模型
-没有声明 validator 或 codec，运行解析的应用也需要直接依赖 `qubit-validator` 和 `qubit-codec`。
-`qubit-id` 则提供 `Entity` 与 `Projection` 标识字段必须使用的 `Id` 类型。
+`ValueCodecRegistry` 只有启用 `qubit-codec` 的 `registry` feature 后才可用。向 `ModelResolver` 提供
+它的应用 crate 必须保留该 feature。结构解析显式接收模型和 codec 注册表；validator 绑定属于独立的
+`ValidationPlan::build` 阶段。`qubit-id` 提供 `Entity` 与 `Projection` 标识字段必须使用的 `Id` 类型。
 
 传给 `TypeMetadata::of` 的类型必须使用模型角色派生宏。该宏会生成所需的 metadata provider 与 trait
 bound；仅派生结构反射的类型不能满足这一要求。
@@ -99,11 +98,9 @@ use qubit_validator::ValidatorRegistry;
 
 fn resolve_models() -> Result<(), Box<dyn std::error::Error>> {
     let models = ModelRegistry::try_global()?;
-    let validators = ValidatorRegistry::try_global()?;
     let codecs = ValueCodecRegistry::try_global()?;
     let graph = ModelResolver::new(ResolveInputs {
         models,
-        validators,
         codecs,
     })
     .resolve_structure()?;
@@ -178,7 +175,7 @@ validator occurrence 和 codec 声明在解析前都只是描述信息。`valida
 `ModelIdError`。`ModelRegistry::try_global()` 会以 `ModelRegistryError` 报告重复模型 ID、注册冲突或
 reflection registry 初始化失败。
 
-`resolve_all()` 返回 `ModelResolveErrors`，按确定顺序汇总问题，不会发布带未解析关系的图。处理错误时应
+`resolve_structure()` 返回 `ModelResolveErrors`，按确定顺序汇总问题，不会发布带未解析关系的图。处理错误时应
 遍历 `errors()` 并匹配 `ModelResolveError::kind()`，不要解析展示文本。错误类型覆盖本地 Property 合并、
 Entity 嵌套、opaque 模型、引用、角色与类型、Projection 契约、validator/codec 绑定、selector 类型、
 Value 闭包以及查询名冲突。按错误场景，还可读取模型 ID、Property 路径、预期与实际角色或类型、来源片段。
@@ -195,7 +192,7 @@ Value 闭包以及查询名冲突。按错误场景，还可读取模型 ID、Pr
 - `descriptor()` 返回 `None` 时，先检查 `type_ref()`；opaque 和 symbolic 引用本来就没有具体 descriptor。
 - `ModelRegistry::try_global()` 中缺少预期模型时，确认声明带有稳定模型 ID，且所属 crate 确实链接进了
   最终二进制；注册收集无法越过静态链接边界。
-- `resolve_all()` 返回错误时，逐项检查 `ModelResolveError`，修正稳定 ID、目标角色、Property 名称或对应的
+- `resolve_structure()` 返回错误时，逐项检查 `ModelResolveError`，修正稳定 ID、目标角色、Property 名称或对应的
   validator/codec 注册，然后重新执行完整解析。
 - 成功解析的 validator 会提供强类型注册项和可读的依赖 Property；成功解析的 codec 会提供可执行 descriptor，
   对于 ID 声明还会提供匹配的注册项。

@@ -26,9 +26,9 @@ qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 `qubit-id` supplies the exact `Id` type required by `Entity` and `Projection`
-identifiers. Applications that run `ModelResolver` also need direct
-`qubit-validator` and `qubit-codec` dependencies; the complete setup is in the
-user guide.
+identifiers. Applications that build validation plans or use codec metadata
+must add those crates directly; structural model resolution only requires the
+registries described in the user guide.
 
 ## Quick Start
 

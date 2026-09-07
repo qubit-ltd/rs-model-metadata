@@ -22,8 +22,8 @@ qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
-`qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。应用若要运行
-`ModelResolver`，还需直接依赖 `qubit-validator` 与 `qubit-codec`；完整配置见用户指南。
+`qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。构建 validation plan
+或使用 codec metadata 的应用需要直接依赖对应 crate；结构解析只需要用户指南所述的注册表。
 
 ## 快速开始
 

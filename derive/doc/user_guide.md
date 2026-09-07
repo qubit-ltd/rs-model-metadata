@@ -154,13 +154,11 @@ use qubit_codec::ValueCodecRegistry;
 use qubit_model_metadata::{
     ModelRegistry, ModelResolver, PropertyPath, ResolveInputs, TypeMetadata,
 };
-use qubit_validator::ValidatorRegistry;
 
 fn inspect_graph() -> Result<(), Box<dyn std::error::Error>> {
     let models = ModelRegistry::try_global()?;
-    let validators = ValidatorRegistry::try_global()?;
     let codecs = ValueCodecRegistry::try_global()?;
-    let graph = ModelResolver::new(ResolveInputs { models, validators, codecs })
+    let graph = ModelResolver::new(ResolveInputs { models, codecs })
         .resolve_structure()?;
 
     let field = TypeMetadata::of::<Login>().field("user_id").unwrap();
@@ -364,7 +362,7 @@ projection returns `MissingProjector`.
   `ValueCodecRegistry::try_global()` return initialization errors. Their
   `global()` shortcuts panic when the cached registry is invalid, so use the
   fallible forms at application startup.
-- `resolve_all()` returns a deterministically ordered `ModelResolveErrors`
+- `resolve_structure()` returns a deterministically ordered `ModelResolveErrors`
   collection and does not publish a partial graph. Inspect each error's kind,
   model ID, property path, expected/actual role or type, and source identity.
 - `TypeRef::Opaque` and `TypeRef::Symbolic` have no concrete descriptor. Test

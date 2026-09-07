@@ -806,7 +806,7 @@ pub struct ModelResolver<'a> { /* immutable inputs */ }
 
 impl<'a> ModelResolver<'a> {
     pub fn new(inputs: ResolveInputs<'a>) -> Self;
-    pub fn resolve_all(&self) -> Result<ResolvedModelGraph, ModelResolveErrors>;
+    pub fn resolve_structure(&self) -> Result<ResolvedModelGraph, ModelResolveErrors>;
 }
 
 impl ResolvedModelGraph {
@@ -823,7 +823,7 @@ impl ResolvedModelGraph {
 ```
 
 `ResolvedModelGraph` 是一次完整验证后的 immutable snapshot。不存在“部分成功但 getter 静默返回 None”的状态；
-`resolve_all()` 失败时返回全部确定性排序错误，不发布图。
+`resolve_structure()` 失败时返回全部确定性排序错误，不发布图。
 
 `QueryMetadata` 的最终拥有者是 `ResolvedModelGraph`，不是 `EntityMetadata`：
 
@@ -970,7 +970,6 @@ src/
 │   ├── constraint.rs
 │   ├── strategy.rs
 │   ├── representation.rs
-│   └── registration.rs
 ├── normalize/
 │   ├── declaration.rs
 │   ├── fields.rs
@@ -995,7 +994,6 @@ src/
     ├── properties.rs
     ├── role.rs
     ├── capability.rs
-    ├── registration.rs
     ├── defaults.rs
     ├── serde.rs
     ├── redact.rs
