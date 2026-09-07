@@ -9,8 +9,11 @@
 //! Deterministic model-registry construction errors.
 // qubit-style: allow multiple-public-types
 
+use std::any::TypeId;
+
 use qubit_reflect::capability::CapabilityConflict;
 use qubit_reflect::error::RegistryError;
+use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
 
 use crate::ModelId;
@@ -20,6 +23,10 @@ use crate::ModelId;
 pub enum ModelRegistryErrorKind {
     /// A concrete descriptor's intrinsic capabilities could not be resolved.
     CapabilityResolution,
+    /// A model capability declares no executable metadata provider.
+    FactOnlyCapability,
+    /// A model capability declares an incompatible adapter contract.
+    AdapterTypeMismatch,
     /// The shared reflection registry could not initialize.
     ReflectionRegistry,
     /// Two linked registrations declared the same model ID.
@@ -45,6 +52,12 @@ pub struct ModelRegistryError {
     reflection: Option<RegistryError>,
     /// Complete intrinsic capability conflict, when present.
     capability: Option<CapabilityConflict>,
+    /// Stable capability identity involved in a provider contract failure.
+    capability_id: Option<CapabilityId>,
+    /// Adapter type expected by the model metadata capability key.
+    expected_adapter_type: Option<TypeId>,
+    /// Adapter type declared by the reflected capability descriptor.
+    actual_adapter_type: Option<TypeId>,
 }
 
 impl ModelRegistryError {
@@ -56,6 +69,45 @@ impl ModelRegistryError {
             sources: vec![source],
             reflection: None,
             capability: Some(error),
+            capability_id: None,
+            expected_adapter_type: None,
+            actual_adapter_type: None,
+        }
+    }
+
+    /// Records a model capability fact without an executable provider.
+    pub(crate) fn fact_only_capability(
+        capability_id: CapabilityId,
+        source: FragmentIdentity,
+    ) -> Self {
+        Self {
+            kind: ModelRegistryErrorKind::FactOnlyCapability,
+            model_id: None,
+            sources: vec![source],
+            reflection: None,
+            capability: None,
+            capability_id: Some(capability_id),
+            expected_adapter_type: None,
+            actual_adapter_type: None,
+        }
+    }
+
+    /// Records a model capability whose adapter contract has the wrong type.
+    pub(crate) fn adapter_type_mismatch(
+        capability_id: CapabilityId,
+        expected: TypeId,
+        actual: TypeId,
+        source: FragmentIdentity,
+    ) -> Self {
+        Self {
+            kind: ModelRegistryErrorKind::AdapterTypeMismatch,
+            model_id: None,
+            sources: vec![source],
+            reflection: None,
+            capability: None,
+            capability_id: Some(capability_id),
+            expected_adapter_type: Some(expected),
+            actual_adapter_type: Some(actual),
         }
     }
 
@@ -71,6 +123,9 @@ impl ModelRegistryError {
             sources,
             reflection: Some(error),
             capability: None,
+            capability_id: None,
+            expected_adapter_type: None,
+            actual_adapter_type: None,
         }
     }
 
@@ -82,6 +137,9 @@ impl ModelRegistryError {
             sources,
             reflection: None,
             capability: None,
+            capability_id: None,
+            expected_adapter_type: None,
+            actual_adapter_type: None,
         }
     }
 
@@ -93,6 +151,9 @@ impl ModelRegistryError {
             sources,
             reflection: None,
             capability: None,
+            capability_id: None,
+            expected_adapter_type: None,
+            actual_adapter_type: None,
         }
     }
 
@@ -109,6 +170,24 @@ impl ModelRegistryError {
     pub const fn model_id(&self) -> Option<ModelId> {
         self.model_id
     }
+    /// Returns the capability ID involved in a provider contract failure.
+    #[must_use]
+    #[inline(always)]
+    pub const fn capability_id(&self) -> Option<CapabilityId> {
+        self.capability_id
+    }
+    /// Returns the expected adapter type for a provider type mismatch.
+    #[must_use]
+    #[inline(always)]
+    pub const fn expected_adapter_type(&self) -> Option<TypeId> {
+        self.expected_adapter_type
+    }
+    /// Returns the actual adapter type for a provider type mismatch.
+    #[must_use]
+    #[inline(always)]
+    pub const fn actual_adapter_type(&self) -> Option<TypeId> {
+        self.actual_adapter_type
+    }
     /// Returns the registration sources involved in the error.
     #[must_use]
     #[inline(always)]
@@ -124,6 +203,22 @@ impl core::fmt::Display for ModelRegistryError {
                 formatter,
                 "model capability resolution failed: {}",
                 self.capability.as_ref().expect("capability cause retained")
+            ),
+            ModelRegistryErrorKind::FactOnlyCapability => write!(
+                formatter,
+                "model capability {} has no executable adapter",
+                self.capability_id
+                    .expect("fact-only errors retain their ID"),
+            ),
+            ModelRegistryErrorKind::AdapterTypeMismatch => write!(
+                formatter,
+                "model capability {} adapter type mismatch: expected {:?}, actual {:?}",
+                self.capability_id
+                    .expect("adapter mismatch errors retain their ID"),
+                self.expected_adapter_type
+                    .expect("adapter mismatch errors retain the expected type"),
+                self.actual_adapter_type
+                    .expect("adapter mismatch errors retain the actual type"),
             ),
             ModelRegistryErrorKind::ReflectionRegistry => write!(
                 formatter,
