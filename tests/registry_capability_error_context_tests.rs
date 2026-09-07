@@ -9,9 +9,12 @@
 use std::any::TypeId;
 
 use qubit_model_metadata::__private::register_type_capabilities;
+use qubit_model_metadata::ModelMetadataProvider;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelRegistryErrorKind;
-use qubit_reflect::Reflect;
+use qubit_model_metadata::Reflect;
+use qubit_model_metadata::model_metadata_key;
+use qubit_model_metadata::register_reflected_type;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityConflict;
 use qubit_reflect::capability::CapabilityConflictKind;
@@ -21,7 +24,6 @@ use qubit_reflect::error::RegistryError;
 use qubit_reflect::error::RegistryErrorKind;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
-use qubit_reflect::register_reflected_type;
 use qubit_reflect::registry::CapabilityTarget;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
@@ -50,6 +52,58 @@ fn source(declaring_crate: &'static str, line: u32) -> FragmentIdentity {
         "capability",
         u64::from(line),
     )
+}
+
+fn model_provider_snapshot(
+    capability: CapabilityDescriptor,
+) -> (qubit_reflect::registry::ReflectRegistry, FragmentIdentity) {
+    let target = TypeDescriptor::of::<DiagnosticsTarget>();
+    let type_source = source("model-provider-type", 50);
+    let mut builder = RegistrySnapshotBuilder::new();
+    builder.add_type(target, type_source.clone());
+    builder.add_type_capabilities(
+        target,
+        vec![capability],
+        source("model-provider-capability", 51),
+    );
+    (
+        builder.build().expect("valid isolated snapshot"),
+        type_source,
+    )
+}
+
+#[test]
+fn test_model_registry_rejects_fact_only_model_provider() {
+    let (reflection, expected_source) =
+        model_provider_snapshot(CapabilityDescriptor::without_adapter(model_metadata_key()));
+
+    let error = ModelRegistry::from_reflect_registry(&reflection)
+        .expect_err("a model capability without a provider must fail");
+
+    assert_eq!(error.kind(), ModelRegistryErrorKind::FactOnlyCapability);
+    assert_eq!(error.capability_id(), Some(*model_metadata_key().id()));
+    assert_eq!(error.expected_adapter_type(), None);
+    assert_eq!(error.actual_adapter_type(), None);
+    assert_eq!(error.sources(), &[expected_source]);
+}
+
+#[test]
+fn test_model_registry_rejects_model_provider_with_wrong_adapter_type() {
+    let wrong_key = key::<u32>("qubit.model.metadata.v1");
+    let (reflection, expected_source) =
+        model_provider_snapshot(CapabilityDescriptor::with_adapter(wrong_key, 7_u32));
+
+    let error = ModelRegistry::from_reflect_registry(&reflection)
+        .expect_err("a model capability with the wrong provider type must fail");
+
+    assert_eq!(error.kind(), ModelRegistryErrorKind::AdapterTypeMismatch);
+    assert_eq!(error.capability_id(), Some(*model_metadata_key().id()));
+    assert_eq!(
+        error.expected_adapter_type(),
+        Some(TypeId::of::<ModelMetadataProvider>())
+    );
+    assert_eq!(error.actual_adapter_type(), Some(TypeId::of::<u32>()));
+    assert_eq!(error.sources(), &[expected_source]);
 }
 
 #[test]

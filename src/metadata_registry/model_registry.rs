@@ -15,6 +15,7 @@ use std::sync::OnceLock;
 
 use qubit_reflect::TypeDefinitionId;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::capability::CapabilityLookup;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::ReflectRegistry;
 
@@ -51,11 +52,29 @@ impl<'reflection> ModelRegistry<'reflection> {
     pub fn from_reflect_registry(reflection: &'reflection ReflectRegistry) -> Result<Self, ModelRegistryError> {
         let mut entries = Vec::new();
         for (descriptor, source) in reflection.types_with_identity() {
-            let Some(provider) = reflection
-                .capability(descriptor, crate::reflect_facade::model_metadata_key())
+            let provider = match reflection
+                .capability_lookup(descriptor, crate::reflect_facade::model_metadata_key())
                 .map_err(|error| ModelRegistryError::capability(error, source.clone()))?
-            else {
-                continue;
+            {
+                CapabilityLookup::Missing => continue,
+                CapabilityLookup::Found(provider) => provider,
+                CapabilityLookup::FactOnly(capability) => {
+                    return Err(ModelRegistryError::fact_only_capability(
+                        *capability.id(),
+                        source.clone(),
+                    ));
+                }
+                CapabilityLookup::AdapterTypeMismatch {
+                    descriptor: capability,
+                    expected,
+                } => {
+                    return Err(ModelRegistryError::adapter_type_mismatch(
+                        *capability.id(),
+                        expected,
+                        capability.adapter_type(),
+                        source.clone(),
+                    ));
+                }
             };
             let metadata = provider();
             if metadata.validate_descriptor(descriptor).is_err() {
