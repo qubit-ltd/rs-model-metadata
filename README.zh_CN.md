@@ -30,11 +30,15 @@ qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 账户服务只需声明一次账户类型，就能在无需维护第二套模型注册流程的前提下读取模型元数据。派生宏生成
 角色感知的元数据，`TypeMetadata` 则通过 `qubit-reflect` 采用的同一个 `TypeDescriptor` 暴露它。
 
-```rust,ignore
+```rust
 use qubit_model_derive::Entity;
 use qubit_id::Id;
-use qubit_model_metadata::{ModelRegistry, TypeDescriptor, TypeMetadata};
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_reflect::{Reflect, TypeDescriptor};
 
+#[derive(Reflect)]
+#[reflect(crate = qubit_reflect)]
 #[Entity(id = "example.User")]
 struct User {
     #[identifier]
@@ -43,11 +47,13 @@ struct User {
     email: String,
 }
 
-let metadata = TypeMetadata::of::<User>();
-assert_eq!(metadata.model_id().unwrap().as_str(), "example.User");
-assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
-let registry = ModelRegistry::try_global().expect("链接模型图有效");
-assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
+fn main() {
+    let metadata = TypeMetadata::of::<User>();
+    assert_eq!(metadata.model_id().unwrap().as_str(), "example.User");
+    assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
+    let registry = ModelRegistry::try_global().expect("链接模型图有效");
+    assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
+}
 ```
 
 得到的是 `User` 的静态元数据；`TypeMetadata::of` 不会初始化全局模型注册表。descriptor capability

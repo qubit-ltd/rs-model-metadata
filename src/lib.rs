@@ -21,6 +21,8 @@ mod field_semantics {
 }
 mod generic_model_metadata;
 mod local_property_set;
+/// Declaration-side metadata types grouped under one stable namespace.
+pub mod metadata;
 mod metadata_registry;
 mod metadata_resolver;
 mod model_id;
@@ -34,7 +36,11 @@ mod property_fragment;
 mod property_fragment_source;
 mod property_resolution_error;
 mod reflect_facade;
+/// Frozen model registrations grouped under one stable namespace.
+pub mod registry;
 mod relation;
+/// Cross-model resolution types grouped under one stable namespace.
+pub mod resolve;
 mod role;
 mod type_metadata;
 #[cfg(feature = "validation")]

@@ -37,11 +37,15 @@ metadata without maintaining a second model-registration pipeline. The derive
 macro supplies the role-aware metadata, while `TypeMetadata` exposes it through
 the same `TypeDescriptor` used by `qubit-reflect`.
 
-```rust,ignore
+```rust
 use qubit_model_derive::Entity;
 use qubit_id::Id;
-use qubit_model_metadata::{ModelRegistry, TypeDescriptor, TypeMetadata};
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_reflect::{Reflect, TypeDescriptor};
 
+#[derive(Reflect)]
+#[reflect(crate = qubit_reflect)]
 #[Entity(id = "example.User")]
 struct User {
     #[identifier]
@@ -50,11 +54,13 @@ struct User {
     email: String,
 }
 
-let metadata = TypeMetadata::of::<User>();
-assert_eq!(metadata.model_id().unwrap().as_str(), "example.User");
-assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
-let registry = ModelRegistry::try_global().expect("valid linked model graph");
-assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
+fn main() {
+    let metadata = TypeMetadata::of::<User>();
+    assert_eq!(metadata.model_id().unwrap().as_str(), "example.User");
+    assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
+    let registry = ModelRegistry::try_global().expect("valid linked model graph");
+    assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
+}
 ```
 
 The result is static metadata for `User`; `TypeMetadata::of` does not initialize
