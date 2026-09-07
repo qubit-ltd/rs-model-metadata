@@ -98,15 +98,21 @@ pub struct ValidationPlan<'a> {
 
 impl<'a> ValidationPlan<'a> {
     /// Binds all direct field validator declarations on `root`.
-    pub fn build(root: &'static TypeMetadata, inputs: ValidationBuildInputs<'a>) -> Result<Self, ValidationBuildErrors> {
+    pub fn build(
+        root: &'static TypeMetadata,
+        inputs: ValidationBuildInputs<'a>,
+    ) -> Result<Self, ValidationBuildErrors> {
         let mut bindings = Vec::new();
         let mut errors = Vec::new();
         let validators = match standard_constraints::registry(inputs.validators) {
             Ok(validators) => validators,
-            Err(error) => return Err(vec![error]),
+            Err(error) => return Err(ValidationBuildErrors::from_bind_errors(root.type_name(), vec![error])),
         };
         let Some(properties) = inputs.graph.properties(root) else {
-            return Err(vec![BindError::new(BindErrorKind::UnreadablePath)]);
+            return Err(ValidationBuildErrors::from_bind_errors(
+                root.type_name(),
+                vec![BindError::new(BindErrorKind::UnreadablePath)],
+            ));
         };
         for field in root.fields() {
             let Some(name) = field.name() else {

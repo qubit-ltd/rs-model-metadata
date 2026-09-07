@@ -9,11 +9,9 @@
 // qubit-style: allow multiple-public-types
 //! Explicit cross-model resolution and immutable resolved views.
 
+mod path;
 #[cfg(test)]
 mod tests;
-mod path;
-
-use self::path::OwnedPropertyPath;
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -24,10 +22,12 @@ use qubit_codec::ValueCodecRegistration;
 use qubit_codec::ValueCodecRegistry;
 use qubit_id::Id;
 use qubit_reflect::FieldAccessError;
+use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::identity::FragmentIdentity;
 
+use self::path::OwnedPropertyPath;
 use crate::CodecMetadata;
 use crate::DeclaredEntityTarget;
 use crate::FieldMetadata;
@@ -45,7 +45,6 @@ use crate::PropertyPath;
 use crate::PropertyResolutionError;
 use crate::PropertyValue;
 use crate::ReferenceSelection;
-use qubit_reflect::ReflectedRef;
 use crate::SelectorPosition;
 use crate::TypeMetadata;
 
@@ -78,7 +77,6 @@ impl<'a> ModelResolver<'a> {
     /// Returns [`ModelResolveErrors`] when any property, relationship, role,
     /// codec, projection, value-closure, or query invariant cannot be
     /// resolved against the configured registries.
-    #[must_use = "handle all model resolution failures"]
     /// Validation declarations remain available from the metadata and are
     /// bound later by [`crate::ValidationPlan`].
     #[must_use = "handle all model structure resolution failures"]

@@ -2,8 +2,6 @@
 
 // qubit-style: allow multiple-public-types
 
-use std::any::TypeId;
-
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeKind;
 use qubit_validator::BindError;
@@ -21,22 +19,12 @@ use crate::TypeMetadata;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PropertyStep {
     property: &'static PropertyMetadata,
-    receiver_type: TypeId,
-    value_type: TypeId,
     optional: bool,
 }
 
 impl PropertyStep {
     pub(crate) const fn property(self) -> &'static PropertyMetadata {
         self.property
-    }
-
-    pub(crate) const fn receiver_type(self) -> TypeId {
-        self.receiver_type
-    }
-
-    pub(crate) const fn value_type(self) -> TypeId {
-        self.value_type
     }
 
     pub(crate) const fn optional(self) -> bool {
@@ -83,12 +71,9 @@ impl CompiledPropertyPath {
                 TargetMode::Value => value_descriptor(descriptor),
                 TargetMode::Container => (descriptor, false),
             };
-            let value_type = value_descriptor.type_id();
             path_optional |= optional;
             steps.push(PropertyStep {
                 property,
-                receiver_type: current.type_id(),
-                value_type,
                 optional,
             });
             if index + 1 < path.segments().len() {

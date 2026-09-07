@@ -2,7 +2,9 @@
 
 use std::fmt;
 
-use qubit_validator::{BindError, BindErrorKind, ValidatorId};
+use qubit_validator::BindError;
+use qubit_validator::BindErrorKind;
+use qubit_validator::ValidatorId;
 
 use crate::SelectorPosition;
 
@@ -22,20 +24,6 @@ impl ValidationBuildError {
             selector: None,
             source,
         }
-    }
-
-    /// Adds the metadata path that caused this failure.
-    #[must_use]
-    pub(crate) fn with_path(mut self, path: impl Into<String>) -> Self {
-        self.path = Some(path.into());
-        self
-    }
-
-    /// Adds the collection position selected by this failure.
-    #[must_use]
-    pub(crate) fn with_selector(mut self, selector: SelectorPosition) -> Self {
-        self.selector = Some(selector);
-        self
     }
 
     /// Returns the model type name involved in the failure.
@@ -89,12 +77,7 @@ impl fmt::Debug for ValidationBuildError {
 
 impl fmt::Display for ValidationBuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "validation plan for {} failed: {}",
-            self.model,
-            self.kind()
-        )?;
+        write!(f, "validation plan for {} failed: {}", self.model, self.kind())?;
         if let Some(path) = &self.path {
             write!(f, " at {path}")?;
         }
@@ -185,6 +168,7 @@ impl AsRef<[ValidationBuildError]> for ValidationBuildErrors {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
 
     #[test]
     fn retains_bind_error_context_and_order() {
