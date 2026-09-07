@@ -72,6 +72,13 @@ jobs:
           ref: main
           path: rust-common/rs-validator
 
+      - name: Check out validation rule definitions
+        uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-validation-rules
+          ref: main
+          path: rust-common/rs-validation-rules
+
       - name: Install the platform build toolchain
         run: rustup toolchain install 1.94.0 --profile minimal
 
