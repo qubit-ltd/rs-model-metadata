@@ -11,6 +11,9 @@
 
 #[cfg(test)]
 mod tests;
+mod path;
+
+use self::path::OwnedPropertyPath;
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -690,31 +693,6 @@ fn reported_metadata(
             errors.push(ModelResolveError::resolution(root, path, source, error));
             None
         }
-    }
-}
-
-/// An owned runtime path whose segment names originate in static declarations.
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct OwnedPropertyPath {
-    segments: Box<[&'static str]>,
-}
-
-impl OwnedPropertyPath {
-    /// Copies one runtime-generated segment sequence.
-    fn from_segments(segments: &[&'static str]) -> Self {
-        Self {
-            segments: segments.into(),
-        }
-    }
-
-    /// Copies one statically declared path.
-    fn from_static(path: PropertyPath<'static>) -> Self {
-        Self::from_segments(path.segments())
-    }
-
-    /// Borrows this owned path as the public lightweight view.
-    fn as_path(&self) -> PropertyPath<'_> {
-        PropertyPath::new(&self.segments)
     }
 }
 

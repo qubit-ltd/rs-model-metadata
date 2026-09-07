@@ -13,7 +13,12 @@ pub mod __private;
 mod abi_violation;
 mod constraint;
 mod field_metadata;
-mod field_semantics;
+mod metadata_vocabulary;
+// Keep the implementation namespace private while allowing internal modules
+// to refer to the vocabulary without coupling them to its file layout.
+mod field_semantics {
+    pub use super::metadata_vocabulary::*;
+}
 mod generic_model_metadata;
 mod local_property_set;
 mod metadata_registry;
