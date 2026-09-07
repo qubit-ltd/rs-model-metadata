@@ -12,6 +12,7 @@ use qubit_codec::ValueCodecRegistry;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityDescriptor;
+use qubit_reflect::register_reflected_type;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
 use super::ModelResolutionCause;
@@ -74,7 +75,7 @@ fn registered_metadata() -> &'static crate::TypeMetadata {
     })
 }
 
-qubit_reflect::register_reflected_type!(Broken<2>);
+register_reflected_type!(Broken<2>);
 v4::register_model_capability!(Broken<2>, registered_metadata);
 
 #[test]

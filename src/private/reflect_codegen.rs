@@ -9,12 +9,14 @@
 //! Model-owned adapters over the reflection codegen protocol.
 
 use qubit_reflect::__private::codegen_v3::descriptor::lazy_type_ref;
+use qubit_reflect::Reflect;
+use qubit_reflect::descriptor::TypeRef;
 
 /// Returns reflection's resolved root reference for `T`.
 #[doc(hidden)]
 #[must_use]
 #[inline(always)]
-pub fn reflected_type_ref<T: qubit_reflect::Reflect + ?Sized>() -> &'static qubit_reflect::descriptor::TypeRef {
+pub fn reflected_type_ref<T: Reflect + ?Sized>() -> &'static TypeRef {
     lazy_type_ref::<T>().get()
 }
 
