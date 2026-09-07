@@ -25,6 +25,7 @@ use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::register_reflected_type;
 use qubit_reflect::registry::CapabilityTarget;
+use qubit_reflect::registry::ReflectRegistry;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
 #[derive(Reflect)]
@@ -54,9 +55,7 @@ fn source(declaring_crate: &'static str, line: u32) -> FragmentIdentity {
     )
 }
 
-fn model_provider_snapshot(
-    capability: CapabilityDescriptor,
-) -> (qubit_reflect::registry::ReflectRegistry, FragmentIdentity) {
+fn model_provider_snapshot(capability: CapabilityDescriptor) -> (ReflectRegistry, FragmentIdentity) {
     let target = TypeDescriptor::of::<DiagnosticsTarget>();
     let type_source = source("model-provider-type", 50);
     let mut builder = RegistrySnapshotBuilder::new();
