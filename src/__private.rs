@@ -13,16 +13,21 @@
 pub use qubit_codec;
 pub use qubit_id;
 pub use qubit_redact;
+pub use qubit_redact::Sensitivity;
 pub use qubit_reflect::__private::codegen_v3;
-pub use qubit_reflect::{Reflect, ReflectedMut, ReflectedOwned, ReflectedRef, TypeDescriptor};
-pub use qubit_reflect::expression::{ConstExpression, TypeExpression};
-pub use qubit_reflect::descriptor::TypeRef;
+pub use qubit_reflect::Reflect;
+pub use qubit_reflect::ReflectedMut;
+pub use qubit_reflect::ReflectedOwned;
+pub use qubit_reflect::ReflectedRef;
+pub use qubit_reflect::TypeDescriptor;
 pub use qubit_reflect::capability::TypeCapabilities as ReflectTypeCapabilities;
+pub use qubit_reflect::descriptor::TypeRef;
+pub use qubit_reflect::expression::ConstExpression;
+pub use qubit_reflect::expression::TypeExpression;
 pub use qubit_reflect::register_type_capabilities;
 pub use qubit_validator;
 pub use qubit_validator::NamedValidationArgument;
 pub use qubit_validator::ValidationArgument;
-pub use qubit_redact::Sensitivity;
 pub use serde;
 
 #[path = "private/reflect_codegen.rs"]

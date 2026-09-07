@@ -72,10 +72,7 @@ impl CompiledPropertyPath {
                 TargetMode::Container => (descriptor, false),
             };
             path_optional |= optional;
-            steps.push(PropertyStep {
-                property,
-                optional,
-            });
+            steps.push(PropertyStep { property, optional });
             if index + 1 < path.segments().len() {
                 current = graph
                     .registry()

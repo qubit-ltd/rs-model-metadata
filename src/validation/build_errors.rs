@@ -167,8 +167,9 @@ impl AsRef<[ValidationBuildError]> for ValidationBuildErrors {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::error::Error;
+
+    use super::*;
 
     #[test]
     fn retains_bind_error_context_and_order() {
