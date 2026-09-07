@@ -45,7 +45,7 @@ qubit-reflect = { version = "=0.1.0", path = "../rs-reflect", default-features =
 qubit-codec = { version = "0.14", features = ["registry"] }
 qubit-redact = { version = "=0.8.0", path = "../../rust-common/rs-redact", features = ["derive", "serde", "bigdecimal"] }
 qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator" }
-qubit-validation-rules = { version = "=0.1.0", path = "../../rust-common/rs-validation-rules", features = ["registry", "formats", "chrono", "decimal"], optional = true }
+qubit-validation-rules = { version = "=0.1.0", path = "../../rust-common/rs-validation-rules", features = ["inventory"], optional = true }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 

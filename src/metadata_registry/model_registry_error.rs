@@ -76,10 +76,7 @@ impl ModelRegistryError {
     }
 
     /// Records a model capability fact without an executable provider.
-    pub(crate) fn fact_only_capability(
-        capability_id: CapabilityId,
-        source: FragmentIdentity,
-    ) -> Self {
+    pub(crate) fn fact_only_capability(capability_id: CapabilityId, source: FragmentIdentity) -> Self {
         Self {
             kind: ModelRegistryErrorKind::FactOnlyCapability,
             model_id: None,
@@ -207,14 +204,12 @@ impl core::fmt::Display for ModelRegistryError {
             ModelRegistryErrorKind::FactOnlyCapability => write!(
                 formatter,
                 "model capability {} has no executable adapter",
-                self.capability_id
-                    .expect("fact-only errors retain their ID"),
+                self.capability_id.expect("fact-only errors retain their ID"),
             ),
             ModelRegistryErrorKind::AdapterTypeMismatch => write!(
                 formatter,
                 "model capability {} adapter type mismatch: expected {:?}, actual {:?}",
-                self.capability_id
-                    .expect("adapter mismatch errors retain their ID"),
+                self.capability_id.expect("adapter mismatch errors retain their ID"),
                 self.expected_adapter_type
                     .expect("adapter mismatch errors retain the expected type"),
                 self.actual_adapter_type

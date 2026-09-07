@@ -1,5 +1,7 @@
 //! Borrow-preserving execution of a bound validation plan.
 
+#![allow(clippy::result_large_err)]
+
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 use qubit_validator::BoundValidationContext;

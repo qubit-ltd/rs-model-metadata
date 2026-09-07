@@ -618,8 +618,6 @@ checksum = "7f9bf5cd2e783a8a6edd6536826084ef0a82d1924b14f82e79fe0088b7b33748"
 name = "qubit-validation-rules"
 version = "0.1.0"
 dependencies = [
- "bigdecimal",
- "chrono",
  "qubit-validator",
  "thiserror",
 ]
@@ -628,6 +626,7 @@ dependencies = [
 name = "qubit-validator"
 version = "0.1.0"
 dependencies = [
+ "inventory",
  "thiserror",
 ]
 
