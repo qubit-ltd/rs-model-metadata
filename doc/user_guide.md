@@ -11,7 +11,7 @@ models with `qubit-model-derive` and need to inspect their metadata or resolve
 relationships after all model crates have been linked. It explains the boundary
 between structural reflection and domain semantics, then follows an account
 model from declaration to an immutable resolved graph. The model ABI described
-here is v4 and consumes the reflection `codegen_v2` protocol.
+here is v4 and consumes the reflection `codegen_v3` protocol.
 
 ## Conceptual Model
 

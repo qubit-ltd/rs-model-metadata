@@ -26,7 +26,7 @@ ModelImpl impl -----------------> property capability
 Direct `TypeMetadata::of` lookup has no global model-registry dependency.
 Descriptor capability and property lookup freeze the reflection snapshot so
 separate fragments remain visible. The generated facade is model ABI v4 and
-uses only reflection `codegen_v2`. A model registry and resolver are needed for
+uses only reflection `codegen_v3`. A model registry and resolver are needed for
 stable IDs, references, projection sources, and queries spanning the complete
 linked model set.
 

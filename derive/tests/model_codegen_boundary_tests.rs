@@ -130,17 +130,17 @@ fn test_model_owned_expanders_use_only_the_model_codegen_facade() {
     let metadata = include_str!("../src/expand/metadata.rs");
     let model_impl = include_str!("../src/expand/model_impl.rs");
     assert!(
-        !metadata.contains("codegen_v2"),
-        "metadata expansion must not directly reference reflection codegen_v2",
+        !metadata.contains("codegen_v3"),
+        "metadata expansion must not directly reference reflection codegen_v3",
     );
     assert!(
-        !model_impl.contains("codegen_v2"),
-        "ModelImpl expansion must not directly reference reflection codegen_v2",
+        !model_impl.contains("codegen_v3"),
+        "ModelImpl expansion must not directly reference reflection codegen_v3",
     );
 
     let runtime_facade = include_str!("../../src/__private.rs");
     assert!(
-        runtime_facade.contains("pub use qubit_reflect::__private::codegen_v2;"),
-        "the reflection derive facade must retain its codegen_v2 entry",
+        runtime_facade.contains("pub use qubit_reflect::__private::codegen_v3;"),
+        "the reflection derive facade must retain its codegen_v3 entry",
     );
 }

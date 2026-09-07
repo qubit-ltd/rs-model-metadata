@@ -13,7 +13,7 @@
 pub use qubit_codec;
 pub use qubit_id;
 pub use qubit_redact;
-pub use qubit_reflect::__private::codegen_v2;
+pub use qubit_reflect::__private::codegen_v3;
 pub use qubit_reflect::capability::TypeCapabilities as ReflectTypeCapabilities;
 pub use qubit_reflect::register_type_capabilities;
 pub use qubit_validator;

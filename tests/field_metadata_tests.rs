@@ -11,7 +11,7 @@
 
 use std::sync::LazyLock;
 
-use qubit_model_metadata::__private::codegen_v2::descriptor::field as reflect_field;
+use qubit_model_metadata::__private::codegen_v3::descriptor::field as reflect_field;
 use qubit_model_metadata::FieldDescriptor;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::Reflect;

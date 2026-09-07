@@ -56,7 +56,7 @@ Rust declaration
   冲突错误。
 - `qubit-reflect` 已有 downstream facade 测试：领域 runtime crate 可以重导出反射 API，领域 derive crate 通过
   `#[reflect(crate = facade)]` 委托生成代码，最终业务 crate 不必直接依赖 `qubit-reflect`。
-- `__private::codegen_v2` 已提供宏生产 ABI、lazy type reference 和统一 registration fragment；普通用户 API 与
+- `__private::codegen_v3` 已提供宏生产 ABI、lazy type reference 和统一 registration fragment；普通用户 API 与
   生成代码 API 已有清楚边界。模型生成 facade 固定为 model ABI v4，不再保留旧 ABI。
 
 因此，若 `rs-model-metadata` 再定义 `TypeDescriptor`、`TypeIdentity`、`TypeRef`、字段访问器或 generic expression，

@@ -8,7 +8,7 @@
 
 //! Model-owned adapters over the reflection codegen protocol.
 
-use qubit_reflect::__private::codegen_v2::descriptor::lazy_type_ref;
+use qubit_reflect::__private::codegen_v3::descriptor::lazy_type_ref;
 
 /// Returns reflection's resolved root reference for `T`.
 #[doc(hidden)]
@@ -34,25 +34,25 @@ macro_rules! __qubit_model_register_generic_model_capability {
         ),
     ) => {
         const _: () = {
-            fn runtime_identity() -> $crate::__private::codegen_v2::registration::RuntimeIdentity {
-                $crate::__private::codegen_v2::registration::RuntimeIdentity::Capabilities(
-                    $crate::__private::codegen_v2::registration::CapabilityTarget::TypeDefinition($definition().id()),
+            fn runtime_identity() -> $crate::__private::codegen_v3::registration::RuntimeIdentity {
+                $crate::__private::codegen_v3::registration::RuntimeIdentity::Capabilities(
+                    $crate::__private::codegen_v3::registration::CapabilityTarget::TypeDefinition($definition().id()),
                 )
             }
 
-            fn payload() -> $crate::__private::codegen_v2::registration::FragmentPayload {
-                $crate::__private::codegen_v2::registration::FragmentPayload::Capability(
-                    $crate::__private::codegen_v2::registration::CapabilityRegistration::for_definition(
+            fn payload() -> $crate::__private::codegen_v3::registration::FragmentPayload {
+                $crate::__private::codegen_v3::registration::FragmentPayload::Capability(
+                    $crate::__private::codegen_v3::registration::CapabilityRegistration::for_definition(
                         $definition(),
                         ::std::vec![$crate::__private::v4::generic_model_capability($metadata)],
                     ),
                 )
             }
 
-            $crate::__private::codegen_v2::inventory::submit! {
-                $crate::__private::codegen_v2::registration::RegistrationFragment::new(
-                    $crate::__private::codegen_v2::registration::FragmentKind::Capability,
-                    $crate::__private::codegen_v2::registration::StaticFragmentIdentity::new(
+            $crate::__private::codegen_v3::inventory::submit! {
+                $crate::__private::codegen_v3::registration::RegistrationFragment::new(
+                    $crate::__private::codegen_v3::registration::FragmentKind::Capability,
+                    $crate::__private::codegen_v3::registration::StaticFragmentIdentity::new(
                         $declaring_crate,
                         $module_path,
                         $line,

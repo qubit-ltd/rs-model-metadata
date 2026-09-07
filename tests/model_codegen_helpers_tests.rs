@@ -10,14 +10,14 @@
 
 use std::sync::OnceLock;
 
-use qubit_model_metadata::__private::codegen_v2::inventory;
-use qubit_model_metadata::__private::codegen_v2::registration::CapabilityRegistration;
-use qubit_model_metadata::__private::codegen_v2::registration::CapabilityTarget;
-use qubit_model_metadata::__private::codegen_v2::registration::FragmentKind;
-use qubit_model_metadata::__private::codegen_v2::registration::FragmentPayload;
-use qubit_model_metadata::__private::codegen_v2::registration::RegistrationFragment;
-use qubit_model_metadata::__private::codegen_v2::registration::RuntimeIdentity;
-use qubit_model_metadata::__private::codegen_v2::registration::StaticFragmentIdentity;
+use qubit_model_metadata::__private::codegen_v3::inventory;
+use qubit_model_metadata::__private::codegen_v3::registration::CapabilityRegistration;
+use qubit_model_metadata::__private::codegen_v3::registration::CapabilityTarget;
+use qubit_model_metadata::__private::codegen_v3::registration::FragmentKind;
+use qubit_model_metadata::__private::codegen_v3::registration::FragmentPayload;
+use qubit_model_metadata::__private::codegen_v3::registration::RegistrationFragment;
+use qubit_model_metadata::__private::codegen_v3::registration::RuntimeIdentity;
+use qubit_model_metadata::__private::codegen_v3::registration::StaticFragmentIdentity;
 use qubit_model_metadata::__private::v4;
 use qubit_model_metadata::__private::v4::register_generic_model_capability;
 use qubit_model_metadata::FragmentIdentity;
