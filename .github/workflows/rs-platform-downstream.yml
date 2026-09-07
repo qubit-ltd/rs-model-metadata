@@ -76,7 +76,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validation-rules
-          ref: main
+          ref: 25c15f9660d0e7c903181b43b521bc7f78789916
           path: rust-common/rs-validation-rules
 
       - name: Install the platform build toolchain
