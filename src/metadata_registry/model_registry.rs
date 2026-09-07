@@ -8,6 +8,8 @@
 
 //! Frozen indexes projected from concrete and generic reflection capabilities.
 
+#![allow(clippy::result_large_err)]
+
 use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -118,10 +120,10 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Returns [`ModelRegistryError`] when registrations repeat a model ID or
     /// a concrete registration conflicts with its metadata.
     #[must_use = "handle invalid model registrations"]
-    pub fn from_metadata(
-        concrete: &[(&'static TypeMetadata, &'static FragmentIdentity)],
-        generic: &[(&'static GenericModelMetadata, &'static FragmentIdentity)],
-    ) -> Result<ModelRegistry<'static>, ModelRegistryError> {
+    pub fn from_metadata<'a>(
+        concrete: &[(&'static TypeMetadata, &'a FragmentIdentity)],
+        generic: &[(&'static GenericModelMetadata, &'a FragmentIdentity)],
+    ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
         let mut entries = Vec::with_capacity(concrete.len() + generic.len());
         for &(metadata, source) in concrete {
             let Some(entry) = ModelEntry::concrete(metadata, source) else {
@@ -134,7 +136,7 @@ impl<'reflection> ModelRegistry<'reflection> {
                 .iter()
                 .map(|&(metadata, source)| ModelEntry::generic(metadata, source)),
         );
-        ModelRegistry::<'static>::build(entries)
+        ModelRegistry::<'a>::build(entries)
     }
 
     /// Validates and indexes owned registrations in deterministic order.

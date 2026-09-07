@@ -81,6 +81,28 @@ fn entry(id: &'static str, fingerprint: u64) -> (&'static TypeMetadata, &'static
     (metadata, source)
 }
 
+fn local_provenance_metadata() -> &'static TypeMetadata {
+    static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
+    METADATA.get_or_init(|| {
+        let role = v4::leak(v4::model_role());
+        v4::GeneratedTypeMetadataBuilder::new(
+            TypeDescriptor::of::<RegistryFixture>(),
+            Some(ModelId::new("example.LocalProvenance")),
+            &[],
+            role,
+        )
+        .finish::<RegistryFixture>()
+    })
+}
+
+#[test]
+fn explicit_registry_borrows_non_static_provenance() {
+    let source = FragmentIdentity::new("fixture", "tests", line!(), 1, "model", 991);
+    let registry =
+        ModelRegistry::from_metadata(&[(local_provenance_metadata(), &source)], &[]).expect("valid registry");
+    assert_eq!(registry.entries()[0].source(), &source);
+}
+
 #[test]
 fn test_registry_indexes_registration_metadata_and_type_identity() {
     let item = entry("example.RegistryFixture", 1);
