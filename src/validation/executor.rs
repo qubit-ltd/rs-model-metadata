@@ -448,3 +448,8 @@ fn prefix_violation(violation: Violation, prefix: &ValidationPath) -> Violation 
     );
     violation.with_path(path)
 }
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+// =============================================================================

@@ -308,3 +308,8 @@ fn traversal_budgets_are_enforced_before_execution() {
     let nodes = ValidationOptions::default().with_max_nodes(NonZeroUsize::new(1).expect("non-zero"));
     assert!(plan.validate(value, &nodes).is_err());
 }
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+// =============================================================================

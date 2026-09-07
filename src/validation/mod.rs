@@ -20,3 +20,8 @@ pub use validation_options::ValidationOptions;
 pub use validation_options::ValidationSelection;
 pub use validation_plan::ModelRuleBinding;
 pub use validation_plan::ValidationPlan;
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+// =============================================================================

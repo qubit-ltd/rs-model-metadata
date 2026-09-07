@@ -102,3 +102,8 @@ fn structure_resolution_and_binding_are_separate() {
     .expect("text declaration binds against the local registry");
     assert_eq!(plan.binding_count(), 1);
 }
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+// =============================================================================

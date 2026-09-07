@@ -48,3 +48,8 @@ fn bare_dependency_metadata_remains_available_for_legacy_declarations() {
     assert_eq!(validator.target(), TargetMode::Value);
     assert_eq!(validator.on_none(), OnNone::Skip);
 }
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+// =============================================================================

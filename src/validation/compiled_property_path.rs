@@ -153,3 +153,8 @@ fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDe
         descriptor = next;
     }
 }
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+// =============================================================================

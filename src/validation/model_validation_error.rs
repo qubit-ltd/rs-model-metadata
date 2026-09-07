@@ -47,3 +47,8 @@ impl std::fmt::Display for ModelValidationError {
 }
 
 impl std::error::Error for ModelValidationError {}
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+// =============================================================================

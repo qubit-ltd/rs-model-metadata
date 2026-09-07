@@ -28,3 +28,8 @@ fn main() {
         .expect("registry")
         .definition_source(descriptor.definition_id().expect("definition"));
 }
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+// =============================================================================
