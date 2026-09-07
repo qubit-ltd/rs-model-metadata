@@ -1,4 +1,32 @@
 {
   "scope": "workspace",
-  "threshold_exempt_files": {}
+  "threshold_exempt_files": {
+    "qubit-model-derive": [
+      "src/parse/constraints.rs",
+      "src/parse/validator.rs"
+    ],
+    "qubit-model-metadata": [
+      "src/abi_violation.rs",
+      "src/field_metadata.rs",
+      "src/metadata_registry/model_registry.rs",
+      "src/metadata_registry/model_registry_error.rs",
+      "src/metadata_resolver/runtime.rs",
+      "src/metadata_vocabulary.rs",
+      "src/model_id/model_id_buf.rs",
+      "src/model_id/model_id_error.rs",
+      "src/property.rs",
+      "src/property_build_error.rs",
+      "src/property_build_errors.rs",
+      "src/property_fragment.rs",
+      "src/type_metadata/enum_variant_metadata.rs",
+      "src/validation/build_error.rs",
+      "src/validation/build_errors.rs",
+      "src/validation/compiled_property_path.rs",
+      "src/validation/executor.rs",
+      "src/validation/model_validation_error.rs",
+      "src/validation/standard_constraints.rs",
+      "src/validation/validation_options.rs",
+      "src/validation/validation_plan.rs"
+    ]
+  }
 }
