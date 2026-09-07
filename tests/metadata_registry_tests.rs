@@ -15,14 +15,14 @@ use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
 use qubit_model_metadata::__private::v4;
 use qubit_model_metadata::__private::v4::register_model_capability;
-use qubit_model_metadata::FragmentIdentity;
+use qubit_reflect::identity::FragmentIdentity;
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelRegistryErrorKind;
 use qubit_model_metadata::ModelRole;
-use qubit_model_metadata::Reflect;
-use qubit_model_metadata::ReflectRegistry;
-use qubit_model_metadata::TypeDescriptor;
+use qubit_reflect::Reflect;
+use qubit_reflect::ReflectRegistry;
+use qubit_reflect::TypeDescriptor;
 use qubit_model_metadata::TypeMetadata;
 
 #[derive(Reflect)]

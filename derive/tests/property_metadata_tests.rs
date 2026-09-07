@@ -151,7 +151,7 @@ fn test_model_impl_reports_field_getter_mismatch_without_panicking() {
         models: registry,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .expect_err("invalid local properties must prevent graph publication");
     assert!(
         errors

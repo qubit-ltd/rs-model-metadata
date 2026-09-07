@@ -63,7 +63,7 @@ fn test_resolver_discovers_and_executes_projection_producers() {
         models: registry,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .expect("valid projection graph");
     assert_eq!(graph.projection_producers().len(), 2);
 

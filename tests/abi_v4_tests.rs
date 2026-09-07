@@ -24,13 +24,13 @@ use qubit_model_metadata::GetterMetadata;
 use qubit_model_metadata::GetterOutputKind;
 use qubit_model_metadata::PropertyAccessError;
 use qubit_model_metadata::PropertyValue;
-use qubit_model_metadata::Reflect;
-use qubit_model_metadata::ReflectedRef;
+use qubit_reflect::Reflect;
+use qubit_reflect::ReflectedRef;
 use qubit_model_metadata::SelectorMetadata;
 use qubit_model_metadata::SelectorPosition;
 use qubit_model_metadata::SequenceConstraint;
 use qubit_model_metadata::SerdeFieldMetadata;
-use qubit_model_metadata::TypeDescriptor;
+use qubit_reflect::TypeDescriptor;
 use qubit_model_metadata::TypeMetadata;
 
 #[derive(Reflect)]

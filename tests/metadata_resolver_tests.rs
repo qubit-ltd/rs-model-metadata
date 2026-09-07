@@ -22,10 +22,10 @@ use qubit_model_metadata::CodecReference;
 use qubit_model_metadata::CodecSource;
 use qubit_model_metadata::DeclaredEntityTarget;
 use qubit_model_metadata::FieldAttributeMetadata;
-use qubit_model_metadata::FieldDescriptor;
+use qubit_reflect::FieldDescriptor;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::FieldReferenceMetadata;
-use qubit_model_metadata::FragmentIdentity;
+use qubit_reflect::identity::FragmentIdentity;
 use qubit_model_metadata::IdentifierAssignment;
 use qubit_model_metadata::IdentifierMetadata;
 use qubit_model_metadata::IndexingReasons;
@@ -36,10 +36,10 @@ use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::PropertyMetadata;
 use qubit_model_metadata::PropertyPath;
 use qubit_model_metadata::ReferenceSelection;
-use qubit_model_metadata::Reflect;
+use qubit_reflect::Reflect;
 use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::SerdeFieldMetadata;
-use qubit_model_metadata::TypeDescriptor;
+use qubit_reflect::TypeDescriptor;
 use qubit_model_metadata::TypeMetadata;
 use qubit_model_metadata::ValidatorMetadata;
 
@@ -247,7 +247,7 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         models: &registry,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .unwrap();
     let resolved = graph.reference(&source_fields[0]).expect("resolved reference");
 
@@ -285,7 +285,7 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
         models: &registry,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .expect_err("missing targets must prevent graph publication");
 
     assert_eq!(errors.errors().len(), 1);
@@ -350,7 +350,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
         models: &registry,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .unwrap();
     let query = graph.query(root.as_entity().unwrap()).unwrap();
     assert_eq!(
@@ -379,7 +379,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
         models: &registry,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .unwrap_err();
     assert!(
         errors
@@ -422,7 +422,7 @@ fn test_resolver_rejects_value_closure_over_model_role() {
         models: &registry,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .unwrap_err();
     assert!(
         errors
@@ -498,7 +498,7 @@ fn test_resolver_binds_executable_codec_descriptors() {
         models: &models,
         codecs: &codecs,
     })
-    .resolve_all()
+    .resolve_structure()
     .expect("all executable codecs must resolve");
 
     assert!(graph.codec(direct_codec).unwrap().registration().is_none());
@@ -517,7 +517,7 @@ fn test_resolver_aggregates_missing_codec_ids() {
         models: &models,
         codecs: &codecs,
     })
-    .resolve_all()
+    .resolve_structure()
     .expect_err("missing executable codec IDs must reject the graph");
 
     assert!(
@@ -537,7 +537,7 @@ fn test_resolver_aggregates_codec_type_mismatches() {
         models: &models,
         codecs: &codecs,
     })
-    .resolve_all()
+    .resolve_structure()
     .expect_err("codec value-type mismatches must reject the graph");
     assert!(
         errors

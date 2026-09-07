@@ -373,7 +373,7 @@ pub mod v4 {
     pub use super::compile_assertions::model_impl_metadata;
     pub use super::compile_assertions::property_fragment;
     pub use super::reflect_codegen::reflected_type_ref;
-    use crate::TypeDescriptor;
+    use qubit_reflect::TypeDescriptor;
     use crate::TypeMetadata;
     pub use crate::reflect_facade::generic_model_capability;
     pub use crate::reflect_facade::generic_model_metadata_key;

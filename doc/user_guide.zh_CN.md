@@ -106,7 +106,7 @@ fn resolve_models() -> Result<(), Box<dyn std::error::Error>> {
         validators,
         codecs,
     })
-    .resolve_all()?;
+    .resolve_structure()?;
     let field = TypeMetadata::of::<Login>().field("account_id").unwrap();
     let reference = graph.reference(field).unwrap();
     assert_eq!(reference.target().model_id().unwrap().as_str(), "example.Account");

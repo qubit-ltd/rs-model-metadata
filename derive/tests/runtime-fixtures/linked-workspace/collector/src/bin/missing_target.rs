@@ -28,7 +28,7 @@ fn main() {
         models: registry,
         codecs: ValueCodecRegistry::global(),
     })
-        .resolve_all()
+        .resolve_structure()
         .expect_err("the missing reference target must be reported by graph validation");
     assert!(errors.errors().iter().any(|error| {
         error.kind() == ModelResolveErrorKind::MissingModelId

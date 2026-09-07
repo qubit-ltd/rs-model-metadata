@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use qubit_codec::ValueCodecRegistry;
 use qubit_model_derive::Model;
-use qubit_model_metadata::FragmentIdentity;
+use qubit_reflect::identity::FragmentIdentity;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::ResolveInputs;

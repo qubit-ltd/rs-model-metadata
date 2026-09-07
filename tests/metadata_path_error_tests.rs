@@ -20,10 +20,10 @@ use qubit_model_metadata::ModelResolveErrorKind;
 use qubit_model_metadata::ModelResolver;
 use qubit_model_metadata::PropertyPath;
 use qubit_model_metadata::ReferenceSelection;
-use qubit_model_metadata::Reflect;
+use qubit_reflect::Reflect;
 use qubit_model_metadata::ResolveInputs;
 use qubit_model_metadata::SerdeFieldMetadata;
-use qubit_model_metadata::TypeDescriptor;
+use qubit_reflect::TypeDescriptor;
 use qubit_model_metadata::TypeMetadata;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
@@ -98,7 +98,7 @@ fn test_path_conflict_and_missing_target_are_both_reported() {
         models,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .unwrap_err();
     assert_eq!(errors.errors().len(), 2);
     let cause = errors

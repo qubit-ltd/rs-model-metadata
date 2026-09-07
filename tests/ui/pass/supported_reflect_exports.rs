@@ -1,14 +1,14 @@
 // qubit-style: allow test-file-name
-use qubit_model_metadata::FieldDefinitionDescriptor;
-use qubit_model_metadata::FragmentIdentity;
-use qubit_model_metadata::Reflect;
-use qubit_model_metadata::ReflectRegistry;
-use qubit_model_metadata::TypeDefinitionDescriptor;
-use qubit_model_metadata::TypeDefinitionId;
-use qubit_model_metadata::TypeDescriptor;
-use qubit_model_metadata::TypeExpression;
-use qubit_model_metadata::TypeRef;
-use qubit_model_metadata::VariantDefinitionDescriptor;
+use qubit_reflect::FieldDefinitionDescriptor;
+use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::Reflect;
+use qubit_reflect::ReflectRegistry;
+use qubit_reflect::TypeDefinitionDescriptor;
+use qubit_reflect::TypeDefinitionId;
+use qubit_reflect::TypeDescriptor;
+use qubit_reflect::expression::TypeExpression;
+use qubit_reflect::descriptor::TypeRef;
+use qubit_reflect::VariantDefinitionDescriptor;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]

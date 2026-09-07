@@ -44,7 +44,7 @@ fn test_resolver_rejects_entity_embedding_and_opaque_model_hiding() {
         models: registry,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .expect_err("invalid graph boundaries must prevent publication");
 
     assert!(

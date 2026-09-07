@@ -8,7 +8,7 @@
 
 //! Static metadata contract implemented by generated model declarations.
 
-use crate::Reflect;
+use qubit_reflect::Reflect;
 
 /// Marks a reflected Rust type that has generated model metadata.
 ///

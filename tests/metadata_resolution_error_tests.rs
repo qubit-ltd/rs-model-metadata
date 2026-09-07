@@ -15,9 +15,9 @@ use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelResolutionCause;
 use qubit_model_metadata::ModelResolveErrorKind;
 use qubit_model_metadata::ModelResolver;
-use qubit_model_metadata::Reflect;
+use qubit_reflect::Reflect;
 use qubit_model_metadata::ResolveInputs;
-use qubit_model_metadata::TypeDescriptor;
+use qubit_reflect::TypeDescriptor;
 use qubit_model_metadata::TypeMetadata;
 use qubit_model_metadata::model_metadata_key;
 use qubit_reflect::capability::CapabilityDescriptor;
@@ -120,7 +120,7 @@ fn test_resolver_aggregates_real_causes_without_false_role_errors() {
         models: &models,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .unwrap_err();
     assert_eq!(errors.errors().len(), 2);
     let paths: Vec<_> = errors

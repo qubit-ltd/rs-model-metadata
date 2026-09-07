@@ -42,7 +42,7 @@ use crate::PropertyPath;
 use crate::PropertyResolutionError;
 use crate::PropertyValue;
 use crate::ReferenceSelection;
-use crate::ReflectedRef;
+use qubit_reflect::ReflectedRef;
 use crate::SelectorPosition;
 use crate::TypeMetadata;
 
@@ -68,7 +68,7 @@ impl<'a> ModelResolver<'a> {
         Self { inputs }
     }
 
-    /// Resolves every registration or returns all deterministic errors.
+    /// Resolves model structure and property capabilities.
     ///
     /// # Errors
     ///
@@ -76,14 +76,8 @@ impl<'a> ModelResolver<'a> {
     /// codec, projection, value-closure, or query invariant cannot be
     /// resolved against the configured registries.
     #[must_use = "handle all model resolution failures"]
-    pub fn resolve_all(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
-        self.resolve_internal()
-    }
-
-    /// Resolves model structure and property capabilities without requiring
-    /// validator registrations. Validation declarations remain available from
-    /// the metadata and are bound later by [`crate::ValidationPlan`].
-    #[cfg(feature = "validation")]
+    /// Validation declarations remain available from the metadata and are
+    /// bound later by [`crate::ValidationPlan`].
     #[must_use = "handle all model structure resolution failures"]
     pub fn resolve_structure(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
         self.resolve_internal()

@@ -141,7 +141,7 @@ fn inspect_graph() -> Result<(), Box<dyn std::error::Error>> {
     let validators = ValidatorRegistry::try_global()?;
     let codecs = ValueCodecRegistry::try_global()?;
     let graph = ModelResolver::new(ResolveInputs { models, validators, codecs })
-        .resolve_all()?;
+        .resolve_structure()?;
 
     let field = TypeMetadata::of::<Login>().field("user_id").unwrap();
     assert_eq!(

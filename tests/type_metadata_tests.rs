@@ -12,8 +12,8 @@ use qubit_model_metadata::__private::v4;
 use qubit_model_metadata::FieldMetadata;
 use qubit_model_metadata::ModelRegistry;
 use qubit_model_metadata::ModelRole;
-use qubit_model_metadata::Reflect;
-use qubit_model_metadata::TypeDescriptor;
+use qubit_reflect::Reflect;
+use qubit_reflect::TypeDescriptor;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]

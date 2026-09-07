@@ -22,8 +22,8 @@ use crate::PropertyBuildErrorKind;
 use crate::PropertyBuildErrors;
 use crate::PropertyPath;
 use crate::PropertyResolutionError;
-use crate::Reflect;
-use crate::TypeDescriptor;
+use qubit_reflect::Reflect;
+use qubit_reflect::TypeDescriptor;
 
 #[derive(Reflect)]
 #[reflect(crate = crate, capabilities(broken_overlay))]
@@ -74,7 +74,7 @@ fn registered_metadata() -> &'static crate::TypeMetadata {
     })
 }
 
-crate::register_reflected_type!(Broken<2>);
+qubit_reflect::register_reflected_type!(Broken<2>);
 v4::register_model_capability!(Broken<2>, registered_metadata);
 
 #[test]
@@ -84,7 +84,7 @@ fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
         models,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .unwrap_err();
     let [error] = errors.errors() else {
         panic!("one assembly diagnostic")

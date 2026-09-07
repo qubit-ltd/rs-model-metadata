@@ -14,7 +14,7 @@ use qubit_reflect::__private::codegen_v3::descriptor::lazy_type_ref;
 #[doc(hidden)]
 #[must_use]
 #[inline(always)]
-pub fn reflected_type_ref<T: crate::Reflect + ?Sized>() -> &'static crate::TypeRef {
+pub fn reflected_type_ref<T: qubit_reflect::Reflect + ?Sized>() -> &'static qubit_reflect::descriptor::TypeRef {
     lazy_type_ref::<T>().get()
 }
 

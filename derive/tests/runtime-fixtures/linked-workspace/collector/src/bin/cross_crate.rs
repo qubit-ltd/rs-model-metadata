@@ -30,7 +30,7 @@ fn main() {
         models: registry,
         codecs: ValueCodecRegistry::global(),
     })
-        .resolve_all()
+        .resolve_structure()
         .expect("cross-crate reference should resolve");
     let field = TypeMetadata::of::<Source>()
         .field("target_id")

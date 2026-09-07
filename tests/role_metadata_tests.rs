@@ -18,10 +18,10 @@ use qubit_model_metadata::IdentifierMetadata;
 use qubit_model_metadata::ModelId;
 use qubit_model_metadata::ModelMetadata;
 use qubit_model_metadata::ModelRole;
-use qubit_model_metadata::Reflect;
+use qubit_reflect::Reflect;
 use qubit_model_metadata::RoleMetadata;
 use qubit_model_metadata::SerdeFieldMetadata;
-use qubit_model_metadata::TypeDescriptor;
+use qubit_reflect::TypeDescriptor;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]

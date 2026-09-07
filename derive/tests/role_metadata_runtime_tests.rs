@@ -454,7 +454,7 @@ fn test_resolver_builds_scoped_unique_and_reference_queries() {
         models: registry,
         codecs: ValueCodecRegistry::global(),
     })
-    .resolve_all()
+    .resolve_structure()
     .expect("valid generated model graph");
     let entity = TypeMetadata::of::<Account>().as_entity().unwrap();
     let query = graph.query(entity).expect("entity query");
