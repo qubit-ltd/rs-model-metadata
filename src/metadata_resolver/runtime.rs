@@ -80,7 +80,8 @@ impl<'a> ModelResolver<'a> {
     /// codec, projection, value-closure, or query invariant cannot be
     /// resolved against the configured registries.
     /// Validation declarations remain available from the metadata and are
-    /// bound later by [`crate::ValidationPlan`].
+    /// bound later by `ValidationPlan` when the `validation` feature is
+    /// enabled.
     #[must_use = "handle all model structure resolution failures"]
     pub fn resolve_structure(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
         self.resolve_internal()
