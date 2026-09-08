@@ -33,7 +33,10 @@ use qubit_reflect::identity::CapabilityId;
     reason = "derive capability providers receive the concrete type parameter"
 )]
 fn conflict<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(CapabilityKey::new(CapabilityId::new("error.path").unwrap()), 1_usize)
+    CapabilityDescriptor::with_adapter(
+        CapabilityKey::new(CapabilityId::new("error.path").unwrap()),
+        1_usize,
+    )
 }
 
 fn second_conflict<T: 'static>() -> CapabilityDescriptor {
@@ -52,11 +55,14 @@ struct Root {
 }
 
 fn metadata() -> &'static TypeMetadata {
-    static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
+    static METADATA: std::sync::OnceLock<TypeMetadata> =
+        std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
         let reference = v5::leak(FieldReferenceMetadata::new(
-            v5::leak(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))),
+            v5::leak(DeclaredEntityTarget::ModelId(ModelId::new(
+                "missing.Target",
+            ))),
             v5::leak(ReferenceSelection::Entity),
             false,
             Some(v5::leak(PropertyPath::new(&["invalid", "value"]))),
@@ -65,7 +71,9 @@ fn metadata() -> &'static TypeMetadata {
             FieldMetadata::from_reflect(descriptor.field_at(0).unwrap()),
             v5::field_metadata(
                 descriptor.field_at(1).unwrap(),
-                v5::leak_slice(vec![FieldAttributeMetadata::Reference(reference)]),
+                v5::leak_slice(vec![FieldAttributeMetadata::Reference(
+                    reference,
+                )]),
                 &[],
                 &[],
                 &SerdeFieldMetadata::DEFAULT,
@@ -74,7 +82,15 @@ fn metadata() -> &'static TypeMetadata {
         let properties = v5::leak_slice(
             fields
                 .iter()
-                .map(|field| v5::property_metadata(field.name().unwrap(), field.type_ref(), Some(field), None, None))
+                .map(|field| {
+                    v5::property_metadata(
+                        field.name().unwrap(),
+                        field.type_ref(),
+                        Some(field),
+                        None,
+                        None,
+                    )
+                })
                 .collect(),
         );
         v5::GeneratedTypeMetadataBuilder::new(
@@ -93,7 +109,9 @@ v5::register_model_capability!(Root, metadata);
 #[test]
 fn test_path_conflict_and_missing_target_are_both_reported() {
     let models = ModelRegistry::try_global().unwrap();
-    let errors = StructureResolver::new(ResolveInputs { models }).resolve().unwrap_err();
+    let errors = StructureResolver::new(ResolveInputs { models })
+        .resolve()
+        .unwrap_err();
     assert_eq!(errors.errors().len(), 2);
     let cause = errors
         .errors()

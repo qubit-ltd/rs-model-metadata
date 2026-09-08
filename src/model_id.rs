@@ -127,6 +127,7 @@ impl Borrow<str> for ModelId {
 }
 
 /// Validates a stable model-ID string without allocating.
+/// Validates every dot-separated segment of a model ID.
 const fn validate_model_id(value: &str) -> Result<(), ModelIdError> {
     let bytes = value.as_bytes();
     if bytes.is_empty() {
@@ -153,14 +154,22 @@ const fn validate_model_id(value: &str) -> Result<(), ModelIdError> {
 }
 
 /// Validates one ASCII Java-full-class-name-style segment.
-const fn validate_segment(bytes: &[u8], start: usize, end: usize) -> Result<(), ModelIdError> {
+/// Validates one non-empty ASCII identifier segment.
+const fn validate_segment(
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+) -> Result<(), ModelIdError> {
     if !is_ascii_letter(bytes[start]) {
         return Err(ModelIdError::InvalidSegment);
     }
     let mut index = start + 1;
     while index < end {
         let byte = bytes[index];
-        if !(is_ascii_letter(byte) || (byte >= b'0' && byte <= b'9') || byte == b'_') {
+        if !(is_ascii_letter(byte)
+            || (byte >= b'0' && byte <= b'9')
+            || byte == b'_')
+        {
             return Err(ModelIdError::InvalidSegment);
         }
         index += 1;
@@ -169,6 +178,7 @@ const fn validate_segment(bytes: &[u8], start: usize, end: usize) -> Result<(), 
 }
 
 /// Returns whether `byte` is an ASCII alphabetic character.
+/// Returns whether `byte` is an ASCII letter.
 const fn is_ascii_letter(byte: u8) -> bool {
     (byte >= b'a' && byte <= b'z') || (byte >= b'A' && byte <= b'Z')
 }

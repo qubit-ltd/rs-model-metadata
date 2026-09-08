@@ -14,7 +14,12 @@ use syn::LitStr;
 use syn::Result;
 
 /// Rejects one parsed identifier value outside its declared vocabulary.
-pub(crate) fn validate_closed_value(expression: &Expr, value: &str, allowed: &[&str], message: &str) -> Result<()> {
+pub(crate) fn validate_closed_value(
+    expression: &Expr,
+    value: &str,
+    allowed: &[&str],
+    message: &str,
+) -> Result<()> {
     if allowed.contains(&value) {
         Ok(())
     } else {
@@ -26,7 +31,13 @@ pub(crate) fn validate_closed_value(expression: &Expr, value: &str, allowed: &[&
 pub(crate) fn validate_redact_level(level: &LitStr) -> Result<()> {
     if matches!(
         level.value().as_str(),
-        "public" | "personal" | "confidential" | "secret" | "low" | "medium" | "high"
+        "public"
+            | "personal"
+            | "confidential"
+            | "secret"
+            | "low"
+            | "medium"
+            | "high"
     ) {
         Ok(())
     } else {

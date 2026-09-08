@@ -3,17 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
-//    You may obtain a copy of the License at
-//
-//        http://www.apache.org/licenses/LICENSE-2.0
-//
-//    Unless required by applicable law or agreed to in writing, software
-//    distributed under the License is distributed on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//    See the License for the specific language governing permissions and
-//    limitations under the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Selector and validator IR.
@@ -28,52 +18,78 @@ use super::RedactIr;
 
 #[derive(Clone)]
 pub(crate) struct SelectorIr {
+    /// Selected sequence or map position.
     pub(crate) position: SelectorPositionIr,
+    /// Constraints declared for the selected values.
     pub(crate) constraints: Vec<ConstraintIr>,
+    /// Validators declared for the selected values.
     pub(crate) validators: Vec<ValidatorIr>,
+    /// Codec declared for the selected values.
     pub(crate) codec: Option<CodecIr>,
+    /// Redaction declared for the selected values.
     pub(crate) redact: Option<RedactIr>,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) enum SelectorPositionIr {
+    /// Sequence element position.
     Element,
+    /// Map key position.
     MapKey,
+    /// Map value position.
     MapValue,
 }
 
 #[derive(Clone)]
 pub(crate) enum StrategyArgumentIr {
+    /// Boolean argument.
     Bool(bool),
+    /// Signed integer argument.
     Integer(i128),
+    /// Unsigned integer argument.
     Unsigned(u128),
+    /// String argument.
     String(LitStr),
+    /// Boolean list argument.
     BoolList(Vec<bool>),
+    /// Signed integer list argument.
     IntegerList(Vec<i128>),
+    /// Unsigned integer list argument.
     UnsignedList(Vec<u128>),
+    /// String list argument.
     StringList(Vec<LitStr>),
 }
 
 #[derive(Clone)]
 pub(crate) struct ValidatorIr {
+    /// Validator registry identifier.
     pub(crate) id: LitStr,
+    /// Named validator arguments.
     pub(crate) params: Vec<(String, StrategyArgumentIr)>,
+    /// Legacy dependency paths.
     pub(crate) depends_on: Vec<Vec<String>>,
+    /// Named dependency bindings.
     pub(crate) dependency_bindings: Vec<(String, Vec<String>)>,
+    /// Validator input target mode.
     pub(crate) target: TargetModeIr,
+    /// Behavior when an optional value is absent.
     pub(crate) on_none: OnNoneIr,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum TargetModeIr {
+    /// Validate the transparent value.
     #[default]
     Value,
+    /// Validate the declared container.
     Container,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum OnNoneIr {
+    /// Skip absent optional values.
     #[default]
     Skip,
+    /// Reject absent optional values.
     Reject,
 }

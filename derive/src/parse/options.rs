@@ -41,18 +41,27 @@ impl DeclarationOptions {
         for option in options {
             match option {
                 Meta::NameValue(value) if value.path.is_ident("id") => {
-                    if let Err(error) = set_lit_str(&mut result.id, value.value, "id") {
+                    if let Err(error) =
+                        set_lit_str(&mut result.id, value.value, "id")
+                    {
                         diagnostics.push(error);
                     }
                 }
                 Meta::NameValue(value) if value.path.is_ident("source_id") => {
-                    if let Err(error) = set_lit_str(&mut result.source_id, value.value, "source_id") {
+                    if let Err(error) = set_lit_str(
+                        &mut result.source_id,
+                        value.value,
+                        "source_id",
+                    ) {
                         diagnostics.push(error);
                     }
                 }
                 Meta::NameValue(value) if value.path.is_ident("source") => {
                     if result.source.is_some() {
-                        diagnostics.push(Error::new_spanned(value, "duplicate `source` option"));
+                        diagnostics.push(Error::new_spanned(
+                            value,
+                            "duplicate `source` option",
+                        ));
                         continue;
                     }
                     let expression = value.value;
@@ -63,7 +72,10 @@ impl DeclarationOptions {
                 }
                 Meta::NameValue(value) if value.path.is_ident("codec") => {
                     if result.codec.is_some() {
-                        diagnostics.push(Error::new_spanned(value, "duplicate `codec` option"));
+                        diagnostics.push(Error::new_spanned(
+                            value,
+                            "duplicate `codec` option",
+                        ));
                         continue;
                     }
                     let expression = value.value;
@@ -72,25 +84,35 @@ impl DeclarationOptions {
                         Err(error) => diagnostics.push(error),
                     }
                 }
-                Meta::Path(path) if path.is_ident("open") => {
-                    set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span())
-                }
-                Meta::Path(path) if path.is_ident("transparent") => set_marker_option(
+                Meta::Path(path) if path.is_ident("open") => set_marker_option(
                     &mut markers,
                     &mut diagnostics,
-                    "transparent",
-                    &mut result.transparent,
+                    "open",
+                    &mut result.open,
                     path.span(),
                 ),
+                Meta::Path(path) if path.is_ident("transparent") => {
+                    set_marker_option(
+                        &mut markers,
+                        &mut diagnostics,
+                        "transparent",
+                        &mut result.transparent,
+                        path.span(),
+                    )
+                }
                 Meta::Path(path) if is_behavior_option(&path) => {
-                    let name = path.get_ident().expect("behavior option identifier");
+                    let name =
+                        path.get_ident().expect("behavior option identifier");
                     diagnostics.push(Error::new_spanned(
                         &path,
                         format!("unsupported model option '{name}'; derive Rust traits explicitly"),
                     ));
                 }
                 other => {
-                    diagnostics.push(Error::new_spanned(other, "unsupported model option"));
+                    diagnostics.push(Error::new_spanned(
+                        other,
+                        "unsupported model option",
+                    ));
                 }
             }
         }
@@ -129,7 +151,8 @@ fn set_marker_option(
     span: Span,
 ) {
     if !markers.insert(name) {
-        diagnostics.push(Error::new(span, format!("duplicate `{name}` option")));
+        diagnostics
+            .push(Error::new(span, format!("duplicate `{name}` option")));
     } else {
         *value = true;
     }
@@ -160,10 +183,14 @@ mod tests {
                 transparent
             ))
             .expect("option syntax");
-        let parsed = DeclarationOptions::parse(options).expect("supported options");
+        let parsed =
+            DeclarationOptions::parse(options).expect("supported options");
 
         assert_eq!(parsed.id.expect("id").value(), "example.Model");
-        assert_eq!(parsed.source_id.expect("source id").value(), "example.Source");
+        assert_eq!(
+            parsed.source_id.expect("source id").value(),
+            "example.Source"
+        );
         assert!(parsed.source.is_some());
         assert!(parsed.codec.is_some());
         assert!(parsed.open && parsed.transparent);

@@ -86,7 +86,9 @@ impl EnumVariantMetadata {
 
     /// Returns the generic source declaration variant, when present.
     #[must_use]
-    pub const fn definition(&self) -> Option<&'static VariantDefinitionDescriptor> {
+    pub const fn definition(
+        &self,
+    ) -> Option<&'static VariantDefinitionDescriptor> {
         self.definition
     }
 

@@ -66,7 +66,10 @@ pub struct ModelRegistryError {
 
 impl ModelRegistryError {
     /// Retains an intrinsic capability conflict and its registration source.
-    pub(crate) fn capability(error: CapabilityAccessError, source: FragmentIdentity) -> Self {
+    pub(crate) fn capability(
+        error: CapabilityAccessError,
+        source: FragmentIdentity,
+    ) -> Self {
         Self {
             kind: ModelRegistryErrorKind::CapabilityResolution,
             model_id: None,
@@ -79,6 +82,7 @@ impl ModelRegistryError {
         }
     }
 
+    /// Converts a reflection capability lookup failure into registry context.
     #[cfg(feature = "generic")]
     pub(crate) fn capability_access(
         error: CapabilityAccessError,
@@ -86,23 +90,31 @@ impl ModelRegistryError {
         definition: &TypeDefinitionDescriptor,
     ) -> Self {
         let source = reflection.definition_source(definition.id()).cloned();
-        let (kind, capability_id, expected_adapter_type, actual_adapter_type) = match &error {
-            CapabilityAccessError::FactOnly { id, adapter_type } => (
-                ModelRegistryErrorKind::FactOnlyCapability,
-                Some(*id),
-                None,
-                Some(*adapter_type),
-            ),
-            CapabilityAccessError::AdapterTypeMismatch { id, expected, actual } => (
-                ModelRegistryErrorKind::AdapterTypeMismatch,
-                Some(*id),
-                Some(*expected),
-                Some(*actual),
-            ),
-            CapabilityAccessError::IntrinsicConflict(_) => {
-                (ModelRegistryErrorKind::CapabilityResolution, None, None, None)
-            }
-        };
+        let (kind, capability_id, expected_adapter_type, actual_adapter_type) =
+            match &error {
+                CapabilityAccessError::FactOnly { id, adapter_type } => (
+                    ModelRegistryErrorKind::FactOnlyCapability,
+                    Some(*id),
+                    None,
+                    Some(*adapter_type),
+                ),
+                CapabilityAccessError::AdapterTypeMismatch {
+                    id,
+                    expected,
+                    actual,
+                } => (
+                    ModelRegistryErrorKind::AdapterTypeMismatch,
+                    Some(*id),
+                    Some(*expected),
+                    Some(*actual),
+                ),
+                CapabilityAccessError::IntrinsicConflict(_) => (
+                    ModelRegistryErrorKind::CapabilityResolution,
+                    None,
+                    None,
+                    None,
+                ),
+            };
         Self {
             kind,
             model_id: None,
@@ -116,7 +128,10 @@ impl ModelRegistryError {
     }
 
     /// Records a model capability fact without an executable provider.
-    pub(crate) fn fact_only_capability(capability_id: CapabilityId, source: FragmentIdentity) -> Self {
+    pub(crate) fn fact_only_capability(
+        capability_id: CapabilityId,
+        source: FragmentIdentity,
+    ) -> Self {
         Self {
             kind: ModelRegistryErrorKind::FactOnlyCapability,
             model_id: None,
@@ -167,7 +182,10 @@ impl ModelRegistryError {
     }
 
     /// Records registrations that reuse the same stable model ID.
-    pub(crate) fn duplicate(model_id: ModelId, sources: Vec<FragmentIdentity>) -> Self {
+    pub(crate) fn duplicate(
+        model_id: ModelId,
+        sources: Vec<FragmentIdentity>,
+    ) -> Self {
         Self {
             kind: ModelRegistryErrorKind::DuplicateModelId,
             model_id: Some(model_id),
@@ -181,7 +199,10 @@ impl ModelRegistryError {
     }
 
     /// Records a registration whose metadata conflicts with its target.
-    pub(crate) fn conflict(model_id: Option<ModelId>, sources: Vec<FragmentIdentity>) -> Self {
+    pub(crate) fn conflict(
+        model_id: Option<ModelId>,
+        sources: Vec<FragmentIdentity>,
+    ) -> Self {
         Self {
             kind: ModelRegistryErrorKind::RegistrationConflict,
             model_id,
@@ -234,7 +255,10 @@ impl ModelRegistryError {
 }
 
 impl core::fmt::Display for ModelRegistryError {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         match self.kind {
             ModelRegistryErrorKind::CapabilityResolution => write!(
                 formatter,
@@ -244,12 +268,14 @@ impl core::fmt::Display for ModelRegistryError {
             ModelRegistryErrorKind::FactOnlyCapability => write!(
                 formatter,
                 "model capability {} has no executable adapter",
-                self.capability_id.expect("fact-only errors retain their ID"),
+                self.capability_id
+                    .expect("fact-only errors retain their ID"),
             ),
             ModelRegistryErrorKind::AdapterTypeMismatch => write!(
                 formatter,
                 "model capability {} adapter type mismatch: expected {:?}, actual {:?}",
-                self.capability_id.expect("adapter mismatch errors retain their ID"),
+                self.capability_id
+                    .expect("adapter mismatch errors retain their ID"),
                 self.expected_adapter_type
                     .expect("adapter mismatch errors retain the expected type"),
                 self.actual_adapter_type
@@ -258,18 +284,31 @@ impl core::fmt::Display for ModelRegistryError {
             ModelRegistryErrorKind::ReflectionRegistry => write!(
                 formatter,
                 "reflection registry initialization failed: {}",
-                self.reflection.as_ref().expect("reflection errors retain their source"),
+                self.reflection
+                    .as_ref()
+                    .expect("reflection errors retain their source"),
             ),
             ModelRegistryErrorKind::DuplicateModelId => write!(
                 formatter,
                 "duplicate model ID {}",
-                self.model_id.expect("duplicate errors retain their ID").as_str(),
+                self.model_id
+                    .expect("duplicate errors retain their ID")
+                    .as_str(),
             ),
-            ModelRegistryErrorKind::RegistrationConflict => match self.model_id {
-                Some(model_id) => write!(formatter, "model capability conflict for {}", model_id.as_str()),
-                None => formatter.write_str("model capability conflict without a stable model ID"),
+            ModelRegistryErrorKind::RegistrationConflict => match self.model_id
+            {
+                Some(model_id) => write!(
+                    formatter,
+                    "model capability conflict for {}",
+                    model_id.as_str()
+                ),
+                None => formatter.write_str(
+                    "model capability conflict without a stable model ID",
+                ),
             },
-            ModelRegistryErrorKind::UnsupportedPlatform => formatter.write_str("model registration is unsupported"),
+            ModelRegistryErrorKind::UnsupportedPlatform => {
+                formatter.write_str("model registration is unsupported")
+            }
         }
     }
 }

@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Resolver-specific access to declared reference selections.
 
 use crate::metadata::PropertyPath;
@@ -10,6 +18,7 @@ pub(super) trait ReferenceSelectionExt {
 }
 
 impl ReferenceSelectionExt for ReferenceSelection {
+    /// Returns the selected property path, if this selection is property-based.
     fn property_path(&self) -> Option<&PropertyPath<'static>> {
         match self {
             Self::Entity => None,

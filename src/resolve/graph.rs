@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Immutable structure graph and resolved structural views.
 // qubit-style: allow multiple-public-types
 
@@ -110,8 +118,13 @@ impl ResolvedProjectionProducer {
     ///
     /// Returns a structured adapter, field-access, or identifier error.
     #[must_use = "handle projection execution failure"]
-    pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
-        let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
+    pub fn project<'a>(
+        &self,
+        source: ReflectedRef<'a>,
+    ) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
+        let projector = self
+            .projector
+            .ok_or(ProjectionExecutionError::MissingProjector)?;
         let source_identifier = self
             .source
             .as_entity()
@@ -125,9 +138,14 @@ impl ResolvedProjectionProducer {
             .copied()?;
         let result = projector.get(source)?;
         let projection_identifier = match &result {
-            PropertyValue::Borrowed(value) => self.projection_identifier(value.clone())?,
-            PropertyValue::Owned(value) => self.projection_identifier(value.as_reflected_ref())?,
-            PropertyValue::OptionalBorrowed(_) | PropertyValue::BorrowedSlice(_) => {
+            PropertyValue::Borrowed(value) => {
+                self.projection_identifier(value.clone())?
+            }
+            PropertyValue::Owned(value) => {
+                self.projection_identifier(value.as_reflected_ref())?
+            }
+            PropertyValue::OptionalBorrowed(_)
+            | PropertyValue::BorrowedSlice(_) => {
                 return Err(ProjectionExecutionError::InvalidProducer);
             }
         };
@@ -143,7 +161,10 @@ impl ResolvedProjectionProducer {
     ///
     /// Returns [`ProjectionExecutionError`] when the target is not a valid
     /// Projection or its identifier field cannot be read as `qubit_id::Id`.
-    fn projection_identifier(&self, target: ReflectedRef<'_>) -> Result<Id, ProjectionExecutionError> {
+    fn projection_identifier(
+        &self,
+        target: ReflectedRef<'_>,
+    ) -> Result<Id, ProjectionExecutionError> {
         self.projection
             .as_projection()
             .ok_or(ProjectionExecutionError::InvalidProducer)?
@@ -202,14 +223,19 @@ pub struct ModelGraph<'a> {
     pub(super) projection_sources: HashMap<usize, ResolvedProjectionSource>,
     /// Resolved query metadata keyed by entity declaration identity.
     pub(super) queries: HashMap<usize, QueryMetadata>,
+    /// Locally assembled properties keyed by concrete type identity.
     pub(super) properties: HashMap<TypeId, &'static LocalPropertySet>,
+    /// Automatic Entity-to-Projection producer edges.
     pub(super) projection_producers: Vec<ResolvedProjectionProducer>,
 }
 
 impl<'a> ModelGraph<'a> {
     /// Returns locally merged properties accepted during graph resolution.
     #[must_use]
-    pub fn properties(&self, model: &TypeMetadata) -> Option<&'static LocalPropertySet> {
+    pub fn properties(
+        &self,
+        model: &TypeMetadata,
+    ) -> Option<&'static LocalPropertySet> {
         self.properties.get(&model.type_id()).copied()
     }
 
@@ -228,20 +254,29 @@ impl<'a> ModelGraph<'a> {
 
     /// Returns a resolved reference for `field`, or `None` when it has none.
     #[must_use]
-    pub fn reference(&self, field: &FieldMetadata) -> Option<&ResolvedReference> {
+    pub fn reference(
+        &self,
+        field: &FieldMetadata,
+    ) -> Option<&ResolvedReference> {
         self.references.get(&pointer_key(field))
     }
 
     /// Returns a resolved source for `projection`, or `None` when it is open.
     #[must_use]
-    pub fn projection_source(&self, projection: &ProjectionMetadata) -> Option<&ResolvedProjectionSource> {
+    pub fn projection_source(
+        &self,
+        projection: &ProjectionMetadata,
+    ) -> Option<&ResolvedProjectionSource> {
         self.projection_sources
             .get(&(projection as *const ProjectionMetadata as usize))
     }
 
     /// Returns query metadata for `entity`, or `None` when it is not resolved.
     #[must_use]
-    pub fn query(&self, entity: &crate::metadata::EntityMetadata) -> Option<&QueryMetadata> {
+    pub fn query(
+        &self,
+        entity: &crate::metadata::EntityMetadata,
+    ) -> Option<&QueryMetadata> {
         self.queries
             .get(&(entity as *const crate::metadata::EntityMetadata as usize))
     }
@@ -274,13 +309,17 @@ impl QueryMetadata {
     /// Finds a queryable field by its complete property path.
     #[must_use]
     pub fn filter(&self, path: &PropertyPath<'_>) -> Option<&QueryField> {
-        self.filters.iter().find(|field| field.path.as_path() == *path)
+        self.filters
+            .iter()
+            .find(|field| field.path.as_path() == *path)
     }
 
     /// Finds a queryable field by its flattened external name.
     #[must_use]
     pub fn filter_by_flat_name(&self, name: &str) -> Option<&QueryField> {
-        self.filters.iter().find(|field| field.flat_name.as_ref() == name)
+        self.filters
+            .iter()
+            .find(|field| field.flat_name.as_ref() == name)
     }
 }
 
@@ -344,7 +383,9 @@ impl UniqueQueryKey {
 
     /// Iterates over property paths in key-component order.
     #[must_use]
-    pub fn paths(&self) -> impl ExactSizeIterator<Item = PropertyPath<'_>> + '_ {
+    pub fn paths(
+        &self,
+    ) -> impl ExactSizeIterator<Item = PropertyPath<'_>> + '_ {
         self.paths.iter().map(OwnedPropertyPath::as_path)
     }
 

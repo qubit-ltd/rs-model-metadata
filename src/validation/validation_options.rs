@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Runtime controls for model validation.
 
 // qubit-style: allow multiple-public-types
@@ -30,12 +38,15 @@ impl FieldPath {
 
     /// Creates a path from individual field names.
     #[must_use]
-    pub fn from_segments(segments: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn from_segments(
+        segments: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         Self {
             segments: segments.into_iter().map(Into::into).collect(),
         }
     }
 
+    /// Returns the owned path segments used for matching.
     pub(crate) fn segments(&self) -> &[String] {
         &self.segments
     }
@@ -116,21 +127,27 @@ impl ValidationOptions {
         self.max_comparisons = value;
         self
     }
+    /// Returns the selected execution mode for the executor.
     pub(crate) const fn mode(&self) -> ValidationMode {
         self.mode
     }
+    /// Returns the field selection for the executor.
     pub(crate) const fn selection(&self) -> &ValidationSelection {
         &self.selection
     }
+    /// Returns the maximum traversal depth as a plain integer.
     pub(crate) const fn max_depth(&self) -> usize {
         self.max_depth.get()
     }
+    /// Returns the maximum visited-node budget.
     pub(crate) const fn max_nodes(&self) -> usize {
         self.max_nodes.get()
     }
+    /// Returns the maximum retained-violation budget.
     pub(crate) const fn max_violations(&self) -> usize {
         self.max_violations.get()
     }
+    /// Returns the maximum collection-comparison budget.
     pub(crate) const fn max_comparisons(&self) -> usize {
         self.max_comparisons.get()
     }

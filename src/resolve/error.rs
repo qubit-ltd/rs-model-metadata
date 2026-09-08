@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Deterministic structural resolution diagnostics.
 // qubit-style: allow multiple-public-types
 
@@ -93,7 +101,8 @@ impl ResolveError {
     ) -> Self {
         Self {
             kind,
-            path: path.map(|path| OwnedPropertyPath::from_segments(path.segments())),
+            path: path
+                .map(|path| OwnedPropertyPath::from_segments(path.segments())),
             model_id,
             expected_role,
             actual_role,
@@ -113,8 +122,12 @@ impl ResolveError {
     ) -> Self {
         let cause = cause.into();
         let kind = match &cause {
-            ModelResolutionCause::Metadata(_) => ResolveErrorKind::MetadataResolution,
-            ModelResolutionCause::Properties(_) => ResolveErrorKind::PropertyResolution,
+            ModelResolutionCause::Metadata(_) => {
+                ResolveErrorKind::MetadataResolution
+            }
+            ModelResolutionCause::Properties(_) => {
+                ResolveErrorKind::PropertyResolution
+            }
         };
         let mut error = Self::new(
             kind,
@@ -141,7 +154,11 @@ impl ResolveError {
     }
 
     /// Adds the expected and observed type identities to this error.
-    pub(super) fn with_types(mut self, expected: TypeId, actual: TypeId) -> Self {
+    pub(super) fn with_types(
+        mut self,
+        expected: TypeId,
+        actual: TypeId,
+    ) -> Self {
         self.expected_type = Some(expected);
         self.actual_type = Some(actual);
         self
@@ -156,12 +173,9 @@ impl ResolveError {
                 left.path
                     .as_ref()
                     .map(|path: &OwnedPropertyPath| path.as_path().to_string())
-                    .cmp(
-                        &right
-                            .path
-                            .as_ref()
-                            .map(|path: &OwnedPropertyPath| path.as_path().to_string()),
-                    )
+                    .cmp(&right.path.as_ref().map(
+                        |path: &OwnedPropertyPath| path.as_path().to_string(),
+                    ))
             })
             .then_with(|| left.sources.cmp(&right.sources))
     }
@@ -209,7 +223,10 @@ impl ResolveError {
 }
 
 impl core::fmt::Display for ResolveError {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(formatter, "model resolution failed: {:?}", self.kind)
     }
 }
@@ -238,7 +255,10 @@ impl ResolveErrors {
 }
 
 impl core::fmt::Display for ResolveErrors {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(formatter, "{} model resolution error(s)", self.errors.len())
     }
 }
@@ -246,6 +266,8 @@ impl core::fmt::Display for ResolveErrors {
 impl std::error::Error for ResolveErrors {}
 impl std::error::Error for ResolveError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.cause.as_ref().map(|cause| cause as &dyn std::error::Error)
+        self.cause
+            .as_ref()
+            .map(|cause| cause as &dyn std::error::Error)
     }
 }

@@ -3,17 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
-//    You may obtain a copy of the License at
-//
-//        http://www.apache.org/licenses/LICENSE-2.0
-//
-//    Unless required by applicable law or agreed to in writing, software
-//    distributed under the License is distributed on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//    See the License for the specific language governing permissions and
-//    limitations under the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Declaration-level options.
@@ -25,10 +15,16 @@ use syn::Type;
 
 #[derive(Clone)]
 pub(crate) struct DeclarationOptions {
+    /// Explicit stable model ID.
     pub(crate) id: Option<LitStr>,
+    /// Entity source type, when declared.
     pub(crate) source: Option<Type>,
+    /// Explicit source model ID.
     pub(crate) source_id: Option<LitStr>,
+    /// Whether undeclared projection fields remain open.
     pub(crate) open: bool,
+    /// Whether a value transparently wraps one field.
     pub(crate) transparent: bool,
+    /// Canonical codec type, when declared.
     pub(crate) codec: Option<Type>,
 }

@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Structured diagnostics produced while binding validation metadata.
 
 use std::fmt;
@@ -30,6 +38,7 @@ pub struct ValidationBuildError {
 }
 
 impl ValidationBuildError {
+    /// Wraps a shared validator binding error with model context.
     pub(crate) fn new(model: ModelIdBuf, source: BindError) -> Self {
         Self {
             model,
@@ -40,7 +49,12 @@ impl ValidationBuildError {
         }
     }
 
-    pub(crate) fn unsupported_selector(model: ModelIdBuf, path: impl Into<String>, selector: SelectorPosition) -> Self {
+    /// Records a selector that the erased executor cannot run.
+    pub(crate) fn unsupported_selector(
+        model: ModelIdBuf,
+        path: impl Into<String>,
+        selector: SelectorPosition,
+    ) -> Self {
         Self {
             model,
             path: Some(path.into()),
@@ -104,7 +118,12 @@ impl fmt::Debug for ValidationBuildError {
 
 impl fmt::Display for ValidationBuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "validation plan for {} failed: {:?}", self.model, self.kind())?;
+        write!(
+            f,
+            "validation plan for {} failed: {:?}",
+            self.model,
+            self.kind()
+        )?;
         if let Some(path) = &self.path {
             write!(f, " at {path}")?;
         }
@@ -117,7 +136,9 @@ impl fmt::Display for ValidationBuildError {
 
 impl std::error::Error for ValidationBuildError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.source.as_ref().map(|source| source as &dyn std::error::Error)
+        self.source
+            .as_ref()
+            .map(|source| source as &dyn std::error::Error)
     }
 }
 
@@ -128,7 +149,11 @@ pub struct ValidationBuildErrors {
 }
 
 impl ValidationBuildErrors {
-    pub(crate) fn from_bind_errors(model: ModelIdBuf, errors: Vec<BindError>) -> Self {
+    /// Converts shared binding failures into model-scoped diagnostics.
+    pub(crate) fn from_bind_errors(
+        model: ModelIdBuf,
+        errors: Vec<BindError>,
+    ) -> Self {
         Self {
             errors: errors
                 .into_iter()
@@ -137,6 +162,7 @@ impl ValidationBuildErrors {
         }
     }
 
+    /// Sorts model-scoped diagnostics into stable declaration order.
     pub(crate) fn from_errors(mut errors: Vec<ValidationBuildError>) -> Self {
         errors.sort_by(|left, right| {
             left.model
@@ -222,7 +248,9 @@ mod tests {
         assert_eq!(errors[0].model().as_str(), "example.Model");
         assert_eq!(
             errors[0].kind(),
-            super::ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::UnsupportedConstraint),
+            super::ValidationBuildErrorKind::ValidatorBinding(
+                BindErrorKind::UnsupportedConstraint
+            ),
         );
         assert!(errors[0].source().is_some());
     }

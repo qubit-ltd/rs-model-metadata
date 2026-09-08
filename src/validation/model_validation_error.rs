@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Errors raised by the model validation execution boundary.
 
 use qubit_validator::ExecutionError;
@@ -10,8 +18,16 @@ pub struct ModelValidationError {
 }
 
 impl ModelValidationError {
-    pub(crate) fn new(error: ExecutionError, partial_report: ValidationReport) -> Self {
-        Self { error, partial_report }
+    /// Creates an execution error while retaining the partial validation
+    /// report.
+    pub(crate) fn new(
+        error: ExecutionError,
+        partial_report: ValidationReport,
+    ) -> Self {
+        Self {
+            error,
+            partial_report,
+        }
     }
     /// Returns the execution failure.
     #[must_use]

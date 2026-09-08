@@ -3,17 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
-//    You may obtain a copy of the License at
-//
-//        http://www.apache.org/licenses/LICENSE-2.0
-//
-//    Unless required by applicable law or agreed to in writing, software
-//    distributed under the License is distributed on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//    See the License for the specific language governing permissions and
-//    limitations under the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! The compiler's declaration vocabulary, organized by semantic concern.
@@ -56,8 +46,12 @@ use super::MacroKind;
 
 /// Complete normalized declaration consumed by the expansion stage.
 pub(crate) struct DeclarationIr {
+    /// Macro role being compiled.
     pub(crate) kind: MacroKind,
+    /// Normalized declaration-level options.
     pub(crate) options: DeclarationOptions,
+    /// Normalized struct fields.
     pub(crate) fields: Vec<FieldIr>,
+    /// Normalized enum variants.
     pub(crate) variants: Vec<VariantIr>,
 }

@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Aggregated local property assembly failures.
@@ -39,7 +41,10 @@ impl PropertyBuildErrors {
 
 impl core::fmt::Display for PropertyBuildErrors {
     /// Formats all failures on separate lines.
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         for (index, error) in self.errors.iter().enumerate() {
             if index > 0 {
                 formatter.write_str("\n")?;

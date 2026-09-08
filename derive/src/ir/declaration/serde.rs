@@ -3,17 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
-//    You may obtain a copy of the License at
-//
-//        http://www.apache.org/licenses/LICENSE-2.0
-//
-//    Unless required by applicable law or agreed to in writing, software
-//    distributed under the License is distributed on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//    See the License for the specific language governing permissions and
-//    limitations under the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Serde overlay IR.
@@ -24,15 +14,26 @@ use syn::LitStr;
 
 #[derive(Clone, Default)]
 pub(crate) struct SerdeIr {
+    /// Explicit serialized field name.
     pub(crate) serialize_name: Option<LitStr>,
+    /// Explicit deserialized field name.
     pub(crate) deserialize_name: Option<LitStr>,
+    /// Whether serialization is skipped.
     pub(crate) skip_serializing: bool,
+    /// Whether deserialization is skipped.
     pub(crate) skip_deserializing: bool,
+    /// Whether the field is flattened.
     pub(crate) flatten: bool,
+    /// Custom Serde adapter name.
     pub(crate) with: Option<LitStr>,
+    /// Whether Serde uses a default.
     pub(crate) default: bool,
+    /// Whether skip-serializing-if was explicitly set.
     pub(crate) explicit_skip_serializing_if: bool,
+    /// Whether the model default supplies the Serde default.
     pub(crate) default_from_model: bool,
+    /// Whether the field is omitted from the model surface.
     pub(crate) omit_from_model: bool,
+    /// Whether omission was suppressed by an explicit declaration.
     pub(crate) omit_suppressed: bool,
 }

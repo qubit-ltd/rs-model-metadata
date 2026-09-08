@@ -32,7 +32,10 @@ pub enum ModelIdError {
 
 impl core::fmt::Display for ModelIdError {
     /// Formats a concise explanation of the invalid model-ID component.
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         formatter.write_str(match self {
             Self::Empty => "model ID cannot be empty",
             Self::EmptySegment => "model ID cannot contain empty segments",

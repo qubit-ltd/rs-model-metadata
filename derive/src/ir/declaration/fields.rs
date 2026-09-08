@@ -3,17 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
-//    You may obtain a copy of the License at
-//
-//        http://www.apache.org/licenses/LICENSE-2.0
-//
-//    Unless required by applicable law or agreed to in writing, software
-//    distributed under the License is distributed on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//    See the License for the specific language governing permissions and
-//    limitations under the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Field and enum-variant IR.
@@ -56,19 +46,30 @@ pub(crate) enum IdentifierAssignmentIr {
 
 #[derive(Clone)]
 pub(crate) struct FieldIr {
+    /// Reflection declaration index.
     pub(crate) index: Located<usize>,
+    /// Declared Rust field type.
     pub(crate) ty: Type,
+    /// Normalized field attribute occurrences.
     pub(crate) occurrences: Vec<FieldOccurrence>,
+    /// Whether Serde serialization remains enabled.
     pub(crate) keep_serializing: bool,
+    /// Whether the source field has a name.
     pub(crate) named: bool,
 }
 
 #[derive(Clone)]
 pub(crate) struct VariantIr {
+    /// Rust source variant name.
     pub(crate) rust_name: String,
+    /// Canonical metadata variant name.
     pub(crate) canonical_name: String,
+    /// Serialized variant name.
     pub(crate) serialized_name: String,
+    /// Deserialized variant name.
     pub(crate) deserialized_name: String,
+    /// Whether this is the default variant.
     pub(crate) default: bool,
+    /// Normalized variant fields.
     pub(crate) fields: Vec<FieldIr>,
 }

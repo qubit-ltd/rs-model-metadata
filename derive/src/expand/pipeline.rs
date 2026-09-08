@@ -3,17 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
-//    You may obtain a copy of the License at
-//
-//        http://www.apache.org/licenses/LICENSE-2.0
-//
-//    Unless required by applicable law or agreed to in writing, software
-//    distributed under the License is distributed on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//    See the License for the specific language governing permissions and
-//    limitations under the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Runs the parse, normalization, validation, and token-expansion pipeline.
@@ -45,8 +35,13 @@ use crate::validate::declaration::rewrite_field_helpers;
 use crate::validate::declaration::validate_declaration;
 
 /// Parses, validates, and expands one declaration into generated tokens.
-pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Result<TokenStream> {
-    let raw_options = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
+pub(crate) fn run(
+    kind: MacroKind,
+    args: TokenStream,
+    input: TokenStream,
+) -> Result<TokenStream> {
+    let raw_options =
+        Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     if kind == MacroKind::ModelImpl {
         if let Some(option) = raw_options.first() {
             return Err(Error::new_spanned(
@@ -74,10 +69,12 @@ pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Res
     normalize_declaration(&mut declaration);
     validate_declaration_ir(&declaration, &item)?;
     rewrite_field_helpers(&mut item.data, &declaration);
-    item.attrs.push(parse_quote!(#[derive(#runtime::__private::Reflect)]));
+    item.attrs
+        .push(parse_quote!(#[derive(#runtime::__private::Reflect)]));
     item.attrs.push(parse_quote!(#[reflect(crate = #runtime)]));
     if !item.generics.params.is_empty() && declaration.options.id.is_some() {
-        let provider = format_ident!("__qubit_model_reflect_definition_{}", item.ident);
+        let provider =
+            format_ident!("__qubit_model_reflect_definition_{}", item.ident);
         item.attrs
             .push(parse_quote!(#[reflect(definition_provider_v2 = #provider)]));
     }

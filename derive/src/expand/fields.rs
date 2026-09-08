@@ -55,9 +55,14 @@ pub(super) fn expand_generic_field_vector(
     runtime: &TokenStream,
     variant_inherited: bool,
 ) -> TokenStream {
-    let bodies = fields
-        .iter()
-        .map(|field| expand_field(field, &descriptor_fields, runtime, Some(variant_inherited)));
+    let bodies = fields.iter().map(|field| {
+        expand_field(
+            field,
+            &descriptor_fields,
+            runtime,
+            Some(variant_inherited),
+        )
+    });
     quote! {
         let mut fields = ::std::vec::Vec::new();
         #(#bodies)*
@@ -81,11 +86,14 @@ fn expand_field(
             _ => None,
         })
         .collect();
-    let validators = validator_irs.iter().map(|value| expand_validator(value, runtime));
-    let identifier_assignment = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Identifier(value) => Some(*value),
-        _ => None,
-    });
+    let validators = validator_irs
+        .iter()
+        .map(|value| expand_validator(value, runtime));
+    let identifier_assignment =
+        field.occurrences.iter().find_map(|value| match value {
+            FieldOccurrence::Identifier(value) => Some(*value),
+            _ => None,
+        });
     let has_identifier = identifier_assignment.is_some();
     let has_indexed = field
         .occurrences
@@ -99,10 +107,11 @@ fn expand_field(
         FieldOccurrence::Reference(value) => Some(value),
         _ => None,
     });
-    let key_part_order = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::KeyPart(value) => Some(*value),
-        _ => None,
-    });
+    let key_part_order =
+        field.occurrences.iter().find_map(|value| match value {
+            FieldOccurrence::KeyPart(value) => Some(*value),
+            _ => None,
+        });
     let codec_ir = field.occurrences.iter().find_map(|value| match value {
         FieldOccurrence::Codec(value) => Some(value),
         _ => None,
@@ -116,15 +125,27 @@ fn expand_field(
         _ => None,
     });
     let element_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::Element) => Some(value),
+        FieldOccurrence::Selector(value)
+            if matches!(value.position, SelectorPositionIr::Element) =>
+        {
+            Some(value)
+        }
         _ => None,
     });
     let map_key_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapKey) => Some(value),
+        FieldOccurrence::Selector(value)
+            if matches!(value.position, SelectorPositionIr::MapKey) =>
+        {
+            Some(value)
+        }
         _ => None,
     });
     let map_value_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapValue) => Some(value),
+        FieldOccurrence::Selector(value)
+            if matches!(value.position, SelectorPositionIr::MapValue) =>
+        {
+            Some(value)
+        }
         _ => None,
     });
     let element_selector = element_ir.map(|value| {
@@ -137,13 +158,23 @@ fn expand_field(
         let value_type = quote!(
             <#field_type as #runtime::__private::v5::MapConstraintTarget>::Key
         );
-        expand_selector_metadata(value, &value_type, format_ident!("map_key_selector"), runtime)
+        expand_selector_metadata(
+            value,
+            &value_type,
+            format_ident!("map_key_selector"),
+            runtime,
+        )
     });
     let map_value_selector = map_value_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v5::MapConstraintTarget>::Value
         );
-        expand_selector_metadata(value, &value_type, format_ident!("map_value_selector"), runtime)
+        expand_selector_metadata(
+            value,
+            &value_type,
+            format_ident!("map_value_selector"),
+            runtime,
+        )
     });
     let constraint_irs: Vec<_> = field
         .occurrences
@@ -162,7 +193,11 @@ fn expand_field(
             runtime,
         )
     });
-    let constraint_assertions = expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
+    let constraint_assertions = expand_constraint_assertions(
+        &constraint_irs,
+        quote!(#field_type),
+        runtime,
+    );
     let requires_sequence = element_ir.is_some()
         || constraint_irs
             .iter()
@@ -233,8 +268,13 @@ fn expand_field(
             );
         }
     });
-    let redact =
-        redact_ir.map(|value| expand_redact(value, quote!(#runtime::metadata::RedactPosition::Field), runtime));
+    let redact = redact_ir.map(|value| {
+        expand_redact(
+            value,
+            quote!(#runtime::metadata::RedactPosition::Field),
+            runtime,
+        )
+    });
     let serde = serde_ir.map_or_else(
         || quote!(let serde: &'static #runtime::metadata::SerdeFieldMetadata = &#runtime::metadata::SerdeFieldMetadata::DEFAULT;),
         |value| expand_serde(value, runtime),
@@ -285,16 +325,19 @@ fn expand_field(
     }
     let mut reason_parts = Vec::new();
     if has_indexed {
-        reason_parts.push(quote!(#runtime::metadata::IndexingReasons::EXPLICIT));
+        reason_parts
+            .push(quote!(#runtime::metadata::IndexingReasons::EXPLICIT));
     }
     if has_identifier {
-        reason_parts.push(quote!(#runtime::metadata::IndexingReasons::IDENTIFIER));
+        reason_parts
+            .push(quote!(#runtime::metadata::IndexingReasons::IDENTIFIER));
     }
     if unique_ir.is_some() {
         reason_parts.push(quote!(#runtime::metadata::IndexingReasons::UNIQUE));
     }
     if reference_ir.is_some() {
-        reason_parts.push(quote!(#runtime::metadata::IndexingReasons::REFERENCE));
+        reason_parts
+            .push(quote!(#runtime::metadata::IndexingReasons::REFERENCE));
     }
     let indexed = reason_parts
         .into_iter()
@@ -368,7 +411,11 @@ fn expand_constraint(
             let max_chars = option_number(value.max_chars);
             let min_bytes = option_number(value.min_bytes);
             let max_bytes = option_number(value.max_bytes);
-            let allowed = match value.allowed_chars.as_deref().unwrap_or("unicode") {
+            let allowed = match value
+                .allowed_chars
+                .as_deref()
+                .unwrap_or("unicode")
+            {
                 "unicode" => quote!(#runtime::metadata::AllowedChars::Unicode),
                 "printable_unicode" => {
                     quote!(#runtime::metadata::AllowedChars::PrintableUnicode)
@@ -532,12 +579,15 @@ fn expand_selector_metadata(
             quote!(#runtime::metadata::SelectorPosition::MapValue)
         }
     };
-    let constraints = value
-        .constraints
-        .iter()
-        .map(|constraint| expand_constraint(constraint, false, false, false, runtime));
+    let constraints = value.constraints.iter().map(|constraint| {
+        expand_constraint(constraint, false, false, false, runtime)
+    });
     let constraint_refs: Vec<_> = value.constraints.iter().collect();
-    let constraint_assertions = expand_constraint_assertions(&constraint_refs, value_type.clone(), runtime);
+    let constraint_assertions = expand_constraint_assertions(
+        &constraint_refs,
+        value_type.clone(),
+        runtime,
+    );
     let validators = value
         .validators
         .iter()
@@ -602,13 +652,19 @@ fn rounding_tokens(value: &str, runtime: &TokenStream) -> TokenStream {
 }
 
 /// Generates runtime metadata for one validator declaration.
-fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStream {
+fn expand_validator(
+    validator: &ValidatorIr,
+    runtime: &TokenStream,
+) -> TokenStream {
     let id = &validator.id;
     let params = validator.params.iter().map(|(name, value)| {
         let value = expand_strategy_argument(value, runtime);
         quote!(#runtime::__private::NamedValidationArgument::new(#name, #value))
     });
-    let depends_on = validator.depends_on.iter().map(|path| expand_field_path(path, runtime));
+    let depends_on = validator
+        .depends_on
+        .iter()
+        .map(|path| expand_field_path(path, runtime));
     let dependency_bindings = validator.dependency_bindings.iter().map(|(name, path)| {
         let path = expand_field_path(path, runtime);
         quote!(#runtime::metadata::DependencyBindingMetadata::new(#name, #path))
@@ -647,7 +703,10 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
 }
 
 /// Generates runtime tokens for one validator strategy argument.
-fn expand_strategy_argument(value: &StrategyArgumentIr, runtime: &TokenStream) -> TokenStream {
+fn expand_strategy_argument(
+    value: &StrategyArgumentIr,
+    runtime: &TokenStream,
+) -> TokenStream {
     match value {
         StrategyArgumentIr::Bool(value) => {
             quote!(#runtime::__private::ValidationArgument::Bool(#value))
@@ -677,7 +736,10 @@ fn expand_strategy_argument(value: &StrategyArgumentIr, runtime: &TokenStream) -
 }
 
 /// Generates runtime metadata for one relationship declaration.
-fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStream {
+fn expand_reference(
+    reference: &ReferenceIr,
+    runtime: &TokenStream,
+) -> TokenStream {
     let target = match &reference.target {
         ReferenceTargetIr::RustType(ty) => {
             quote!(#runtime::metadata::DeclaredEntityTarget::RustType(#runtime::metadata::TypeMetadata::of::<#ty>))
@@ -711,7 +773,11 @@ fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStre
 }
 
 /// Generates runtime metadata for one redaction declaration.
-fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
+fn expand_redact(
+    redact: &RedactIr,
+    position: TokenStream,
+    runtime: &TokenStream,
+) -> TokenStream {
     let expression = redact_expression(redact, position, runtime);
     quote! {
         let redact: &'static #runtime::metadata::RedactMetadata = #runtime::__private::v5::leak(#expression);
@@ -719,7 +785,11 @@ fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream
 }
 
 /// Generates the redaction expression associated with a redaction mode.
-fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
+fn redact_expression(
+    redact: &RedactIr,
+    position: TokenStream,
+    runtime: &TokenStream,
+) -> TokenStream {
     let (sensitivity, mode) = match &redact.mode {
         RedactModeIr::Level(level) => {
             let sensitivity = match level.as_str() {
@@ -742,20 +812,36 @@ fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenSt
                 quote!(#runtime::metadata::RedactModeMetadata::Level),
             )
         }
-        RedactModeIr::Skip => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Skip)),
-        RedactModeIr::Nested => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Nested)),
-        RedactModeIr::Map => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Map)),
+        RedactModeIr::Skip => (
+            quote!(None),
+            quote!(#runtime::metadata::RedactModeMetadata::Skip),
+        ),
+        RedactModeIr::Nested => (
+            quote!(None),
+            quote!(#runtime::metadata::RedactModeMetadata::Nested),
+        ),
+        RedactModeIr::Map => (
+            quote!(None),
+            quote!(#runtime::metadata::RedactModeMetadata::Map),
+        ),
         RedactModeIr::KeyedBy(field) => (
             quote!(None),
             quote!(#runtime::metadata::RedactModeMetadata::KeyedBy(#field)),
         ),
-        RedactModeIr::Json => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Json)),
+        RedactModeIr::Json => (
+            quote!(None),
+            quote!(#runtime::metadata::RedactModeMetadata::Json),
+        ),
     };
     quote!(#runtime::metadata::RedactMetadata::new(#sensitivity, #mode, #position))
 }
 
 /// Generates runtime metadata for a declared value codec.
-fn codec_reference_expression<T: ToTokens>(codec: &CodecIr, _value_type: &T, runtime: &TokenStream) -> TokenStream {
+fn codec_reference_expression<T: ToTokens>(
+    codec: &CodecIr,
+    _value_type: &T,
+    runtime: &TokenStream,
+) -> TokenStream {
     match codec {
         CodecIr::DeclaredId(id) => {
             quote!(#runtime::metadata::CodecReference::DeclaredId(#id))
@@ -873,7 +959,10 @@ mod tests {
                     non_blank: true,
                     format: format.map(str::to_owned),
                 });
-                assert!(!expand_constraint(&value, false, false, false, &runtime).is_empty());
+                assert!(
+                    !expand_constraint(&value, false, false, false, &runtime)
+                        .is_empty()
+                );
             }
         }
         for rounding in [
@@ -898,23 +987,40 @@ mod tests {
                 min_inclusive: false,
                 max_inclusive: true,
             });
-            assert!(!expand_constraint(&value, false, false, false, &runtime).is_empty());
+            assert!(
+                !expand_constraint(&value, false, false, false, &runtime)
+                    .is_empty()
+            );
         }
-        for precision in ["second", "millisecond", "microsecond", "nanosecond", "invalid"] {
+        for precision in [
+            "second",
+            "millisecond",
+            "microsecond",
+            "nanosecond",
+            "invalid",
+        ] {
             let value = ConstraintIr::Time(precision.to_owned());
-            assert!(!expand_constraint(&value, false, false, false, &runtime).is_empty());
+            assert!(
+                !expand_constraint(&value, false, false, false, &runtime)
+                    .is_empty()
+            );
         }
         let sequence = ConstraintIr::Sequence {
             min: Some(1),
             max: Some(2),
             unique: true,
         };
-        assert!(!expand_constraint(&sequence, true, false, false, &runtime).is_empty());
+        assert!(
+            !expand_constraint(&sequence, true, false, false, &runtime)
+                .is_empty()
+        );
         let map = ConstraintIr::Map {
             min: Some(1),
             max: Some(2),
         };
-        assert!(!expand_constraint(&map, false, true, true, &runtime).is_empty());
+        assert!(
+            !expand_constraint(&map, false, true, true, &runtime).is_empty()
+        );
 
         let strategy_values = [
             StrategyArgumentIr::Bool(true),
@@ -946,7 +1052,9 @@ mod tests {
         let ty: Type = parse_quote!(Codec);
         let references = [
             ReferenceIr {
-                target: ReferenceTargetIr::RustType(Box::new(parse_quote!(Owner))),
+                target: ReferenceTargetIr::RustType(Box::new(parse_quote!(
+                    Owner
+                ))),
                 property: None,
                 existing: true,
                 same_as: None,
@@ -961,7 +1069,14 @@ mod tests {
         for reference in &references {
             assert!(!expand_reference(reference, &runtime).is_empty());
         }
-        assert!(!codec_reference_expression(&CodecIr::RustType(Box::new(ty)), &quote!(String), &runtime).is_empty());
+        assert!(
+            !codec_reference_expression(
+                &CodecIr::RustType(Box::new(ty)),
+                &quote!(String),
+                &runtime
+            )
+            .is_empty()
+        );
         assert!(
             !codec_reference_expression(
                 &CodecIr::DeclaredId(literal("example.codec")),
@@ -983,7 +1098,10 @@ mod tests {
             RedactModeIr::KeyedBy("owner".to_owned()),
             RedactModeIr::Json,
         ] {
-            assert!(!expand_redact(&RedactIr { mode }, quote!(position), &runtime).is_empty());
+            assert!(
+                !expand_redact(&RedactIr { mode }, quote!(position), &runtime)
+                    .is_empty()
+            );
         }
 
         let serde_values = [

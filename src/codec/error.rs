@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Codec binding diagnostics.
 // qubit-style: allow multiple-public-types
 
@@ -31,6 +39,7 @@ pub struct CodecBindError {
 }
 
 impl CodecBindError {
+    /// Creates a codec binding diagnostic and normalizes candidate ordering.
     pub(crate) fn new(
         kind: CodecBindErrorKind,
         occurrence: CodecOccurrenceId,
@@ -89,7 +98,10 @@ impl CodecBindError {
 }
 
 impl core::fmt::Display for CodecBindError {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(
             formatter,
             "codec binding failed at {}: {:?}",
@@ -105,6 +117,7 @@ impl std::error::Error for CodecBindError {}
 pub struct CodecBindErrors(Box<[CodecBindError]>);
 
 impl CodecBindErrors {
+    /// Creates a deterministically ordered collection of binding diagnostics.
     pub(crate) fn new(mut errors: Vec<CodecBindError>) -> Self {
         errors.sort_by(|left, right| {
             left.occurrence
@@ -128,7 +141,10 @@ impl CodecBindErrors {
 }
 
 impl core::fmt::Display for CodecBindErrors {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(formatter, "{} codec binding error(s)", self.0.len())
     }
 }

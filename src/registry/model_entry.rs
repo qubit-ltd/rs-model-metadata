@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Read-only concrete and generic model entries.
@@ -23,8 +25,11 @@ enum ModelEntryTarget {
 /// An immutable projection of one model and its registration provenance.
 #[derive(Clone, Copy, Debug)]
 pub struct ModelEntry<'reflection> {
+    /// Stable ID used to index this entry.
     pub(super) model_id: ModelId,
+    /// Concrete or generic metadata carried by this entry.
     target: ModelEntryTarget,
+    /// Registration fragment that produced this entry.
     pub(super) source: &'reflection FragmentIdentity,
 }
 
@@ -42,7 +47,10 @@ impl<'reflection> ModelEntry<'reflection> {
     }
 
     /// Creates an entry only when concrete metadata declares a model ID.
-    pub(super) fn concrete(metadata: &'static TypeMetadata, source: &'reflection FragmentIdentity) -> Option<Self> {
+    pub(super) fn concrete(
+        metadata: &'static TypeMetadata,
+        source: &'reflection FragmentIdentity,
+    ) -> Option<Self> {
         Some(Self {
             model_id: metadata.model_id()?,
             target: ModelEntryTarget::Concrete(metadata),
@@ -76,7 +84,9 @@ impl<'reflection> ModelEntry<'reflection> {
     /// Returns generic metadata, or `None` for a concrete entry.
     #[must_use]
     #[cfg(feature = "generic")]
-    pub const fn generic_metadata(self) -> Option<&'static GenericModelMetadata> {
+    pub const fn generic_metadata(
+        self,
+    ) -> Option<&'static GenericModelMetadata> {
         match self.target {
             ModelEntryTarget::Concrete(_) => None,
             ModelEntryTarget::Generic(metadata) => Some(metadata),

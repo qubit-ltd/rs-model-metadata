@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Structural, getter-free compilation of property paths.
 
 // qubit-style: allow multiple-public-types
@@ -23,10 +31,12 @@ pub(crate) struct PropertyStep {
 }
 
 impl PropertyStep {
+    /// Returns the metadata for this path segment.
     pub(crate) const fn property(self) -> &'static PropertyMetadata {
         self.property
     }
 
+    /// Returns whether this segment can produce no value.
     pub(crate) const fn optional(self) -> bool {
         self.optional
     }
@@ -41,6 +51,7 @@ pub(crate) struct CompiledPropertyPath {
 }
 
 impl CompiledPropertyPath {
+    /// Checks and compiles a declaration path without invoking user adapters.
     pub(crate) fn compile(
         root: &'static TypeMetadata,
         path: &PropertyPath<'_>,
@@ -105,26 +116,36 @@ impl CompiledPropertyPath {
         })
     }
 
+    /// Returns the checked path steps in traversal order.
     pub(crate) fn steps(&self) -> &[PropertyStep] {
         &self.steps
     }
 
+    /// Returns the validator input type for the final path value.
     pub(crate) const fn input_type(&self) -> InputType {
         self.input
     }
 
+    /// Returns whether any path segment can be absent.
     pub(crate) const fn is_optional(&self) -> bool {
         self.optional
     }
 }
 
-fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDescriptor, bool) {
+/// Removes transparent wrappers and records whether an optional was found.
+fn value_descriptor(
+    mut descriptor: &'static TypeDescriptor,
+) -> (&'static TypeDescriptor, bool) {
     let mut optional = false;
     loop {
         let Some(element) = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()))
+            .or_else(|| {
+                descriptor
+                    .as_smart_pointer()
+                    .map(|view| view.pointee_type())
+            })
         else {
             return (descriptor, optional);
         };

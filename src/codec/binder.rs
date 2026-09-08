@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Explicit codec binding over an immutable model graph.
 // qubit-style: allow multiple-public-types
 
@@ -40,7 +48,11 @@ pub struct CodecOccurrenceId {
 impl CodecOccurrenceId {
     /// Creates a stable occurrence identity.
     #[must_use]
-    pub fn new(model: ModelIdBuf, property: impl Into<Box<str>>, source: CodecSource) -> Self {
+    pub fn new(
+        model: ModelIdBuf,
+        property: impl Into<Box<str>>,
+        source: CodecSource,
+    ) -> Self {
         Self {
             model,
             property: property.into(),
@@ -68,7 +80,10 @@ impl CodecOccurrenceId {
 }
 
 impl core::fmt::Display for CodecOccurrenceId {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         if self.property.is_empty() {
             write!(formatter, "{}::<canonical>", self.model)
         } else {
@@ -119,7 +134,10 @@ pub struct CodecBindings<'a>(BTreeMap<CodecOccurrenceId, CodecBinding<'a>>);
 impl<'a> CodecBindings<'a> {
     /// Returns a binding by stable occurrence identity.
     #[must_use]
-    pub fn get(&self, occurrence: &CodecOccurrenceId) -> Option<&CodecBinding<'a>> {
+    pub fn get(
+        &self,
+        occurrence: &CodecOccurrenceId,
+    ) -> Option<&CodecBinding<'a>> {
         self.0.get(occurrence)
     }
 
@@ -134,17 +152,37 @@ impl<'a> CodecBindings<'a> {
 /// # Errors
 ///
 /// Returns all missing, ambiguous, and value-type mismatched occurrences.
-pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<CodecBindings<'graph>, CodecBindErrors> {
+pub fn bind_codecs<'a, 'graph>(
+    inputs: CodecBindInputs<'a, 'graph>,
+) -> Result<CodecBindings<'graph>, CodecBindErrors> {
     let mut bindings = BTreeMap::new();
     let mut errors = Vec::new();
     for (metadata, _) in inputs.graph.registry().concrete_entries() {
-        let model = ModelIdBuf::from(metadata.model_id().expect("registered concrete models have stable IDs"));
+        let model = ModelIdBuf::from(
+            metadata
+                .model_id()
+                .expect("registered concrete models have stable IDs"),
+        );
         for field in metadata.fields() {
-            bind_field(model.clone(), field, inputs.codecs, &mut bindings, &mut errors);
+            bind_field(
+                model.clone(),
+                field,
+                inputs.codecs,
+                &mut bindings,
+                &mut errors,
+            );
         }
-        for variant in metadata.as_enum().into_iter().flat_map(|value| value.variants()) {
+        for variant in metadata
+            .as_enum()
+            .into_iter()
+            .flat_map(|value| value.variants())
+        {
             for field in variant.fields() {
-                let path = format!("{}.{}", variant.canonical_name(), field.name().unwrap_or("<unnamed>"));
+                let path = format!(
+                    "{}.{}",
+                    variant.canonical_name(),
+                    field.name().unwrap_or("<unnamed>")
+                );
                 bind_field_at(
                     model.clone(),
                     path.into(),
@@ -176,6 +214,7 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
     }
 }
 
+/// Binds codecs declared directly on one field and its selectors.
 fn bind_field<'a>(
     model: ModelIdBuf,
     field: &'static FieldMetadata,
@@ -193,6 +232,7 @@ fn bind_field<'a>(
     );
 }
 
+/// Binds codecs for a field using the supplied canonical property path.
 fn bind_field_at<'a>(
     model: ModelIdBuf,
     path: Box<str>,
@@ -218,7 +258,9 @@ fn bind_field_at<'a>(
             errors,
         );
     }
-    let sequence = field.sequence_constraint().and_then(|value| value.element());
+    let sequence = field
+        .sequence_constraint()
+        .and_then(|value| value.element());
     let map = field.map_constraint();
     for selector in [
         sequence,
@@ -231,7 +273,8 @@ fn bind_field_at<'a>(
         let Some(codec) = selector.codec() else {
             continue;
         };
-        let Some(expected) = selector_type_id(descriptor, selector.position()) else {
+        let Some(expected) = selector_type_id(descriptor, selector.position())
+        else {
             continue;
         };
         bind_one(
@@ -245,6 +288,7 @@ fn bind_field_at<'a>(
     }
 }
 
+/// Resolves one declaration to exactly one compatible registry registration.
 fn bind_one<'a>(
     occurrence: CodecOccurrenceId,
     declaration: &'static CodecMetadata,
@@ -258,7 +302,9 @@ fn bind_one<'a>(
         CodecReference::RustType(reference) => codecs
             .registrations()
             .iter()
-            .filter(|registration| registration.descriptor().codec_type_id() == reference.type_id())
+            .filter(|registration| {
+                registration.descriptor().codec_type_id() == reference.type_id()
+            })
             .collect(),
     };
     let registration = match candidates.as_slice() {
@@ -281,7 +327,10 @@ fn bind_one<'a>(
                 *declaration.codec(),
                 expected_type,
                 None,
-                candidates.iter().map(|registration| registration.source()).collect(),
+                candidates
+                    .iter()
+                    .map(|registration| registration.source())
+                    .collect(),
             ));
             return;
         }
@@ -309,7 +358,11 @@ fn bind_one<'a>(
     );
 }
 
-fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosition) -> Option<TypeId> {
+/// Resolves the runtime value type at one nested selector position.
+fn selector_type_id(
+    descriptor: &'static TypeDescriptor,
+    position: SelectorPosition,
+) -> Option<TypeId> {
     let descriptor = transparent_descriptor(descriptor)?;
     let type_ref = match position {
         SelectorPosition::Element => descriptor
@@ -317,19 +370,32 @@ fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosit
             .map(|value| value.element_type())
             .or_else(|| descriptor.as_set().map(|value| value.element_type()))
             .or_else(|| descriptor.as_array().map(|value| value.element_type()))
-            .or_else(|| descriptor.as_slice().map(|value| value.element_type())),
-        SelectorPosition::MapKey => descriptor.as_map().map(|value| value.key_type()),
-        SelectorPosition::MapValue => descriptor.as_map().map(|value| value.value_type()),
+            .or_else(|| {
+                descriptor.as_slice().map(|value| value.element_type())
+            }),
+        SelectorPosition::MapKey => {
+            descriptor.as_map().map(|value| value.key_type())
+        }
+        SelectorPosition::MapValue => {
+            descriptor.as_map().map(|value| value.value_type())
+        }
     }?;
     runtime_type_id(type_ref)
 }
 
-fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
+/// Removes optional and smart-pointer wrappers from a resolved descriptor.
+fn transparent_descriptor(
+    mut descriptor: &'static TypeDescriptor,
+) -> Option<&'static TypeDescriptor> {
     loop {
         let element = descriptor
             .as_optional()
             .map(|value| value.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()));
+            .or_else(|| {
+                descriptor
+                    .as_smart_pointer()
+                    .map(|value| value.pointee_type())
+            });
         let Some(element) = element else {
             return Some(descriptor);
         };
@@ -337,6 +403,7 @@ fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'s
     }
 }
 
+/// Extracts a runtime type identity from a resolved or opaque type reference.
 fn runtime_type_id(type_ref: &TypeRef) -> Option<TypeId> {
     type_ref
         .as_resolved()
