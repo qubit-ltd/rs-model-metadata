@@ -38,8 +38,9 @@
 | --- | --- | --- | --- |
 | 模型声明宏 | `qubit-model-derive` | 解析五种角色、字段属性和 Property impl；编译期校验；生成静态 metadata 与能力实现 | 不执行数据库、validator、codec 或生成器 |
 | 结构反射 | `qubit-reflect` | 提供唯一的 Rust 类型、字段、variant、泛型、类型引用与安全动态访问描述 | 不定义模型角色、领域约束或关系 |
-| 模型 metadata | `qubit-model-metadata` | 在 reflect descriptor 上附加领域角色、Field、Property、约束、关系和输出策略；提供静态查询 | 不复制 Rust 结构图，不保存对象实例，不执行业务逻辑 |
-| 模型注册与解析 | `ModelRegistry` 及 resolver | 按稳定 `ModelId` 动态发现具体类型或泛型定义；完成跨 crate 关系和策略引用校验 | 不为匿名类型制造 ID，不枚举无限泛型实例 |
+| 模型 metadata | `qubit-model-metadata::metadata` | 在 reflect descriptor 上附加领域角色、Field、Property、约束、关系和策略声明；提供静态查询 | 不复制 Rust 结构图，不保存对象实例，不公开执行 crate 类型 |
+| 模型注册与解析 | `ModelRegistry`、`StructureResolver` 及 `ModelGraph` | 按稳定 `ModelId` 动态发现具体类型或泛型定义；完成跨 crate 关系、Property、查询和 validator 依赖路径的结构校验 | 不绑定 codec 或 validator，不为匿名类型制造 ID，不枚举无限泛型实例 |
+| 可选执行适配 | `codec::bind_codecs`、`validation::ValidationPlan` | 在结构解析成功后显式绑定调用方提供的 codec 或 validator registry | 不改变静态声明或结构图，不在默认 feature 中引入执行依赖 |
 | Validator 契约 | `rs-validator` | 定义 validator、稳定 ID、注册表、纯 validation 执行协议 | 不访问 repository、网络或外部业务状态 |
 | Codec 契约 | `rs-codec` | 定义领域值与规范文本之间的 codec、稳定 ID 和注册表 | 不替代任意 Serde 格式或数据库专用编码 |
 | 输出安全 | `qubit-redact`、Serde 联动 | 执行字段脱敏以及默认 Debug、Display、Serialize 安全输出 | 不改变字段身份、关系和值合法性 |
@@ -53,7 +54,7 @@ flowchart TD
     Derive[qubit-model-derive]
     Reflect[qubit-reflect]
     Metadata[qubit-model-metadata overlay]
-    Registry[ModelRegistry / Resolver]
+    Registry[ModelRegistry / StructureResolver / ModelGraph]
     Validator[rs-validator]
     Codec[rs-codec]
     Redact[qubit-redact / Serde]
@@ -64,9 +65,9 @@ flowchart TD
     Derive -->|生成领域静态数据| Metadata
     Reflect --> Metadata
     Metadata --> Registry
-    Metadata --> Validator
-    Metadata --> Codec
-    Metadata --> Redact
+    Registry -->|validation feature| Validator
+    Registry -->|codec feature| Codec
+    Metadata -.声明由下游解释.-> Redact
     Registry --> Consumers
     Metadata --> Consumers
 ```
@@ -1215,7 +1216,7 @@ for constraint in field.constraints() {
 - **REQ-META-084**：`ValidatorMetadata`、策略 ID、参数和依赖路径视图以最终设计和公开 API 为准。
 - **REQ-META-085**：`CodecMetadata`、codec ID、参数和方向视图以最终设计和公开 API 为准。
 - **REQ-META-086**：`RedactMetadata` 及 selector 作用位置视图以最终设计和公开 API 为准。
-- **REQ-META-087**：`QueryMetadata` 必须由 `ResolvedModelGraph` 拥有并只为 Entity 构造；它不得塞入静态
+- **REQ-META-087**：`QueryMetadata` 必须由 `ModelGraph` 拥有并只为 Entity 构造；它不得塞入静态
   `EntityMetadata`。
 
 ## 9. ModelId、注册与完整解析组件
@@ -1317,8 +1318,10 @@ assert!(concrete.generic_definition().is_some());
 
 ### 9.5 完整解析
 
-- **REQ-RES-001**：完整 resolver 必须解析 entity_id、source_id、ValidatorId、ValueCodecId，并验证目标存在。
-- **REQ-RES-002**：resolver 必须验证 ID 目标角色、字段/property descriptor 兼容性和策略值类型兼容性。
+- **REQ-RES-001**：`StructureResolver` 必须解析 entity_id 与 source_id，并验证目标存在；validator 和 codec 的稳定
+  ID 由各自可选 adapter 在结构解析后绑定。
+- **REQ-RES-002**：`StructureResolver` 必须验证 ID 目标角色、字段/property descriptor 兼容性和 validator 依赖
+  属性路径；执行策略值类型兼容性由对应 adapter 验证。
 - **REQ-RES-003**：resolver 必须验证 fixed Projection source 与 producer 一致，并验证 Projection identifier 契约。
 - **REQ-RES-004**：resolver 必须检测跨 crate Value 传递闭包中的非法 Entity/Projection/Model/reference。
 - **REQ-RES-005**：resolver 错误必须确定性排序，并包含稳定 ID、完整路径、期望/实际角色或类型及源码位置。
@@ -1333,13 +1336,15 @@ let projection = TypeMetadata::of::<UserInfo>()
 let declared_source = projection.source();
 // declared_source 只表示声明事实。
 
-let resolved = resolver.resolve_projection_source(projection)?;
-// 上述名称仅说明所需能力，精确 API 受 最终设计 约束。
+let graph = StructureResolver::new(ResolveInputs { models: &registry })
+    .resolve()?;
+let resolved = graph.projection_source(projection);
 ```
 
 - **REQ-RES-006**：`ProjectionMetadata::source()`、`ReferenceMetadata` getter、validator/codec metadata getter 都不得隐式
-  使用 `ModelRegistry::global()`；需要解析时必须由调用者显式提供 resolver 或 registry 上下文。
-- **REQ-RES-007**：resolver 的公共形态、输入、解析后视图、增量/完整解析模式和返回类型
+  使用 `ModelRegistry::global()`；需要结构解析时必须由调用者显式提供 registry，需要执行绑定时必须显式提供相应
+  执行 registry。
+- **REQ-RES-007**：resolver 的公共形态、输入、结构图和返回类型
   以最终设计和公开 API 为准。
 - **REQ-RES-008**：registry/resolver 的公开错误枚举、稳定错误类别、路径、相关 ID、
   源码位置和多错误集合 API 以最终设计和公开 API 为准。
@@ -1445,6 +1450,6 @@ reference(entity = User, property = id)
 
 ## 2026-09-05 快照与生成协议修订
 
-全局 `try_properties`/`try_property` 使用 `PropertyResolutionError` 区分 `Reflection` 初始化错误和 `Assembly` 属性组装错误；`property_fragments` 也返回 `Result`，不得将注册失败当作缺少 overlay。显式 `try_properties_in`/`try_property_in`/`property_fragments_in` 使用传入的反射快照，`ModelResolver` 通过自己的 `ModelRegistry::properties_for` 查询，不访问全局反射状态。
+全局 `try_properties`/`try_property` 使用 `PropertyResolutionError` 区分 `Reflection` 初始化错误和 `Assembly` 属性组装错误；`property_fragments` 也返回 `Result`，不得将注册失败当作缺少 overlay。显式 `try_properties_in`/`try_property_in`/`property_fragments_in` 使用传入的反射快照，`StructureResolver` 通过自己的 `ModelRegistry::properties_for` 查询，不访问全局反射状态。
 
 泛型模型宏指定自己拥有的 `definition_provider_v2` 函数名；反射宏根据版本化契约生成无参数定义访问入口。模型宏不再推测反射宏的内部命名，所有具体模型 capability 必须使用按 `TypeId` 隔离的 provider。

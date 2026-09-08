@@ -35,7 +35,7 @@ Rust declaration
     │                              └─ TypeMetadata（领域语义覆盖层）
     │
     └─ 具体类型与泛型定义都由 ReflectRegistry 投影
-             └─ ModelRegistry -> ModelResolver -> ResolvedModelGraph
+             └─ ModelRegistry -> StructureResolver -> ModelGraph
 ```
 
 ## 设计依据：`rs-reflect` 已经解决的能力
@@ -70,8 +70,8 @@ Rust declaration
 qubit-reflect
       ▲
       │
-qubit-model-metadata ─────► qubit-codec
-      │                    qubit-redact
+qubit-model-metadata ─────► qubit-codec（仅 codec feature）
+      │                    qubit-validator（仅 validation feature）
       ▲
       │ generated code only
 qubit-model-derive
@@ -87,9 +87,9 @@ domain crates
 - `qubit-model-derive` 使用 `proc-macro-crate` 解析 `qubit-model-metadata` 的实际依赖名；生成代码只引用该 facade，
   不要求业务 crate 直接依赖 `qubit-reflect`。
 - `qubit-model-metadata::__private` 重导出 `qubit_reflect::__private`，保持 facade 委托链。
-- codec 直接复用 `qubit-codec` 的 `ValueEncoder`、`ValueDecoder`、`ValueCodecDescriptor`、
-  `register_value_codec!` 和注册表契约，不定义平行
-  contract。validator 直接复用 `qubit-validator` 的 `Validator`、注册表和解析契约；模型层保存 occurrence，并由显式 resolver 完成绑定与类型检查。
+- 默认 feature 下只包含声明、registry 和结构解析，不依赖 codec、validator、validation-rules 或 redact 执行 crate。
+  `codec` feature 的 binder 复用 `qubit-codec` 的 descriptor 与注册表契约；`validation` feature 的 adapter 复用
+  `qubit-validator` 的执行契约。两者都在 `ModelGraph` 构造完成后显式绑定，不定义平行 contract。
 - 当前内部仓库形态下，业务代码通过路径分别依赖 `qubit-model-metadata` 与 `qubit-model-derive`；runtime facade
   负责生成代码协议，但不通过虚构的默认 `derive` feature 重导出宏。
 
@@ -410,12 +410,12 @@ Property 采用三层模型。类型宏与 `#[ModelImpl]` 只生成来源事实�
 PropertyFragment(Field | Getter | Setter)
     -> LocalPropertySet::try_merge(...)
     -> Result<LocalPropertySet, PropertyBuildErrors>
-    -> ModelResolver
+    -> StructureResolver
     -> ResolvedPropertySet
 ```
 
 字段与独立 impl 宏之间的类型冲突不能由单次宏展开完整证明，因此由 `try_properties()` 返回确定排序的结构化错误；
-普通 metadata 查询不得因此 panic。相同 impl 内同名 getter/setter 的 canonical 类型兼容则由 `__private::v4` trait assertion
+普通 metadata 查询不得因此 panic。相同 impl 内同名 getter/setter 的 canonical 类型兼容则由 `__private::v5` trait assertion
 在编译期证明。
 
 `#[ModelImpl]` 每个目标类型只允许一个 impl。宏通过实现隐藏的 `ModelImplProvider` seal 让重复 impl 产生稳定的
@@ -425,7 +425,7 @@ conflicting implementation 编译错误；同一 impl 内的重复 property、�
 
 ### Projection producer 与 projector
 
-Entity 上返回 Projection 的 readable property 形成 producer edge。`ModelResolver` 校验固定 source、双方角色与
+Entity 上返回 Projection 的 readable property 形成 producer edge。`StructureResolver` 校验固定 source、双方角色与
 identifier 类型，并把 getter 的安全 erased adapter 挂到 `ResolvedProjectionProducer`。执行 projector 后必须读取
 两侧精确的 `qubit_id::Id`；不一致返回 `ProjectionExecutionError::IdentifierMismatch`。缺少 projector 只影响显式自动
 投影操作，不影响 Projection 声明、DAO/SQL mapper 构造或反序列化。
@@ -654,7 +654,7 @@ impl ValidatorMetadata {
 }
 
 pub enum CodecReference {
-    RustType(&'static ValueCodecDescriptor),
+    RustType(RustTypeReference),
     DeclaredId(&'static str),
 }
 
@@ -670,18 +670,17 @@ pub enum CodecSource {
 }
 ```
 
-Validator ID 当前保存为经过宏展开期 ASCII 语法校验的声明字符串；模型 crate 不公开临时 `ValidatorId`。validator
-occurrence 顺序保持源码顺序，参数直接复用 `qubit-validator` 的 `ValidationArgument` 与
-`NamedValidationArgument`。`ModelResolver` 通过 `ValidatorRegistry` 解析注册状态、精确值类型和可读依赖属性，
-不使用字符串判断 Rust 类型相等。
+Validator ID 保存为经过宏展开期 ASCII 语法校验的声明字符串；模型 crate 不公开执行层 `ValidatorId`。validator
+occurrence 顺序保持源码顺序，参数使用 metadata 本地的 `ValidationArgument` 与
+`NamedValidationArgument`。`StructureResolver` 只校验依赖属性路径；启用 `validation` feature 后，
+`ValidationPlan::build` 才通过调用方提供的 `ValidatorRegistry` 绑定注册状态和精确值类型。
 
-`CodecReference::RustType` 直接生成
-`C: Default + qubit_codec::ValueEncoder<T, Output = String> + qubit_codec::ValueDecoder<str, Output = T>` 编译期约束；
-Rust codec 类型通过 `ValueCodecDescriptor::of::<C, T>()` 形成可执行描述符；按 ID 使用的 codec 通过
-`register_value_codec!` 注册。`DeclaredId` 只保存经过语法校验的稳定字符串，由 `ModelResolver` 通过
-`ValueCodecRegistry` 解析；模型 crate 不定义替代 registry。
+`CodecReference::RustType` 保存由 codec Rust 类型的 `TypeId` 与 `type_name` 构成的 `RustTypeReference`，不生成
+codec 执行 trait。`DeclaredId` 只保存经过语法校验的稳定字符串。启用 `codec` feature 后，调用方在结构图生成后
+显式调用 `bind_codecs(CodecBindInputs { graph, codecs })`，由 binder 解析注册项、检查值类型并按稳定 occurrence
+identity 返回 `CodecBindings`；声明层不定义或持有执行 registry。
 
-`RedactMetadata` 复用 `qubit-redact::Sensitivity` 和既有 domain capability。模型层允许定义窄的声明枚举
+`RedactMetadata` 使用模型层本地的 `Sensitivity` 声明值。模型层允许定义窄的声明枚举
 `RedactModeMetadata::{Level, Skip, Nested, Map, KeyedBy, Json}` 及
 `RedactPosition::{Field, Element, MapKey, MapValue}`，但不得复制执行策略或声称 `qubit-redact` 已公开不存在的统一模式
 枚举。实际输出继续委托 `Redact`、`RedactLevelValue`、`RedactMapValue` 等能力。`SerdeFieldMetadata` 保存最终
@@ -693,7 +692,7 @@ serialize/deserialize name、双向 skip、flatten、with 和自动 omit/default
 
 ### Validator 解析与绑定
 
-字段上的 `#[validator(...)]` 生成按源码顺序保存的 `ValidatorMetadata`。宏负责校验稳定 ID、参数字面量和依赖路径语法；`ModelResolver` 使用显式提供的 `ValidatorRegistry` 绑定注册项，验证 validator 的值类型，并把成功结果保存为 `ResolvedValidator`。缺失 ID、重复注册、值类型不兼容或依赖属性不可读都属于显式解析错误。标准约束与自定义 validator 保持两个层次：前者是可移植的声明式 schema，后者是通过稳定 ID 绑定的扩展执行策略。
+字段上的 `#[validator(...)]` 生成按源码顺序保存的 `ValidatorMetadata`。宏负责校验稳定 ID、参数字面量和依赖路径语法；`StructureResolver` 校验依赖属性可读性，`ValidationPlan::build` 再使用显式提供的 `ValidatorRegistry` 绑定注册项并验证值类型。结构错误与执行绑定错误分别由 `ResolveErrors` 和 `ValidationBuildErrors` 报告。标准约束与自定义 validator 保持两个层次：前者是可移植的声明式 schema，后者是通过稳定 ID 绑定的扩展执行策略。
 
 ## 泛型模型
 
@@ -802,30 +801,28 @@ pub struct ResolveInputs<'a> {
     pub models: &'a ModelRegistry,
 }
 
-pub struct ModelResolver<'a> { /* immutable inputs */ }
+pub struct StructureResolver<'a> { /* immutable inputs */ }
 
-impl<'a> ModelResolver<'a> {
+impl<'a> StructureResolver<'a> {
     pub fn new(inputs: ResolveInputs<'a>) -> Self;
-    pub fn resolve_structure(&self) -> Result<ResolvedModelGraph, ModelResolveErrors>;
+    pub fn resolve(self) -> Result<ModelGraph<'a>, ResolveErrors>;
 }
 
-impl ResolvedModelGraph {
-    pub fn registry(&self) -> &'static ModelRegistry;
+impl ModelGraph<'_> {
+    pub fn registry(&self) -> &ModelRegistry<'_>;
     pub fn reference(&self, field: &FieldMetadata) -> Option<&ResolvedReference>;
     pub fn projection_source(
         &self,
         projection: &ProjectionMetadata,
     ) -> Option<&ResolvedProjectionSource>;
-    pub fn validator(&self, occurrence: &ValidatorMetadata) -> Option<&ResolvedValidator>;
-    pub fn codec(&self, occurrence: &CodecMetadata) -> Option<&ResolvedCodec>;
     pub fn query(&self, entity: &EntityMetadata) -> Option<&QueryMetadata>;
 }
 ```
 
-`ResolvedModelGraph` 是一次完整验证后的 immutable snapshot。不存在“部分成功但 getter 静默返回 None”的状态；
-`resolve_structure()` 失败时返回全部确定性排序错误，不发布图。
+`ModelGraph` 是一次完整结构解析后的 immutable snapshot，不包含 codec 或 validator 执行绑定。不存在“部分成功但
+getter 静默返回 None”的状态；`resolve()` 失败时返回全部确定性排序错误，不发布图。
 
-`QueryMetadata` 的最终拥有者是 `ResolvedModelGraph`，不是 `EntityMetadata`：
+`QueryMetadata` 的最终拥有者是 `ModelGraph`，不是 `EntityMetadata`：
 
 ```rust
 impl QueryMetadata {
@@ -901,7 +898,7 @@ impl ModelResolveErrors {
 pub mod __private {
     pub use qubit_reflect::__private as reflect;
 
-    pub mod v3 {
+    pub mod v5 {
         // checked metadata factories
         // model capability registration
         // concrete reflection projection / generic model registration
@@ -913,7 +910,7 @@ pub mod __private {
 
 规则：
 
-- 当前生成代码只引用 `__private::v4`；旧构造路径不保留兼容别名。
+- 当前生成代码只引用 `__private::v5`；旧构造路径不保留兼容别名。
 - hidden builder 在 `OnceLock` 初始化时检查字段与反射 descriptor 的 index/name/type 对齐、角色与 shape、属性互斥、
   property 合并和 adapter TypeId；检查失败表示宏/runtime 版本不兼容，panic 文案必须含 ABI 版本和 source identity。
 - capability adapter 类型必须准确为 `ModelMetadataProvider`，同一 concrete descriptor 重复注册该 key 会由 reflect
@@ -1086,6 +1083,6 @@ cargo doc --manifest-path rs-model-derive/Cargo.toml --all-features --no-deps
 
 ## 2026-09-05 快照与生成协议修订
 
-全局 `try_properties`/`try_property` 使用 `PropertyResolutionError` 区分 `Reflection` 初始化错误和 `Assembly` 属性组装错误；`property_fragments` 也返回 `Result`，不得将注册失败当作缺少 overlay。显式 `try_properties_in`/`try_property_in`/`property_fragments_in` 使用传入的反射快照，`ModelResolver` 通过自己的 `ModelRegistry::properties_for` 查询，不访问全局反射状态。
+全局 `try_properties`/`try_property` 使用 `PropertyResolutionError` 区分 `Reflection` 初始化错误和 `Assembly` 属性组装错误；`property_fragments` 也返回 `Result`，不得将注册失败当作缺少 overlay。显式 `try_properties_in`/`try_property_in`/`property_fragments_in` 使用传入的反射快照，`StructureResolver` 通过自己的 `ModelRegistry::properties_for` 查询，不访问全局反射状态。
 
 泛型模型宏指定自己拥有的 `definition_provider_v2` 函数名；反射宏根据版本化契约生成无参数定义访问入口。模型宏不再推测反射宏的内部命名，所有具体模型 capability 必须使用按 `TypeId` 隔离的 provider。

@@ -95,13 +95,15 @@ A validator occurrence has a stable ID, ordered named parameters, and readable
 dependency property paths. Duplicate parameter names and duplicate dependency
 paths are invalid. Empty parameter arrays are invalid because their element
 type cannot be inferred. Integer overflow must be diagnosed at its source
-span. Binding to an executable validator occurs during graph resolution.
+span. Structural resolution validates dependency paths; binding to an
+executable validator occurs later when `ValidationPlan::build` consumes the
+structure graph and a validator registry.
 
-A Rust codec must satisfy the exact encoder/decoder contract for the declared
-value type. Stable codec IDs are resolved through `ValueCodecRegistry`; this
-requires the application’s direct `qubit-codec` dependency to enable its
-`registry` feature. `opaque` preserves intentionally unavailable structural
-type information without pretending metadata is missing.
+A Rust codec declaration records only a stable Rust type identity. With the
+optional `codec` feature enabled, `bind_codecs` resolves Rust identities and
+stable codec IDs through `ValueCodecRegistry` and checks the registered value
+type. `opaque` preserves intentionally unavailable structural type information
+without pretending metadata is missing.
 
 Redaction-aware output is fail-closed. Existing `Debug` or `Serialize`
 implementations that could bypass redaction are rejected. Named standard
@@ -118,8 +120,10 @@ symbolic types. Generic declarations with stable IDs register one definition;
 concrete monomorphizations refer back to it and do not invent stable model IDs.
 
 Registries are initialized only after all participating crates are linked.
-`ModelResolver` validates stable IDs, roles, projection sources, references,
-queries, validator bindings, and codec bindings, then exposes a resolved graph.
+`StructureResolver` validates stable IDs, roles, projection sources, references,
+queries, and validator dependency paths, then exposes a structure-only `ModelGraph`.
+Optional codec and validation adapters bind executable registries after structural
+resolution.
 Rust `type_name()` is not a stable model identifier.
 
 ## Diagnostics and acceptance
@@ -137,6 +141,6 @@ group to its primary executable evidence.
 
 ## Snapshot and provider revision, 2026-09-05
 
-Global property queries return `PropertyResolutionError`, distinguishing reflection initialization (`Reflection`) from declaration assembly (`Assembly`). `property_fragments` is also fallible. Explicit `_in` queries and `ModelRegistry::properties_for` use the supplied snapshot, including during `ModelResolver` traversal.
+Global property queries return `PropertyResolutionError`, distinguishing reflection initialization (`Reflection`) from declaration assembly (`Assembly`). `property_fragments` is also fallible. Explicit `_in` queries and `ModelRegistry::properties_for` use the supplied snapshot, including during `StructureResolver` traversal.
 
 Generic model macros select their own provider identifier through `definition_provider_v2`; its parameterless function returns the canonical static type definition without choosing a monomorph. Model generators never infer reflect's internal function names. Concrete model capabilities must keep providers isolated by `TypeId`.
