@@ -154,6 +154,7 @@ fn find_generic_model_capability_fragment(
             };
             registry
                 .definition_capability(definition.id(), v4::generic_model_metadata_key())
+                .unwrap()
                 .is_some_and(|provider| std::ptr::eq(provider(), expected_metadata))
         })
         .expect("the generic model capability fragment must be discoverable")
@@ -191,6 +192,7 @@ fn test_generic_model_registration_preserves_definition_providers_and_sources() 
     for (definition, expected_metadata, model_id) in cases {
         let provider = reflection
             .definition_capability(definition.id(), v4::generic_model_metadata_key())
+            .unwrap()
             .expect("the definition must carry a generic model provider");
         assert!(std::ptr::eq(provider(), expected_metadata));
         assert!(std::ptr::eq(

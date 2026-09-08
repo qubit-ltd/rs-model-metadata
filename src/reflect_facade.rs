@@ -10,7 +10,7 @@
 // qubit-style: allow type-file-name
 
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::capability::CapabilityConflict;
+use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
@@ -82,7 +82,7 @@ pub fn model_capability<T: crate::HasTypeMetadata>() -> CapabilityDescriptor {
 pub(crate) fn model_impl_metadata(
     descriptor: &TypeDescriptor,
     registry: &ReflectRegistry,
-) -> Result<Option<&'static ModelImplMetadata>, CapabilityConflict> {
+) -> Result<Option<&'static ModelImplMetadata>, CapabilityAccessError> {
     Ok(registry
         .capability(descriptor, model_impl_key())?
         .map(|provider| provider()))

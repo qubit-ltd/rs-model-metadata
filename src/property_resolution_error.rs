@@ -6,7 +6,7 @@
 
 //! Failures when resolving effective model properties.
 
-use qubit_reflect::capability::CapabilityConflict;
+use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::error::RegistryError;
 
 use crate::PropertyBuildErrors;
@@ -16,7 +16,7 @@ use crate::PropertyBuildErrors;
 pub enum PropertyResolutionError {
     /// Intrinsic capabilities cannot form a valid set for the property owner.
     #[error("property capability resolution failed: {0}")]
-    Capability(#[from] CapabilityConflict),
+    Capability(#[from] CapabilityAccessError),
     /// The process-wide reflection snapshot could not be initialized.
     #[error("reflection registry error: {0}")]
     Reflection(#[from] RegistryError),

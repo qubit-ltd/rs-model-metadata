@@ -10,7 +10,7 @@
 
 use std::any::TypeId;
 
-use qubit_reflect::capability::CapabilityConflict;
+use qubit_reflect::capability::CapabilityAccessError;
 
 use crate::AbiViolation;
 
@@ -26,7 +26,7 @@ pub enum ModelMetadataError {
         type_name: &'static str,
         /// The complete intrinsic declaration conflict.
         #[source]
-        source: CapabilityConflict,
+        source: CapabilityAccessError,
     },
     /// A provider returned metadata belonging to a different descriptor.
     #[error("metadata ABI validation failed for {type_name}: {source}")]

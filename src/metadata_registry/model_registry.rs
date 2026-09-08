@@ -56,8 +56,12 @@ impl<'reflection> ModelRegistry<'reflection> {
         for (descriptor, source) in reflection.types_with_identity() {
             let provider = match reflection
                 .capability_lookup(descriptor, crate::reflect_facade::model_metadata_key())
-                .map_err(|error| ModelRegistryError::capability(error, source.clone()))?
-            {
+                .map_err(|error| {
+                    ModelRegistryError::capability(
+                        qubit_reflect::CapabilityAccessError::IntrinsicConflict(error),
+                        source.clone(),
+                    )
+                })? {
                 CapabilityLookup::Missing => continue,
                 CapabilityLookup::Found(provider) => provider,
                 CapabilityLookup::FactOnly(capability) => {
@@ -88,8 +92,9 @@ impl<'reflection> ModelRegistry<'reflection> {
             }
         }
         for definition in reflection.definitions() {
-            let Some(provider) =
-                reflection.definition_capability(definition.id(), crate::reflect_facade::generic_model_metadata_key())
+            let Some(provider) = reflection
+                .definition_capability(definition.id(), crate::reflect_facade::generic_model_metadata_key())
+                .map_err(|error| ModelRegistryError::capability_access(error, reflection, definition))?
             else {
                 continue;
             };

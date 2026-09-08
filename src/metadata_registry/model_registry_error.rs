@@ -11,10 +11,11 @@
 
 use std::any::TypeId;
 
-use qubit_reflect::capability::CapabilityConflict;
+use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::error::RegistryError;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::registry::ReflectRegistry;
 
 use crate::ModelId;
 
@@ -51,7 +52,7 @@ pub struct ModelRegistryError {
     /// failed.
     reflection: Option<RegistryError>,
     /// Complete intrinsic capability conflict, when present.
-    capability: Option<CapabilityConflict>,
+    capability: Option<CapabilityAccessError>,
     /// Stable capability identity involved in a provider contract failure.
     capability_id: Option<CapabilityId>,
     /// Adapter type expected by the model metadata capability key.
@@ -62,7 +63,7 @@ pub struct ModelRegistryError {
 
 impl ModelRegistryError {
     /// Retains an intrinsic capability conflict and its registration source.
-    pub(crate) fn capability(error: CapabilityConflict, source: FragmentIdentity) -> Self {
+    pub(crate) fn capability(error: CapabilityAccessError, source: FragmentIdentity) -> Self {
         Self {
             kind: ModelRegistryErrorKind::CapabilityResolution,
             model_id: None,
@@ -72,6 +73,41 @@ impl ModelRegistryError {
             capability_id: None,
             expected_adapter_type: None,
             actual_adapter_type: None,
+        }
+    }
+
+    pub(crate) fn capability_access(
+        error: CapabilityAccessError,
+        reflection: &ReflectRegistry,
+        definition: &qubit_reflect::TypeDefinitionDescriptor,
+    ) -> Self {
+        let source = reflection.definition_source(definition.id()).cloned();
+        let (kind, capability_id, expected_adapter_type, actual_adapter_type) = match &error {
+            CapabilityAccessError::FactOnly { id, adapter_type } => (
+                ModelRegistryErrorKind::FactOnlyCapability,
+                Some(*id),
+                None,
+                Some(*adapter_type),
+            ),
+            CapabilityAccessError::AdapterTypeMismatch { id, expected, actual } => (
+                ModelRegistryErrorKind::AdapterTypeMismatch,
+                Some(*id),
+                Some(*expected),
+                Some(*actual),
+            ),
+            CapabilityAccessError::IntrinsicConflict(_) => {
+                (ModelRegistryErrorKind::CapabilityResolution, None, None, None)
+            }
+        };
+        Self {
+            kind,
+            model_id: None,
+            sources: source.into_iter().collect(),
+            reflection: None,
+            capability: Some(error),
+            capability_id,
+            expected_adapter_type,
+            actual_adapter_type,
         }
     }
 
