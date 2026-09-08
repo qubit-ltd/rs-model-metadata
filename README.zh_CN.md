@@ -17,13 +17,13 @@
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
-`qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。构建 validation plan
-或使用 codec metadata 的应用需要直接依赖对应 crate；结构解析只需要用户指南所述的注册表。
+`qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。默认 feature 集为空；
+应用只需按实际执行能力启用 `codec`、`validation` 或 `generic`。
 
 ## 快速开始
 
@@ -70,19 +70,19 @@ fn main() {
 
 - `qubit-model-derive` 可为 `#[Entity]`、`#[Projection]`、`#[Model]`、`#[Enum]`、`#[Value]`
 与 `#[ModelImpl]` 声明生成 metadata。
-- `TypeMetadata` 为生成的类型提供静态的角色、Field、Property、泛型定义和可选 `ModelId` 信息。
-- `ModelRegistry` 从冻结的 `ReflectRegistry` 快照投影具体模型及泛型定义；模型层不再维护自有 inventory。
-- `ModelResolver::resolve_structure` 对已链接的模型 metadata 执行显式结构解析，不创建可执行的
-  validator 绑定。
+- `metadata` 模块拥有与执行引擎无关的声明词汇，包括 `TypeMetadata`、`ModelId`、codec 引用、
+  validation 参数和脱敏敏感度。
+- `registry::ModelRegistry` 从冻结的 `ReflectRegistry` 快照投影具体模型；启用 `generic` 后才包含泛型定义。
+- `resolve::StructureResolver` 只解析结构关系并生成不可变的 `resolve::ModelGraph`。
+- 启用 `codec` 后，`codec::bind_codecs` 在图构建后绑定 codec occurrence，并确定性地汇总错误。
 - 启用 `validation` feature 后，`ValidationPlan::build` 编译 Property 路径，并绑定调用方提供的
   `qubit-validator::ValidatorRegistry`；`ValidationPlan::validate` 执行这些不可变绑定并返回结构化的
   `ValidationReport`。
-- 结构解析成功时得到不可变的 `ResolvedModelGraph`；若引用、角色、Property 或 codec 无法解析，
-  则按确定顺序汇总返回错误。validator 绑定错误在构建 plan 时单独返回。
+- 结构、codec 和 validation 错误分别由其所属层返回；resolver 不创建任何可执行绑定。
 
 本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的
-metadata 在穿过隐藏 model ABI v4 边界前，会校验 descriptor、Field、Property、角色和 codec 的不变量；
-生成代码只依赖经过收窄的模型 facade 及其精确私有 ABI。
+metadata 在穿过隐藏的 metadata-only ABI v5 边界前，会校验 descriptor、Field、Property 和角色
+不变量；生成代码只依赖经过收窄的模块 facade 及其精确私有 ABI。
 
 需要隔离反射上下文时，应使用 `qubit-reflect` 的 `RegistrySnapshotBuilder` 构造快照，再传给显式的 `*_in` 查询；不要继续使用旧的隐藏 testing registry helper。全局初始化失败仍保持结构化错误：`ModelRegistry::try_global()` 的 source chain 会保留反射 registry 错误及其 capability conflict。
 
@@ -92,7 +92,7 @@ metadata 在穿过隐藏 model ABI v4 边界前，会校验 descriptor、Field�
 `Ok(None)` 表示没有匹配的模型元数据；能力冲突和描述符 ABI 不匹配返回结构化错误。
 `TypeMetadata::try_properties_in`、`try_property_in`、`property_fragments_in` 传播
 `PropertyResolutionError`，显式 snapshot 查询不会初始化全局注册表。
-解析器通过 `ModelResolveError::cause()` 保留原始错误，并附加模型、属性路径和来源。
+解析器通过 `ResolveError::cause()` 保留原始错误，并附加模型、属性路径和来源。
 独立错误继续聚合，基础失败不会被改写成属性缺失。
 
 借用切片可按索引直接读取。显式 `into_invocation_output` 会用 O(n) 时间物化元素借用包装，

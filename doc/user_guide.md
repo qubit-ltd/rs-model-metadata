@@ -20,7 +20,7 @@ meaning to that structure, and `qubit-model-derive` generates both views from
 one declaration.
 
 ```text
-Rust declaration -> TypeDescriptor -> TypeMetadata -> ModelRegistry -> ResolvedModelGraph
+Rust declaration -> TypeDescriptor -> TypeMetadata -> ModelRegistry -> ModelGraph
                          |                  |
                     FieldDescriptor    Field/Property semantics
 ```
@@ -45,19 +45,15 @@ adjacent checkouts, adjusting paths for your workspace:
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
-qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
-qubit-codec = { version = "0.14", features = ["registry"] }
 ```
 
-`ValueCodecRegistry` is available only with `qubit-codec`'s `registry` feature.
-Keep that feature enabled in the application crate that supplies the codec
-registry to `ModelResolver`. Structural resolution accepts model and codec
-registries; validator bindings belong to `ValidationPlan::build` and are
-configured independently. `qubit-id` supplies the exact identifier type
-required by `Entity` and `Projection`.
+The default feature set is empty. Enable `generic` for generic declarations,
+`codec` for executable codec binding, and `validation` for validation plan
+construction. Structural resolution itself needs none of them. `qubit-id`
+supplies the exact identifier type required by `Entity` and `Projection`.
 
 Use a model-role derive macro for every type passed to `TypeMetadata::of`.
 The macro generates the required metadata provider and bounds; a type derived
@@ -93,31 +89,27 @@ initialize the global model registry. Property lookup freezes the reflection
 snapshot to merge separately emitted `ModelImpl` capability fragments:
 
 ```rust,ignore
-use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::metadata::TypeMetadata;
 
 let account = TypeMetadata::of::<Account>();
 assert!(account.field("id").unwrap().is_identifier());
 assert!(account.try_property("email").unwrap().unwrap().is_readable());
 ```
 
-Once every model crate is linked, obtain the three explicit registries and run
-one resolution pass:
+Once every model crate is linked, obtain the model registry and run one
+structural resolution pass:
 
 ```rust,ignore
-use qubit_codec::ValueCodecRegistry;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelResolver;
-use qubit_model_metadata::ResolveInputs;
-use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
 
 fn resolve_models() -> Result<(), Box<dyn std::error::Error>> {
     let models = ModelRegistry::try_global()?;
-    let codecs = ValueCodecRegistry::try_global()?;
-    let graph = ModelResolver::new(ResolveInputs {
-        models,
-        codecs,
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
     })
-    .resolve_structure()?;
+    .resolve()?;
     let field = TypeMetadata::of::<Login>().field("account_id").unwrap();
     let reference = graph.reference(field).unwrap();
     assert_eq!(reference.target().model_id().unwrap().as_str(), "example.Account");
@@ -126,7 +118,7 @@ fn resolve_models() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-The resulting `ResolvedModelGraph` is immutable. A successful resolver pass
+The resulting `ModelGraph` is immutable. A successful resolver pass
 publishes a complete graph rather than an incrementally resolved partial view.
 
 ## Advanced Usage
@@ -146,9 +138,10 @@ authoritative reflection provenance. It does not discover unlinked crates.
 `from_reflect_registry` projects directly from a supplied frozen reflection
 snapshot.
 
-Use `ModelResolver` only after the complete intended model set is available.
-It validates cross-model edges and executable strategy bindings, then returns
-one immutable `ResolvedModelGraph`. A failed pass returns no partial graph.
+Use `StructureResolver` only after the complete intended model set is available.
+It validates cross-model structural edges, then returns one immutable
+`ModelGraph`. Codec and validator execution are bound later by their adapters.
+A failed pass returns no partial graph.
 
 ### Roles, Stable IDs, and Generic Models
 
@@ -214,16 +207,16 @@ grammar. `ModelRegistry::try_global()` reports duplicate model IDs, conflicting
 registrations, or reflection-registry initialization failure as
 `ModelRegistryError`.
 
-`resolve_structure()` returns `ModelResolveErrors`, which aggregates errors in a
+`resolve()` returns `ResolveErrors`, which aggregates errors in a
 deterministic order instead of publishing a graph with unresolved
-relationships. Inspect `errors()` and each `ModelResolveError::kind()` rather
+relationships. Inspect `errors()` and each `ResolveError::kind()` rather
 than parsing display text. Error kinds cover invalid local properties, entity
 nesting, opaque models, references, roles and types, projection contracts,
 validator and codec bindings, selector types, value closure, and flattened
 query-name conflicts. Optional accessors expose the involved model ID, property
 path, expected and actual role or type, and source fragments when available.
 
-Generated metadata also checks model ABI v4 invariants before publication. A panic
+Generated metadata also checks model ABI v5 invariants before publication. A panic
 whose message starts with `QMM-ABI-` indicates that generated or manually
 supplied hidden-ABI metadata was rejected because it violated one of those
 invariants.
@@ -241,7 +234,7 @@ invariants.
 - If an expected model is absent from `ModelRegistry::try_global()`, make sure
   its crate is linked into the final binary and that the declaration has a
   stable model ID. Registry collection cannot see an unlinked crate.
-- If `resolve_structure()` returns errors, inspect each `ModelResolveError` and fix
+- If `resolve()` returns errors, inspect each `ResolveError` and fix
   the stable ID, target role, property name, or matching validator/codec
   registration before retrying the full resolution pass.
 - A resolved validator exposes its typed registration and readable dependency
@@ -278,7 +271,7 @@ configuration is unrecoverable.
 
 `TypeMetadata::try_properties()` and `try_property(name)` resolve against the global reflection snapshot and return `PropertyResolutionError::Reflection` when initialization fails, `Capability` when intrinsic declarations conflict, or `Assembly` when linked declarations disagree. `property_fragments()` also returns a `Result`; registration failure is never treated as a missing overlay.
 
-For an explicit snapshot, use `try_properties_in(&reflection)`, `try_property_in(&reflection, name)`, and `property_fragments_in(&reflection)`. `ModelRegistry::properties_for(metadata)` uses that model registry's snapshot. Registries created with `from_metadata` use only local field properties. `ModelResolver` follows the same explicit context.
+For an explicit snapshot, use `try_properties_in(&reflection)`, `try_property_in(&reflection, name)`, and `property_fragments_in(&reflection)`. `ModelRegistry::properties_for(metadata)` uses that model registry's snapshot. Registries created with `from_metadata` use only local field properties. `StructureResolver` follows the same explicit context.
 Build an isolated `reflection` value with `qubit-reflect::registry::RegistrySnapshotBuilder`; this is the public replacement for the old hidden testing registry helper. `ModelRegistry::try_global()` exposes reflection failures through its source chain, including the underlying capability conflict.
 
 Enumerate concrete and generic models with `ModelRegistry::entries()`. Each immutable `ModelEntry` exposes its ID, concrete or generic metadata, and static fragment source; `get(id)` returns one entry. No second registration system is introduced.
@@ -289,7 +282,7 @@ queried type and complete conflict; ABI errors preserve the descriptor mismatch.
 never downgrades a failed provider lookup to explicit-metadata fallback. Provider panics and
 invalid generated construction still follow their existing panic contracts.
 
-The explicit property methods also return `Result`. `ModelResolveError::cause()` exposes
+The explicit property methods also return `Result`. `ResolveError::cause()` exposes
 `ModelResolutionCause::Metadata` or `Properties`, with root model, property path, and source
 available on the diagnostic. A failed nested path is not `MissingProperty`; independent target
 or field failures remain in the returned aggregate. `PropertyValue::into_invocation_output`

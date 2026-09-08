@@ -20,15 +20,14 @@ paths and adjust them for your workspace layout:
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 `qubit-id` supplies the exact `Id` type required by `Entity` and `Projection`
-identifiers. Applications that build validation plans or use codec metadata
-must add those crates directly; structural model resolution only requires the
-registries described in the user guide.
+identifiers. Enable only the execution adapters an application uses: `codec`,
+`validation`, or `generic`. The default feature set is empty.
 
 ## Quick Start
 
@@ -80,26 +79,28 @@ the reflection model.
 
 - `qubit-model-derive` generates metadata for `#[Entity]`, `#[Projection]`,
 `#[Model]`, `#[Enum]`, `#[Value]`, and `#[ModelImpl]` declarations.
-- `TypeMetadata` provides static role, field, property, generic-definition, and
-  optional `ModelId` metadata for generated types.
-- `ModelRegistry` projects both concrete models and generic definitions from
-  the frozen `ReflectRegistry` snapshot. There is no model-owned inventory.
-- `ModelResolver::resolve_structure` performs the explicit structural pass over
-  linked model metadata. It does not construct executable validator bindings.
+- `metadata` owns the execution-independent declaration vocabulary, including
+  `TypeMetadata`, `ModelId`, codec references, validation arguments, and
+  redaction sensitivity.
+- `registry::ModelRegistry` projects concrete models from a frozen
+  `ReflectRegistry` snapshot. The optional `generic` feature adds generic
+  definitions.
+- `resolve::StructureResolver` produces an immutable `resolve::ModelGraph`
+  containing only structural relationships.
+- With the `codec` feature, `codec::bind_codecs` binds declared codec
+  occurrences after graph construction and reports deterministic errors.
 - With the `validation` feature, `ValidationPlan::build` compiles declared
   property paths and binds them to the supplied `qubit-validator::ValidatorRegistry`.
   `ValidationPlan::validate` executes those immutable bindings and returns a
   structured `ValidationReport`.
-- Resolution produces an immutable `ResolvedModelGraph`, or deterministic
-  aggregated errors when relationships, roles, properties, or codecs cannot be
-  resolved. Validation binding errors are returned separately during plan
-  construction.
+- Structural, codec, and validation failures are returned independently by the
+  layer that owns them; no resolver pass creates executable bindings.
 
 It does not replace `qubit-reflect`, and static metadata lookup does not
 implicitly register models or resolve cross-model relationships. Generated
-metadata is checked against descriptor, field, property, role, and codec
-invariants before it crosses the hidden model ABI v4 boundary. Generated model
-code uses only the curated model facade and its exact private ABI.
+metadata is checked against descriptor, field, property, and role invariants
+before it crosses the hidden metadata-only ABI v5 boundary. Generated model
+code uses only the curated module facade and its exact private ABI.
 
 When a consumer needs an isolated reflection context, construct it with `RegistrySnapshotBuilder` from `qubit-reflect` and pass it to the explicit `*_in` queries. Do not use the old hidden testing registry helper. Global initialization failures remain structured: `ModelRegistry::try_global()` preserves the reflection registry error and its capability conflict as the source chain.
 
@@ -109,7 +110,7 @@ When a consumer needs an isolated reflection context, construct it with `Registr
 `Ok(None)` means no matching model metadata; capability conflicts and descriptor ABI mismatches
 return structured errors. `TypeMetadata::try_properties_in`, `try_property_in`, and
 `property_fragments_in` propagate `PropertyResolutionError`. Explicit snapshot queries never
-initialize the global registry. `ModelResolveError::cause()` retains the underlying failure with
+initialize the global registry. `ResolveError::cause()` retains the underlying failure with
 model, property path, and provenance. Independent failures are aggregated; underlying failures
 do not become missing-property diagnostics.
 

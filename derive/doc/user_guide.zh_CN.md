@@ -19,7 +19,7 @@ ModelImpl impl ----------> property capability
 ```
 
 直接调用 `TypeMetadata::of` 不依赖全局模型注册表；descriptor capability 与 Property 查询会冻结反射快照，
-确保独立 fragment 可见。生成 facade 为 model ABI v4，并通过收窄的精确导出使用反射协议。稳定 ID、reference、
+确保独立 fragment 可见。生成 facade 为 model ABI v5，并通过收窄的精确导出使用反射协议。稳定 ID、reference、
 Projection 来源和 Query 则需要在完整链接的模型集合中解析。
 
 ## 安装与最小配置
@@ -30,15 +30,13 @@ Projection 来源和 Query 则需要在完整链接的模型集合中解析。
 ```toml
 [dependencies]
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
-qubit-codec = { version = "0.14", features = ["registry"] }
 serde_json = "1"
 ```
 
-后文的模型图解析示例会使用 `ValueCodecRegistry`，因此业务 crate 必须直接依赖 `qubit-codec` 并启用
-`registry` feature。生成代码可以自动识别重命名后的 `qubit-model-metadata` 依赖，业务 crate 无需直接
-依赖 `qubit-reflect`。
+只在消费相应能力的 crate 启用 runtime 的 `generic`、`codec` 或 `validation` feature。生成代码可以
+自动识别重命名后的 `qubit-model-metadata` 依赖，业务 crate 无需直接依赖 `qubit-reflect`。
 
 ## 贯穿场景：用户实体与登录请求
 
@@ -113,7 +111,8 @@ assert!(!json.contains("alice@example.com"));
 类型声明完成后即可查询，这条路径不会初始化 `ModelRegistry`：
 
 ```rust,ignore
-use qubit_model_metadata::{ModelRegistry, TypeMetadata};
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
 
 let user = TypeMetadata::of::<User>();
 assert!(user.field("id").unwrap().is_identifier());
@@ -130,16 +129,14 @@ assert!(registry.metadata_for(user.descriptor()).is_some());
 所有业务 crate 链接完成后，再解析依赖其他模型的声明。缺失 target、错误角色、未知引用 Property 等问题会在这一步报告：
 
 ```rust,ignore
-use qubit_codec::ValueCodecRegistry;
-use qubit_model_metadata::{
-    ModelRegistry, ModelResolver, PropertyPath, ResolveInputs, TypeMetadata,
-};
+use qubit_model_metadata::metadata::{PropertyPath, TypeMetadata};
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
 
 fn inspect_graph() -> Result<(), Box<dyn std::error::Error>> {
     let models = ModelRegistry::try_global()?;
-    let codecs = ValueCodecRegistry::try_global()?;
-    let graph = ModelResolver::new(ResolveInputs { models, codecs })
-        .resolve_structure()?;
+    let graph = StructureResolver::new(ResolveInputs { models: &models })
+        .resolve()?;
 
     let field = TypeMetadata::of::<Login>().field("user_id").unwrap();
     assert_eq!(
@@ -168,7 +165,8 @@ fn inspect_graph() -> Result<(), Box<dyn std::error::Error>> {
 - 未指定来源的 `Projection` 是开放投影；`source = EntityType` 与 `source_id = "..."` 用于固定来源，二者互斥。
 - `Model` 接受具名或 unit struct，不接受 tuple struct。
 - `Enum` 只接受 enum，并保存每个 variant 的 Rust 名、canonical 名和 Serde 名。
-- `Value` 接受具名字段 struct 或单字段 tuple struct。`transparent` 要求恰好一个字段，并使 `Serialize`、`Deserialize`、`Display` 使用内部表示。
+- `Value` 接受具名字段 struct 或单字段 tuple struct。`transparent` 要求恰好一个字段，并在 metadata
+  中记录该表示；普通 Rust trait 仍需显式声明。
 - `Model`、`Enum`、`Value` 支持 type parameter、where clause 和反射支持的 primitive const generic，不支持 lifetime parameter。
 - 带 ID 的泛型声明只注册 definition；具体单态类型没有 `ModelId`。可通过 `generic_definition()` 查看定义级元数据和其中的 symbolic 字段。
 
@@ -183,7 +181,7 @@ fn inspect_graph() -> Result<(), Box<dyn std::error::Error>> {
 - `#[text(...)]`、`#[decimal(...)]`、`#[money(...)]`、`#[time(...)]`、`#[sequence(...)]`、`#[map(...)]`；
 - 非递归的 `#[element(...)]`、`#[map_key(...)]`、`#[map_value(...)]` selector；
 - `#[codec(MyCodec)]` 或 `#[codec(id = "example.codec")]`；
-- `#[redact(level = "medium")]`、`skip`、`nested`、`map`、`keyed_by`、`json`；
+- `#[redact(level = "personal")]`、`skip`、`nested`、`map`、`keyed_by`、`json`；
 - `#[validator(id = "example.rule", params(...), depends_on(...))]`。
 
 identifier 的默认分配方是 `application`，只有 Entity 可以选择 `database`。`#[indexed]` 不接收参数，
@@ -236,23 +234,24 @@ selector 上的脱敏只接受 `redact(level = "...")`。`element` 和 `map_valu
 提供的外部类型。它不能与 `#[reference]` 同时使用，也不能用来隐藏已经注册的 Entity、Projection 或
 Model 以绕过 resolver 检查。
 
-`validator` 生成经过语法校验的 occurrence metadata；`ModelResolver` 会将其 ID 绑定到可执行的
-`qubit-validator` descriptor，校验 value type，并解析 dependency Property。Rust codec 会在编译期校验
-`Default + ValueEncoder<Value, Output = String> + ValueDecoder<str, Output = Value>`。
+`validator` 生成经过语法校验的 occurrence metadata；启用 `validation` 后，
+`ValidationPlan::build` 将其 ID 绑定到可执行的 `qubit-validator` descriptor，并报告不支持的 selector
+执行能力。`StructureResolver` 不参与绑定。Rust codec 声明只保存类型身份；启用 `codec` 后，
+`bind_codecs` 校验可执行 descriptor 和精确 value type。
 
 validator 参数只接受 bool、整数、字符串，以及元素类型一致且非空的字面量数组；同一字段上的多个
 validator 会保留源码顺序。codec 可以通过 Rust 类型或稳定 ID 选择；只有 Value 可以通过
 `#[Value(codec = CodecType)]` 声明 whole-value canonical codec。
 
-### 默认接口、Serde 与脱敏
+### 显式 Rust 接口
 
-五种角色默认实现 `Clone`、`PartialEq`、`Eq`、`Hash`、`Redact`、`Debug`、`Display`、`Serialize`、`Deserialize`。输出接口经由 `qubit-redact` 以 fail-closed 方式处理；`Deserialize` 只处理输入。
+五种角色宏只生成 metadata，不实现 `Clone`、比较、格式化、Serde、脱敏或默认值行为。调用方必须以
+普通 `#[derive(...)]` 显式添加所需 trait，并直接依赖相应 crate。`no_hash`、`no_serialize`、`copy`、
+`default` 等旧行为开关会返回稳定诊断，要求显式派生 Rust trait。
 
-可用 `no_clone`、`no_debug`、`no_display`、`no_partial_eq`、`no_eq`、`no_hash`、`no_redact`、`no_serialize`、`no_deserialize` 逐项关闭。`no_redact` 仅允许没有 field 或 selector 脱敏规则的类型；保留的输出接口会使用普通实现。`copy`、`default`、`partial_ord`、`ord` 需要显式开启；全 unit Enum 默认 `Copy`，但可用 `no_copy` 关闭。
-
-角色 attribute 应位于用户 `#[derive(...)]` 之前。启用脱敏时，宏会拒绝可能绕过安全输出的已有 `Debug` 或 `Serialize` 实现；使用 `no_redact` 时，会复用兼容的已有实现而非重复派生。
-
-具名 `Option` 和标准集合字段默认具有 Serde 行为：反序列化时可省略，序列化时会省略空值。`#[keep_serializing]` 可保留空值输出；显式 Serde 配置优先。
+Serde 默认值与省略规则也由普通 Serde 配置负责。metadata 会记录显式的 Serde 字段声明，但不安装
+Serde 实现。脱敏声明使用闭集敏感度词汇 `public`、`personal`、`confidential`、`secret`；具体执行由
+调用方直接选择的脱敏实现负责。
 
 ### ModelImpl
 
@@ -271,7 +270,7 @@ getter 使用 `&self`，返回值可为 `T`、`&T`、`&str`、`&[T]` 或 `Option
 
 ### 查询视图与自动 Projection
 
-模型图解析成功后，可通过 `ResolvedModelGraph::query` 取得 Entity 的查询事实。identifier 和全局 unique
+模型图解析成功后，可通过 `ModelGraph::query` 取得 Entity 的查询事实。identifier 和全局 unique
 路径属于唯一查找键；scoped unique 与显式 indexed 路径可成为 filter。普通值对象可以递归展开，reference
 最多展开一跳，平面查询名默认用 `_` 连接。若两个完整 `PropertyPath` 得到相同平面名，resolver 会报错，
 不会任意选择其中一个。这些信息描述逻辑查询能力，不等同于物理数据库索引。
@@ -286,21 +285,20 @@ getter 使用 `&self`，返回值可为 `T`、`&T`、`&str`、`&[T]` 或 `Option
 
 - 宏会一次聚合彼此独立的声明 shape、option、字段 singleton、key order 错误。
 - 找不到 runtime facade 时，请添加 `qubit-model-metadata`；允许依赖重命名。
-- 跨模型 ID、角色、来源、reference 与 Property 只能在完整链接集合中判断，因此由 `ModelResolver` 报告。
-- `ModelRegistry::try_global()`、`ValidatorRegistry::try_global()` 和
-  `ValueCodecRegistry::try_global()` 会返回初始化错误；对应的 `global()` 快捷方法会在缓存的注册表无效时
-  panic，因此应用启动阶段应优先使用可失败接口。
-- `resolve_structure()` 失败时返回顺序确定的 `ModelResolveErrors`，不会发布部分成功的图。排查时应逐项查看错误
+- 跨模型 ID、角色、来源、reference 与 Property 只能在完整链接集合中判断，因此由 `StructureResolver` 报告。
+- `ModelRegistry::try_global()` 与 adapter 使用的注册表会返回初始化错误，应用启动阶段应优先使用
+  可失败接口。
+- `resolve()` 失败时返回顺序确定的 `ResolveErrors`，不会发布部分成功的图。排查时应逐项查看错误
   kind、model ID、Property 路径、期望/实际角色或类型，以及来源 identity。
 - `TypeRef::Opaque` 与 `TypeRef::Symbolic` 没有 concrete descriptor。请检查 `type_ref()`，不要把 `descriptor() == None` 当作 metadata 缺失。
-- codec bound 失败时，请实现准确的 `ValueEncoder` 与 `ValueDecoder` 契约；不要额外引入不存在的 codec contract ID 类型。
+- codec adapter 错误会携带稳定 model、occurrence 路径、来源，以及缺失、歧义或类型不匹配的注册信息。
 
 ## 排障
 
 | 症状 | 优先检查 |
 | --- | --- |
 | 角色宏报告已有 derive 冲突 | 把角色 attribute 放在 `#[derive(...)]` 前；删除不安全的重复实现，或使用允许的 `no_*` 参数。 |
-| reference 无法解析 | 确认应用链接了全部模型 crate，再以 `ModelRegistry::try_global()?` 的结果运行 `ModelResolver`。 |
+| reference 无法解析 | 确认应用链接了全部模型 crate，再以 `ModelRegistry::try_global()?` 的结果运行 `StructureResolver`。 |
 | 初始化全局注册表时 panic | 临时改用 `try_global()`，查看缓存的重复 ID、registration、validator 或 codec 错误。 |
 | Property 缺失或被拒绝 | 检查方法是否为 public、safe、sync、非泛型 inherent getter/setter，且 receiver、返回类型或参数类型受支持。 |
 | 模型图报告查询名冲突 | 找出展平后得到同一 `_` 连接名称的完整 `PropertyPath`，通过调整模型 Property 名消除歧义，不要添加物理索引参数。 |

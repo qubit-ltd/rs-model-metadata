@@ -25,7 +25,7 @@ ModelImpl impl -----------------> property capability
 
 Direct `TypeMetadata::of` lookup has no global model-registry dependency.
 Descriptor capability and property lookup freeze the reflection snapshot so
-separate fragments remain visible. The generated facade is model ABI v4 and
+separate fragments remain visible. The generated facade is model ABI v5 and
 uses only reflection `codegen_v3`. A model registry and resolver are needed for
 stable IDs, references, projection sources, and queries spanning the complete
 linked model set.
@@ -39,16 +39,15 @@ and adjust them for your workspace layout:
 ```toml
 [dependencies]
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
-qubit-codec = { version = "0.14", features = ["registry"] }
 serde_json = "1"
 ```
 
-The graph-resolution example imports `ValueCodecRegistry`, which is available
-only when the direct `qubit-codec` dependency enables `registry`. Generated
-code resolves a renamed `qubit-model-metadata` dependency automatically; an
-application crate does not need a direct `qubit-reflect` dependency.
+Enable the runtime's `generic`, `codec`, or `validation` features only where
+those capabilities are consumed. Generated code resolves a renamed
+`qubit-model-metadata` dependency automatically; an application crate does not
+need a direct `qubit-reflect` dependency.
 
 ## Scenario: A User Entity and Login Request
 
@@ -128,7 +127,8 @@ The type is usable immediately; this path does not initialize
 `ModelRegistry`:
 
 ```rust,ignore
-use qubit_model_metadata::{ModelRegistry, TypeMetadata};
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
 
 let user = TypeMetadata::of::<User>();
 assert!(user.field("id").unwrap().is_identifier());
@@ -150,16 +150,14 @@ models. This is where a missing target, an incorrect role, or an unknown
 referenced property is reported:
 
 ```rust,ignore
-use qubit_codec::ValueCodecRegistry;
-use qubit_model_metadata::{
-    ModelRegistry, ModelResolver, PropertyPath, ResolveInputs, TypeMetadata,
-};
+use qubit_model_metadata::metadata::{PropertyPath, TypeMetadata};
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
 
 fn inspect_graph() -> Result<(), Box<dyn std::error::Error>> {
     let models = ModelRegistry::try_global()?;
-    let codecs = ValueCodecRegistry::try_global()?;
-    let graph = ModelResolver::new(ResolveInputs { models, codecs })
-        .resolve_structure()?;
+    let graph = StructureResolver::new(ResolveInputs { models: &models })
+        .resolve()?;
 
     let field = TypeMetadata::of::<Login>().field("user_id").unwrap();
     assert_eq!(
@@ -193,8 +191,8 @@ also owns Entity query views and Entity-to-Projection producer edges; local
 - `Enum` accepts enums and records each variant's Rust, canonical, and Serde
   names.
 - `Value` accepts a named-field struct or a one-field tuple struct.
-  `transparent` requires exactly one field and makes `Serialize`,
-  `Deserialize`, and `Display` use the inner representation.
+  `transparent` requires exactly one field and records that representation in
+  metadata; ordinary Rust traits remain explicit.
 - `Model`, `Enum`, and `Value` support type parameters, where clauses, and
   reflect-supported primitive const generics, but not lifetime parameters.
 - An ID-bearing generic declaration registers its definition. Concrete
@@ -215,7 +213,7 @@ Useful field declarations include:
 - non-recursive `#[element(...)]`, `#[map_key(...)]`, and
   `#[map_value(...)]` selectors;
 - `#[codec(MyCodec)]` or `#[codec(id = "example.codec")]`;
-- `#[redact(level = "medium")]`, `skip`, `nested`, `map`, `keyed_by`, and
+- `#[redact(level = "personal")]`, `skip`, `nested`, `map`, `keyed_by`, and
   `json` modes;
 - `#[validator(id = "example.rule", params(...), depends_on(...))]`.
 
@@ -281,40 +279,32 @@ leaf. Use it for externally supplied values that cannot implement reflection.
 It cannot be combined with `#[reference]` and cannot hide a registered Entity,
 Projection, or Model from resolver checks.
 
-`validator` produces syntax-validated occurrence metadata. `ModelResolver`
-binds its ID to an executable `qubit-validator` descriptor, checks the value
-type, and resolves dependency properties. A Rust codec is checked at compile
-time for `Default + ValueEncoder<Value, Output = String> +
-ValueDecoder<str, Output = Value>`.
+`validator` produces syntax-validated occurrence metadata. With the
+`validation` feature, `ValidationPlan::build` binds its ID to an executable
+`qubit-validator` descriptor and reports unsupported selector execution.
+`StructureResolver` never performs that binding. A Rust codec declaration
+stores only its type identity; with the `codec` feature, `bind_codecs` checks
+the executable descriptor and exact value type.
 
 Validator parameters accept booleans, integers, strings, and non-empty
 homogeneous arrays of those literals. Multiple validator occurrences retain
 source order. Codecs can be selected by Rust type or stable ID; a canonical
 whole-value codec is available only as `#[Value(codec = CodecType)]`.
 
-### Default Interfaces, Serde, and Redaction
+### Explicit Rust Interfaces
 
-The five role macros generate `Clone`, `PartialEq`, `Eq`, `Hash`, `Redact`,
-`Debug`, `Display`, `Serialize`, and `Deserialize` by default. Output
-interfaces use `qubit-redact` with fail-closed behavior; `Deserialize` handles
-input only.
+The five role macros generate metadata only. They do not implement `Clone`,
+comparison, formatting, Serde, redaction, or defaulting behavior. Add the
+required traits explicitly with ordinary `#[derive(...)]` attributes and add
+the corresponding crates as direct dependencies. Legacy behavior switches
+such as `no_hash`, `no_serialize`, `copy`, and `default` are rejected with a
+diagnostic that instructs the caller to derive Rust traits explicitly.
 
-Use `no_clone`, `no_debug`, `no_display`, `no_partial_eq`, `no_eq`, `no_hash`,
-`no_redact`, `no_serialize`, or `no_deserialize` to disable an interface.
-`no_redact` is valid only when no field or selector carries a redaction rule;
-the remaining output interfaces then use their plain implementations. `copy`,
-`default`, `partial_ord`, and `ord` are opt-in. An all-unit enum is `Copy` by
-default unless it has `no_copy`.
-
-Put a role attribute before user `#[derive(...)]`. With redaction enabled, the
-macro rejects existing `Debug` or `Serialize` implementations that could
-bypass protected output. With `no_redact`, it can reuse a compatible existing
-implementation instead of deriving it again.
-
-Named `Option` and standard collection fields receive default Serde behavior:
-they deserialize from an omitted value and omit an empty value while
-serializing. `#[keep_serializing]` preserves empty output; an explicit Serde
-attribute takes precedence.
+Serde defaults and omission rules are likewise ordinary Serde configuration.
+Metadata records explicit Serde field declarations but does not install Serde
+implementations. Redaction declarations use the closed sensitivity vocabulary
+`public`, `personal`, `confidential`, and `secret`; execution remains the
+responsibility of a directly selected redaction implementation.
 
 ### ModelImpl
 
@@ -335,7 +325,7 @@ Fields, getters, and setters merge by name:
 
 ### Query Views and Automatic Projections
 
-After successful resolution, `ResolvedModelGraph::query` exposes query facts
+After successful resolution, `ModelGraph::query` exposes query facts
 for Entities. Identifier and global-unique paths are lookup keys; scoped
 unique and explicitly indexed paths can become filters. Nested value paths may
 be flattened with `_`, references expand by at most one Entity hop, and a
@@ -357,25 +347,23 @@ projection returns `MissingProjector`.
 - If the runtime facade cannot be resolved, add `qubit-model-metadata`; a
   renamed dependency is supported.
 - Cross-model ID, role, source, reference, and property checks belong to
-  `ModelResolver`, because only the complete linked set can establish them.
-- `ModelRegistry::try_global()`, `ValidatorRegistry::try_global()`, and
-  `ValueCodecRegistry::try_global()` return initialization errors. Their
-  `global()` shortcuts panic when the cached registry is invalid, so use the
-  fallible forms at application startup.
-- `resolve_structure()` returns a deterministically ordered `ModelResolveErrors`
+  `StructureResolver`, because only the complete linked set can establish them.
+- `ModelRegistry::try_global()` and the adapter registries return initialization
+  errors. Prefer fallible forms at application startup.
+- `resolve()` returns a deterministically ordered `ResolveErrors`
   collection and does not publish a partial graph. Inspect each error's kind,
   model ID, property path, expected/actual role or type, and source identity.
 - `TypeRef::Opaque` and `TypeRef::Symbolic` have no concrete descriptor. Test
   `type_ref()` rather than treating `descriptor() == None` as missing metadata.
-- When a codec bound fails, implement the exact `ValueEncoder` and
-  `ValueDecoder` contracts. There is no separate codec-contract ID type to add.
+- Codec adapter errors identify the stable model, occurrence path, source, and
+  missing, ambiguous, or type-mismatched registration.
 
 ## Troubleshooting
 
 | Symptom | Check first |
 | --- | --- |
 | A role macro reports an existing derive conflict | Place the role attribute before `#[derive(...)]`; remove an unsafe duplicate or use the permitted `no_*` option. |
-| A reference is unresolved | Build the application with every model crate linked, then run `ModelResolver` over `ModelRegistry::try_global()?`. |
+| A reference is unresolved | Build the application with every model crate linked, then run `StructureResolver` over `ModelRegistry::try_global()?`. |
 | Global registry initialization panics | Replace `global()` with `try_global()` during diagnosis and inspect the cached duplicate-ID, registration, validator, or codec error. |
 | A property is absent or rejected | Confirm that the method is a public, safe, synchronous, non-generic inherent getter or setter with a supported receiver and type. |
 | Graph resolution reports a query-name conflict | Compare complete `PropertyPath` values that flatten to the same `_`-joined name; rename the model property rather than adding a physical-index option. |

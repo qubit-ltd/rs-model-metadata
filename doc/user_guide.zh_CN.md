@@ -7,7 +7,7 @@
 ## 手册目标与读者
 
 本指南面向使用 `qubit-model-derive` 声明领域模型的框架和应用开发者。它说明结构反射与领域语义的
-边界，并以账户模型为例，展示如何从模型声明走到不可变的解析结果图。本指南对应 model ABI v4。
+边界，并以账户模型为例，展示如何从模型声明走到不可变的解析结果图。本指南对应 model ABI v5。
 
 ## 概念模型
 
@@ -15,7 +15,7 @@
 `qubit-model-derive` 根据同一份声明生成这两层信息。
 
 ```text
-Rust 声明 -> TypeDescriptor -> TypeMetadata -> ModelRegistry -> ResolvedModelGraph
+Rust 声明 -> TypeDescriptor -> TypeMetadata -> ModelRegistry -> ModelGraph
                 |                  |
           FieldDescriptor      Field / Property 语义
 ```
@@ -36,16 +36,14 @@ Qubit 模型 crate 目前仅供内部使用且不发布。请从相邻检出目�
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
-qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
-qubit-codec = { version = "0.14", features = ["registry"] }
 ```
 
-`ValueCodecRegistry` 只有启用 `qubit-codec` 的 `registry` feature 后才可用。向 `ModelResolver` 提供
-它的应用 crate 必须保留该 feature。结构解析显式接收模型和 codec 注册表；validator 绑定属于独立的
-`ValidationPlan::build` 阶段。`qubit-id` 提供 `Entity` 与 `Projection` 标识字段必须使用的 `Id` 类型。
+默认 feature 集为空。泛型声明启用 `generic`，可执行 codec 绑定启用 `codec`，构建 validation plan
+启用 `validation`；结构解析本身不需要这些 feature。`qubit-id` 提供 `Entity` 与 `Projection` 标识字段
+必须使用的 `Id` 类型。
 
 传给 `TypeMetadata::of` 的类型必须使用模型角色派生宏。该宏会生成所需的 metadata provider 与 trait
 bound；仅派生结构反射的类型不能满足这一要求。
@@ -79,31 +77,26 @@ pub struct Login {
 以合并独立生成的 `ModelImpl` capability fragment：
 
 ```rust,ignore
-use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::metadata::TypeMetadata;
 
 let account = TypeMetadata::of::<Account>();
 assert!(account.field("id").unwrap().is_identifier());
 assert!(account.try_property("email").unwrap().unwrap().is_readable());
 ```
 
-待所有模型 crate 都完成链接后，取得三个显式注册表并执行一次解析：
+待所有模型 crate 都完成链接后，取得模型注册表并执行一次结构解析：
 
 ```rust,ignore
-use qubit_codec::ValueCodecRegistry;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelResolver;
-use qubit_model_metadata::ResolveInputs;
-use qubit_model_metadata::TypeMetadata;
-use qubit_validator::ValidatorRegistry;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
 
 fn resolve_models() -> Result<(), Box<dyn std::error::Error>> {
     let models = ModelRegistry::try_global()?;
-    let codecs = ValueCodecRegistry::try_global()?;
-    let graph = ModelResolver::new(ResolveInputs {
-        models,
-        codecs,
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
     })
-    .resolve_structure()?;
+    .resolve()?;
     let field = TypeMetadata::of::<Login>().field("account_id").unwrap();
     let reference = graph.reference(field).unwrap();
     assert_eq!(reference.target().model_id().unwrap().as_str(), "example.Account");
@@ -112,7 +105,7 @@ fn resolve_models() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-成功后会得到不可变的 `ResolvedModelGraph`。resolver 只会在全部关系解析成功后返回完整结果，不会逐步
+成功后会得到不可变的 `ModelGraph`。resolver 只会在全部关系解析成功后返回完整结果，不会逐步
 发布半成品图。
 
 ## 进阶用法
@@ -128,8 +121,8 @@ reflection descriptor；若需要自行处理隐藏 ABI 校验失败，则改用
 inventory，也不会发现未链接的 crate。隔离测试可通过 `ModelRegistry::from_metadata` 显式构建快照；
 `from_reflect_registry` 则直接从指定的冻结反射快照投影。
 
-只有完整模型集合已经就绪后才运行 `ModelResolver`。它集中校验跨模型关系与可执行策略绑定；全部成功时
-返回一个不可变的 `ResolvedModelGraph`，失败时不会留下可供误用的部分解析图。
+只有完整模型集合已经就绪后才运行 `StructureResolver`。它只校验跨模型结构关系；全部成功时返回一个
+不可变的 `ModelGraph`。codec 与 validator 由后续 adapter 绑定，失败时不会留下可供误用的部分解析图。
 
 ### 角色、稳定 ID 与泛型模型
 
@@ -175,12 +168,12 @@ validator occurrence 和 codec 声明在解析前都只是描述信息。`valida
 `ModelIdError`。`ModelRegistry::try_global()` 会以 `ModelRegistryError` 报告重复模型 ID、注册冲突或
 reflection registry 初始化失败。
 
-`resolve_structure()` 返回 `ModelResolveErrors`，按确定顺序汇总问题，不会发布带未解析关系的图。处理错误时应
-遍历 `errors()` 并匹配 `ModelResolveError::kind()`，不要解析展示文本。错误类型覆盖本地 Property 合并、
+`resolve()` 返回 `ResolveErrors`，按确定顺序汇总问题，不会发布带未解析关系的图。处理错误时应
+遍历 `errors()` 并匹配 `ResolveError::kind()`，不要解析展示文本。错误类型覆盖本地 Property 合并、
 Entity 嵌套、opaque 模型、引用、角色与类型、Projection 契约、validator/codec 绑定、selector 类型、
 Value 闭包以及查询名冲突。按错误场景，还可读取模型 ID、Property 路径、预期与实际角色或类型、来源片段。
 
-生成的 metadata 在发布前还会检查 model ABI v4 不变量。若 panic 信息以
+生成的 metadata 在发布前还会检查 model ABI v5 不变量。若 panic 信息以
 `QMM-ABI-` 开头，说明生成代码或手写的
 隐藏 ABI metadata 违反了相应不变量，已被拒绝。
 
@@ -192,7 +185,7 @@ Value 闭包以及查询名冲突。按错误场景，还可读取模型 ID、Pr
 - `descriptor()` 返回 `None` 时，先检查 `type_ref()`；opaque 和 symbolic 引用本来就没有具体 descriptor。
 - `ModelRegistry::try_global()` 中缺少预期模型时，确认声明带有稳定模型 ID，且所属 crate 确实链接进了
   最终二进制；注册收集无法越过静态链接边界。
-- `resolve_structure()` 返回错误时，逐项检查 `ModelResolveError`，修正稳定 ID、目标角色、Property 名称或对应的
+- `resolve()` 返回错误时，逐项检查 `ResolveError`，修正稳定 ID、目标角色、Property 名称或对应的
   validator/codec 注册，然后重新执行完整解析。
 - 成功解析的 validator 会提供强类型注册项和可读的依赖 Property；成功解析的 codec 会提供可执行 descriptor，
   对于 ID 声明还会提供匹配的注册项。
@@ -219,7 +212,7 @@ ID。直接调用 `TypeMetadata::of` 的静态查询应与全局模型注册表�
 
 `TypeMetadata::try_properties()` 和 `try_property(name)` 使用全局反射快照，初始化失败返回 `PropertyResolutionError::Reflection`，intrinsic 能力冲突返回 `Capability`，字段与方法声明冲突返回 `Assembly`。`property_fragments()` 也返回 `Result`，不会再把注册失败解释为缺少 overlay。
 
-显式快照使用 `try_properties_in(&reflection)`、`try_property_in(&reflection, name)` 和 `property_fragments_in(&reflection)`。`ModelRegistry::properties_for(metadata)` 使用该模型注册表自己的快照；`from_metadata` 创建的注册表仅使用本地字段属性。`ModelResolver` 遵循相同的显式上下文。
+显式快照使用 `try_properties_in(&reflection)`、`try_property_in(&reflection, name)` 和 `property_fragments_in(&reflection)`。`ModelRegistry::properties_for(metadata)` 使用该模型注册表自己的快照；`from_metadata` 创建的注册表仅使用本地字段属性。`StructureResolver` 遵循相同的显式上下文。
 隔离的 `reflection` 值应使用 `qubit-reflect::registry::RegistrySnapshotBuilder` 构造；它是旧隐藏 testing registry helper 的公开替代。`ModelRegistry::try_global()` 会通过 source chain 暴露反射初始化失败，包括底层 capability conflict。
 
 通过 `ModelRegistry::entries()` 遍历具体模型和泛型定义。不可变的 `ModelEntry` 提供模型 ID、具体或泛型元数据及静态片段来源；`get(id)` 查询单个条目。这些条目只是反射注册表的投影，不构成第二套注册系统。
@@ -229,7 +222,7 @@ ID。直接调用 `TypeMetadata::of` 的静态查询应与全局模型注册表�
 保留描述符不匹配原因。失败的 provider 查询不会回退到显式元数据。provider 自身 panic 以及非法生成
 元数据的构造仍遵循原有 panic 契约。
 
-显式属性方法同样返回 `Result`。`ModelResolveError::cause()` 提供 `ModelResolutionCause::Metadata`
+显式属性方法同样返回 `Result`。`ResolveError::cause()` 提供 `ModelResolutionCause::Metadata`
 或 `Properties`；错误对象同时提供根模型、属性路径和来源。嵌套路径解析失败不会变成 `MissingProperty`，
 独立的目标和字段错误仍进入聚合结果。`PropertyValue::into_invocation_output` 以 O(n) 时间物化切片元素
 的借用包装，不复制元素；直接索引访问可避免输出物化，但切片的类型擦除 adapter 本身仍需装箱。

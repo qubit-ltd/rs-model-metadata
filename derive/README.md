@@ -39,14 +39,19 @@ email addresses in its logs, and wants framework code to discover a writable
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
-use qubit_model_metadata::{ModelRegistry, TypeMetadata};
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_redact::Redact;
+use serde::{Deserialize, Serialize};
 
+#[derive(Clone, PartialEq, Eq, Hash, Deserialize, Redact)]
+#[redact(debug, display, serde)]
 #[Entity(id = "example.User")]
 pub struct User {
     #[identifier]
     id: Id,
     #[unique(ignore_case = true)]
-    #[redact(level = "medium")]
+    #[redact(level = "personal")]
     email: String,
 }
 
@@ -64,11 +69,10 @@ assert!(registry.metadata_for(metadata.descriptor()).is_some());
 ```
 
 The role macro delegates Rust structure to `qubit-reflect`, then attaches one
-typed `TypeMetadata` capability to that same descriptor. The generated
-`Debug`, `Display`, and `Serialize` implementations use the redaction policy,
-so the email is not emitted as ordinary plain-text output.
+typed `TypeMetadata` capability to that same descriptor. Rust behavior remains
+explicit: this example derives Serde and redaction traits directly.
 
-Generated model code uses the hidden model ABI v4 facade. Concrete models and
+Generated model code uses the hidden metadata-only ABI v5 facade. Concrete models and
 generic definitions are both discovered through the unified frozen reflection
 snapshot; the model layer owns no separate inventory.
 
@@ -101,33 +105,29 @@ pipeline:
 - `#[ModelImpl]` merges public inherent getters and setters with fields
   into safe property metadata.
 
-The five role macros supply `Clone`, redaction-aware `Debug`, `Display`, and
-`Serialize`, plus `Deserialize`, `PartialEq`, `Eq`, `Hash`, and `Redact` by
-default. Individual `no_*` options disable those interfaces; `copy`,
-`default`, `partial_ord`, and `ord` are opt-in. An all-unit enum is `Copy`
-unless it specifies `no_copy`.
-
-Role attributes must appear before any user `#[derive(...)]`. This lets the
-macro detect implementations that would duplicate or bypass redacted output.
+The five role macros generate metadata only. They do not implement `Clone`,
+comparison, formatting, Serde, or redaction traits. Declare every required Rust
+trait explicitly with `#[derive(...)]`; legacy behavior options such as
+`no_hash`, `copy`, and `default` are rejected.
 
 ## Boundaries
 
 Direct metadata lookup through `TypeMetadata::of::<T>()` does not initialize
 the global model registry. Descriptor capability and property lookup use the
-frozen reflection snapshot. Use `ModelRegistry`, `ValueCodecRegistry`, and
-`ModelResolver` only after all participating crates are linked, when resolving
-IDs, references, projection sources, queries, or codecs. With the metadata
+frozen reflection snapshot. Use `registry::ModelRegistry` and
+`resolve::StructureResolver` only after all participating crates are linked,
+when resolving IDs, references, projection sources, and queries. With the metadata
 runtime's `validation` feature, the downstream `ValidationPlan::build` receives
 an explicit `qubit-validator::ValidatorRegistry` and owns validator binding and
 execution.
-`ValueCodecRegistry` requires a direct `qubit-codec` dependency with
-`features = ["registry"]`; it is not part of that crate's default feature set.
+Codec execution is a separate optional adapter: enable the runtime's `codec`
+feature and call `codec::bind_codecs` with a `qubit-codec` registry.
 
 Lower-case `#[validator(...)]` emits a syntax-checked occurrence. The
 downstream validation plan binds its stable ID to a prepared `qubit-validator`
-rule and resolves readable dependencies. Rust codecs become executable
-`ValueCodecDescriptor`s directly,
-or are bound by stable ID; their exact value type is checked.
+rule and resolves readable dependencies. Rust codec declarations retain only
+their stable ID or Rust type identity; the codec adapter binds executable
+descriptors and checks their exact value type.
 For redacted map keys, serialization fails if distinct source keys redact to
 the same output key instead of silently overwriting data.
 

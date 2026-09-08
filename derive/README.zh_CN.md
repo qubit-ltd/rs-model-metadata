@@ -32,14 +32,19 @@ qubit-id = "0.6"
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
-use qubit_model_metadata::{ModelRegistry, TypeMetadata};
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_redact::Redact;
+use serde::{Deserialize, Serialize};
 
+#[derive(Clone, PartialEq, Eq, Hash, Deserialize, Redact)]
+#[redact(debug, display, serde)]
 #[Entity(id = "example.User")]
 pub struct User {
     #[identifier]
     id: Id,
     #[unique(ignore_case = true)]
-    #[redact(level = "medium")]
+    #[redact(level = "personal")]
     email: String,
 }
 
@@ -57,9 +62,9 @@ assert!(registry.metadata_for(metadata.descriptor()).is_some());
 ```
 
 角色宏会委托 `qubit-reflect` 生成 Rust 结构描述符，再将唯一的 `TypeMetadata` 类型化能力
-附加到同一个描述符上。生成的 `Debug`、`Display`、`Serialize` 会遵守脱敏策略，不会把邮箱按普通明文输出。
+附加到同一个描述符上。Rust 行为保持显式：示例直接派生 Serde 与脱敏 trait。
 
-生成的模型代码使用隐藏 model ABI v4 facade。具体模型和泛型定义都通过统一的冻结反射快照发现；模型层不再维护独立 inventory。
+生成的模型代码使用隐藏的 metadata-only ABI v5 facade。具体模型和泛型定义都通过统一的冻结反射快照发现；模型层不再维护独立 inventory。
 
 `#[key_part(order = n)]` 描述具名 `Model` 或具名 `Value` 的逻辑复合键及字段顺序。逻辑键可以只选择
 部分字段，但已选择字段的 order 必须从零开始、连续且不重复。它不是 Entity identifier，因此不能用于
@@ -82,26 +87,22 @@ assert!(registry.metadata_for(metadata.descriptor()).is_some());
 - `#[Value]`：声明值对象；`transparent` 支持单字段包装类型。
 - `#[ModelImpl]`：把公开固有方法中的 getter/setter 与字段合并为安全的属性元数据。
 
-五种角色默认生成 `Clone`、遵守脱敏策略的 `Debug` / `Display` / `Serialize`，以及
-`Deserialize`、`PartialEq`、`Eq`、`Hash`、`Redact`。可用对应的 `no_*` 参数关闭；`copy`、
-`default`、`partial_ord`、`ord` 需要显式开启。全 unit Enum 默认实现 `Copy`，指定 `no_copy`
-后例外。
-
-角色 attribute 必须写在用户自定义 `#[derive(...)]` 前，使宏能够识别会重复生成实现或绕开脱敏输出的组合。
+五种角色宏只生成 metadata，不实现 `Clone`、比较、格式化、Serde 或脱敏 trait。所需 Rust trait
+必须用 `#[derive(...)]` 明确声明；`no_hash`、`copy`、`default` 等旧行为参数会被拒绝。
 
 ## 边界
 
 直接通过 `TypeMetadata::of::<T>()` 查询静态元数据不会初始化全局模型注册表；descriptor capability 与
-Property 查询会使用冻结的反射快照。只有在所有参与 crate 都已链接后，才使用 `ModelRegistry`、
-`ValueCodecRegistry` 和 `ModelResolver` 解析稳定 ID、reference、Projection 来源、Query 或 codec。
+Property 查询会使用冻结的反射快照。只有在所有参与 crate 都已链接后，才使用
+`registry::ModelRegistry` 和 `resolve::StructureResolver` 解析稳定 ID、reference、Projection 来源与 Query。
 启用 metadata runtime 的 `validation` feature 后，由下游 `ValidationPlan::build` 接收显式的
 `qubit-validator::ValidatorRegistry`，负责 validator 绑定与执行。
-`ValueCodecRegistry` 需要应用直接依赖 `qubit-codec` 并启用 `features = ["registry"]`；该 feature 不在
-默认 feature 集中。
+codec 执行属于独立的可选 adapter：启用 runtime 的 `codec` feature，并以 `qubit-codec` registry
+调用 `codec::bind_codecs`。
 
 小写 `#[validator(...)]` 生成经过语法校验的 occurrence；下游 validation plan 会按稳定 ID 绑定已准备的
-`qubit-validator` 规则并解析可读依赖。Rust codec 会直接生成可执行 `ValueCodecDescriptor`，或按稳定 ID 绑定，且会校验
-精确 value type。若多个原始 map key
+`qubit-validator` 规则并解析可读依赖。Rust codec 声明只保留稳定 ID 或 Rust 类型身份；codec adapter
+负责绑定可执行 descriptor 并校验精确 value type。若多个原始 map key
 脱敏后相同，序列化会失败，避免静默覆盖数据。
 
 本 crate 只描述模型语义，不定义物理数据库索引，不负责执行 validator，也不会把 Rust `type_name()`
