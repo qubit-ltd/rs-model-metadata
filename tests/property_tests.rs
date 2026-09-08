@@ -9,16 +9,16 @@
 // qubit-style: allow explicit-imports
 //! Integration tests for safe erased property access.
 
-use qubit_model_metadata::__private::v4;
-use qubit_model_metadata::BorrowedPropertySlice;
-use qubit_model_metadata::FieldMetadata;
-use qubit_model_metadata::GetterMetadata;
-use qubit_model_metadata::GetterOutputKind;
-use qubit_model_metadata::PropertyAccessError;
-use qubit_model_metadata::PropertySetFailure;
-use qubit_model_metadata::PropertyStorageKind;
-use qubit_model_metadata::PropertyValue;
-use qubit_model_metadata::SetterMetadata;
+use qubit_model_metadata::__private::v5;
+use qubit_model_metadata::metadata::BorrowedPropertySlice;
+use qubit_model_metadata::metadata::FieldMetadata;
+use qubit_model_metadata::metadata::GetterMetadata;
+use qubit_model_metadata::metadata::GetterOutputKind;
+use qubit_model_metadata::metadata::PropertyAccessError;
+use qubit_model_metadata::metadata::PropertySetFailure;
+use qubit_model_metadata::metadata::PropertyStorageKind;
+use qubit_model_metadata::metadata::PropertyValue;
+use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_reflect::InvocationOutput;
 use qubit_reflect::Reflect;
 use qubit_reflect::ReflectedMut;
@@ -75,8 +75,8 @@ fn test_property_supports_borrowed_and_owned_getters() {
         GetterOutputKind::Owned,
         owned_count,
     )));
-    let name = v4::property_metadata("name", name_type, None, Some(name_getter), None);
-    let count = v4::property_metadata("count", count_type, None, Some(count_getter), None);
+    let name = v5::property_metadata("name", name_type, None, Some(name_getter), None);
+    let count = v5::property_metadata("count", count_type, None, Some(count_getter), None);
     let value = PropertyFixture {
         name: "alice".to_owned(),
         count: 7,
@@ -124,7 +124,7 @@ fn test_property_field_fallback_and_setter_recovery_are_safe() {
         field.type_ref(),
         set_name,
     )));
-    let property = v4::property_metadata("name", field.type_ref(), Some(field), None, Some(setter));
+    let property = v5::property_metadata("name", field.type_ref(), Some(field), None, Some(setter));
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,
@@ -162,13 +162,13 @@ fn test_property_rejects_wrong_targets_and_field_fallback_can_write() {
         GetterOutputKind::Borrowed,
         borrowed_name,
     )));
-    let computed = v4::property_metadata("name", field.type_ref(), None, Some(getter), None);
+    let computed = v5::property_metadata("name", field.type_ref(), None, Some(getter), None);
     assert!(matches!(
         computed.get(ReflectedRef::new(&7_u32)),
         Err(PropertyAccessError::TargetTypeMismatch(_)),
     ));
 
-    let fallback = v4::property_metadata("name", field.type_ref(), Some(field), None, None);
+    let fallback = v5::property_metadata("name", field.type_ref(), Some(field), None, None);
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,

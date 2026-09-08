@@ -34,7 +34,9 @@ doctest = true
 
 [features]
 default = []
-validation = ["dep:qubit-validation-rules"]
+codec = ["dep:qubit-codec"]
+generic = []
+validation = ["dep:qubit-validation-rules", "dep:qubit-validator"]
 
 [dependencies]
 bitflags = "2.10.0"
@@ -42,9 +44,8 @@ bigdecimal = "0.4"
 chrono = { version = "0.4", features = ["std"], default-features = false }
 qubit-id = { version = "=0.6.0", path = "../../rust-common/rs-id", features = ["serde"] }
 qubit-reflect = { version = "=0.1.0", path = "../rs-reflect", default-features = false, features = ["derive", "ecosystem-types", "qubit-types"] }
-qubit-codec = { version = "0.14", features = ["registry"] }
-qubit-redact = { version = "=0.8.0", path = "../../rust-common/rs-redact", features = ["derive", "serde", "bigdecimal"] }
-qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator" }
+qubit-codec = { version = "0.14", features = ["registry"], optional = true }
+qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator", optional = true }
 qubit-validation-rules = { version = "=0.1.0", path = "../../rust-common/rs-validation-rules", features = ["inventory"], optional = true }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
@@ -55,6 +56,7 @@ qubit-datatype = { version = "=0.13.0", path = "../../rust-common/rs-datatype" }
 qubit-model-derive = { version = "=0.1.0", path = "derive" }
 trybuild = "1"
 uuid = "1"
+qubit-codec = { version = "0.14", features = ["registry"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

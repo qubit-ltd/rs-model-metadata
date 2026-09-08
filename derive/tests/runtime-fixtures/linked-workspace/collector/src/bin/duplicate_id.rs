@@ -12,7 +12,7 @@ use core::mem::size_of;
 
 use model_a::Duplicate as ModelADuplicate;
 use model_b::Duplicate as ModelBDuplicate;
-use qubit_model_metadata::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistry;
 
 fn main() {
     let _ = size_of::<ModelADuplicate>();

@@ -77,6 +77,10 @@ mod tests {
         let absolute_option: Path = parse_quote!(::core::option::Option);
         let fake_option: Path = parse_quote!(domain::Option);
         let vector: Path = parse_quote!(alloc::vec::Vec);
+        let deque: Path = parse_quote!(std::collections::VecDeque);
+        let hash_map: Path = parse_quote!(std::collections::HashMap);
+        let tree_map: Path = parse_quote!(alloc::collections::BTreeMap);
+        let qualified_vector: Path = parse_quote!(domain::collections::Vec);
         let fake_vector: Path = parse_quote!(domain::Vec);
         let string: Path = parse_quote!(std::string::String);
         let fake_string: Path = parse_quote!(domain::String);
@@ -85,6 +89,10 @@ mod tests {
         assert!(is_option_path(&absolute_option));
         assert!(!is_option_path(&fake_option));
         assert!(is_collection_path(&vector));
+        assert!(is_collection_path(&deque));
+        assert!(is_collection_path(&hash_map));
+        assert!(is_collection_path(&tree_map));
+        assert!(!is_collection_path(&qualified_vector));
         assert!(!is_collection_path(&fake_vector));
         assert!(is_string_path(&string));
         assert!(!is_string_path(&fake_string));

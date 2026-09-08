@@ -6,7 +6,7 @@
 
 //! Aggregated local property assembly failures.
 
-use crate::PropertyBuildError;
+use crate::metadata::PropertyBuildError;
 
 /// Deterministically ordered failures produced while merging properties.
 #[must_use]

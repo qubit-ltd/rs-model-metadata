@@ -10,12 +10,11 @@
 
 use model_runtime::__private::ReflectedRef;
 use model_runtime::__private::qubit_id::Id;
-use model_runtime::ModelRegistry;
-use model_runtime::ModelResolver;
-use model_runtime::ProjectionExecutionError;
-use model_runtime::PropertyValue;
-use model_runtime::ResolveInputs;
-use qubit_codec::ValueCodecRegistry;
+use model_runtime::metadata::PropertyValue;
+use model_runtime::registry::ModelRegistry;
+use model_runtime::resolve::ProjectionExecutionError;
+use model_runtime::resolve::ResolveInputs;
+use model_runtime::resolve::StructureResolver;
 use qubit_model_derive::Entity;
 use qubit_model_derive::ModelImpl;
 use qubit_model_derive::Projection;
@@ -59,12 +58,9 @@ impl Source {
 #[test]
 fn test_resolver_discovers_and_executes_projection_producers() {
     let registry = ModelRegistry::try_global().expect("valid registration index");
-    let graph = ModelResolver::new(ResolveInputs {
-        models: registry,
-        codecs: ValueCodecRegistry::global(),
-    })
-    .resolve_structure()
-    .expect("valid projection graph");
+    let graph = StructureResolver::new(ResolveInputs { models: registry })
+        .resolve()
+        .expect("valid projection graph");
     assert_eq!(graph.projection_producers().len(), 2);
 
     let source = Source {

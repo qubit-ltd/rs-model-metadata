@@ -10,7 +10,7 @@
 
 use qubit_model_derive::Model;
 
-#[Model(no_redact)]
+#[Model]
 struct InvalidFields {
     #[unique]
     #[unique(ignore_case = false)]

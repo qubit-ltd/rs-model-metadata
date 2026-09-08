@@ -14,7 +14,7 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::PropertyPath;
+/// use qubit_model_metadata::metadata::PropertyPath;
 ///
 /// let path = PropertyPath::new(&["profile", "email"]);
 /// assert_eq!(path.to_string(), "profile.email");

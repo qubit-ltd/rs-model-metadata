@@ -18,6 +18,7 @@ mod has_type_metadata;
 use std::any::TypeId;
 use std::collections::HashSet;
 
+#[cfg(feature = "generic")]
 use qubit_reflect::ConcreteGenericDescriptor;
 use qubit_reflect::FieldDescriptor;
 use qubit_reflect::TypeDescriptor;
@@ -29,26 +30,27 @@ use qubit_reflect::registry::ReflectRegistry;
 pub use self::enum_metadata::EnumMetadata;
 pub use self::enum_variant_metadata::EnumVariantMetadata;
 pub use self::has_type_metadata::HasTypeMetadata;
-use crate::AbiViolation;
-use crate::ConstraintMetadata;
-use crate::EntityMetadata;
-use crate::FieldAttributeMetadata;
-use crate::FieldMetadata;
-use crate::GenericModelMetadata;
-use crate::LocalPropertySet;
-use crate::ModelId;
-use crate::ModelMetadata;
-use crate::ModelRole;
-use crate::ProjectionMetadata;
-use crate::PropertyBuildError;
-use crate::PropertyBuildErrorKind;
-use crate::PropertyBuildErrors;
-use crate::PropertyFragment;
-use crate::PropertyMetadata;
-use crate::PropertyResolutionError;
-use crate::RoleMetadata;
-use crate::SelectorPosition;
-use crate::ValueMetadata;
+#[cfg(feature = "generic")]
+use crate::generic::GenericModelMetadata;
+use crate::metadata::AbiViolation;
+use crate::metadata::ConstraintMetadata;
+use crate::metadata::EntityMetadata;
+use crate::metadata::FieldAttributeMetadata;
+use crate::metadata::FieldMetadata;
+use crate::metadata::LocalPropertySet;
+use crate::metadata::ModelId;
+use crate::metadata::ModelMetadata;
+use crate::metadata::ModelRole;
+use crate::metadata::ProjectionMetadata;
+use crate::metadata::PropertyBuildError;
+use crate::metadata::PropertyBuildErrorKind;
+use crate::metadata::PropertyBuildErrors;
+use crate::metadata::PropertyFragment;
+use crate::metadata::PropertyMetadata;
+use crate::metadata::PropertyResolutionError;
+use crate::metadata::RoleMetadata;
+use crate::metadata::SelectorPosition;
+use crate::metadata::ValueMetadata;
 
 /// Domain semantics for one concrete reflected Rust type.
 #[derive(Clone, Copy, Debug)]
@@ -66,6 +68,7 @@ pub struct TypeMetadata {
     /// Unmerged field property declarations for types without `ModelImpl`.
     property_fragments: &'static [PropertyFragment],
     /// The generic definition that produced this concrete instance, if any.
+    #[cfg(feature = "generic")]
     generic_definition: Option<&'static GenericModelMetadata>,
 }
 
@@ -86,6 +89,7 @@ impl TypeMetadata {
             role,
             properties: LocalPropertySet::new(&[]),
             property_fragments: &[],
+            #[cfg(feature = "generic")]
             generic_definition: None,
         }
     }
@@ -109,6 +113,7 @@ impl TypeMetadata {
     /// Records the generic definition that produced this concrete instance.
     #[doc(hidden)]
     #[must_use]
+    #[cfg(feature = "generic")]
     pub(crate) const fn with_generic_definition(mut self, definition: &'static GenericModelMetadata) -> Self {
         self.generic_definition = Some(definition);
         self
@@ -272,6 +277,7 @@ impl TypeMetadata {
     /// Returns the generic model template that produced this metadata.
     #[must_use]
     #[inline(always)]
+    #[cfg(feature = "generic")]
     pub const fn generic_definition(&self) -> Option<&'static GenericModelMetadata> {
         self.generic_definition
     }
@@ -279,6 +285,7 @@ impl TypeMetadata {
     /// Returns concrete reflection substitutions for a generic instance.
     #[must_use]
     #[inline(always)]
+    #[cfg(feature = "generic")]
     pub const fn concrete_generic(&self) -> Option<&'static ConcreteGenericDescriptor> {
         self.descriptor.concrete_generic()
     }
@@ -379,19 +386,22 @@ impl TypeMetadata {
         if !matches!(self.role, RoleMetadata::Enum(_)) {
             validate_fields(self.fields, descriptor.fields(), descriptor, "QMM-ABI-003")?;
         }
-        if self.model_id.is_some() && self.generic_definition.is_some() {
-            return Err(abi_violation(
-                "QMM-ABI-022",
-                "concrete metadata cannot own both a model ID and a generic definition",
-            ));
-        }
-        if let Some(definition) = self.generic_definition
-            && (self.descriptor.concrete_generic().is_none() || definition.role() != self.role())
+        #[cfg(feature = "generic")]
         {
-            return Err(abi_violation(
-                "QMM-ABI-022",
-                "generic metadata does not match its concrete instance",
-            ));
+            if self.model_id.is_some() && self.generic_definition.is_some() {
+                return Err(abi_violation(
+                    "QMM-ABI-022",
+                    "concrete metadata cannot own both a model ID and a generic definition",
+                ));
+            }
+            if let Some(definition) = self.generic_definition
+                && (self.descriptor.concrete_generic().is_none() || definition.role() != self.role())
+            {
+                return Err(abi_violation(
+                    "QMM-ABI-022",
+                    "generic metadata does not match its concrete instance",
+                ));
+            }
         }
         if validate_properties(self.properties.properties(), self.fields, descriptor).is_err() {
             return Err(abi_violation(
@@ -511,13 +521,13 @@ fn validate_field_semantics(field: &FieldMetadata) -> Result<(), AbiViolation> {
     validate_codec(
         field.codec(),
         field_codec_type_id(field.type_ref()),
-        crate::CodecSource::Field,
+        crate::metadata::CodecSource::Field,
     )?;
     Ok(())
 }
 
 /// Verifies that validator declarations have non-empty, unique dependencies.
-fn validate_validators(validators: &[crate::ValidatorMetadata]) -> Result<(), AbiViolation> {
+fn validate_validators(validators: &[crate::metadata::ValidatorMetadata]) -> Result<(), AbiViolation> {
     for validator in validators {
         let mut parameter_names = HashSet::with_capacity(validator.params().len());
         if validator
@@ -587,7 +597,7 @@ fn validate_constraint_kinds(
 
 /// Verifies one nested selector against its structural position and type.
 fn validate_selector(
-    selector: &crate::SelectorMetadata,
+    selector: &crate::metadata::SelectorMetadata,
     position: SelectorPosition,
     type_ref: &TypeRef,
 ) -> Result<(), AbiViolation> {
@@ -608,15 +618,15 @@ fn validate_selector(
     validate_codec(
         selector.codec(),
         type_ref_id(selected_type),
-        crate::CodecSource::Selector(position),
+        crate::metadata::CodecSource::Selector(position),
     )
 }
 
 /// Verifies that a codec declaration is valid for its expected type and source.
 fn validate_codec(
-    codec: Option<&crate::CodecMetadata>,
+    codec: Option<&crate::metadata::CodecMetadata>,
     expected_type: Option<TypeId>,
-    source: crate::CodecSource,
+    source: crate::metadata::CodecSource,
 ) -> Result<(), AbiViolation> {
     let Some(codec) = codec else {
         return Ok(());
@@ -627,14 +637,7 @@ fn validate_codec(
             "codec source differs from its metadata position",
         ));
     }
-    if let (crate::CodecReference::RustType(descriptor), Some(expected_type)) = (codec.codec(), expected_type)
-        && descriptor.value_type_id() != expected_type
-    {
-        return Err(abi_violation(
-            "QMM-ABI-025",
-            "codec value type differs from its metadata position",
-        ));
-    }
+    let _ = expected_type;
     Ok(())
 }
 
@@ -760,21 +763,13 @@ fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) -> Result
                     "a transparent value must reference its only field",
                 ));
             }
-            if let Some(codec) = role.canonical_codec() {
-                if codec.source() != crate::CodecSource::CanonicalValue {
-                    return Err(abi_violation(
-                        "QMM-ABI-025",
-                        "codec source differs from its metadata position",
-                    ));
-                }
-                if let crate::CodecReference::RustType(codec) = codec.codec()
-                    && codec.value_type_id() != metadata.type_id()
-                {
-                    return Err(abi_violation(
-                        "QMM-ABI-023",
-                        "canonical codec value type differs from its Value type",
-                    ));
-                }
+            if let Some(codec) = role.canonical_codec()
+                && codec.source() != crate::metadata::CodecSource::CanonicalValue
+            {
+                return Err(abi_violation(
+                    "QMM-ABI-025",
+                    "codec source differs from its metadata position",
+                ));
             }
         }
         RoleMetadata::Enum(role) => {

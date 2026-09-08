@@ -8,13 +8,13 @@
 
 use std::error::Error as _;
 
-use qubit_model_metadata::__private::v4::register_model_impl_capability;
-use qubit_model_metadata::ModelImplMetadata;
-use qubit_model_metadata::ModelImplProvider;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelRegistryErrorKind;
-use qubit_model_metadata::PropertyResolutionError;
-use qubit_model_metadata::model_impl_key;
+use qubit_model_metadata::__private::ModelImplProvider;
+use qubit_model_metadata::__private::model_impl_key;
+use qubit_model_metadata::__private::v5::register_model_impl_capability;
+use qubit_model_metadata::metadata::ModelImplMetadata;
+use qubit_model_metadata::metadata::PropertyResolutionError;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistryErrorKind;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityDescriptor;
@@ -47,13 +47,13 @@ fn test_duplicate_concrete_source_is_reported_by_reflection_registry() {
 /// properties.
 #[test]
 fn test_property_lookup_preserves_reflection_initialization_failure() {
-    use qubit_model_metadata::__private::v4;
-    let metadata = v4::leak(
-        v4::GeneratedTypeMetadataBuilder::new(
+    use qubit_model_metadata::__private::v5;
+    let metadata = v5::leak(
+        v5::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
             None,
             &[],
-            v4::leak(v4::model_role()),
+            v5::leak(v5::model_role()),
         )
         .finish::<DuplicateReflectionSource>(),
     );
@@ -78,7 +78,7 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
             .expect("valid isolated capabilities")
             .is_empty()
     );
-    let models = ModelRegistry::from_metadata(&[], &[]).expect("isolated model registry");
+    let models = ModelRegistry::from_metadata(&[]).expect("isolated model registry");
     assert!(
         models
             .properties_for(metadata)
@@ -91,12 +91,12 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
 /// Supplies a method overlay distinguishable from the declaration's empty
 /// properties.
 fn overlay_provider() -> &'static ModelImplMetadata {
-    use qubit_model_metadata::__private::v4;
+    use qubit_model_metadata::__private::v5;
     static OVERLAY: std::sync::OnceLock<ModelImplMetadata> = std::sync::OnceLock::new();
     OVERLAY.get_or_init(|| {
-        let type_ref = v4::leak(TypeRef::Resolved(TypeDescriptor::of::<u32>()));
-        let properties = v4::leak_slice(vec![v4::property_metadata("computed", type_ref, None, None, None)]);
-        v4::model_impl_metadata(&[], Ok(v4::leak(v4::local_property_set(properties))))
+        let type_ref = v5::leak(TypeRef::Resolved(TypeDescriptor::of::<u32>()));
+        let properties = v5::leak_slice(vec![v5::property_metadata("computed", type_ref, None, None, None)]);
+        v5::model_impl_metadata(&[], Ok(v5::leak(v5::local_property_set(properties))))
     })
 }
 
@@ -106,7 +106,7 @@ register_model_impl_capability!(DuplicateReflectionSource, overlay_provider);
 /// fails.
 #[test]
 fn test_isolated_snapshot_selects_its_own_property_overlay() {
-    use qubit_model_metadata::__private::v4;
+    use qubit_model_metadata::__private::v5;
     let mut snapshot = RegistrySnapshotBuilder::new();
     snapshot.add_type_capabilities(
         TypeDescriptor::of::<DuplicateReflectionSource>(),
@@ -117,12 +117,12 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
         FragmentIdentity::new("model-test", "isolated", 1, 1, "capability", 1),
     );
     let reflection = snapshot.build().expect("isolated capability snapshot");
-    let metadata = v4::leak(
-        v4::GeneratedTypeMetadataBuilder::new(
+    let metadata = v5::leak(
+        v5::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
             None,
             &[],
-            v4::leak(v4::model_role()),
+            v5::leak(v5::model_role()),
         )
         .finish::<DuplicateReflectionSource>(),
     );

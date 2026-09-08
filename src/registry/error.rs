@@ -11,13 +11,16 @@
 
 use std::any::TypeId;
 
+#[cfg(feature = "generic")]
+use qubit_reflect::TypeDefinitionDescriptor;
 use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::error::RegistryError;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
+#[cfg(feature = "generic")]
 use qubit_reflect::registry::ReflectRegistry;
 
-use crate::ModelId;
+use crate::metadata::ModelId;
 
 /// Machine-readable registry failure class.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -76,10 +79,11 @@ impl ModelRegistryError {
         }
     }
 
+    #[cfg(feature = "generic")]
     pub(crate) fn capability_access(
         error: CapabilityAccessError,
         reflection: &ReflectRegistry,
-        definition: &qubit_reflect::TypeDefinitionDescriptor,
+        definition: &TypeDefinitionDescriptor,
     ) -> Self {
         let source = reflection.definition_source(definition.id()).cloned();
         let (kind, capability_id, expected_adapter_type, actual_adapter_type) = match &error {

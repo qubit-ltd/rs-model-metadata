@@ -8,32 +8,34 @@
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
-//! Covers valid capability and plain-display combinations.
+//! Confirms model macros do not require generated behavior traits.
 
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Value;
 
-#[Model(no_redact, ord, default)]
+#[derive(Default, Eq, Ord, PartialEq, PartialOrd)]
+#[Model]
 struct OrderedModel {
     value: u8,
 }
 
-#[Model(no_redact, partial_ord)]
+#[derive(PartialEq, PartialOrd)]
+#[Model]
 struct PartiallyOrderedModel {
     value: u8,
 }
 
-#[Model(no_redact)]
+#[Model]
 struct UnitModel;
 
-#[Value(no_redact)]
+#[Value]
 struct TupleValue(u8);
 
-#[Value(no_redact, transparent)]
+#[Value(transparent)]
 struct TransparentValue(String);
 
-#[Enum(no_redact, no_copy)]
+#[Enum]
 enum PlainEnum {
     Unit,
     Tuple(u8),
@@ -41,12 +43,12 @@ enum PlainEnum {
 }
 
 fn main() {
-    let _ = OrderedModel::default().to_string();
-    let _ = PartiallyOrderedModel { value: 1 }.to_string();
-    let _ = UnitModel.to_string();
-    let _ = TupleValue(1).to_string();
-    let _ = TransparentValue("value".to_owned()).to_string();
-    let _ = PlainEnum::Unit.to_string();
-    let _ = PlainEnum::Tuple(1).to_string();
-    let _ = PlainEnum::Named { value: 1 }.to_string();
+    let _ = OrderedModel::default();
+    let _ = PartiallyOrderedModel { value: 1 };
+    let _ = UnitModel;
+    let _ = TupleValue(1);
+    let _ = TransparentValue("value".to_owned());
+    let _ = PlainEnum::Unit;
+    let _ = PlainEnum::Tuple(1);
+    let _ = PlainEnum::Named { value: 1 };
 }

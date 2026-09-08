@@ -8,9 +8,9 @@
 
 //! Generated metadata for one model-aware inherent implementation block.
 
-use crate::LocalPropertySet;
-use crate::PropertyBuildErrors;
-use crate::PropertyFragment;
+use crate::metadata::LocalPropertySet;
+use crate::metadata::PropertyBuildErrors;
+use crate::metadata::PropertyFragment;
 
 /// Stores raw implementation fragments and their fallible local merge.
 #[derive(Clone, Copy, Debug)]

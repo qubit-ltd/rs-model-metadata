@@ -15,9 +15,9 @@ use criterion::BenchmarkId;
 use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
-use qubit_model_metadata::BorrowedPropertySlice;
-use qubit_model_metadata::PropertyValue;
-use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::metadata::BorrowedPropertySlice;
+use qubit_model_metadata::metadata::PropertyValue;
+use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 

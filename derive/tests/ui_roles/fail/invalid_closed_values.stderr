@@ -22,7 +22,7 @@ error: invalid time precision
 23 |     #[time(precision = unsupported)]
    |                        ^^^^^^^^^^^
 
-error: redact level must be low, medium, high, or secret
+error: redact level must be public, personal, confidential, or secret
   --> tests/ui_roles/fail/invalid_closed_values.rs:25:22
    |
 25 |     #[redact(level = "unsupported")]

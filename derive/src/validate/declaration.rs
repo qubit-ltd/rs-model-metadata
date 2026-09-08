@@ -8,14 +8,12 @@
 
 //! Validates declaration shapes and rewrites consumed helper attributes.
 
-use proc_macro2::Span;
 use syn::Attribute;
 use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
 use syn::Fields;
 use syn::GenericParam;
-use syn::LitStr;
 use syn::Path;
 use syn::Result;
 use syn::Token;
@@ -25,11 +23,6 @@ use syn::punctuated::Punctuated;
 
 use crate::ir::MacroKind;
 use crate::ir::declaration::DeclarationIr;
-use crate::ir::declaration::FieldOccurrence;
-use crate::ir::declaration::RedactIr;
-use crate::ir::declaration::RedactModeIr;
-use crate::ir::declaration::SelectorIr;
-use crate::ir::declaration::SelectorPositionIr;
 /// Validates the declaration shape before constructing intermediate metadata.
 pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
@@ -152,58 +145,8 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
     };
     for (field, ir) in fields {
         let opaque = field.attrs.iter().any(|attribute| attribute.path().is_ident("opaque"));
-        let element_level = ir.occurrences.iter().find_map(|occurrence| match occurrence {
-            FieldOccurrence::Selector(SelectorIr {
-                position: SelectorPositionIr::Element,
-                redact: Some(RedactIr {
-                    mode: RedactModeIr::Level(level),
-                }),
-                ..
-            }) => Some(level.clone()),
-            _ => None,
-        });
-        let map_key_level = ir.occurrences.iter().find_map(|occurrence| match occurrence {
-            FieldOccurrence::Selector(SelectorIr {
-                position: SelectorPositionIr::MapKey,
-                redact: Some(RedactIr {
-                    mode: RedactModeIr::Level(level),
-                }),
-                ..
-            }) => Some(level.clone()),
-            _ => None,
-        });
-        let map_value_level = ir.occurrences.iter().find_map(|occurrence| match occurrence {
-            FieldOccurrence::Selector(SelectorIr {
-                position: SelectorPositionIr::MapValue,
-                redact: Some(RedactIr {
-                    mode: RedactModeIr::Level(level),
-                }),
-                ..
-            }) => Some(level.clone()),
-            _ => None,
-        });
-        field.attrs.retain(|attribute| {
-            if attribute.path().is_ident("redact") {
-                !declaration.options.no_redact
-            } else {
-                !is_model_field_helper(attribute)
-            }
-        });
-        if let Some(level) = element_level.or_else(|| map_value_level.clone().filter(|_| map_key_level.is_none())) {
-            let level = LitStr::new(&level, Span::call_site());
-            field.attrs.push(parse_quote!(#[redact(level = #level)]));
-        }
-        if let Some(key_level) = map_key_level {
-            let key_level = LitStr::new(&key_level, Span::call_site());
-            if let Some(value_level) = map_value_level {
-                let value_level = LitStr::new(&value_level, Span::call_site());
-                field
-                    .attrs
-                    .push(parse_quote!(#[redact(map_key_level = #key_level, map_value_level = #value_level)]));
-            } else {
-                field.attrs.push(parse_quote!(#[redact(map_key_level = #key_level)]));
-            }
-        }
+        let _ = ir;
+        field.attrs.retain(|attribute| !is_model_field_helper(attribute));
         if opaque {
             field.attrs.push(parse_quote!(#[reflect(opaque)]));
         }

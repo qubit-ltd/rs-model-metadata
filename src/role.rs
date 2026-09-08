@@ -9,10 +9,10 @@
 // qubit-style: allow multiple-public-types
 //! The five supported model roles and their role-specific payloads.
 
-use crate::CodecMetadata;
-use crate::DeclaredEntityTarget;
-use crate::EnumMetadata;
-use crate::FieldMetadata;
+use crate::metadata::CodecMetadata;
+use crate::metadata::DeclaredEntityTarget;
+use crate::metadata::EnumMetadata;
+use crate::metadata::FieldMetadata;
 
 /// The semantic role assigned by a model macro.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

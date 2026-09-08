@@ -12,7 +12,7 @@ use qubit_model_derive::Model;
 
 #[Model(no_redact)]
 struct Secret {
-    #[redact(level = "high")]
+    #[redact(level = "confidential")]
     value: String,
 }
 

@@ -5,21 +5,14 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow test-file-name
-// The filename is part of a Cargo or trybuild fixture protocol.
 
-use qubit_model_derive::Model;
+//! Immutable model registration and lookup.
 
-#[Model]
-#[derive(Debug)]
-struct DebugBypass {
-    secret: String,
-}
+mod error;
+mod model_entry;
+mod model_registry;
 
-#[Model]
-#[derive(serde::Serialize)]
-struct SerializeBypass {
-    secret: String,
-}
-
-fn main() {}
+pub use self::error::ModelRegistryError;
+pub use self::error::ModelRegistryErrorKind;
+pub use self::model_entry::ModelEntry;
+pub use self::model_registry::ModelRegistry;

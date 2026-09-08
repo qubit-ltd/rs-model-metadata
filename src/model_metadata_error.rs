@@ -12,7 +12,7 @@ use std::any::TypeId;
 
 use qubit_reflect::capability::CapabilityAccessError;
 
-use crate::AbiViolation;
+use crate::metadata::AbiViolation;
 
 /// A capability or ABI failure with the exact queried Rust type identity.
 #[derive(Clone, Debug, thiserror::Error)]

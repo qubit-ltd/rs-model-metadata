@@ -5,17 +5,16 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use qubit_codec::ValueCodecRegistry;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelResolver;
-use qubit_model_metadata::ModelRuleBinding;
-use qubit_model_metadata::ResolveInputs;
-use qubit_model_metadata::TypeMetadata;
-use qubit_model_metadata::ValidationBuildInputs;
-use qubit_model_metadata::ValidationOptions;
-use qubit_model_metadata::ValidationPlan;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ModelRuleBinding;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationOptions;
+use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::ReflectRegistry;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
@@ -132,13 +131,9 @@ fn executes_bound_rule_and_prefixes_field_path() {
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     assert!(models.by_type_id(TypeMetadata::of::<NestedModel>().type_id()).is_some());
-    let codecs = ValueCodecRegistry::empty();
-    let graph = ModelResolver::new(ResolveInputs {
-        models: &models,
-        codecs: &codecs,
-    })
-    .resolve_structure()
-    .expect("structure");
+    let graph = StructureResolver::new(ResolveInputs { models: &models })
+        .resolve()
+        .expect("structure");
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
@@ -164,13 +159,9 @@ fn executes_typed_model_rule_binding() {
     let metadata = TypeMetadata::of::<TestModel>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
-    let codecs = ValueCodecRegistry::empty();
-    let graph = ModelResolver::new(ResolveInputs {
-        models: &models,
-        codecs: &codecs,
-    })
-    .resolve_structure()
-    .expect("structure");
+    let graph = StructureResolver::new(ResolveInputs { models: &models })
+        .resolve()
+        .expect("structure");
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
@@ -199,13 +190,9 @@ fn executes_element_selector_for_borrowed_slice() {
     let metadata = TypeMetadata::of::<SelectorFixture>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
-    let codecs = ValueCodecRegistry::empty();
-    let graph = ModelResolver::new(ResolveInputs {
-        models: &models,
-        codecs: &codecs,
-    })
-    .resolve_structure()
-    .expect("structure");
+    let graph = StructureResolver::new(ResolveInputs { models: &models })
+        .resolve()
+        .expect("structure");
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
@@ -243,13 +230,9 @@ fn executes_validators_declared_by_an_optional_nested_model() {
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     assert!(models.by_type_id(TypeMetadata::of::<NestedModel>().type_id()).is_some());
-    let codecs = ValueCodecRegistry::empty();
-    let graph = ModelResolver::new(ResolveInputs {
-        models: &models,
-        codecs: &codecs,
-    })
-    .resolve_structure()
-    .expect("structure");
+    let graph = StructureResolver::new(ResolveInputs { models: &models })
+        .resolve()
+        .expect("structure");
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
@@ -284,14 +267,10 @@ fn executes_validators_declared_by_an_optional_nested_model() {
 #[test]
 fn traversal_budgets_are_enforced_before_execution() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let models = ModelRegistry::from_metadata(&[(metadata, source())], &[]).expect("model registry");
-    let codecs = ValueCodecRegistry::empty();
-    let graph = ModelResolver::new(ResolveInputs {
-        models: &models,
-        codecs: &codecs,
-    })
-    .resolve_structure()
-    .expect("structure");
+    let models = ModelRegistry::from_metadata(&[(metadata, source())]).expect("model registry");
+    let graph = StructureResolver::new(ResolveInputs { models: &models })
+        .resolve()
+        .expect("structure");
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,

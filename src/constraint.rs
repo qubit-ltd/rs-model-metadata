@@ -37,9 +37,9 @@ pub use self::text_format::TextFormat;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::AllowedChars;
-/// use qubit_model_metadata::ConstraintMetadata;
-/// use qubit_model_metadata::TextConstraint;
+/// use qubit_model_metadata::metadata::AllowedChars;
+/// use qubit_model_metadata::metadata::ConstraintMetadata;
+/// use qubit_model_metadata::metadata::TextConstraint;
 ///
 /// let constraint = ConstraintMetadata::Text(TextConstraint::new(
 ///     None,

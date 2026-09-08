@@ -13,7 +13,7 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::SequenceConstraint;
+/// use qubit_model_metadata::metadata::SequenceConstraint;
 ///
 /// let constraint = SequenceConstraint::new(Some(1), Some(10), true);
 /// assert_eq!(constraint.max_items(), Some(10));

@@ -21,7 +21,7 @@ pub use self::model_id_error::ModelIdError;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::ModelId;
+/// use qubit_model_metadata::metadata::ModelId;
 ///
 /// let id = ModelId::new("example.Account");
 /// assert_eq!(id.as_str(), "example.Account");

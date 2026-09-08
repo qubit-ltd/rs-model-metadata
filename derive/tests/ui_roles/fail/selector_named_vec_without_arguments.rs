@@ -25,12 +25,6 @@ use qubit_reflect::Reflect;
 #[reflect(crate = qubit_reflect)]
 struct Vec;
 
-impl model_runtime::__private::serde_helpers::IsEmpty for Vec {
-    fn is_empty(&self) -> bool {
-        true
-    }
-}
-
 #[Model]
 struct InvalidSelectorContainer {
     #[element(text(max_chars = 8))]

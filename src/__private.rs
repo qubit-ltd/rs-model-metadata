@@ -10,10 +10,7 @@
 // qubit-style: allow multiple-public-types
 // qubit-style: allow type-file-name
 
-pub use qubit_codec;
 pub use qubit_id;
-pub use qubit_redact;
-pub use qubit_redact::Sensitivity;
 pub use qubit_reflect::__private::codegen_v3;
 pub use qubit_reflect::Reflect;
 pub use qubit_reflect::ReflectedMut;
@@ -25,70 +22,18 @@ pub use qubit_reflect::descriptor::TypeRef;
 pub use qubit_reflect::expression::ConstExpression;
 pub use qubit_reflect::expression::TypeExpression;
 pub use qubit_reflect::register_type_capabilities;
-pub use qubit_validator;
-pub use qubit_validator::NamedValidationArgument;
-pub use qubit_validator::ValidationArgument;
 pub use serde;
+
+pub use crate::metadata::NamedValidationArgument;
+pub use crate::metadata::Sensitivity;
+pub use crate::metadata::ValidationArgument;
+pub use crate::reflect_facade::ModelImplProvider;
+pub use crate::reflect_facade::ModelMetadataProvider;
+pub use crate::reflect_facade::model_impl_key;
+pub use crate::reflect_facade::model_metadata_key;
 
 #[path = "private/reflect_codegen.rs"]
 mod reflect_codegen;
-
-/// Serde predicates used by generated omission defaults.
-#[doc(hidden)]
-pub mod serde_helpers {
-    /// Returns whether an optional generated value is absent.
-    #[must_use]
-    pub const fn is_none<T>(value: &Option<T>) -> bool {
-        value.is_none()
-    }
-
-    pub trait IsEmpty {
-        /// Returns whether this collection contains no values.
-        fn is_empty(&self) -> bool;
-    }
-
-    macro_rules! impl_is_empty {
-        ($($type:ty),+ $(,)?) => {
-            $(impl<T> IsEmpty for $type {
-                fn is_empty(&self) -> bool { self.is_empty() }
-            })+
-        };
-    }
-
-    impl_is_empty!(
-        Vec<T>,
-        std::collections::VecDeque<T>,
-        std::collections::LinkedList<T>,
-        std::collections::BinaryHeap<T>
-    );
-
-    impl<T: Ord> IsEmpty for std::collections::BTreeSet<T> {
-        fn is_empty(&self) -> bool {
-            self.is_empty()
-        }
-    }
-    impl<T, S> IsEmpty for std::collections::HashSet<T, S> {
-        fn is_empty(&self) -> bool {
-            self.is_empty()
-        }
-    }
-    impl<K: Ord, V> IsEmpty for std::collections::BTreeMap<K, V> {
-        fn is_empty(&self) -> bool {
-            self.is_empty()
-        }
-    }
-    impl<K, V, S> IsEmpty for std::collections::HashMap<K, V, S> {
-        fn is_empty(&self) -> bool {
-            self.is_empty()
-        }
-    }
-
-    /// Returns whether a generated collection contains no values.
-    #[must_use]
-    pub fn is_empty<T: IsEmpty>(value: &T) -> bool {
-        value.is_empty()
-    }
-}
 
 /// Marker implemented only by code generated from a model-role macro.
 #[doc(hidden)]
@@ -98,7 +43,7 @@ pub trait ModelTypeSeal {}
 #[doc(hidden)]
 pub trait TypeMetadataProvider {
     /// Returns the generated metadata for the implementing model type.
-    fn __type_metadata() -> &'static crate::TypeMetadata;
+    fn __type_metadata() -> &'static crate::metadata::TypeMetadata;
 }
 
 /// Marker implemented once by each generated `ModelImpl` block.
@@ -325,8 +270,10 @@ mod compile_assertions {
     /// Wraps a successfully validated merged property slice.
     #[doc(hidden)]
     #[must_use]
-    pub const fn local_property_set(properties: &'static [crate::PropertyMetadata]) -> crate::LocalPropertySet {
-        crate::LocalPropertySet::new(properties)
+    pub const fn local_property_set(
+        properties: &'static [crate::metadata::PropertyMetadata],
+    ) -> crate::metadata::LocalPropertySet {
+        crate::metadata::LocalPropertySet::new(properties)
     }
 
     /// Creates one generated field/getter/setter source fragment.
@@ -335,19 +282,19 @@ mod compile_assertions {
     pub const fn property_fragment(
         name: &'static str,
         type_ref: &'static TypeRef,
-        source: crate::PropertyFragmentSource,
-    ) -> crate::PropertyFragment {
-        crate::PropertyFragment::new(name, type_ref, source)
+        source: crate::metadata::PropertyFragmentSource,
+    ) -> crate::metadata::PropertyFragment {
+        crate::metadata::PropertyFragment::new(name, type_ref, source)
     }
 
     /// Creates the generated metadata attached by one `ModelImpl` block.
     #[doc(hidden)]
     #[must_use]
     pub const fn model_impl_metadata(
-        fragments: &'static [crate::PropertyFragment],
-        properties: Result<&'static crate::LocalPropertySet, &'static crate::PropertyBuildErrors>,
-    ) -> crate::ModelImplMetadata {
-        crate::ModelImplMetadata::new(fragments, properties)
+        fragments: &'static [crate::metadata::PropertyFragment],
+        properties: Result<&'static crate::metadata::LocalPropertySet, &'static crate::metadata::PropertyBuildErrors>,
+    ) -> crate::metadata::ModelImplMetadata {
+        crate::metadata::ModelImplMetadata::new(fragments, properties)
     }
 }
 
@@ -355,17 +302,16 @@ mod compile_assertions {
 ///
 /// All intentionally permanent allocations used by generic metadata are
 /// centralized here. Generated code must finish each aggregate through
-/// [`v4::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
+/// [`v5::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
 /// its construction boundary.
 #[doc(hidden)]
-pub mod v4 {
-    pub use qubit_codec::ValueCodecDescriptor;
-    pub use qubit_redact::Redact;
-    pub use qubit_redact::Redactor;
+pub mod v5 {
     use qubit_reflect::FieldDefinitionDescriptor;
     use qubit_reflect::FieldDescriptor;
+    #[cfg(feature = "generic")]
     use qubit_reflect::TypeDefinitionDescriptor;
     use qubit_reflect::TypeDescriptor;
+    #[cfg(feature = "generic")]
     use qubit_reflect::VariantDefinitionDescriptor;
     use qubit_reflect::VariantDescriptor;
     use qubit_reflect::descriptor::TypeRef;
@@ -385,8 +331,11 @@ pub mod v4 {
     pub use super::compile_assertions::model_impl_metadata;
     pub use super::compile_assertions::property_fragment;
     pub use super::reflect_codegen::reflected_type_ref;
-    use crate::TypeMetadata;
+    pub use crate::metadata::RustTypeReference;
+    use crate::metadata::TypeMetadata;
+    #[cfg(feature = "generic")]
     pub use crate::reflect_facade::generic_model_capability;
+    #[cfg(feature = "generic")]
     pub use crate::reflect_facade::generic_model_metadata_key;
     pub use crate::reflect_facade::model_capability;
 
@@ -400,9 +349,9 @@ pub mod v4 {
         /// Starts building metadata for one reflected type.
         pub const fn new(
             descriptor: &'static TypeDescriptor,
-            model_id: Option<crate::ModelId>,
-            fields: &'static [crate::FieldMetadata],
-            role: &'static crate::RoleMetadata,
+            model_id: Option<crate::metadata::ModelId>,
+            fields: &'static [crate::metadata::FieldMetadata],
+            role: &'static crate::metadata::RoleMetadata,
         ) -> Self {
             Self {
                 metadata: TypeMetadata::new(descriptor, model_id, fields, role),
@@ -410,19 +359,20 @@ pub mod v4 {
         }
 
         /// Adds generated property metadata to the builder.
-        pub const fn properties(mut self, properties: &'static [crate::PropertyMetadata]) -> Self {
+        pub const fn properties(mut self, properties: &'static [crate::metadata::PropertyMetadata]) -> Self {
             self.metadata = self.metadata.with_properties(properties);
             self
         }
 
         /// Adds generated field property fragments to the builder.
-        pub const fn property_fragments(mut self, fragments: &'static [crate::PropertyFragment]) -> Self {
+        pub const fn property_fragments(mut self, fragments: &'static [crate::metadata::PropertyFragment]) -> Self {
             self.metadata = self.metadata.with_property_fragments(fragments);
             self
         }
 
         /// Records the generic definition represented by this metadata.
-        pub const fn generic_definition(mut self, definition: &'static crate::GenericModelMetadata) -> Self {
+        #[cfg(feature = "generic")]
+        pub const fn generic_definition(mut self, definition: &'static crate::generic::GenericModelMetadata) -> Self {
             self.metadata = self.metadata.with_generic_definition(definition);
             self
         }
@@ -451,12 +401,12 @@ pub mod v4 {
     #[must_use]
     pub const fn field_metadata(
         reflect: &'static FieldDescriptor,
-        attributes: &'static [crate::FieldAttributeMetadata],
-        constraints: &'static [crate::ConstraintMetadata],
-        validators: &'static [crate::ValidatorMetadata],
-        serde: &'static crate::SerdeFieldMetadata,
-    ) -> crate::FieldMetadata {
-        crate::FieldMetadata::with_semantics(reflect, attributes, constraints, validators, serde)
+        attributes: &'static [crate::metadata::FieldAttributeMetadata],
+        constraints: &'static [crate::metadata::ConstraintMetadata],
+        validators: &'static [crate::metadata::ValidatorMetadata],
+        serde: &'static crate::metadata::SerdeFieldMetadata,
+    ) -> crate::metadata::FieldMetadata {
+        crate::metadata::FieldMetadata::with_semantics(reflect, attributes, constraints, validators, serde)
     }
 
     /// Builds a semantic overlay for one generic declaration field.
@@ -465,13 +415,13 @@ pub mod v4 {
     pub fn generic_field_metadata(
         definition: &'static FieldDefinitionDescriptor,
         variant_inherited: bool,
-        attributes: &'static [crate::FieldAttributeMetadata],
-        constraints: &'static [crate::ConstraintMetadata],
-        validators: &'static [crate::ValidatorMetadata],
-        serde: &'static crate::SerdeFieldMetadata,
-    ) -> crate::FieldMetadata {
+        attributes: &'static [crate::metadata::FieldAttributeMetadata],
+        constraints: &'static [crate::metadata::ConstraintMetadata],
+        validators: &'static [crate::metadata::ValidatorMetadata],
+        serde: &'static crate::metadata::SerdeFieldMetadata,
+    ) -> crate::metadata::FieldMetadata {
         let symbolic_type = leak(TypeRef::Symbolic(definition.ty().clone()));
-        crate::FieldMetadata::with_definition_semantics(
+        crate::metadata::FieldMetadata::with_definition_semantics(
             definition,
             symbolic_type,
             variant_inherited,
@@ -488,45 +438,45 @@ pub mod v4 {
     pub const fn property_metadata(
         name: &'static str,
         type_ref: &'static TypeRef,
-        field: Option<&'static crate::FieldMetadata>,
-        getter: Option<&'static crate::GetterMetadata>,
-        setter: Option<&'static crate::SetterMetadata>,
-    ) -> crate::PropertyMetadata {
-        crate::PropertyMetadata::new(name, type_ref, field, getter, setter)
+        field: Option<&'static crate::metadata::FieldMetadata>,
+        getter: Option<&'static crate::metadata::GetterMetadata>,
+        setter: Option<&'static crate::metadata::SetterMetadata>,
+    ) -> crate::metadata::PropertyMetadata {
+        crate::metadata::PropertyMetadata::new(name, type_ref, field, getter, setter)
     }
 
     /// Builds entity-role metadata for an identifier field.
     #[doc(hidden)]
     #[must_use]
-    pub const fn entity_role(identifier: &'static crate::FieldMetadata) -> crate::RoleMetadata {
-        crate::RoleMetadata::Entity(crate::EntityMetadata::new(identifier))
+    pub const fn entity_role(identifier: &'static crate::metadata::FieldMetadata) -> crate::metadata::RoleMetadata {
+        crate::metadata::RoleMetadata::Entity(crate::metadata::EntityMetadata::new(identifier))
     }
 
     /// Builds projection-role metadata and its optional source target.
     #[doc(hidden)]
     #[must_use]
     pub const fn projection_role(
-        identifier: &'static crate::FieldMetadata,
-        source: Option<&'static crate::DeclaredEntityTarget>,
-    ) -> crate::RoleMetadata {
-        crate::RoleMetadata::Projection(crate::ProjectionMetadata::new(identifier, source))
+        identifier: &'static crate::metadata::FieldMetadata,
+        source: Option<&'static crate::metadata::DeclaredEntityTarget>,
+    ) -> crate::metadata::RoleMetadata {
+        crate::metadata::RoleMetadata::Projection(crate::metadata::ProjectionMetadata::new(identifier, source))
     }
 
     /// Builds metadata for a general model role.
     #[doc(hidden)]
     #[must_use]
-    pub const fn model_role() -> crate::RoleMetadata {
-        crate::RoleMetadata::Model(crate::ModelMetadata)
+    pub const fn model_role() -> crate::metadata::RoleMetadata {
+        crate::metadata::RoleMetadata::Model(crate::metadata::ModelMetadata)
     }
 
     /// Builds value-role metadata.
     #[doc(hidden)]
     #[must_use]
     pub const fn value_role(
-        transparent_field: Option<&'static crate::FieldMetadata>,
-        canonical_codec: Option<&'static crate::CodecMetadata>,
-    ) -> crate::RoleMetadata {
-        crate::RoleMetadata::Value(crate::ValueMetadata::new(transparent_field, canonical_codec))
+        transparent_field: Option<&'static crate::metadata::FieldMetadata>,
+        canonical_codec: Option<&'static crate::metadata::CodecMetadata>,
+    ) -> crate::metadata::RoleMetadata {
+        crate::metadata::RoleMetadata::Value(crate::metadata::ValueMetadata::new(transparent_field, canonical_codec))
     }
 
     /// Builds metadata for one generated enum variant.
@@ -537,10 +487,10 @@ pub mod v4 {
         canonical_name: &'static str,
         serialized_name: &'static str,
         deserialized_name: &'static str,
-        fields: &'static [crate::FieldMetadata],
+        fields: &'static [crate::metadata::FieldMetadata],
         default: bool,
-    ) -> crate::EnumVariantMetadata {
-        crate::EnumVariantMetadata::new(
+    ) -> crate::metadata::EnumVariantMetadata {
+        crate::metadata::EnumVariantMetadata::new(
             reflect,
             canonical_name,
             serialized_name,
@@ -553,15 +503,16 @@ pub mod v4 {
     /// Builds metadata for one generic enum declaration variant.
     #[doc(hidden)]
     #[must_use]
+    #[cfg(feature = "generic")]
     pub const fn generic_enum_variant_metadata(
         definition: &'static VariantDefinitionDescriptor,
         canonical_name: &'static str,
         serialized_name: &'static str,
         deserialized_name: &'static str,
-        fields: &'static [crate::FieldMetadata],
+        fields: &'static [crate::metadata::FieldMetadata],
         default: bool,
-    ) -> crate::EnumVariantMetadata {
-        crate::EnumVariantMetadata::from_definition(
+    ) -> crate::metadata::EnumVariantMetadata {
+        crate::metadata::EnumVariantMetadata::from_definition(
             definition,
             canonical_name,
             serialized_name,
@@ -574,21 +525,22 @@ pub mod v4 {
     /// Builds enum-role metadata from generated variants.
     #[doc(hidden)]
     #[must_use]
-    pub const fn enum_role(variants: &'static [crate::EnumVariantMetadata]) -> crate::RoleMetadata {
-        crate::RoleMetadata::Enum(crate::EnumMetadata::new(variants))
+    pub const fn enum_role(variants: &'static [crate::metadata::EnumVariantMetadata]) -> crate::metadata::RoleMetadata {
+        crate::metadata::RoleMetadata::Enum(crate::metadata::EnumMetadata::new(variants))
     }
 
     /// Builds metadata for one generic model definition.
     #[doc(hidden)]
     #[must_use]
+    #[cfg(feature = "generic")]
     pub const fn generic_model_metadata(
-        model_id: crate::ModelId,
-        role: crate::ModelRole,
+        model_id: crate::metadata::ModelId,
+        role: crate::metadata::ModelRole,
         definition: &'static TypeDefinitionDescriptor,
-        fields: &'static [crate::FieldMetadata],
-        variants: &'static [crate::EnumVariantMetadata],
-    ) -> crate::GenericModelMetadata {
-        crate::GenericModelMetadata::new(model_id, role, definition, fields, variants)
+        fields: &'static [crate::metadata::FieldMetadata],
+        variants: &'static [crate::metadata::EnumVariantMetadata],
+    ) -> crate::generic::GenericModelMetadata {
+        crate::generic::GenericModelMetadata::new(model_id, role, definition, fields, variants)
     }
 
     /// Leaks a generated value for static metadata storage.
@@ -606,10 +558,12 @@ pub mod v4 {
     }
 
     #[doc(hidden)]
+    #[cfg(feature = "generic")]
     pub use crate::__qubit_model_register_generic_model_capability as register_generic_model_capability;
     #[doc(hidden)]
     pub use crate::__qubit_model_register_model_capability as register_model_capability;
     pub use crate::__qubit_model_register_model_impl_capability as register_model_impl_capability;
+    pub use crate::__qubit_model_with_generic_feature as with_generic_feature;
 }
 
 /// Registers a generated property provider on the shared reflection root.
@@ -618,7 +572,7 @@ pub mod v4 {
 macro_rules! __qubit_model_register_model_impl_capability {
     ($target:ty, $provider:expr $(,)?) => {
         $crate::__private::register_type_capabilities!(
-            $target: [$crate::model_impl_key() => $provider]
+            $target: [$crate::__private::model_impl_key() => $provider]
         );
     };
 }
@@ -629,7 +583,7 @@ macro_rules! __qubit_model_register_model_impl_capability {
 macro_rules! __qubit_model_register_model_capability {
     ($target:ty, $provider:expr $(,)?) => {
         $crate::__private::register_type_capabilities!(
-            $target: [$crate::model_metadata_key() => $provider]
+            $target: [$crate::__private::model_metadata_key() => $provider]
         );
     };
 }

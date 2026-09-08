@@ -13,7 +13,7 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::AllowedChars;
+/// use qubit_model_metadata::metadata::AllowedChars;
 ///
 /// assert_eq!(AllowedChars::default(), AllowedChars::Unicode);
 /// ```

@@ -27,21 +27,21 @@ struct View {
     id: Id,
 }
 
-#[Model(no_serialize, no_deserialize)]
+#[Model]
 struct Buffer<const N: usize> {
     bytes: [u8; N],
 }
 
-#[Value(no_redact, transparent)]
+#[Value(transparent)]
 struct Revision(u64);
 
-#[Enum(no_copy)]
+#[Enum]
 enum Status {
     Ready,
     Failed,
 }
 
-#[Model(no_redact)]
+#[Model]
 #[derive(serde::Serialize)]
 struct ExistingSafeSerialize {
     value: String,
@@ -49,7 +49,7 @@ struct ExistingSafeSerialize {
 
 fn main() {
     let _ = Buffer::<4> { bytes: [0; 4] };
-    let _ = Revision(1).to_string();
+    let _ = Revision(1);
     let _ = Status::Ready;
     let _ = View { id: Id::new(1) };
     let _ = ExistingSafeSerialize {

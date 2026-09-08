@@ -32,9 +32,6 @@ use syn::parse_quote;
 use syn::parse2;
 use syn::punctuated::Punctuated;
 
-use crate::expand::capabilities::apply_default_derives;
-use crate::expand::capabilities::apply_serde_defaults;
-use crate::expand::capabilities::expand_display;
 use crate::expand::metadata::expand_metadata;
 use crate::expand::model_impl::expand_model_impl;
 use crate::expand::model_impl::validate_model_impl;
@@ -76,8 +73,6 @@ pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Res
     let mut declaration = parse_declaration(kind, raw_options, &item)?;
     normalize_declaration(&mut declaration);
     validate_declaration_ir(&declaration, &item)?;
-    apply_default_derives(&declaration, &mut item, &runtime)?;
-    apply_serde_defaults(&mut declaration, &mut item, &runtime);
     rewrite_field_helpers(&mut item.data, &declaration);
     item.attrs.push(parse_quote!(#[derive(#runtime::__private::Reflect)]));
     item.attrs.push(parse_quote!(#[reflect(crate = #runtime)]));
@@ -87,8 +82,12 @@ pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Res
             .push(parse_quote!(#[reflect(definition_provider_v2 = #provider)]));
     }
     item.attrs
-        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v4::model_capability))]));
-    let display = expand_display(&declaration, &item, &runtime);
+        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v5::model_capability))]));
     let metadata = expand_metadata(&declaration, &item, &runtime);
-    Ok(quote!(#item #display #metadata))
+    let expanded = quote!(#item #metadata);
+    if item.generics.params.is_empty() {
+        Ok(expanded)
+    } else {
+        Ok(quote!(#runtime::__private::v5::with_generic_feature! { #expanded }))
+    }
 }

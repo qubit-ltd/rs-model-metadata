@@ -10,7 +10,7 @@
 
 use qubit_model_derive::Model;
 
-#[Model(no_eq, no_hash)]
+#[Model]
 struct InvalidConstraintTargets {
     #[text(min_chars = 1)]
     number: u64,

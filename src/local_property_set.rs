@@ -8,7 +8,7 @@
 
 //! Successfully merged local property metadata.
 
-use crate::PropertyMetadata;
+use crate::metadata::PropertyMetadata;
 
 /// A model type's locally validated field/getter/setter properties.
 #[derive(Clone, Copy, Debug)]

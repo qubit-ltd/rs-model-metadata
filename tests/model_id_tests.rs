@@ -8,9 +8,9 @@
 
 //! Integration tests for stable model identifiers.
 
-use qubit_model_metadata::ModelId;
-use qubit_model_metadata::ModelIdBuf;
-use qubit_model_metadata::ModelIdError;
+use qubit_model_metadata::metadata::ModelId;
+use qubit_model_metadata::metadata::ModelIdBuf;
+use qubit_model_metadata::metadata::ModelIdError;
 
 const STATIC_MODEL_ID: ModelId = ModelId::new("qubit.platform.iam.User");
 const CONST_CHECKED: Result<ModelId, ModelIdError> = ModelId::try_new("Single_segment");

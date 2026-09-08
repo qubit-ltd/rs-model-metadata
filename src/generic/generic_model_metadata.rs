@@ -10,10 +10,10 @@
 
 use qubit_reflect::TypeDefinitionDescriptor;
 
-use crate::EnumVariantMetadata;
-use crate::FieldMetadata;
-use crate::ModelId;
-use crate::ModelRole;
+use crate::metadata::EnumVariantMetadata;
+use crate::metadata::FieldMetadata;
+use crate::metadata::ModelId;
+use crate::metadata::ModelRole;
 
 /// Immutable metadata for a generic model template.
 #[derive(Clone, Copy, Debug)]

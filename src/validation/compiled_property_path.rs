@@ -9,11 +9,11 @@ use qubit_validator::BindErrorKind;
 use qubit_validator::InputType;
 
 use super::build_error::path_error;
-use crate::PropertyMetadata;
-use crate::PropertyPath;
-use crate::ResolvedModelGraph;
-use crate::TargetMode;
-use crate::TypeMetadata;
+use crate::metadata::PropertyMetadata;
+use crate::metadata::PropertyPath;
+use crate::metadata::TargetMode;
+use crate::metadata::TypeMetadata;
+use crate::resolve::ModelGraph;
 
 /// One property access step retained for a later executor.
 #[derive(Clone, Copy, Debug)]
@@ -44,7 +44,7 @@ impl CompiledPropertyPath {
     pub(crate) fn compile(
         root: &'static TypeMetadata,
         path: &PropertyPath<'_>,
-        graph: &ResolvedModelGraph<'_>,
+        graph: &ModelGraph<'_>,
         target: TargetMode,
     ) -> Result<Self, BindError> {
         if path.is_empty() {

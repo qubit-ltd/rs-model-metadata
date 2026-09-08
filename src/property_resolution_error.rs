@@ -9,7 +9,7 @@
 use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::error::RegistryError;
 
-use crate::PropertyBuildErrors;
+use crate::metadata::PropertyBuildErrors;
 
 /// Distinguishes unavailable reflection from invalid property declarations.
 #[derive(Clone, Debug, thiserror::Error)]

@@ -11,15 +11,14 @@
 use model_runtime::__private::ReflectedMut;
 use model_runtime::__private::ReflectedOwned;
 use model_runtime::__private::ReflectedRef;
-use model_runtime::ModelRegistry;
-use model_runtime::ModelResolveErrorKind;
-use model_runtime::ModelResolver;
-use model_runtime::PropertyResolutionError;
-use model_runtime::PropertyStorageKind;
-use model_runtime::PropertyValue;
-use model_runtime::ResolveInputs;
-use model_runtime::TypeMetadata;
-use qubit_codec::ValueCodecRegistry;
+use model_runtime::metadata::PropertyResolutionError;
+use model_runtime::metadata::PropertyStorageKind;
+use model_runtime::metadata::PropertyValue;
+use model_runtime::metadata::TypeMetadata;
+use model_runtime::registry::ModelRegistry;
+use model_runtime::resolve::ResolveErrorKind;
+use model_runtime::resolve::ResolveInputs;
+use model_runtime::resolve::StructureResolver;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 
@@ -147,16 +146,13 @@ fn test_model_impl_reports_field_getter_mismatch_without_panicking() {
     assert_eq!(errors.errors()[0].property_name(), "value");
 
     let registry = ModelRegistry::try_global().expect("valid registration index");
-    let errors = ModelResolver::new(ResolveInputs {
-        models: registry,
-        codecs: ValueCodecRegistry::global(),
-    })
-    .resolve_structure()
-    .expect_err("invalid local properties must prevent graph publication");
+    let errors = StructureResolver::new(ResolveInputs { models: registry })
+        .resolve()
+        .expect_err("invalid local properties must prevent graph publication");
     assert!(
         errors
             .errors()
             .iter()
-            .any(|error| error.kind() == ModelResolveErrorKind::InvalidProperties)
+            .any(|error| error.kind() == ResolveErrorKind::InvalidProperties)
     );
 }

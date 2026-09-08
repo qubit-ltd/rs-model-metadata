@@ -9,15 +9,148 @@
 // qubit-style: allow multiple-public-types
 //! Domain semantics attached to reflected model fields.
 
-use bitflags::bitflags;
-use qubit_codec::ValueCodecDescriptor;
-use qubit_redact::Sensitivity;
-use qubit_validator::NamedValidationArgument;
+use core::any::TypeId;
+use core::hash::Hash;
+use core::hash::Hasher;
 
-use crate::ModelId;
+use bitflags::bitflags;
+
 use crate::constraint::ConstraintMetadata;
+use crate::metadata::ModelId;
 use crate::relation::PropertyPath;
 use crate::type_metadata::TypeMetadata;
+
+/// A declaration-time reference to a Rust type.
+#[derive(Clone, Copy)]
+pub struct RustTypeReference {
+    type_id: fn() -> TypeId,
+    type_name: fn() -> &'static str,
+}
+
+impl RustTypeReference {
+    /// Creates a reference to `T` without constructing a runtime descriptor.
+    #[must_use]
+    pub const fn of<T: 'static>() -> Self {
+        Self {
+            type_id: TypeId::of::<T>,
+            type_name: core::any::type_name::<T>,
+        }
+    }
+
+    /// Returns the referenced Rust [`TypeId`].
+    #[must_use]
+    pub fn type_id(self) -> TypeId {
+        (self.type_id)()
+    }
+
+    /// Returns the referenced Rust type name.
+    #[must_use]
+    pub fn type_name(self) -> &'static str {
+        (self.type_name)()
+    }
+}
+
+impl core::fmt::Debug for RustTypeReference {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter
+            .debug_tuple("RustTypeReference")
+            .field(&self.type_name())
+            .finish()
+    }
+}
+
+impl PartialEq for RustTypeReference {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_id() == other.type_id()
+    }
+}
+
+impl Eq for RustTypeReference {}
+
+impl Hash for RustTypeReference {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.type_id().hash(state);
+    }
+}
+
+/// One statically typed validator parameter value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ValidationArgument<'a> {
+    /// A Boolean value.
+    Bool(bool),
+    /// A signed integer value.
+    Integer(i128),
+    /// An unsigned integer value.
+    Unsigned(u128),
+    /// A string value.
+    String(&'a str),
+    /// A Boolean list.
+    BoolList(&'a [bool]),
+    /// A signed integer list.
+    IntegerList(&'a [i128]),
+    /// An unsigned integer list.
+    UnsignedList(&'a [u128]),
+    /// A string list.
+    StringList(&'a [&'a str]),
+}
+
+/// One named validator parameter.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NamedValidationArgument<'a> {
+    name: &'a str,
+    value: ValidationArgument<'a>,
+}
+
+impl<'a> NamedValidationArgument<'a> {
+    /// Creates a named parameter.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `name` is empty.
+    #[must_use]
+    pub const fn new(name: &'a str, value: ValidationArgument<'a>) -> Self {
+        assert!(!name.is_empty(), "validator parameter name cannot be empty");
+        Self { name, value }
+    }
+
+    /// Returns the parameter name.
+    #[must_use]
+    pub const fn name(&self) -> &'a str {
+        self.name
+    }
+
+    /// Returns the parameter value.
+    #[must_use]
+    pub const fn value(&self) -> ValidationArgument<'a> {
+        self.value
+    }
+}
+
+/// Sensitivity declared for redaction-aware consumers.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum Sensitivity {
+    /// Information intended for unrestricted disclosure.
+    Public,
+    /// Personal information requiring ordinary access controls.
+    Personal,
+    /// Confidential information requiring restricted access.
+    Confidential,
+    /// Secret data.
+    Secret,
+}
+
+impl Sensitivity {
+    /// Returns the stable declaration spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Personal => "personal",
+            Self::Confidential => "confidential",
+            Self::Secret => "secret",
+        }
+    }
+}
 
 /// Selects which layer assigns an entity identifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -458,14 +591,34 @@ const fn same_str(left: &str, right: &str) -> bool {
 /// A codec declared by Rust type or stable textual ID.
 #[derive(Clone, Copy, Debug)]
 pub enum CodecReference {
-    /// A codec identified by its static reflection descriptor.
-    RustType(&'static ValueCodecDescriptor),
+    /// A codec identified by its Rust type.
+    RustType(RustTypeReference),
     /// A codec identified by its stable registry ID.
     DeclaredId(&'static str),
 }
 
+impl CodecReference {
+    /// Returns the referenced Rust type, if the declaration uses one.
+    #[must_use]
+    pub const fn rust_type(self) -> Option<RustTypeReference> {
+        match self {
+            Self::RustType(reference) => Some(reference),
+            Self::DeclaredId(_) => None,
+        }
+    }
+
+    /// Returns the declared registry ID, if the declaration uses one.
+    #[must_use]
+    pub const fn declared_id(self) -> Option<&'static str> {
+        match self {
+            Self::RustType(_) => None,
+            Self::DeclaredId(id) => Some(id),
+        }
+    }
+}
+
 /// Identifies where a codec declaration originated.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum CodecSource {
     /// A codec declared directly on a field.
     Field,
@@ -508,7 +661,7 @@ impl CodecMetadata {
 }
 
 /// The structural position selected by nested field semantics.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum SelectorPosition {
     /// The element type of a sequence.
     Element,

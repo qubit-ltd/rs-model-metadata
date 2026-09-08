@@ -13,7 +13,7 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::DecimalSemantic;
+/// use qubit_model_metadata::metadata::DecimalSemantic;
 ///
 /// assert_ne!(DecimalSemantic::Money, DecimalSemantic::Number);
 /// ```

@@ -14,8 +14,8 @@ error[E0277]: the trait bound `u64: TextConstraintTarget` is not satisfied
 note: required by a bound in `assert_text_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
-13 | #[Model(no_eq, no_hash)]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_text_target`
+13 | #[Model]
+   | ^^^^^^^^ required by this bound in `assert_text_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `f64: DecimalConstraintTarget` is not satisfied
@@ -37,8 +37,8 @@ error[E0277]: the trait bound `f64: DecimalConstraintTarget` is not satisfied
 note: required by a bound in `assert_decimal_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
-13 | #[Model(no_eq, no_hash)]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_decimal_target`
+13 | #[Model]
+   | ^^^^^^^^ required by this bound in `assert_decimal_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `std::string::String: SequenceConstraintTarget` is not satisfied
@@ -60,8 +60,8 @@ error[E0277]: the trait bound `std::string::String: SequenceConstraintTarget` is
 note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>::__type_metadata::{closure#0}::assert_sequence_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
-13 | #[Model(no_eq, no_hash)]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_sequence_target`
+13 | #[Model]
+   | ^^^^^^^^ required by this bound in `assert_sequence_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `std::string::String: UniqueItemsConstraintTarget` is not satisfied
@@ -83,8 +83,8 @@ error[E0277]: the trait bound `std::string::String: UniqueItemsConstraintTarget`
 note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>::__type_metadata::{closure#0}::assert_unique_items_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
-13 | #[Model(no_eq, no_hash)]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_unique_items_target`
+13 | #[Model]
+   | ^^^^^^^^ required by this bound in `assert_unique_items_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `HashSet<u64>: UniqueItemsConstraintTarget` is not satisfied
@@ -106,8 +106,8 @@ error[E0277]: the trait bound `HashSet<u64>: UniqueItemsConstraintTarget` is not
 note: required by a bound in `<InvalidConstraintTargets as TypeMetadataProvider>::__type_metadata::{closure#0}::assert_unique_items_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
-13 | #[Model(no_eq, no_hash)]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_unique_items_target`
+13 | #[Model]
+   | ^^^^^^^^ required by this bound in `assert_unique_items_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Vec<u64>: MapConstraintTarget` is not satisfied
@@ -126,6 +126,6 @@ error[E0277]: the trait bound `Vec<u64>: MapConstraintTarget` is not satisfied
 note: required by a bound in `assert_map_target`
   --> tests/ui_roles/fail/constraint_type_targets.rs:13:1
    |
-13 | #[Model(no_eq, no_hash)]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_map_target`
+13 | #[Model]
+   | ^^^^^^^^ required by this bound in `assert_map_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)

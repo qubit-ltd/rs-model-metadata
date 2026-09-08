@@ -8,6 +8,8 @@
 
 //! Integration tests for the model-owned reflection codegen helpers.
 
+#![cfg(feature = "generic")]
+
 use std::sync::OnceLock;
 
 use qubit_model_metadata::__private::codegen_v3::inventory;
@@ -18,12 +20,12 @@ use qubit_model_metadata::__private::codegen_v3::registration::FragmentPayload;
 use qubit_model_metadata::__private::codegen_v3::registration::RegistrationFragment;
 use qubit_model_metadata::__private::codegen_v3::registration::RuntimeIdentity;
 use qubit_model_metadata::__private::codegen_v3::registration::StaticFragmentIdentity;
-use qubit_model_metadata::__private::v4;
-use qubit_model_metadata::__private::v4::register_generic_model_capability;
-use qubit_model_metadata::GenericModelMetadata;
-use qubit_model_metadata::ModelId;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelRole;
+use qubit_model_metadata::__private::v5;
+use qubit_model_metadata::__private::v5::register_generic_model_capability;
+use qubit_model_metadata::generic::GenericModelMetadata;
+use qubit_model_metadata::metadata::ModelId;
+use qubit_model_metadata::metadata::ModelRole;
+use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::__private::testing::build_registry;
 use qubit_reflect::Reflect;
 use qubit_reflect::ReflectRegistry;
@@ -50,7 +52,7 @@ enum SecondGeneric<T> {
 fn first_metadata() -> &'static GenericModelMetadata {
     static METADATA: OnceLock<GenericModelMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v4::generic_model_metadata(
+        v5::generic_model_metadata(
             ModelId::new("example.FirstGeneric"),
             ModelRole::Model,
             first_definition(),
@@ -64,7 +66,7 @@ fn first_metadata() -> &'static GenericModelMetadata {
 fn second_metadata() -> &'static GenericModelMetadata {
     static METADATA: OnceLock<GenericModelMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v4::generic_model_metadata(
+        v5::generic_model_metadata(
             ModelId::new("example.SecondGeneric"),
             ModelRole::Enum,
             second_definition(),
@@ -99,7 +101,7 @@ fn first_conflict_identity() -> RuntimeIdentity {
 fn first_conflict_payload() -> FragmentPayload {
     FragmentPayload::Capability(CapabilityRegistration::for_definition(
         first_definition(),
-        vec![v4::generic_model_capability(first_metadata)],
+        vec![v5::generic_model_capability(first_metadata)],
     ))
 }
 
@@ -120,7 +122,7 @@ fn second_conflict_identity() -> RuntimeIdentity {
 fn second_conflict_payload() -> FragmentPayload {
     FragmentPayload::Capability(CapabilityRegistration::for_definition(
         second_definition(),
-        vec![v4::generic_model_capability(second_metadata)],
+        vec![v5::generic_model_capability(second_metadata)],
     ))
 }
 
@@ -135,7 +137,7 @@ static SECOND_CONFLICT: RegistrationFragment = RegistrationFragment::new(
 /// Asserts that the model helper preserves reflection's canonical descriptor
 /// root for `T`.
 fn assert_reflected_root<T: Reflect + ?Sized>() {
-    let reference: &'static TypeRef = v4::reflected_type_ref::<T>();
+    let reference: &'static TypeRef = v5::reflected_type_ref::<T>();
     let resolved = reference.as_resolved().expect("the helper must return a resolved root");
     assert!(std::ptr::eq(resolved, TypeDescriptor::of::<T>()));
 }
@@ -153,7 +155,7 @@ fn find_generic_model_capability_fragment(
                 return false;
             };
             registry
-                .definition_capability(definition.id(), v4::generic_model_metadata_key())
+                .definition_capability(definition.id(), v5::generic_model_metadata_key())
                 .unwrap()
                 .is_some_and(|provider| std::ptr::eq(provider(), expected_metadata))
         })
@@ -191,7 +193,7 @@ fn test_generic_model_registration_preserves_definition_providers_and_sources() 
     ];
     for (definition, expected_metadata, model_id) in cases {
         let provider = reflection
-            .definition_capability(definition.id(), v4::generic_model_metadata_key())
+            .definition_capability(definition.id(), v5::generic_model_metadata_key())
             .unwrap()
             .expect("the definition must carry a generic model provider");
         assert!(std::ptr::eq(provider(), expected_metadata));

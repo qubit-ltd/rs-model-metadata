@@ -9,11 +9,10 @@
 //! Runtime coverage for model-graph role and opaque boundaries.
 
 use model_runtime::__private::qubit_id::Id;
-use model_runtime::ModelRegistry;
-use model_runtime::ModelResolveErrorKind;
-use model_runtime::ModelResolver;
-use model_runtime::ResolveInputs;
-use qubit_codec::ValueCodecRegistry;
+use model_runtime::registry::ModelRegistry;
+use model_runtime::resolve::ResolveErrorKind;
+use model_runtime::resolve::ResolveInputs;
+use model_runtime::resolve::StructureResolver;
 use qubit_model_derive::Entity;
 
 #[Entity(id = "graph.Nested")]
@@ -40,23 +39,20 @@ struct OpaqueOwner {
 #[test]
 fn test_resolver_rejects_entity_embedding_and_opaque_model_hiding() {
     let registry = ModelRegistry::try_global().expect("valid registration index");
-    let errors = ModelResolver::new(ResolveInputs {
-        models: registry,
-        codecs: ValueCodecRegistry::global(),
-    })
-    .resolve_structure()
-    .expect_err("invalid graph boundaries must prevent publication");
+    let errors = StructureResolver::new(ResolveInputs { models: registry })
+        .resolve()
+        .expect_err("invalid graph boundaries must prevent publication");
 
     assert!(
         errors
             .errors()
             .iter()
-            .any(|error| error.kind() == ModelResolveErrorKind::InvalidEntityNesting)
+            .any(|error| error.kind() == ResolveErrorKind::InvalidEntityNesting)
     );
     assert!(
         errors
             .errors()
             .iter()
-            .any(|error| error.kind() == ModelResolveErrorKind::OpaqueModel)
+            .any(|error| error.kind() == ResolveErrorKind::OpaqueModel)
     );
 }

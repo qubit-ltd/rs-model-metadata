@@ -4,14 +4,13 @@
 
 use std::sync::Arc;
 
-use qubit_codec::ValueCodecRegistry;
 use qubit_model_derive::Model;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelResolver;
-use qubit_model_metadata::ResolveInputs;
-use qubit_model_metadata::TypeMetadata;
-use qubit_model_metadata::ValidationBuildInputs;
-use qubit_model_metadata::ValidationPlan;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
@@ -76,8 +75,8 @@ fn source() -> &'static FragmentIdentity {
     )))
 }
 
-fn inputs<'a>(models: &'a ModelRegistry<'a>, codecs: &'a ValueCodecRegistry) -> ResolveInputs<'a> {
-    ResolveInputs { models, codecs }
+fn inputs<'a>(models: &'a ModelRegistry<'a>) -> ResolveInputs<'a> {
+    ResolveInputs { models }
 }
 
 #[test]
@@ -85,11 +84,10 @@ fn structure_resolution_and_binding_are_separate() {
     let owner = TypeMetadata::of::<Owner>();
     let fixture = TypeMetadata::of::<BindingFixture>();
     let models =
-        ModelRegistry::from_metadata(&[(owner, source()), (fixture, source())], &[]).expect("isolated model registry");
+        ModelRegistry::from_metadata(&[(owner, source()), (fixture, source())]).expect("isolated model registry");
     let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION]).expect("isolated validator registry");
-    let codecs = ValueCodecRegistry::empty();
-    let graph = ModelResolver::new(inputs(&models, &codecs))
-        .resolve_structure()
+    let graph = StructureResolver::new(inputs(&models))
+        .resolve()
         .expect("structure does not require validator lookup");
 
     let plan = ValidationPlan::build(

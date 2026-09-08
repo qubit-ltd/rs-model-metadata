@@ -16,7 +16,6 @@ use quote::quote;
 use syn::Ident;
 use syn::LitStr;
 
-use super::role::codec_value_type;
 use crate::ir::declaration::CodecIr;
 use crate::ir::declaration::ConstraintIr;
 use crate::ir::declaration::FieldIr;
@@ -130,19 +129,19 @@ fn expand_field(
     });
     let element_selector = element_ir.map(|value| {
         let value_type = quote!(
-            <#field_type as #runtime::__private::v4::SequenceConstraintTarget>::Element
+            <#field_type as #runtime::__private::v5::SequenceConstraintTarget>::Element
         );
         expand_selector_metadata(value, &value_type, format_ident!("element_selector"), runtime)
     });
     let map_key_selector = map_key_ir.map(|value| {
         let value_type = quote!(
-            <#field_type as #runtime::__private::v4::MapConstraintTarget>::Key
+            <#field_type as #runtime::__private::v5::MapConstraintTarget>::Key
         );
         expand_selector_metadata(value, &value_type, format_ident!("map_key_selector"), runtime)
     });
     let map_value_selector = map_value_ir.map(|value| {
         let value_type = quote!(
-            <#field_type as #runtime::__private::v4::MapConstraintTarget>::Value
+            <#field_type as #runtime::__private::v5::MapConstraintTarget>::Value
         );
         expand_selector_metadata(value, &value_type, format_ident!("map_value_selector"), runtime)
     });
@@ -175,28 +174,28 @@ fn expand_field(
             .any(|value| matches!(value, ConstraintIr::Map { .. }));
     let sequence_assertion = requires_sequence.then(|| {
         quote! {
-            fn assert_sequence_target<T: #runtime::__private::v4::SequenceConstraintTarget>() {}
+            fn assert_sequence_target<T: #runtime::__private::v5::SequenceConstraintTarget>() {}
             assert_sequence_target::<#field_type>();
         }
     });
     let map_assertion = requires_map.then(|| {
         quote! {
-            fn assert_map_target<T: #runtime::__private::v4::MapConstraintTarget>() {}
+            fn assert_map_target<T: #runtime::__private::v5::MapConstraintTarget>() {}
             assert_map_target::<#field_type>();
         }
     });
     let identifier = identifier_assignment.map(|assignment| {
         let assignment = match assignment {
             IdentifierAssignmentIr::Application => {
-                quote!(#runtime::IdentifierAssignment::Application)
+                quote!(#runtime::metadata::IdentifierAssignment::Application)
             }
-            IdentifierAssignmentIr::Database => quote!(#runtime::IdentifierAssignment::Database),
+            IdentifierAssignmentIr::Database => quote!(#runtime::metadata::IdentifierAssignment::Database),
         };
         quote! {
-            fn assert_identifier_type<T: #runtime::__private::v4::IdentifierType>() {}
+            fn assert_identifier_type<T: #runtime::__private::v5::IdentifierType>() {}
             assert_identifier_type::<#field_type>();
-            let identifier: &'static #runtime::IdentifierMetadata = #runtime::__private::v4::leak(
-                #runtime::IdentifierMetadata::new(#assignment),
+            let identifier: &'static #runtime::metadata::IdentifierMetadata = #runtime::__private::v5::leak(
+                #runtime::metadata::IdentifierMetadata::new(#assignment),
             );
         }
     });
@@ -204,40 +203,40 @@ fn expand_field(
         let paths = unique.respect_to.iter().map(|path| expand_field_path(path, runtime));
         let ignore_case = unique.ignore_case;
         quote! {
-            let unique_paths: &'static [#runtime::PropertyPath] = #runtime::__private::v4::leak_slice(::std::vec![#(#paths),*]);
-            let unique: &'static #runtime::FieldUniqueMetadata = #runtime::__private::v4::leak(
-                #runtime::FieldUniqueMetadata::new(unique_paths, #ignore_case),
+            let unique_paths: &'static [#runtime::metadata::PropertyPath] = #runtime::__private::v5::leak_slice(::std::vec![#(#paths),*]);
+            let unique: &'static #runtime::metadata::FieldUniqueMetadata = #runtime::__private::v5::leak(
+                #runtime::metadata::FieldUniqueMetadata::new(unique_paths, #ignore_case),
             );
         }
     });
     let reference = reference_ir.map(|value| expand_reference(value, runtime));
     let key_part = key_part_order.map(|order| {
         quote! {
-            let key_part: &'static #runtime::KeyPartMetadata = #runtime::__private::v4::leak(
-                #runtime::KeyPartMetadata::new(#order),
+            let key_part: &'static #runtime::metadata::KeyPartMetadata = #runtime::__private::v5::leak(
+                #runtime::metadata::KeyPartMetadata::new(#order),
             );
         }
     });
     let codec = codec_ir.map(|codec| {
         let value = match codec {
-            CodecIr::DeclaredId(id) => quote!(#runtime::CodecReference::DeclaredId(#id)),
+            CodecIr::DeclaredId(id) => quote!(#runtime::metadata::CodecReference::DeclaredId(#id)),
             CodecIr::RustType(ty) => {
-                let value_type = codec_value_type(&field.ty);
-                quote!(#runtime::CodecReference::RustType(#runtime::__private::v4::leak(
-                    #runtime::__private::v4::ValueCodecDescriptor::of::<#ty, #value_type>(),
-                )))
+                quote!(#runtime::metadata::CodecReference::RustType(
+                    #runtime::__private::v5::RustTypeReference::of::<#ty>(),
+                ))
             }
         };
         quote! {
-            let codec_reference: &'static #runtime::CodecReference = #runtime::__private::v4::leak(#value);
-            let codec: &'static #runtime::CodecMetadata = #runtime::__private::v4::leak(
-                #runtime::CodecMetadata::new(codec_reference, #runtime::CodecSource::Field),
+            let codec_reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v5::leak(#value);
+            let codec: &'static #runtime::metadata::CodecMetadata = #runtime::__private::v5::leak(
+                #runtime::metadata::CodecMetadata::new(codec_reference, #runtime::metadata::CodecSource::Field),
             );
         }
     });
-    let redact = redact_ir.map(|value| expand_redact(value, quote!(#runtime::RedactPosition::Field), runtime));
+    let redact =
+        redact_ir.map(|value| expand_redact(value, quote!(#runtime::metadata::RedactPosition::Field), runtime));
     let serde = serde_ir.map_or_else(
-        || quote!(let serde: &'static #runtime::SerdeFieldMetadata = &#runtime::SerdeFieldMetadata::DEFAULT;),
+        || quote!(let serde: &'static #runtime::metadata::SerdeFieldMetadata = &#runtime::metadata::SerdeFieldMetadata::DEFAULT;),
         |value| expand_serde(value, runtime),
     );
     let mut occurrence_tokens = Vec::new();
@@ -246,60 +245,68 @@ fn expand_field(
     for occurrence in &field.occurrences {
         occurrence_tokens.push(match occurrence {
             FieldOccurrence::Identifier(_) => {
-                quote!(attributes.push(#runtime::FieldAttributeMetadata::Identifier(identifier));)
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::Identifier(identifier));)
             }
             FieldOccurrence::Indexed => TokenStream::new(),
-            FieldOccurrence::Unique(_) => quote!(attributes.push(#runtime::FieldAttributeMetadata::Unique(unique));),
+            FieldOccurrence::Unique(_) => {
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::Unique(unique));)
+            }
             FieldOccurrence::Reference(_) => {
-                quote!(attributes.push(#runtime::FieldAttributeMetadata::Reference(reference));)
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::Reference(reference));)
             }
             FieldOccurrence::KeyPart(_) => {
-                quote!(attributes.push(#runtime::FieldAttributeMetadata::KeyPart(key_part));)
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::KeyPart(key_part));)
             }
             FieldOccurrence::Constraint(_) => {
                 let current = constraint_index;
                 constraint_index += 1;
-                quote!(attributes.push(#runtime::FieldAttributeMetadata::Constraint(&constraints[#current]));)
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::Constraint(&constraints[#current]));)
             }
             FieldOccurrence::Selector(_) => TokenStream::new(),
             FieldOccurrence::Validator(_) => {
                 let current = validator_index;
                 validator_index += 1;
-                quote!(attributes.push(#runtime::FieldAttributeMetadata::Validator(&validators[#current]));)
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::Validator(&validators[#current]));)
             }
-            FieldOccurrence::Codec(_) => quote!(attributes.push(#runtime::FieldAttributeMetadata::Codec(codec));),
-            FieldOccurrence::Redact(_) => quote!(attributes.push(#runtime::FieldAttributeMetadata::Redact(redact));),
-            FieldOccurrence::Serde(_) => quote!(attributes.push(#runtime::FieldAttributeMetadata::Serde(serde));),
-            FieldOccurrence::Opaque => quote!(attributes.push(#runtime::FieldAttributeMetadata::Opaque);),
+            FieldOccurrence::Codec(_) => {
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::Codec(codec));)
+            }
+            FieldOccurrence::Redact(_) => {
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::Redact(redact));)
+            }
+            FieldOccurrence::Serde(_) => {
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::Serde(serde));)
+            }
+            FieldOccurrence::Opaque => quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::Opaque);),
             FieldOccurrence::ValidateNested => {
-                quote!(attributes.push(#runtime::FieldAttributeMetadata::ValidateNested);)
+                quote!(attributes.push(#runtime::metadata::FieldAttributeMetadata::ValidateNested);)
             }
         });
     }
     let mut reason_parts = Vec::new();
     if has_indexed {
-        reason_parts.push(quote!(#runtime::IndexingReasons::EXPLICIT));
+        reason_parts.push(quote!(#runtime::metadata::IndexingReasons::EXPLICIT));
     }
     if has_identifier {
-        reason_parts.push(quote!(#runtime::IndexingReasons::IDENTIFIER));
+        reason_parts.push(quote!(#runtime::metadata::IndexingReasons::IDENTIFIER));
     }
     if unique_ir.is_some() {
-        reason_parts.push(quote!(#runtime::IndexingReasons::UNIQUE));
+        reason_parts.push(quote!(#runtime::metadata::IndexingReasons::UNIQUE));
     }
     if reference_ir.is_some() {
-        reason_parts.push(quote!(#runtime::IndexingReasons::REFERENCE));
+        reason_parts.push(quote!(#runtime::metadata::IndexingReasons::REFERENCE));
     }
     let indexed = reason_parts
         .into_iter()
         .reduce(|left, right| quote!(#left | #right))
         .map(|reasons| {
             quote! {
-                attributes.push(#runtime::FieldAttributeMetadata::Indexed(#reasons));
+                attributes.push(#runtime::metadata::FieldAttributeMetadata::Indexed(#reasons));
             }
         });
     let metadata = match generic_variant_inherited {
         Some(variant_inherited) => quote! {
-            #runtime::__private::v4::generic_field_metadata(
+            #runtime::__private::v5::generic_field_metadata(
                 &#descriptor_fields[#index],
                 #variant_inherited,
                 attributes,
@@ -309,7 +316,7 @@ fn expand_field(
             )
         },
         None => quote! {
-            #runtime::__private::v4::field_metadata(
+            #runtime::__private::v5::field_metadata(
                 &#descriptor_fields[#index],
                 attributes,
                 constraints,
@@ -327,21 +334,21 @@ fn expand_field(
             #unique
             #reference
             #key_part
-            let validators: &'static [#runtime::ValidatorMetadata] =
-                #runtime::__private::v4::leak_slice(::std::vec![#(#validators),*]);
+            let validators: &'static [#runtime::metadata::ValidatorMetadata] =
+                #runtime::__private::v5::leak_slice(::std::vec![#(#validators),*]);
             #codec
             #redact
             #serde
             #element_selector
             #map_key_selector
             #map_value_selector
-            let constraints: &'static [#runtime::ConstraintMetadata] =
-                #runtime::__private::v4::leak_slice(::std::vec![#(#constraints),*]);
+            let constraints: &'static [#runtime::metadata::ConstraintMetadata] =
+                #runtime::__private::v5::leak_slice(::std::vec![#(#constraints),*]);
             let mut attributes = ::std::vec::Vec::new();
             #(#occurrence_tokens)*
             #indexed
-            let attributes: &'static [#runtime::FieldAttributeMetadata] =
-                #runtime::__private::v4::leak_slice(attributes);
+            let attributes: &'static [#runtime::metadata::FieldAttributeMetadata] =
+                #runtime::__private::v5::leak_slice(attributes);
             fields.push(#metadata);
         }
     }
@@ -362,15 +369,15 @@ fn expand_constraint(
             let min_bytes = option_number(value.min_bytes);
             let max_bytes = option_number(value.max_bytes);
             let allowed = match value.allowed_chars.as_deref().unwrap_or("unicode") {
-                "unicode" => quote!(#runtime::AllowedChars::Unicode),
+                "unicode" => quote!(#runtime::metadata::AllowedChars::Unicode),
                 "printable_unicode" => {
-                    quote!(#runtime::AllowedChars::PrintableUnicode)
+                    quote!(#runtime::metadata::AllowedChars::PrintableUnicode)
                 }
-                "ascii" => quote!(#runtime::AllowedChars::Ascii),
+                "ascii" => quote!(#runtime::metadata::AllowedChars::Ascii),
                 "printable_ascii" => {
-                    quote!(#runtime::AllowedChars::PrintableAscii)
+                    quote!(#runtime::metadata::AllowedChars::PrintableAscii)
                 }
-                "code" => quote!(#runtime::AllowedChars::Code),
+                "code" => quote!(#runtime::metadata::AllowedChars::Code),
                 _ => quote!(compile_error!("invalid allowed_chars value")),
             };
             let non_blank = value.non_blank;
@@ -378,16 +385,16 @@ fn expand_constraint(
                 || quote!(None),
                 |value| {
                     let value = match value {
-                        "email" => quote!(#runtime::TextFormat::Email),
-                        "cn_mobile" => quote!(#runtime::TextFormat::Mobile),
-                        "uri" => quote!(#runtime::TextFormat::Uri),
-                        "uuid" => quote!(#runtime::TextFormat::Uuid),
+                        "email" => quote!(#runtime::metadata::TextFormat::Email),
+                        "cn_mobile" => quote!(#runtime::metadata::TextFormat::Mobile),
+                        "uri" => quote!(#runtime::metadata::TextFormat::Uri),
+                        "uuid" => quote!(#runtime::metadata::TextFormat::Uuid),
                         _ => quote!(compile_error!("invalid text format")),
                     };
                     quote!(Some(#value))
                 },
             );
-            quote!(#runtime::ConstraintMetadata::Text(#runtime::TextConstraint::new(
+            quote!(#runtime::metadata::ConstraintMetadata::Text(#runtime::metadata::TextConstraint::new(
                 #min_chars, #max_chars, #min_bytes, #max_bytes, #allowed, #non_blank, #format,
             )))
         }
@@ -396,43 +403,43 @@ fn expand_constraint(
             let scale = value.scale;
             let rounding = rounding_tokens(&value.rounding, runtime);
             let semantic = if value.money {
-                quote!(#runtime::DecimalSemantic::Money)
+                quote!(#runtime::metadata::DecimalSemantic::Money)
             } else {
-                quote!(#runtime::DecimalSemantic::Number)
+                quote!(#runtime::metadata::DecimalSemantic::Number)
             };
             let min = option_lit_str(&value.min);
             let max = option_lit_str(&value.max);
             let min_inclusive = value.min_inclusive;
             let max_inclusive = value.max_inclusive;
-            quote!(#runtime::ConstraintMetadata::Decimal(
-                #runtime::DecimalConstraint::new(#precision, #scale, #rounding, #semantic)
+            quote!(#runtime::metadata::ConstraintMetadata::Decimal(
+                #runtime::metadata::DecimalConstraint::new(#precision, #scale, #rounding, #semantic)
                     .with_bounds(#min, #max, #min_inclusive, #max_inclusive)
             ))
         }
         ConstraintIr::Time(value) => {
             let precision = match value.as_str() {
-                "second" => quote!(#runtime::TemporalPrecision::Second),
+                "second" => quote!(#runtime::metadata::TemporalPrecision::Second),
                 "millisecond" => {
-                    quote!(#runtime::TemporalPrecision::Millisecond)
+                    quote!(#runtime::metadata::TemporalPrecision::Millisecond)
                 }
                 "microsecond" => {
-                    quote!(#runtime::TemporalPrecision::Microsecond)
+                    quote!(#runtime::metadata::TemporalPrecision::Microsecond)
                 }
-                "nanosecond" => quote!(#runtime::TemporalPrecision::Nanosecond),
+                "nanosecond" => quote!(#runtime::metadata::TemporalPrecision::Nanosecond),
                 _ => quote!(compile_error!("invalid time precision")),
             };
-            quote!(#runtime::ConstraintMetadata::Time(#runtime::TimeConstraint::new(#precision)))
+            quote!(#runtime::metadata::ConstraintMetadata::Time(#runtime::metadata::TimeConstraint::new(#precision)))
         }
         ConstraintIr::Sequence { min, max, unique } => {
             let min = option_number(*min);
             let max = option_number(*max);
-            let base = quote!(#runtime::SequenceConstraint::new(#min, #max, #unique));
+            let base = quote!(#runtime::metadata::SequenceConstraint::new(#min, #max, #unique));
             let value = if has_element {
                 quote!(#base.with_element(element_selector))
             } else {
                 base
             };
-            quote!(#runtime::ConstraintMetadata::Sequence(#value))
+            quote!(#runtime::metadata::ConstraintMetadata::Sequence(#value))
         }
         ConstraintIr::Map { min, max } => {
             let min = option_number(*min);
@@ -447,7 +454,7 @@ fn expand_constraint(
             } else {
                 quote!(None)
             };
-            quote!(#runtime::ConstraintMetadata::Map(#runtime::MapConstraint::new(#min, #max).with_selectors(#key, #value)))
+            quote!(#runtime::metadata::ConstraintMetadata::Map(#runtime::metadata::MapConstraint::new(#min, #max).with_selectors(#key, #value)))
         }
     }
 }
@@ -460,39 +467,39 @@ fn expand_constraint_assertions(
 ) -> TokenStream {
     let assertions = constraints.iter().map(|constraint| match constraint {
         ConstraintIr::Text(_) => quote! {
-            fn assert_text_target<T: #runtime::__private::v4::TextConstraintTarget + ?Sized>() {}
+            fn assert_text_target<T: #runtime::__private::v5::TextConstraintTarget + ?Sized>() {}
             assert_text_target::<#target>();
         },
         ConstraintIr::Decimal(_) => quote! {
-            fn assert_decimal_target<T: #runtime::__private::v4::DecimalConstraintTarget>() {}
+            fn assert_decimal_target<T: #runtime::__private::v5::DecimalConstraintTarget>() {}
             assert_decimal_target::<#target>();
         },
         ConstraintIr::Time(_) => quote! {
-            fn assert_temporal_target<T: #runtime::__private::v4::TemporalConstraintTarget>() {}
+            fn assert_temporal_target<T: #runtime::__private::v5::TemporalConstraintTarget>() {}
             assert_temporal_target::<#target>();
         },
         ConstraintIr::Sequence { min, max, unique } => {
             let length = (min.is_some() || max.is_some()).then(|| {
                 quote! {
-                    fn assert_variable_sequence<T: #runtime::__private::v4::VariableLengthSequenceTarget>() {}
+                    fn assert_variable_sequence<T: #runtime::__private::v5::VariableLengthSequenceTarget>() {}
                     assert_variable_sequence::<#target>();
                 }
             });
             let uniqueness = unique.then(|| {
                 quote! {
-                    fn assert_unique_items_target<T: #runtime::__private::v4::UniqueItemsConstraintTarget>() {}
+                    fn assert_unique_items_target<T: #runtime::__private::v5::UniqueItemsConstraintTarget>() {}
                     assert_unique_items_target::<#target>();
                 }
             });
             quote! {
-                fn assert_sequence_constraint<T: #runtime::__private::v4::SequenceConstraintTarget>() {}
+                fn assert_sequence_constraint<T: #runtime::__private::v5::SequenceConstraintTarget>() {}
                 assert_sequence_constraint::<#target>();
                 #length
                 #uniqueness
             }
         }
         ConstraintIr::Map { .. } => quote! {
-            fn assert_map_constraint<T: #runtime::__private::v4::MapConstraintTarget>() {}
+            fn assert_map_constraint<T: #runtime::__private::v5::MapConstraintTarget>() {}
             assert_map_constraint::<#target>();
         },
     });
@@ -508,13 +515,13 @@ fn expand_selector_metadata(
 ) -> TokenStream {
     let position = match value.position {
         SelectorPositionIr::Element => {
-            quote!(#runtime::SelectorPosition::Element)
+            quote!(#runtime::metadata::SelectorPosition::Element)
         }
         SelectorPositionIr::MapKey => {
-            quote!(#runtime::SelectorPosition::MapKey)
+            quote!(#runtime::metadata::SelectorPosition::MapKey)
         }
         SelectorPositionIr::MapValue => {
-            quote!(#runtime::SelectorPosition::MapValue)
+            quote!(#runtime::metadata::SelectorPosition::MapValue)
         }
     };
     let constraints = value
@@ -532,10 +539,10 @@ fn expand_selector_metadata(
         |codec| {
             let reference = codec_reference_expression(codec, value_type, runtime);
             quote!({
-                let reference: &'static #runtime::CodecReference = #runtime::__private::v4::leak(#reference);
-                Some(#runtime::__private::v4::leak(
-                    #runtime::CodecMetadata::new(reference, #runtime::CodecSource::Selector(#position)),
-                ) as &'static #runtime::CodecMetadata)
+                let reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v5::leak(#reference);
+                Some(#runtime::__private::v5::leak(
+                    #runtime::metadata::CodecMetadata::new(reference, #runtime::metadata::CodecSource::Selector(#position)),
+                ) as &'static #runtime::metadata::CodecMetadata)
             })
         },
     );
@@ -545,23 +552,23 @@ fn expand_selector_metadata(
             let expression = redact_expression(
                 redact,
                 match value.position {
-                    SelectorPositionIr::Element => quote!(#runtime::RedactPosition::Element),
-                    SelectorPositionIr::MapKey => quote!(#runtime::RedactPosition::MapKey),
-                    SelectorPositionIr::MapValue => quote!(#runtime::RedactPosition::MapValue),
+                    SelectorPositionIr::Element => quote!(#runtime::metadata::RedactPosition::Element),
+                    SelectorPositionIr::MapKey => quote!(#runtime::metadata::RedactPosition::MapKey),
+                    SelectorPositionIr::MapValue => quote!(#runtime::metadata::RedactPosition::MapValue),
                 },
                 runtime,
             );
-            quote!(Some(#runtime::__private::v4::leak(#expression) as &'static #runtime::RedactMetadata))
+            quote!(Some(#runtime::__private::v5::leak(#expression) as &'static #runtime::metadata::RedactMetadata))
         },
     );
     quote! {
         #constraint_assertions
-        let selector_constraints: &'static [#runtime::ConstraintMetadata] = #runtime::__private::v4::leak_slice(::std::vec![#(#constraints),*]);
-        let selector_validators: &'static [#runtime::ValidatorMetadata] = #runtime::__private::v4::leak_slice(::std::vec![#(#validators),*]);
+        let selector_constraints: &'static [#runtime::metadata::ConstraintMetadata] = #runtime::__private::v5::leak_slice(::std::vec![#(#constraints),*]);
+        let selector_validators: &'static [#runtime::metadata::ValidatorMetadata] = #runtime::__private::v5::leak_slice(::std::vec![#(#validators),*]);
         let selector_codec = #codec;
         let selector_redact = #redact;
-        let #name: &'static #runtime::SelectorMetadata = #runtime::__private::v4::leak(
-            #runtime::SelectorMetadata::new(#position, selector_constraints, selector_validators, selector_codec, selector_redact),
+        let #name: &'static #runtime::metadata::SelectorMetadata = #runtime::__private::v5::leak(
+            #runtime::metadata::SelectorMetadata::new(#position, selector_constraints, selector_validators, selector_codec, selector_redact),
         );
     }
 }
@@ -574,14 +581,14 @@ fn option_number<T: ToTokens>(value: Option<T>) -> TokenStream {
 /// Maps a validated rounding name to runtime enum tokens.
 fn rounding_tokens(value: &str, runtime: &TokenStream) -> TokenStream {
     match value {
-        "down" => quote!(#runtime::RoundingMode::Down),
-        "up" => quote!(#runtime::RoundingMode::Up),
-        "ceiling" => quote!(#runtime::RoundingMode::Ceiling),
-        "floor" => quote!(#runtime::RoundingMode::Floor),
-        "half_up" => quote!(#runtime::RoundingMode::HalfUp),
-        "half_down" => quote!(#runtime::RoundingMode::HalfDown),
-        "half_even" => quote!(#runtime::RoundingMode::HalfEven),
-        "unnecessary" => quote!(#runtime::RoundingMode::Unnecessary),
+        "down" => quote!(#runtime::metadata::RoundingMode::Down),
+        "up" => quote!(#runtime::metadata::RoundingMode::Up),
+        "ceiling" => quote!(#runtime::metadata::RoundingMode::Ceiling),
+        "floor" => quote!(#runtime::metadata::RoundingMode::Floor),
+        "half_up" => quote!(#runtime::metadata::RoundingMode::HalfUp),
+        "half_down" => quote!(#runtime::metadata::RoundingMode::HalfDown),
+        "half_even" => quote!(#runtime::metadata::RoundingMode::HalfEven),
+        "unnecessary" => quote!(#runtime::metadata::RoundingMode::Unnecessary),
         _ => quote!(compile_error!("invalid rounding mode")),
     }
 }
@@ -596,23 +603,23 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
     let depends_on = validator.depends_on.iter().map(|path| expand_field_path(path, runtime));
     let dependency_bindings = validator.dependency_bindings.iter().map(|(name, path)| {
         let path = expand_field_path(path, runtime);
-        quote!(#runtime::DependencyBindingMetadata::new(#name, #path))
+        quote!(#runtime::metadata::DependencyBindingMetadata::new(#name, #path))
     });
     let target = match validator.target {
-        TargetModeIr::Value => quote!(#runtime::TargetMode::Value),
-        TargetModeIr::Container => quote!(#runtime::TargetMode::Container),
+        TargetModeIr::Value => quote!(#runtime::metadata::TargetMode::Value),
+        TargetModeIr::Container => quote!(#runtime::metadata::TargetMode::Container),
     };
     let on_none = match validator.on_none {
-        OnNoneIr::Skip => quote!(#runtime::OnNone::Skip),
-        OnNoneIr::Reject => quote!(#runtime::OnNone::Reject),
+        OnNoneIr::Skip => quote!(#runtime::metadata::OnNone::Skip),
+        OnNoneIr::Reject => quote!(#runtime::metadata::OnNone::Reject),
     };
     let constructor = if validator.dependency_bindings.is_empty()
         && matches!(validator.target, TargetModeIr::Value)
         && matches!(validator.on_none, OnNoneIr::Skip)
     {
-        quote!(#runtime::ValidatorMetadata::new(#id, params, depends_on))
+        quote!(#runtime::metadata::ValidatorMetadata::new(#id, params, depends_on))
     } else {
-        quote!(#runtime::ValidatorMetadata::new_bound(
+        quote!(#runtime::metadata::ValidatorMetadata::new_bound(
             #id,
             params,
             depends_on,
@@ -622,9 +629,9 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
         ))
     };
     quote!({
-        let params: &'static [#runtime::__private::NamedValidationArgument<'static>] = #runtime::__private::v4::leak_slice(::std::vec![#(#params),*]);
-        let depends_on: &'static [#runtime::PropertyPath<'static>] = #runtime::__private::v4::leak_slice(::std::vec![#(#depends_on),*]);
-        let dependency_bindings: &'static [#runtime::DependencyBindingMetadata] = #runtime::__private::v4::leak_slice(::std::vec![#(#dependency_bindings),*]);
+        let params: &'static [#runtime::__private::NamedValidationArgument<'static>] = #runtime::__private::v5::leak_slice(::std::vec![#(#params),*]);
+        let depends_on: &'static [#runtime::metadata::PropertyPath<'static>] = #runtime::__private::v5::leak_slice(::std::vec![#(#depends_on),*]);
+        let dependency_bindings: &'static [#runtime::metadata::DependencyBindingMetadata] = #runtime::__private::v5::leak_slice(::std::vec![#(#dependency_bindings),*]);
         #constructor
     })
 }
@@ -663,32 +670,32 @@ fn expand_strategy_argument(value: &StrategyArgumentIr, runtime: &TokenStream) -
 fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStream {
     let target = match &reference.target {
         ReferenceTargetIr::RustType(ty) => {
-            quote!(#runtime::DeclaredEntityTarget::RustType(#runtime::TypeMetadata::of::<#ty>))
+            quote!(#runtime::metadata::DeclaredEntityTarget::RustType(#runtime::metadata::TypeMetadata::of::<#ty>))
         }
         ReferenceTargetIr::ModelId(id) => {
-            quote!(#runtime::DeclaredEntityTarget::ModelId(#runtime::ModelId::new(#id)))
+            quote!(#runtime::metadata::DeclaredEntityTarget::ModelId(#runtime::metadata::ModelId::new(#id)))
         }
     };
     let selection = reference.property.as_ref().map_or_else(
-        || quote!(#runtime::ReferenceSelection::Entity),
+        || quote!(#runtime::metadata::ReferenceSelection::Entity),
         |path| {
             let path = expand_field_path(path, runtime);
-            quote!(#runtime::ReferenceSelection::Property(#path))
+            quote!(#runtime::metadata::ReferenceSelection::Property(#path))
         },
     );
     let same_as = reference.same_as.as_ref().map_or_else(
         || quote!(None),
         |path| {
             let path = expand_field_path(path, runtime);
-            quote!(Some(#runtime::__private::v4::leak(#path) as &'static #runtime::PropertyPath<'static>))
+            quote!(Some(#runtime::__private::v5::leak(#path) as &'static #runtime::metadata::PropertyPath<'static>))
         },
     );
     let existing = reference.existing;
     quote! {
-        let reference_target: &'static #runtime::DeclaredEntityTarget = #runtime::__private::v4::leak(#target);
-        let reference_selection: &'static #runtime::ReferenceSelection = #runtime::__private::v4::leak(#selection);
-        let reference: &'static #runtime::FieldReferenceMetadata = #runtime::__private::v4::leak(
-            #runtime::FieldReferenceMetadata::new(reference_target, reference_selection, #existing, #same_as),
+        let reference_target: &'static #runtime::metadata::DeclaredEntityTarget = #runtime::__private::v5::leak(#target);
+        let reference_selection: &'static #runtime::metadata::ReferenceSelection = #runtime::__private::v5::leak(#selection);
+        let reference: &'static #runtime::metadata::FieldReferenceMetadata = #runtime::__private::v5::leak(
+            #runtime::metadata::FieldReferenceMetadata::new(reference_target, reference_selection, #existing, #same_as),
         );
     }
 }
@@ -697,7 +704,7 @@ fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStre
 fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
     let expression = redact_expression(redact, position, runtime);
     quote! {
-        let redact: &'static #runtime::RedactMetadata = #runtime::__private::v4::leak(#expression);
+        let redact: &'static #runtime::metadata::RedactMetadata = #runtime::__private::v5::leak(#expression);
     }
 }
 
@@ -706,33 +713,41 @@ fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenSt
     let (sensitivity, mode) = match &redact.mode {
         RedactModeIr::Level(level) => {
             let sensitivity = match level.as_str() {
-                "low" => quote!(#runtime::__private::Sensitivity::Low),
-                "medium" => quote!(#runtime::__private::Sensitivity::Medium),
-                "high" => quote!(#runtime::__private::Sensitivity::High),
+                "public" | "low" => quote!(#runtime::__private::Sensitivity::Public),
+                "personal" | "medium" => quote!(#runtime::__private::Sensitivity::Personal),
+                "confidential" | "high" => quote!(#runtime::__private::Sensitivity::Confidential),
                 "secret" => quote!(#runtime::__private::Sensitivity::Secret),
-                _ => quote!(compile_error!("redact level must be low, medium, high, or secret")),
+                _ => quote!(compile_error!(
+                    "redact level must be public, personal, confidential, or secret"
+                )),
             };
-            (quote!(Some(#sensitivity)), quote!(#runtime::RedactModeMetadata::Level))
+            (
+                quote!(Some(#sensitivity)),
+                quote!(#runtime::metadata::RedactModeMetadata::Level),
+            )
         }
-        RedactModeIr::Skip => (quote!(None), quote!(#runtime::RedactModeMetadata::Skip)),
-        RedactModeIr::Nested => (quote!(None), quote!(#runtime::RedactModeMetadata::Nested)),
-        RedactModeIr::Map => (quote!(None), quote!(#runtime::RedactModeMetadata::Map)),
-        RedactModeIr::KeyedBy(field) => (quote!(None), quote!(#runtime::RedactModeMetadata::KeyedBy(#field))),
-        RedactModeIr::Json => (quote!(None), quote!(#runtime::RedactModeMetadata::Json)),
+        RedactModeIr::Skip => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Skip)),
+        RedactModeIr::Nested => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Nested)),
+        RedactModeIr::Map => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Map)),
+        RedactModeIr::KeyedBy(field) => (
+            quote!(None),
+            quote!(#runtime::metadata::RedactModeMetadata::KeyedBy(#field)),
+        ),
+        RedactModeIr::Json => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Json)),
     };
-    quote!(#runtime::RedactMetadata::new(#sensitivity, #mode, #position))
+    quote!(#runtime::metadata::RedactMetadata::new(#sensitivity, #mode, #position))
 }
 
 /// Generates runtime metadata for a declared value codec.
-fn codec_reference_expression<T: ToTokens>(codec: &CodecIr, value_type: &T, runtime: &TokenStream) -> TokenStream {
+fn codec_reference_expression<T: ToTokens>(codec: &CodecIr, _value_type: &T, runtime: &TokenStream) -> TokenStream {
     match codec {
         CodecIr::DeclaredId(id) => {
-            quote!(#runtime::CodecReference::DeclaredId(#id))
+            quote!(#runtime::metadata::CodecReference::DeclaredId(#id))
         }
         CodecIr::RustType(ty) => {
-            quote!(#runtime::CodecReference::RustType(#runtime::__private::v4::leak(
-                #runtime::__private::v4::ValueCodecDescriptor::of::<#ty, #value_type>(),
-            )))
+            quote!(#runtime::metadata::CodecReference::RustType(
+                #runtime::__private::v5::RustTypeReference::of::<#ty>(),
+            ))
         }
     }
 }
@@ -747,24 +762,24 @@ fn expand_serde(value: &SerdeIr, runtime: &TokenStream) -> TokenStream {
     let with = option_lit_str(&value.with);
     let default = value.default;
     let default_source = if value.default_from_model {
-        quote!(#runtime::SerdeBehaviorSource::ModelDefault)
+        quote!(#runtime::metadata::SerdeBehaviorSource::ModelDefault)
     } else if value.default {
-        quote!(#runtime::SerdeBehaviorSource::Explicit)
+        quote!(#runtime::metadata::SerdeBehaviorSource::Explicit)
     } else {
-        quote!(#runtime::SerdeBehaviorSource::None)
+        quote!(#runtime::metadata::SerdeBehaviorSource::None)
     };
     let omit_source = if value.omit_from_model {
-        quote!(#runtime::SerdeBehaviorSource::ModelDefault)
+        quote!(#runtime::metadata::SerdeBehaviorSource::ModelDefault)
     } else if value.omit_suppressed {
-        quote!(#runtime::SerdeBehaviorSource::Suppressed)
+        quote!(#runtime::metadata::SerdeBehaviorSource::Suppressed)
     } else if value.explicit_skip_serializing_if {
-        quote!(#runtime::SerdeBehaviorSource::Explicit)
+        quote!(#runtime::metadata::SerdeBehaviorSource::Explicit)
     } else {
-        quote!(#runtime::SerdeBehaviorSource::None)
+        quote!(#runtime::metadata::SerdeBehaviorSource::None)
     };
     quote! {
-        let serde: &'static #runtime::SerdeFieldMetadata = #runtime::__private::v4::leak(
-            #runtime::SerdeFieldMetadata::new(#serialize_name, #deserialize_name, #skip_serializing, #skip_deserializing, #flatten, #with, #default)
+        let serde: &'static #runtime::metadata::SerdeFieldMetadata = #runtime::__private::v5::leak(
+            #runtime::metadata::SerdeFieldMetadata::new(#serialize_name, #deserialize_name, #skip_serializing, #skip_deserializing, #flatten, #with, #default)
                 .with_sources(#default_source, #omit_source),
         );
     }
@@ -772,7 +787,7 @@ fn expand_serde(value: &SerdeIr, runtime: &TokenStream) -> TokenStream {
 
 /// Converts an owned field path into runtime path tokens.
 fn expand_field_path(path: &[String], runtime: &TokenStream) -> TokenStream {
-    quote!(#runtime::PropertyPath::new(&[#(#path),*]))
+    quote!(#runtime::metadata::PropertyPath::new(&[#(#path),*]))
 }
 
 /// Converts an optional string literal into runtime option tokens.
@@ -941,9 +956,9 @@ mod tests {
         );
 
         for mode in [
-            RedactModeIr::Level("low".to_owned()),
-            RedactModeIr::Level("medium".to_owned()),
-            RedactModeIr::Level("high".to_owned()),
+            RedactModeIr::Level("public".to_owned()),
+            RedactModeIr::Level("personal".to_owned()),
+            RedactModeIr::Level("confidential".to_owned()),
             RedactModeIr::Level("secret".to_owned()),
             RedactModeIr::Level("invalid".to_owned()),
             RedactModeIr::Skip,

@@ -9,7 +9,7 @@
 
 //! Owned property paths used while assembling resolved query metadata.
 
-use crate::PropertyPath;
+use crate::metadata::PropertyPath;
 
 /// An owned runtime path whose segment names originate in static declarations.
 #[derive(Clone, Debug, Eq, PartialEq)]

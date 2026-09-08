@@ -15,8 +15,8 @@ use super::TemporalPrecision;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::TemporalConstraint;
-/// use qubit_model_metadata::TemporalPrecision;
+/// use qubit_model_metadata::metadata::TemporalConstraint;
+/// use qubit_model_metadata::metadata::TemporalPrecision;
 ///
 /// let constraint = TemporalConstraint::new(TemporalPrecision::Millisecond);
 /// assert_eq!(constraint.precision(), TemporalPrecision::Millisecond);

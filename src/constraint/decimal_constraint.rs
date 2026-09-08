@@ -16,9 +16,9 @@ use super::RoundingMode;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::DecimalConstraint;
-/// use qubit_model_metadata::DecimalSemantic;
-/// use qubit_model_metadata::RoundingMode;
+/// use qubit_model_metadata::metadata::DecimalConstraint;
+/// use qubit_model_metadata::metadata::DecimalSemantic;
+/// use qubit_model_metadata::metadata::RoundingMode;
 ///
 /// let constraint = DecimalConstraint::new(Some(12), 2, RoundingMode::HalfEven, DecimalSemantic::Money);
 /// assert_eq!(constraint.scale(), 2);

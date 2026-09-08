@@ -23,7 +23,7 @@ use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::invoke::BorrowOrigin;
 use qubit_reflect::value::Local;
 
-use crate::FieldMetadata;
+use crate::metadata::FieldMetadata;
 
 /// Classifies how a property stores or computes its value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

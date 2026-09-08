@@ -14,6 +14,7 @@ use proc_macro2::Span;
 use quote::quote;
 use syn::Error;
 use syn::Meta;
+use syn::Path;
 use syn::Result;
 use syn::Token;
 use syn::parse2;
@@ -33,20 +34,6 @@ impl DeclarationOptions {
             source_id: None,
             open: false,
             transparent: false,
-            no_clone: false,
-            no_debug: false,
-            no_display: false,
-            no_partial_eq: false,
-            no_eq: false,
-            no_hash: false,
-            no_serialize: false,
-            no_deserialize: false,
-            no_redact: false,
-            no_copy: false,
-            copy: false,
-            default: false,
-            partial_ord: false,
-            ord: false,
             codec: None,
         };
         let mut diagnostics = Diagnostics::default();
@@ -95,91 +82,12 @@ impl DeclarationOptions {
                     &mut result.transparent,
                     path.span(),
                 ),
-                Meta::Path(path) if path.is_ident("no_clone") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "no_clone",
-                    &mut result.no_clone,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("no_debug") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "no_debug",
-                    &mut result.no_debug,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("no_display") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "no_display",
-                    &mut result.no_display,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("no_partial_eq") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "no_partial_eq",
-                    &mut result.no_partial_eq,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("no_eq") => {
-                    set_marker_option(&mut markers, &mut diagnostics, "no_eq", &mut result.no_eq, path.span())
-                }
-                Meta::Path(path) if path.is_ident("no_hash") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "no_hash",
-                    &mut result.no_hash,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("no_serialize") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "no_serialize",
-                    &mut result.no_serialize,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("no_deserialize") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "no_deserialize",
-                    &mut result.no_deserialize,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("no_redact") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "no_redact",
-                    &mut result.no_redact,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("no_copy") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "no_copy",
-                    &mut result.no_copy,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("copy") => {
-                    set_marker_option(&mut markers, &mut diagnostics, "copy", &mut result.copy, path.span())
-                }
-                Meta::Path(path) if path.is_ident("default") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "default",
-                    &mut result.default,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("partial_ord") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "partial_ord",
-                    &mut result.partial_ord,
-                    path.span(),
-                ),
-                Meta::Path(path) if path.is_ident("ord") => {
-                    set_marker_option(&mut markers, &mut diagnostics, "ord", &mut result.ord, path.span())
+                Meta::Path(path) if is_behavior_option(&path) => {
+                    let name = path.get_ident().expect("behavior option identifier");
+                    diagnostics.push(Error::new_spanned(
+                        &path,
+                        format!("unsupported model option '{name}'; derive Rust traits explicitly"),
+                    ));
                 }
                 other => {
                     diagnostics.push(Error::new_spanned(other, "unsupported model option"));
@@ -189,6 +97,27 @@ impl DeclarationOptions {
         diagnostics.finish()?;
         Ok(result)
     }
+}
+
+/// Returns whether `path` names a removed behavior-generating option.
+fn is_behavior_option(path: &Path) -> bool {
+    const OPTIONS: &[&str] = &[
+        "no_clone",
+        "no_debug",
+        "no_display",
+        "no_partial_eq",
+        "no_eq",
+        "no_hash",
+        "no_serialize",
+        "no_deserialize",
+        "no_redact",
+        "no_copy",
+        "copy",
+        "default",
+        "partial_ord",
+        "ord",
+    ];
+    OPTIONS.iter().any(|name| path.is_ident(name))
 }
 
 /// Records one declaration marker while preserving the second occurrence span.
@@ -208,6 +137,7 @@ fn set_marker_option(
 
 #[cfg(test)]
 mod tests {
+    use proc_macro2::TokenStream;
     use quote::quote;
     use syn::Meta;
     use syn::Token;
@@ -227,21 +157,7 @@ mod tests {
                 source = Source,
                 codec = Codec,
                 open,
-                transparent,
-                no_clone,
-                no_debug,
-                no_display,
-                no_partial_eq,
-                no_eq,
-                no_hash,
-                no_serialize,
-                no_deserialize,
-                no_redact,
-                no_copy,
-                copy,
-                default,
-                partial_ord,
-                ord
+                transparent
             ))
             .expect("option syntax");
         let parsed = DeclarationOptions::parse(options).expect("supported options");
@@ -250,10 +166,27 @@ mod tests {
         assert_eq!(parsed.source_id.expect("source id").value(), "example.Source");
         assert!(parsed.source.is_some());
         assert!(parsed.codec.is_some());
-        assert!(parsed.open && parsed.transparent && parsed.default && parsed.partial_ord && parsed.ord);
-        assert!(parsed.no_clone && parsed.no_debug && parsed.no_display && parsed.no_partial_eq);
-        assert!(parsed.no_eq && parsed.no_hash && parsed.no_serialize && parsed.no_deserialize);
-        assert!(parsed.no_redact && parsed.no_copy && parsed.copy);
+        assert!(parsed.open && parsed.transparent);
+    }
+
+    /// Confirms legacy behavior switches direct callers to explicit derives.
+    #[test]
+    fn test_reject_behavior_options() {
+        let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
+        for name in ["no_hash", "copy", "default", "partial_ord", "ord"] {
+            let option: TokenStream = name.parse().expect("option tokens");
+            let options = parser.parse2(option).expect("option syntax");
+            let error = match DeclarationOptions::parse(options) {
+                Ok(_) => panic!("behavior option must fail"),
+                Err(error) => error,
+            };
+            assert!(
+                error.to_string().contains(&format!(
+                    "unsupported model option '{name}'; derive Rust traits explicitly"
+                )),
+                "unexpected error: {error}",
+            );
+        }
     }
 
     /// Confirms unsupported and duplicate options are accumulated as

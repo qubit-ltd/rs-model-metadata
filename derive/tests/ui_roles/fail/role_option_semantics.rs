@@ -55,8 +55,8 @@ struct ConflictingFields {
     #[map_key(text(max_chars = 4))]
     #[map_key(text(min_chars = 1))]
     duplicate_selector: HashMap<String, String>,
-    #[redact(level = "low")]
-    #[element(redact(level = "high"))]
+    #[redact(level = "public")]
+    #[element(redact(level = "confidential"))]
     overlapping_redaction: Vec<String>,
 }
 

@@ -6,9 +6,9 @@
 
 //! Source category for one unmerged model property declaration.
 
-use crate::FieldMetadata;
-use crate::GetterMetadata;
-use crate::SetterMetadata;
+use crate::metadata::FieldMetadata;
+use crate::metadata::GetterMetadata;
+use crate::metadata::SetterMetadata;
 
 /// Identifies the field or method that declared a property fragment.
 #[derive(Clone, Copy, Debug)]

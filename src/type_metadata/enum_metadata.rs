@@ -8,7 +8,7 @@
 
 //! Domain metadata indexes for reflected enum variants.
 
-use crate::EnumVariantMetadata;
+use crate::metadata::EnumVariantMetadata;
 
 /// Metadata for enum variants in source order.
 #[derive(Clone, Copy, Debug)]

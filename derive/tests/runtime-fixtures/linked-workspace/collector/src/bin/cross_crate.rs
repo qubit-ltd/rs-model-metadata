@@ -12,12 +12,10 @@ use core::mem::size_of;
 
 use model_a::Source;
 use model_b::Target;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelResolver;
-use qubit_model_metadata::ResolveInputs;
-use qubit_model_metadata::TypeMetadata;
-use qubit_model_metadata::__private::qubit_codec::ValueCodecRegistry;
-use qubit_model_metadata::__private::qubit_validator::ValidatorRegistry;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::metadata::TypeMetadata;
 
 fn main() {
     let _ = size_of::<Source>();
@@ -26,11 +24,10 @@ fn main() {
         .expect("cross-crate registrations should be valid");
     assert!(registry.metadata("test.linked.Source").is_some());
     assert!(registry.metadata("test.linked.Target").is_some());
-    let graph = ModelResolver::new(ResolveInputs {
+    let graph = StructureResolver::new(ResolveInputs {
         models: registry,
-        codecs: ValueCodecRegistry::global(),
     })
-        .resolve_structure()
+        .resolve()
         .expect("cross-crate reference should resolve");
     let field = TypeMetadata::of::<Source>()
         .field("target_id")

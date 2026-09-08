@@ -11,7 +11,7 @@
 use qubit_reflect::VariantDefinitionDescriptor;
 use qubit_reflect::VariantDescriptor;
 
-use crate::FieldMetadata;
+use crate::metadata::FieldMetadata;
 
 /// Immutable domain metadata for one enum variant.
 #[derive(Clone, Copy, Debug)]
@@ -57,6 +57,7 @@ impl EnumVariantMetadata {
     /// Creates an overlay for one generic enum declaration variant.
     #[doc(hidden)]
     #[must_use]
+    #[cfg(feature = "generic")]
     pub(crate) const fn from_definition(
         definition: &'static VariantDefinitionDescriptor,
         canonical_name: &'static str,

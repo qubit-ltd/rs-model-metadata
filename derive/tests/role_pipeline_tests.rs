@@ -10,8 +10,8 @@
 
 use model_runtime::__private::TypeDescriptor;
 use model_runtime::__private::qubit_id::Id;
-use model_runtime::ModelRegistry;
-use model_runtime::TypeMetadata;
+use model_runtime::metadata::TypeMetadata;
+use model_runtime::registry::ModelRegistry;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;

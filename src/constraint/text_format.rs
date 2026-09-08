@@ -13,7 +13,7 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::TextFormat;
+/// use qubit_model_metadata::metadata::TextFormat;
 ///
 /// assert_ne!(TextFormat::Email, TextFormat::Uuid);
 /// ```

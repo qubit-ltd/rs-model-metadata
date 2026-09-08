@@ -13,17 +13,15 @@ use model_runtime::__private::Reflect;
 use model_runtime::__private::TypeDescriptor;
 use model_runtime::__private::TypeExpression;
 use model_runtime::__private::qubit_id::Id;
-use model_runtime::__private::qubit_redact::Redactor;
-use model_runtime::CodecReference;
-use model_runtime::IndexingReasons;
-use model_runtime::ModelRegistry;
-use model_runtime::ModelResolver;
-use model_runtime::ModelRole;
-use model_runtime::PropertyPath;
-use model_runtime::ResolveInputs;
-use model_runtime::SerdeBehaviorSource;
-use model_runtime::TypeMetadata;
-use qubit_codec::ValueCodecRegistry;
+use model_runtime::metadata::CodecReference;
+use model_runtime::metadata::IndexingReasons;
+use model_runtime::metadata::ModelRole;
+use model_runtime::metadata::PropertyPath;
+use model_runtime::metadata::SerdeBehaviorSource;
+use model_runtime::metadata::TypeMetadata;
+use model_runtime::registry::ModelRegistry;
+use model_runtime::resolve::ResolveInputs;
+use model_runtime::resolve::StructureResolver;
 use qubit_codec::ValueDecoder;
 use qubit_codec::ValueEncoder;
 use qubit_codec::register_value_codec;
@@ -40,6 +38,7 @@ struct EmailCodec;
 struct EmailCanonicalCodec;
 
 register_value_codec!(id = "runtime.alias_codec", codec = EmailCodec, value = String);
+register_value_codec!(id = "runtime.email_codec", codec = EmailCanonicalCodec, value = Email);
 
 impl ValueEncoder<String> for EmailCodec {
     type Output = String;
@@ -59,6 +58,7 @@ impl ValueDecoder<str> for EmailCodec {
     }
 }
 
+#[derive(serde::Serialize)]
 #[Entity(id = "runtime.Account")]
 struct Account {
     #[identifier]
@@ -66,7 +66,7 @@ struct Account {
     #[unique(respect_to(id), ignore_case = false)]
     #[validator(id = "runtime.email", depends_on(id), params(strict = true, regions = ["44", "45"]))]
     #[codec(EmailCodec)]
-    #[redact(level = "medium")]
+    #[redact(level = "personal")]
     #[serde(rename = "mail")]
     email: String,
     aliases: Vec<String>,
@@ -84,16 +84,16 @@ struct AccountView {
     id: Id,
 }
 
-#[Model(id = "runtime.Payload", no_hash)]
+#[Model(id = "runtime.Payload")]
 struct Payload {
     #[text(min_chars = 1, max_chars = 8, allowed_chars = code)]
     value: String,
     #[sequence(min_items = 1, max_items = 4, unique_items)]
-    #[element(text(max_chars = 8), validator(id = "runtime.tag"), redact(level = "low"))]
+    #[element(text(max_chars = 8), validator(id = "runtime.tag"), redact(level = "public"))]
     tags: Vec<String>,
     #[map(min_entries = 1, max_entries = 3)]
-    #[map_key(text(max_chars = 8), redact(level = "high"))]
-    #[map_value(validator(id = "runtime.map_value"), redact(level = "high"))]
+    #[map_key(text(max_chars = 8), redact(level = "confidential"))]
+    #[map_value(validator(id = "runtime.map_value"), redact(level = "confidential"))]
     labels: std::collections::HashMap<String, String>,
 }
 
@@ -141,7 +141,7 @@ struct Page<T> {
     value: T,
 }
 
-#[Model(id = "runtime.Buffer", no_serialize, no_deserialize)]
+#[Model(id = "runtime.Buffer")]
 struct Buffer<const N: usize> {
     bytes: [u8; N],
 }
@@ -154,7 +154,7 @@ impl ItemFamily for u8 {
     type Item = u16;
 }
 
-#[Model(id = "runtime.HTTPEnvelope", no_serialize, no_deserialize, no_redact)]
+#[Model(id = "runtime.HTTPEnvelope")]
 struct HTTPEnvelope<T: ItemFamily + Reflect, const N: usize> {
     item: T::Item,
     bytes: [u8; N],
@@ -165,19 +165,6 @@ struct Coordinate {
     #[key_part(order = 0)]
     x: i32,
     y: i32,
-}
-
-#[Value(transparent)]
-struct Handle {
-    value: String,
-}
-
-#[Value(transparent)]
-struct SecretValue(#[redact(level = "high")] String);
-
-#[Model(no_redact)]
-struct Plain {
-    value: String,
 }
 
 #[test]
@@ -236,20 +223,20 @@ fn test_field_occurrences_preserve_validator_order_and_declared_codec_id() {
     let owner = metadata.field("owner_id").unwrap();
     assert!(owner.reference().is_some());
     assert!(owner.indexing_reasons().contains(IndexingReasons::REFERENCE));
-    assert!(metadata.field("aliases").unwrap().serde().default());
+    assert!(!metadata.field("aliases").unwrap().serde().default());
     assert_eq!(
         metadata.field("aliases").unwrap().serde().default_source(),
-        SerdeBehaviorSource::ModelDefault
+        SerdeBehaviorSource::None
     );
     assert_eq!(
         metadata.field("aliases").unwrap().serde().omit_source(),
-        SerdeBehaviorSource::ModelDefault
+        SerdeBehaviorSource::None
     );
     assert_eq!(
         metadata.field("kept_aliases").unwrap().serde().omit_source(),
-        SerdeBehaviorSource::Suppressed
+        SerdeBehaviorSource::None
     );
-    assert!(metadata.field("nickname").unwrap().serde().default());
+    assert!(!metadata.field("nickname").unwrap().serde().default());
     assert!(matches!(
         metadata.field("nickname").unwrap().codec().map(|value| value.codec()),
         Some(CodecReference::DeclaredId("runtime.alias_codec")),
@@ -265,67 +252,14 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
         "APPROVED"
     );
     assert_eq!(enum_metadata.variant_by_rust_name("Failed").unwrap().fields().len(), 1);
-    assert_eq!(serde_json::to_string(&Status::Ready).unwrap(), r#""READY""#);
-    assert_eq!(
-        serde_json::to_string(&Status::Failed { message: "x".into() }).unwrap(),
-        r#"{"FAILED":{"message":"x"}}"#,
-    );
-
     let value = TypeMetadata::of::<Email>().as_value().expect("value role");
     assert!(value.is_transparent());
     assert_eq!(value.transparent_field().unwrap().index(), 0);
-    let email = Email("a@example.com".into());
-    assert_eq!(email.to_string(), "a@example.com");
-    assert!(format!("{email:?}").starts_with("Email("));
-    assert_eq!(serde_json::to_string(&email).unwrap(), r#""a@example.com""#);
-    let redacted = Redactor::application_default().redact_text(&email);
-    assert_eq!(redacted.text().as_str(), "\"a@example.com\"");
-    let restored: Email = serde_json::from_str(r#""restored@example.com""#).unwrap();
-    assert_eq!(restored.0, "restored@example.com");
-    let handle = Handle {
-        value: "alice".to_owned(),
-    };
-    assert_eq!(handle.to_string(), "alice");
-    assert_eq!(serde_json::to_string(&handle).unwrap(), r#""alice""#);
-    let restored: Handle = serde_json::from_str(r#""bob""#).unwrap();
-    assert_eq!(restored.value, "bob");
-    let secret = SecretValue("raw-secret".to_owned());
-    let redacted = Redactor::application_default().redact_text(&secret);
-    assert!(!redacted.text().as_str().contains("raw-secret"));
-    assert!(format!("{secret:?}").starts_with("SecretValue("));
-    assert!(!format!("{secret:?}").contains("raw-secret"));
-    assert!(!secret.to_string().contains("raw-secret"));
     assert!(!TypeMetadata::of::<Coordinate>().as_value().unwrap().is_transparent());
     let coordinate = TypeMetadata::of::<Coordinate>();
     assert_eq!(coordinate.field("x").unwrap().key_part().unwrap().order(), 0);
     assert!(coordinate.field("y").unwrap().key_part().is_none());
-    let account = Account {
-        id: Id::new(1),
-        email: "a@example.com".into(),
-        aliases: Vec::new(),
-        kept_aliases: Vec::new(),
-        nickname: None,
-        owner_id: Id::new(1),
-    };
-    let serialized = serde_json::to_string(&account).unwrap();
-    assert_eq!(
-        serialized,
-        r#"{"id":"1","mail":"*******m","kept_aliases":[],"owner_id":"1"}"#
-    );
-    assert!(!format!("{account:?}").contains("a@example.com"));
-    assert!(!format!("{account}").contains("a@example.com"));
     let _ = AccountView { id: Id::new(1) };
-    let payload = Payload {
-        value: "visible".into(),
-        tags: vec!["tag-secret".into()],
-        labels: [("key".to_owned(), "map-secret".to_owned())].into(),
-    };
-    let serialized = serde_json::to_string(&payload).unwrap();
-    assert!(!serialized.contains("key"));
-    assert!(!serialized.contains("tag-secret"));
-    assert!(!serialized.contains("map-secret"));
-    let redacted = Redactor::application_default().redact_text(&payload);
-    assert!(!redacted.text().as_str().contains("key"));
     let _ = Status::Ready;
     let Status::Failed { message } = (Status::Failed { message: "x".into() }) else {
         unreachable!()
@@ -333,31 +267,6 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
     assert_eq!(message, "x");
     let _ = Email("a@example.com".into()).0;
     assert_eq!(TypeDescriptor::of::<Account>().fields().len(), 6);
-}
-
-#[test]
-fn test_redacted_map_key_collisions_fail_serialization() {
-    let payload = Payload {
-        value: "visible".into(),
-        tags: vec!["tag".into()],
-        labels: [
-            ("first".to_owned(), "one".to_owned()),
-            ("second".to_owned(), "two".to_owned()),
-        ]
-        .into(),
-    };
-    let error = serde_json::to_string(&payload).expect_err("fixed masks collide");
-    assert!(error.to_string().contains("redacted map keys collide"));
-}
-
-#[test]
-fn test_no_redact_uses_plain_default_interfaces() {
-    let plain = Plain {
-        value: "visible".to_owned(),
-    };
-    assert_eq!(format!("{plain:?}"), "Plain { value: \"visible\" }");
-    assert_eq!(plain.to_string(), "Plain { value: \"visible\" }");
-    assert_eq!(serde_json::to_string(&plain).unwrap(), r#"{"value":"visible"}"#);
 }
 
 #[test]
@@ -450,12 +359,9 @@ fn test_generic_enum_registration_preserves_variant_field_overlays() {
 #[test]
 fn test_resolver_builds_scoped_unique_and_reference_queries() {
     let registry = ModelRegistry::try_global().expect("generated registrations");
-    let graph = ModelResolver::new(ResolveInputs {
-        models: registry,
-        codecs: ValueCodecRegistry::global(),
-    })
-    .resolve_structure()
-    .expect("valid generated model graph");
+    let graph = StructureResolver::new(ResolveInputs { models: registry })
+        .resolve()
+        .expect("valid generated model graph");
     let entity = TypeMetadata::of::<Account>().as_entity().unwrap();
     let query = graph.query(entity).expect("entity query");
 

@@ -13,7 +13,7 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::MapConstraint;
+/// use qubit_model_metadata::metadata::MapConstraint;
 ///
 /// let constraint = MapConstraint::new(Some(1), Some(8));
 /// assert_eq!(constraint.min_entries(), Some(1));

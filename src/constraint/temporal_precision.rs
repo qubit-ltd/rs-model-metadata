@@ -13,7 +13,7 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::TemporalPrecision;
+/// use qubit_model_metadata::metadata::TemporalPrecision;
 ///
 /// assert_ne!(TemporalPrecision::Nanosecond, TemporalPrecision::Second);
 /// ```

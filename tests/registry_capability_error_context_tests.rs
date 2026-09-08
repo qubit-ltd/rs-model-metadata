@@ -8,11 +8,11 @@
 
 use std::any::TypeId;
 
+use qubit_model_metadata::__private::ModelMetadataProvider;
+use qubit_model_metadata::__private::model_metadata_key;
 use qubit_model_metadata::__private::register_type_capabilities;
-use qubit_model_metadata::ModelMetadataProvider;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelRegistryErrorKind;
-use qubit_model_metadata::model_metadata_key;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistryErrorKind;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityConflict;

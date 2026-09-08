@@ -14,22 +14,22 @@ use qubit_reflect::TypeDescriptor;
 use qubit_reflect::access::FieldVisibility;
 use qubit_reflect::descriptor::TypeRef;
 
-use crate::CodecMetadata;
-use crate::ConstraintMetadata;
-use crate::DecimalConstraint;
-use crate::FieldAttributeMetadata;
-use crate::FieldReferenceMetadata;
-use crate::FieldUniqueMetadata;
-use crate::IdentifierMetadata;
-use crate::IndexingReasons;
-use crate::KeyPartMetadata;
-use crate::MapConstraint;
-use crate::RedactMetadata;
-use crate::SequenceConstraint;
-use crate::SerdeFieldMetadata;
-use crate::TextConstraint;
-use crate::TimeConstraint;
-use crate::ValidatorMetadata;
+use crate::metadata::CodecMetadata;
+use crate::metadata::ConstraintMetadata;
+use crate::metadata::DecimalConstraint;
+use crate::metadata::FieldAttributeMetadata;
+use crate::metadata::FieldReferenceMetadata;
+use crate::metadata::FieldUniqueMetadata;
+use crate::metadata::IdentifierMetadata;
+use crate::metadata::IndexingReasons;
+use crate::metadata::KeyPartMetadata;
+use crate::metadata::MapConstraint;
+use crate::metadata::RedactMetadata;
+use crate::metadata::SequenceConstraint;
+use crate::metadata::SerdeFieldMetadata;
+use crate::metadata::TextConstraint;
+use crate::metadata::TimeConstraint;
+use crate::metadata::ValidatorMetadata;
 
 /// Model semantics attached to one reflection-owned structural field.
 #[derive(Clone, Copy, Debug)]

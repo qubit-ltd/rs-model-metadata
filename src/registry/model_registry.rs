@@ -15,17 +15,20 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+#[cfg(feature = "generic")]
 use qubit_reflect::TypeDefinitionId;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::capability::CapabilityLookup;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::ReflectRegistry;
 
 use super::ModelRegistryError;
 use super::model_entry::ModelEntry;
-use crate::GenericModelMetadata;
-use crate::ModelId;
-use crate::TypeMetadata;
+#[cfg(feature = "generic")]
+use crate::generic::GenericModelMetadata;
+use crate::metadata::ModelId;
+use crate::metadata::TypeMetadata;
 
 /// An immutable registry sorted by stable model ID and fragment identity.
 #[derive(Debug)]
@@ -37,6 +40,7 @@ pub struct ModelRegistry<'reflection> {
     /// Lookup from an exact Rust type identity to a registration index.
     type_indices: HashMap<TypeId, usize>,
     /// Generic definitions retained in deterministic registration order.
+    #[cfg(feature = "generic")]
     generic_definitions: Box<[&'static GenericModelMetadata]>,
     /// Reflection snapshot that owns effective capability resolution.
     reflection: Option<&'reflection ReflectRegistry>,
@@ -57,10 +61,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             let provider = match reflection
                 .capability_lookup(descriptor, crate::reflect_facade::model_metadata_key())
                 .map_err(|error| {
-                    ModelRegistryError::capability(
-                        qubit_reflect::CapabilityAccessError::IntrinsicConflict(error),
-                        source.clone(),
-                    )
+                    ModelRegistryError::capability(CapabilityAccessError::IntrinsicConflict(error), source.clone())
                 })? {
                 CapabilityLookup::Missing => continue,
                 CapabilityLookup::Found(provider) => provider,
@@ -91,6 +92,7 @@ impl<'reflection> ModelRegistry<'reflection> {
                     .push(ModelEntry::concrete(metadata, source).expect("metadata with a model ID creates an entry"));
             }
         }
+        #[cfg(feature = "generic")]
         for definition in reflection.definitions() {
             let Some(provider) = reflection
                 .definition_capability(definition.id(), crate::reflect_facade::generic_model_metadata_key())
@@ -127,6 +129,21 @@ impl<'reflection> ModelRegistry<'reflection> {
     #[must_use = "handle invalid model registrations"]
     pub fn from_metadata<'a>(
         concrete: &[(&'static TypeMetadata, &'a FragmentIdentity)],
+    ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
+        let mut entries = Vec::with_capacity(concrete.len());
+        for &(metadata, source) in concrete {
+            let Some(entry) = ModelEntry::concrete(metadata, source) else {
+                return Err(ModelRegistryError::conflict(None, vec![source.clone()]));
+            };
+            entries.push(entry);
+        }
+        ModelRegistry::<'a>::build(entries)
+    }
+
+    /// Builds an isolated registry from concrete and generic declarations.
+    #[cfg(feature = "generic")]
+    pub fn from_metadata_with_generics<'a>(
+        concrete: &[(&'static TypeMetadata, &'a FragmentIdentity)],
         generic: &[(&'static GenericModelMetadata, &'a FragmentIdentity)],
     ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
         let mut entries = Vec::with_capacity(concrete.len() + generic.len());
@@ -161,6 +178,7 @@ impl<'reflection> ModelRegistry<'reflection> {
 
         let mut indices = BTreeMap::new();
         let mut type_indices = HashMap::new();
+        #[cfg(feature = "generic")]
         let mut generic_definitions = Vec::new();
         for (index, entry) in entries.iter().copied().enumerate() {
             indices.insert(entry.model_id, index);
@@ -178,6 +196,7 @@ impl<'reflection> ModelRegistry<'reflection> {
                     ));
                 }
             }
+            #[cfg(feature = "generic")]
             if let Some(generic) = entry.generic_metadata() {
                 generic_definitions.push(generic);
             }
@@ -187,6 +206,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             entries: entries.into_boxed_slice(),
             indices,
             type_indices,
+            #[cfg(feature = "generic")]
             generic_definitions: generic_definitions.into_boxed_slice(),
             reflection: None,
         })
@@ -246,6 +266,7 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Returns generic-definition metadata for a stable ID.
     #[must_use]
+    #[cfg(feature = "generic")]
     pub fn generic(&self, id: &str) -> Option<&'static GenericModelMetadata> {
         self.get(id).and_then(|entry| entry.generic_metadata())
     }
@@ -266,11 +287,11 @@ impl<'reflection> ModelRegistry<'reflection> {
     pub fn metadata_for(
         &self,
         descriptor: &'static TypeDescriptor,
-    ) -> Result<Option<&'static TypeMetadata>, crate::ModelMetadataError> {
+    ) -> Result<Option<&'static TypeMetadata>, crate::metadata::ModelMetadataError> {
         let provided = match self.reflection {
             Some(reflection) => reflection
                 .capability(descriptor, crate::reflect_facade::model_metadata_key())
-                .map_err(|source| crate::ModelMetadataError::Capability {
+                .map_err(|source| crate::metadata::ModelMetadataError::Capability {
                     type_id: descriptor.type_id(),
                     type_name: descriptor.type_name(),
                     source,
@@ -282,7 +303,7 @@ impl<'reflection> ModelRegistry<'reflection> {
         if let Some(metadata) = metadata {
             metadata
                 .validate_descriptor(descriptor)
-                .map_err(|source| crate::ModelMetadataError::Abi {
+                .map_err(|source| crate::metadata::ModelMetadataError::Abi {
                     type_id: descriptor.type_id(),
                     type_name: descriptor.type_name(),
                     source,
@@ -298,7 +319,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     pub fn properties_for(
         &self,
         metadata: &'static TypeMetadata,
-    ) -> Result<&'static crate::LocalPropertySet, crate::PropertyResolutionError> {
+    ) -> Result<&'static crate::metadata::LocalPropertySet, crate::metadata::PropertyResolutionError> {
         self.reflection.map_or_else(
             || Ok(metadata.local_properties()),
             |reflection| metadata.try_properties_in(reflection),
@@ -307,6 +328,7 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Returns model metadata for one generic declaration identity.
     #[must_use]
+    #[cfg(feature = "generic")]
     pub fn generic_metadata_for(&self, definition_id: TypeDefinitionId) -> Option<&'static GenericModelMetadata> {
         self.generic_definitions
             .iter()
@@ -331,6 +353,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Returns registered generic definitions in deterministic order.
     #[must_use]
     #[inline(always)]
+    #[cfg(feature = "generic")]
     pub fn generic_definitions(&self) -> &[&'static GenericModelMetadata] {
         &self.generic_definitions
     }

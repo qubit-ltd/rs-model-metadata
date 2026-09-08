@@ -12,9 +12,9 @@ use qubit_validator::ValidationArgument;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistry;
 
-use crate::AllowedChars;
-use crate::ConstraintMetadata;
-use crate::TextFormat;
+use crate::metadata::AllowedChars;
+use crate::metadata::ConstraintMetadata;
+use crate::metadata::TextFormat;
 
 /// Whether a standard binding validates the field value or its item count.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

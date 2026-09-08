@@ -13,7 +13,7 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::RoundingMode;
+/// use qubit_model_metadata::metadata::RoundingMode;
 ///
 /// assert_ne!(RoundingMode::HalfEven, RoundingMode::Down);
 /// ```

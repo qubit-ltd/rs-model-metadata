@@ -10,7 +10,7 @@
 
 use qubit_reflect::descriptor::TypeRef;
 
-use crate::PropertyFragmentSource;
+use crate::metadata::PropertyFragmentSource;
 
 /// Preserves one local source fact before property compatibility is checked.
 #[derive(Clone, Copy, Debug)]

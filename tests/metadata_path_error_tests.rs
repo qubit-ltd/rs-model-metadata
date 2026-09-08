@@ -8,21 +8,20 @@
 
 //! A failed property path must not suppress independent relationship failures.
 
-use qubit_codec::ValueCodecRegistry;
-use qubit_model_metadata::__private::v4;
-use qubit_model_metadata::DeclaredEntityTarget;
-use qubit_model_metadata::FieldAttributeMetadata;
-use qubit_model_metadata::FieldMetadata;
-use qubit_model_metadata::FieldReferenceMetadata;
-use qubit_model_metadata::ModelId;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelResolveErrorKind;
-use qubit_model_metadata::ModelResolver;
-use qubit_model_metadata::PropertyPath;
-use qubit_model_metadata::ReferenceSelection;
-use qubit_model_metadata::ResolveInputs;
-use qubit_model_metadata::SerdeFieldMetadata;
-use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::__private::v5;
+use qubit_model_metadata::metadata::DeclaredEntityTarget;
+use qubit_model_metadata::metadata::FieldAttributeMetadata;
+use qubit_model_metadata::metadata::FieldMetadata;
+use qubit_model_metadata::metadata::FieldReferenceMetadata;
+use qubit_model_metadata::metadata::ModelId;
+use qubit_model_metadata::metadata::PropertyPath;
+use qubit_model_metadata::metadata::ReferenceSelection;
+use qubit_model_metadata::metadata::SerdeFieldMetadata;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveErrorKind;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityDescriptor;
@@ -56,55 +55,50 @@ fn metadata() -> &'static TypeMetadata {
     static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
-        let reference = v4::leak(FieldReferenceMetadata::new(
-            v4::leak(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))),
-            v4::leak(ReferenceSelection::Entity),
+        let reference = v5::leak(FieldReferenceMetadata::new(
+            v5::leak(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))),
+            v5::leak(ReferenceSelection::Entity),
             false,
-            Some(v4::leak(PropertyPath::new(&["invalid", "value"]))),
+            Some(v5::leak(PropertyPath::new(&["invalid", "value"]))),
         ));
-        let fields = v4::leak_slice(vec![
+        let fields = v5::leak_slice(vec![
             FieldMetadata::from_reflect(descriptor.field_at(0).unwrap()),
-            v4::field_metadata(
+            v5::field_metadata(
                 descriptor.field_at(1).unwrap(),
-                v4::leak_slice(vec![FieldAttributeMetadata::Reference(reference)]),
+                v5::leak_slice(vec![FieldAttributeMetadata::Reference(reference)]),
                 &[],
                 &[],
                 &SerdeFieldMetadata::DEFAULT,
             ),
         ]);
-        let properties = v4::leak_slice(
+        let properties = v5::leak_slice(
             fields
                 .iter()
-                .map(|field| v4::property_metadata(field.name().unwrap(), field.type_ref(), Some(field), None, None))
+                .map(|field| v5::property_metadata(field.name().unwrap(), field.type_ref(), Some(field), None, None))
                 .collect(),
         );
-        v4::GeneratedTypeMetadataBuilder::new(
+        v5::GeneratedTypeMetadataBuilder::new(
             descriptor,
             Some(ModelId::new("error.PathRoot")),
             fields,
-            v4::leak(v4::model_role()),
+            v5::leak(v5::model_role()),
         )
         .properties(properties)
         .finish::<Root>()
     })
 }
 
-v4::register_model_capability!(Root, metadata);
+v5::register_model_capability!(Root, metadata);
 
 #[test]
 fn test_path_conflict_and_missing_target_are_both_reported() {
     let models = ModelRegistry::try_global().unwrap();
-    let errors = ModelResolver::new(ResolveInputs {
-        models,
-        codecs: ValueCodecRegistry::global(),
-    })
-    .resolve_structure()
-    .unwrap_err();
+    let errors = StructureResolver::new(ResolveInputs { models }).resolve().unwrap_err();
     assert_eq!(errors.errors().len(), 2);
     let cause = errors
         .errors()
         .iter()
-        .find(|error| error.kind() == ModelResolveErrorKind::MetadataResolution)
+        .find(|error| error.kind() == ResolveErrorKind::MetadataResolution)
         .unwrap();
     assert_eq!(cause.model_id(), Some("error.PathRoot"));
     assert_eq!(cause.path().unwrap().to_string(), "invalid.value");
@@ -114,12 +108,12 @@ fn test_path_conflict_and_missing_target_are_both_reported() {
         errors
             .errors()
             .iter()
-            .any(|error| error.kind() == ModelResolveErrorKind::MissingModelId)
+            .any(|error| error.kind() == ResolveErrorKind::MissingModelId)
     );
     assert!(
         !errors
             .errors()
             .iter()
-            .any(|error| error.kind() == ModelResolveErrorKind::MissingProperty)
+            .any(|error| error.kind() == ResolveErrorKind::MissingProperty)
     );
 }

@@ -27,9 +27,9 @@ use super::validation_options::FieldPath;
 use super::validation_options::ValidationMode;
 use super::validation_options::ValidationOptions;
 use super::validation_options::ValidationSelection;
-use crate::OnNone;
-use crate::PropertyValue;
-use crate::SelectorPosition;
+use crate::metadata::OnNone;
+use crate::metadata::PropertyValue;
+use crate::metadata::SelectorPosition;
 
 impl<'a> ValidationPlan<'a> {
     /// Executes all selected bound rules against one borrowed model value.

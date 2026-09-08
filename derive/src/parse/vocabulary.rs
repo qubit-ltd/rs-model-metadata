@@ -24,12 +24,15 @@ pub(crate) fn validate_closed_value(expression: &Expr, value: &str, allowed: &[&
 
 /// Validates the closed set of field redaction sensitivity levels.
 pub(crate) fn validate_redact_level(level: &LitStr) -> Result<()> {
-    if matches!(level.value().as_str(), "low" | "medium" | "high" | "secret") {
+    if matches!(
+        level.value().as_str(),
+        "public" | "personal" | "confidential" | "secret" | "low" | "medium" | "high"
+    ) {
         Ok(())
     } else {
         Err(Error::new_spanned(
             level,
-            "redact level must be low, medium, high, or secret",
+            "redact level must be public, personal, confidential, or secret",
         ))
     }
 }

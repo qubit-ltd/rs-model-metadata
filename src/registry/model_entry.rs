@@ -8,13 +8,15 @@
 
 use qubit_reflect::identity::FragmentIdentity;
 
-use crate::GenericModelMetadata;
-use crate::ModelId;
-use crate::TypeMetadata;
+#[cfg(feature = "generic")]
+use crate::generic::GenericModelMetadata;
+use crate::metadata::ModelId;
+use crate::metadata::TypeMetadata;
 
 #[derive(Clone, Copy, Debug)]
 enum ModelEntryTarget {
     Concrete(&'static TypeMetadata),
+    #[cfg(feature = "generic")]
     Generic(&'static GenericModelMetadata),
 }
 
@@ -49,6 +51,7 @@ impl<'reflection> ModelEntry<'reflection> {
     }
 
     /// Creates an entry for a registered generic declaration.
+    #[cfg(feature = "generic")]
     pub(super) const fn generic(
         metadata: &'static GenericModelMetadata,
         source: &'reflection FragmentIdentity,
@@ -65,12 +68,14 @@ impl<'reflection> ModelEntry<'reflection> {
     pub const fn metadata(self) -> Option<&'static TypeMetadata> {
         match self.target {
             ModelEntryTarget::Concrete(metadata) => Some(metadata),
+            #[cfg(feature = "generic")]
             ModelEntryTarget::Generic(_) => None,
         }
     }
 
     /// Returns generic metadata, or `None` for a concrete entry.
     #[must_use]
+    #[cfg(feature = "generic")]
     pub const fn generic_metadata(self) -> Option<&'static GenericModelMetadata> {
         match self.target {
             ModelEntryTarget::Concrete(_) => None,

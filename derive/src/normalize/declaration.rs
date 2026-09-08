@@ -17,9 +17,9 @@ use syn::PathArguments;
 use syn::Result;
 use syn::Type;
 
+use crate::compiler::type_path::is_collection_path;
 use crate::compiler::type_path::is_option_path;
 use crate::compiler::type_path::is_string_path;
-use crate::expand::capabilities::omission_kind;
 use crate::ir::MacroKind;
 use crate::ir::declaration::ConstraintIr;
 use crate::ir::declaration::DeclarationIr;
@@ -30,6 +30,26 @@ use crate::ir::declaration::RedactModeIr;
 use crate::ir::declaration::SelectorIr;
 use crate::ir::declaration::SelectorPositionIr;
 use crate::validate::declaration::combine;
+
+/// Identifies container kinds that support omission metadata.
+enum OmissionKind {
+    Option,
+    Collection,
+}
+
+/// Returns the omission policy supported by `ty`, if any.
+fn omission_kind(ty: &Type) -> Option<OmissionKind> {
+    let Type::Path(path) = ty else {
+        return None;
+    };
+    if path.qself.is_some() {
+        return None;
+    }
+    if is_option_path(&path.path) {
+        return Some(OmissionKind::Option);
+    }
+    is_collection_path(&path.path).then_some(OmissionKind::Collection)
+}
 
 /// Applies declaration-wide canonicalization before semantic validation.
 pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
@@ -121,18 +141,6 @@ pub(crate) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
             Error::new_spanned(&item.ident, "transparent Value requires exactly one field"),
         );
     }
-    if options.no_copy && declaration.kind != MacroKind::Enum {
-        combine(
-            &mut errors,
-            Error::new_spanned(&item.ident, "no_copy is only valid for Enum"),
-        );
-    }
-    if options.no_copy && options.copy {
-        combine(
-            &mut errors,
-            Error::new_spanned(&item.ident, "copy and no_copy cannot be combined"),
-        );
-    }
     let all_fields: Vec<_> = declaration
         .fields
         .iter()
@@ -146,21 +154,6 @@ pub(crate) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
                 Error::new_spanned(&item.ident, "Enum variant names must be unique"),
             );
         }
-    }
-    if options.no_redact
-        && all_fields.iter().any(|field| {
-            field.occurrences.iter().any(|value| {
-                matches!(
-                    value,
-                    FieldOccurrence::Redact(_) | FieldOccurrence::Selector(SelectorIr { redact: Some(_), .. })
-                )
-            })
-        })
-    {
-        combine(
-            &mut errors,
-            Error::new_spanned(&item.ident, "no_redact cannot be combined with field redaction rules"),
-        );
     }
     for field in &all_fields {
         let has_identifier = field

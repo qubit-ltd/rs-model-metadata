@@ -1,6 +1,6 @@
-use model_runtime::OnNone;
-use model_runtime::TargetMode;
-use model_runtime::TypeMetadata;
+use model_runtime::metadata::OnNone;
+use model_runtime::metadata::TargetMode;
+use model_runtime::metadata::TypeMetadata;
 use qubit_model_derive::Model;
 
 #[Model]

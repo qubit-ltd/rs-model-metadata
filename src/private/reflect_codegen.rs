@@ -20,9 +20,28 @@ pub fn reflected_type_ref<T: Reflect + ?Sized>() -> &'static TypeRef {
     lazy_type_ref::<T>().get()
 }
 
+/// Emits generic model expansion only when the runtime feature is enabled.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "generic")]
+macro_rules! __qubit_model_with_generic_feature {
+    ($($tokens:tt)*) => { $($tokens)* };
+}
+
+/// Reports a stable diagnostic when generic model support is disabled.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(not(feature = "generic"))]
+macro_rules! __qubit_model_with_generic_feature {
+    ($($tokens:tt)*) => {
+        compile_error!("generic model metadata requires the 'generic' feature");
+    };
+}
+
 /// Registers generated model metadata on a generic reflection definition.
 #[doc(hidden)]
 #[macro_export]
+#[cfg(feature = "generic")]
 macro_rules! __qubit_model_register_generic_model_capability {
     (
         definition = $definition:path,
@@ -46,7 +65,7 @@ macro_rules! __qubit_model_register_generic_model_capability {
                 $crate::__private::codegen_v3::registration::FragmentPayload::Capability(
                     $crate::__private::codegen_v3::registration::CapabilityRegistration::for_definition(
                         $definition(),
-                        ::std::vec![$crate::__private::v4::generic_model_capability($metadata)],
+                        ::std::vec![$crate::__private::v5::generic_model_capability($metadata)],
                     ),
                 )
             }

@@ -16,9 +16,9 @@ use super::TextFormat;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::TextConstraint;
-/// use qubit_model_metadata::TextFormat;
-/// use qubit_model_metadata::AllowedChars;
+/// use qubit_model_metadata::metadata::TextConstraint;
+/// use qubit_model_metadata::metadata::TextFormat;
+/// use qubit_model_metadata::metadata::AllowedChars;
 ///
 /// let constraint = TextConstraint::new(
 ///     Some(3),

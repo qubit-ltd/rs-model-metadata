@@ -10,16 +10,16 @@
 
 mod constraint;
 
-use qubit_model_metadata::AllowedChars;
-use qubit_model_metadata::DecimalConstraint;
-use qubit_model_metadata::DecimalSemantic;
-use qubit_model_metadata::MapConstraint;
-use qubit_model_metadata::RoundingMode;
-use qubit_model_metadata::SequenceConstraint;
-use qubit_model_metadata::TemporalConstraint;
-use qubit_model_metadata::TemporalPrecision;
-use qubit_model_metadata::TextConstraint;
-use qubit_model_metadata::TextFormat;
+use qubit_model_metadata::metadata::AllowedChars;
+use qubit_model_metadata::metadata::DecimalConstraint;
+use qubit_model_metadata::metadata::DecimalSemantic;
+use qubit_model_metadata::metadata::MapConstraint;
+use qubit_model_metadata::metadata::RoundingMode;
+use qubit_model_metadata::metadata::SequenceConstraint;
+use qubit_model_metadata::metadata::TemporalConstraint;
+use qubit_model_metadata::metadata::TemporalPrecision;
+use qubit_model_metadata::metadata::TextConstraint;
+use qubit_model_metadata::metadata::TextFormat;
 
 const VALID_TEXT: TextConstraint = TextConstraint::new(
     Some(1),
@@ -93,13 +93,25 @@ fn test_constraint_constructors_execute_runtime_paths() {
     );
     let sequence = SequenceConstraint::new(Some(1), Some(8), true);
     let map = MapConstraint::new(Some(1), Some(8));
-    let decimal = DecimalConstraint::new(Some(8), 3, RoundingMode::HalfEven, DecimalSemantic::Number);
+    let decimal = DecimalConstraint::new(Some(8), 3, RoundingMode::HalfEven, DecimalSemantic::Number).with_bounds(
+        Some("1.25"),
+        Some("9.75"),
+        false,
+        true,
+    );
     let temporal = TemporalConstraint::new(TemporalPrecision::Millisecond);
 
     assert_eq!(text.max_chars(), Some(8));
     assert!(sequence.unique_items());
     assert_eq!(map.max_entries(), Some(8));
+    assert_eq!(decimal.precision(), Some(8));
     assert_eq!(decimal.scale(), 3);
+    assert_eq!(decimal.rounding(), RoundingMode::HalfEven);
+    assert_eq!(decimal.semantic(), DecimalSemantic::Number);
+    assert_eq!(decimal.min(), Some("1.25"));
+    assert_eq!(decimal.max(), Some("9.75"));
+    assert!(!decimal.min_inclusive());
+    assert!(decimal.max_inclusive());
     assert_eq!(temporal.precision(), TemporalPrecision::Millisecond);
 }
 

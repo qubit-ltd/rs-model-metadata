@@ -13,8 +13,8 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::ModelId;
-/// use qubit_model_metadata::ModelIdError;
+/// use qubit_model_metadata::metadata::ModelId;
+/// use qubit_model_metadata::metadata::ModelIdError;
 ///
 /// assert_eq!(ModelId::try_new(""), Err(ModelIdError::Empty));
 /// ```

@@ -18,10 +18,10 @@ use qubit_datatype::DataType;
 use qubit_id::Id;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
-use qubit_model_metadata::__private::v4;
-use qubit_model_metadata::__private::v4::register_model_capability;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::TypeMetadata;
+use qubit_model_metadata::__private::v5;
+use qubit_model_metadata::__private::v5::register_model_capability;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 
@@ -49,8 +49,8 @@ impl TypeMetadataProvider for Account {
     fn __type_metadata() -> &'static TypeMetadata {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
-            let role = v4::leak(v4::model_role());
-            v4::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
+            let role = v5::leak(v5::model_role());
+            v5::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
         })
     }
 }

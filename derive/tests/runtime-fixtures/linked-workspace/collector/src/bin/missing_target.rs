@@ -11,12 +11,10 @@
 use core::mem::size_of;
 
 use model_a::MissingTarget;
-use qubit_model_metadata::ModelRegistry;
-use qubit_model_metadata::ModelResolveErrorKind;
-use qubit_model_metadata::ModelResolver;
-use qubit_model_metadata::ResolveInputs;
-use qubit_model_metadata::__private::qubit_codec::ValueCodecRegistry;
-use qubit_model_metadata::__private::qubit_validator::ValidatorRegistry;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveErrorKind;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::resolve::ResolveInputs;
 
 fn main() {
     let _ = size_of::<MissingTarget>();
@@ -24,14 +22,13 @@ fn main() {
         .expect("a missing reference target must not invalidate registration");
     assert!(registry.metadata("test.linked.Absent").is_none());
     assert!(registry.metadata("test.linked.MissingTarget").is_some());
-    let errors = ModelResolver::new(ResolveInputs {
+    let errors = StructureResolver::new(ResolveInputs {
         models: registry,
-        codecs: ValueCodecRegistry::global(),
     })
-        .resolve_structure()
+        .resolve()
         .expect_err("the missing reference target must be reported by graph validation");
     assert!(errors.errors().iter().any(|error| {
-        error.kind() == ModelResolveErrorKind::MissingModelId
+        error.kind() == ResolveErrorKind::MissingModelId
             && error.model_id() == Some("test.linked.Absent")
     }));
 }

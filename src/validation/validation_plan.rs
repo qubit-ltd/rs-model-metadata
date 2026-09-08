@@ -20,10 +20,11 @@ use super::ValidationBuildInputs;
 use super::compiled_property_path::CompiledPropertyPath;
 use super::standard_constraints;
 use super::standard_constraints::StandardTarget;
-use crate::OnNone;
-use crate::SelectorPosition;
-use crate::TargetMode;
-use crate::TypeMetadata;
+use crate::metadata::ModelIdBuf;
+use crate::metadata::OnNone;
+use crate::metadata::SelectorPosition;
+use crate::metadata::TargetMode;
+use crate::metadata::TypeMetadata;
 
 /// A typed model-level validator prepared for execution against the plan root.
 #[derive(Clone)]
@@ -91,7 +92,7 @@ impl SelectorBinding {
 /// A read-only plan containing no model instance or getter output.
 pub struct ValidationPlan<'a> {
     root: &'static TypeMetadata,
-    graph: &'a crate::ResolvedModelGraph<'a>,
+    graph: &'a crate::resolve::ModelGraph<'a>,
     bindings: Box<[FieldRuleBinding]>,
     model_rules: Box<[ModelRuleBinding]>,
 }
@@ -102,17 +103,25 @@ impl<'a> ValidationPlan<'a> {
         root: &'static TypeMetadata,
         inputs: ValidationBuildInputs<'a>,
     ) -> Result<Self, ValidationBuildErrors> {
+        let model_id = ModelIdBuf::from(
+            root.model_id()
+                .expect("validation plan roots must have a stable model ID"),
+        );
         let mut bindings = Vec::new();
         let mut errors = Vec::new();
+        let capability_errors = unsupported_selector_errors(root);
+        if !capability_errors.is_empty() {
+            return Err(ValidationBuildErrors::from_errors(capability_errors));
+        }
         let validators = match standard_constraints::registry(inputs.validators) {
             Ok(validators) => validators,
             Err(error) => {
-                return Err(ValidationBuildErrors::from_bind_errors(root.type_name(), vec![error]));
+                return Err(ValidationBuildErrors::from_bind_errors(model_id, vec![error]));
             }
         };
         let Some(properties) = inputs.graph.properties(root) else {
             return Err(ValidationBuildErrors::from_bind_errors(
-                root.type_name(),
+                model_id,
                 vec![BindError::new(BindErrorKind::UnreadablePath)],
             ));
         };
@@ -138,7 +147,7 @@ impl<'a> ValidationPlan<'a> {
                     };
                     let value = match CompiledPropertyPath::compile(
                         root,
-                        &crate::PropertyPath::new(&[name]),
+                        &crate::metadata::PropertyPath::new(&[name]),
                         inputs.graph,
                         target,
                     ) {
@@ -161,8 +170,12 @@ impl<'a> ValidationPlan<'a> {
                     });
                 }
                 let selectors = match constraint {
-                    crate::ConstraintMetadata::Sequence(sequence) => sequence.element().into_iter().collect::<Vec<_>>(),
-                    crate::ConstraintMetadata::Map(map) => map.key().into_iter().chain(map.value()).collect::<Vec<_>>(),
+                    crate::metadata::ConstraintMetadata::Sequence(sequence) => {
+                        sequence.element().into_iter().collect::<Vec<_>>()
+                    }
+                    crate::metadata::ConstraintMetadata::Map(map) => {
+                        map.key().into_iter().chain(map.value()).collect::<Vec<_>>()
+                    }
                     _ => Vec::new(),
                 };
                 for selector in selectors {
@@ -174,7 +187,7 @@ impl<'a> ValidationPlan<'a> {
                         errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
                         continue;
                     };
-                    if !matches!(getter.output_kind(), crate::GetterOutputKind::Borrowed)
+                    if !matches!(getter.output_kind(), crate::metadata::GetterOutputKind::Borrowed)
                         || !matches!(
                             getter.output_type().as_resolved().map(|value| value.kind()),
                             Some(TypeKind::Slice)
@@ -192,7 +205,8 @@ impl<'a> ValidationPlan<'a> {
                     }
                     for declaration in selector.validators() {
                         let input = selector_input_type(descriptor, declaration.target());
-                        let validator = match validators.bind(declaration.declared_id(), input, declaration.params()) {
+                        let params = super::validator_arguments(declaration.params());
+                        let validator = match validators.bind(declaration.declared_id(), input, &params) {
                             Ok(validator) => validator,
                             Err(error) => {
                                 errors.push(error);
@@ -211,7 +225,7 @@ impl<'a> ValidationPlan<'a> {
                             rule_id: validator.rule_id().expect("registry binding sets rule ID"),
                             value: match CompiledPropertyPath::compile(
                                 root,
-                                &crate::PropertyPath::new(&[name]),
+                                &crate::metadata::PropertyPath::new(&[name]),
                                 inputs.graph,
                                 TargetMode::Container,
                             ) {
@@ -234,7 +248,7 @@ impl<'a> ValidationPlan<'a> {
             }
             for (occurrence, declaration) in field.validators().iter().enumerate() {
                 let segments = [name];
-                let path = crate::PropertyPath::new(&segments);
+                let path = crate::metadata::PropertyPath::new(&segments);
                 let value = match CompiledPropertyPath::compile(root, &path, inputs.graph, declaration.target()) {
                     Ok(path) => path,
                     Err(error) => {
@@ -242,14 +256,14 @@ impl<'a> ValidationPlan<'a> {
                         continue;
                     }
                 };
-                let validator =
-                    match validators.bind(declaration.declared_id(), value.input_type(), declaration.params()) {
-                        Ok(validator) => validator,
-                        Err(error) => {
-                            errors.push(error);
-                            continue;
-                        }
-                    };
+                let params = super::validator_arguments(declaration.params());
+                let validator = match validators.bind(declaration.declared_id(), value.input_type(), &params) {
+                    Ok(validator) => validator,
+                    Err(error) => {
+                        errors.push(error);
+                        continue;
+                    }
+                };
                 let mut dependencies = Vec::new();
                 let specs = validator.dependency_specs();
                 let declared_dependencies = declaration.dependency_bindings();
@@ -348,7 +362,7 @@ impl<'a> ValidationPlan<'a> {
                 model_rules: Box::new([]),
             })
         } else {
-            Err(ValidationBuildErrors::from_bind_errors(root.type_name(), errors))
+            Err(ValidationBuildErrors::from_bind_errors(model_id, errors))
         }
     }
 
@@ -365,7 +379,7 @@ impl<'a> ValidationPlan<'a> {
     }
 
     /// Returns the structure graph retained by this plan.
-    pub const fn graph(&self) -> &'a crate::ResolvedModelGraph<'a> {
+    pub const fn graph(&self) -> &'a crate::resolve::ModelGraph<'a> {
         self.graph
     }
 
@@ -387,6 +401,36 @@ impl<'a> ValidationPlan<'a> {
     }
 }
 
+fn unsupported_selector_errors(root: &'static TypeMetadata) -> Vec<super::ValidationBuildError> {
+    let capabilities = super::ValidationCapabilities;
+    let model = ModelIdBuf::from(
+        root.model_id()
+            .expect("validation plan roots must have a stable model ID"),
+    );
+    let mut errors = Vec::new();
+    for field in root.fields() {
+        let Some(path) = field.name() else { continue };
+        let selectors = field
+            .sequence_constraint()
+            .and_then(|value| value.element())
+            .into_iter()
+            .chain(field.map_constraint().and_then(|value| value.key()))
+            .chain(field.map_constraint().and_then(|value| value.value()));
+        for selector in selectors {
+            if (!selector.constraints().is_empty() || !selector.validators().is_empty())
+                && !capabilities.supports(selector.position())
+            {
+                errors.push(super::ValidationBuildError::unsupported_selector(
+                    model.clone(),
+                    path,
+                    selector.position(),
+                ));
+            }
+        }
+    }
+    errors
+}
+
 /// Adds validators declared by fields marked with `#[validate_nested]`.
 ///
 /// Nested declarations are flattened into the root plan so execution keeps a
@@ -398,7 +442,7 @@ fn collect_nested_bindings<'a>(
     root: &'static TypeMetadata,
     current: &'static TypeMetadata,
     prefix: &[&'static str],
-    graph: &'a crate::ResolvedModelGraph<'a>,
+    graph: &'a crate::resolve::ModelGraph<'a>,
     validators: &ValidatorRegistry,
     bindings: &mut Vec<FieldRuleBinding>,
     errors: &mut Vec<BindError>,
@@ -434,7 +478,7 @@ fn collect_nested_bindings<'a>(
             for declaration in nested_field.validators() {
                 let value = match CompiledPropertyPath::compile(
                     root,
-                    &crate::PropertyPath::new(&value_segments),
+                    &crate::metadata::PropertyPath::new(&value_segments),
                     graph,
                     declaration.target(),
                 ) {
@@ -444,14 +488,14 @@ fn collect_nested_bindings<'a>(
                         continue;
                     }
                 };
-                let validator =
-                    match validators.bind(declaration.declared_id(), value.input_type(), declaration.params()) {
-                        Ok(validator) => validator,
-                        Err(error) => {
-                            errors.push(error);
-                            continue;
-                        }
-                    };
+                let params = super::validator_arguments(declaration.params());
+                let validator = match validators.bind(declaration.declared_id(), value.input_type(), &params) {
+                    Ok(validator) => validator,
+                    Err(error) => {
+                        errors.push(error);
+                        continue;
+                    }
+                };
                 let declared = declaration.dependency_bindings();
                 let legacy = declaration.depends_on();
                 let specs = validator.dependency_specs();
@@ -498,7 +542,7 @@ fn collect_nested_bindings<'a>(
                     let dependency_segments = path_segments_for(&path_segments, dependency.segments());
                     match CompiledPropertyPath::compile(
                         root,
-                        &crate::PropertyPath::new(&dependency_segments),
+                        &crate::metadata::PropertyPath::new(&dependency_segments),
                         graph,
                         TargetMode::Value,
                     ) {

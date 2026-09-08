@@ -8,7 +8,7 @@
 
 //! One structured local property assembly failure.
 
-use crate::PropertyBuildErrorKind;
+use crate::metadata::PropertyBuildErrorKind;
 
 /// Describes one incompatible property fragment combination.
 #[must_use]

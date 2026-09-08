@@ -16,9 +16,10 @@ use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::registry::ReflectRegistry;
 
-use crate::GenericModelMetadata;
-use crate::ModelImplMetadata;
-use crate::TypeMetadata;
+#[cfg(feature = "generic")]
+use crate::generic::GenericModelMetadata;
+use crate::metadata::ModelImplMetadata;
+use crate::metadata::TypeMetadata;
 
 /// The typed capability adapter supplied by generated model declarations.
 #[doc(hidden)]
@@ -30,6 +31,7 @@ pub type ModelImplProvider = fn() -> &'static ModelImplMetadata;
 
 /// The typed capability adapter supplied by generic model declarations.
 #[doc(hidden)]
+#[cfg(feature = "generic")]
 pub type GenericModelMetadataProvider = fn() -> &'static GenericModelMetadata;
 
 /// Returns the stable key used to retrieve a model metadata provider.
@@ -51,6 +53,7 @@ pub fn model_impl_key() -> CapabilityKey<ModelImplProvider> {
 /// Returns the stable key used to retrieve generic model metadata.
 #[doc(hidden)]
 #[must_use]
+#[cfg(feature = "generic")]
 pub fn generic_model_metadata_key() -> CapabilityKey<GenericModelMetadataProvider> {
     let id = CapabilityId::new("qubit.model.generic_metadata.v1")
         .expect("the generic model metadata capability ID must be valid");
@@ -60,6 +63,7 @@ pub fn generic_model_metadata_key() -> CapabilityKey<GenericModelMetadataProvide
 /// Builds a capability for one generic model declaration.
 #[doc(hidden)]
 #[must_use]
+#[cfg(feature = "generic")]
 pub fn generic_model_capability(provider: GenericModelMetadataProvider) -> CapabilityDescriptor {
     CapabilityDescriptor::with_adapter(generic_model_metadata_key(), provider)
 }
@@ -67,9 +71,9 @@ pub fn generic_model_capability(provider: GenericModelMetadataProvider) -> Capab
 /// Builds an inline model capability for one concrete reflection monomorph.
 #[doc(hidden)]
 #[must_use]
-pub fn model_capability<T: crate::HasTypeMetadata>() -> CapabilityDescriptor {
+pub fn model_capability<T: crate::metadata::HasTypeMetadata>() -> CapabilityDescriptor {
     /// Returns the metadata supplied by `T` after descriptor validation.
-    fn provide<T: crate::HasTypeMetadata>() -> &'static TypeMetadata {
+    fn provide<T: crate::metadata::HasTypeMetadata>() -> &'static TypeMetadata {
         let metadata = <T as crate::__private::TypeMetadataProvider>::__type_metadata();
         metadata.assert_valid_for::<T>();
         metadata

@@ -4,12 +4,12 @@
 
 use qubit_validator::ValidatorRegistry;
 
-use crate::ResolvedModelGraph;
+use crate::resolve::ModelGraph;
 
 /// Immutable registries used by one validation-plan build.
 pub struct ValidationBuildInputs<'a> {
     /// The structure-only model graph to which declarations belong.
-    pub graph: &'a ResolvedModelGraph<'a>,
+    pub graph: &'a ModelGraph<'a>,
     /// The local executable validator registry.
     pub validators: &'a ValidatorRegistry,
 }

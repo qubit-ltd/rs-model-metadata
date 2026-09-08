@@ -6,10 +6,11 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Attribute macros for the five Qubit model roles and model properties.
+//! Metadata-only attribute macros for the five Qubit model roles and model
+//! properties.
 //!
 //! A role macro turns one Rust declaration into reflection metadata plus the
-//! model-specific semantics needed by Qubit runtimes. Use [`Entity`] and
+//! declarative model semantics consumed by Qubit runtimes. Use [`Entity`] and
 //! [`Projection`] for identity-bearing records and views, [`Model`] for
 //! structured data, [`Enum`] for domain enumerations, [`Value`] for value
 //! objects, and [`ModelImpl`] for getter/setter-backed properties.
@@ -19,7 +20,7 @@
 //! ```
 //! use qubit_id::Id;
 //! use qubit_model_derive::{Entity, ModelImpl};
-//! use model_runtime::TypeMetadata;
+//! use model_runtime::metadata::TypeMetadata;
 //!
 //! #[Entity(id = "example.Document")]
 //! pub struct Document {
@@ -71,7 +72,7 @@ use proc_macro::TokenStream;
 /// Compiles an identity-bearing persistent entity declaration.
 ///
 /// The attribute arguments configure the entity's stable model identity and
-/// behavior.
+/// metadata.
 ///
 /// # Parameters
 ///
@@ -117,11 +118,11 @@ pub fn Projection(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Compiles an ordinary structured model declaration.
 ///
-/// The attribute arguments configure model behavior.
+/// The attribute arguments configure model metadata.
 ///
 /// # Parameters
 ///
-/// * `args` - Model options controlling generated capabilities.
+/// * `args` - Model identity and declaration options.
 /// * `input` - The struct declaration to compile.
 ///
 /// # Returns
@@ -139,11 +140,11 @@ pub fn Model(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Compiles a domain model enum declaration.
 ///
-/// The attribute arguments configure enum behavior.
+/// The attribute arguments configure enum metadata.
 ///
 /// # Parameters
 ///
-/// * `args` - Enum options controlling generated capabilities.
+/// * `args` - Enum identity and declaration options.
 /// * `input` - The enum declaration to compile.
 ///
 /// # Returns
@@ -160,11 +161,11 @@ pub fn Enum(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Compiles a domain value-type declaration.
 ///
-/// The attribute arguments configure value behavior.
+/// The attribute arguments configure value metadata.
 ///
 /// # Parameters
 ///
-/// * `args` - Value options controlling representation and capabilities.
+/// * `args` - Value identity and declaration options.
 /// * `input` - The struct declaration to compile.
 ///
 /// # Returns

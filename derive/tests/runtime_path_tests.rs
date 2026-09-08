@@ -8,7 +8,7 @@
 
 //! Integration tests for runtime crate path resolution in generated metadata.
 
-use ::model_runtime::TypeMetadata;
+use ::model_runtime::metadata::TypeMetadata;
 use qubit_model_derive::Model;
 
 mod model_runtime {}
