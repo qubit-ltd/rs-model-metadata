@@ -385,8 +385,12 @@ fn expand_constraint(
                 || quote!(None),
                 |value| {
                     let value = match value {
-                        "email" => quote!(#runtime::metadata::TextFormat::Email),
-                        "cn_mobile" => quote!(#runtime::metadata::TextFormat::Mobile),
+                        "email" => {
+                            quote!(#runtime::metadata::TextFormat::Email)
+                        }
+                        "cn_mobile" => {
+                            quote!(#runtime::metadata::TextFormat::Mobile)
+                        }
                         "uri" => quote!(#runtime::metadata::TextFormat::Uri),
                         "uuid" => quote!(#runtime::metadata::TextFormat::Uuid),
                         _ => quote!(compile_error!("invalid text format")),
@@ -418,14 +422,18 @@ fn expand_constraint(
         }
         ConstraintIr::Time(value) => {
             let precision = match value.as_str() {
-                "second" => quote!(#runtime::metadata::TemporalPrecision::Second),
+                "second" => {
+                    quote!(#runtime::metadata::TemporalPrecision::Second)
+                }
                 "millisecond" => {
                     quote!(#runtime::metadata::TemporalPrecision::Millisecond)
                 }
                 "microsecond" => {
                     quote!(#runtime::metadata::TemporalPrecision::Microsecond)
                 }
-                "nanosecond" => quote!(#runtime::metadata::TemporalPrecision::Nanosecond),
+                "nanosecond" => {
+                    quote!(#runtime::metadata::TemporalPrecision::Nanosecond)
+                }
                 _ => quote!(compile_error!("invalid time precision")),
             };
             quote!(#runtime::metadata::ConstraintMetadata::Time(#runtime::metadata::TimeConstraint::new(#precision)))
@@ -607,7 +615,9 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream) -> TokenStre
     });
     let target = match validator.target {
         TargetModeIr::Value => quote!(#runtime::metadata::TargetMode::Value),
-        TargetModeIr::Container => quote!(#runtime::metadata::TargetMode::Container),
+        TargetModeIr::Container => {
+            quote!(#runtime::metadata::TargetMode::Container)
+        }
     };
     let on_none = match validator.on_none {
         OnNoneIr::Skip => quote!(#runtime::metadata::OnNone::Skip),
@@ -713,9 +723,15 @@ fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenSt
     let (sensitivity, mode) = match &redact.mode {
         RedactModeIr::Level(level) => {
             let sensitivity = match level.as_str() {
-                "public" | "low" => quote!(#runtime::__private::Sensitivity::Public),
-                "personal" | "medium" => quote!(#runtime::__private::Sensitivity::Personal),
-                "confidential" | "high" => quote!(#runtime::__private::Sensitivity::Confidential),
+                "public" | "low" => {
+                    quote!(#runtime::__private::Sensitivity::Public)
+                }
+                "personal" | "medium" => {
+                    quote!(#runtime::__private::Sensitivity::Personal)
+                }
+                "confidential" | "high" => {
+                    quote!(#runtime::__private::Sensitivity::Confidential)
+                }
                 "secret" => quote!(#runtime::__private::Sensitivity::Secret),
                 _ => quote!(compile_error!(
                     "redact level must be public, personal, confidential, or secret"

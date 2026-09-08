@@ -201,7 +201,9 @@ fn bind_field_at<'a>(
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
 ) {
-    let Some(descriptor) = field.descriptor() else { return };
+    let Some(descriptor) = field.descriptor() else {
+        return;
+    };
     if let Some(codec) = field.codec() {
         let expected = descriptor
             .as_optional()
@@ -226,7 +228,9 @@ fn bind_field_at<'a>(
     .into_iter()
     .flatten()
     {
-        let Some(codec) = selector.codec() else { continue };
+        let Some(codec) = selector.codec() else {
+            continue;
+        };
         let Some(expected) = selector_type_id(descriptor, selector.position()) else {
             continue;
         };
