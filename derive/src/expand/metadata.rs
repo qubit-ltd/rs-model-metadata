@@ -29,36 +29,23 @@ use crate::ir::declaration::FieldIr;
 use crate::ir::declaration::VariantIr;
 
 /// Generates lazy type metadata and registration implementations.
-pub(crate) fn expand_metadata(
-    declaration: &DeclarationIr,
-    item: &DeriveInput,
-    runtime: &TokenStream,
-) -> TokenStream {
+pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let ident = &item.ident;
-    let fields = expand_field_vector(
-        &declaration.fields,
-        quote!(descriptor.fields()),
-        runtime,
-    );
+    let fields = expand_field_vector(&declaration.fields, quote!(descriptor.fields()), runtime);
     let role = expand_role(declaration, runtime);
-    let declared_model_id = declaration.options.id.as_ref().map_or_else(
-        || quote!(None),
-        |id| quote!(Some(#runtime::ModelId::new(#id))),
-    );
+    let declared_model_id = declaration
+        .options
+        .id
+        .as_ref()
+        .map_or_else(|| quote!(None), |id| quote!(Some(#runtime::ModelId::new(#id))));
     let has_generics = !item.generics.params.is_empty();
     let mut impl_generics_source = item.generics.clone();
     for parameter in impl_generics_source.type_params_mut() {
-        parameter
-            .bounds
-            .push(parse_quote!(#runtime::__private::Reflect));
+        parameter.bounds.push(parse_quote!(#runtime::__private::Reflect));
         parameter.bounds.push(parse_quote!('static));
     }
-    let (impl_generics, ty_generics, where_clause) =
-        impl_generics_source.split_for_impl();
-    let generic_metadata = format_ident!(
-        "__qubit_model_generic_metadata_{}",
-        ident.to_string().to_snake_case()
-    );
+    let (impl_generics, ty_generics, where_clause) = impl_generics_source.split_for_impl();
+    let generic_metadata = format_ident!("__qubit_model_generic_metadata_{}", ident.to_string().to_snake_case());
     let registration = match (declaration.options.id.as_ref(), has_generics) {
         (Some(_), false) => TokenStream::new(),
         (Some(id), true) => expand_generic_registration(
@@ -171,10 +158,8 @@ fn expand_generic_registration(
     runtime: &TokenStream,
 ) -> TokenStream {
     let snake_name = ident.to_string().to_snake_case();
-    let definition_fn =
-        format_ident!("__qubit_model_reflect_definition_{}", ident);
-    let registration_module =
-        format_ident!("__qubit_model_generic_capability_{}", snake_name);
+    let definition_fn = format_ident!("__qubit_model_reflect_definition_{}", ident);
+    let registration_module = format_ident!("__qubit_model_generic_capability_{}", snake_name);
     let role = match kind {
         MacroKind::Model => quote!(#runtime::ModelRole::Model),
         MacroKind::Enum => quote!(#runtime::ModelRole::Enum),
@@ -227,10 +212,7 @@ fn expand_generic_registration(
 }
 
 /// Generates complete symbolic overlays for generic enum variants.
-fn expand_generic_variant_vector(
-    variants: &[VariantIr],
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_generic_variant_vector(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
     let bodies = variants.iter().enumerate().map(|(variant_index, variant)| {
         let fields = expand_generic_field_vector(
             &variant.fields,

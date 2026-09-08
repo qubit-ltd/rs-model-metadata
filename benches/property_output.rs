@@ -55,27 +55,19 @@ fn property_output(criterion: &mut Criterion) {
     let mut scalar = criterion.benchmark_group("property_scalar");
     scalar.bench_function("borrowed", |bencher| {
         bencher.iter(|| {
-            black_box(
-                PropertyValue::Borrowed(ReflectedRef::new(black_box(&value)))
-                    .into_invocation_output(),
-            );
+            black_box(PropertyValue::Borrowed(ReflectedRef::new(black_box(&value))).into_invocation_output());
         })
     });
     scalar.bench_function("optional_some", |bencher| {
         bencher.iter(|| {
             black_box(
-                PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(
-                    black_box(&value),
-                )))
-                .into_invocation_output(),
+                PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(black_box(&value)))).into_invocation_output(),
             );
         })
     });
     scalar.bench_function("optional_none", |bencher| {
         bencher.iter(|| {
-            black_box(
-                PropertyValue::OptionalBorrowed(None).into_invocation_output(),
-            );
+            black_box(PropertyValue::OptionalBorrowed(None).into_invocation_output());
         })
     });
     scalar.bench_function("owned", |bencher| {
@@ -91,55 +83,29 @@ fn property_output(criterion: &mut Criterion) {
     let mut slices = criterion.benchmark_group("property_slice");
     for length in [0, 1, 32, 1024, 65536] {
         let values = vec![value; length];
-        slices.bench_with_input(
-            BenchmarkId::new("native", length),
-            &values,
-            |bencher, values| {
-                bencher.iter(|| {
-                    black_box(
-                        black_box(values.as_slice()).get(values.len() / 2),
-                    );
-                });
-            },
-        );
-        slices.bench_with_input(
-            BenchmarkId::new("direct", length),
-            &values,
-            |bencher, values| {
-                bencher.iter(|| {
-                    let slice = BorrowedPropertySlice::new(black_box(
-                        values.as_slice(),
-                    ));
-                    black_box(slice.get(slice.len() / 2));
-                });
-            },
-        );
-        slices.bench_with_input(
-            BenchmarkId::new("convert", length),
-            &values,
-            |bencher, values| {
-                bencher.iter(|| {
-                    let input = PropertyValue::BorrowedSlice(
-                        BorrowedPropertySlice::new(black_box(
-                            values.as_slice(),
-                        )),
-                    );
-                    black_box(input.into_invocation_output());
-                });
-            },
-        );
+        slices.bench_with_input(BenchmarkId::new("native", length), &values, |bencher, values| {
+            bencher.iter(|| {
+                black_box(black_box(values.as_slice()).get(values.len() / 2));
+            });
+        });
+        slices.bench_with_input(BenchmarkId::new("direct", length), &values, |bencher, values| {
+            bencher.iter(|| {
+                let slice = BorrowedPropertySlice::new(black_box(values.as_slice()));
+                black_box(slice.get(slice.len() / 2));
+            });
+        });
+        slices.bench_with_input(BenchmarkId::new("convert", length), &values, |bencher, values| {
+            bencher.iter(|| {
+                let input = PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(black_box(values.as_slice())));
+                black_box(input.into_invocation_output());
+            });
+        });
         slices.bench_with_input(
             BenchmarkId::new("conversion_only", length),
             &values,
             |bencher, values| {
                 bencher.iter_batched(
-                    || {
-                        PropertyValue::BorrowedSlice(
-                            BorrowedPropertySlice::new(black_box(
-                                values.as_slice(),
-                            )),
-                        )
-                    },
+                    || PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(black_box(values.as_slice()))),
                     |input| {
                         black_box(input.into_invocation_output());
                     },
@@ -155,18 +121,10 @@ fn property_output(criterion: &mut Criterion) {
 fn generated_getters(criterion: &mut Criterion) {
     let metadata = TypeMetadata::of::<GetterFixture>();
     let properties = metadata.try_properties().expect("valid getter fixture");
-    let number = properties
-        .property("number")
-        .expect("generated scalar getter");
-    let label = properties
-        .property("label")
-        .expect("generated string getter");
-    let alias = properties
-        .property("alias")
-        .expect("generated optional getter");
-    let values = properties
-        .property("values")
-        .expect("generated slice getter");
+    let number = properties.property("number").expect("generated scalar getter");
+    let label = properties.property("label").expect("generated string getter");
+    let alias = properties.property("alias").expect("generated optional getter");
+    let values = properties.property("values").expect("generated slice getter");
     assert!(number.is_getter());
     assert!(label.is_getter());
     assert!(alias.is_getter());
@@ -196,9 +154,7 @@ fn generated_getters(criterion: &mut Criterion) {
         bencher.iter(|| black_box(black_box(&scalar_fixture).number()))
     });
     scalar.bench_function("property_get", |bencher| {
-        bencher.iter(|| {
-            black_box(number.get(ReflectedRef::new(black_box(&scalar_fixture))))
-        })
+        bencher.iter(|| black_box(number.get(ReflectedRef::new(black_box(&scalar_fixture)))))
     });
     scalar.bench_function("property_get_and_convert", |bencher| {
         bencher.iter(|| {
@@ -216,9 +172,7 @@ fn generated_getters(criterion: &mut Criterion) {
         bencher.iter(|| black_box(black_box(&scalar_fixture).label()))
     });
     string.bench_function("property_get", |bencher| {
-        bencher.iter(|| {
-            black_box(label.get(ReflectedRef::new(black_box(&scalar_fixture))))
-        })
+        bencher.iter(|| black_box(label.get(ReflectedRef::new(black_box(&scalar_fixture)))))
     });
     string.bench_function("property_get_and_convert", |bencher| {
         bencher.iter(|| {
@@ -232,9 +186,7 @@ fn generated_getters(criterion: &mut Criterion) {
     string.finish();
 
     let mut optional = criterion.benchmark_group("generated_getter/optional");
-    for (state, alias_value) in
-        [("some", Some("alias".to_owned())), ("none", None)]
-    {
+    for (state, alias_value) in [("some", Some("alias".to_owned())), ("none", None)] {
         let fixture = GetterFixture {
             number: 7,
             label: "fixture".to_owned(),
@@ -245,26 +197,15 @@ fn generated_getters(criterion: &mut Criterion) {
         let output = alias
             .get(ReflectedRef::new(&fixture))
             .expect("valid optional getter output");
-        assert!(
-            matches!(output, PropertyValue::OptionalBorrowed(Some(_)))
-                == expected_some
-        );
+        assert!(matches!(output, PropertyValue::OptionalBorrowed(Some(_))) == expected_some);
         optional.bench_with_input(
             BenchmarkId::new("native_getter", state),
             &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| black_box(black_box(fixture).alias()))
-            },
+            |bencher, fixture| bencher.iter(|| black_box(black_box(fixture).alias())),
         );
-        optional.bench_with_input(
-            BenchmarkId::new("property_get", state),
-            &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| {
-                    black_box(alias.get(ReflectedRef::new(black_box(fixture))))
-                })
-            },
-        );
+        optional.bench_with_input(BenchmarkId::new("property_get", state), &fixture, |bencher, fixture| {
+            bencher.iter(|| black_box(alias.get(ReflectedRef::new(black_box(fixture)))))
+        });
         optional.bench_with_input(
             BenchmarkId::new("property_get_and_convert", state),
             &fixture,
@@ -299,18 +240,12 @@ fn generated_getters(criterion: &mut Criterion) {
         slices.bench_with_input(
             BenchmarkId::new("native_getter", length),
             &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| black_box(black_box(fixture).values()))
-            },
+            |bencher, fixture| bencher.iter(|| black_box(black_box(fixture).values())),
         );
         slices.bench_with_input(
             BenchmarkId::new("property_get", length),
             &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| {
-                    black_box(values.get(ReflectedRef::new(black_box(fixture))))
-                })
-            },
+            |bencher, fixture| bencher.iter(|| black_box(values.get(ReflectedRef::new(black_box(fixture))))),
         );
         slices.bench_with_input(
             BenchmarkId::new("property_get_and_convert", length),
@@ -328,46 +263,41 @@ fn generated_getters(criterion: &mut Criterion) {
     }
     slices.finish();
 
-    let mut lookup =
-        criterion.benchmark_group("generated_getter/lookup_and_get");
+    let mut lookup = criterion.benchmark_group("generated_getter/lookup_and_get");
     lookup.bench_function("scalar", |bencher| {
         bencher.iter(|| {
-            black_box(properties.property(black_box("number")).map(
-                |property| {
-                    property.get(ReflectedRef::new(black_box(&scalar_fixture)))
-                },
-            ))
+            black_box(
+                properties
+                    .property(black_box("number"))
+                    .map(|property| property.get(ReflectedRef::new(black_box(&scalar_fixture)))),
+            )
         })
     });
     lookup.bench_function("string", |bencher| {
         bencher.iter(|| {
-            black_box(properties.property(black_box("label")).map(|property| {
-                property.get(ReflectedRef::new(black_box(&scalar_fixture)))
-            }))
+            black_box(
+                properties
+                    .property(black_box("label"))
+                    .map(|property| property.get(ReflectedRef::new(black_box(&scalar_fixture)))),
+            )
         })
     });
-    for (state, alias_value) in
-        [("some", Some("alias".to_owned())), ("none", None)]
-    {
+    for (state, alias_value) in [("some", Some("alias".to_owned())), ("none", None)] {
         let fixture = GetterFixture {
             number: 7,
             label: "fixture".to_owned(),
             alias: alias_value,
             values: Vec::new(),
         };
-        lookup.bench_with_input(
-            BenchmarkId::new("optional", state),
-            &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| {
-                    black_box(properties.property(black_box("alias")).map(
-                        |property| {
-                            property.get(ReflectedRef::new(black_box(fixture)))
-                        },
-                    ))
-                })
-            },
-        );
+        lookup.bench_with_input(BenchmarkId::new("optional", state), &fixture, |bencher, fixture| {
+            bencher.iter(|| {
+                black_box(
+                    properties
+                        .property(black_box("alias"))
+                        .map(|property| property.get(ReflectedRef::new(black_box(fixture)))),
+                )
+            })
+        });
     }
     for length in [0, 1, 32, 1024, 65536] {
         let fixture = GetterFixture {
@@ -376,19 +306,15 @@ fn generated_getters(criterion: &mut Criterion) {
             alias: None,
             values: vec![7; length],
         };
-        lookup.bench_with_input(
-            BenchmarkId::new("slice", length),
-            &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| {
-                    black_box(properties.property(black_box("values")).map(
-                        |property| {
-                            property.get(ReflectedRef::new(black_box(fixture)))
-                        },
-                    ))
-                })
-            },
-        );
+        lookup.bench_with_input(BenchmarkId::new("slice", length), &fixture, |bencher, fixture| {
+            bencher.iter(|| {
+                black_box(
+                    properties
+                        .property(black_box("values"))
+                        .map(|property| property.get(ReflectedRef::new(black_box(fixture)))),
+                )
+            })
+        });
     }
     lookup.finish();
 }

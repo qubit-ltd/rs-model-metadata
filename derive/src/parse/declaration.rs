@@ -63,10 +63,7 @@ pub(crate) fn parse_declaration(
         Data::Union(_) => {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    item,
-                    "model role macros do not support unions",
-                ),
+                Error::new_spanned(item, "model role macros do not support unions"),
             );
             (None, None)
         }
@@ -74,11 +71,9 @@ pub(crate) fn parse_declaration(
     if let Some(error) = errors {
         return Err(error);
     }
-    let options = options
-        .expect("errors returned when declaration options are unavailable");
+    let options = options.expect("errors returned when declaration options are unavailable");
     let fields = fields.expect("errors returned when fields are unavailable");
-    let variants =
-        variants.expect("errors returned when variants are unavailable");
+    let variants = variants.expect("errors returned when variants are unavailable");
     if let Some(id) = &options.id {
         validate_ascii_id(id, "model ID")?;
     }
@@ -97,12 +92,7 @@ pub(crate) fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
     for (index, field) in fields.iter().enumerate() {
-        match FieldIr::parse(
-            index,
-            &field.ty,
-            &field.attrs,
-            field.ident.is_some(),
-        ) {
+        match FieldIr::parse(index, &field.ty, &field.attrs, field.ident.is_some()) {
             Ok(field) => parsed.push(field),
             Err(error) => combine(&mut errors, error),
         }
@@ -120,17 +110,10 @@ pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
     for variant in &data.variants {
         let default_name = variant.ident.to_string().to_shouty_snake_case();
         let canonical_name = parse_variant_name(&variant.attrs, &default_name);
-        let names = parse_variant_serde_names(
-            &variant.attrs,
-            canonical_name.as_deref().unwrap_or(&default_name),
-        );
+        let names = parse_variant_serde_names(&variant.attrs, canonical_name.as_deref().unwrap_or(&default_name));
         let fields = parse_fields(&variant.fields);
         match (canonical_name, names, fields) {
-            (
-                Ok(canonical_name),
-                Ok((serialized_name, deserialized_name)),
-                Ok(fields),
-            ) => parsed.push(VariantIr {
+            (Ok(canonical_name), Ok((serialized_name, deserialized_name)), Ok(fields)) => parsed.push(VariantIr {
                 rust_name: variant.ident.to_string(),
                 canonical_name,
                 serialized_name,
@@ -161,10 +144,7 @@ pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
 }
 
 /// Parses an optional stable variant name, defaulting to the Rust name.
-fn parse_variant_name(
-    attributes: &[Attribute],
-    default: &str,
-) -> Result<String> {
+fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String> {
     let mut name = None;
     for attribute in attributes
         .iter()
@@ -177,10 +157,7 @@ fn parse_variant_name(
             let value: LitStr = meta.value()?.parse()?;
             validate_ascii_id(&value, "variant name")?;
             if value.value().is_empty() {
-                return Err(Error::new_spanned(
-                    value,
-                    "variant name cannot be empty",
-                ));
+                return Err(Error::new_spanned(value, "variant name cannot be empty"));
             }
             if name.replace(value.value()).is_some() {
                 return Err(meta.error("duplicate variant `name` option"));
@@ -192,16 +169,10 @@ fn parse_variant_name(
 }
 
 /// Parses variant rename attributes and returns serialized/deserialized names.
-fn parse_variant_serde_names(
-    attributes: &[Attribute],
-    canonical: &str,
-) -> Result<(String, String)> {
+fn parse_variant_serde_names(attributes: &[Attribute], canonical: &str) -> Result<(String, String)> {
     let mut serialize = canonical.to_owned();
     let mut deserialize = canonical.to_owned();
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("serde"))
-    {
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("serde")) {
         let value = parse_serde(attribute)?;
         if let Some(name) = value.serialize_name {
             serialize = name.value();

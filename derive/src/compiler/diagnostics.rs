@@ -45,9 +45,7 @@ mod tests {
         diagnostics.push(Error::new(Span::call_site(), "first error"));
         diagnostics.push(Error::new(Span::call_site(), "second error"));
 
-        let error = diagnostics
-            .finish()
-            .expect_err("combined diagnostics must fail");
+        let error = diagnostics.finish().expect_err("combined diagnostics must fail");
         let tokens = error.into_compile_error().to_string();
 
         assert!(tokens.contains("first error"));

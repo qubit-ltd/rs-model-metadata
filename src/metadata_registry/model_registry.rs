@@ -51,21 +51,14 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Returns [`ModelRegistryError`] for duplicate model IDs or inconsistent
     /// concrete registration metadata.
     #[must_use = "handle invalid model registrations"]
-    pub fn from_reflect_registry(
-        reflection: &'reflection ReflectRegistry,
-    ) -> Result<Self, ModelRegistryError> {
+    pub fn from_reflect_registry(reflection: &'reflection ReflectRegistry) -> Result<Self, ModelRegistryError> {
         let mut entries = Vec::new();
         for (descriptor, source) in reflection.types_with_identity() {
             let provider = match reflection
-                .capability_lookup(
-                    descriptor,
-                    crate::reflect_facade::model_metadata_key(),
-                )
+                .capability_lookup(descriptor, crate::reflect_facade::model_metadata_key())
                 .map_err(|error| {
                     ModelRegistryError::capability(
-                        qubit_reflect::CapabilityAccessError::IntrinsicConflict(
-                            error,
-                        ),
+                        qubit_reflect::CapabilityAccessError::IntrinsicConflict(error),
                         source.clone(),
                     )
                 })? {
@@ -91,29 +84,17 @@ impl<'reflection> ModelRegistry<'reflection> {
             };
             let metadata = provider();
             if metadata.validate_descriptor(descriptor).is_err() {
-                return Err(ModelRegistryError::conflict(
-                    metadata.model_id(),
-                    vec![source.clone()],
-                ));
+                return Err(ModelRegistryError::conflict(metadata.model_id(), vec![source.clone()]));
             }
             if metadata.model_id().is_some() {
-                entries.push(
-                    ModelEntry::concrete(metadata, source)
-                        .expect("metadata with a model ID creates an entry"),
-                );
+                entries
+                    .push(ModelEntry::concrete(metadata, source).expect("metadata with a model ID creates an entry"));
             }
         }
         for definition in reflection.definitions() {
             let Some(provider) = reflection
-                .definition_capability(
-                    definition.id(),
-                    crate::reflect_facade::generic_model_metadata_key(),
-                )
-                .map_err(|error| {
-                    ModelRegistryError::capability_access(
-                        error, reflection, definition,
-                    )
-                })?
+                .definition_capability(definition.id(), crate::reflect_facade::generic_model_metadata_key())
+                .map_err(|error| ModelRegistryError::capability_access(error, reflection, definition))?
             else {
                 continue;
             };
@@ -151,17 +132,14 @@ impl<'reflection> ModelRegistry<'reflection> {
         let mut entries = Vec::with_capacity(concrete.len() + generic.len());
         for &(metadata, source) in concrete {
             let Some(entry) = ModelEntry::concrete(metadata, source) else {
-                return Err(ModelRegistryError::conflict(
-                    None,
-                    vec![source.clone()],
-                ));
+                return Err(ModelRegistryError::conflict(None, vec![source.clone()]));
             };
             entries.push(entry);
         }
         entries.extend(
-            generic.iter().map(|&(metadata, source)| {
-                ModelEntry::generic(metadata, source)
-            }),
+            generic
+                .iter()
+                .map(|&(metadata, source)| ModelEntry::generic(metadata, source)),
         );
         ModelRegistry::<'a>::build(entries)
     }
@@ -172,18 +150,12 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// Returns [`ModelRegistryError`] for duplicate model IDs or inconsistent
     /// concrete registration metadata.
-    fn build(
-        mut entries: Vec<ModelEntry<'reflection>>,
-    ) -> Result<Self, ModelRegistryError> {
+    fn build(mut entries: Vec<ModelEntry<'reflection>>) -> Result<Self, ModelRegistryError> {
         entries.sort_by(compare_entries);
         for pair in entries.windows(2) {
             if pair[0].model_id == pair[1].model_id {
-                let sources =
-                    pair.iter().map(|entry| entry.source.clone()).collect();
-                return Err(ModelRegistryError::duplicate(
-                    pair[0].model_id,
-                    sources,
-                ));
+                let sources = pair.iter().map(|entry| entry.source.clone()).collect();
+                return Err(ModelRegistryError::duplicate(pair[0].model_id, sources));
             }
         }
 
@@ -199,15 +171,10 @@ impl<'reflection> ModelRegistry<'reflection> {
                         vec![entry.source.clone()],
                     ));
                 }
-                if let Some(previous) =
-                    type_indices.insert(metadata.type_id(), index)
-                {
+                if let Some(previous) = type_indices.insert(metadata.type_id(), index) {
                     return Err(ModelRegistryError::conflict(
                         Some(entry.model_id),
-                        vec![
-                            entries[previous].source.clone(),
-                            entry.source.clone(),
-                        ],
+                        vec![entries[previous].source.clone(), entry.source.clone()],
                     ));
                 }
             }
@@ -233,15 +200,11 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Returns [`ModelRegistryError`] when reflection initialization or model
     /// registration validation fails. The result is cached for the process.
     #[must_use = "handle model registry initialization failure"]
-    pub fn try_global()
-    -> Result<&'static ModelRegistry<'static>, ModelRegistryError> {
-        static REGISTRY: OnceLock<
-            Result<ModelRegistry<'static>, ModelRegistryError>,
-        > = OnceLock::new();
+    pub fn try_global() -> Result<&'static ModelRegistry<'static>, ModelRegistryError> {
+        static REGISTRY: OnceLock<Result<ModelRegistry<'static>, ModelRegistryError>> = OnceLock::new();
         match REGISTRY.get_or_init(|| {
             ModelRegistry::<'static>::from_reflect_registry(
-                ReflectRegistry::initialize()
-                    .map_err(ModelRegistryError::reflection)?,
+                ReflectRegistry::initialize().map_err(ModelRegistryError::reflection)?,
             )
         }) {
             Ok(registry) => Ok(registry),
@@ -256,9 +219,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Panics when the cached global registry initialization failed.
     #[must_use]
     pub fn global() -> &'static ModelRegistry<'static> {
-        Self::try_global().unwrap_or_else(|error| {
-            panic!("invalid global model registry: {error}")
-        })
+        Self::try_global().unwrap_or_else(|error| panic!("invalid global model registry: {error}"))
     }
 
     /// Finds one immutable model entry by stable ID.
@@ -308,10 +269,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     ) -> Result<Option<&'static TypeMetadata>, crate::ModelMetadataError> {
         let provided = match self.reflection {
             Some(reflection) => reflection
-                .capability(
-                    descriptor,
-                    crate::reflect_facade::model_metadata_key(),
-                )
+                .capability(descriptor, crate::reflect_facade::model_metadata_key())
                 .map_err(|source| crate::ModelMetadataError::Capability {
                     type_id: descriptor.type_id(),
                     type_name: descriptor.type_name(),
@@ -320,16 +278,15 @@ impl<'reflection> ModelRegistry<'reflection> {
                 .map(|provider| provider()),
             None => None,
         };
-        let metadata =
-            provided.or_else(|| self.by_type_id(descriptor.type_id()));
+        let metadata = provided.or_else(|| self.by_type_id(descriptor.type_id()));
         if let Some(metadata) = metadata {
-            metadata.validate_descriptor(descriptor).map_err(|source| {
-                crate::ModelMetadataError::Abi {
+            metadata
+                .validate_descriptor(descriptor)
+                .map_err(|source| crate::ModelMetadataError::Abi {
                     type_id: descriptor.type_id(),
                     type_name: descriptor.type_name(),
                     source,
-                }
-            })?;
+                })?;
         }
         Ok(metadata)
     }
@@ -341,8 +298,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     pub fn properties_for(
         &self,
         metadata: &'static TypeMetadata,
-    ) -> Result<&'static crate::LocalPropertySet, crate::PropertyResolutionError>
-    {
+    ) -> Result<&'static crate::LocalPropertySet, crate::PropertyResolutionError> {
         self.reflection.map_or_else(
             || Ok(metadata.local_properties()),
             |reflection| metadata.try_properties_in(reflection),
@@ -351,10 +307,7 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Returns model metadata for one generic declaration identity.
     #[must_use]
-    pub fn generic_metadata_for(
-        &self,
-        definition_id: TypeDefinitionId,
-    ) -> Option<&'static GenericModelMetadata> {
+    pub fn generic_metadata_for(&self, definition_id: TypeDefinitionId) -> Option<&'static GenericModelMetadata> {
         self.generic_definitions
             .iter()
             .copied()
@@ -369,12 +322,10 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     pub(crate) fn concrete_entries(
         &self,
-    ) -> impl Iterator<
-        Item = (&'static TypeMetadata, &'reflection FragmentIdentity),
-    > + '_ {
-        self.entries.iter().filter_map(|entry| {
-            entry.metadata().map(|metadata| (metadata, entry.source))
-        })
+    ) -> impl Iterator<Item = (&'static TypeMetadata, &'reflection FragmentIdentity)> + '_ {
+        self.entries
+            .iter()
+            .filter_map(|entry| entry.metadata().map(|metadata| (metadata, entry.source)))
     }
 
     /// Returns registered generic definitions in deterministic order.
@@ -386,10 +337,7 @@ impl<'reflection> ModelRegistry<'reflection> {
 }
 
 /// Compares registrations by stable model ID and then fragment identity.
-fn compare_entries(
-    left: &ModelEntry,
-    right: &ModelEntry,
-) -> std::cmp::Ordering {
+fn compare_entries(left: &ModelEntry, right: &ModelEntry) -> std::cmp::Ordering {
     left.model_id
         .cmp(&right.model_id)
         .then_with(|| left.source.cmp(right.source))

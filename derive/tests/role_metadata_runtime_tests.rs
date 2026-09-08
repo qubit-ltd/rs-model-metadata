@@ -39,11 +39,7 @@ struct EmailCodec;
 #[derive(Default)]
 struct EmailCanonicalCodec;
 
-register_value_codec!(
-    id = "runtime.alias_codec",
-    codec = EmailCodec,
-    value = String
-);
+register_value_codec!(id = "runtime.alias_codec", codec = EmailCodec, value = String);
 
 impl ValueEncoder<String> for EmailCodec {
     type Output = String;
@@ -93,11 +89,7 @@ struct Payload {
     #[text(min_chars = 1, max_chars = 8, allowed_chars = code)]
     value: String,
     #[sequence(min_items = 1, max_items = 4, unique_items)]
-    #[element(
-        text(max_chars = 8),
-        validator(id = "runtime.tag"),
-        redact(level = "low")
-    )]
+    #[element(text(max_chars = 8), validator(id = "runtime.tag"), redact(level = "low"))]
     tags: Vec<String>,
     #[map(min_entries = 1, max_entries = 3)]
     #[map_key(text(max_chars = 8), redact(level = "high"))]
@@ -191,35 +183,18 @@ struct Plain {
 #[test]
 fn test_role_macros_generate_metadata_capability_and_registration() {
     let cases = [
-        (
-            TypeMetadata::of::<Account>(),
-            ModelRole::Entity,
-            "runtime.Account",
-        ),
+        (TypeMetadata::of::<Account>(), ModelRole::Entity, "runtime.Account"),
         (
             TypeMetadata::of::<AccountView>(),
             ModelRole::Projection,
             "runtime.AccountView",
         ),
-        (
-            TypeMetadata::of::<Payload>(),
-            ModelRole::Model,
-            "runtime.Payload",
-        ),
-        (
-            TypeMetadata::of::<Status>(),
-            ModelRole::Enum,
-            "runtime.Status",
-        ),
-        (
-            TypeMetadata::of::<Email>(),
-            ModelRole::Value,
-            "runtime.Email",
-        ),
+        (TypeMetadata::of::<Payload>(), ModelRole::Model, "runtime.Payload"),
+        (TypeMetadata::of::<Status>(), ModelRole::Enum, "runtime.Status"),
+        (TypeMetadata::of::<Email>(), ModelRole::Value, "runtime.Email"),
     ];
 
-    let registry =
-        ModelRegistry::try_global().expect("generated registrations");
+    let registry = ModelRegistry::try_global().expect("generated registrations");
     for (metadata, role, id) in cases {
         assert_eq!(metadata.role(), role);
         assert_eq!(metadata.model_id().map(|value| value.as_str()), Some(id));
@@ -260,11 +235,7 @@ fn test_field_occurrences_preserve_validator_order_and_declared_codec_id() {
     assert!(email.redact().is_some());
     let owner = metadata.field("owner_id").unwrap();
     assert!(owner.reference().is_some());
-    assert!(
-        owner
-            .indexing_reasons()
-            .contains(IndexingReasons::REFERENCE)
-    );
+    assert!(owner.indexing_reasons().contains(IndexingReasons::REFERENCE));
     assert!(metadata.field("aliases").unwrap().serde().default());
     assert_eq!(
         metadata.field("aliases").unwrap().serde().default_source(),
@@ -275,50 +246,28 @@ fn test_field_occurrences_preserve_validator_order_and_declared_codec_id() {
         SerdeBehaviorSource::ModelDefault
     );
     assert_eq!(
-        metadata
-            .field("kept_aliases")
-            .unwrap()
-            .serde()
-            .omit_source(),
+        metadata.field("kept_aliases").unwrap().serde().omit_source(),
         SerdeBehaviorSource::Suppressed
     );
     assert!(metadata.field("nickname").unwrap().serde().default());
     assert!(matches!(
-        metadata
-            .field("nickname")
-            .unwrap()
-            .codec()
-            .map(|value| value.codec()),
+        metadata.field("nickname").unwrap().codec().map(|value| value.codec()),
         Some(CodecReference::DeclaredId("runtime.alias_codec")),
     ));
 }
 
 #[test]
 fn test_enum_and_value_role_payloads_use_reflection_overlays() {
-    let enum_metadata =
-        TypeMetadata::of::<Status>().as_enum().expect("enum role");
+    let enum_metadata = TypeMetadata::of::<Status>().as_enum().expect("enum role");
     assert!(TypeMetadata::of::<Status>().fields().is_empty());
     assert_eq!(
-        enum_metadata
-            .variant_by_rust_name("Ready")
-            .unwrap()
-            .canonical_name(),
+        enum_metadata.variant_by_rust_name("Ready").unwrap().canonical_name(),
         "APPROVED"
     );
-    assert_eq!(
-        enum_metadata
-            .variant_by_rust_name("Failed")
-            .unwrap()
-            .fields()
-            .len(),
-        1
-    );
+    assert_eq!(enum_metadata.variant_by_rust_name("Failed").unwrap().fields().len(), 1);
     assert_eq!(serde_json::to_string(&Status::Ready).unwrap(), r#""READY""#);
     assert_eq!(
-        serde_json::to_string(&Status::Failed {
-            message: "x".into()
-        })
-        .unwrap(),
+        serde_json::to_string(&Status::Failed { message: "x".into() }).unwrap(),
         r#"{"FAILED":{"message":"x"}}"#,
     );
 
@@ -331,8 +280,7 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
     assert_eq!(serde_json::to_string(&email).unwrap(), r#""a@example.com""#);
     let redacted = Redactor::application_default().redact_text(&email);
     assert_eq!(redacted.text().as_str(), "\"a@example.com\"");
-    let restored: Email =
-        serde_json::from_str(r#""restored@example.com""#).unwrap();
+    let restored: Email = serde_json::from_str(r#""restored@example.com""#).unwrap();
     assert_eq!(restored.0, "restored@example.com");
     let handle = Handle {
         value: "alice".to_owned(),
@@ -347,17 +295,9 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
     assert!(format!("{secret:?}").starts_with("SecretValue("));
     assert!(!format!("{secret:?}").contains("raw-secret"));
     assert!(!secret.to_string().contains("raw-secret"));
-    assert!(
-        !TypeMetadata::of::<Coordinate>()
-            .as_value()
-            .unwrap()
-            .is_transparent()
-    );
+    assert!(!TypeMetadata::of::<Coordinate>().as_value().unwrap().is_transparent());
     let coordinate = TypeMetadata::of::<Coordinate>();
-    assert_eq!(
-        coordinate.field("x").unwrap().key_part().unwrap().order(),
-        0
-    );
+    assert_eq!(coordinate.field("x").unwrap().key_part().unwrap().order(), 0);
     assert!(coordinate.field("y").unwrap().key_part().is_none());
     let account = Account {
         id: Id::new(1),
@@ -387,9 +327,7 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
     let redacted = Redactor::application_default().redact_text(&payload);
     assert!(!redacted.text().as_str().contains("key"));
     let _ = Status::Ready;
-    let Status::Failed { message } = (Status::Failed {
-        message: "x".into(),
-    }) else {
+    let Status::Failed { message } = (Status::Failed { message: "x".into() }) else {
         unreachable!()
     };
     assert_eq!(message, "x");
@@ -408,8 +346,7 @@ fn test_redacted_map_key_collisions_fail_serialization() {
         ]
         .into(),
     };
-    let error =
-        serde_json::to_string(&payload).expect_err("fixed masks collide");
+    let error = serde_json::to_string(&payload).expect_err("fixed masks collide");
     assert!(error.to_string().contains("redacted map keys collide"));
 }
 
@@ -420,29 +357,17 @@ fn test_no_redact_uses_plain_default_interfaces() {
     };
     assert_eq!(format!("{plain:?}"), "Plain { value: \"visible\" }");
     assert_eq!(plain.to_string(), "Plain { value: \"visible\" }");
-    assert_eq!(
-        serde_json::to_string(&plain).unwrap(),
-        r#"{"value":"visible"}"#
-    );
+    assert_eq!(serde_json::to_string(&plain).unwrap(), r#"{"value":"visible"}"#);
 }
 
 #[test]
 fn test_constraints_and_selectors_are_normalized() {
     let metadata = TypeMetadata::of::<Payload>();
     assert_eq!(
-        metadata
-            .field("value")
-            .unwrap()
-            .text_constraint()
-            .unwrap()
-            .max_chars(),
+        metadata.field("value").unwrap().text_constraint().unwrap().max_chars(),
         Some(8)
     );
-    let sequence = metadata
-        .field("tags")
-        .unwrap()
-        .sequence_constraint()
-        .unwrap();
+    let sequence = metadata.field("tags").unwrap().sequence_constraint().unwrap();
     assert_eq!(sequence.min_items(), Some(1));
     assert!(sequence.unique_items());
     let element = sequence.element().expect("element selector");
@@ -451,10 +376,7 @@ fn test_constraints_and_selectors_are_normalized() {
     assert!(element.redact().is_some());
     let map = metadata.field("labels").unwrap().map_constraint().unwrap();
     assert!(map.key().is_some());
-    assert_eq!(
-        map.value().unwrap().validators()[0].declared_id(),
-        "runtime.map_value"
-    );
+    assert_eq!(map.value().unwrap().validators()[0].declared_id(), "runtime.map_value");
 }
 
 #[test]
@@ -479,16 +401,11 @@ fn test_generic_model_registers_only_its_definition() {
         template_field.type_ref().as_symbolic(),
         Some(TypeExpression::Parameter(name)) if name.as_ref() == "T",
     ));
-    assert!(std::ptr::eq(
-        registry.generic("runtime.Page").unwrap(),
-        definition
-    ));
+    assert!(std::ptr::eq(registry.generic("runtime.Page").unwrap(), definition));
     assert!(registry.metadata("runtime.Page").is_none());
 
     let buffer = TypeMetadata::of::<Buffer<4>>();
-    let definition = buffer
-        .generic_definition()
-        .expect("const generic definition");
+    let definition = buffer.generic_definition().expect("const generic definition");
     assert_eq!(definition.definition().generics().parameters().len(), 1);
     assert!(definition.fields()[0].type_ref().as_symbolic().is_some());
 
@@ -532,8 +449,7 @@ fn test_generic_enum_registration_preserves_variant_field_overlays() {
 
 #[test]
 fn test_resolver_builds_scoped_unique_and_reference_queries() {
-    let registry =
-        ModelRegistry::try_global().expect("generated registrations");
+    let registry = ModelRegistry::try_global().expect("generated registrations");
     let graph = ModelResolver::new(ResolveInputs {
         models: registry,
         codecs: ValueCodecRegistry::global(),
@@ -546,15 +462,10 @@ fn test_resolver_builds_scoped_unique_and_reference_queries() {
     assert!(query.filter(&PropertyPath::new(&["email"])).is_some());
     assert!(query.filter(&PropertyPath::new(&["owner_id"])).is_some());
     assert_eq!(
-        query
-            .filter_by_flat_name("owner_id")
-            .unwrap()
-            .path()
-            .segments(),
+        query.filter_by_flat_name("owner_id").unwrap().path().segments(),
         &["owner_id"]
     );
     assert!(query.unique_keys().iter().any(|key| {
-        key.paths().map(|path| path.to_string()).collect::<Vec<_>>()
-            == vec!["email".to_owned(), "id".to_owned()]
+        key.paths().map(|path| path.to_string()).collect::<Vec<_>>() == vec!["email".to_owned(), "id".to_owned()]
     }));
 }

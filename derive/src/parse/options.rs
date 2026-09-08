@@ -54,27 +54,18 @@ impl DeclarationOptions {
         for option in options {
             match option {
                 Meta::NameValue(value) if value.path.is_ident("id") => {
-                    if let Err(error) =
-                        set_lit_str(&mut result.id, value.value, "id")
-                    {
+                    if let Err(error) = set_lit_str(&mut result.id, value.value, "id") {
                         diagnostics.push(error);
                     }
                 }
                 Meta::NameValue(value) if value.path.is_ident("source_id") => {
-                    if let Err(error) = set_lit_str(
-                        &mut result.source_id,
-                        value.value,
-                        "source_id",
-                    ) {
+                    if let Err(error) = set_lit_str(&mut result.source_id, value.value, "source_id") {
                         diagnostics.push(error);
                     }
                 }
                 Meta::NameValue(value) if value.path.is_ident("source") => {
                     if result.source.is_some() {
-                        diagnostics.push(Error::new_spanned(
-                            value,
-                            "duplicate `source` option",
-                        ));
+                        diagnostics.push(Error::new_spanned(value, "duplicate `source` option"));
                         continue;
                     }
                     let expression = value.value;
@@ -85,10 +76,7 @@ impl DeclarationOptions {
                 }
                 Meta::NameValue(value) if value.path.is_ident("codec") => {
                     if result.codec.is_some() {
-                        diagnostics.push(Error::new_spanned(
-                            value,
-                            "duplicate `codec` option",
-                        ));
+                        diagnostics.push(Error::new_spanned(value, "duplicate `codec` option"));
                         continue;
                     }
                     let expression = value.value;
@@ -97,149 +85,104 @@ impl DeclarationOptions {
                         Err(error) => diagnostics.push(error),
                     }
                 }
-                Meta::Path(path) if path.is_ident("open") => set_marker_option(
+                Meta::Path(path) if path.is_ident("open") => {
+                    set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span())
+                }
+                Meta::Path(path) if path.is_ident("transparent") => set_marker_option(
                     &mut markers,
                     &mut diagnostics,
-                    "open",
-                    &mut result.open,
+                    "transparent",
+                    &mut result.transparent,
                     path.span(),
                 ),
-                Meta::Path(path) if path.is_ident("transparent") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "transparent",
-                        &mut result.transparent,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("no_clone") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_clone",
-                        &mut result.no_clone,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("no_debug") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_debug",
-                        &mut result.no_debug,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("no_display") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_display",
-                        &mut result.no_display,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("no_partial_eq") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_partial_eq",
-                        &mut result.no_partial_eq,
-                        path.span(),
-                    )
-                }
+                Meta::Path(path) if path.is_ident("no_clone") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_clone",
+                    &mut result.no_clone,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_debug") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_debug",
+                    &mut result.no_debug,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_display") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_display",
+                    &mut result.no_display,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_partial_eq") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_partial_eq",
+                    &mut result.no_partial_eq,
+                    path.span(),
+                ),
                 Meta::Path(path) if path.is_ident("no_eq") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_eq",
-                        &mut result.no_eq,
-                        path.span(),
-                    )
+                    set_marker_option(&mut markers, &mut diagnostics, "no_eq", &mut result.no_eq, path.span())
                 }
-                Meta::Path(path) if path.is_ident("no_hash") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_hash",
-                        &mut result.no_hash,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("no_serialize") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_serialize",
-                        &mut result.no_serialize,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("no_deserialize") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_deserialize",
-                        &mut result.no_deserialize,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("no_redact") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_redact",
-                        &mut result.no_redact,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("no_copy") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "no_copy",
-                        &mut result.no_copy,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("copy") => set_marker_option(
+                Meta::Path(path) if path.is_ident("no_hash") => set_marker_option(
                     &mut markers,
                     &mut diagnostics,
-                    "copy",
-                    &mut result.copy,
+                    "no_hash",
+                    &mut result.no_hash,
                     path.span(),
                 ),
-                Meta::Path(path) if path.is_ident("default") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "default",
-                        &mut result.default,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("partial_ord") => {
-                    set_marker_option(
-                        &mut markers,
-                        &mut diagnostics,
-                        "partial_ord",
-                        &mut result.partial_ord,
-                        path.span(),
-                    )
-                }
-                Meta::Path(path) if path.is_ident("ord") => set_marker_option(
+                Meta::Path(path) if path.is_ident("no_serialize") => set_marker_option(
                     &mut markers,
                     &mut diagnostics,
-                    "ord",
-                    &mut result.ord,
+                    "no_serialize",
+                    &mut result.no_serialize,
                     path.span(),
                 ),
+                Meta::Path(path) if path.is_ident("no_deserialize") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_deserialize",
+                    &mut result.no_deserialize,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_redact") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_redact",
+                    &mut result.no_redact,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("no_copy") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "no_copy",
+                    &mut result.no_copy,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("copy") => {
+                    set_marker_option(&mut markers, &mut diagnostics, "copy", &mut result.copy, path.span())
+                }
+                Meta::Path(path) if path.is_ident("default") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "default",
+                    &mut result.default,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("partial_ord") => set_marker_option(
+                    &mut markers,
+                    &mut diagnostics,
+                    "partial_ord",
+                    &mut result.partial_ord,
+                    path.span(),
+                ),
+                Meta::Path(path) if path.is_ident("ord") => {
+                    set_marker_option(&mut markers, &mut diagnostics, "ord", &mut result.ord, path.span())
+                }
                 other => {
-                    diagnostics.push(Error::new_spanned(
-                        other,
-                        "unsupported model option",
-                    ));
+                    diagnostics.push(Error::new_spanned(other, "unsupported model option"));
                 }
             }
         }
@@ -257,8 +200,7 @@ fn set_marker_option(
     span: Span,
 ) {
     if !markers.insert(name) {
-        diagnostics
-            .push(Error::new(span, format!("duplicate `{name}` option")));
+        diagnostics.push(Error::new(span, format!("duplicate `{name}` option")));
     } else {
         *value = true;
     }
@@ -302,35 +244,15 @@ mod tests {
                 ord
             ))
             .expect("option syntax");
-        let parsed =
-            DeclarationOptions::parse(options).expect("supported options");
+        let parsed = DeclarationOptions::parse(options).expect("supported options");
 
         assert_eq!(parsed.id.expect("id").value(), "example.Model");
-        assert_eq!(
-            parsed.source_id.expect("source id").value(),
-            "example.Source"
-        );
+        assert_eq!(parsed.source_id.expect("source id").value(), "example.Source");
         assert!(parsed.source.is_some());
         assert!(parsed.codec.is_some());
-        assert!(
-            parsed.open
-                && parsed.transparent
-                && parsed.default
-                && parsed.partial_ord
-                && parsed.ord
-        );
-        assert!(
-            parsed.no_clone
-                && parsed.no_debug
-                && parsed.no_display
-                && parsed.no_partial_eq
-        );
-        assert!(
-            parsed.no_eq
-                && parsed.no_hash
-                && parsed.no_serialize
-                && parsed.no_deserialize
-        );
+        assert!(parsed.open && parsed.transparent && parsed.default && parsed.partial_ord && parsed.ord);
+        assert!(parsed.no_clone && parsed.no_debug && parsed.no_display && parsed.no_partial_eq);
+        assert!(parsed.no_eq && parsed.no_hash && parsed.no_serialize && parsed.no_deserialize);
         assert!(parsed.no_redact && parsed.no_copy && parsed.copy);
     }
 

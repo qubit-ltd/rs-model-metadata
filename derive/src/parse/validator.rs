@@ -132,13 +132,9 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
             Err(meta.error("unsupported validator option"))
         }
     })?;
-    let id = id.ok_or_else(|| {
-        Error::new_spanned(attribute, "validator requires `id = \"...\"`")
-    })?;
+    let id = id.ok_or_else(|| Error::new_spanned(attribute, "validator requires `id = \"...\"`"))?;
     validate_ascii_id(&id, "validator ID")?;
-    if matches!(target, TargetModeIr::Container)
-        && matches!(on_none, OnNoneIr::Reject)
-    {
+    if matches!(target, TargetModeIr::Container) && matches!(on_none, OnNoneIr::Reject) {
         return Err(Error::new_spanned(
             attribute,
             "validator `on_none = \"reject\"` requires target = \"value\"",
@@ -158,12 +154,10 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
 fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
     match expression {
         Expr::Lit(ExprLit {
-            lit: Lit::Bool(value),
-            ..
+            lit: Lit::Bool(value), ..
         }) => Ok(StrategyArgumentIr::Bool(value.value)),
         Expr::Lit(ExprLit {
-            lit: Lit::Int(value),
-            ..
+            lit: Lit::Int(value), ..
         }) => {
             let text = value.base10_digits();
             if text.starts_with('-') {
@@ -173,13 +167,11 @@ fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
             }
         }
         Expr::Lit(ExprLit {
-            lit: Lit::Str(value),
-            ..
+            lit: Lit::Str(value), ..
         }) => Ok(StrategyArgumentIr::String(value)),
         Expr::Unary(unary) if matches!(unary.op, UnOp::Neg(_)) => {
             let Expr::Lit(ExprLit {
-                lit: Lit::Int(value),
-                ..
+                lit: Lit::Int(value), ..
             }) = *unary.expr
             else {
                 return Err(Error::new_spanned(
@@ -189,9 +181,7 @@ fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
             };
             Ok(StrategyArgumentIr::Integer(-value.base10_parse::<i128>()?))
         }
-        Expr::Array(array) => {
-            parse_strategy_array(array.elems.into_iter().collect())
-        }
+        Expr::Array(array) => parse_strategy_array(array.elems.into_iter().collect()),
         other => Err(Error::new_spanned(
             other,
             "validator params support bool, integer, string, and homogeneous arrays",
@@ -207,19 +197,12 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
             "validator parameter arrays cannot be empty because their element type cannot be inferred",
         ));
     }
-    if matches!(
-        values.first(),
-        Some(Expr::Lit(ExprLit {
-            lit: Lit::Bool(_),
-            ..
-        }))
-    ) {
+    if matches!(values.first(), Some(Expr::Lit(ExprLit { lit: Lit::Bool(_), .. }))) {
         return values
             .into_iter()
             .map(|value| match value {
                 Expr::Lit(ExprLit {
-                    lit: Lit::Bool(value),
-                    ..
+                    lit: Lit::Bool(value), ..
                 }) => Ok(value.value),
                 other => Err(Error::new_spanned(
                     other,
@@ -236,25 +219,15 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
             .collect::<Result<Vec<_>>>()
             .map(StrategyArgumentIr::IntegerList);
     }
-    if matches!(
-        values.first(),
-        Some(Expr::Lit(ExprLit {
-            lit: Lit::Int(_),
-            ..
-        }))
-    ) {
+    if matches!(values.first(), Some(Expr::Lit(ExprLit { lit: Lit::Int(_), .. }))) {
         return values
             .into_iter()
             .map(|value| match value {
                 Expr::Lit(ExprLit {
-                    lit: Lit::Int(value),
-                    ..
-                }) => value.base10_parse::<u128>().map_err(|error| {
-                    Error::new_spanned(
-                        value,
-                        format!("invalid unsigned validator integer: {error}"),
-                    )
-                }),
+                    lit: Lit::Int(value), ..
+                }) => value
+                    .base10_parse::<u128>()
+                    .map_err(|error| Error::new_spanned(value, format!("invalid unsigned validator integer: {error}"))),
                 other => Err(Error::new_spanned(
                     other,
                     "validator parameter arrays must be homogeneous",
@@ -263,19 +236,12 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
             .collect::<Result<Vec<_>>>()
             .map(StrategyArgumentIr::UnsignedList);
     }
-    if matches!(
-        values.first(),
-        Some(Expr::Lit(ExprLit {
-            lit: Lit::Str(_),
-            ..
-        }))
-    ) {
+    if matches!(values.first(), Some(Expr::Lit(ExprLit { lit: Lit::Str(_), .. }))) {
         return values
             .into_iter()
             .map(|value| match value {
                 Expr::Lit(ExprLit {
-                    lit: Lit::Str(value),
-                    ..
+                    lit: Lit::Str(value), ..
                 }) => Ok(value),
                 other => Err(Error::new_spanned(
                     other,
@@ -295,29 +261,17 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
 fn parse_strategy_signed_integer(value: &Expr) -> Result<i128> {
     match value {
         Expr::Lit(ExprLit {
-            lit: Lit::Int(value),
-            ..
-        }) => value.base10_parse::<i128>().map_err(|error| {
-            Error::new_spanned(
-                value,
-                format!("invalid signed validator integer: {error}"),
-            )
-        }),
-        Expr::Unary(unary) if matches!(unary.op, UnOp::Neg(_)) => match unary
-            .expr
-            .as_ref()
-        {
+            lit: Lit::Int(value), ..
+        }) => value
+            .base10_parse::<i128>()
+            .map_err(|error| Error::new_spanned(value, format!("invalid signed validator integer: {error}"))),
+        Expr::Unary(unary) if matches!(unary.op, UnOp::Neg(_)) => match unary.expr.as_ref() {
             Expr::Lit(ExprLit {
-                lit: Lit::Int(value),
-                ..
-            }) => value.base10_parse::<i128>().map(|value| -value).map_err(
-                |error| {
-                    Error::new_spanned(
-                        value,
-                        format!("invalid signed validator integer: {error}"),
-                    )
-                },
-            ),
+                lit: Lit::Int(value), ..
+            }) => value
+                .base10_parse::<i128>()
+                .map(|value| -value)
+                .map_err(|error| Error::new_spanned(value, format!("invalid signed validator integer: {error}"))),
             other => Err(Error::new_spanned(
                 other,
                 "negative validator parameters require an integer literal",
@@ -357,50 +311,22 @@ mod tests {
                 depends_on(owner::id, tenant)
             )]
         );
-        let validator =
-            parse_validator(&attribute).expect("supported validator");
+        let validator = parse_validator(&attribute).expect("supported validator");
 
         assert_eq!(validator.id.value(), "example.rule");
         assert_eq!(validator.params.len(), 8);
         assert_eq!(
             validator.depends_on,
-            vec![
-                vec!["owner".to_owned(), "id".to_owned()],
-                vec!["tenant".to_owned()]
-            ]
+            vec![vec!["owner".to_owned(), "id".to_owned()], vec!["tenant".to_owned()]]
         );
-        assert!(matches!(
-            validator.params[0].1,
-            StrategyArgumentIr::Bool(true)
-        ));
-        assert!(matches!(
-            validator.params[1].1,
-            StrategyArgumentIr::Unsigned(7)
-        ));
-        assert!(matches!(
-            validator.params[2].1,
-            StrategyArgumentIr::Integer(-2)
-        ));
-        assert!(matches!(
-            validator.params[3].1,
-            StrategyArgumentIr::String(_)
-        ));
-        assert!(matches!(
-            validator.params[4].1,
-            StrategyArgumentIr::BoolList(_)
-        ));
-        assert!(matches!(
-            validator.params[5].1,
-            StrategyArgumentIr::UnsignedList(_)
-        ));
-        assert!(matches!(
-            validator.params[6].1,
-            StrategyArgumentIr::IntegerList(_)
-        ));
-        assert!(matches!(
-            validator.params[7].1,
-            StrategyArgumentIr::StringList(_)
-        ));
+        assert!(matches!(validator.params[0].1, StrategyArgumentIr::Bool(true)));
+        assert!(matches!(validator.params[1].1, StrategyArgumentIr::Unsigned(7)));
+        assert!(matches!(validator.params[2].1, StrategyArgumentIr::Integer(-2)));
+        assert!(matches!(validator.params[3].1, StrategyArgumentIr::String(_)));
+        assert!(matches!(validator.params[4].1, StrategyArgumentIr::BoolList(_)));
+        assert!(matches!(validator.params[5].1, StrategyArgumentIr::UnsignedList(_)));
+        assert!(matches!(validator.params[6].1, StrategyArgumentIr::IntegerList(_)));
+        assert!(matches!(validator.params[7].1, StrategyArgumentIr::StringList(_)));
     }
 
     /// Preserves a named dependency slot separately from its source path.
@@ -418,15 +344,9 @@ mod tests {
 
         assert_eq!(
             validator.dependency_bindings,
-            vec![(
-                "kind".to_owned(),
-                vec!["owner".to_owned(), "kind".to_owned()]
-            )]
+            vec![("kind".to_owned(), vec!["owner".to_owned(), "kind".to_owned()])]
         );
-        assert_eq!(
-            validator.target,
-            crate::ir::declaration::TargetModeIr::Container
-        );
+        assert_eq!(validator.target, crate::ir::declaration::TargetModeIr::Container);
         assert_eq!(validator.on_none, crate::ir::declaration::OnNoneIr::Skip);
     }
 

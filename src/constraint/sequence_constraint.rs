@@ -49,11 +49,7 @@ impl SequenceConstraint {
     ///
     /// Panics when the supplied minimum item count exceeds the maximum.
     #[must_use]
-    pub const fn new(
-        min_items: Option<usize>,
-        max_items: Option<usize>,
-        unique_items: bool,
-    ) -> Self {
+    pub const fn new(min_items: Option<usize>, max_items: Option<usize>, unique_items: bool) -> Self {
         if let (Some(min_items), Some(max_items)) = (min_items, max_items) {
             assert!(
                 min_items <= max_items,
@@ -70,10 +66,7 @@ impl SequenceConstraint {
 
     /// Attaches non-recursive element semantics.
     #[must_use]
-    pub const fn with_element(
-        mut self,
-        element: &'static crate::field_semantics::SelectorMetadata,
-    ) -> Self {
+    pub const fn with_element(mut self, element: &'static crate::field_semantics::SelectorMetadata) -> Self {
         self.element = Some(element);
         self
     }
@@ -114,9 +107,7 @@ impl SequenceConstraint {
     /// Returns element semantics, if declared.
     #[must_use]
     #[inline(always)]
-    pub const fn element(
-        &self,
-    ) -> Option<&'static crate::field_semantics::SelectorMetadata> {
+    pub const fn element(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
         self.element
     }
 }

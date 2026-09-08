@@ -44,17 +44,12 @@ fn test_five_role_payloads_expose_only_role_specific_facts() {
     let RoleMetadata::Entity(entity) = v4::entity_role(identifier) else {
         unreachable!()
     };
-    let source = Box::leak(Box::new(DeclaredEntityTarget::ModelId(
-        ModelId::new("example.Source"),
-    )));
-    let RoleMetadata::Projection(projection) =
-        v4::projection_role(identifier, Some(source))
-    else {
+    let source = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new("example.Source"))));
+    let RoleMetadata::Projection(projection) = v4::projection_role(identifier, Some(source)) else {
         unreachable!()
     };
     let model = ModelMetadata;
-    let RoleMetadata::Value(value) = v4::value_role(Some(identifier), None)
-    else {
+    let RoleMetadata::Value(value) = v4::value_role(Some(identifier), None) else {
         unreachable!()
     };
 
@@ -74,45 +69,27 @@ fn test_five_role_payloads_expose_only_role_specific_facts() {
         value.transparent_field().expect("transparent field"),
         identifier
     ));
-    assert!(matches!(
-        RoleMetadata::Entity(entity).role(),
-        ModelRole::Entity
-    ));
+    assert!(matches!(RoleMetadata::Entity(entity).role(), ModelRole::Entity));
     assert!(matches!(
         RoleMetadata::Projection(projection).role(),
         ModelRole::Projection
     ));
-    assert!(matches!(
-        RoleMetadata::Model(model).role(),
-        ModelRole::Model
-    ));
-    assert!(matches!(
-        RoleMetadata::Value(value).role(),
-        ModelRole::Value
-    ));
+    assert!(matches!(RoleMetadata::Model(model).role(), ModelRole::Model));
+    assert!(matches!(RoleMetadata::Value(value).role(), ModelRole::Value));
 }
 
 #[test]
 fn test_enum_variant_keeps_rust_canonical_and_directional_serde_names() {
     let descriptor = TypeDescriptor::of::<EnumFixture>();
     let reflect = descriptor.variants().first().expect("enum variant");
-    let variant = v4::enum_variant_metadata(
-        reflect,
-        "READY",
-        "ready-out",
-        "ready-in",
-        &[],
-        true,
-    );
+    let variant = v4::enum_variant_metadata(reflect, "READY", "ready-out", "ready-in", &[], true);
     let variants = Box::leak(vec![variant].into_boxed_slice());
     let RoleMetadata::Enum(metadata) = v4::enum_role(variants) else {
         unreachable!()
     };
 
     assert_eq!(
-        metadata
-            .variant("READY")
-            .map(EnumVariantMetadata::rust_name),
+        metadata.variant("READY").map(EnumVariantMetadata::rust_name),
         Some("Ready")
     );
     assert_eq!(
@@ -128,22 +105,14 @@ fn test_enum_variant_keeps_rust_canonical_and_directional_serde_names() {
         Some("ready-in"),
     );
     assert!(metadata.variants()[0].is_default());
-    assert!(matches!(
-        RoleMetadata::Enum(metadata).role(),
-        ModelRole::Enum
-    ));
+    assert!(matches!(RoleMetadata::Enum(metadata).role(), ModelRole::Enum));
 }
 
 #[test]
-fn test_type_metadata_navigates_fields_and_role_without_copying_reflection_facts()
- {
+fn test_type_metadata_navigates_fields_and_role_without_copying_reflection_facts() {
     let descriptor = TypeDescriptor::of::<EntityFixture>();
-    let identifier = Box::leak(Box::new(IdentifierMetadata::new(
-        IdentifierAssignment::Application,
-    )));
-    let attributes = Box::leak(
-        vec![FieldAttributeMetadata::Identifier(identifier)].into_boxed_slice(),
-    );
+    let identifier = Box::leak(Box::new(IdentifierMetadata::new(IdentifierAssignment::Application)));
+    let attributes = Box::leak(vec![FieldAttributeMetadata::Identifier(identifier)].into_boxed_slice());
     let fields = Box::leak(
         vec![v4::field_metadata(
             descriptor.field_at(0).expect("identifier field"),
@@ -155,32 +124,19 @@ fn test_type_metadata_navigates_fields_and_role_without_copying_reflection_facts
         .into_boxed_slice(),
     );
     let role = Box::leak(Box::new(v4::entity_role(&fields[0])));
-    let metadata = v4::GeneratedTypeMetadataBuilder::new(
-        descriptor,
-        Some(ModelId::new("example.Entity")),
-        fields,
-        role,
-    )
-    .finish::<EntityFixture>();
+    let metadata =
+        v4::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.Entity")), fields, role)
+            .finish::<EntityFixture>();
 
     assert!(std::ptr::eq(metadata.descriptor(), descriptor));
     assert_eq!(metadata.type_id(), descriptor.type_id());
     assert_eq!(metadata.type_name(), descriptor.type_name());
-    assert_eq!(
-        metadata.model_id().map(|id| id.as_str()),
-        Some("example.Entity")
-    );
+    assert_eq!(metadata.model_id().map(|id| id.as_str()), Some("example.Entity"));
     assert!(metadata.is_registered());
     assert_eq!(metadata.role(), ModelRole::Entity);
     assert!(std::ptr::eq(metadata.fields(), fields));
-    assert!(std::ptr::eq(
-        metadata.field("id").expect("named field"),
-        &fields[0]
-    ));
-    assert!(std::ptr::eq(
-        metadata.field_at(0).expect("indexed field"),
-        &fields[0]
-    ));
+    assert!(std::ptr::eq(metadata.field("id").expect("named field"), &fields[0]));
+    assert!(std::ptr::eq(metadata.field_at(0).expect("indexed field"), &fields[0]));
     assert!(metadata.as_entity().is_some());
     assert!(metadata.as_projection().is_none());
     assert!(metadata.as_model().is_none());

@@ -30,9 +30,7 @@ impl FieldPath {
 
     /// Creates a path from individual field names.
     #[must_use]
-    pub fn from_segments(
-        segments: impl IntoIterator<Item = impl Into<String>>,
-    ) -> Self {
+    pub fn from_segments(segments: impl IntoIterator<Item = impl Into<String>>) -> Self {
         Self {
             segments: segments.into_iter().map(Into::into).collect(),
         }

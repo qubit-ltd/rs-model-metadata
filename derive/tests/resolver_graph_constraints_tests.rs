@@ -39,8 +39,7 @@ struct OpaqueOwner {
 
 #[test]
 fn test_resolver_rejects_entity_embedding_and_opaque_model_hiding() {
-    let registry =
-        ModelRegistry::try_global().expect("valid registration index");
+    let registry = ModelRegistry::try_global().expect("valid registration index");
     let errors = ModelResolver::new(ResolveInputs {
         models: registry,
         codecs: ValueCodecRegistry::global(),
@@ -48,9 +47,12 @@ fn test_resolver_rejects_entity_embedding_and_opaque_model_hiding() {
     .resolve_structure()
     .expect_err("invalid graph boundaries must prevent publication");
 
-    assert!(errors.errors().iter().any(
-        |error| error.kind() == ModelResolveErrorKind::InvalidEntityNesting
-    ));
+    assert!(
+        errors
+            .errors()
+            .iter()
+            .any(|error| error.kind() == ModelResolveErrorKind::InvalidEntityNesting)
+    );
     assert!(
         errors
             .errors()

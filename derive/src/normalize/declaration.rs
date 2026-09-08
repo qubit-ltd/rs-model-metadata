@@ -33,21 +33,17 @@ use crate::validate::declaration::combine;
 
 /// Applies declaration-wide canonicalization before semantic validation.
 pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
-    for field in declaration.fields.iter_mut().chain(
-        declaration
-            .variants
-            .iter_mut()
-            .flat_map(|variant| &mut variant.fields),
-    ) {
+    for field in declaration
+        .fields
+        .iter_mut()
+        .chain(declaration.variants.iter_mut().flat_map(|variant| &mut variant.fields))
+    {
         normalize_selector_containers(field);
     }
 }
 
 /// Validates normalized role, field, capability, and ordering invariants.
-pub(crate) fn validate_declaration_ir(
-    declaration: &DeclarationIr,
-    item: &DeriveInput,
-) -> Result<()> {
+pub(crate) fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     let options = &declaration.options;
     if declaration.kind == MacroKind::Entity && options.id.is_none() {
@@ -61,9 +57,10 @@ pub(crate) fn validate_declaration_ir(
             .fields
             .iter()
             .filter(|field| {
-                field.occurrences.iter().any(|value| {
-                    matches!(value, FieldOccurrence::Identifier(_))
-                })
+                field
+                    .occurrences
+                    .iter()
+                    .any(|value| matches!(value, FieldOccurrence::Identifier(_)))
             })
             .count()
             != 1
@@ -76,78 +73,52 @@ pub(crate) fn validate_declaration_ir(
             ),
         );
     }
-    if options.source_id.is_some() && declaration.kind != MacroKind::Projection
-    {
+    if options.source_id.is_some() && declaration.kind != MacroKind::Projection {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "source_id is only valid for Projection",
-            ),
+            Error::new_spanned(&item.ident, "source_id is only valid for Projection"),
         );
     }
     if options.source.is_some() && declaration.kind != MacroKind::Projection {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "source is only valid for Projection",
-            ),
+            Error::new_spanned(&item.ident, "source is only valid for Projection"),
         );
     }
     if options.source.is_some() && options.source_id.is_some() {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "Projection accepts only one of `source` or `source_id`",
-            ),
+            Error::new_spanned(&item.ident, "Projection accepts only one of `source` or `source_id`"),
         );
     }
-    if options.open && (options.source.is_some() || options.source_id.is_some())
-    {
+    if options.open && (options.source.is_some() || options.source_id.is_some()) {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "open Projection cannot declare a fixed source",
-            ),
+            Error::new_spanned(&item.ident, "open Projection cannot declare a fixed source"),
         );
     }
     if options.open && declaration.kind != MacroKind::Projection {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "open is only valid for Projection",
-            ),
+            Error::new_spanned(&item.ident, "open is only valid for Projection"),
         );
     }
     if options.transparent && declaration.kind != MacroKind::Value {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "transparent is only valid for Value",
-            ),
+            Error::new_spanned(&item.ident, "transparent is only valid for Value"),
         );
     }
     if options.codec.is_some() && declaration.kind != MacroKind::Value {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "canonical codec is only valid for Value",
-            ),
+            Error::new_spanned(&item.ident, "canonical codec is only valid for Value"),
         );
     }
     if options.transparent && declaration.fields.len() != 1 {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "transparent Value requires exactly one field",
-            ),
+            Error::new_spanned(&item.ident, "transparent Value requires exactly one field"),
         );
     }
     if options.no_copy && declaration.kind != MacroKind::Enum {
@@ -159,31 +130,20 @@ pub(crate) fn validate_declaration_ir(
     if options.no_copy && options.copy {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "copy and no_copy cannot be combined",
-            ),
+            Error::new_spanned(&item.ident, "copy and no_copy cannot be combined"),
         );
     }
     let all_fields: Vec<_> = declaration
         .fields
         .iter()
-        .chain(
-            declaration
-                .variants
-                .iter()
-                .flat_map(|variant| &variant.fields),
-        )
+        .chain(declaration.variants.iter().flat_map(|variant| &variant.fields))
         .collect();
     let mut variant_names = HashSet::new();
     for variant in &declaration.variants {
         if !variant_names.insert(&variant.canonical_name) {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    &item.ident,
-                    "Enum variant names must be unique",
-                ),
+                Error::new_spanned(&item.ident, "Enum variant names must be unique"),
             );
         }
     }
@@ -192,21 +152,14 @@ pub(crate) fn validate_declaration_ir(
             field.occurrences.iter().any(|value| {
                 matches!(
                     value,
-                    FieldOccurrence::Redact(_)
-                        | FieldOccurrence::Selector(SelectorIr {
-                            redact: Some(_),
-                            ..
-                        })
+                    FieldOccurrence::Redact(_) | FieldOccurrence::Selector(SelectorIr { redact: Some(_), .. })
                 )
             })
         })
     {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "no_redact cannot be combined with field redaction rules",
-            ),
+            Error::new_spanned(&item.ident, "no_redact cannot be combined with field redaction rules"),
         );
     }
     for field in &all_fields {
@@ -218,36 +171,23 @@ pub(crate) fn validate_declaration_ir(
             .occurrences
             .iter()
             .any(|value| matches!(value, FieldOccurrence::Reference(_)));
-        if has_identifier
-            && !matches!(
-                declaration.kind,
-                MacroKind::Entity | MacroKind::Projection
-            )
-        {
+        if has_identifier && !matches!(declaration.kind, MacroKind::Entity | MacroKind::Projection) {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    &item.ident,
-                    "identifier is only valid for Entity and Projection",
-                ),
+                Error::new_spanned(&item.ident, "identifier is only valid for Entity and Projection"),
             );
         }
-        if has_reference
-            && matches!(declaration.kind, MacroKind::Enum | MacroKind::Value)
-        {
+        if has_reference && matches!(declaration.kind, MacroKind::Enum | MacroKind::Value) {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    &item.ident,
-                    "Enum and Value fields cannot declare references",
-                ),
+                Error::new_spanned(&item.ident, "Enum and Value fields cannot declare references"),
             );
         }
         for occurrence in &field.occurrences {
             match occurrence {
-                FieldOccurrence::Identifier(
-                    IdentifierAssignmentIr::Database,
-                ) if declaration.kind != MacroKind::Entity => {
+                FieldOccurrence::Identifier(IdentifierAssignmentIr::Database)
+                    if declaration.kind != MacroKind::Entity =>
+                {
                     combine(
                         &mut errors,
                         Error::new(
@@ -257,10 +197,7 @@ pub(crate) fn validate_declaration_ir(
                     );
                 }
                 FieldOccurrence::KeyPart(_)
-                    if !matches!(
-                        declaration.kind,
-                        MacroKind::Model | MacroKind::Value
-                    ) || !field.named =>
+                    if !matches!(declaration.kind, MacroKind::Model | MacroKind::Value) || !field.named =>
                 {
                     combine(
                         &mut errors,
@@ -270,42 +207,23 @@ pub(crate) fn validate_declaration_ir(
                         ),
                     );
                 }
-                FieldOccurrence::Unique(unique)
-                    if unique.ignore_case && !is_text_type(&field.ty) =>
-                {
+                FieldOccurrence::Unique(unique) if unique.ignore_case && !is_text_type(&field.ty) => {
                     combine(
                         &mut errors,
-                        Error::new(
-                            field.index.span(),
-                            "unique(ignore_case = true) requires a text field",
-                        ),
+                        Error::new(field.index.span(), "unique(ignore_case = true) requires a text field"),
                     );
                 }
                 FieldOccurrence::Constraint(ConstraintIr::Text(text)) => {
-                    if text
-                        .min_chars
-                        .zip(text.max_chars)
-                        .is_some_and(|(min, max)| min > max)
-                    {
+                    if text.min_chars.zip(text.max_chars).is_some_and(|(min, max)| min > max) {
                         combine(
                             &mut errors,
-                            Error::new(
-                                field.index.span(),
-                                "text min_chars cannot exceed max_chars",
-                            ),
+                            Error::new(field.index.span(), "text min_chars cannot exceed max_chars"),
                         );
                     }
-                    if text
-                        .min_bytes
-                        .zip(text.max_bytes)
-                        .is_some_and(|(min, max)| min > max)
-                    {
+                    if text.min_bytes.zip(text.max_bytes).is_some_and(|(min, max)| min > max) {
                         combine(
                             &mut errors,
-                            Error::new(
-                                field.index.span(),
-                                "text min_bytes cannot exceed max_bytes",
-                            ),
+                            Error::new(field.index.span(), "text min_bytes cannot exceed max_bytes"),
                         );
                     }
                 }
@@ -315,9 +233,7 @@ pub(crate) fn validate_declaration_ir(
         let has_implicit_index = field.occurrences.iter().any(|value| {
             matches!(
                 value,
-                FieldOccurrence::Identifier(_)
-                    | FieldOccurrence::Unique(_)
-                    | FieldOccurrence::Reference(_)
+                FieldOccurrence::Identifier(_) | FieldOccurrence::Unique(_) | FieldOccurrence::Reference(_)
             )
         });
         if has_implicit_index
@@ -334,9 +250,7 @@ pub(crate) fn validate_declaration_ir(
                 ),
             );
         }
-        if field.keep_serializing
-            && (!field.named || omission_kind(&field.ty).is_none())
-        {
+        if field.keep_serializing && (!field.named || omission_kind(&field.ty).is_none()) {
             combine(
                 &mut errors,
                 Error::new_spanned(
@@ -346,39 +260,18 @@ pub(crate) fn validate_declaration_ir(
             );
         }
         let predicates: [fn(&FieldOccurrence) -> bool; 6] = [
-            |value: &FieldOccurrence| {
-                matches!(value, FieldOccurrence::Unique(_))
-            },
-            |value: &FieldOccurrence| {
-                matches!(value, FieldOccurrence::Reference(_))
-            },
-            |value: &FieldOccurrence| {
-                matches!(value, FieldOccurrence::KeyPart(_))
-            },
-            |value: &FieldOccurrence| {
-                matches!(value, FieldOccurrence::Codec(_))
-            },
-            |value: &FieldOccurrence| {
-                matches!(value, FieldOccurrence::Redact(_))
-            },
-            |value: &FieldOccurrence| {
-                matches!(value, FieldOccurrence::Serde(_))
-            },
+            |value: &FieldOccurrence| matches!(value, FieldOccurrence::Unique(_)),
+            |value: &FieldOccurrence| matches!(value, FieldOccurrence::Reference(_)),
+            |value: &FieldOccurrence| matches!(value, FieldOccurrence::KeyPart(_)),
+            |value: &FieldOccurrence| matches!(value, FieldOccurrence::Codec(_)),
+            |value: &FieldOccurrence| matches!(value, FieldOccurrence::Redact(_)),
+            |value: &FieldOccurrence| matches!(value, FieldOccurrence::Serde(_)),
         ];
         for predicate in predicates {
-            if field
-                .occurrences
-                .iter()
-                .filter(|value| predicate(value))
-                .count()
-                > 1
-            {
+            if field.occurrences.iter().filter(|value| predicate(value)).count() > 1 {
                 combine(
                     &mut errors,
-                    Error::new_spanned(
-                        &item.ident,
-                        "duplicate singleton field declaration",
-                    ),
+                    Error::new_spanned(&item.ident, "duplicate singleton field declaration"),
                 );
             }
         }
@@ -394,10 +287,7 @@ pub(crate) fn validate_declaration_ir(
         {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    &item.ident,
-                    "opaque cannot be combined with reference",
-                ),
+                Error::new_spanned(&item.ident, "opaque cannot be combined with reference"),
             );
         }
         for position in [
@@ -422,26 +312,17 @@ pub(crate) fn validate_declaration_ir(
             .occurrences
             .iter()
             .any(|value| matches!(value, FieldOccurrence::Redact(_)));
-        let selector_redact = field.occurrences.iter().any(|value| {
-            matches!(
-                value,
-                FieldOccurrence::Selector(SelectorIr {
-                    redact: Some(_),
-                    ..
-                })
-            )
-        });
+        let selector_redact = field
+            .occurrences
+            .iter()
+            .any(|value| matches!(value, FieldOccurrence::Selector(SelectorIr { redact: Some(_), .. })));
         if field_redact && selector_redact {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    &item.ident,
-                    "field and selector redaction cannot overlap",
-                ),
+                Error::new_spanned(&item.ident, "field and selector redaction cannot overlap"),
             );
         }
-        for selector in field.occurrences.iter().filter_map(|value| match value
-        {
+        for selector in field.occurrences.iter().filter_map(|value| match value {
             FieldOccurrence::Selector(selector) => Some(selector),
             _ => None,
         }) {
@@ -478,17 +359,10 @@ pub(crate) fn validate_declaration_ir(
     {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "key_part orders must be unique and contiguous from zero",
-            ),
+            Error::new_spanned(&item.ident, "key_part orders must be unique and contiguous from zero"),
         );
     }
-    if let Some(error) = errors {
-        Err(error)
-    } else {
-        Ok(())
-    }
+    if let Some(error) = errors { Err(error) } else { Ok(()) }
 }
 
 /// Reports whether a field is a built-in text type or an optional text type.
@@ -502,9 +376,7 @@ fn is_text_type(ty: &Type) -> bool {
     let Some(segment) = path.path.segments.last() else {
         return false;
     };
-    if is_string_path(&path.path)
-        || (path.path.segments.len() == 1 && segment.ident == "str")
-    {
+    if is_string_path(&path.path) || (path.path.segments.len() == 1 && segment.ident == "str") {
         return true;
     }
     let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
@@ -530,50 +402,39 @@ pub(crate) fn normalize_selector_containers(field: &mut FieldIr) {
         matches!(
             value,
             FieldOccurrence::Selector(SelectorIr {
-                position: SelectorPositionIr::MapKey
-                    | SelectorPositionIr::MapValue,
+                position: SelectorPositionIr::MapKey | SelectorPositionIr::MapValue,
                 ..
             })
         )
     });
     if has_element
-        && !field.occurrences.iter().any(|value| {
-            matches!(
-                value,
-                FieldOccurrence::Constraint(ConstraintIr::Sequence { .. })
-            )
-        })
+        && !field
+            .occurrences
+            .iter()
+            .any(|value| matches!(value, FieldOccurrence::Constraint(ConstraintIr::Sequence { .. })))
     {
-        field.occurrences.push(FieldOccurrence::Constraint(
-            ConstraintIr::Sequence {
+        field
+            .occurrences
+            .push(FieldOccurrence::Constraint(ConstraintIr::Sequence {
                 min: None,
                 max: None,
                 unique: false,
-            },
-        ));
+            }));
     }
     if has_map_selector
-        && !field.occurrences.iter().any(|value| {
-            matches!(
-                value,
-                FieldOccurrence::Constraint(ConstraintIr::Map { .. })
-            )
-        })
+        && !field
+            .occurrences
+            .iter()
+            .any(|value| matches!(value, FieldOccurrence::Constraint(ConstraintIr::Map { .. })))
     {
-        field.occurrences.push(FieldOccurrence::Constraint(
-            ConstraintIr::Map {
-                min: None,
-                max: None,
-            },
-        ));
+        field
+            .occurrences
+            .push(FieldOccurrence::Constraint(ConstraintIr::Map { min: None, max: None }));
     }
 }
 
 /// Validates that a field's constraints match its Rust type and role.
-pub(crate) fn validate_field_constraints(
-    field: &FieldIr,
-    errors: &mut Option<Error>,
-) {
+pub(crate) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Error>) {
     let mut kinds = HashSet::new();
     for constraint in field.occurrences.iter().filter_map(|value| match value {
         FieldOccurrence::Constraint(value) => Some(value),
@@ -590,10 +451,7 @@ pub(crate) fn validate_field_constraints(
         if !kinds.insert(kind) {
             combine(
                 errors,
-                Error::new(
-                    field.index.span(),
-                    format!("duplicate {kind} constraint"),
-                ),
+                Error::new(field.index.span(), format!("duplicate {kind} constraint")),
             );
         }
     }
@@ -607,17 +465,12 @@ pub(crate) fn validate_field_constraints(
                 ConstraintIr::Text(_) => "text",
                 ConstraintIr::Decimal(_) => "decimal-or-money",
                 ConstraintIr::Time(_) => "time",
-                ConstraintIr::Sequence { .. } | ConstraintIr::Map { .. } => {
-                    "container"
-                }
+                ConstraintIr::Sequence { .. } | ConstraintIr::Map { .. } => "container",
             };
             if !selector_kinds.insert(kind) {
                 combine(
                     errors,
-                    Error::new(
-                        field.index.span(),
-                        format!("duplicate selector {kind} constraint"),
-                    ),
+                    Error::new(field.index.span(), format!("duplicate selector {kind} constraint")),
                 );
             }
         }
@@ -632,22 +485,14 @@ pub(crate) fn validate_field_constraints(
                 if min.zip(*max).is_some_and(|(min, max)| min > max) {
                     combine(
                         errors,
-                        Error::new(
-                            field.index.span(),
-                            "sequence min_items cannot exceed max_items",
-                        ),
+                        Error::new(field.index.span(), "sequence min_items cannot exceed max_items"),
                     );
                 }
             }
-            ConstraintIr::Map { min, max }
-                if min.zip(*max).is_some_and(|(min, max)| min > max) =>
-            {
+            ConstraintIr::Map { min, max } if min.zip(*max).is_some_and(|(min, max)| min > max) => {
                 combine(
                     errors,
-                    Error::new(
-                        field.index.span(),
-                        "map min_entries cannot exceed max_entries",
-                    ),
+                    Error::new(field.index.span(), "map min_entries cannot exceed max_entries"),
                 );
             }
             _ => {}
@@ -668,8 +513,7 @@ mod tests {
     fn test_text_type_rejects_lookalike_paths() {
         let fake_string: Type = parse_quote!(domain::String);
         let fake_option: Type = parse_quote!(domain::Option<String>);
-        let standard: Type =
-            parse_quote!(core::option::Option<std::string::String>);
+        let standard: Type = parse_quote!(core::option::Option<std::string::String>);
 
         assert!(!is_text_type(&fake_string));
         assert!(!is_text_type(&fake_option));

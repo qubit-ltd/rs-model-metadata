@@ -45,10 +45,7 @@ impl std::fmt::Debug for ModelRuleBinding {
 impl ModelRuleBinding {
     /// Creates a model-level binding for a prepared validator accepting `T`.
     #[must_use]
-    pub fn from_prepared<T: 'static>(
-        rule_id: ValidatorId,
-        validator: Arc<dyn PreparedValidator>,
-    ) -> Self {
+    pub fn from_prepared<T: 'static>(rule_id: ValidatorId, validator: Arc<dyn PreparedValidator>) -> Self {
         Self {
             rule_id,
             input_type: InputType::of::<T>(),
@@ -107,14 +104,10 @@ impl<'a> ValidationPlan<'a> {
     ) -> Result<Self, ValidationBuildErrors> {
         let mut bindings = Vec::new();
         let mut errors = Vec::new();
-        let validators = match standard_constraints::registry(inputs.validators)
-        {
+        let validators = match standard_constraints::registry(inputs.validators) {
             Ok(validators) => validators,
             Err(error) => {
-                return Err(ValidationBuildErrors::from_bind_errors(
-                    root.type_name(),
-                    vec![error],
-                ));
+                return Err(ValidationBuildErrors::from_bind_errors(root.type_name(), vec![error]));
             }
         };
         let Some(properties) = inputs.graph.properties(root) else {
@@ -131,14 +124,13 @@ impl<'a> ValidationPlan<'a> {
                 continue;
             };
             for constraint in field.constraints() {
-                let standard =
-                    match standard_constraints::bind(constraint, &validators) {
-                        Ok(bindings) => bindings,
-                        Err(constraint_errors) => {
-                            errors.extend(constraint_errors);
-                            Vec::new()
-                        }
-                    };
+                let standard = match standard_constraints::bind(constraint, &validators) {
+                    Ok(bindings) => bindings,
+                    Err(constraint_errors) => {
+                        errors.extend(constraint_errors);
+                        Vec::new()
+                    }
+                };
                 for standard in standard {
                     let target = match standard.target {
                         StandardTarget::Value => TargetMode::Value,
@@ -156,10 +148,7 @@ impl<'a> ValidationPlan<'a> {
                             continue;
                         }
                     };
-                    let rule_id = standard
-                        .validator
-                        .rule_id()
-                        .expect("registry binding sets rule ID");
+                    let rule_id = standard.validator.rule_id().expect("registry binding sets rule ID");
                     bindings.push(FieldRuleBinding {
                         occurrence: bindings.len(),
                         rule_id,
@@ -172,95 +161,54 @@ impl<'a> ValidationPlan<'a> {
                     });
                 }
                 let selectors = match constraint {
-                    crate::ConstraintMetadata::Sequence(sequence) => {
-                        sequence.element().into_iter().collect::<Vec<_>>()
-                    }
-                    crate::ConstraintMetadata::Map(map) => map
-                        .key()
-                        .into_iter()
-                        .chain(map.value())
-                        .collect::<Vec<_>>(),
+                    crate::ConstraintMetadata::Sequence(sequence) => sequence.element().into_iter().collect::<Vec<_>>(),
+                    crate::ConstraintMetadata::Map(map) => map.key().into_iter().chain(map.value()).collect::<Vec<_>>(),
                     _ => Vec::new(),
                 };
                 for selector in selectors {
-                    if !matches!(selector.position(), SelectorPosition::Element)
-                    {
-                        errors.push(BindError::new(
-                            BindErrorKind::UnsupportedConstraint,
-                        ));
+                    if !matches!(selector.position(), SelectorPosition::Element) {
+                        errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
                         continue;
                     }
                     let Some(getter) = property.getter() else {
-                        errors.push(BindError::new(
-                            BindErrorKind::UnsupportedConstraint,
-                        ));
+                        errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
                         continue;
                     };
-                    if !matches!(
-                        getter.output_kind(),
-                        crate::GetterOutputKind::Borrowed
-                    ) || !matches!(
-                        getter
-                            .output_type()
-                            .as_resolved()
-                            .map(|value| value.kind()),
-                        Some(TypeKind::Slice)
-                    ) {
-                        errors.push(BindError::new(
-                            BindErrorKind::UnsupportedConstraint,
-                        ));
+                    if !matches!(getter.output_kind(), crate::GetterOutputKind::Borrowed)
+                        || !matches!(
+                            getter.output_type().as_resolved().map(|value| value.kind()),
+                            Some(TypeKind::Slice)
+                        )
+                    {
+                        errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
                         continue;
                     }
-                    let Some(descriptor) = selector_descriptor(
-                        property.descriptor(),
-                        selector.position(),
-                    ) else {
-                        errors.push(BindError::new(
-                            BindErrorKind::UnsupportedConstraint,
-                        ));
+                    let Some(descriptor) = selector_descriptor(property.descriptor(), selector.position()) else {
+                        errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
                         continue;
                     };
                     if !selector.constraints().is_empty() {
-                        errors.push(BindError::new(
-                            BindErrorKind::UnsupportedConstraint,
-                        ));
+                        errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
                     }
                     for declaration in selector.validators() {
-                        let input = selector_input_type(
-                            descriptor,
-                            declaration.target(),
-                        );
-                        let validator = match validators.bind(
-                            declaration.declared_id(),
-                            input,
-                            declaration.params(),
-                        ) {
+                        let input = selector_input_type(descriptor, declaration.target());
+                        let validator = match validators.bind(declaration.declared_id(), input, declaration.params()) {
                             Ok(validator) => validator,
                             Err(error) => {
                                 errors.push(error);
                                 continue;
                             }
                         };
-                        if !validator.dependency_specs().is_empty()
-                            || !declaration.depends_on().is_empty()
-                        {
+                        if !validator.dependency_specs().is_empty() || !declaration.depends_on().is_empty() {
                             errors.push(
-                                BindError::new(
-                                    BindErrorKind::UnsupportedConstraint,
-                                )
-                                .with_rule(
-                                    validator.rule_id().expect(
-                                        "registry binding sets rule ID",
-                                    ),
-                                ),
+                                BindError::new(BindErrorKind::UnsupportedConstraint)
+                                    .with_rule(validator.rule_id().expect("registry binding sets rule ID")),
                             );
                             continue;
                         }
                         bindings.push(FieldRuleBinding {
                             occurrence: bindings.len(),
-                            rule_id: validator
-                                .rule_id()
-                                .expect("registry binding sets rule ID"),
+                            rule_id: validator.rule_id().expect("registry binding sets rule ID"),
                             value: match CompiledPropertyPath::compile(
                                 root,
                                 &crate::PropertyPath::new(&[name]),
@@ -284,34 +232,24 @@ impl<'a> ValidationPlan<'a> {
                     }
                 }
             }
-            for (occurrence, declaration) in
-                field.validators().iter().enumerate()
-            {
+            for (occurrence, declaration) in field.validators().iter().enumerate() {
                 let segments = [name];
                 let path = crate::PropertyPath::new(&segments);
-                let value = match CompiledPropertyPath::compile(
-                    root,
-                    &path,
-                    inputs.graph,
-                    declaration.target(),
-                ) {
+                let value = match CompiledPropertyPath::compile(root, &path, inputs.graph, declaration.target()) {
                     Ok(path) => path,
                     Err(error) => {
                         errors.push(error);
                         continue;
                     }
                 };
-                let validator = match validators.bind(
-                    declaration.declared_id(),
-                    value.input_type(),
-                    declaration.params(),
-                ) {
-                    Ok(validator) => validator,
-                    Err(error) => {
-                        errors.push(error);
-                        continue;
-                    }
-                };
+                let validator =
+                    match validators.bind(declaration.declared_id(), value.input_type(), declaration.params()) {
+                        Ok(validator) => validator,
+                        Err(error) => {
+                            errors.push(error);
+                            continue;
+                        }
+                    };
                 let mut dependencies = Vec::new();
                 let specs = validator.dependency_specs();
                 let declared_dependencies = declaration.dependency_bindings();
@@ -337,18 +275,12 @@ impl<'a> ValidationPlan<'a> {
                                 BindErrorKind::UnknownDependencyDeclaration
                             },
                         )
-                        .with_rule(
-                            validator
-                                .rule_id()
-                                .expect("registry binding sets rule ID"),
-                        ),
+                        .with_rule(validator.rule_id().expect("registry binding sets rule ID")),
                     );
                     continue;
                 }
                 for (slot, spec) in specs.iter().enumerate() {
-                    let (dependency_name, dependency) = if declared_dependencies
-                        .is_empty()
-                    {
+                    let (dependency_name, dependency) = if declared_dependencies.is_empty() {
                         let dependency = legacy_dependencies[slot];
                         (dependency.to_string(), dependency)
                     } else {
@@ -357,15 +289,9 @@ impl<'a> ValidationPlan<'a> {
                             .find(|binding| binding.name() == spec.name())
                         else {
                             errors.push(
-                                BindError::new(
-                                    BindErrorKind::UnknownDependencyDeclaration,
-                                )
-                                .with_rule(
-                                    validator.rule_id().expect(
-                                        "registry binding sets rule ID",
-                                    ),
-                                )
-                                .with_dependency(spec.name()),
+                                BindError::new(BindErrorKind::UnknownDependencyDeclaration)
+                                    .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                    .with_dependency(spec.name()),
                             );
                             continue;
                         };
@@ -373,42 +299,25 @@ impl<'a> ValidationPlan<'a> {
                     };
                     if spec.name() != dependency_name {
                         errors.push(
-                            BindError::new(
-                                BindErrorKind::UnknownDependencyDeclaration,
-                            )
-                            .with_rule(
-                                validator
-                                    .rule_id()
-                                    .expect("registry binding sets rule ID"),
-                            )
-                            .with_dependency(spec.name()),
+                            BindError::new(BindErrorKind::UnknownDependencyDeclaration)
+                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                .with_dependency(spec.name()),
                         );
                         continue;
                     }
-                    match CompiledPropertyPath::compile(
-                        root,
-                        &dependency,
-                        inputs.graph,
-                        TargetMode::Value,
-                    ) {
+                    match CompiledPropertyPath::compile(root, &dependency, inputs.graph, TargetMode::Value) {
                         Ok(path) => dependencies.push(path),
-                        Err(error) => {
-                            errors.push(
-                                error
-                                    .with_rule(validator.rule_id().expect(
-                                        "registry binding sets rule ID",
-                                    ))
-                                    .with_dependency(spec.name()),
-                            )
-                        }
+                        Err(error) => errors.push(
+                            error
+                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                .with_dependency(spec.name()),
+                        ),
                     }
                 }
                 if dependencies.len() == specs.len() {
                     bindings.push(FieldRuleBinding {
                         occurrence,
-                        rule_id: validator
-                            .rule_id()
-                            .expect("registry binding sets rule ID"),
+                        rule_id: validator.rule_id().expect("registry binding sets rule ID"),
                         value,
                         dependencies: dependencies.into_boxed_slice(),
                         validator,
@@ -439,10 +348,7 @@ impl<'a> ValidationPlan<'a> {
                 model_rules: Box::new([]),
             })
         } else {
-            Err(ValidationBuildErrors::from_bind_errors(
-                root.type_name(),
-                errors,
-            ))
+            Err(ValidationBuildErrors::from_bind_errors(root.type_name(), errors))
         }
     }
 
@@ -466,11 +372,7 @@ impl<'a> ValidationPlan<'a> {
     /// Adds a typed model-level prepared validator to this plan.
     #[must_use]
     pub fn with_model_rule(mut self, binding: ModelRuleBinding) -> Self {
-        self.model_rules = self
-            .model_rules
-            .into_iter()
-            .chain(std::iter::once(binding))
-            .collect();
+        self.model_rules = self.model_rules.into_iter().chain(std::iter::once(binding)).collect();
         self
     }
 
@@ -512,8 +414,7 @@ fn collect_nested_bindings<'a>(
         };
         let mut path_segments = prefix.to_vec();
         path_segments.push(name);
-        let Some(descriptor) = nested_value_descriptor(field.descriptor())
-        else {
+        let Some(descriptor) = nested_value_descriptor(field.descriptor()) else {
             errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
             continue;
         };
@@ -529,8 +430,7 @@ fn collect_nested_bindings<'a>(
             let Some(nested_name) = nested_field.name() else {
                 continue;
             };
-            let value_segments =
-                path_segments_for(&path_segments, &[nested_name]);
+            let value_segments = path_segments_for(&path_segments, &[nested_name]);
             for declaration in nested_field.validators() {
                 let value = match CompiledPropertyPath::compile(
                     root,
@@ -544,17 +444,14 @@ fn collect_nested_bindings<'a>(
                         continue;
                     }
                 };
-                let validator = match validators.bind(
-                    declaration.declared_id(),
-                    value.input_type(),
-                    declaration.params(),
-                ) {
-                    Ok(validator) => validator,
-                    Err(error) => {
-                        errors.push(error);
-                        continue;
-                    }
-                };
+                let validator =
+                    match validators.bind(declaration.declared_id(), value.input_type(), declaration.params()) {
+                        Ok(validator) => validator,
+                        Err(error) => {
+                            errors.push(error);
+                            continue;
+                        }
+                    };
                 let declared = declaration.dependency_bindings();
                 let legacy = declaration.depends_on();
                 let specs = validator.dependency_specs();
@@ -570,11 +467,7 @@ fn collect_nested_bindings<'a>(
                         } else {
                             BindErrorKind::UnknownDependencyDeclaration
                         })
-                        .with_rule(
-                            validator
-                                .rule_id()
-                                .expect("registry binding sets rule ID"),
-                        ),
+                        .with_rule(validator.rule_id().expect("registry binding sets rule ID")),
                     );
                     continue;
                 }
@@ -584,20 +477,11 @@ fn collect_nested_bindings<'a>(
                         let dependency = legacy[slot];
                         (dependency.to_string(), dependency)
                     } else {
-                        let Some(binding) = declared
-                            .iter()
-                            .find(|binding| binding.name() == spec.name())
-                        else {
+                        let Some(binding) = declared.iter().find(|binding| binding.name() == spec.name()) else {
                             errors.push(
-                                BindError::new(
-                                    BindErrorKind::UnknownDependencyDeclaration,
-                                )
-                                .with_rule(
-                                    validator.rule_id().expect(
-                                        "registry binding sets rule ID",
-                                    ),
-                                )
-                                .with_dependency(spec.name()),
+                                BindError::new(BindErrorKind::UnknownDependencyDeclaration)
+                                    .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                    .with_dependency(spec.name()),
                             );
                             continue;
                         };
@@ -605,22 +489,13 @@ fn collect_nested_bindings<'a>(
                     };
                     if spec.name() != dependency_name {
                         errors.push(
-                            BindError::new(
-                                BindErrorKind::UnknownDependencyDeclaration,
-                            )
-                            .with_rule(
-                                validator
-                                    .rule_id()
-                                    .expect("registry binding sets rule ID"),
-                            )
-                            .with_dependency(spec.name()),
+                            BindError::new(BindErrorKind::UnknownDependencyDeclaration)
+                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                .with_dependency(spec.name()),
                         );
                         continue;
                     }
-                    let dependency_segments = path_segments_for(
-                        &path_segments,
-                        dependency.segments(),
-                    );
+                    let dependency_segments = path_segments_for(&path_segments, dependency.segments());
                     match CompiledPropertyPath::compile(
                         root,
                         &crate::PropertyPath::new(&dependency_segments),
@@ -628,23 +503,17 @@ fn collect_nested_bindings<'a>(
                         TargetMode::Value,
                     ) {
                         Ok(path) => dependencies.push(path),
-                        Err(error) => {
-                            errors.push(
-                                error
-                                    .with_rule(validator.rule_id().expect(
-                                        "registry binding sets rule ID",
-                                    ))
-                                    .with_dependency(spec.name()),
-                            )
-                        }
+                        Err(error) => errors.push(
+                            error
+                                .with_rule(validator.rule_id().expect("registry binding sets rule ID"))
+                                .with_dependency(spec.name()),
+                        ),
                     }
                 }
                 if dependencies.len() == specs.len() {
                     bindings.push(FieldRuleBinding {
                         occurrence: bindings.len(),
-                        rule_id: validator
-                            .rule_id()
-                            .expect("registry binding sets rule ID"),
+                        rule_id: validator.rule_id().expect("registry binding sets rule ID"),
                         value,
                         dependencies: dependencies.into_boxed_slice(),
                         validator,
@@ -655,37 +524,21 @@ fn collect_nested_bindings<'a>(
                 }
             }
         }
-        collect_nested_bindings(
-            root,
-            nested,
-            &path_segments,
-            graph,
-            validators,
-            bindings,
-            errors,
-            stack,
-        );
+        collect_nested_bindings(root, nested, &path_segments, graph, validators, bindings, errors, stack);
         stack.remove(&nested.type_id());
     }
 }
 
-fn path_segments_for(
-    prefix: &[&'static str],
-    suffix: &[&'static str],
-) -> Vec<&'static str> {
+fn path_segments_for(prefix: &[&'static str], suffix: &[&'static str]) -> Vec<&'static str> {
     prefix.iter().chain(suffix).copied().collect()
 }
 
-fn nested_value_descriptor(
-    mut descriptor: Option<&'static TypeDescriptor>,
-) -> Option<&'static TypeDescriptor> {
+fn nested_value_descriptor(mut descriptor: Option<&'static TypeDescriptor>) -> Option<&'static TypeDescriptor> {
     while let Some(value) = descriptor {
         if let Some(element) = value
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| {
-                value.as_smart_pointer().map(|view| view.pointee_type())
-            })
+            .or_else(|| value.as_smart_pointer().map(|view| view.pointee_type()))
         {
             descriptor = element.as_resolved();
             continue;
@@ -711,28 +564,18 @@ fn selector_descriptor(
             .or_else(|| descriptor.as_set().map(|view| view.element_type()))
             .or_else(|| descriptor.as_array().map(|view| view.element_type()))
             .or_else(|| descriptor.as_slice().map(|view| view.element_type())),
-        SelectorPosition::MapKey => {
-            descriptor.as_map().map(|view| view.key_type())
-        }
-        SelectorPosition::MapValue => {
-            descriptor.as_map().map(|view| view.value_type())
-        }
+        SelectorPosition::MapKey => descriptor.as_map().map(|view| view.key_type()),
+        SelectorPosition::MapValue => descriptor.as_map().map(|view| view.value_type()),
     }?;
     transparent_descriptor(type_ref.as_resolved()?)
 }
 
-fn transparent_descriptor(
-    mut descriptor: &'static TypeDescriptor,
-) -> Option<&'static TypeDescriptor> {
+fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
     loop {
         let type_ref = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| {
-                descriptor
-                    .as_smart_pointer()
-                    .map(|view| view.pointee_type())
-            });
+            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()));
         let Some(type_ref) = type_ref else {
             return Some(descriptor);
         };
@@ -740,10 +583,7 @@ fn transparent_descriptor(
     }
 }
 
-fn selector_input_type(
-    descriptor: &'static TypeDescriptor,
-    target: TargetMode,
-) -> InputType {
+fn selector_input_type(descriptor: &'static TypeDescriptor, target: TargetMode) -> InputType {
     let descriptor = if matches!(target, TargetMode::Value) {
         transparent_descriptor(descriptor).unwrap_or(descriptor)
     } else {

@@ -153,21 +153,14 @@ const fn validate_model_id(value: &str) -> Result<(), ModelIdError> {
 }
 
 /// Validates one ASCII Java-full-class-name-style segment.
-const fn validate_segment(
-    bytes: &[u8],
-    start: usize,
-    end: usize,
-) -> Result<(), ModelIdError> {
+const fn validate_segment(bytes: &[u8], start: usize, end: usize) -> Result<(), ModelIdError> {
     if !is_ascii_letter(bytes[start]) {
         return Err(ModelIdError::InvalidSegment);
     }
     let mut index = start + 1;
     while index < end {
         let byte = bytes[index];
-        if !(is_ascii_letter(byte)
-            || (byte >= b'0' && byte <= b'9')
-            || byte == b'_')
-        {
+        if !(is_ascii_letter(byte) || (byte >= b'0' && byte <= b'9') || byte == b'_') {
             return Err(ModelIdError::InvalidSegment);
         }
         index += 1;

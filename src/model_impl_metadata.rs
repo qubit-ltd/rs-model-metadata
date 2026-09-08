@@ -26,15 +26,9 @@ impl ModelImplMetadata {
     #[must_use]
     pub(crate) const fn new(
         fragments: &'static [PropertyFragment],
-        properties: Result<
-            &'static LocalPropertySet,
-            &'static PropertyBuildErrors,
-        >,
+        properties: Result<&'static LocalPropertySet, &'static PropertyBuildErrors>,
     ) -> Self {
-        Self {
-            fragments,
-            properties,
-        }
+        Self { fragments, properties }
     }
 
     /// Returns every unmerged field/getter/setter source fact.
@@ -51,9 +45,7 @@ impl ModelImplMetadata {
     /// Returns errors when field, getter, or setter fragments with the same
     /// name do not share a compatible value type.
     #[must_use = "handle property assembly failures"]
-    pub const fn try_properties(
-        &self,
-    ) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
+    pub const fn try_properties(&self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
         self.properties
     }
 }

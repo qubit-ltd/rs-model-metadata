@@ -63,10 +63,7 @@ pub struct ProjectionMetadata {
 impl ProjectionMetadata {
     /// Creates projection metadata.
     #[must_use]
-    pub(crate) const fn new(
-        identifier: &'static FieldMetadata,
-        source: Option<&'static DeclaredEntityTarget>,
-    ) -> Self {
+    pub(crate) const fn new(identifier: &'static FieldMetadata, source: Option<&'static DeclaredEntityTarget>) -> Self {
         Self { identifier, source }
     }
 
