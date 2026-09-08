@@ -105,10 +105,7 @@ struct Payload {
     tags: Vec<String>,
     #[map(min_entries = 1, max_entries = 3)]
     #[map_key(text(max_chars = 8), redact(level = "confidential"))]
-    #[map_value(
-        validator(id = "runtime.map_value"),
-        redact(level = "confidential")
-    )]
+    #[map_value(validator(id = "runtime.map_value"), redact(level = "confidential"))]
     labels: std::collections::HashMap<String, String>,
 }
 
@@ -212,8 +209,7 @@ fn test_role_macros_generate_metadata_capability_and_registration() {
         ),
     ];
 
-    let registry =
-        ModelRegistry::try_global().expect("generated registrations");
+    let registry = ModelRegistry::try_global().expect("generated registrations");
     for (metadata, role, id) in cases {
         assert_eq!(metadata.role(), role);
         assert_eq!(metadata.model_id().map(|value| value.as_str()), Some(id));
@@ -289,8 +285,7 @@ fn test_field_occurrences_preserve_validator_order_and_declared_codec_id() {
 
 #[test]
 fn test_enum_and_value_role_payloads_use_reflection_overlays() {
-    let enum_metadata =
-        TypeMetadata::of::<Status>().as_enum().expect("enum role");
+    let enum_metadata = TypeMetadata::of::<Status>().as_enum().expect("enum role");
     assert!(TypeMetadata::of::<Status>().fields().is_empty());
     assert_eq!(
         enum_metadata
@@ -440,8 +435,7 @@ fn test_generic_enum_registration_preserves_variant_field_overlays() {
 
 #[test]
 fn test_resolver_builds_scoped_unique_and_reference_queries() {
-    let registry =
-        ModelRegistry::try_global().expect("generated registrations");
+    let registry = ModelRegistry::try_global().expect("generated registrations");
     let graph = StructureResolver::new(ResolveInputs { models: registry })
         .resolve()
         .expect("valid generated model graph");

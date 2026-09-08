@@ -22,21 +22,11 @@ pub(crate) fn validator_arguments<'a>(
         .iter()
         .map(|argument| {
             let value = match argument.value() {
-                ValidationArgument::Bool(value) => {
-                    RuntimeValidationArgument::Bool(value)
-                }
-                ValidationArgument::Integer(value) => {
-                    RuntimeValidationArgument::Integer(value)
-                }
-                ValidationArgument::Unsigned(value) => {
-                    RuntimeValidationArgument::Unsigned(value)
-                }
-                ValidationArgument::String(value) => {
-                    RuntimeValidationArgument::String(value)
-                }
-                ValidationArgument::BoolList(value) => {
-                    RuntimeValidationArgument::BoolList(value)
-                }
+                ValidationArgument::Bool(value) => RuntimeValidationArgument::Bool(value),
+                ValidationArgument::Integer(value) => RuntimeValidationArgument::Integer(value),
+                ValidationArgument::Unsigned(value) => RuntimeValidationArgument::Unsigned(value),
+                ValidationArgument::String(value) => RuntimeValidationArgument::String(value),
+                ValidationArgument::BoolList(value) => RuntimeValidationArgument::BoolList(value),
                 ValidationArgument::IntegerList(value) => {
                     RuntimeValidationArgument::IntegerList(value)
                 }

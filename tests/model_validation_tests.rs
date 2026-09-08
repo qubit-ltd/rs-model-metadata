@@ -96,9 +96,7 @@ impl PreparedValidator for Reject {
         )]))
     }
 }
-fn prepare(
-    _: &[NamedValidationArgument<'_>],
-) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(Reject))
 }
 
@@ -139,10 +137,8 @@ fn source() -> &'static FragmentIdentity {
 #[test]
 fn executes_bound_rule_and_prefixes_field_path() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let reflection =
-        ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection)
-        .expect("model registry");
+    let reflection = ReflectRegistry::initialize().expect("reflection registry");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     assert!(
         models
             .by_type_id(TypeMetadata::of::<NestedModel>().type_id())
@@ -151,8 +147,8 @@ fn executes_bound_rule_and_prefixes_field_path() {
     let graph = StructureResolver::new(ResolveInputs { models: &models })
         .resolve()
         .expect("structure");
-    let validators = ValidatorRegistry::from_registrations([REGISTRATION])
-        .expect("validator registry");
+    let validators =
+        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -177,15 +173,13 @@ fn executes_bound_rule_and_prefixes_field_path() {
 #[test]
 fn executes_typed_model_rule_binding() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let reflection =
-        ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection)
-        .expect("model registry");
+    let reflection = ReflectRegistry::initialize().expect("reflection registry");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     let graph = StructureResolver::new(ResolveInputs { models: &models })
         .resolve()
         .expect("structure");
-    let validators = ValidatorRegistry::from_registrations([REGISTRATION])
-        .expect("validator registry");
+    let validators =
+        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -213,15 +207,13 @@ fn executes_typed_model_rule_binding() {
 #[test]
 fn executes_element_selector_for_borrowed_slice() {
     let metadata = TypeMetadata::of::<SelectorFixture>();
-    let reflection =
-        ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection)
-        .expect("model registry");
+    let reflection = ReflectRegistry::initialize().expect("reflection registry");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     let graph = StructureResolver::new(ResolveInputs { models: &models })
         .resolve()
         .expect("structure");
-    let validators = ValidatorRegistry::from_registrations([REGISTRATION])
-        .expect("validator registry");
+    let validators =
+        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -240,8 +232,8 @@ fn executes_element_selector_for_borrowed_slice() {
         .expect("execution");
     assert_eq!(report.violations().len(), 2);
     assert_eq!(report.violations()[1].path().render(), "values[1]");
-    let comparison_limited = ValidationOptions::default()
-        .with_max_comparisons(NonZeroUsize::new(1).expect("non-zero"));
+    let comparison_limited =
+        ValidationOptions::default().with_max_comparisons(NonZeroUsize::new(1).expect("non-zero"));
     assert!(
         plan.validate(
             ReflectedRef::new(&SelectorFixture {
@@ -256,10 +248,8 @@ fn executes_element_selector_for_borrowed_slice() {
 #[test]
 fn executes_validators_declared_by_an_optional_nested_model() {
     let metadata = TypeMetadata::of::<NestedRoot>();
-    let reflection =
-        ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection)
-        .expect("model registry");
+    let reflection = ReflectRegistry::initialize().expect("reflection registry");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     assert!(
         models
             .by_type_id(TypeMetadata::of::<NestedModel>().type_id())
@@ -268,8 +258,8 @@ fn executes_validators_declared_by_an_optional_nested_model() {
     let graph = StructureResolver::new(ResolveInputs { models: &models })
         .resolve()
         .expect("structure");
-    let validators = ValidatorRegistry::from_registrations([REGISTRATION])
-        .expect("validator registry");
+    let validators =
+        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -305,13 +295,12 @@ fn executes_validators_declared_by_an_optional_nested_model() {
 #[test]
 fn traversal_budgets_are_enforced_before_execution() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let models = ModelRegistry::from_metadata(&[(metadata, source())])
-        .expect("model registry");
+    let models = ModelRegistry::from_metadata(&[(metadata, source())]).expect("model registry");
     let graph = StructureResolver::new(ResolveInputs { models: &models })
         .resolve()
         .expect("structure");
-    let validators = ValidatorRegistry::from_registrations([REGISTRATION])
-        .expect("validator registry");
+    let validators =
+        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -324,11 +313,11 @@ fn traversal_budgets_are_enforced_before_execution() {
         name: "bad".to_owned(),
     };
     let value = ReflectedRef::new(&model);
-    let depth = ValidationOptions::default()
-        .with_max_depth(NonZeroUsize::new(1).expect("non-zero"));
+    let depth =
+        ValidationOptions::default().with_max_depth(NonZeroUsize::new(1).expect("non-zero"));
     assert!(plan.validate(value.clone(), &depth).is_ok());
-    let nodes = ValidationOptions::default()
-        .with_max_nodes(NonZeroUsize::new(1).expect("non-zero"));
+    let nodes =
+        ValidationOptions::default().with_max_nodes(NonZeroUsize::new(1).expect("non-zero"));
     assert!(plan.validate(value, &nodes).is_err());
 }
 // =============================================================================

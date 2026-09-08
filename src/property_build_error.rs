@@ -22,10 +22,7 @@ pub struct PropertyBuildError {
 
 impl PropertyBuildError {
     /// Creates one property assembly failure.
-    pub(crate) const fn new(
-        kind: PropertyBuildErrorKind,
-        property_name: &'static str,
-    ) -> Self {
+    pub(crate) const fn new(kind: PropertyBuildErrorKind, property_name: &'static str) -> Self {
         Self {
             kind,
             property_name,
@@ -49,10 +46,7 @@ impl PropertyBuildError {
 
 impl core::fmt::Display for PropertyBuildError {
     /// Formats a stable English diagnostic for this property failure.
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             formatter,
             "property {:?} for `{}`",

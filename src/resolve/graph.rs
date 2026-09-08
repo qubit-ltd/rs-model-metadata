@@ -138,14 +138,9 @@ impl ResolvedProjectionProducer {
             .copied()?;
         let result = projector.get(source)?;
         let projection_identifier = match &result {
-            PropertyValue::Borrowed(value) => {
-                self.projection_identifier(value.clone())?
-            }
-            PropertyValue::Owned(value) => {
-                self.projection_identifier(value.as_reflected_ref())?
-            }
-            PropertyValue::OptionalBorrowed(_)
-            | PropertyValue::BorrowedSlice(_) => {
+            PropertyValue::Borrowed(value) => self.projection_identifier(value.clone())?,
+            PropertyValue::Owned(value) => self.projection_identifier(value.as_reflected_ref())?,
+            PropertyValue::OptionalBorrowed(_) | PropertyValue::BorrowedSlice(_) => {
                 return Err(ProjectionExecutionError::InvalidProducer);
             }
         };
@@ -232,10 +227,7 @@ pub struct ModelGraph<'a> {
 impl<'a> ModelGraph<'a> {
     /// Returns locally merged properties accepted during graph resolution.
     #[must_use]
-    pub fn properties(
-        &self,
-        model: &TypeMetadata,
-    ) -> Option<&'static LocalPropertySet> {
+    pub fn properties(&self, model: &TypeMetadata) -> Option<&'static LocalPropertySet> {
         self.properties.get(&model.type_id()).copied()
     }
 
@@ -254,10 +246,7 @@ impl<'a> ModelGraph<'a> {
 
     /// Returns a resolved reference for `field`, or `None` when it has none.
     #[must_use]
-    pub fn reference(
-        &self,
-        field: &FieldMetadata,
-    ) -> Option<&ResolvedReference> {
+    pub fn reference(&self, field: &FieldMetadata) -> Option<&ResolvedReference> {
         self.references.get(&pointer_key(field))
     }
 
@@ -273,10 +262,7 @@ impl<'a> ModelGraph<'a> {
 
     /// Returns query metadata for `entity`, or `None` when it is not resolved.
     #[must_use]
-    pub fn query(
-        &self,
-        entity: &crate::metadata::EntityMetadata,
-    ) -> Option<&QueryMetadata> {
+    pub fn query(&self, entity: &crate::metadata::EntityMetadata) -> Option<&QueryMetadata> {
         self.queries
             .get(&(entity as *const crate::metadata::EntityMetadata as usize))
     }
@@ -383,9 +369,7 @@ impl UniqueQueryKey {
 
     /// Iterates over property paths in key-component order.
     #[must_use]
-    pub fn paths(
-        &self,
-    ) -> impl ExactSizeIterator<Item = PropertyPath<'_>> + '_ {
+    pub fn paths(&self) -> impl ExactSizeIterator<Item = PropertyPath<'_>> + '_ {
         self.paths.iter().map(OwnedPropertyPath::as_path)
     }
 

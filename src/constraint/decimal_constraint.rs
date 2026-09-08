@@ -71,10 +71,7 @@ impl DecimalConstraint {
         semantic: DecimalSemantic,
     ) -> Self {
         if let Some(precision) = precision {
-            assert!(
-                scale <= precision,
-                "decimal scale cannot exceed precision"
-            );
+            assert!(scale <= precision, "decimal scale cannot exceed precision");
         }
         Self {
             precision,

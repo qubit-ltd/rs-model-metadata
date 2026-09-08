@@ -24,19 +24,13 @@ use syn::punctuated::Punctuated;
 use crate::ir::MacroKind;
 use crate::ir::declaration::DeclarationIr;
 /// Validates the declaration shape before constructing intermediate metadata.
-pub(crate) fn validate_declaration(
-    kind: MacroKind,
-    item: &DeriveInput,
-) -> Result<()> {
+pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     for parameter in &item.generics.params {
         if matches!(parameter, GenericParam::Lifetime(_)) {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    parameter,
-                    "model roles do not support lifetime parameters",
-                ),
+                Error::new_spanned(parameter, "model roles do not support lifetime parameters"),
             );
         }
         if let GenericParam::Const(parameter) = parameter {
@@ -60,8 +54,7 @@ pub(crate) fn validate_declaration(
         }
     }
     if matches!(kind, MacroKind::Entity | MacroKind::Projection)
-        && (!item.generics.params.is_empty()
-            || item.generics.where_clause.is_some())
+        && (!item.generics.params.is_empty() || item.generics.where_clause.is_some())
     {
         combine(
             &mut errors,
@@ -77,10 +70,7 @@ pub(crate) fn validate_declaration(
             if !matches!(data.fields, Fields::Named(_)) {
                 combine(
                     &mut errors,
-                    Error::new_spanned(
-                        &data.fields,
-                        "Entity and Projection require named fields",
-                    ),
+                    Error::new_spanned(&data.fields, "Entity and Projection require named fields"),
                 );
             }
         }
@@ -88,10 +78,7 @@ pub(crate) fn validate_declaration(
             if matches!(data.fields, Fields::Unnamed(_)) {
                 combine(
                     &mut errors,
-                    Error::new_spanned(
-                        &data.fields,
-                        "Model does not support tuple structs",
-                    ),
+                    Error::new_spanned(&data.fields, "Model does not support tuple structs"),
                 );
             }
         }
@@ -114,24 +101,15 @@ pub(crate) fn validate_declaration(
         }
         (_, Data::Union(data)) => combine(
             &mut errors,
-            Error::new_spanned(
-                data.union_token,
-                "model macros do not support unions",
-            ),
+            Error::new_spanned(data.union_token, "model macros do not support unions"),
         ),
         (MacroKind::Enum, _) => combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "Enum only supports enum declarations",
-            ),
+            Error::new_spanned(&item.ident, "Enum only supports enum declarations"),
         ),
         (_, Data::Enum(_)) => combine(
             &mut errors,
-            Error::new_spanned(
-                &item.ident,
-                "this model role requires a struct declaration",
-            ),
+            Error::new_spanned(&item.ident, "this model role requires a struct declaration"),
         ),
         _ => {}
     }
@@ -149,8 +127,7 @@ pub(crate) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
         if !attribute.path().is_ident("derive") {
             continue;
         }
-        let derives = attribute
-            .parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
+        let derives = attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
         if let Some(path) = derives.iter().find(|path| {
             path.segments
                 .last()
@@ -166,14 +143,9 @@ pub(crate) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
 }
 
 /// Rewrites helper attributes used to expose nested field metadata.
-pub(crate) fn rewrite_field_helpers(
-    data: &mut Data,
-    declaration: &DeclarationIr,
-) {
+pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr) {
     let fields: Vec<_> = match data {
-        Data::Struct(data) => {
-            data.fields.iter_mut().zip(&declaration.fields).collect()
-        }
+        Data::Struct(data) => data.fields.iter_mut().zip(&declaration.fields).collect(),
         Data::Enum(data) => data
             .variants
             .iter_mut()
@@ -206,8 +178,7 @@ pub(crate) fn rewrite_field_helpers(
 
 /// Reports whether an attribute is an internal model-field helper.
 fn is_model_field_helper(attribute: &Attribute) -> bool {
-    let Some(name) = attribute.path().get_ident().map(ToString::to_string)
-    else {
+    let Some(name) = attribute.path().get_ident().map(ToString::to_string) else {
         return false;
     };
     matches!(

@@ -68,17 +68,11 @@ fn prepare_text(
 
 static TEXT_SIGNATURES: &[ValidatorSignature] =
     &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
-static TEXT_DESCRIPTOR: ValidatorDescriptor =
-    ValidatorDescriptor::new(TEXT_SIGNATURES);
+static TEXT_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(TEXT_SIGNATURES);
 static TEXT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("test.text"),
     &TEXT_DESCRIPTOR,
-    RegistrationSource::new(
-        "validation-binding-tests",
-        "fixture",
-        file!(),
-        line!(),
-    ),
+    RegistrationSource::new("validation-binding-tests", "fixture", file!(), line!()),
 );
 
 fn source() -> &'static FragmentIdentity {
@@ -100,9 +94,8 @@ fn inputs<'a>(models: &'a ModelRegistry<'a>) -> ResolveInputs<'a> {
 fn structure_resolution_and_binding_are_separate() {
     let owner = TypeMetadata::of::<Owner>();
     let fixture = TypeMetadata::of::<BindingFixture>();
-    let models =
-        ModelRegistry::from_metadata(&[(owner, source()), (fixture, source())])
-            .expect("isolated model registry");
+    let models = ModelRegistry::from_metadata(&[(owner, source()), (fixture, source())])
+        .expect("isolated model registry");
     let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION])
         .expect("isolated validator registry");
     let graph = StructureResolver::new(inputs(&models))

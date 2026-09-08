@@ -31,13 +31,7 @@ pub(crate) fn validate_closed_value(
 pub(crate) fn validate_redact_level(level: &LitStr) -> Result<()> {
     if matches!(
         level.value().as_str(),
-        "public"
-            | "personal"
-            | "confidential"
-            | "secret"
-            | "low"
-            | "medium"
-            | "high"
+        "public" | "personal" | "confidential" | "secret" | "low" | "medium" | "high"
     ) {
         Ok(())
     } else {

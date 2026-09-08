@@ -13,8 +13,7 @@ use qubit_model_metadata::metadata::ModelIdBuf;
 use qubit_model_metadata::metadata::ModelIdError;
 
 const STATIC_MODEL_ID: ModelId = ModelId::new("qubit.platform.iam.User");
-const CONST_CHECKED: Result<ModelId, ModelIdError> =
-    ModelId::try_new("Single_segment");
+const CONST_CHECKED: Result<ModelId, ModelIdError> = ModelId::try_new("Single_segment");
 
 #[test]
 fn test_model_id_uses_one_shared_ascii_segment_grammar() {

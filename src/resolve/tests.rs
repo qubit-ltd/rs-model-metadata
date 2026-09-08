@@ -30,17 +30,10 @@ use crate::registry::ModelRegistry;
 struct Broken<const N: usize>;
 
 fn overlay() -> &'static ModelImplMetadata {
-    static OVERLAY: std::sync::OnceLock<ModelImplMetadata> =
-        std::sync::OnceLock::new();
+    static OVERLAY: std::sync::OnceLock<ModelImplMetadata> = std::sync::OnceLock::new();
     OVERLAY.get_or_init(|| {
-        let error = PropertyBuildError::new(
-            PropertyBuildErrorKind::GetterTypeMismatch,
-            "value",
-        );
-        ModelImplMetadata::new(
-            &[],
-            Err(v5::leak(PropertyBuildErrors::new(vec![error]))),
-        )
+        let error = PropertyBuildError::new(PropertyBuildErrorKind::GetterTypeMismatch, "value");
+        ModelImplMetadata::new(&[], Err(v5::leak(PropertyBuildErrors::new(vec![error]))))
     })
 }
 
@@ -68,16 +61,9 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
         )
         .finish::<Broken<1>>(),
     );
-    let error = resolve_property_path(
-        metadata,
-        &PropertyPath::new(&["absent"]),
-        &models,
-    )
-    .unwrap_err();
-    let ModelResolutionCause::Properties(PropertyResolutionError::Assembly(
-        errors,
-    )) = error
-    else {
+    let error =
+        resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &models).unwrap_err();
+    let ModelResolutionCause::Properties(PropertyResolutionError::Assembly(errors)) = error else {
         panic!("expected original property assembly failure");
     };
     assert!(std::ptr::eq(

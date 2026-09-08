@@ -161,13 +161,10 @@ pub enum GetterOutputKind {
 
 /// A lifetime-preserving local getter adapter.
 pub type GetterAdapter =
-    for<'a> fn(
-        ReflectedRef<'a>,
-    ) -> Result<PropertyValue<'a>, PropertyAccessError>;
+    for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
 
 /// A local setter adapter with recoverable pre-execution failure.
-pub type SetterAdapter =
-    fn(ReflectedMut<'_>, ReflectedOwned) -> Result<(), PropertySetFailure>;
+pub type SetterAdapter = fn(ReflectedMut<'_>, ReflectedOwned) -> Result<(), PropertySetFailure>;
 
 /// A property operation failed before or during adapter execution.
 #[must_use]
@@ -217,10 +214,7 @@ impl PropertySetFailure {
     /// Creates a pre-execution failure retaining the replacement.
     #[doc(hidden)]
     #[must_use = "handle the property set failure"]
-    pub fn before_execution(
-        error: PropertyAccessError,
-        replacement: ReflectedOwned,
-    ) -> Self {
+    pub fn before_execution(error: PropertyAccessError, replacement: ReflectedOwned) -> Self {
         Self {
             error: Box::new(error),
             replacement: Some(Box::new(replacement)),
@@ -262,10 +256,7 @@ impl PropertySetFailure {
 }
 
 impl core::fmt::Debug for PropertySetFailure {
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter
             .debug_struct("PropertySetFailure")
             .field("error", &self.error)
@@ -275,10 +266,7 @@ impl core::fmt::Debug for PropertySetFailure {
 }
 
 impl core::fmt::Display for PropertySetFailure {
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.error.fmt(formatter)
     }
 }
@@ -358,19 +346,16 @@ impl GetterMetadata {
         let actual = reflected_ref_type_id(&target);
         let expected = (self.target_type_id)();
         if actual != expected {
-            return Err(PropertyAccessError::TargetTypeMismatch(
-                TypeMismatch::new(expected, actual),
-            ));
+            return Err(PropertyAccessError::TargetTypeMismatch(TypeMismatch::new(
+                expected, actual,
+            )));
         }
         (self.adapter)(target)
     }
 }
 
 impl core::fmt::Debug for GetterMetadata {
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter
             .debug_struct("GetterMetadata")
             .field("rust_method_name", &self.rust_method_name)
@@ -477,10 +462,7 @@ impl SetterMetadata {
 }
 
 impl core::fmt::Debug for SetterMetadata {
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter
             .debug_struct("SetterMetadata")
             .field("rust_method_name", &self.rust_method_name)
@@ -652,9 +634,7 @@ impl PropertyMetadata {
                     let (error, recovery) = failure.into_parts();
                     PropertySetFailure {
                         error: Box::new(PropertyAccessError::Field(error)),
-                        replacement: recovery
-                            .map(FieldSetRecovery::into_value)
-                            .map(Box::new),
+                        replacement: recovery.map(FieldSetRecovery::into_value).map(Box::new),
                     }
                 });
         }

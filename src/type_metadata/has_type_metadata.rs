@@ -16,15 +16,11 @@ use qubit_reflect::Reflect;
 /// can use this trait as a capability bound without exposing an unchecked
 /// metadata-construction hook.
 pub trait HasTypeMetadata:
-    Reflect
-    + crate::__private::ModelTypeSeal
-    + crate::__private::TypeMetadataProvider
+    Reflect + crate::__private::ModelTypeSeal + crate::__private::TypeMetadataProvider
 {
 }
 
 impl<T> HasTypeMetadata for T where
-    T: Reflect
-        + crate::__private::ModelTypeSeal
-        + crate::__private::TypeMetadataProvider
+    T: Reflect + crate::__private::ModelTypeSeal + crate::__private::TypeMetadataProvider
 {
 }

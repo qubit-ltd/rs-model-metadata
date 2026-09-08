@@ -98,10 +98,7 @@ impl CodecBindError {
 }
 
 impl core::fmt::Display for CodecBindError {
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             formatter,
             "codec binding failed at {}: {:?}",
@@ -141,10 +138,7 @@ impl CodecBindErrors {
 }
 
 impl core::fmt::Display for CodecBindErrors {
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{} codec binding error(s)", self.0.len())
     }
 }

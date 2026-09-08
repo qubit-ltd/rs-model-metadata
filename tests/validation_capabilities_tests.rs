@@ -41,17 +41,9 @@ fn capability_matrix_is_explicit() {
 
 #[test]
 fn unsupported_map_selector_retains_model_path_and_position() {
-    let source = FragmentIdentity::new(
-        "validation-tests",
-        "fixture",
-        line!(),
-        1,
-        "model",
-        1,
-    );
+    let source = FragmentIdentity::new("validation-tests", "fixture", line!(), 1, "model", 1);
     let metadata = TypeMetadata::of::<UnsupportedMapKey>();
-    let models = ModelRegistry::from_metadata(&[(metadata, &source)])
-        .expect("model registry");
+    let models = ModelRegistry::from_metadata(&[(metadata, &source)]).expect("model registry");
     let graph = StructureResolver::new(ResolveInputs { models: &models })
         .resolve()
         .expect("model graph");

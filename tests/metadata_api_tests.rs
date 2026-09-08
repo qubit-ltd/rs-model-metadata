@@ -27,10 +27,7 @@ fn test_declaration_vocabulary_is_execution_independent() {
         CodecReference::RustType(reference).rust_type(),
         Some(reference)
     );
-    let argument = NamedValidationArgument::new(
-        "minimum",
-        ValidationArgument::Unsigned(1),
-    );
+    let argument = NamedValidationArgument::new("minimum", ValidationArgument::Unsigned(1));
     assert_eq!(argument.name(), "minimum");
     assert_eq!(argument.value(), ValidationArgument::Unsigned(1));
     assert_eq!(Sensitivity::Secret.as_str(), "secret");

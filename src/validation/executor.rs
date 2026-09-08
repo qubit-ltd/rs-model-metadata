@@ -60,9 +60,7 @@ impl<'a> ValidationPlan<'a> {
             if !selected(options.selection(), &path) {
                 continue;
             }
-            if let Err(error) =
-                consume_node(&mut nodes, options, binding.rule_id(), &path)
-            {
+            if let Err(error) = consume_node(&mut nodes, options, binding.rule_id(), &path) {
                 return Err(ModelValidationError::new(error, report));
             }
             let input = reflected_value(&value);
@@ -73,8 +71,7 @@ impl<'a> ValidationPlan<'a> {
                     report,
                 ));
             }
-            let context = match BoundValidationContext::new_with_paths(&[], &[])
-            {
+            let context = match BoundValidationContext::new_with_paths(&[], &[]) {
                 Ok(context) => context,
                 Err(error) => {
                     return Err(ModelValidationError::new(error, report));
@@ -85,16 +82,13 @@ impl<'a> ValidationPlan<'a> {
                 Ok(RuleOutcome::Invalid(violations)) => {
                     if violations.is_empty() {
                         return Err(ModelValidationError::new(
-                            ExecutionError::new(
-                                ExecutionErrorKind::AdapterContractViolation,
-                            )
-                            .with_rule(binding.rule_id()),
+                            ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+                                .with_rule(binding.rule_id()),
                             report,
                         ));
                     }
                     for violation in violations {
-                        if report.violations().len() >= options.max_violations()
-                        {
+                        if report.violations().len() >= options.max_violations() {
                             report.mark_truncated();
                             break;
                         }
@@ -108,11 +102,7 @@ impl<'a> ValidationPlan<'a> {
                     for violation in prerequisites {
                         report.push(prefix_violation(violation, &path));
                     }
-                    report.record_skip(SkippedValidation::new(
-                        0,
-                        path.clone(),
-                        reason,
-                    ));
+                    report.record_skip(SkippedValidation::new(0, path.clone(), reason));
                 }
                 Err(error) => {
                     return Err(ModelValidationError::new(
@@ -121,9 +111,7 @@ impl<'a> ValidationPlan<'a> {
                     ));
                 }
             }
-            if options.mode() == ValidationMode::FailFast
-                && !report.violations().is_empty()
-            {
+            if options.mode() == ValidationMode::FailFast && !report.violations().is_empty() {
                 report.mark_truncated();
                 break;
             }
@@ -144,25 +132,19 @@ impl<'a> ValidationPlan<'a> {
                     report,
                 ));
             }
-            if let Err(error) =
-                consume_node(&mut nodes, options, binding.rule_id(), &path)
-            {
+            if let Err(error) = consume_node(&mut nodes, options, binding.rule_id(), &path) {
                 return Err(ModelValidationError::new(error, report));
             }
-            let (dependencies, dependency_paths) = match read_dependency_values(
-                binding.dependencies(),
-                value.clone(),
-            ) {
-                Ok(values) => values,
-                Err(error) => {
-                    return Err(ModelValidationError::new(
-                        error
-                            .with_rule(binding.rule_id())
-                            .with_path(path.clone()),
-                        report,
-                    ));
-                }
-            };
+            let (dependencies, dependency_paths) =
+                match read_dependency_values(binding.dependencies(), value.clone()) {
+                    Ok(values) => values,
+                    Err(error) => {
+                        return Err(ModelValidationError::new(
+                            error.with_rule(binding.rule_id()).with_path(path.clone()),
+                            report,
+                        ));
+                    }
+                };
             let result = match binding.selector() {
                 Some(selector) => execute_selector(
                     binding.value(),
@@ -197,9 +179,7 @@ impl<'a> ValidationPlan<'a> {
                     report,
                 ));
             }
-            if options.mode() == ValidationMode::FailFast
-                && !report.violations().is_empty()
-            {
+            if options.mode() == ValidationMode::FailFast && !report.violations().is_empty() {
                 report.mark_truncated();
                 break;
             }
@@ -249,9 +229,10 @@ fn read_path<'a>(
 ) -> Result<PropertyValue<'a>, ExecutionError> {
     let mut receiver = root;
     for (index, step) in path.steps().iter().enumerate() {
-        let output = step.property().get(receiver).map_err(|_| {
-            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-        })?;
+        let output = step
+            .property()
+            .get(receiver)
+            .map_err(|_| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed))?;
         if index + 1 == path.steps().len() {
             return Ok(output);
         }
@@ -262,9 +243,7 @@ fn read_path<'a>(
                 return Ok(PropertyValue::OptionalBorrowed(None));
             }
             PropertyValue::Owned(_) | PropertyValue::BorrowedSlice(_) => {
-                return Err(ExecutionError::new(
-                    ExecutionErrorKind::PropertyReadFailed,
-                ));
+                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
             }
         };
     }
@@ -290,31 +269,22 @@ fn execute_path(
     let value = read_path(path, root)?;
     let sequence_count = match &value {
         PropertyValue::BorrowedSlice(values)
-            if matches!(
-                standard_target,
-                Some(StandardTarget::SequenceCount)
-            ) =>
+            if matches!(standard_target, Some(StandardTarget::SequenceCount)) =>
         {
             Some(values.len())
         }
         _ => None,
     };
     let input = match &value {
-        PropertyValue::OptionalBorrowed(None) if path.is_optional() => {
-            ValidationValue::Missing
-        }
+        PropertyValue::OptionalBorrowed(None) if path.is_optional() => ValidationValue::Missing,
         PropertyValue::OptionalBorrowed(Some(value)) => reflected_value(value),
         PropertyValue::Borrowed(value) => reflected_value(value),
         PropertyValue::Owned(value) => owned_value(value),
         PropertyValue::BorrowedSlice(_) => {
             if !matches!(standard_target, Some(StandardTarget::SequenceCount)) {
-                return Err(ExecutionError::new(
-                    ExecutionErrorKind::PropertyReadFailed,
-                ));
+                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
             }
-            ValidationValue::Typed(
-                sequence_count.as_ref().expect("slice count"),
-            )
+            ValidationValue::Typed(sequence_count.as_ref().expect("slice count"))
         }
         PropertyValue::OptionalBorrowed(None) => ValidationValue::Missing,
     };
@@ -322,17 +292,13 @@ fn execute_path(
     for dependency in dependencies {
         values.push(property_value(dependency));
     }
-    let context =
-        BoundValidationContext::new_with_paths(&values, dependency_paths)?;
+    let context = BoundValidationContext::new_with_paths(&values, dependency_paths)?;
     match input {
         ValidationValue::Missing if path.is_optional() => {
             if on_none == OnNone::Reject {
                 report.push(
-                    Violation::new(
-                        rule_id,
-                        ViolationCode::new("value.required"),
-                    )
-                    .with_path(rule_path.clone()),
+                    Violation::new(rule_id, ViolationCode::new("value.required"))
+                        .with_path(rule_path.clone()),
                 );
             } else {
                 report.record_skip(SkippedValidation::new(
@@ -364,10 +330,8 @@ fn execute_path(
                 reason,
                 prerequisites,
             } => {
-                if matches!(reason, SkipReason::MissingOptional)
-                    && !prerequisites.is_empty()
-                    || matches!(reason, SkipReason::FailedPrerequisite)
-                        && prerequisites.is_empty()
+                if matches!(reason, SkipReason::MissingOptional) && !prerequisites.is_empty()
+                    || matches!(reason, SkipReason::FailedPrerequisite) && prerequisites.is_empty()
                 {
                     return Err(ExecutionError::new(
                         ExecutionErrorKind::AdapterContractViolation,
@@ -402,36 +366,26 @@ fn execute_selector(
     comparisons: &mut usize,
 ) -> Result<(), ExecutionError> {
     if !matches!(selector.position(), SelectorPosition::Element) {
-        return Err(ExecutionError::new(
-            ExecutionErrorKind::PropertyReadFailed,
-        ));
+        return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
     }
     let value = read_path(path, root)?;
     let PropertyValue::BorrowedSlice(values) = value else {
-        return Err(ExecutionError::new(
-            ExecutionErrorKind::PropertyReadFailed,
-        ));
+        return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
     };
     for index in 0..values.len() {
-        let element = values.get(index).ok_or_else(|| {
-            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-        })?;
+        let element = values
+            .get(index)
+            .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed))?;
         let element_path = rule_path.clone().with_index(index);
         if element_path.as_segments().len() > options.max_depth() {
-            return Err(ExecutionError::new(
-                ExecutionErrorKind::TraversalLimit,
-            ));
+            return Err(ExecutionError::new(ExecutionErrorKind::TraversalLimit));
         }
         if *nodes == options.max_nodes() {
-            return Err(ExecutionError::new(
-                ExecutionErrorKind::TraversalLimit,
-            ));
+            return Err(ExecutionError::new(ExecutionErrorKind::TraversalLimit));
         }
         *nodes += 1;
         if *comparisons == options.max_comparisons() {
-            return Err(ExecutionError::new(
-                ExecutionErrorKind::TraversalLimit,
-            ));
+            return Err(ExecutionError::new(ExecutionErrorKind::TraversalLimit));
         }
         *comparisons += 1;
         let context = BoundValidationContext::new_with_paths(&[], &[])?;
@@ -456,10 +410,8 @@ fn execute_selector(
                 reason,
                 prerequisites,
             } => {
-                if matches!(reason, SkipReason::MissingOptional)
-                    && !prerequisites.is_empty()
-                    || matches!(reason, SkipReason::FailedPrerequisite)
-                        && prerequisites.is_empty()
+                if matches!(reason, SkipReason::MissingOptional) && !prerequisites.is_empty()
+                    || matches!(reason, SkipReason::FailedPrerequisite) && prerequisites.is_empty()
                 {
                     return Err(ExecutionError::new(
                         ExecutionErrorKind::AdapterContractViolation,
@@ -468,16 +420,10 @@ fn execute_selector(
                 for violation in prerequisites {
                     report.push(prefix_violation(violation, &element_path));
                 }
-                report.record_skip(SkippedValidation::new(
-                    occurrence,
-                    element_path,
-                    reason,
-                ));
+                report.record_skip(SkippedValidation::new(occurrence, element_path, reason));
             }
         }
-        if options.mode() == ValidationMode::FailFast
-            && !report.violations().is_empty()
-        {
+        if options.mode() == ValidationMode::FailFast && !report.violations().is_empty() {
             report.mark_truncated();
             break;
         }
@@ -512,9 +458,7 @@ fn owned_value<'a>(value: &'a ReflectedOwned) -> ValidationValue<'a> {
     if let Some(text) = value.downcast_ref::<String>() {
         return ValidationValue::Text(text.as_str());
     }
-    ValidationValue::Typed(
-        value.as_any().expect("owned values are Any-compatible"),
-    )
+    ValidationValue::Typed(value.as_any().expect("owned values are Any-compatible"))
 }
 
 /// Converts a compiled property path into a report path.
@@ -550,10 +494,7 @@ fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
 }
 
 /// Prefixes a nested violation with its containing path.
-fn prefix_violation(
-    violation: Violation,
-    prefix: &ValidationPath,
-) -> Violation {
+fn prefix_violation(violation: Violation, prefix: &ValidationPath) -> Violation {
     let path = prefix
         .as_segments()
         .iter()

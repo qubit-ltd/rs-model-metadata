@@ -133,9 +133,7 @@ impl CompiledPropertyPath {
 }
 
 /// Removes transparent wrappers and records whether an optional was found.
-fn value_descriptor(
-    mut descriptor: &'static TypeDescriptor,
-) -> (&'static TypeDescriptor, bool) {
+fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDescriptor, bool) {
     let mut optional = false;
     loop {
         let Some(element) = descriptor

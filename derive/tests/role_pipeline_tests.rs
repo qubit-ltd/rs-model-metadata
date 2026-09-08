@@ -108,8 +108,7 @@ fn test_generic_metadata_initialization_is_unique_across_threads() {
     let addresses = (0..8)
         .map(|_| {
             std::thread::spawn(|| {
-                TypeMetadata::of::<GenericModel<u32>>() as *const TypeMetadata
-                    as usize
+                TypeMetadata::of::<GenericModel<u32>>() as *const TypeMetadata as usize
             })
         })
         .map(|thread| thread.join().expect("metadata thread must complete"))

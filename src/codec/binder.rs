@@ -48,11 +48,7 @@ pub struct CodecOccurrenceId {
 impl CodecOccurrenceId {
     /// Creates a stable occurrence identity.
     #[must_use]
-    pub fn new(
-        model: ModelIdBuf,
-        property: impl Into<Box<str>>,
-        source: CodecSource,
-    ) -> Self {
+    pub fn new(model: ModelIdBuf, property: impl Into<Box<str>>, source: CodecSource) -> Self {
         Self {
             model,
             property: property.into(),
@@ -80,10 +76,7 @@ impl CodecOccurrenceId {
 }
 
 impl core::fmt::Display for CodecOccurrenceId {
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if self.property.is_empty() {
             write!(formatter, "{}::<canonical>", self.model)
         } else {
@@ -134,10 +127,7 @@ pub struct CodecBindings<'a>(BTreeMap<CodecOccurrenceId, CodecBinding<'a>>);
 impl<'a> CodecBindings<'a> {
     /// Returns a binding by stable occurrence identity.
     #[must_use]
-    pub fn get(
-        &self,
-        occurrence: &CodecOccurrenceId,
-    ) -> Option<&CodecBinding<'a>> {
+    pub fn get(&self, occurrence: &CodecOccurrenceId) -> Option<&CodecBinding<'a>> {
         self.0.get(occurrence)
     }
 
@@ -273,8 +263,7 @@ fn bind_field_at<'a>(
         let Some(codec) = selector.codec() else {
             continue;
         };
-        let Some(expected) = selector_type_id(descriptor, selector.position())
-        else {
+        let Some(expected) = selector_type_id(descriptor, selector.position()) else {
             continue;
         };
         bind_one(
@@ -302,9 +291,7 @@ fn bind_one<'a>(
         CodecReference::RustType(reference) => codecs
             .registrations()
             .iter()
-            .filter(|registration| {
-                registration.descriptor().codec_type_id() == reference.type_id()
-            })
+            .filter(|registration| registration.descriptor().codec_type_id() == reference.type_id())
             .collect(),
     };
     let registration = match candidates.as_slice() {
@@ -370,15 +357,9 @@ fn selector_type_id(
             .map(|value| value.element_type())
             .or_else(|| descriptor.as_set().map(|value| value.element_type()))
             .or_else(|| descriptor.as_array().map(|value| value.element_type()))
-            .or_else(|| {
-                descriptor.as_slice().map(|value| value.element_type())
-            }),
-        SelectorPosition::MapKey => {
-            descriptor.as_map().map(|value| value.key_type())
-        }
-        SelectorPosition::MapValue => {
-            descriptor.as_map().map(|value| value.value_type())
-        }
+            .or_else(|| descriptor.as_slice().map(|value| value.element_type())),
+        SelectorPosition::MapKey => descriptor.as_map().map(|value| value.key_type()),
+        SelectorPosition::MapValue => descriptor.as_map().map(|value| value.value_type()),
     }?;
     runtime_type_id(type_ref)
 }

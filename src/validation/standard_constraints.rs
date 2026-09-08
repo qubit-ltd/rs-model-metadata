@@ -45,9 +45,7 @@ pub(crate) struct StandardBinding {
 ///
 /// Built-in IDs are deliberately not overrideable: the registry's duplicate
 /// check makes an accidental semantic change visible during plan binding.
-pub(crate) fn registry(
-    validators: &ValidatorRegistry,
-) -> Result<ValidatorRegistry, BindError> {
+pub(crate) fn registry(validators: &ValidatorRegistry) -> Result<ValidatorRegistry, BindError> {
     let mut registrations = registrations();
     registrations.extend(validators.registrations().iter().copied());
     ValidatorRegistry::from_registrations(registrations)
@@ -78,8 +76,7 @@ pub(crate) fn bind(
                 );
             }
             if text.min_chars().is_some() || text.max_chars().is_some() {
-                let args =
-                    optional_u32_args(text.min_chars(), text.max_chars());
+                let args = optional_u32_args(text.min_chars(), text.max_chars());
                 bind_one(
                     &mut bindings,
                     &mut errors,
@@ -90,8 +87,7 @@ pub(crate) fn bind(
                 );
             }
             if text.min_bytes().is_some() || text.max_bytes().is_some() {
-                let args =
-                    optional_u32_args(text.min_bytes(), text.max_bytes());
+                let args = optional_u32_args(text.min_bytes(), text.max_bytes());
                 bind_one(
                     &mut bindings,
                     &mut errors,
@@ -104,9 +100,7 @@ pub(crate) fn bind(
             if !matches!(text.allowed_chars(), AllowedChars::Unicode) {
                 let args = [NamedValidationArgument::new(
                     "set",
-                    ValidationArgument::String(allowed_chars(
-                        text.allowed_chars(),
-                    )),
+                    ValidationArgument::String(allowed_chars(text.allowed_chars())),
                 )];
                 bind_one(
                     &mut bindings,
@@ -120,9 +114,7 @@ pub(crate) fn bind(
             if let Some(format) = text.format() {
                 let id = match format {
                     TextFormat::Email => "qubit.rules.text.email_ascii",
-                    TextFormat::Mobile => {
-                        "qubit.rules.text.china_mobile_structure"
-                    }
+                    TextFormat::Mobile => "qubit.rules.text.china_mobile_structure",
                     TextFormat::Uri => "qubit.rules.text.uri",
                     TextFormat::Uuid => "qubit.rules.text.uuid",
                 };
@@ -137,12 +129,8 @@ pub(crate) fn bind(
             }
         }
         ConstraintMetadata::Sequence(sequence) => {
-            if sequence.min_items().is_some() || sequence.max_items().is_some()
-            {
-                let args = optional_usize_args(
-                    sequence.min_items(),
-                    sequence.max_items(),
-                );
+            if sequence.min_items().is_some() || sequence.max_items().is_some() {
+                let args = optional_usize_args(sequence.min_items(), sequence.max_items());
                 bind_one(
                     &mut bindings,
                     &mut errors,
@@ -155,9 +143,7 @@ pub(crate) fn bind(
             if sequence.unique_items() {
                 errors.push(
                     BindError::new(BindErrorKind::UnsupportedConstraint)
-                        .with_rule(ValidatorId::new(
-                            "qubit.rules.collection.unique",
-                        )),
+                        .with_rule(ValidatorId::new("qubit.rules.collection.unique")),
                 );
             }
         }
@@ -199,10 +185,7 @@ fn input_type(target: StandardTarget) -> InputType {
 }
 
 /// Builds optional unsigned-32-bit bound arguments in declaration order.
-fn optional_u32_args(
-    min: Option<u32>,
-    max: Option<u32>,
-) -> Vec<NamedValidationArgument<'static>> {
+fn optional_u32_args(min: Option<u32>, max: Option<u32>) -> Vec<NamedValidationArgument<'static>> {
     let mut args = Vec::with_capacity(2);
     if let Some(value) = min {
         args.push(NamedValidationArgument::new(

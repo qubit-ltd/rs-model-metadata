@@ -57,8 +57,7 @@ impl Source {
 
 #[test]
 fn test_resolver_discovers_and_executes_projection_producers() {
-    let registry =
-        ModelRegistry::try_global().expect("valid registration index");
+    let registry = ModelRegistry::try_global().expect("valid registration index");
     let graph = StructureResolver::new(ResolveInputs { models: registry })
         .resolve()
         .expect("valid projection graph");

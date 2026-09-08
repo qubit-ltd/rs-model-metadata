@@ -124,9 +124,7 @@ impl FieldMetadata {
 
     /// Returns the source-level field for a generic declaration overlay.
     #[must_use]
-    pub const fn definition(
-        &self,
-    ) -> Option<&'static FieldDefinitionDescriptor> {
+    pub const fn definition(&self) -> Option<&'static FieldDefinitionDescriptor> {
         self.definition
     }
 
@@ -158,12 +156,8 @@ impl FieldMetadata {
     pub const fn visibility(&self) -> FieldVisibility<'_> {
         match (self.reflect, self.definition) {
             (Some(reflect), _) => reflect.visibility(),
-            (_, Some(_)) if self.variant_inherited => {
-                FieldVisibility::VariantInherited
-            }
-            (_, Some(definition)) => {
-                FieldVisibility::Declared(definition.visibility())
-            }
+            (_, Some(_)) if self.variant_inherited => FieldVisibility::VariantInherited,
+            (_, Some(definition)) => FieldVisibility::Declared(definition.visibility()),
             _ => unreachable!(),
         }
     }
@@ -358,16 +352,16 @@ impl FieldMetadata {
     /// Returns whether reflection treats the field type as opaque.
     #[must_use]
     pub fn is_opaque(&self) -> bool {
-        self.attributes.iter().any(|attribute| {
-            matches!(attribute, FieldAttributeMetadata::Opaque)
-        })
+        self.attributes
+            .iter()
+            .any(|attribute| matches!(attribute, FieldAttributeMetadata::Opaque))
     }
 
     /// Returns whether validation should recurse into this field's value.
     #[must_use]
     pub fn validate_nested(&self) -> bool {
-        self.attributes.iter().any(|attribute| {
-            matches!(attribute, FieldAttributeMetadata::ValidateNested)
-        })
+        self.attributes
+            .iter()
+            .any(|attribute| matches!(attribute, FieldAttributeMetadata::ValidateNested))
     }
 }

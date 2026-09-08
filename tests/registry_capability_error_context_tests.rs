@@ -43,9 +43,7 @@ register_type_capabilities!(GlobalConflict: [key("model.test.global_context") =>
 register_type_capabilities!(GlobalConflict: [key("model.test.global_context") => 13_u64]);
 
 fn key<A: 'static>(id: &'static str) -> CapabilityKey<A> {
-    CapabilityKey::new(
-        CapabilityId::new(id).expect("valid fixture capability ID"),
-    )
+    CapabilityKey::new(CapabilityId::new(id).expect("valid fixture capability ID"))
 }
 
 fn source(declaring_crate: &'static str, line: u32) -> FragmentIdentity {
@@ -79,9 +77,8 @@ fn model_provider_snapshot(
 
 #[test]
 fn test_model_registry_rejects_fact_only_model_provider() {
-    let (reflection, expected_source) = model_provider_snapshot(
-        CapabilityDescriptor::without_adapter(model_metadata_key()),
-    );
+    let (reflection, expected_source) =
+        model_provider_snapshot(CapabilityDescriptor::without_adapter(model_metadata_key()));
 
     let error = ModelRegistry::from_reflect_registry(&reflection)
         .expect_err("a model capability without a provider must fail");
@@ -96,13 +93,11 @@ fn test_model_registry_rejects_fact_only_model_provider() {
 #[test]
 fn test_model_registry_rejects_model_provider_with_wrong_adapter_type() {
     let wrong_key = key::<u32>("qubit.model.metadata.v1");
-    let (reflection, expected_source) = model_provider_snapshot(
-        CapabilityDescriptor::with_adapter(wrong_key, 7_u32),
-    );
+    let (reflection, expected_source) =
+        model_provider_snapshot(CapabilityDescriptor::with_adapter(wrong_key, 7_u32));
 
-    let error = ModelRegistry::from_reflect_registry(&reflection).expect_err(
-        "a model capability with the wrong provider type must fail",
-    );
+    let error = ModelRegistry::from_reflect_registry(&reflection)
+        .expect_err("a model capability with the wrong provider type must fail");
 
     assert_eq!(error.kind(), ModelRegistryErrorKind::AdapterTypeMismatch);
     assert_eq!(error.capability_id(), Some(*model_metadata_key().id()));
@@ -116,8 +111,7 @@ fn test_model_registry_rejects_model_provider_with_wrong_adapter_type() {
 
 #[test]
 fn test_model_registry_global_preserves_nested_reflection_error_chain() {
-    let error = ModelRegistry::try_global()
-        .expect_err("global capability conflict must fail");
+    let error = ModelRegistry::try_global().expect_err("global capability conflict must fail");
     assert_eq!(error.kind(), ModelRegistryErrorKind::ReflectionRegistry);
     let reflection = std::error::Error::source(&error)
         .and_then(|cause| cause.downcast_ref::<RegistryError>())
@@ -140,8 +134,7 @@ fn test_model_registry_global_preserves_nested_reflection_error_chain() {
     assert_eq!(right.member_kind(), "capability");
     let details = reflection.capability_details().expect("conflict details");
     assert_eq!(details.kind(), CapabilityConflictKind::AdapterTypeMismatch);
-    let adapter_types =
-        [details.first_adapter_type(), details.second_adapter_type()];
+    let adapter_types = [details.first_adapter_type(), details.second_adapter_type()];
     assert!(adapter_types.contains(&TypeId::of::<u32>()));
     assert!(adapter_types.contains(&TypeId::of::<u64>()));
     assert_eq!(
@@ -190,8 +183,7 @@ fn test_public_builder_preserves_conflict_context_and_error_chain() {
     assert_eq!(detail.first_adapter_type(), TypeId::of::<u32>());
     assert_eq!(detail.second_adapter_type(), TypeId::of::<u64>());
 
-    let (left, right) =
-        error.conflicting_fragments().expect("source identities");
+    let (left, right) = error.conflicting_fragments().expect("source identities");
     assert_eq!(left, &source("context-left", 10));
     assert_eq!(right, &source("context-right", 20));
     assert_eq!(

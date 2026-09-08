@@ -58,13 +58,8 @@ fn test_metadata_and_properties_preserve_intrinsic_conflicts() {
     let descriptor = TypeDescriptor::of::<Invalid<1>>();
     assert!(models.metadata_for(descriptor).is_err());
     let metadata = v5::leak(
-        v5::GeneratedTypeMetadataBuilder::new(
-            descriptor,
-            None,
-            &[],
-            v5::leak(v5::model_role()),
-        )
-        .finish::<Invalid<1>>(),
+        v5::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], v5::leak(v5::model_role()))
+            .finish::<Invalid<1>>(),
     );
     assert!(metadata.try_properties_in(&reflection).is_err());
     assert!(metadata.property_fragments_in(&reflection).is_err());
@@ -81,8 +76,7 @@ struct Root {
 }
 
 fn root_metadata() -> &'static TypeMetadata {
-    static METADATA: std::sync::OnceLock<TypeMetadata> =
-        std::sync::OnceLock::new();
+    static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
         let fields = v5::leak_slice(

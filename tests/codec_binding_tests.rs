@@ -70,41 +70,22 @@ impl ValueDecoder<str> for U64Codec {
     }
 }
 
-static STRING_DESCRIPTOR: ValueCodecDescriptor =
-    ValueCodecDescriptor::of::<StringCodec, String>();
-static STRING_REGISTRATION: ValueCodecRegistration =
-    ValueCodecRegistration::new(
-        ValueCodecId::new("test.string"),
-        &STRING_DESCRIPTOR,
-        ValueCodecRegistrationSource::new(
-            "codec-tests",
-            "fixture",
-            file!(),
-            line!(),
-        ),
-    );
-static STRING_ALIAS_REGISTRATION: ValueCodecRegistration =
-    ValueCodecRegistration::new(
-        ValueCodecId::new("test.string.alias"),
-        &STRING_DESCRIPTOR,
-        ValueCodecRegistrationSource::new(
-            "codec-tests",
-            "fixture",
-            file!(),
-            line!(),
-        ),
-    );
-static U64_DESCRIPTOR: ValueCodecDescriptor =
-    ValueCodecDescriptor::of::<U64Codec, u64>();
+static STRING_DESCRIPTOR: ValueCodecDescriptor = ValueCodecDescriptor::of::<StringCodec, String>();
+static STRING_REGISTRATION: ValueCodecRegistration = ValueCodecRegistration::new(
+    ValueCodecId::new("test.string"),
+    &STRING_DESCRIPTOR,
+    ValueCodecRegistrationSource::new("codec-tests", "fixture", file!(), line!()),
+);
+static STRING_ALIAS_REGISTRATION: ValueCodecRegistration = ValueCodecRegistration::new(
+    ValueCodecId::new("test.string.alias"),
+    &STRING_DESCRIPTOR,
+    ValueCodecRegistrationSource::new("codec-tests", "fixture", file!(), line!()),
+);
+static U64_DESCRIPTOR: ValueCodecDescriptor = ValueCodecDescriptor::of::<U64Codec, u64>();
 static U64_REGISTRATION: ValueCodecRegistration = ValueCodecRegistration::new(
     ValueCodecId::new("test.wrong"),
     &U64_DESCRIPTOR,
-    ValueCodecRegistrationSource::new(
-        "codec-tests",
-        "fixture",
-        file!(),
-        line!(),
-    ),
+    ValueCodecRegistrationSource::new("codec-tests", "fixture", file!(), line!()),
 );
 
 #[Model(id = "codec.Success")]
@@ -135,12 +116,8 @@ fn source() -> FragmentIdentity {
     FragmentIdentity::new("codec-tests", "fixture", line!(), 1, "model", 1)
 }
 
-fn graph<'a>(
-    metadata: &'static TypeMetadata,
-    source: &'a FragmentIdentity,
-) -> ModelGraph<'a> {
-    let models = ModelRegistry::from_metadata(&[(metadata, source)])
-        .expect("model registry");
+fn graph<'a>(metadata: &'static TypeMetadata, source: &'a FragmentIdentity) -> ModelGraph<'a> {
+    let models = ModelRegistry::from_metadata(&[(metadata, source)]).expect("model registry");
     let models = Box::leak(Box::new(models));
     StructureResolver::new(ResolveInputs { models })
         .resolve()
@@ -152,8 +129,8 @@ fn binds_declared_and_rust_type_references() {
     let source = source();
     let declared_graph = graph(TypeMetadata::of::<Success>(), &source);
     let rust_graph = graph(TypeMetadata::of::<RustType>(), &source);
-    let codecs = ValueCodecRegistry::from_registrations([&STRING_REGISTRATION])
-        .expect("codec registry");
+    let codecs =
+        ValueCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
 
     assert_eq!(
         bind_codecs(CodecBindInputs {

@@ -26,10 +26,7 @@ impl ModelImplMetadata {
     #[must_use]
     pub(crate) const fn new(
         fragments: &'static [PropertyFragment],
-        properties: Result<
-            &'static LocalPropertySet,
-            &'static PropertyBuildErrors,
-        >,
+        properties: Result<&'static LocalPropertySet, &'static PropertyBuildErrors>,
     ) -> Self {
         Self {
             fragments,

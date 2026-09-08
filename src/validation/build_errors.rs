@@ -150,10 +150,7 @@ pub struct ValidationBuildErrors {
 
 impl ValidationBuildErrors {
     /// Converts shared binding failures into model-scoped diagnostics.
-    pub(crate) fn from_bind_errors(
-        model: ModelIdBuf,
-        errors: Vec<BindError>,
-    ) -> Self {
+    pub(crate) fn from_bind_errors(model: ModelIdBuf, errors: Vec<BindError>) -> Self {
         Self {
             errors: errors
                 .into_iter()
@@ -248,9 +245,7 @@ mod tests {
         assert_eq!(errors[0].model().as_str(), "example.Model");
         assert_eq!(
             errors[0].kind(),
-            super::ValidationBuildErrorKind::ValidatorBinding(
-                BindErrorKind::UnsupportedConstraint
-            ),
+            super::ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::UnsupportedConstraint),
         );
         assert!(errors[0].source().is_some());
     }

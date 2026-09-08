@@ -50,13 +50,8 @@ impl TypeMetadataProvider for Account {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
             let role = v5::leak(v5::model_role());
-            v5::GeneratedTypeMetadataBuilder::new(
-                TypeDescriptor::of::<Account>(),
-                None,
-                &[],
-                role,
-            )
-            .finish::<Account>()
+            v5::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role)
+                .finish::<Account>()
         })
     }
 }
@@ -77,8 +72,7 @@ fn model_metadata_reuses_the_reflect_descriptor_root() {
     let descriptor = TypeDescriptor::of::<Account>();
 
     assert!(std::ptr::eq(metadata.descriptor(), descriptor));
-    let registry =
-        ModelRegistry::try_global().expect("model registry must initialize");
+    let registry = ModelRegistry::try_global().expect("model registry must initialize");
     assert!(std::ptr::eq(
         registry
             .metadata_for(descriptor)
@@ -96,8 +90,7 @@ fn public_metadata_entry_points_reject_cross_type_providers() {
         .expect_err("cross-type provider must fail");
     assert!(panic_message(direct).starts_with("QMM-ABI-001:"));
 
-    let registry =
-        ModelRegistry::try_global().expect("model registry must initialize");
+    let registry = ModelRegistry::try_global().expect("model registry must initialize");
     assert!(
         registry
             .metadata_for(TypeDescriptor::of::<Impostor>())

@@ -42,12 +42,10 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
         return parse_text_constraint(attribute).map(ConstraintIr::Text);
     }
     if attribute.path().is_ident("decimal") {
-        return parse_decimal_constraint(attribute, false)
-            .map(ConstraintIr::Decimal);
+        return parse_decimal_constraint(attribute, false).map(ConstraintIr::Decimal);
     }
     if attribute.path().is_ident("money") {
-        return parse_decimal_constraint(attribute, true)
-            .map(ConstraintIr::Decimal);
+        return parse_decimal_constraint(attribute, true).map(ConstraintIr::Decimal);
     }
     if attribute.path().is_ident("time") {
         let mut precision = None;
@@ -83,9 +81,7 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
             if let Some(option) = option.as_deref()
                 && !seen.insert(option.to_owned())
             {
-                return Err(
-                    meta.error(format!("duplicate sequence `{option}` option"))
-                );
+                return Err(meta.error(format!("duplicate sequence `{option}` option")));
             }
             if meta.path.is_ident("min_items") {
                 min = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
@@ -152,20 +148,16 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
             return Err(meta.error(format!("duplicate text `{option}` option")));
         }
         if meta.path.is_ident("min_chars") {
-            value.min_chars =
-                Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
+            value.min_chars = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
             Ok(())
         } else if meta.path.is_ident("max_chars") {
-            value.max_chars =
-                Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
+            value.max_chars = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
             Ok(())
         } else if meta.path.is_ident("min_bytes") {
-            value.min_bytes =
-                Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
+            value.min_bytes = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
             Ok(())
         } else if meta.path.is_ident("max_bytes") {
-            value.max_bytes =
-                Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
+            value.max_bytes = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
             Ok(())
         } else if meta.path.is_ident("non_blank") {
             value.non_blank = true;
@@ -212,10 +204,7 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
 }
 
 /// Parses decimal precision, scale, bounds, and rounding options.
-fn parse_decimal_constraint(
-    attribute: &Attribute,
-    money: bool,
-) -> Result<DecimalConstraintIr> {
+fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<DecimalConstraintIr> {
     let mut precision = None;
     let mut scale = None;
     let mut rounding = None;
@@ -231,9 +220,7 @@ fn parse_decimal_constraint(
         if let Some(option) = option.as_deref()
             && !seen.insert(option.to_owned())
         {
-            return Err(
-                meta.error(format!("duplicate decimal `{option}` option"))
-            );
+            return Err(meta.error(format!("duplicate decimal `{option}` option")));
         }
         if meta.path.is_ident("precision") {
             precision = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
@@ -286,9 +273,7 @@ fn parse_decimal_constraint(
     if money && scale.is_none() {
         return Err(Error::new_spanned(attribute, "money requires scale"));
     }
-    if precision
-        .is_some_and(|precision| scale.is_some_and(|scale| scale > precision))
-    {
+    if precision.is_some_and(|precision| scale.is_some_and(|scale| scale > precision)) {
         return Err(Error::new_spanned(
             attribute,
             "decimal scale cannot exceed precision",
@@ -378,10 +363,8 @@ fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
 
 /// Compares two normalized decimal literal strings without floating point.
 fn compare_decimal_literals(left: &str, right: &str) -> Option<Ordering> {
-    let (left_negative, mut left_digits, left_scale) =
-        parse_decimal_literal(left)?;
-    let (right_negative, mut right_digits, right_scale) =
-        parse_decimal_literal(right)?;
+    let (left_negative, mut left_digits, left_scale) = parse_decimal_literal(left)?;
+    let (right_negative, mut right_digits, right_scale) = parse_decimal_literal(right)?;
     let scale = left_scale.max(right_scale);
     left_digits.extend(repeat_n('0', scale - left_scale));
     right_digits.extend(repeat_n('0', scale - right_scale));

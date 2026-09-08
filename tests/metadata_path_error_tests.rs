@@ -55,8 +55,7 @@ struct Root {
 }
 
 fn metadata() -> &'static TypeMetadata {
-    static METADATA: std::sync::OnceLock<TypeMetadata> =
-        std::sync::OnceLock::new();
+    static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
         let reference = v5::leak(FieldReferenceMetadata::new(
@@ -71,9 +70,7 @@ fn metadata() -> &'static TypeMetadata {
             FieldMetadata::from_reflect(descriptor.field_at(0).unwrap()),
             v5::field_metadata(
                 descriptor.field_at(1).unwrap(),
-                v5::leak_slice(vec![FieldAttributeMetadata::Reference(
-                    reference,
-                )]),
+                v5::leak_slice(vec![FieldAttributeMetadata::Reference(reference)]),
                 &[],
                 &[],
                 &SerdeFieldMetadata::DEFAULT,

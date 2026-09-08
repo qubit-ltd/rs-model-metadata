@@ -84,9 +84,7 @@ impl<'reflection> ModelEntry<'reflection> {
     /// Returns generic metadata, or `None` for a concrete entry.
     #[must_use]
     #[cfg(feature = "generic")]
-    pub const fn generic_metadata(
-        self,
-    ) -> Option<&'static GenericModelMetadata> {
+    pub const fn generic_metadata(self) -> Option<&'static GenericModelMetadata> {
         match self.target {
             ModelEntryTarget::Concrete(_) => None,
             ModelEntryTarget::Generic(metadata) => Some(metadata),

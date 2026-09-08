@@ -121,8 +121,7 @@ pub(super) fn forbidden_entity_nested_role(
             .into_iter()
             .filter_map(TypeRef::as_resolved)
         {
-            if let Some(role) = forbidden_entity_nested_role(nested, registry)?
-            {
+            if let Some(role) = forbidden_entity_nested_role(nested, registry)? {
                 return Ok(Some(role));
             }
         }
@@ -131,9 +130,7 @@ pub(super) fn forbidden_entity_nested_role(
 }
 
 /// Copies static segments into an owned runtime path.
-pub(super) fn path_from_segments(
-    segments: &[&'static str],
-) -> OwnedPropertyPath {
+pub(super) fn path_from_segments(segments: &[&'static str]) -> OwnedPropertyPath {
     OwnedPropertyPath::from_segments(segments)
 }
 
@@ -145,15 +142,7 @@ pub(super) fn validate_value_closure(
     source: &FragmentIdentity,
     errors: &mut Vec<ResolveError>,
 ) {
-    validate_nested_value(
-        metadata,
-        metadata,
-        &[],
-        registry,
-        visited,
-        source,
-        errors,
-    );
+    validate_nested_value(metadata, metadata, &[], registry, visited, source, errors);
 }
 
 /// Validates a value subtree while retaining the originating model and full
@@ -231,9 +220,7 @@ fn value_type_ref_is_closed(
     path: &[&'static str],
 ) -> bool {
     type_ref.as_resolved().is_some_and(|descriptor| {
-        value_descriptor_is_closed(
-            descriptor, registry, visited, root, source, errors, path,
-        )
+        value_descriptor_is_closed(descriptor, registry, visited, root, source, errors, path)
     })
 }
 
@@ -262,9 +249,9 @@ fn value_descriptor_is_closed(
     };
     if let Some(metadata) = metadata {
         return match metadata.role() {
-            ModelRole::Value => validate_nested_value(
-                metadata, root, path, registry, visited, source, errors,
-            ),
+            ModelRole::Value => {
+                validate_nested_value(metadata, root, path, registry, visited, source, errors)
+            }
             ModelRole::Enum => {
                 let Some(enumeration) = metadata.as_enum() else {
                     return false;
@@ -297,9 +284,7 @@ fn value_descriptor_is_closed(
                 visited.remove(&metadata.type_id());
                 closed
             }
-            ModelRole::Entity | ModelRole::Projection | ModelRole::Model => {
-                false
-            }
+            ModelRole::Entity | ModelRole::Projection | ModelRole::Model => false,
         };
     }
     if descriptor.as_primitive().is_some() || descriptor.as_text().is_some() {
@@ -319,9 +304,7 @@ fn value_descriptor_is_closed(
             .map(|pointer| pointer.pointee_type())
     };
     if let Some(nested) = nested {
-        return value_type_ref_is_closed(
-            nested, registry, visited, root, source, errors, path,
-        );
+        return value_type_ref_is_closed(nested, registry, visited, root, source, errors, path);
     }
     if let Some(map) = descriptor.as_map() {
         let key = value_type_ref_is_closed(
@@ -347,9 +330,8 @@ fn value_descriptor_is_closed(
     if let Some(tuple) = descriptor.as_tuple() {
         let mut closed = true;
         for element in tuple.elements() {
-            closed &= value_type_ref_is_closed(
-                element, registry, visited, root, source, errors, path,
-            );
+            closed &=
+                value_type_ref_is_closed(element, registry, visited, root, source, errors, path);
         }
         return closed;
     }
@@ -365,9 +347,7 @@ pub(super) fn resolve_property_path(
     let mut current = target;
     let mut result = None;
     for (index, segment) in path.segments().iter().enumerate() {
-        let Some(property) =
-            registry.properties_for(current)?.property(segment)
-        else {
+        let Some(property) = registry.properties_for(current)?.property(segment) else {
             return Ok(None);
         };
         result = Some(property);
@@ -375,8 +355,7 @@ pub(super) fn resolve_property_path(
             let Some(descriptor) = property.descriptor() else {
                 return Ok(None);
             };
-            let Some(nested) = metadata_for_descriptor(descriptor, registry)?
-            else {
+            let Some(nested) = metadata_for_descriptor(descriptor, registry)? else {
                 return Ok(None);
             };
             current = nested;
@@ -385,8 +364,6 @@ pub(super) fn resolve_property_path(
     Ok(result)
 }
 /// Returns a stable target ID for textual target declarations.
-pub(super) fn declared_target_id(
-    target: &DeclaredEntityTarget,
-) -> Option<&'static str> {
+pub(super) fn declared_target_id(target: &DeclaredEntityTarget) -> Option<&'static str> {
     target.model_id().map(|id| id.as_str())
 }

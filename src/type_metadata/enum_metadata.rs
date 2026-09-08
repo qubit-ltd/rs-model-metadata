@@ -41,10 +41,7 @@ impl EnumMetadata {
 
     /// Finds a variant by Rust identifier.
     #[must_use]
-    pub fn variant_by_rust_name(
-        &self,
-        name: &str,
-    ) -> Option<&'static EnumVariantMetadata> {
+    pub fn variant_by_rust_name(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
         self.variants
             .iter()
             .find(|variant| variant.rust_name() == name)
@@ -52,10 +49,7 @@ impl EnumMetadata {
 
     /// Finds a variant by serialization name.
     #[must_use]
-    pub fn variant_by_serialized_name(
-        &self,
-        name: &str,
-    ) -> Option<&'static EnumVariantMetadata> {
+    pub fn variant_by_serialized_name(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
         self.variants
             .iter()
             .find(|variant| variant.serialized_name() == name)

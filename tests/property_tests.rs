@@ -33,28 +33,21 @@ struct PropertyFixture {
     count: u32,
 }
 
-fn borrowed_name<'a>(
-    target: ReflectedRef<'a>,
-) -> Result<PropertyValue<'a>, PropertyAccessError> {
-    let target = target.downcast::<PropertyFixture>().map_err(|_| {
-        PropertyAccessError::user("getter target was not prevalidated")
-    })?;
+fn borrowed_name<'a>(target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    let target = target
+        .downcast::<PropertyFixture>()
+        .map_err(|_| PropertyAccessError::user("getter target was not prevalidated"))?;
     Ok(PropertyValue::Borrowed(ReflectedRef::new_str(&target.name)))
 }
 
-fn owned_count<'a>(
-    target: ReflectedRef<'a>,
-) -> Result<PropertyValue<'a>, PropertyAccessError> {
-    let target = target.downcast::<PropertyFixture>().map_err(|_| {
-        PropertyAccessError::user("getter target was not prevalidated")
-    })?;
+fn owned_count<'a>(target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    let target = target
+        .downcast::<PropertyFixture>()
+        .map_err(|_| PropertyAccessError::user("getter target was not prevalidated"))?;
     Ok(PropertyValue::Owned(ReflectedOwned::new(target.count)))
 }
 
-fn set_name(
-    target: ReflectedMut<'_>,
-    value: ReflectedOwned,
-) -> Result<(), PropertySetFailure> {
+fn set_name(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
     let target = target.downcast::<PropertyFixture>().map_err(|_| {
         PropertySetFailure::after_execution(PropertyAccessError::user(
             "setter target was not prevalidated",
@@ -75,29 +68,20 @@ fn test_property_supports_borrowed_and_owned_getters() {
     let descriptor = TypeDescriptor::of::<PropertyFixture>();
     let name_type = descriptor.field_at(0).expect("name field").field_type();
     let count_type = descriptor.field_at(1).expect("count field").field_type();
-    let name_getter =
-        Box::leak(Box::new(GetterMetadata::new::<PropertyFixture>(
-            "name",
-            name_type,
-            GetterOutputKind::Borrowed,
-            borrowed_name,
-        )));
-    let count_getter =
-        Box::leak(Box::new(GetterMetadata::new::<PropertyFixture>(
-            "count",
-            count_type,
-            GetterOutputKind::Owned,
-            owned_count,
-        )));
-    let name =
-        v5::property_metadata("name", name_type, None, Some(name_getter), None);
-    let count = v5::property_metadata(
+    let name_getter = Box::leak(Box::new(GetterMetadata::new::<PropertyFixture>(
+        "name",
+        name_type,
+        GetterOutputKind::Borrowed,
+        borrowed_name,
+    )));
+    let count_getter = Box::leak(Box::new(GetterMetadata::new::<PropertyFixture>(
         "count",
         count_type,
-        None,
-        Some(count_getter),
-        None,
-    );
+        GetterOutputKind::Owned,
+        owned_count,
+    )));
+    let name = v5::property_metadata("name", name_type, None, Some(name_getter), None);
+    let count = v5::property_metadata("count", count_type, None, Some(count_getter), None);
     let value = PropertyFixture {
         name: "alice".to_owned(),
         count: 7,
@@ -123,8 +107,7 @@ fn test_property_supports_borrowed_and_owned_getters() {
 fn test_property_optional_borrow_and_slice_bridge_to_reflection_output() {
     let value = 9_u32;
     let optional =
-        PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(&value)))
-            .into_invocation_output();
+        PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(&value))).into_invocation_output();
     let InvocationOutput::OptionalRef { value, origins } = optional else {
         panic!("optional property borrow must remain optional");
     };
@@ -136,8 +119,7 @@ fn test_property_optional_borrow_and_slice_bridge_to_reflection_output() {
 
     let values = [2_u32, 3_u32];
     let slice =
-        PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values))
-            .into_invocation_output();
+        PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values)).into_invocation_output();
     let InvocationOutput::RefSlice { values, origins } = slice else {
         panic!("borrowed property slice must remain borrowed");
     };
@@ -152,19 +134,12 @@ fn test_property_field_fallback_and_setter_recovery_are_safe() {
     let field = Box::leak(Box::new(FieldMetadata::from_reflect(
         descriptor.field_at(0).expect("name field"),
     )));
-    let setter = Box::leak(Box::new(SetterMetadata::new::<
-        PropertyFixture,
-        String,
-    >(
-        "set_name", field.type_ref(), set_name
-    )));
-    let property = v5::property_metadata(
-        "name",
+    let setter = Box::leak(Box::new(SetterMetadata::new::<PropertyFixture, String>(
+        "set_name",
         field.type_ref(),
-        Some(field),
-        None,
-        Some(setter),
-    );
+        set_name,
+    )));
+    let property = v5::property_metadata("name", field.type_ref(), Some(field), None, Some(setter));
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,
@@ -213,25 +188,13 @@ fn test_property_rejects_wrong_targets_and_field_fallback_can_write() {
         GetterOutputKind::Borrowed,
         borrowed_name,
     )));
-    let computed = v5::property_metadata(
-        "name",
-        field.type_ref(),
-        None,
-        Some(getter),
-        None,
-    );
+    let computed = v5::property_metadata("name", field.type_ref(), None, Some(getter), None);
     assert!(matches!(
         computed.get(ReflectedRef::new(&7_u32)),
         Err(PropertyAccessError::TargetTypeMismatch(_)),
     ));
 
-    let fallback = v5::property_metadata(
-        "name",
-        field.type_ref(),
-        Some(field),
-        None,
-        None,
-    );
+    let fallback = v5::property_metadata("name", field.type_ref(), Some(field), None, None);
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,

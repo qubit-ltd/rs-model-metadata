@@ -114,9 +114,7 @@ impl SequenceConstraint {
     /// Returns element semantics, if declared.
     #[must_use]
     #[inline(always)]
-    pub const fn element(
-        &self,
-    ) -> Option<&'static crate::field_semantics::SelectorMetadata> {
+    pub const fn element(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
         self.element
     }
 }

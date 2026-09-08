@@ -20,10 +20,7 @@ pub struct ModelValidationError {
 impl ModelValidationError {
     /// Creates an execution error while retaining the partial validation
     /// report.
-    pub(crate) fn new(
-        error: ExecutionError,
-        partial_report: ValidationReport,
-    ) -> Self {
+    pub(crate) fn new(error: ExecutionError, partial_report: ValidationReport) -> Self {
         Self {
             error,
             partial_report,

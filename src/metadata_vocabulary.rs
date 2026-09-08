@@ -51,10 +51,7 @@ impl RustTypeReference {
 }
 
 impl core::fmt::Debug for RustTypeReference {
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter
             .debug_tuple("RustTypeReference")
             .field(&self.type_name())
@@ -215,10 +212,7 @@ impl UniqueMetadata {
     /// Creates uniqueness metadata.
     #[must_use]
     #[inline(always)]
-    pub const fn new(
-        respect_to: &'static [PropertyPath<'static>],
-        ignore_case: bool,
-    ) -> Self {
+    pub const fn new(respect_to: &'static [PropertyPath<'static>], ignore_case: bool) -> Self {
         Self {
             respect_to,
             ignore_case,
@@ -320,10 +314,7 @@ impl DeclaredEntityTarget {
 }
 
 impl core::fmt::Debug for DeclaredEntityTarget {
-    fn fmt(
-        &self,
-        formatter: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter
             .debug_tuple("DeclaredEntityTarget")
             .field(&self.kind())
@@ -509,8 +500,7 @@ impl ValidatorMetadata {
     ) -> Self {
         assert!(!declared_id.is_empty(), "validator ID cannot be empty");
         assert!(
-            !(matches!(target, TargetMode::Container)
-                && matches!(on_none, OnNone::Reject)),
+            !(matches!(target, TargetMode::Container) && matches!(on_none, OnNone::Reject)),
             "container validators cannot reject missing expanded values",
         );
         let mut index = 0;
@@ -525,11 +515,7 @@ impl ValidatorMetadata {
                 "validator dependency path cannot be empty"
             );
             assert!(
-                !contains_dependency_name(
-                    dependency_bindings,
-                    index,
-                    binding.name()
-                ),
+                !contains_dependency_name(dependency_bindings, index, binding.name()),
                 "validator dependency names must be unique",
             );
             index += 1;
@@ -568,9 +554,7 @@ impl ValidatorMetadata {
     /// Returns named dependency bindings in declaration order.
     #[must_use]
     #[inline(always)]
-    pub const fn dependency_bindings(
-        &self,
-    ) -> &'static [DependencyBindingMetadata] {
+    pub const fn dependency_bindings(&self) -> &'static [DependencyBindingMetadata] {
         self.dependency_bindings
     }
 
@@ -675,10 +659,7 @@ impl CodecMetadata {
     /// Creates codec metadata.
     #[must_use]
     #[inline(always)]
-    pub const fn new(
-        codec: &'static CodecReference,
-        source: CodecSource,
-    ) -> Self {
+    pub const fn new(codec: &'static CodecReference, source: CodecSource) -> Self {
         Self { codec, source }
     }
 
@@ -825,8 +806,7 @@ pub struct SerdeFieldMetadata {
 
 impl SerdeFieldMetadata {
     /// Empty Serde behavior used when no configuration applies.
-    pub const DEFAULT: Self =
-        Self::new(None, None, false, false, false, None, false);
+    pub const DEFAULT: Self = Self::new(None, None, false, false, false, None, false);
 
     /// Creates final Serde field behavior.
     #[must_use]

@@ -136,10 +136,7 @@ mod compile_assertions {
         bigdecimal::BigDecimal
     );
 
-    impl<Tz: chrono::TimeZone + 'static> TemporalConstraintTarget
-        for chrono::DateTime<Tz>
-    {
-    }
+    impl<Tz: chrono::TimeZone + 'static> TemporalConstraintTarget for chrono::DateTime<Tz> {}
     impl TemporalConstraintTarget for chrono::NaiveDate {}
     impl TemporalConstraintTarget for chrono::NaiveDateTime {}
     impl TemporalConstraintTarget for chrono::NaiveTime {}
@@ -198,16 +195,12 @@ mod compile_assertions {
         type Element = T;
     }
 
-    impl<K: 'static, V: 'static, S> MapConstraintTarget
-        for std::collections::HashMap<K, V, S>
-    {
+    impl<K: 'static, V: 'static, S> MapConstraintTarget for std::collections::HashMap<K, V, S> {
         type Key = K;
         type Value = V;
     }
 
-    impl<K: 'static, V: 'static> MapConstraintTarget
-        for std::collections::BTreeMap<K, V>
-    {
+    impl<K: 'static, V: 'static> MapConstraintTarget for std::collections::BTreeMap<K, V> {
         type Key = K;
         type Value = V;
     }
@@ -215,10 +208,7 @@ mod compile_assertions {
     impl<T: SequenceConstraintTarget> SequenceConstraintTarget for Option<T> {
         type Element = T::Element;
     }
-    impl<T: VariableLengthSequenceTarget> VariableLengthSequenceTarget
-        for Option<T>
-    {
-    }
+    impl<T: VariableLengthSequenceTarget> VariableLengthSequenceTarget for Option<T> {}
     impl<T: UniqueItemsConstraintTarget> UniqueItemsConstraintTarget for Option<T> {}
 
     impl<T: MapConstraintTarget> MapConstraintTarget for Option<T> {
@@ -268,22 +258,14 @@ mod compile_assertions {
 
     /// Lifetime-independent marker for a getter returning `Option<&T>`.
     #[doc(hidden)]
-    pub struct OptionalBorrowedPropertyOutput<T: ?Sized>(
-        PhantomData<fn() -> T>,
-    );
+    pub struct OptionalBorrowedPropertyOutput<T: ?Sized>(PhantomData<fn() -> T>);
 
     impl<T: ?Sized> PropertyOutputCompatible<T> for T {}
     impl<T: ?Sized> PropertyOutputCompatible<T> for BorrowedPropertyOutput<T> {}
     impl PropertyOutputCompatible<String> for BorrowedPropertyOutput<str> {}
     impl<T> PropertyOutputCompatible<Vec<T>> for BorrowedPropertyOutput<[T]> {}
-    impl<T> PropertyOutputCompatible<Option<T>>
-        for OptionalBorrowedPropertyOutput<T>
-    {
-    }
-    impl PropertyOutputCompatible<Option<String>>
-        for OptionalBorrowedPropertyOutput<str>
-    {
-    }
+    impl<T> PropertyOutputCompatible<Option<T>> for OptionalBorrowedPropertyOutput<T> {}
+    impl PropertyOutputCompatible<Option<String>> for OptionalBorrowedPropertyOutput<str> {}
 
     /// Wraps a successfully validated merged property slice.
     #[doc(hidden)]
@@ -478,9 +460,7 @@ pub mod v5 {
         getter: Option<&'static crate::metadata::GetterMetadata>,
         setter: Option<&'static crate::metadata::SetterMetadata>,
     ) -> crate::metadata::PropertyMetadata {
-        crate::metadata::PropertyMetadata::new(
-            name, type_ref, field, getter, setter,
-        )
+        crate::metadata::PropertyMetadata::new(name, type_ref, field, getter, setter)
     }
 
     /// Builds entity-role metadata for an identifier field.
@@ -489,9 +469,7 @@ pub mod v5 {
     pub const fn entity_role(
         identifier: &'static crate::metadata::FieldMetadata,
     ) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Entity(
-            crate::metadata::EntityMetadata::new(identifier),
-        )
+        crate::metadata::RoleMetadata::Entity(crate::metadata::EntityMetadata::new(identifier))
     }
 
     /// Builds projection-role metadata and its optional source target.
@@ -501,9 +479,9 @@ pub mod v5 {
         identifier: &'static crate::metadata::FieldMetadata,
         source: Option<&'static crate::metadata::DeclaredEntityTarget>,
     ) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Projection(
-            crate::metadata::ProjectionMetadata::new(identifier, source),
-        )
+        crate::metadata::RoleMetadata::Projection(crate::metadata::ProjectionMetadata::new(
+            identifier, source,
+        ))
     }
 
     /// Builds metadata for a general model role.
@@ -520,12 +498,10 @@ pub mod v5 {
         transparent_field: Option<&'static crate::metadata::FieldMetadata>,
         canonical_codec: Option<&'static crate::metadata::CodecMetadata>,
     ) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Value(
-            crate::metadata::ValueMetadata::new(
-                transparent_field,
-                canonical_codec,
-            ),
-        )
+        crate::metadata::RoleMetadata::Value(crate::metadata::ValueMetadata::new(
+            transparent_field,
+            canonical_codec,
+        ))
     }
 
     /// Builds metadata for one generated enum variant.
@@ -577,9 +553,7 @@ pub mod v5 {
     pub const fn enum_role(
         variants: &'static [crate::metadata::EnumVariantMetadata],
     ) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Enum(crate::metadata::EnumMetadata::new(
-            variants,
-        ))
+        crate::metadata::RoleMetadata::Enum(crate::metadata::EnumMetadata::new(variants))
     }
 
     /// Builds metadata for one generic model definition.
@@ -593,9 +567,7 @@ pub mod v5 {
         fields: &'static [crate::metadata::FieldMetadata],
         variants: &'static [crate::metadata::EnumVariantMetadata],
     ) -> crate::generic::GenericModelMetadata {
-        crate::generic::GenericModelMetadata::new(
-            model_id, role, definition, fields, variants,
-        )
+        crate::generic::GenericModelMetadata::new(model_id, role, definition, fields, variants)
     }
 
     /// Leaks a generated value for static metadata storage.

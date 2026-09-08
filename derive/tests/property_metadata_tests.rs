@@ -171,8 +171,7 @@ fn test_model_impl_reports_field_getter_mismatch_without_panicking() {
     assert_eq!(errors.errors().len(), 1);
     assert_eq!(errors.errors()[0].property_name(), "value");
 
-    let registry =
-        ModelRegistry::try_global().expect("valid registration index");
+    let registry = ModelRegistry::try_global().expect("valid registration index");
     let errors = StructureResolver::new(ResolveInputs { models: registry })
         .resolve()
         .expect_err("invalid local properties must prevent graph publication");

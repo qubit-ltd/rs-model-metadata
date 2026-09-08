@@ -107,9 +107,7 @@ pub(super) fn build_query(
                     errors,
                 ),
                 ReferenceSelection::Entity => {
-                    if let Some(target) =
-                        resolve_declared_target(reference.target(), registry)
-                    {
+                    if let Some(target) = resolve_declared_target(reference.target(), registry) {
                         collect_query_fields(
                             target,
                             &[name],
@@ -188,9 +186,7 @@ fn collect_query_fields(
     let mut added = false;
     for field in metadata.fields() {
         let Some(name) = field.name() else { continue };
-        if !field.is_indexed()
-            || (!allow_references && field.reference().is_some())
-        {
+        if !field.is_indexed() || (!allow_references && field.reference().is_some()) {
             continue;
         }
         let mut path = prefix.to_vec();
@@ -240,13 +236,11 @@ fn collect_indexed_field(
             );
             return true;
         }
-        return resolve_declared_target(reference.target(), registry)
-            .is_some_and(|target| {
-                collect_query_fields(
-                    target, path, false, registry, filters, flat_names, root,
-                    source, errors,
-                )
-            });
+        return resolve_declared_target(reference.target(), registry).is_some_and(|target| {
+            collect_query_fields(
+                target, path, false, registry, filters, flat_names, root, source, errors,
+            )
+        });
     }
     let initial_error_count = errors.len();
     if let Some(descriptor) = field.descriptor()
@@ -300,8 +294,7 @@ fn push_query_field(
     source: &FragmentIdentity,
     errors: &mut Vec<ResolveError>,
 ) {
-    if let Some(existing) = filters.iter_mut().find(|field| field.path == path)
-    {
+    if let Some(existing) = filters.iter_mut().find(|field| field.path == path) {
         existing.reasons |= reasons;
         return;
     }

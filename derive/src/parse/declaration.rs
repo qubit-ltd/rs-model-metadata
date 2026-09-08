@@ -63,10 +63,7 @@ pub(crate) fn parse_declaration(
         Data::Union(_) => {
             combine(
                 &mut errors,
-                Error::new_spanned(
-                    item,
-                    "model role macros do not support unions",
-                ),
+                Error::new_spanned(item, "model role macros do not support unions"),
             );
             (None, None)
         }
@@ -74,11 +71,9 @@ pub(crate) fn parse_declaration(
     if let Some(error) = errors {
         return Err(error);
     }
-    let options = options
-        .expect("errors returned when declaration options are unavailable");
+    let options = options.expect("errors returned when declaration options are unavailable");
     let fields = fields.expect("errors returned when fields are unavailable");
-    let variants =
-        variants.expect("errors returned when variants are unavailable");
+    let variants = variants.expect("errors returned when variants are unavailable");
     if let Some(id) = &options.id {
         validate_ascii_id(id, "model ID")?;
     }
@@ -97,12 +92,7 @@ pub(crate) fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
     for (index, field) in fields.iter().enumerate() {
-        match FieldIr::parse(
-            index,
-            &field.ty,
-            &field.attrs,
-            field.ident.is_some(),
-        ) {
+        match FieldIr::parse(index, &field.ty, &field.attrs, field.ident.is_some()) {
             Ok(field) => parsed.push(field),
             Err(error) => combine(&mut errors, error),
         }
@@ -126,21 +116,18 @@ pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
         );
         let fields = parse_fields(&variant.fields);
         match (canonical_name, names, fields) {
-            (
-                Ok(canonical_name),
-                Ok((serialized_name, deserialized_name)),
-                Ok(fields),
-            ) => parsed.push(VariantIr {
-                rust_name: variant.ident.to_string(),
-                canonical_name,
-                serialized_name,
-                deserialized_name,
-                default: variant
-                    .attrs
-                    .iter()
-                    .any(|attribute| attribute.path().is_ident("default")),
-                fields,
-            }),
+            (Ok(canonical_name), Ok((serialized_name, deserialized_name)), Ok(fields)) => parsed
+                .push(VariantIr {
+                    rust_name: variant.ident.to_string(),
+                    canonical_name,
+                    serialized_name,
+                    deserialized_name,
+                    default: variant
+                        .attrs
+                        .iter()
+                        .any(|attribute| attribute.path().is_ident("default")),
+                    fields,
+                }),
             (canonical_name, names, fields) => {
                 if let Err(error) = canonical_name {
                     combine(&mut errors, error);
@@ -161,10 +148,7 @@ pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
 }
 
 /// Parses an optional stable variant name, defaulting to the Rust name.
-fn parse_variant_name(
-    attributes: &[Attribute],
-    default: &str,
-) -> Result<String> {
+fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String> {
     let mut name = None;
     for attribute in attributes
         .iter()
@@ -177,10 +161,7 @@ fn parse_variant_name(
             let value: LitStr = meta.value()?.parse()?;
             validate_ascii_id(&value, "variant name")?;
             if value.value().is_empty() {
-                return Err(Error::new_spanned(
-                    value,
-                    "variant name cannot be empty",
-                ));
+                return Err(Error::new_spanned(value, "variant name cannot be empty"));
             }
             if name.replace(value.value()).is_some() {
                 return Err(meta.error("duplicate variant `name` option"));

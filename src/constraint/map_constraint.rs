@@ -47,13 +47,8 @@ impl MapConstraint {
     ///
     /// Panics when the supplied minimum entry count exceeds the maximum.
     #[must_use]
-    pub const fn new(
-        min_entries: Option<usize>,
-        max_entries: Option<usize>,
-    ) -> Self {
-        if let (Some(min_entries), Some(max_entries)) =
-            (min_entries, max_entries)
-        {
+    pub const fn new(min_entries: Option<usize>, max_entries: Option<usize>) -> Self {
+        if let (Some(min_entries), Some(max_entries)) = (min_entries, max_entries) {
             assert!(
                 min_entries <= max_entries,
                 "minimum entry count cannot exceed maximum entry count"
@@ -104,18 +99,14 @@ impl MapConstraint {
     /// Returns key semantics, if declared.
     #[must_use]
     #[inline(always)]
-    pub const fn key(
-        &self,
-    ) -> Option<&'static crate::field_semantics::SelectorMetadata> {
+    pub const fn key(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
         self.key
     }
 
     /// Returns value semantics, if declared.
     #[must_use]
     #[inline(always)]
-    pub const fn value(
-        &self,
-    ) -> Option<&'static crate::field_semantics::SelectorMetadata> {
+    pub const fn value(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
         self.value
     }
 }

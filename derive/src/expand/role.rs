@@ -22,10 +22,7 @@ use crate::ir::declaration::FieldOccurrence;
 use crate::ir::declaration::VariantIr;
 
 /// Generates role-specific model metadata for a declaration.
-pub(super) fn expand_role(
-    declaration: &DeclarationIr,
-    runtime: &TokenStream,
-) -> TokenStream {
+pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
     match declaration.kind {
         MacroKind::Entity => {
             let Some(index) = identifier_index(&declaration.fields) else {
@@ -48,9 +45,7 @@ pub(super) fn expand_role(
                 )
                 .into_compile_error();
             };
-            let source = if let Some(source) =
-                declaration.options.source.as_ref()
-            {
+            let source = if let Some(source) = declaration.options.source.as_ref() {
                 quote!(Some(#runtime::__private::v5::leak(
                     #runtime::metadata::DeclaredEntityTarget::RustType(#runtime::metadata::TypeMetadata::of::<#source>),
                 ) as &'static #runtime::metadata::DeclaredEntityTarget))
@@ -109,10 +104,7 @@ pub(super) fn expand_role(
 }
 
 /// Generates role metadata for all enum variants.
-fn expand_enum_role(
-    variants: &[VariantIr],
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
     let variants = variants.iter().enumerate().map(|(variant_index, variant)| {
         let fields = expand_field_vector(
             &variant.fields,
