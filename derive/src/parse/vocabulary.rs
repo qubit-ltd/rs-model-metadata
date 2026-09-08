@@ -14,7 +14,12 @@ use syn::LitStr;
 use syn::Result;
 
 /// Rejects one parsed identifier value outside its declared vocabulary.
-pub(crate) fn validate_closed_value(expression: &Expr, value: &str, allowed: &[&str], message: &str) -> Result<()> {
+pub(crate) fn validate_closed_value(
+    expression: &Expr,
+    value: &str,
+    allowed: &[&str],
+    message: &str,
+) -> Result<()> {
     if allowed.contains(&value) {
         Ok(())
     } else {

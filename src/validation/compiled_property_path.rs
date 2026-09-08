@@ -118,13 +118,19 @@ impl CompiledPropertyPath {
     }
 }
 
-fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDescriptor, bool) {
+fn value_descriptor(
+    mut descriptor: &'static TypeDescriptor,
+) -> (&'static TypeDescriptor, bool) {
     let mut optional = false;
     loop {
         let Some(element) = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()))
+            .or_else(|| {
+                descriptor
+                    .as_smart_pointer()
+                    .map(|view| view.pointee_type())
+            })
         else {
             return (descriptor, optional);
         };

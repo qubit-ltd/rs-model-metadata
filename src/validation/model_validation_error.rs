@@ -10,8 +10,14 @@ pub struct ModelValidationError {
 }
 
 impl ModelValidationError {
-    pub(crate) fn new(error: ExecutionError, partial_report: ValidationReport) -> Self {
-        Self { error, partial_report }
+    pub(crate) fn new(
+        error: ExecutionError,
+        partial_report: ValidationReport,
+    ) -> Self {
+        Self {
+            error,
+            partial_report,
+        }
     }
     /// Returns the execution failure.
     #[must_use]

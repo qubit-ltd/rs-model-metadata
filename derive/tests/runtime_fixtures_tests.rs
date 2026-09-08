@@ -48,7 +48,9 @@ fn assert_missing_runtime_fixture_fails() {
     let output = run_fixture("missing");
     assert!(!output.status.success(), "missing runtime fixture compiled");
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("Model derive requires the `qubit-model-metadata` dependency"),
+        String::from_utf8_lossy(&output.stderr).contains(
+            "Model derive requires the `qubit-model-metadata` dependency"
+        ),
         "unexpected missing runtime diagnostic: {}",
         String::from_utf8_lossy(&output.stderr)
     );
@@ -58,10 +60,15 @@ fn assert_missing_runtime_fixture_fails() {
 /// diagnostics from the same model declaration.
 fn assert_missing_runtime_fixture_preserves_validation_error() {
     let output = run_fixture("missing-invalid");
-    assert!(!output.status.success(), "missing-invalid runtime fixture compiled");
+    assert!(
+        !output.status.success(),
+        "missing-invalid runtime fixture compiled"
+    );
     let diagnostic = String::from_utf8_lossy(&output.stderr);
     assert!(
-        diagnostic.contains("Model derive requires the `qubit-model-metadata` dependency"),
+        diagnostic.contains(
+            "Model derive requires the `qubit-model-metadata` dependency"
+        ),
         "missing runtime diagnostic: {diagnostic}"
     );
     assert!(
@@ -96,14 +103,26 @@ fn run_fixture(name: &str) -> std::process::Output {
 /// Runs one collector binary from the cross-crate registration fixture.
 fn run_linked_fixture(binary: &str) -> std::process::Output {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let fixture_dir = manifest_dir.join("tests/runtime-fixtures/linked-workspace");
+    let fixture_dir =
+        manifest_dir.join("tests/runtime-fixtures/linked-workspace");
     let target_dir = std::env::var_os("CARGO_TARGET_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| {
-            std::env::temp_dir().join(format!("qubit-model-derive-linked-fixture-{}", std::process::id()))
+            std::env::temp_dir().join(format!(
+                "qubit-model-derive-linked-fixture-{}",
+                std::process::id()
+            ))
         });
     Command::new(env!("CARGO"))
-        .args(["run", "--offline", "--quiet", "-p", "collector", "--bin", binary])
+        .args([
+            "run",
+            "--offline",
+            "--quiet",
+            "-p",
+            "collector",
+            "--bin",
+            binary,
+        ])
         .args((binary != "cross_crate").then_some("--features"))
         .args((binary == "duplicate_id").then_some("duplicate-fixture"))
         .args((binary == "missing_target").then_some("missing-fixture"))

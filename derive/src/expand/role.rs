@@ -26,12 +26,18 @@ use crate::ir::declaration::FieldOccurrence;
 use crate::ir::declaration::VariantIr;
 
 /// Generates role-specific model metadata for a declaration.
-pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
+pub(super) fn expand_role(
+    declaration: &DeclarationIr,
+    runtime: &TokenStream,
+) -> TokenStream {
     match declaration.kind {
         MacroKind::Entity => {
             let Some(index) = identifier_index(&declaration.fields) else {
-                return Error::new(Span::call_site(), "Entity requires exactly one identifier field")
-                    .into_compile_error();
+                return Error::new(
+                    Span::call_site(),
+                    "Entity requires exactly one identifier field",
+                )
+                .into_compile_error();
             };
             quote! {
                 let role: &'static #runtime::RoleMetadata =
@@ -40,10 +46,15 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
         }
         MacroKind::Projection => {
             let Some(index) = identifier_index(&declaration.fields) else {
-                return Error::new(Span::call_site(), "Projection requires exactly one identifier field")
-                    .into_compile_error();
+                return Error::new(
+                    Span::call_site(),
+                    "Projection requires exactly one identifier field",
+                )
+                .into_compile_error();
             };
-            let source = if let Some(source) = declaration.options.source.as_ref() {
+            let source = if let Some(source) =
+                declaration.options.source.as_ref()
+            {
                 quote!(Some(#runtime::__private::v4::leak(
                     #runtime::DeclaredEntityTarget::RustType(#runtime::TypeMetadata::of::<#source>),
                 ) as &'static #runtime::DeclaredEntityTarget))
@@ -93,9 +104,11 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
             }
         }
         MacroKind::Enum => expand_enum_role(&declaration.variants, runtime),
-        MacroKind::ModelImpl => {
-            Error::new(Span::call_site(), "ModelImpl does not produce role metadata").into_compile_error()
-        }
+        MacroKind::ModelImpl => Error::new(
+            Span::call_site(),
+            "ModelImpl does not produce role metadata",
+        )
+        .into_compile_error(),
     }
 }
 
@@ -122,7 +135,10 @@ pub(super) fn codec_value_type(ty: &Type) -> &Type {
 }
 
 /// Generates role metadata for all enum variants.
-fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
+fn expand_enum_role(
+    variants: &[VariantIr],
+    runtime: &TokenStream,
+) -> TokenStream {
     let variants = variants.iter().enumerate().map(|(variant_index, variant)| {
         let fields = expand_field_vector(
             &variant.fields,
@@ -182,7 +198,8 @@ mod tests {
     fn test_codec_value_type_unwraps_only_standard_option_paths() {
         let plain: Type = parse_quote!(String);
         let option: Type = parse_quote!(Option<String>);
-        let qualified: Type = parse_quote!(::core::option::Option<&'static str>);
+        let qualified: Type =
+            parse_quote!(::core::option::Option<&'static str>);
         let lookalike: Type = parse_quote!(domain::Option<String>);
         let reference: Type = parse_quote!(&'static str);
 

@@ -83,11 +83,15 @@ impl<'a> ModelResolver<'a> {
     /// bound later by `ValidationPlan` when the `validation` feature is
     /// enabled.
     #[must_use = "handle all model structure resolution failures"]
-    pub fn resolve_structure(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
+    pub fn resolve_structure(
+        &self,
+    ) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
         self.resolve_internal()
     }
 
-    fn resolve_internal(&self) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
+    fn resolve_internal(
+        &self,
+    ) -> Result<ResolvedModelGraph<'a>, ModelResolveErrors> {
         let mut references = HashMap::new();
         let mut projection_sources = HashMap::new();
         let mut codecs = HashMap::new();
@@ -96,7 +100,8 @@ impl<'a> ModelResolver<'a> {
         let mut projection_producers = Vec::new();
         let mut errors = Vec::new();
 
-        for (metadata, fragment_source) in self.inputs.models.concrete_entries() {
+        for (metadata, fragment_source) in self.inputs.models.concrete_entries()
+        {
             match self.inputs.models.properties_for(metadata) {
                 Ok(local) => {
                     properties.insert(metadata.type_id(), local);
@@ -114,11 +119,19 @@ impl<'a> ModelResolver<'a> {
                                 Some(metadata.role()),
                                 Some(fragment_source),
                             )
-                            .with_cause(PropertyResolutionError::Assembly(build_errors).into()),
+                            .with_cause(
+                                PropertyResolutionError::Assembly(build_errors)
+                                    .into(),
+                            ),
                         );
                     }
                 }
-                Err(error) => errors.push(ModelResolveError::resolution(metadata, None, fragment_source, error)),
+                Err(error) => errors.push(ModelResolveError::resolution(
+                    metadata,
+                    None,
+                    fragment_source,
+                    error,
+                )),
             }
             let variant_fields = metadata
                 .as_enum()
@@ -127,10 +140,15 @@ impl<'a> ModelResolver<'a> {
                 .flat_map(|variant| variant.fields());
             for field in metadata.fields().iter().chain(variant_fields) {
                 let field_segments = field.name().map(|name| [name]);
-                let field_path = field_segments.as_ref().map(|segments| PropertyPath::new(segments));
+                let field_path = field_segments
+                    .as_ref()
+                    .map(|segments| PropertyPath::new(segments));
                 if field.is_opaque() {
                     let hidden = match field.type_ref().as_resolved() {
-                        Some(descriptor) => match metadata_for_descriptor(descriptor, self.inputs.models) {
+                        Some(descriptor) => match metadata_for_descriptor(
+                            descriptor,
+                            self.inputs.models,
+                        ) {
                             Ok(metadata) => metadata,
                             Err(error) => {
                                 errors.push(ModelResolveError::resolution(
@@ -142,15 +160,18 @@ impl<'a> ModelResolver<'a> {
                                 None
                             }
                         },
-                        None => field
-                            .type_ref()
-                            .as_opaque()
-                            .and_then(|opaque| self.inputs.models.by_type_id(opaque.type_id())),
+                        None => {
+                            field.type_ref().as_opaque().and_then(|opaque| {
+                                self.inputs.models.by_type_id(opaque.type_id())
+                            })
+                        }
                     };
                     if let Some(hidden) = hidden.filter(|hidden| {
                         matches!(
                             hidden.role(),
-                            ModelRole::Entity | ModelRole::Projection | ModelRole::Model
+                            ModelRole::Entity
+                                | ModelRole::Projection
+                                | ModelRole::Model
                         )
                     }) {
                         push_field_error(
@@ -166,7 +187,10 @@ impl<'a> ModelResolver<'a> {
                     && field.reference().is_none()
                     && let Some(descriptor) = field.descriptor()
                 {
-                    match forbidden_entity_nested_role(descriptor, self.inputs.models) {
+                    match forbidden_entity_nested_role(
+                        descriptor,
+                        self.inputs.models,
+                    ) {
                         Ok(Some(role)) => push_field_error(
                             &mut errors,
                             ModelResolveErrorKind::InvalidEntityNesting,
@@ -176,19 +200,32 @@ impl<'a> ModelResolver<'a> {
                             fragment_source,
                         ),
                         Ok(None) => {}
-                        Err(error) => errors.push(ModelResolveError::resolution(
-                            metadata,
-                            field_path,
-                            fragment_source,
-                            error,
-                        )),
+                        Err(error) => {
+                            errors.push(ModelResolveError::resolution(
+                                metadata,
+                                field_path,
+                                fragment_source,
+                                error,
+                            ))
+                        }
                     }
                 }
-                resolve_field_codecs(metadata, field, self.inputs, &mut codecs, fragment_source, &mut errors);
+                resolve_field_codecs(
+                    metadata,
+                    field,
+                    self.inputs,
+                    &mut codecs,
+                    fragment_source,
+                    &mut errors,
+                );
                 if let Some(reference) = field.reference() {
                     let mut local_reference_valid = true;
                     if let Some(path) = reference.same_as() {
-                        match resolve_property_path(metadata, path, self.inputs.models) {
+                        match resolve_property_path(
+                            metadata,
+                            path,
+                            self.inputs.models,
+                        ) {
                             Ok(Some(property)) if property.is_readable() => {}
                             Ok(Some(_)) => {
                                 errors.push(ModelResolveError::new(
@@ -229,8 +266,16 @@ impl<'a> ModelResolver<'a> {
                             let property = match reference.selection() {
                                 ReferenceSelection::Entity => None,
                                 ReferenceSelection::Property(path) => {
-                                    match resolve_property_path(target, path, self.inputs.models) {
-                                        Ok(Some(property)) if property.is_readable() => Some(property),
+                                    match resolve_property_path(
+                                        target,
+                                        path,
+                                        self.inputs.models,
+                                    ) {
+                                        Ok(Some(property))
+                                            if property.is_readable() =>
+                                        {
+                                            Some(property)
+                                        }
                                         Ok(Some(_)) => {
                                             errors.push(ModelResolveError::new(
                                                 ModelResolveErrorKind::UnreadableProperty,
@@ -255,12 +300,14 @@ impl<'a> ModelResolver<'a> {
                                         }
 
                                         Err(error) => {
-                                            errors.push(ModelResolveError::resolution(
-                                                metadata,
-                                                Some(*path),
-                                                fragment_source,
-                                                error,
-                                            ));
+                                            errors.push(
+                                                ModelResolveError::resolution(
+                                                    metadata,
+                                                    Some(*path),
+                                                    fragment_source,
+                                                    error,
+                                                ),
+                                            );
                                             continue;
                                         }
                                     }
@@ -270,19 +317,26 @@ impl<'a> ModelResolver<'a> {
                                 Some(property) => property.descriptor(),
                                 None => Some(target.descriptor()),
                             };
-                            if let (Some(expected), Some(actual)) = (expected, field.descriptor())
+                            if let (Some(expected), Some(actual)) =
+                                (expected, field.descriptor())
                                 && expected.type_id() != actual.type_id()
                             {
                                 errors.push(
                                     ModelResolveError::new(
                                         ModelResolveErrorKind::TypeMismatch,
                                         target.model_id().map(|id| id.as_str()),
-                                        reference.selection().property_path().copied(),
+                                        reference
+                                            .selection()
+                                            .property_path()
+                                            .copied(),
                                         Some(ModelRole::Entity),
                                         Some(target.role()),
                                         Some(fragment_source),
                                     )
-                                    .with_types(expected.type_id(), actual.type_id()),
+                                    .with_types(
+                                        expected.type_id(),
+                                        actual.type_id(),
+                                    ),
                                 );
                                 continue;
                             }
@@ -323,7 +377,9 @@ impl<'a> ModelResolver<'a> {
                 match self.resolve_target(source) {
                     Some(target) if target.role() == ModelRole::Entity => {
                         if let (Some(expected), Some(actual)) = (
-                            target.as_entity().and_then(|entity| entity.identifier().descriptor()),
+                            target.as_entity().and_then(|entity| {
+                                entity.identifier().descriptor()
+                            }),
                             projection.identifier().descriptor(),
                         ) && expected.type_id() != actual.type_id()
                         {
@@ -336,7 +392,10 @@ impl<'a> ModelResolver<'a> {
                                     Some(target.role()),
                                     Some(fragment_source),
                                 )
-                                .with_types(expected.type_id(), actual.type_id()),
+                                .with_types(
+                                    expected.type_id(),
+                                    actual.type_id(),
+                                ),
                             );
                             continue;
                         }
@@ -366,10 +425,19 @@ impl<'a> ModelResolver<'a> {
 
             if metadata.role() == ModelRole::Value {
                 let mut visited = HashSet::new();
-                validate_value_closure(metadata, self.inputs.models, &mut visited, fragment_source, &mut errors);
+                validate_value_closure(
+                    metadata,
+                    self.inputs.models,
+                    &mut visited,
+                    fragment_source,
+                    &mut errors,
+                );
             }
 
-            if let Some(codec) = metadata.as_value().and_then(crate::ValueMetadata::canonical_codec) {
+            if let Some(codec) = metadata
+                .as_value()
+                .and_then(crate::ValueMetadata::canonical_codec)
+            {
                 resolve_codec(
                     metadata,
                     codec,
@@ -382,9 +450,17 @@ impl<'a> ModelResolver<'a> {
             }
 
             if let Some(entity) = metadata.as_entity()
-                && let Some(query) = build_query(metadata, self.inputs.models, fragment_source, &mut errors)
+                && let Some(query) = build_query(
+                    metadata,
+                    self.inputs.models,
+                    fragment_source,
+                    &mut errors,
+                )
             {
-                queries.insert(entity as *const crate::EntityMetadata as usize, query);
+                queries.insert(
+                    entity as *const crate::EntityMetadata as usize,
+                    query,
+                );
             }
         }
 
@@ -392,7 +468,9 @@ impl<'a> ModelResolver<'a> {
             if source.role() != ModelRole::Entity {
                 continue;
             }
-            let Some(local_properties) = properties.get(&source.type_id()).copied() else {
+            let Some(local_properties) =
+                properties.get(&source.type_id()).copied()
+            else {
                 continue;
             };
             for property in local_properties.properties() {
@@ -411,7 +489,9 @@ impl<'a> ModelResolver<'a> {
                             &mut errors,
                         )
                     })
-                    .filter(|metadata| metadata.role() == ModelRole::Projection)
+                    .filter(|metadata| {
+                        metadata.role() == ModelRole::Projection
+                    })
                 else {
                     continue;
                 };
@@ -419,7 +499,9 @@ impl<'a> ModelResolver<'a> {
                     .as_projection()
                     .and_then(ProjectionMetadata::source)
                     .and_then(|target| self.resolve_target(target));
-                if fixed_source.is_some_and(|fixed| fixed.type_id() != source.type_id()) {
+                if fixed_source
+                    .is_some_and(|fixed| fixed.type_id() != source.type_id())
+                {
                     errors.push(ModelResolveError::new(
                         ModelResolveErrorKind::InvalidProjectionProducer,
                         projection.model_id().map(|id| id.as_str()),
@@ -430,14 +512,18 @@ impl<'a> ModelResolver<'a> {
                     ));
                     continue;
                 }
-                let source_id = source.as_entity().and_then(|entity| entity.identifier().descriptor());
-                let projection_id = projection
-                    .as_projection()
-                    .and_then(|projection| projection.identifier().descriptor());
-                if source_id
-                    .zip(projection_id)
-                    .is_some_and(|(source, projection)| source.type_id() != projection.type_id())
-                {
+                let source_id = source
+                    .as_entity()
+                    .and_then(|entity| entity.identifier().descriptor());
+                let projection_id =
+                    projection.as_projection().and_then(|projection| {
+                        projection.identifier().descriptor()
+                    });
+                if source_id.zip(projection_id).is_some_and(
+                    |(source, projection)| {
+                        source.type_id() != projection.type_id()
+                    },
+                ) {
                     errors.push(ModelResolveError::new(
                         ModelResolveErrorKind::InvalidProjectionProducer,
                         projection.model_id().map(|id| id.as_str()),
@@ -475,10 +561,15 @@ impl<'a> ModelResolver<'a> {
 
     /// Resolves a declaration-time target through the configured model
     /// registry.
-    fn resolve_target(&self, target: &DeclaredEntityTarget) -> Option<&'static TypeMetadata> {
+    fn resolve_target(
+        &self,
+        target: &DeclaredEntityTarget,
+    ) -> Option<&'static TypeMetadata> {
         match target {
             DeclaredEntityTarget::RustType(provider) => Some(provider()),
-            DeclaredEntityTarget::ModelId(id) => self.inputs.models.metadata(id.as_str()),
+            DeclaredEntityTarget::ModelId(id) => {
+                self.inputs.models.metadata(id.as_str())
+            }
         }
     }
 }
@@ -536,7 +627,9 @@ fn resolve_field_codecs<'a>(
             errors,
         );
     }
-    let sequence_selector = field.sequence_constraint().and_then(|sequence| sequence.element());
+    let sequence_selector = field
+        .sequence_constraint()
+        .and_then(|sequence| sequence.element());
     let map = field.map_constraint();
     for (selector, position) in [
         (sequence_selector, SelectorPosition::Element),
@@ -558,13 +651,24 @@ fn resolve_field_codecs<'a>(
             continue;
         };
         if let Some(codec) = selector.codec() {
-            resolve_codec(metadata, codec, expected_type, inputs.codecs, codecs, source, errors);
+            resolve_codec(
+                metadata,
+                codec,
+                expected_type,
+                inputs.codecs,
+                codecs,
+                source,
+                errors,
+            );
         }
     }
 }
 
 /// Returns the runtime type ID at a nested collection position.
-fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosition) -> Option<TypeId> {
+fn selector_type_id(
+    descriptor: &'static TypeDescriptor,
+    position: SelectorPosition,
+) -> Option<TypeId> {
     let descriptor = transparent_descriptor(descriptor)?;
     let type_ref = match position {
         SelectorPosition::Element => descriptor
@@ -573,19 +677,29 @@ fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosit
             .or_else(|| descriptor.as_set().map(|view| view.element_type()))
             .or_else(|| descriptor.as_array().map(|view| view.element_type()))
             .or_else(|| descriptor.as_slice().map(|view| view.element_type())),
-        SelectorPosition::MapKey => descriptor.as_map().map(|view| view.key_type()),
-        SelectorPosition::MapValue => descriptor.as_map().map(|view| view.value_type()),
+        SelectorPosition::MapKey => {
+            descriptor.as_map().map(|view| view.key_type())
+        }
+        SelectorPosition::MapValue => {
+            descriptor.as_map().map(|view| view.value_type())
+        }
     }?;
     runtime_type_id(type_ref)
 }
 
 /// Returns the innermost descriptor through transparent wrappers.
-fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
+fn transparent_descriptor(
+    mut descriptor: &'static TypeDescriptor,
+) -> Option<&'static TypeDescriptor> {
     loop {
         let element = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()));
+            .or_else(|| {
+                descriptor
+                    .as_smart_pointer()
+                    .map(|view| view.pointee_type())
+            });
         let Some(element) = element else {
             return Some(descriptor);
         };
@@ -691,7 +805,8 @@ fn reported_metadata(
     match metadata_for_descriptor(descriptor, registry) {
         Ok(metadata) => metadata,
         Err(error) => {
-            errors.push(ModelResolveError::resolution(root, path, source, error));
+            errors
+                .push(ModelResolveError::resolution(root, path, source, error));
             None
         }
     }
@@ -742,7 +857,12 @@ fn build_query(
                         )),
 
                         Err(error) => {
-                            errors.push(ModelResolveError::resolution(metadata, Some(*scope), source, error));
+                            errors.push(ModelResolveError::resolution(
+                                metadata,
+                                Some(*scope),
+                                source,
+                                error,
+                            ));
                         }
                     }
                 }
@@ -768,7 +888,9 @@ fn build_query(
                     errors,
                 ),
                 ReferenceSelection::Entity => {
-                    if let Some(target) = resolve_declared_target(reference.target(), registry) {
+                    if let Some(target) =
+                        resolve_declared_target(reference.target(), registry)
+                    {
                         collect_query_fields(
                             target,
                             &[name],
@@ -847,7 +969,9 @@ fn collect_query_fields(
     let mut added = false;
     for field in metadata.fields() {
         let Some(name) = field.name() else { continue };
-        if !field.is_indexed() || (!allow_references && field.reference().is_some()) {
+        if !field.is_indexed()
+            || (!allow_references && field.reference().is_some())
+        {
             continue;
         }
         let mut path = prefix.to_vec();
@@ -897,9 +1021,13 @@ fn collect_indexed_field(
             );
             return true;
         }
-        return resolve_declared_target(reference.target(), registry).is_some_and(|target| {
-            collect_query_fields(target, path, false, registry, filters, flat_names, root, source, errors)
-        });
+        return resolve_declared_target(reference.target(), registry)
+            .is_some_and(|target| {
+                collect_query_fields(
+                    target, path, false, registry, filters, flat_names, root,
+                    source, errors,
+                )
+            });
     }
     let initial_error_count = errors.len();
     if let Some(descriptor) = field.descriptor()
@@ -953,7 +1081,8 @@ fn push_query_field(
     source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) {
-    if let Some(existing) = filters.iter_mut().find(|field| field.path == path) {
+    if let Some(existing) = filters.iter_mut().find(|field| field.path == path)
+    {
         existing.reasons |= reasons;
         return;
     }
@@ -982,7 +1111,10 @@ fn push_query_field(
 }
 
 /// Resolves a declared target using either its provider or stable model ID.
-fn resolve_declared_target(target: &DeclaredEntityTarget, registry: &ModelRegistry) -> Option<&'static TypeMetadata> {
+fn resolve_declared_target(
+    target: &DeclaredEntityTarget,
+    registry: &ModelRegistry,
+) -> Option<&'static TypeMetadata> {
     match target {
         DeclaredEntityTarget::RustType(provider) => Some(provider()),
         DeclaredEntityTarget::ModelId(id) => registry.metadata(id.as_str()),
@@ -1008,7 +1140,9 @@ fn forbidden_entity_nested_role(
     } else if let Some(array) = descriptor.as_array() {
         Some(array.element_type())
     } else {
-        descriptor.as_smart_pointer().map(|pointer| pointer.pointee_type())
+        descriptor
+            .as_smart_pointer()
+            .map(|pointer| pointer.pointee_type())
     };
     if let Some(nested) = nested.and_then(TypeRef::as_resolved) {
         return forbidden_entity_nested_role(nested, registry);
@@ -1018,7 +1152,8 @@ fn forbidden_entity_nested_role(
             .into_iter()
             .filter_map(TypeRef::as_resolved)
         {
-            if let Some(role) = forbidden_entity_nested_role(nested, registry)? {
+            if let Some(role) = forbidden_entity_nested_role(nested, registry)?
+            {
                 return Ok(Some(role));
             }
         }
@@ -1039,7 +1174,15 @@ fn validate_value_closure(
     source: &FragmentIdentity,
     errors: &mut Vec<ModelResolveError>,
 ) {
-    validate_nested_value(metadata, metadata, &[], registry, visited, source, errors);
+    validate_nested_value(
+        metadata,
+        metadata,
+        &[],
+        registry,
+        visited,
+        source,
+        errors,
+    );
 }
 
 /// Validates a value subtree while retaining the originating model and full
@@ -1066,7 +1209,15 @@ fn validate_nested_value(
         let mut path = prefix.to_vec();
         path.push(name);
         let before = errors.len();
-        let closed = value_type_ref_is_closed(field.type_ref(), registry, visited, root, source, errors, &path);
+        let closed = value_type_ref_is_closed(
+            field.type_ref(),
+            registry,
+            visited,
+            root,
+            source,
+            errors,
+            &path,
+        );
         if !closed && errors.len() == before {
             let actual_role = field
                 .descriptor()
@@ -1108,9 +1259,11 @@ fn value_type_ref_is_closed(
     errors: &mut Vec<ModelResolveError>,
     path: &[&'static str],
 ) -> bool {
-    type_ref
-        .as_resolved()
-        .is_some_and(|descriptor| value_descriptor_is_closed(descriptor, registry, visited, root, source, errors, path))
+    type_ref.as_resolved().is_some_and(|descriptor| {
+        value_descriptor_is_closed(
+            descriptor, registry, visited, root, source, errors, path,
+        )
+    })
 }
 
 /// Checks a descriptor without turning lookup failures into role violations.
@@ -1138,7 +1291,9 @@ fn value_descriptor_is_closed(
     };
     if let Some(metadata) = metadata {
         return match metadata.role() {
-            ModelRole::Value => validate_nested_value(metadata, root, path, registry, visited, source, errors),
+            ModelRole::Value => validate_nested_value(
+                metadata, root, path, registry, visited, source, errors,
+            ),
             ModelRole::Enum => {
                 let Some(enumeration) = metadata.as_enum() else {
                     return false;
@@ -1171,7 +1326,9 @@ fn value_descriptor_is_closed(
                 visited.remove(&metadata.type_id());
                 closed
             }
-            ModelRole::Entity | ModelRole::Projection | ModelRole::Model => false,
+            ModelRole::Entity | ModelRole::Projection | ModelRole::Model => {
+                false
+            }
         };
     }
     if descriptor.as_primitive().is_some() || descriptor.as_text().is_some() {
@@ -1186,20 +1343,42 @@ fn value_descriptor_is_closed(
     } else if let Some(array) = descriptor.as_array() {
         Some(array.element_type())
     } else {
-        descriptor.as_smart_pointer().map(|pointer| pointer.pointee_type())
+        descriptor
+            .as_smart_pointer()
+            .map(|pointer| pointer.pointee_type())
     };
     if let Some(nested) = nested {
-        return value_type_ref_is_closed(nested, registry, visited, root, source, errors, path);
+        return value_type_ref_is_closed(
+            nested, registry, visited, root, source, errors, path,
+        );
     }
     if let Some(map) = descriptor.as_map() {
-        let key = value_type_ref_is_closed(map.key_type(), registry, visited, root, source, errors, path);
-        let value = value_type_ref_is_closed(map.value_type(), registry, visited, root, source, errors, path);
+        let key = value_type_ref_is_closed(
+            map.key_type(),
+            registry,
+            visited,
+            root,
+            source,
+            errors,
+            path,
+        );
+        let value = value_type_ref_is_closed(
+            map.value_type(),
+            registry,
+            visited,
+            root,
+            source,
+            errors,
+            path,
+        );
         return key && value;
     }
     if let Some(tuple) = descriptor.as_tuple() {
         let mut closed = true;
         for element in tuple.elements() {
-            closed &= value_type_ref_is_closed(element, registry, visited, root, source, errors, path);
+            closed &= value_type_ref_is_closed(
+                element, registry, visited, root, source, errors, path,
+            );
         }
         return closed;
     }
@@ -1215,7 +1394,9 @@ fn resolve_property_path(
     let mut current = target;
     let mut result = None;
     for (index, segment) in path.segments().iter().enumerate() {
-        let Some(property) = registry.properties_for(current)?.property(segment) else {
+        let Some(property) =
+            registry.properties_for(current)?.property(segment)
+        else {
             return Ok(None);
         };
         result = Some(property);
@@ -1223,7 +1404,8 @@ fn resolve_property_path(
             let Some(descriptor) = property.descriptor() else {
                 return Ok(None);
             };
-            let Some(nested) = metadata_for_descriptor(descriptor, registry)? else {
+            let Some(nested) = metadata_for_descriptor(descriptor, registry)?
+            else {
                 return Ok(None);
             };
             current = nested;
@@ -1320,8 +1502,13 @@ impl ResolvedProjectionProducer {
     ///
     /// Returns a structured adapter, field-access, or identifier error.
     #[must_use = "handle projection execution failure"]
-    pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
-        let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
+    pub fn project<'a>(
+        &self,
+        source: ReflectedRef<'a>,
+    ) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
+        let projector = self
+            .projector
+            .ok_or(ProjectionExecutionError::MissingProjector)?;
         let source_identifier = self
             .source
             .as_entity()
@@ -1335,9 +1522,14 @@ impl ResolvedProjectionProducer {
             .copied()?;
         let result = projector.get(source)?;
         let projection_identifier = match &result {
-            PropertyValue::Borrowed(value) => self.projection_identifier(value.clone())?,
-            PropertyValue::Owned(value) => self.projection_identifier(value.as_reflected_ref())?,
-            PropertyValue::OptionalBorrowed(_) | PropertyValue::BorrowedSlice(_) => {
+            PropertyValue::Borrowed(value) => {
+                self.projection_identifier(value.clone())?
+            }
+            PropertyValue::Owned(value) => {
+                self.projection_identifier(value.as_reflected_ref())?
+            }
+            PropertyValue::OptionalBorrowed(_)
+            | PropertyValue::BorrowedSlice(_) => {
                 return Err(ProjectionExecutionError::InvalidProducer);
             }
         };
@@ -1353,7 +1545,10 @@ impl ResolvedProjectionProducer {
     ///
     /// Returns [`ProjectionExecutionError`] when the target is not a valid
     /// Projection or its identifier field cannot be read as `qubit_id::Id`.
-    fn projection_identifier(&self, target: ReflectedRef<'_>) -> Result<Id, ProjectionExecutionError> {
+    fn projection_identifier(
+        &self,
+        target: ReflectedRef<'_>,
+    ) -> Result<Id, ProjectionExecutionError> {
         self.projection
             .as_projection()
             .ok_or(ProjectionExecutionError::InvalidProducer)?
@@ -1421,7 +1616,10 @@ pub struct ResolvedModelGraph<'a> {
 impl<'a> ResolvedModelGraph<'a> {
     /// Returns locally merged properties accepted during graph resolution.
     #[must_use]
-    pub fn properties(&self, model: &TypeMetadata) -> Option<&'static LocalPropertySet> {
+    pub fn properties(
+        &self,
+        model: &TypeMetadata,
+    ) -> Option<&'static LocalPropertySet> {
         self.properties.get(&model.type_id()).copied()
     }
 
@@ -1440,27 +1638,41 @@ impl<'a> ResolvedModelGraph<'a> {
 
     /// Returns a resolved reference for `field`, or `None` when it has none.
     #[must_use]
-    pub fn reference(&self, field: &FieldMetadata) -> Option<&ResolvedReference> {
+    pub fn reference(
+        &self,
+        field: &FieldMetadata,
+    ) -> Option<&ResolvedReference> {
         self.references.get(&pointer_key(field))
     }
 
     /// Returns a resolved source for `projection`, or `None` when it is open.
     #[must_use]
-    pub fn projection_source(&self, projection: &ProjectionMetadata) -> Option<&ResolvedProjectionSource> {
+    pub fn projection_source(
+        &self,
+        projection: &ProjectionMetadata,
+    ) -> Option<&ResolvedProjectionSource> {
         self.projection_sources
             .get(&(projection as *const ProjectionMetadata as usize))
     }
 
     /// Returns a resolved codec occurrence, or `None` when not declared.
     #[must_use]
-    pub fn codec(&self, occurrence: &CodecMetadata) -> Option<&ResolvedCodec<'a>> {
-        self.codecs.get(&(occurrence as *const CodecMetadata as usize))
+    pub fn codec(
+        &self,
+        occurrence: &CodecMetadata,
+    ) -> Option<&ResolvedCodec<'a>> {
+        self.codecs
+            .get(&(occurrence as *const CodecMetadata as usize))
     }
 
     /// Returns query metadata for `entity`, or `None` when it is not resolved.
     #[must_use]
-    pub fn query(&self, entity: &crate::EntityMetadata) -> Option<&QueryMetadata> {
-        self.queries.get(&(entity as *const crate::EntityMetadata as usize))
+    pub fn query(
+        &self,
+        entity: &crate::EntityMetadata,
+    ) -> Option<&QueryMetadata> {
+        self.queries
+            .get(&(entity as *const crate::EntityMetadata as usize))
     }
 }
 
@@ -1525,13 +1737,17 @@ impl QueryMetadata {
     /// Finds a queryable field by its complete property path.
     #[must_use]
     pub fn filter(&self, path: &PropertyPath<'_>) -> Option<&QueryField> {
-        self.filters.iter().find(|field| field.path.as_path() == *path)
+        self.filters
+            .iter()
+            .find(|field| field.path.as_path() == *path)
     }
 
     /// Finds a queryable field by its flattened external name.
     #[must_use]
     pub fn filter_by_flat_name(&self, name: &str) -> Option<&QueryField> {
-        self.filters.iter().find(|field| field.flat_name.as_ref() == name)
+        self.filters
+            .iter()
+            .find(|field| field.flat_name.as_ref() == name)
     }
 }
 
@@ -1595,7 +1811,9 @@ impl UniqueQueryKey {
 
     /// Iterates over property paths in key-component order.
     #[must_use]
-    pub fn paths(&self) -> impl ExactSizeIterator<Item = PropertyPath<'_>> + '_ {
+    pub fn paths(
+        &self,
+    ) -> impl ExactSizeIterator<Item = PropertyPath<'_>> + '_ {
         self.paths.iter().map(OwnedPropertyPath::as_path)
     }
 
@@ -1692,7 +1910,8 @@ impl ModelResolveError {
     ) -> Self {
         Self {
             kind,
-            path: path.map(|path| OwnedPropertyPath::from_segments(path.segments())),
+            path: path
+                .map(|path| OwnedPropertyPath::from_segments(path.segments())),
             model_id,
             expected_role,
             actual_role,
@@ -1712,8 +1931,12 @@ impl ModelResolveError {
     ) -> Self {
         let cause = cause.into();
         let kind = match &cause {
-            ModelResolutionCause::Metadata(_) => ModelResolveErrorKind::MetadataResolution,
-            ModelResolutionCause::Properties(_) => ModelResolveErrorKind::PropertyResolution,
+            ModelResolutionCause::Metadata(_) => {
+                ModelResolveErrorKind::MetadataResolution
+            }
+            ModelResolutionCause::Properties(_) => {
+                ModelResolveErrorKind::PropertyResolution
+            }
         };
         let mut error = Self::new(
             kind,
@@ -1755,12 +1978,9 @@ impl ModelResolveError {
                 left.path
                     .as_ref()
                     .map(|path: &OwnedPropertyPath| path.as_path().to_string())
-                    .cmp(
-                        &right
-                            .path
-                            .as_ref()
-                            .map(|path: &OwnedPropertyPath| path.as_path().to_string()),
-                    )
+                    .cmp(&right.path.as_ref().map(
+                        |path: &OwnedPropertyPath| path.as_path().to_string(),
+                    ))
             })
             .then_with(|| left.sources.cmp(&right.sources))
     }
@@ -1808,7 +2028,10 @@ impl ModelResolveError {
 }
 
 impl core::fmt::Display for ModelResolveError {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(formatter, "model resolution failed: {:?}", self.kind)
     }
 }
@@ -1837,7 +2060,10 @@ impl ModelResolveErrors {
 }
 
 impl core::fmt::Display for ModelResolveErrors {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(formatter, "{} model resolution error(s)", self.errors.len())
     }
 }
@@ -1856,6 +2082,8 @@ fn declared_target_id(target: &DeclaredEntityTarget) -> Option<&'static str> {
 
 impl std::error::Error for ModelResolveError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.cause.as_ref().map(|cause| cause as &dyn std::error::Error)
+        self.cause
+            .as_ref()
+            .map(|cause| cause as &dyn std::error::Error)
     }
 }

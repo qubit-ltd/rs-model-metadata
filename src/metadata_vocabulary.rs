@@ -79,7 +79,10 @@ impl UniqueMetadata {
     /// Creates uniqueness metadata.
     #[must_use]
     #[inline(always)]
-    pub const fn new(respect_to: &'static [PropertyPath<'static>], ignore_case: bool) -> Self {
+    pub const fn new(
+        respect_to: &'static [PropertyPath<'static>],
+        ignore_case: bool,
+    ) -> Self {
         Self {
             respect_to,
             ignore_case,
@@ -181,7 +184,10 @@ impl DeclaredEntityTarget {
 }
 
 impl core::fmt::Debug for DeclaredEntityTarget {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         formatter
             .debug_tuple("DeclaredEntityTarget")
             .field(&self.kind())
@@ -272,8 +278,14 @@ impl DependencyBindingMetadata {
     #[must_use]
     #[inline(always)]
     pub const fn new(name: &'static str, path: PropertyPath<'static>) -> Self {
-        assert!(!name.is_empty(), "validator dependency name cannot be empty");
-        assert!(!path.is_empty(), "validator dependency path cannot be empty");
+        assert!(
+            !name.is_empty(),
+            "validator dependency name cannot be empty"
+        );
+        assert!(
+            !path.is_empty(),
+            "validator dependency path cannot be empty"
+        );
         Self { name, path }
     }
 
@@ -361,16 +373,27 @@ impl ValidatorMetadata {
     ) -> Self {
         assert!(!declared_id.is_empty(), "validator ID cannot be empty");
         assert!(
-            !(matches!(target, TargetMode::Container) && matches!(on_none, OnNone::Reject)),
+            !(matches!(target, TargetMode::Container)
+                && matches!(on_none, OnNone::Reject)),
             "container validators cannot reject missing expanded values",
         );
         let mut index = 0;
         while index < dependency_bindings.len() {
             let binding = dependency_bindings[index];
-            assert!(!binding.name().is_empty(), "validator dependency name cannot be empty");
-            assert!(!binding.path().is_empty(), "validator dependency path cannot be empty");
             assert!(
-                !contains_dependency_name(dependency_bindings, index, binding.name()),
+                !binding.name().is_empty(),
+                "validator dependency name cannot be empty"
+            );
+            assert!(
+                !binding.path().is_empty(),
+                "validator dependency path cannot be empty"
+            );
+            assert!(
+                !contains_dependency_name(
+                    dependency_bindings,
+                    index,
+                    binding.name()
+                ),
                 "validator dependency names must be unique",
             );
             index += 1;
@@ -409,7 +432,9 @@ impl ValidatorMetadata {
     /// Returns named dependency bindings in declaration order.
     #[must_use]
     #[inline(always)]
-    pub const fn dependency_bindings(&self) -> &'static [DependencyBindingMetadata] {
+    pub const fn dependency_bindings(
+        &self,
+    ) -> &'static [DependencyBindingMetadata] {
         self.dependency_bindings
     }
 
@@ -428,7 +453,11 @@ impl ValidatorMetadata {
     }
 }
 
-const fn contains_dependency_name(bindings: &[DependencyBindingMetadata], end: usize, name: &str) -> bool {
+const fn contains_dependency_name(
+    bindings: &[DependencyBindingMetadata],
+    end: usize,
+    name: &str,
+) -> bool {
     let mut index = 0;
     while index < end {
         if same_str(bindings[index].name(), name) {
@@ -488,7 +517,10 @@ impl CodecMetadata {
     /// Creates codec metadata.
     #[must_use]
     #[inline(always)]
-    pub const fn new(codec: &'static CodecReference, source: CodecSource) -> Self {
+    pub const fn new(
+        codec: &'static CodecReference,
+        source: CodecSource,
+    ) -> Self {
         Self { codec, source }
     }
 
@@ -563,7 +595,11 @@ impl RedactMetadata {
     /// Creates redact declaration metadata.
     #[must_use]
     #[inline(always)]
-    pub const fn new(sensitivity: Option<Sensitivity>, mode: RedactModeMetadata, position: RedactPosition) -> Self {
+    pub const fn new(
+        sensitivity: Option<Sensitivity>,
+        mode: RedactModeMetadata,
+        position: RedactPosition,
+    ) -> Self {
         Self {
             sensitivity,
             mode,
@@ -631,7 +667,8 @@ pub struct SerdeFieldMetadata {
 
 impl SerdeFieldMetadata {
     /// Empty Serde behavior used when no configuration applies.
-    pub const DEFAULT: Self = Self::new(None, None, false, false, false, None, false);
+    pub const DEFAULT: Self =
+        Self::new(None, None, false, false, false, None, false);
 
     /// Creates final Serde field behavior.
     #[must_use]
@@ -664,7 +701,11 @@ impl SerdeFieldMetadata {
     /// Records whether missing-value defaults and empty-value omission were
     /// explicit, generated, or suppressed.
     #[must_use]
-    pub const fn with_sources(mut self, default_source: SerdeBehaviorSource, omit_source: SerdeBehaviorSource) -> Self {
+    pub const fn with_sources(
+        mut self,
+        default_source: SerdeBehaviorSource,
+        omit_source: SerdeBehaviorSource,
+    ) -> Self {
         self.default_source = default_source;
         self.omit_source = omit_source;
         self

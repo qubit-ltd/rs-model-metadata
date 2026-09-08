@@ -40,7 +40,10 @@ impl<'reflection> ModelEntry<'reflection> {
     }
 
     /// Creates an entry only when concrete metadata declares a model ID.
-    pub(super) fn concrete(metadata: &'static TypeMetadata, source: &'reflection FragmentIdentity) -> Option<Self> {
+    pub(super) fn concrete(
+        metadata: &'static TypeMetadata,
+        source: &'reflection FragmentIdentity,
+    ) -> Option<Self> {
         Some(Self {
             model_id: metadata.model_id()?,
             target: ModelEntryTarget::Concrete(metadata),
@@ -71,7 +74,9 @@ impl<'reflection> ModelEntry<'reflection> {
 
     /// Returns generic metadata, or `None` for a concrete entry.
     #[must_use]
-    pub const fn generic_metadata(self) -> Option<&'static GenericModelMetadata> {
+    pub const fn generic_metadata(
+        self,
+    ) -> Option<&'static GenericModelMetadata> {
         match self.target {
             ModelEntryTarget::Concrete(_) => None,
             ModelEntryTarget::Generic(metadata) => Some(metadata),

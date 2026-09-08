@@ -31,10 +31,17 @@ use crate::PropertyResolutionError;
 struct Broken<const N: usize>;
 
 fn overlay() -> &'static ModelImplMetadata {
-    static OVERLAY: std::sync::OnceLock<ModelImplMetadata> = std::sync::OnceLock::new();
+    static OVERLAY: std::sync::OnceLock<ModelImplMetadata> =
+        std::sync::OnceLock::new();
     OVERLAY.get_or_init(|| {
-        let error = PropertyBuildError::new(PropertyBuildErrorKind::GetterTypeMismatch, "value");
-        ModelImplMetadata::new(&[], Err(v4::leak(PropertyBuildErrors::new(vec![error]))))
+        let error = PropertyBuildError::new(
+            PropertyBuildErrorKind::GetterTypeMismatch,
+            "value",
+        );
+        ModelImplMetadata::new(
+            &[],
+            Err(v4::leak(PropertyBuildErrors::new(vec![error]))),
+        )
     })
 }
 
@@ -43,7 +50,10 @@ fn overlay() -> &'static ModelImplMetadata {
     reason = "derive capability providers receive the concrete type parameter"
 )]
 fn broken_overlay<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(crate::model_impl_key(), overlay as fn() -> &'static ModelImplMetadata)
+    CapabilityDescriptor::with_adapter(
+        crate::model_impl_key(),
+        overlay as fn() -> &'static ModelImplMetadata,
+    )
 }
 
 #[test]
@@ -51,19 +61,36 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
     let reflection = RegistrySnapshotBuilder::new().build().unwrap();
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
     let metadata = v4::leak(
-        v4::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Broken<1>>(), None, &[], v4::leak(v4::model_role()))
-            .finish::<Broken<1>>(),
+        v4::GeneratedTypeMetadataBuilder::new(
+            TypeDescriptor::of::<Broken<1>>(),
+            None,
+            &[],
+            v4::leak(v4::model_role()),
+        )
+        .finish::<Broken<1>>(),
     );
-    let error = resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &models).unwrap_err();
-    let ModelResolutionCause::Properties(PropertyResolutionError::Assembly(errors)) = error else {
+    let error = resolve_property_path(
+        metadata,
+        &PropertyPath::new(&["absent"]),
+        &models,
+    )
+    .unwrap_err();
+    let ModelResolutionCause::Properties(PropertyResolutionError::Assembly(
+        errors,
+    )) = error
+    else {
         panic!("expected original property assembly failure");
     };
-    assert!(std::ptr::eq(errors, overlay().try_properties().unwrap_err()));
+    assert!(std::ptr::eq(
+        errors,
+        overlay().try_properties().unwrap_err()
+    ));
     assert_eq!(errors.errors()[0].property_name(), "value");
 }
 
 fn registered_metadata() -> &'static crate::TypeMetadata {
-    static METADATA: std::sync::OnceLock<crate::TypeMetadata> = std::sync::OnceLock::new();
+    static METADATA: std::sync::OnceLock<crate::TypeMetadata> =
+        std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
         v4::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<Broken<2>>(),
@@ -90,12 +117,17 @@ fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
     let [error] = errors.errors() else {
         panic!("one assembly diagnostic")
     };
-    assert_eq!(error.kind(), super::ModelResolveErrorKind::InvalidProperties);
+    assert_eq!(
+        error.kind(),
+        super::ModelResolveErrorKind::InvalidProperties
+    );
     assert_eq!(error.model_id(), Some("error.Assembly"));
     assert_eq!(error.path().unwrap().to_string(), "value");
     assert!(std::error::Error::source(error).is_some());
     assert!(matches!(
         error.cause(),
-        Some(ModelResolutionCause::Properties(PropertyResolutionError::Assembly(_)))
+        Some(ModelResolutionCause::Properties(
+            PropertyResolutionError::Assembly(_)
+        ))
     ));
 }

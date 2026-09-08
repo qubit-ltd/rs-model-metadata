@@ -36,7 +36,8 @@ pub type GenericModelMetadataProvider = fn() -> &'static GenericModelMetadata;
 #[doc(hidden)]
 #[must_use]
 pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider> {
-    let id = CapabilityId::new("qubit.model.metadata.v1").expect("the model metadata capability ID must be valid");
+    let id = CapabilityId::new("qubit.model.metadata.v1")
+        .expect("the model metadata capability ID must be valid");
     CapabilityKey::new(id)
 }
 
@@ -44,14 +45,16 @@ pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider> {
 #[doc(hidden)]
 #[must_use]
 pub fn model_impl_key() -> CapabilityKey<ModelImplProvider> {
-    let id = CapabilityId::new("qubit.model.impl.v1").expect("the model implementation capability ID must be valid");
+    let id = CapabilityId::new("qubit.model.impl.v1")
+        .expect("the model implementation capability ID must be valid");
     CapabilityKey::new(id)
 }
 
 /// Returns the stable key used to retrieve generic model metadata.
 #[doc(hidden)]
 #[must_use]
-pub fn generic_model_metadata_key() -> CapabilityKey<GenericModelMetadataProvider> {
+pub fn generic_model_metadata_key()
+-> CapabilityKey<GenericModelMetadataProvider> {
     let id = CapabilityId::new("qubit.model.generic_metadata.v1")
         .expect("the generic model metadata capability ID must be valid");
     CapabilityKey::new(id)
@@ -60,7 +63,9 @@ pub fn generic_model_metadata_key() -> CapabilityKey<GenericModelMetadataProvide
 /// Builds a capability for one generic model declaration.
 #[doc(hidden)]
 #[must_use]
-pub fn generic_model_capability(provider: GenericModelMetadataProvider) -> CapabilityDescriptor {
+pub fn generic_model_capability(
+    provider: GenericModelMetadataProvider,
+) -> CapabilityDescriptor {
     CapabilityDescriptor::with_adapter(generic_model_metadata_key(), provider)
 }
 
@@ -70,11 +75,15 @@ pub fn generic_model_capability(provider: GenericModelMetadataProvider) -> Capab
 pub fn model_capability<T: crate::HasTypeMetadata>() -> CapabilityDescriptor {
     /// Returns the metadata supplied by `T` after descriptor validation.
     fn provide<T: crate::HasTypeMetadata>() -> &'static TypeMetadata {
-        let metadata = <T as crate::__private::TypeMetadataProvider>::__type_metadata();
+        let metadata =
+            <T as crate::__private::TypeMetadataProvider>::__type_metadata();
         metadata.assert_valid_for::<T>();
         metadata
     }
-    CapabilityDescriptor::with_adapter(model_metadata_key(), provide::<T> as ModelMetadataProvider)
+    CapabilityDescriptor::with_adapter(
+        model_metadata_key(),
+        provide::<T> as ModelMetadataProvider,
+    )
 }
 
 /// Returns the generated model-implementation overlay attached to an exact

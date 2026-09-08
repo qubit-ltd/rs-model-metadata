@@ -57,7 +57,13 @@ fn test_metadata_and_properties_preserve_intrinsic_conflicts() {
     let descriptor = TypeDescriptor::of::<Invalid<1>>();
     assert!(models.metadata_for(descriptor).is_err());
     let metadata = v4::leak(
-        v4::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], v4::leak(v4::model_role())).finish::<Invalid<1>>(),
+        v4::GeneratedTypeMetadataBuilder::new(
+            descriptor,
+            None,
+            &[],
+            v4::leak(v4::model_role()),
+        )
+        .finish::<Invalid<1>>(),
     );
     assert!(metadata.try_properties_in(&reflection).is_err());
     assert!(metadata.property_fragments_in(&reflection).is_err());
@@ -74,10 +80,17 @@ struct Root {
 }
 
 fn root_metadata() -> &'static TypeMetadata {
-    static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
+    static METADATA: std::sync::OnceLock<TypeMetadata> =
+        std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
-        let fields = v4::leak_slice(descriptor.fields().iter().map(FieldMetadata::from_reflect).collect());
+        let fields = v4::leak_slice(
+            descriptor
+                .fields()
+                .iter()
+                .map(FieldMetadata::from_reflect)
+                .collect(),
+        );
         v4::GeneratedTypeMetadataBuilder::new(
             descriptor,
             Some(ModelId::new("error.Root")),
@@ -95,7 +108,10 @@ v4::register_model_capability!(Root, root_metadata);
     reason = "derive capability providers receive the concrete type parameter"
 )]
 fn wrong_provider<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(model_metadata_key(), root_metadata as fn() -> &'static TypeMetadata)
+    CapabilityDescriptor::with_adapter(
+        model_metadata_key(),
+        root_metadata as fn() -> &'static TypeMetadata,
+    )
 }
 
 #[derive(Reflect)]
@@ -106,10 +122,17 @@ struct Wrong<const N: usize>;
 fn test_metadata_abi_failure_is_distinct_from_absence() {
     let reflection = RegistrySnapshotBuilder::new().build().unwrap();
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
-    let error = models.metadata_for(TypeDescriptor::of::<Wrong<1>>()).unwrap_err();
+    let error = models
+        .metadata_for(TypeDescriptor::of::<Wrong<1>>())
+        .unwrap_err();
     assert!(matches!(error, ModelMetadataError::Abi { .. }));
     assert!(std::error::Error::source(&error).is_some());
-    assert!(models.metadata_for(TypeDescriptor::of::<u8>()).unwrap().is_none());
+    assert!(
+        models
+            .metadata_for(TypeDescriptor::of::<u8>())
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]
@@ -132,7 +155,9 @@ fn test_resolver_aggregates_real_causes_without_false_role_errors() {
             assert!(!error.sources().is_empty());
             assert!(matches!(
                 error.cause(),
-                Some(ModelResolutionCause::Metadata(ModelMetadataError::Capability { .. }))
+                Some(ModelResolutionCause::Metadata(
+                    ModelMetadataError::Capability { .. }
+                ))
             ));
             error.path().unwrap().to_string()
         })

@@ -58,7 +58,8 @@ impl Source {
 
 #[test]
 fn test_resolver_discovers_and_executes_projection_producers() {
-    let registry = ModelRegistry::try_global().expect("valid registration index");
+    let registry =
+        ModelRegistry::try_global().expect("valid registration index");
     let graph = ModelResolver::new(ResolveInputs {
         models: registry,
         codecs: ValueCodecRegistry::global(),
@@ -81,7 +82,10 @@ fn test_resolver_discovers_and_executes_projection_producers() {
                 .is_some_and(|id| id.as_str() == "projection.Good")
         })
         .expect("good producer");
-    let PropertyValue::Owned(value) = good.project(ReflectedRef::new(&source)).expect("matching identifier") else {
+    let PropertyValue::Owned(value) = good
+        .project(ReflectedRef::new(&source))
+        .expect("matching identifier")
+    else {
         panic!("owned getter must produce an owned projection");
     };
     assert_eq!(

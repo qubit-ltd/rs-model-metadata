@@ -33,7 +33,9 @@ fn test_type_metadata_delegates_structure_to_reflection() {
             .into_boxed_slice(),
     );
     let role = v4::leak(v4::model_role());
-    let metadata = v4::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role).finish::<NamedFixture>();
+    let metadata =
+        v4::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role)
+            .finish::<NamedFixture>();
 
     assert!(std::ptr::eq(metadata.descriptor(), descriptor));
     assert_eq!(metadata.role(), ModelRole::Model);
@@ -53,7 +55,8 @@ fn test_type_metadata_delegates_structure_to_reflection() {
 #[test]
 fn test_reflect_only_types_do_not_acquire_model_metadata() {
     let descriptor = TypeDescriptor::of::<String>();
-    let registry = ModelRegistry::try_global().expect("model registry must initialize");
+    let registry =
+        ModelRegistry::try_global().expect("model registry must initialize");
     assert!(
         registry
             .metadata_for(descriptor)

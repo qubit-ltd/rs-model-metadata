@@ -31,8 +31,9 @@ register_reflected_type!(DuplicateReflectionSource);
 
 #[test]
 fn test_duplicate_concrete_source_is_reported_by_reflection_registry() {
-    let error =
-        ModelRegistry::try_global().expect_err("duplicate reflection roots must invalidate model initialization");
+    let error = ModelRegistry::try_global().expect_err(
+        "duplicate reflection roots must invalidate model initialization",
+    );
 
     assert_eq!(error.kind(), ModelRegistryErrorKind::ReflectionRegistry);
     assert_eq!(error.sources().len(), 2);
@@ -58,7 +59,10 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
         .finish::<DuplicateReflectionSource>(),
     );
     assert!(
-        matches!(metadata.try_properties(), Err(PropertyResolutionError::Reflection(_))),
+        matches!(
+            metadata.try_properties(),
+            Err(PropertyResolutionError::Reflection(_))
+        ),
         "registry failure must not become an empty property set"
     );
     assert!(metadata.property_fragments().is_err());
@@ -78,7 +82,8 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
             .expect("valid isolated capabilities")
             .is_empty()
     );
-    let models = ModelRegistry::from_metadata(&[], &[]).expect("isolated model registry");
+    let models = ModelRegistry::from_metadata(&[], &[])
+        .expect("isolated model registry");
     assert!(
         models
             .properties_for(metadata)
@@ -92,11 +97,17 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
 /// properties.
 fn overlay_provider() -> &'static ModelImplMetadata {
     use qubit_model_metadata::__private::v4;
-    static OVERLAY: std::sync::OnceLock<ModelImplMetadata> = std::sync::OnceLock::new();
+    static OVERLAY: std::sync::OnceLock<ModelImplMetadata> =
+        std::sync::OnceLock::new();
     OVERLAY.get_or_init(|| {
         let type_ref = v4::leak(TypeRef::Resolved(TypeDescriptor::of::<u32>()));
-        let properties = v4::leak_slice(vec![v4::property_metadata("computed", type_ref, None, None, None)]);
-        v4::model_impl_metadata(&[], Ok(v4::leak(v4::local_property_set(properties))))
+        let properties = v4::leak_slice(vec![v4::property_metadata(
+            "computed", type_ref, None, None, None,
+        )]);
+        v4::model_impl_metadata(
+            &[],
+            Ok(v4::leak(v4::local_property_set(properties))),
+        )
     })
 }
 
@@ -126,7 +137,8 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
         )
         .finish::<DuplicateReflectionSource>(),
     );
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("isolated model projection");
+    let models = ModelRegistry::from_reflect_registry(&reflection)
+        .expect("isolated model projection");
     assert!(
         models
             .properties_for(metadata)
@@ -134,14 +146,19 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
             .property("computed")
             .is_some()
     );
-    let empty = RegistrySnapshotBuilder::new().build().expect("empty snapshot");
+    let empty = RegistrySnapshotBuilder::new()
+        .build()
+        .expect("empty snapshot");
     assert!(
         metadata
             .try_property_in(&empty, "computed")
             .expect("no overlay")
             .is_none()
     );
-    assert!(metadata.try_properties().is_err(), "global conflict remains visible");
+    assert!(
+        metadata.try_properties().is_err(),
+        "global conflict remains visible"
+    );
     assert!(
         metadata
             .try_property_in(&reflection, "computed")
