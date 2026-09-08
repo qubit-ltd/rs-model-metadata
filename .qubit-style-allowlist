@@ -1,7 +1,11 @@
 multiple-public-types | src/__private.rs | Generated code consumes this cohesive hidden ABI as one versioned surface
 multiple-public-types | src/field_semantics.rs | Field semantic occurrences share one ordered metadata vocabulary
-multiple-public-types | src/metadata_registry/model_registry_error.rs | Registry error kind and payload form one diagnostic contract
-multiple-public-types | src/metadata_resolver/runtime.rs | Resolver inputs, outputs, queries, and diagnostics form one immutable graph contract
+multiple-public-types | src/codec/binder.rs | Codec binding inputs, stable occurrence identities, and immutable results form one adapter contract
+multiple-public-types | src/codec/error.rs | Codec binding error kind, payload, and collection form one diagnostic contract
+multiple-public-types | src/registry/error.rs | Registry error kind and payload form one diagnostic contract
+multiple-public-types | src/resolve/error.rs | Resolver causes, error kinds, payloads, and collection form one diagnostic contract
+multiple-public-types | src/resolve/graph.rs | Resolved structural edges and their immutable graph queries form one graph contract
+multiple-public-types | src/resolve/resolver.rs | Structure resolver inputs and executor form one construction contract
 multiple-public-types | src/metadata_vocabulary.rs | Declaration attributes share one ordered metadata vocabulary
 multiple-public-types | src/validation/build_errors.rs | Validation binding errors and their collection form one diagnostic contract
 multiple-public-types | src/property.rs | Property values, adapters, metadata, and failures form one safe access contract
