@@ -55,13 +55,17 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
             meta.parse_nested_meta(|path| {
                 if path.input.peek(Token![=]) {
                     if saw_bare_dependency {
-                        return Err(path.error("validator dependencies cannot mix named and bare forms"));
+                        return Err(
+                            path.error("validator dependencies cannot mix named and bare forms")
+                        );
                     }
                     saw_named_dependency = true;
                     let name = path
                         .path
                         .get_ident()
-                        .ok_or_else(|| path.error("named validator dependency must be an identifier"))?
+                        .ok_or_else(|| {
+                            path.error("named validator dependency must be an identifier")
+                        })?
                         .to_string();
                     if !dependency_names.insert(name.clone()) {
                         return Err(path.error("duplicate validator dependency slot"));
@@ -75,7 +79,9 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
                     dependency_bindings.push((name, dependency));
                 } else {
                     if saw_named_dependency {
-                        return Err(path.error("validator dependencies cannot mix named and bare forms"));
+                        return Err(
+                            path.error("validator dependencies cannot mix named and bare forms")
+                        );
                     }
                     saw_bare_dependency = true;
                     let dependency = path_from_syn(&path.path);
@@ -95,7 +101,9 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
                 let name = parameter
                     .path
                     .get_ident()
-                    .ok_or_else(|| parameter.error("validator parameter name must be an identifier"))?
+                    .ok_or_else(|| {
+                        parameter.error("validator parameter name must be an identifier")
+                    })?
                     .to_string();
                 if !parameter_names.insert(name.clone()) {
                     return Err(parameter.error(format!("duplicate validator `{name}` parameter")));
@@ -132,13 +140,10 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
             Err(meta.error("unsupported validator option"))
         }
     })?;
-    let id = id.ok_or_else(|| {
-        Error::new_spanned(attribute, "validator requires `id = \"...\"`")
-    })?;
+    let id =
+        id.ok_or_else(|| Error::new_spanned(attribute, "validator requires `id = \"...\"`"))?;
     validate_ascii_id(&id, "validator ID")?;
-    if matches!(target, TargetModeIr::Container)
-        && matches!(on_none, OnNoneIr::Reject)
-    {
+    if matches!(target, TargetModeIr::Container) && matches!(on_none, OnNoneIr::Reject) {
         return Err(Error::new_spanned(
             attribute,
             "validator `on_none = \"reject\"` requires target = \"value\"",
@@ -189,9 +194,7 @@ fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
             };
             Ok(StrategyArgumentIr::Integer(-value.base10_parse::<i128>()?))
         }
-        Expr::Array(array) => {
-            parse_strategy_array(array.elems.into_iter().collect())
-        }
+        Expr::Array(array) => parse_strategy_array(array.elems.into_iter().collect()),
         other => Err(Error::new_spanned(
             other,
             "validator params support bool, integer, string, and homogeneous arrays",
@@ -298,26 +301,18 @@ fn parse_strategy_signed_integer(value: &Expr) -> Result<i128> {
             lit: Lit::Int(value),
             ..
         }) => value.base10_parse::<i128>().map_err(|error| {
-            Error::new_spanned(
-                value,
-                format!("invalid signed validator integer: {error}"),
-            )
+            Error::new_spanned(value, format!("invalid signed validator integer: {error}"))
         }),
-        Expr::Unary(unary) if matches!(unary.op, UnOp::Neg(_)) => match unary
-            .expr
-            .as_ref()
-        {
+        Expr::Unary(unary) if matches!(unary.op, UnOp::Neg(_)) => match unary.expr.as_ref() {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(value),
                 ..
-            }) => value.base10_parse::<i128>().map(|value| -value).map_err(
-                |error| {
-                    Error::new_spanned(
-                        value,
-                        format!("invalid signed validator integer: {error}"),
-                    )
-                },
-            ),
+            }) => value
+                .base10_parse::<i128>()
+                .map(|value| -value)
+                .map_err(|error| {
+                    Error::new_spanned(value, format!("invalid signed validator integer: {error}"))
+                }),
             other => Err(Error::new_spanned(
                 other,
                 "negative validator parameters require an integer literal",
@@ -357,8 +352,7 @@ mod tests {
                 depends_on(owner::id, tenant)
             )]
         );
-        let validator =
-            parse_validator(&attribute).expect("supported validator");
+        let validator = parse_validator(&attribute).expect("supported validator");
 
         assert_eq!(validator.id.value(), "example.rule");
         assert_eq!(validator.params.len(), 8);

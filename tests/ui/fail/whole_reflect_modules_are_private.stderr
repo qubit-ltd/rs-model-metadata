@@ -1,17 +1,17 @@
 error[E0432]: unresolved import `qubit_model_metadata::capability`
- --> tests/ui/fail/whole_reflect_modules_are_private.rs:2:27
-  |
-2 | use qubit_model_metadata::capability::clone_key;
-  |                           ^^^^^^^^^^ could not find `capability` in `qubit_model_metadata`
+  --> tests/ui/fail/whole_reflect_modules_are_private.rs:10:27
+   |
+10 | use qubit_model_metadata::capability::clone_key;
+   |                           ^^^^^^^^^^ could not find `capability` in `qubit_model_metadata`
 
 error[E0432]: unresolved import `qubit_model_metadata::registry::ReflectRegistry`
- --> tests/ui/fail/whole_reflect_modules_are_private.rs:3:5
-  |
-3 | use qubit_model_metadata::registry::ReflectRegistry;
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `ReflectRegistry` in `registry`
-  |
+  --> tests/ui/fail/whole_reflect_modules_are_private.rs:11:5
+   |
+11 | use qubit_model_metadata::registry::ReflectRegistry;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `ReflectRegistry` in `registry`
+   |
 help: consider importing this struct instead
-  |
-3 - use qubit_model_metadata::registry::ReflectRegistry;
-3 + use qubit_reflect::ReflectRegistry;
-  |
+   |
+11 - use qubit_model_metadata::registry::ReflectRegistry;
+11 + use qubit_reflect::ReflectRegistry;
+   |

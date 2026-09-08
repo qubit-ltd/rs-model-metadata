@@ -58,13 +58,10 @@ impl CodegenBoundaryProperties {
 
 #[test]
 fn test_generic_model_registration_preserves_definition_identity_and_source() {
-    let registry = ModelRegistry::try_global()
-        .expect("generated registrations must be valid");
+    let registry = ModelRegistry::try_global().expect("generated registrations must be valid");
     let generic = registry
         .generic("test.derive.CodegenBoundaryGeneric")
-        .expect(
-            "generic definition must register without a concrete monomorph",
-        );
+        .expect("generic definition must register without a concrete monomorph");
 
     assert_eq!(
         generic.model_id().as_str(),
@@ -87,21 +84,17 @@ fn test_generic_model_registration_preserves_definition_identity_and_source() {
         .source("test.derive.CodegenBoundaryGeneric")
         .expect("generic definition must retain its declaration source");
     assert_eq!(source.declaring_crate(), "qubit-model-derive");
-    assert!(
-        source
-            .module_path()
-            .starts_with("model_codegen_boundary_tests::__qubit_reflect_type_definition_registration_")
-    );
+    assert!(source.module_path().starts_with(
+        "model_codegen_boundary_tests::__qubit_reflect_type_definition_registration_"
+    ));
     assert!(!source.module_path().contains("reflect_codegen"));
     assert_eq!(source.member_kind(), "type-definition");
     assert!(
-        (GENERIC_DECLARATION_START_LINE..=GENERIC_DECLARATION_END_LINE)
-            .contains(&source.line())
+        (GENERIC_DECLARATION_START_LINE..=GENERIC_DECLARATION_END_LINE).contains(&source.line())
     );
     assert!(source.column() > 0);
 
-    let reflection = ReflectRegistry::initialize()
-        .expect("reflection registrations must be valid");
+    let reflection = ReflectRegistry::initialize().expect("reflection registrations must be valid");
     assert_eq!(
         reflection.definition_source(generic.definition().id()),
         Some(source)
@@ -172,10 +165,7 @@ fn test_model_owned_expanders_use_only_the_model_codegen_facade() {
 
     let runtime_facade = include_str!("../../src/__private.rs");
     assert!(
-        runtime_facade.contains(concat!(
-            "pub use qubit_reflect",
-            "::__private::codegen_v3;",
-        )),
+        runtime_facade.contains(concat!("pub use qubit_reflect", "::__private::codegen_v3;",)),
         "the reflection derive facade must retain its codegen_v3 entry",
     );
 }

@@ -82,8 +82,7 @@ impl<'a> StructureResolver<'a> {
         let mut projection_producers = Vec::new();
         let mut errors = Vec::new();
 
-        for (metadata, fragment_source) in self.inputs.models.concrete_entries()
-        {
+        for (metadata, fragment_source) in self.inputs.models.concrete_entries() {
             match self.inputs.models.properties_for(metadata) {
                 Ok(local) => {
                     properties.insert(metadata.type_id(), local);
@@ -101,10 +100,7 @@ impl<'a> StructureResolver<'a> {
                                 Some(metadata.role()),
                                 Some(fragment_source),
                             )
-                            .with_cause(
-                                PropertyResolutionError::Assembly(build_errors)
-                                    .into(),
-                            ),
+                            .with_cause(PropertyResolutionError::Assembly(build_errors).into()),
                         );
                     }
                 }
@@ -127,33 +123,29 @@ impl<'a> StructureResolver<'a> {
                     .map(|segments| PropertyPath::new(segments));
                 if field.is_opaque() {
                     let hidden = match field.type_ref().as_resolved() {
-                        Some(descriptor) => match metadata_for_descriptor(
-                            descriptor,
-                            self.inputs.models,
-                        ) {
-                            Ok(metadata) => metadata,
-                            Err(error) => {
-                                errors.push(ResolveError::resolution(
-                                    metadata,
-                                    field_path,
-                                    fragment_source,
-                                    error,
-                                ));
-                                None
+                        Some(descriptor) => {
+                            match metadata_for_descriptor(descriptor, self.inputs.models) {
+                                Ok(metadata) => metadata,
+                                Err(error) => {
+                                    errors.push(ResolveError::resolution(
+                                        metadata,
+                                        field_path,
+                                        fragment_source,
+                                        error,
+                                    ));
+                                    None
+                                }
                             }
-                        },
-                        None => {
-                            field.type_ref().as_opaque().and_then(|opaque| {
-                                self.inputs.models.by_type_id(opaque.type_id())
-                            })
                         }
+                        None => field
+                            .type_ref()
+                            .as_opaque()
+                            .and_then(|opaque| self.inputs.models.by_type_id(opaque.type_id())),
                     };
                     if let Some(hidden) = hidden.filter(|hidden| {
                         matches!(
                             hidden.role(),
-                            ModelRole::Entity
-                                | ModelRole::Projection
-                                | ModelRole::Model
+                            ModelRole::Entity | ModelRole::Projection | ModelRole::Model
                         )
                     }) {
                         push_field_error(
@@ -169,10 +161,7 @@ impl<'a> StructureResolver<'a> {
                     && field.reference().is_none()
                     && let Some(descriptor) = field.descriptor()
                 {
-                    match forbidden_entity_nested_role(
-                        descriptor,
-                        self.inputs.models,
-                    ) {
+                    match forbidden_entity_nested_role(descriptor, self.inputs.models) {
                         Ok(Some(role)) => push_field_error(
                             &mut errors,
                             ResolveErrorKind::InvalidEntityNesting,
@@ -193,11 +182,7 @@ impl<'a> StructureResolver<'a> {
                 if let Some(reference) = field.reference() {
                     let mut local_reference_valid = true;
                     if let Some(path) = reference.same_as() {
-                        match resolve_property_path(
-                            metadata,
-                            path,
-                            self.inputs.models,
-                        ) {
+                        match resolve_property_path(metadata, path, self.inputs.models) {
                             Ok(Some(property)) if property.is_readable() => {}
                             Ok(Some(_)) => {
                                 errors.push(ResolveError::new(
@@ -238,14 +223,8 @@ impl<'a> StructureResolver<'a> {
                             let property = match reference.selection() {
                                 ReferenceSelection::Entity => None,
                                 ReferenceSelection::Property(path) => {
-                                    match resolve_property_path(
-                                        target,
-                                        path,
-                                        self.inputs.models,
-                                    ) {
-                                        Ok(Some(property))
-                                            if property.is_readable() =>
-                                        {
+                                    match resolve_property_path(target, path, self.inputs.models) {
+                                        Ok(Some(property)) if property.is_readable() => {
                                             Some(property)
                                         }
                                         Ok(Some(_)) => {
@@ -272,14 +251,12 @@ impl<'a> StructureResolver<'a> {
                                         }
 
                                         Err(error) => {
-                                            errors.push(
-                                                ResolveError::resolution(
-                                                    metadata,
-                                                    Some(*path),
-                                                    fragment_source,
-                                                    error,
-                                                ),
-                                            );
+                                            errors.push(ResolveError::resolution(
+                                                metadata,
+                                                Some(*path),
+                                                fragment_source,
+                                                error,
+                                            ));
                                             continue;
                                         }
                                     }
@@ -289,26 +266,19 @@ impl<'a> StructureResolver<'a> {
                                 Some(property) => property.descriptor(),
                                 None => Some(target.descriptor()),
                             };
-                            if let (Some(expected), Some(actual)) =
-                                (expected, field.descriptor())
+                            if let (Some(expected), Some(actual)) = (expected, field.descriptor())
                                 && expected.type_id() != actual.type_id()
                             {
                                 errors.push(
                                     ResolveError::new(
                                         ResolveErrorKind::TypeMismatch,
                                         target.model_id().map(|id| id.as_str()),
-                                        reference
-                                            .selection()
-                                            .property_path()
-                                            .copied(),
+                                        reference.selection().property_path().copied(),
                                         Some(ModelRole::Entity),
                                         Some(target.role()),
                                         Some(fragment_source),
                                     )
-                                    .with_types(
-                                        expected.type_id(),
-                                        actual.type_id(),
-                                    ),
+                                    .with_types(expected.type_id(), actual.type_id()),
                                 );
                                 continue;
                             }
@@ -349,9 +319,9 @@ impl<'a> StructureResolver<'a> {
                 match self.resolve_target(source) {
                     Some(target) if target.role() == ModelRole::Entity => {
                         if let (Some(expected), Some(actual)) = (
-                            target.as_entity().and_then(|entity| {
-                                entity.identifier().descriptor()
-                            }),
+                            target
+                                .as_entity()
+                                .and_then(|entity| entity.identifier().descriptor()),
                             projection.identifier().descriptor(),
                         ) && expected.type_id() != actual.type_id()
                         {
@@ -364,10 +334,7 @@ impl<'a> StructureResolver<'a> {
                                     Some(target.role()),
                                     Some(fragment_source),
                                 )
-                                .with_types(
-                                    expected.type_id(),
-                                    actual.type_id(),
-                                ),
+                                .with_types(expected.type_id(), actual.type_id()),
                             );
                             continue;
                         }
@@ -407,12 +374,8 @@ impl<'a> StructureResolver<'a> {
             }
 
             if let Some(entity) = metadata.as_entity()
-                && let Some(query) = build_query(
-                    metadata,
-                    self.inputs.models,
-                    fragment_source,
-                    &mut errors,
-                )
+                && let Some(query) =
+                    build_query(metadata, self.inputs.models, fragment_source, &mut errors)
             {
                 queries.insert(
                     entity as *const crate::metadata::EntityMetadata as usize,
@@ -425,9 +388,7 @@ impl<'a> StructureResolver<'a> {
             if source.role() != ModelRole::Entity {
                 continue;
             }
-            let Some(local_properties) =
-                properties.get(&source.type_id()).copied()
-            else {
+            let Some(local_properties) = properties.get(&source.type_id()).copied() else {
                 continue;
             };
             for property in local_properties.properties() {
@@ -446,9 +407,7 @@ impl<'a> StructureResolver<'a> {
                             &mut errors,
                         )
                     })
-                    .filter(|metadata| {
-                        metadata.role() == ModelRole::Projection
-                    })
+                    .filter(|metadata| metadata.role() == ModelRole::Projection)
                 else {
                     continue;
                 };
@@ -456,9 +415,7 @@ impl<'a> StructureResolver<'a> {
                     .as_projection()
                     .and_then(ProjectionMetadata::source)
                     .and_then(|target| self.resolve_target(target));
-                if fixed_source
-                    .is_some_and(|fixed| fixed.type_id() != source.type_id())
-                {
+                if fixed_source.is_some_and(|fixed| fixed.type_id() != source.type_id()) {
                     errors.push(ResolveError::new(
                         ResolveErrorKind::InvalidProjectionProducer,
                         projection.model_id().map(|id| id.as_str()),
@@ -472,15 +429,13 @@ impl<'a> StructureResolver<'a> {
                 let source_id = source
                     .as_entity()
                     .and_then(|entity| entity.identifier().descriptor());
-                let projection_id =
-                    projection.as_projection().and_then(|projection| {
-                        projection.identifier().descriptor()
-                    });
-                if source_id.zip(projection_id).is_some_and(
-                    |(source, projection)| {
-                        source.type_id() != projection.type_id()
-                    },
-                ) {
+                let projection_id = projection
+                    .as_projection()
+                    .and_then(|projection| projection.identifier().descriptor());
+                if source_id
+                    .zip(projection_id)
+                    .is_some_and(|(source, projection)| source.type_id() != projection.type_id())
+                {
                     errors.push(ResolveError::new(
                         ResolveErrorKind::InvalidProjectionProducer,
                         projection.model_id().map(|id| id.as_str()),
@@ -517,15 +472,10 @@ impl<'a> StructureResolver<'a> {
 
     /// Resolves a declaration-time target through the configured model
     /// registry.
-    fn resolve_target(
-        &self,
-        target: &DeclaredEntityTarget,
-    ) -> Option<&'static TypeMetadata> {
+    fn resolve_target(&self, target: &DeclaredEntityTarget) -> Option<&'static TypeMetadata> {
         match target {
             DeclaredEntityTarget::RustType(provider) => Some(provider()),
-            DeclaredEntityTarget::ModelId(id) => {
-                self.inputs.models.metadata(id.as_str())
-            }
+            DeclaredEntityTarget::ModelId(id) => self.inputs.models.metadata(id.as_str()),
         }
     }
 }

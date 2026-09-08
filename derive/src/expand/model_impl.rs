@@ -46,8 +46,7 @@ pub(crate) fn validate_model_impl(item: &ItemImpl) -> Result<()> {
             "ModelImpl requires an inherent impl",
         ));
     }
-    if !item.generics.params.is_empty() || item.generics.where_clause.is_some()
-    {
+    if !item.generics.params.is_empty() || item.generics.where_clause.is_some() {
         return Err(Error::new_spanned(
             &item.generics,
             "ModelImpl blocks cannot be generic",
@@ -60,10 +59,7 @@ pub(crate) fn validate_model_impl(item: &ItemImpl) -> Result<()> {
 ///
 /// `item` is preserved in the emitted tokens and `runtime` identifies the
 /// metadata facade. Returns diagnostics for invalid property-method contracts.
-pub(crate) fn expand_model_impl(
-    item: ItemImpl,
-    runtime: &TokenStream,
-) -> Result<TokenStream> {
+pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream) -> Result<TokenStream> {
     let target = (*item.self_ty).clone();
     let mut getters = Vec::new();
     let mut setters = Vec::new();
@@ -89,16 +85,12 @@ pub(crate) fn expand_model_impl(
     let getter_adapters: Vec<_> = getters
         .iter()
         .enumerate()
-        .map(|(index, getter)| {
-            expand_getter_adapter(index, getter, &target, runtime)
-        })
+        .map(|(index, getter)| expand_getter_adapter(index, getter, &target, runtime))
         .collect();
     let setter_adapters: Vec<_> = setters
         .iter()
         .enumerate()
-        .map(|(index, setter)| {
-            expand_setter_adapter(index, setter, &target, runtime)
-        })
+        .map(|(index, setter)| expand_setter_adapter(index, setter, &target, runtime))
         .collect();
     let compatibility_assertions =
         expand_property_compatibility_assertions(&getters, &setters, runtime);
@@ -261,7 +253,9 @@ fn expand_property_compatibility_assertions(
     getters
         .iter()
         .filter_map(|getter| {
-            let setter = setters.iter().find(|setter| setter.property == getter.property)?;
+            let setter = setters
+                .iter()
+                .find(|setter| setter.property == getter.property)?;
             let output = getter_output_type(&getter.output, runtime);
             let input = &setter.input;
             Some(quote! {
@@ -277,10 +271,7 @@ fn expand_property_compatibility_assertions(
 }
 
 /// Returns the exact source-level type shape produced by a getter.
-fn getter_output_type(
-    output: &GetterReturn,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn getter_output_type(output: &GetterReturn, runtime: &TokenStream) -> TokenStream {
     match output {
         GetterReturn::Owned(ty) => quote!(#ty),
         GetterReturn::Borrowed(ty) => quote!(
@@ -306,9 +297,7 @@ fn getter_output_type(
 ///
 /// Setter-prefixed methods are explicit property declarations and therefore
 /// receive diagnostics when they violate the setter contract.
-fn parse_property_method(
-    method: &ImplItemFn,
-) -> Result<Option<PropertyMethod>> {
+fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> {
     let name = method.sig.ident.to_string();
     if let Some(property) = name.strip_prefix("set_") {
         if !matches!(method.vis, Visibility::Public(_)) {
@@ -326,9 +315,7 @@ fn parse_property_method(
                 "property setters must be safe synchronous non-const functions",
             ));
         }
-        if !method.sig.generics.params.is_empty()
-            || method.sig.generics.where_clause.is_some()
-        {
+        if !method.sig.generics.params.is_empty() || method.sig.generics.where_clause.is_some() {
             return Err(Error::new_spanned(
                 &method.sig.generics,
                 "property setters cannot be generic",
@@ -348,10 +335,7 @@ fn parse_property_method(
             ));
         };
         if receiver.reference.is_none() || receiver.mutability.is_none() {
-            return Err(Error::new_spanned(
-                receiver,
-                "setter requires `&mut self`",
-            ));
+            return Err(Error::new_spanned(receiver, "setter requires `&mut self`"));
         }
         let Some(FnArg::Typed(value)) = inputs.next() else {
             return Err(Error::new_spanned(
@@ -384,10 +368,7 @@ fn parse_property_method(
     let Some(FnArg::Receiver(receiver)) = inputs.next() else {
         return Ok(None);
     };
-    if receiver.reference.is_none()
-        || receiver.mutability.is_some()
-        || inputs.next().is_some()
-    {
+    if receiver.reference.is_none() || receiver.mutability.is_some() || inputs.next().is_some() {
         return Ok(None);
     }
     let ReturnType::Type(_, output) = &method.sig.output else {
@@ -395,8 +376,7 @@ fn parse_property_method(
     };
     let output = match output.as_ref() {
         Type::Reference(reference) if reference.mutability.is_none() => {
-            if matches!(reference.elem.as_ref(), Type::Path(path) if path.path.is_ident("str"))
-            {
+            if matches!(reference.elem.as_ref(), Type::Path(path) if path.path.is_ident("str")) {
                 GetterReturn::BorrowedStr
             } else if let Type::Slice(slice) = reference.elem.as_ref() {
                 GetterReturn::BorrowedSlice((*slice.elem).clone())
@@ -443,9 +423,7 @@ fn option_borrowed_type(path: &TypePath) -> Option<&TypeReference> {
     if arguments.args.len() != 1 {
         return None;
     }
-    let GenericArgument::Type(Type::Reference(reference)) =
-        arguments.args.first()?
-    else {
+    let GenericArgument::Type(Type::Reference(reference)) = arguments.args.first()? else {
         return None;
     };
     (reference.mutability.is_none()).then_some(reference)
@@ -501,9 +479,7 @@ fn expand_getter_adapter(
     runtime: &TokenStream,
 ) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
-    let adapter = format_ident!(
-        "__qubit_model_property_getter_{index}_{target_suffix:016x}",
-    );
+    let adapter = format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}",);
     let method = &getter.method;
     let value = match &getter.output {
         GetterReturn::Owned(_) => {
@@ -545,9 +521,7 @@ fn expand_setter_adapter(
     runtime: &TokenStream,
 ) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
-    let adapter = format_ident!(
-        "__qubit_model_property_setter_{index}_{target_suffix:016x}",
-    );
+    let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}",);
     let method = &setter.method;
     let input = &setter.input;
     quote! {
