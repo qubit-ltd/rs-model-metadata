@@ -64,12 +64,7 @@ impl DecimalConstraint {
     ///
     /// Panics when `scale` exceeds a supplied `precision`.
     #[must_use]
-    pub const fn new(
-        precision: Option<u16>,
-        scale: u16,
-        rounding: RoundingMode,
-        semantic: DecimalSemantic,
-    ) -> Self {
+    pub const fn new(precision: Option<u16>, scale: u16, rounding: RoundingMode, semantic: DecimalSemantic) -> Self {
         if let Some(precision) = precision {
             assert!(scale <= precision, "decimal scale cannot exceed precision");
         }

@@ -27,15 +27,9 @@ pub(crate) fn validator_arguments<'a>(
                 ValidationArgument::Unsigned(value) => RuntimeValidationArgument::Unsigned(value),
                 ValidationArgument::String(value) => RuntimeValidationArgument::String(value),
                 ValidationArgument::BoolList(value) => RuntimeValidationArgument::BoolList(value),
-                ValidationArgument::IntegerList(value) => {
-                    RuntimeValidationArgument::IntegerList(value)
-                }
-                ValidationArgument::UnsignedList(value) => {
-                    RuntimeValidationArgument::UnsignedList(value)
-                }
-                ValidationArgument::StringList(value) => {
-                    RuntimeValidationArgument::StringList(value)
-                }
+                ValidationArgument::IntegerList(value) => RuntimeValidationArgument::IntegerList(value),
+                ValidationArgument::UnsignedList(value) => RuntimeValidationArgument::UnsignedList(value),
+                ValidationArgument::StringList(value) => RuntimeValidationArgument::StringList(value),
             };
             RuntimeNamedValidationArgument::new(argument.name(), value)
         })

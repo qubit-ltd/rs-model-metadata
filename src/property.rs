@@ -160,8 +160,7 @@ pub enum GetterOutputKind {
 }
 
 /// A lifetime-preserving local getter adapter.
-pub type GetterAdapter =
-    for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
+pub type GetterAdapter = for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
 
 /// A local setter adapter with recoverable pre-execution failure.
 pub type SetterAdapter = fn(ReflectedMut<'_>, ReflectedOwned) -> Result<(), PropertySetFailure>;
@@ -248,10 +247,7 @@ impl PropertySetFailure {
     /// Consumes the failure and returns its parts.
     #[must_use = "handle the property error and recovered replacement"]
     pub fn into_parts(self) -> (PropertyAccessError, Option<ReflectedOwned>) {
-        (
-            *self.error,
-            self.replacement.map(|replacement| *replacement),
-        )
+        (*self.error, self.replacement.map(|replacement| *replacement))
     }
 }
 
@@ -339,10 +335,7 @@ impl GetterMetadata {
     /// Returns [`PropertyAccessError::TargetTypeMismatch`] when `target` has
     /// a different concrete type, or propagates the generated adapter error.
     #[must_use = "handle property access failure"]
-    pub fn get<'a>(
-        &self,
-        target: ReflectedRef<'a>,
-    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         let actual = reflected_ref_type_id(&target);
         let expected = (self.target_type_id)();
         if actual != expected {
@@ -430,19 +423,12 @@ impl SetterMetadata {
     /// Returns [`PropertySetFailure`] retaining `value` when target or input
     /// validation fails before adapter execution, or reports the adapter error.
     #[must_use = "handle property write failure and recover the replacement when available"]
-    pub fn set(
-        &self,
-        target: ReflectedMut<'_>,
-        value: ReflectedOwned,
-    ) -> Result<(), PropertySetFailure> {
+    pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         let actual_target = reflected_mut_type_id(&target);
         let expected_target = (self.target_type_id)();
         if actual_target != expected_target {
             return Err(PropertySetFailure::before_execution(
-                PropertyAccessError::TargetTypeMismatch(TypeMismatch::new(
-                    expected_target,
-                    actual_target,
-                )),
+                PropertyAccessError::TargetTypeMismatch(TypeMismatch::new(expected_target, actual_target)),
                 value,
             ));
         }
@@ -450,10 +436,7 @@ impl SetterMetadata {
         let expected_value = (self.input_type_id)();
         if actual_value != expected_value {
             return Err(PropertySetFailure::before_execution(
-                PropertyAccessError::ValueTypeMismatch(TypeMismatch::new(
-                    expected_value,
-                    actual_value,
-                )),
+                PropertyAccessError::ValueTypeMismatch(TypeMismatch::new(expected_value, actual_value)),
                 value,
             ));
         }
@@ -592,10 +575,7 @@ impl PropertyMetadata {
     /// Returns [`PropertyAccessError::NotReadable`] when neither a getter nor
     /// a backing field exists, and otherwise propagates access failures.
     #[must_use = "handle property access failure"]
-    pub fn get<'a>(
-        &self,
-        target: ReflectedRef<'a>,
-    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         if let Some(getter) = self.getter {
             return getter.get(target);
         }
@@ -617,11 +597,7 @@ impl PropertyMetadata {
     /// Returns [`PropertySetFailure`] retaining the replacement when no write
     /// operation has started, and otherwise reports the setter or field error.
     #[must_use = "handle property write failure and recover the replacement when available"]
-    pub fn set(
-        &self,
-        target: ReflectedMut<'_>,
-        value: ReflectedOwned,
-    ) -> Result<(), PropertySetFailure> {
+    pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         if let Some(setter) = self.setter {
             return setter.set(target, value);
         }
@@ -647,21 +623,15 @@ impl PropertyMetadata {
 
 /// Returns the concrete type ID represented by a reflected shared borrow.
 fn reflected_ref_type_id(value: &ReflectedRef<'_>) -> TypeId {
-    value
-        .as_any()
-        .map_or_else(TypeId::of::<str>, std::any::Any::type_id)
+    value.as_any().map_or_else(TypeId::of::<str>, std::any::Any::type_id)
 }
 
 /// Returns the concrete type ID represented by a reflected mutable borrow.
 fn reflected_mut_type_id(value: &ReflectedMut<'_>) -> TypeId {
-    value
-        .as_any()
-        .map_or_else(TypeId::of::<str>, std::any::Any::type_id)
+    value.as_any().map_or_else(TypeId::of::<str>, std::any::Any::type_id)
 }
 
 /// Returns the concrete type ID represented by an owned reflected value.
 fn reflected_owned_type_id(value: &ReflectedOwned) -> TypeId {
-    value
-        .as_any()
-        .map_or_else(TypeId::of::<()>, std::any::Any::type_id)
+    value.as_any().map_or_else(TypeId::of::<()>, std::any::Any::type_id)
 }

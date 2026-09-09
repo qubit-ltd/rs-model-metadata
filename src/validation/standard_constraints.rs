@@ -48,8 +48,7 @@ pub(crate) struct StandardBinding {
 pub(crate) fn registry(validators: &ValidatorRegistry) -> Result<ValidatorRegistry, BindError> {
     let mut registrations = registrations();
     registrations.extend(validators.registrations().iter().copied());
-    ValidatorRegistry::from_registrations(registrations)
-        .map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
+    ValidatorRegistry::from_registrations(registrations).map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
 }
 
 /// Binds the executable portion of one metadata constraint.
@@ -118,14 +117,7 @@ pub(crate) fn bind(
                     TextFormat::Uri => "qubit.rules.text.uri",
                     TextFormat::Uuid => "qubit.rules.text.uuid",
                 };
-                bind_one(
-                    &mut bindings,
-                    &mut errors,
-                    validators,
-                    id,
-                    &[],
-                    StandardTarget::Value,
-                );
+                bind_one(&mut bindings, &mut errors, validators, id, &[], StandardTarget::Value);
             }
         }
         ConstraintMetadata::Sequence(sequence) => {
@@ -154,11 +146,7 @@ pub(crate) fn bind(
             errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
         }
     }
-    if errors.is_empty() {
-        Ok(bindings)
-    } else {
-        Err(errors)
-    }
+    if errors.is_empty() { Ok(bindings) } else { Err(errors) }
 }
 
 /// Converts one declared standard constraint into a prepared runtime rule.
@@ -203,10 +191,7 @@ fn optional_u32_args(min: Option<u32>, max: Option<u32>) -> Vec<NamedValidationA
 }
 
 /// Builds optional machine-word bound arguments in declaration order.
-fn optional_usize_args(
-    min: Option<usize>,
-    max: Option<usize>,
-) -> Vec<NamedValidationArgument<'static>> {
+fn optional_usize_args(min: Option<usize>, max: Option<usize>) -> Vec<NamedValidationArgument<'static>> {
     let mut args = Vec::with_capacity(2);
     if let Some(value) = min {
         args.push(NamedValidationArgument::new(

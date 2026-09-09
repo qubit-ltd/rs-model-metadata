@@ -17,7 +17,6 @@ use qubit_model_metadata::registry::ModelRegistry;
 fn main() {
     let _ = size_of::<ModelADuplicate>();
     let _ = size_of::<ModelBDuplicate>();
-    let error = ModelRegistry::try_global()
-        .expect_err("duplicate IDs must make the global registry invalid");
+    let error = ModelRegistry::try_global().expect_err("duplicate IDs must make the global registry invalid");
     assert!(error.to_string().contains("test.linked.Duplicate"));
 }

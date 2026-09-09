@@ -41,9 +41,13 @@ const VALID_MOBILE_TEXT: TextConstraint = TextConstraint::new(
 );
 const VALID_SEQUENCE: SequenceConstraint = SequenceConstraint::new(Some(1), Some(8), true);
 const VALID_MAP: MapConstraint = MapConstraint::new(Some(1), Some(8));
-const VALID_DECIMAL: DecimalConstraint =
-    DecimalConstraint::new(Some(8), 3, RoundingMode::HalfEven, DecimalSemantic::Number)
-        .with_bounds(Some("1.25"), Some("9.75"), false, true);
+const VALID_DECIMAL: DecimalConstraint = DecimalConstraint::new(
+    Some(8),
+    3,
+    RoundingMode::HalfEven,
+    DecimalSemantic::Number,
+)
+.with_bounds(Some("1.25"), Some("9.75"), false, true);
 const VALID_TEMPORAL: TemporalConstraint = TemporalConstraint::new(TemporalPrecision::Millisecond);
 
 #[test]
@@ -89,9 +93,12 @@ fn test_constraint_constructors_execute_runtime_paths() {
     );
     let sequence = SequenceConstraint::new(Some(1), Some(8), true);
     let map = MapConstraint::new(Some(1), Some(8));
-    let decimal =
-        DecimalConstraint::new(Some(8), 3, RoundingMode::HalfEven, DecimalSemantic::Number)
-            .with_bounds(Some("1.25"), Some("9.75"), false, true);
+    let decimal = DecimalConstraint::new(Some(8), 3, RoundingMode::HalfEven, DecimalSemantic::Number).with_bounds(
+        Some("1.25"),
+        Some("9.75"),
+        false,
+        true,
+    );
     let temporal = TemporalConstraint::new(TemporalPrecision::Millisecond);
 
     assert_eq!(text.max_chars(), Some(8));
@@ -111,29 +118,13 @@ fn test_constraint_constructors_execute_runtime_paths() {
 #[test]
 #[should_panic(expected = "minimum character count cannot exceed maximum character count")]
 fn test_text_constraint_rejects_reversed_character_range() {
-    let _ = TextConstraint::new(
-        Some(2),
-        Some(1),
-        None,
-        None,
-        AllowedChars::Unicode,
-        false,
-        None,
-    );
+    let _ = TextConstraint::new(Some(2), Some(1), None, None, AllowedChars::Unicode, false, None);
 }
 
 #[test]
 #[should_panic(expected = "minimum byte count cannot exceed maximum byte count")]
 fn test_text_constraint_rejects_reversed_byte_range() {
-    let _ = TextConstraint::new(
-        None,
-        None,
-        Some(2),
-        Some(1),
-        AllowedChars::Unicode,
-        false,
-        None,
-    );
+    let _ = TextConstraint::new(None, None, Some(2), Some(1), AllowedChars::Unicode, false, None);
 }
 
 #[test]

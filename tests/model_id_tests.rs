@@ -29,10 +29,7 @@ fn test_model_id_uses_one_shared_ascii_segment_grammar() {
         assert_eq!(borrowed.as_str(), owned.as_str());
     }
     assert_eq!(STATIC_MODEL_ID.type_name(), "User");
-    assert_eq!(
-        CONST_CHECKED.expect("const validation").as_str(),
-        "Single_segment"
-    );
+    assert_eq!(CONST_CHECKED.expect("const validation").as_str(), "Single_segment");
 }
 
 #[test]

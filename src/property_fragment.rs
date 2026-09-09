@@ -26,16 +26,8 @@ pub struct PropertyFragment {
 impl PropertyFragment {
     /// Creates one generated property source fact.
     #[must_use]
-    pub(crate) const fn new(
-        name: &'static str,
-        type_ref: &'static TypeRef,
-        source: PropertyFragmentSource,
-    ) -> Self {
-        Self {
-            name,
-            type_ref,
-            source,
-        }
+    pub(crate) const fn new(name: &'static str, type_ref: &'static TypeRef, source: PropertyFragmentSource) -> Self {
+        Self { name, type_ref, source }
     }
 
     /// Returns the canonical public property name.

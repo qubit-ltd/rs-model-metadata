@@ -33,9 +33,7 @@ struct Fields {
 struct SymbolicOwner;
 
 static SYMBOLIC_FIELD: LazyLock<FieldDescriptor> = LazyLock::new(|| {
-    let relationship = Box::leak(Box::new(TypeRef::Symbolic(TypeExpression::Parameter(
-        "T".into(),
-    ))));
+    let relationship = Box::leak(Box::new(TypeRef::Symbolic(TypeExpression::Parameter("T".into()))));
     reflect_field(
         <SymbolicOwner as Reflect>::type_descriptor,
         0,
