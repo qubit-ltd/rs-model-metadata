@@ -69,6 +69,8 @@ flowchart TD
 
 ModelImpl 先提取模型方法标记，再将 impl 委托给 reflect_impl；trait impl、泛型 impl 和不能动态调用的方法按反射契约描述。模型层不复制整个方法调用系统。
 
+同一类型可以有多个 ModelImpl block。每个 block 以独立 checked capability 注册；读取时仅聚合当前反射快照可见的 provider，并按 owner TypeId 与 provider 集合缓存结果。聚合检查各 provider 的 owner 和 accessor 类型，不使用每个 impl 重复实现的 seal trait。泛型 concrete 方法贡献沿用 reflect_impl 的显式 specialize 声明。
+
 确定退出自动 Property 的语法为：
 
 ```rust
@@ -109,6 +111,8 @@ impl ReferenceMetadata {
 
 以上为目标接口声明，类型体的私有存储不属于调用者契约。路径接受非空相对步骤，以 `/` 分隔，Parent 可连续出现；不接受独立 `.`、空步骤或绝对根路径。普通字段导航段沿用合法属性名规则。旧 dotted reference.path 在迁移中改写，不作为第二种永久语法接收。
 
+ResolveError 的 object_path() 保留强类型对象导航，path() 仅保留字段或所选 Property 的路径；父步骤不转存为普通属性名。本地 child/.. 不要求外部父上下文；只有越过声明所属对象的导航才要求父上下文。结构解析检查已知本地 validator 依赖的存在性和可读性，未知外部父类型保留为上下文要求。
+
 reference 的 path=None 表示未指定复用绑定；进入 reference 属性后描述完整 Entity 绑定，最终目标角色/类型在可确定时检查。实例绑定与回退不在 metadata 实现。
 
 validator 确定如下声明形式，既支持多个对象来源，也保留简单当前对象依赖：
@@ -132,7 +136,7 @@ identity_card: String,
 ```rust
 impl DependencyBindingMetadata {
     pub fn name(&self) -> &'static str;
-    pub fn object_path(&self) -> &'static ObjectPath;
+    pub fn object_path(&self) -> ObjectPath;
     pub fn property(&self) -> PropertyPath<'static>;
     pub fn declaration(&self) -> &'static DeclarationLocation;
 }

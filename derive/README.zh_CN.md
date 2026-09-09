@@ -2,6 +2,7 @@
 
 [![Rust CI](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-metadata/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-metadata/coverage/)
+[![Crates.io](https://img.shields.io/crates/v/qubit-model-derive.svg?color=blue)](https://crates.io/crates/qubit-model-derive)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
@@ -34,17 +35,13 @@ use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_redact::Redact;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, PartialEq, Eq, Hash, Deserialize, Redact)]
-#[redact(debug, display, serde)]
 #[Entity(id = "example.User")]
 pub struct User {
     #[identifier]
     id: Id,
     #[unique(ignore_case = true)]
-    #[redact(level = "personal")]
+    #[redact(level = "high")]
     email: String,
 }
 
@@ -58,13 +55,13 @@ let metadata = TypeMetadata::of::<User>();
 assert!(metadata.field("id").unwrap().is_identifier());
 assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
 let registry = ModelRegistry::try_global().expect("链接模型图有效");
-assert!(registry.metadata_for(metadata.descriptor()).is_some());
+assert!(registry.metadata_for(metadata.descriptor()).unwrap().is_some());
 ```
 
 角色宏会委托 `qubit-reflect` 生成 Rust 结构描述符，再将唯一的 `TypeMetadata` 类型化能力
-附加到同一个描述符上。Rust 行为保持显式：示例直接派生 Serde 与脱敏 trait。
+附加到同一个描述符上。角色默认生成常用 Rust 能力，并将 Debug、Display 与 Serialize 委托 rs-redact。
 
-生成的模型代码使用隐藏的 metadata-only ABI v5 facade。具体模型和泛型定义都通过统一的冻结反射快照发现；模型层不再维护独立 inventory。
+生成的模型代码使用隐藏的 metadata-only ABI v6 facade。具体模型和泛型定义都通过统一的冻结反射快照发现；模型层不再维护独立 inventory。
 
 `#[key_part(order = n)]` 描述具名 `Model` 或具名 `Value` 的逻辑复合键及字段顺序。逻辑键可以只选择
 部分字段，但已选择字段的 order 必须从零开始、连续且不重复。它不是 Entity identifier，因此不能用于
@@ -87,8 +84,15 @@ assert!(registry.metadata_for(metadata.descriptor()).is_some());
 - `#[Value]`：声明值对象；`transparent` 支持单字段包装类型。
 - `#[ModelImpl]`：把公开固有方法中的 getter/setter 与字段合并为安全的属性元数据。
 
-五种角色宏只生成 metadata，不实现 `Clone`、比较、格式化、Serde 或脱敏 trait。所需 Rust trait
-必须用 `#[derive(...)]` 明确声明；`no_hash`、`copy`、`default` 等旧行为参数会被拒绝。
+五种角色默认生成 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize 与 Deserialize；
+全部 variant 为 unit 的 Enum 还默认生成 Copy。`no_*` 关闭自动能力，`no_eq` 同时移除默认 Hash；
+`copy`、`default`、`partial_ord`、`ord` 启用额外能力。角色属性应放在显式 derive 之前，以便识别并去重；
+手写实现通过对应的关闭开关避免冲突。
+
+`#[ModelImpl]` 转发反射选项，保留普通方法与 trait impl 的反射。只有公开、安全、同步且方法自身无泛型的
+固有访问器贡献 Property。没有同名存储字段的 getter 自动成为 computed Property；
+`#[model_property(skip)]` 只排除当前方法的 Property 贡献。泛型运行时适配器沿用反射的显式
+`specialize(...)` 绑定。
 
 ## 边界
 

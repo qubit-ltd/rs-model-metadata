@@ -26,6 +26,8 @@ Delegate the full impl to reflect_impl after consuming model-only markers. Trait
 
 The exclusion syntax is `#[model_property(skip)]` on a method inside ModelImpl. It removes only that method's Property contribution, preserves reflection, and does not remove a same-named storage field. Other parameters, duplicate markers, and non-method placement fail. There is no computed macro and getters do not become new declaration sites for domain field attributes.
 
+Multiple ModelImpl blocks register independent checked capabilities. Aggregate only providers visible in the supplied reflection snapshot, validate their owner and accessors, and cache by owner TypeId and provider set. Generic method contributions use reflect_impl explicit specializations.
+
 Assemble field/getter/setter fragments deterministically. A field supplies the logical value type; otherwise derive the compatible value type from the getter and verify the setter. Preserve T/&T, String/str, Vec/slice, and Option<T>/Option<&T> compatibility. Explicit accessors win. Conflicts return PropertyBuildErrors rather than panicking. Invocation preserves reflect ownership, lifetime, and Local/ThreadSafe boundaries; static metadata does not require instances to be Send+Sync.
 
 ## Object navigation and validator declarations
@@ -33,6 +35,8 @@ Assemble field/getter/setter fragments deterministically. A field supplies the l
 PropertyPath remains a dotted property selection. Add NavigationStep::{Property(&'static str), Parent} and ObjectPath::steps() -> &'static [NavigationStep]. ReferenceMetadata::path() returns Option<&'static ObjectPath>, replacing the old same_as PropertyPath representation.
 
 Object paths are nonempty relative slash-separated steps supporting repeated `..`; reject absolute paths, empty steps, and standalone `.`. Existing dotted reference paths migrate once. Missing reference.path means no requested binding reuse. Crossing reference declarations describes the full Entity binding; actual instance reuse belongs to consumers.
+
+ResolveError::object_path() retains typed object navigation separately from the field or selected Property path. A local child/.. round trip needs no external parent. Structural resolution checks known local dependency existence and readability; unavailable external parents remain context requirements. DependencyBindingMetadata::object_path() returns the immutable Copy value.
 
 Validator dependency syntax is:
 

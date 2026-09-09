@@ -42,10 +42,7 @@ use qubit_model_derive::Entity;
 use qubit_id::Id;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_reflect::{Reflect, TypeDescriptor};
 
-#[derive(Reflect)]
-#[reflect(crate = qubit_reflect)]
 #[Entity(id = "example.User")]
 struct User {
     #[identifier]
@@ -57,9 +54,8 @@ struct User {
 fn main() {
     let metadata = TypeMetadata::of::<User>();
     assert_eq!(metadata.model_id().unwrap().as_str(), "example.User");
-    assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
     let registry = ModelRegistry::try_global().expect("valid linked model graph");
-    assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
+    assert!(registry.metadata_for(metadata.descriptor()).unwrap().is_some());
 }
 ```
 
@@ -100,7 +96,7 @@ the reflection model.
 It does not replace `qubit-reflect`, and static metadata lookup does not
 implicitly register models or resolve cross-model relationships. Generated
 metadata is checked against descriptor, field, property, and role invariants
-before it crosses the hidden metadata-only ABI v5 boundary. Generated model
+before it crosses the hidden metadata-only ABI v6 boundary. Generated model
 code uses only the curated module facade and its exact private ABI.
 
 When a consumer needs an isolated reflection context, construct it with `RegistrySnapshotBuilder` from `qubit-reflect` and pass it to the explicit `*_in` queries. Do not use the old hidden testing registry helper. Global initialization failures remain structured: `ModelRegistry::try_global()` preserves the reflection registry error and its capability conflict as the source chain.
@@ -118,6 +114,19 @@ do not become missing-property diagnostics.
 Borrowed slices support direct indexed access. Explicit `into_invocation_output` materializes
 per-element borrow wrappers in O(n) time without copying the underlying elements. The slice adapter
 itself also requires boxing. Conversion and original access costs are measured separately.
+
+## Declaration defaults and explicit roots
+
+Role macros supply Clone, Debug, Display, PartialEq, Eq, Hash, Redact, Serialize,
+and Deserialize by default. Use `no_*` options for intentional opt-outs; `no_eq`
+also removes default Hash. `copy`, `default`, `partial_ord`, and `ord` are opt-in.
+Named Option and standard collection fields default when missing and omit empty values.
+
+Pass anonymous models in `ResolveInputs { models: &registry, roots: &[metadata] }`.
+Generic concrete models retain their definition even without a stable ID.
+`QueryMetadata::declarations()` exposes direct indexed declarations, including implicit
+identifier, unique, and reference reasons. Filter generation and matching policy belong
+to consumers. `reference.path` uses `/` and `..`; Property paths retain `.`.
 
 ## Learn More
 

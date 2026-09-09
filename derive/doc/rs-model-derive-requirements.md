@@ -68,8 +68,9 @@ produce compile-time diagnostics.
 
 A field is a real storage slot. A property is a name-based view assembled from
 a field, getter, and setter. Property merging must be deterministic, preserve
-borrowing, and reject incompatible getter/setter types and duplicate annotated
-implementations.
+borrowing, and reject incompatible getter/setter types and conflicting accessor
+contributions. Multiple `ModelImpl` blocks may contribute distinct accessors to
+the same type; their metadata must be merged.
 
 `ModelImpl` extends impl reflection with model semantics. It provides the
 reflection capabilities of `reflect_impl`, including its inherent/trait impl,

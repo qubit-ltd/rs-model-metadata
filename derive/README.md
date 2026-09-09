@@ -2,6 +2,7 @@
 
 [![Rust CI](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-model-metadata/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-model-metadata/coverage-badge.json)](https://qubit-ltd.github.io/rs-model-metadata/coverage/)
+[![Crates.io](https://img.shields.io/crates/v/qubit-model-derive.svg?color=blue)](https://crates.io/crates/qubit-model-derive)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
@@ -41,17 +42,13 @@ use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_redact::Redact;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, PartialEq, Eq, Hash, Deserialize, Redact)]
-#[redact(debug, display, serde)]
 #[Entity(id = "example.User")]
 pub struct User {
     #[identifier]
     id: Id,
     #[unique(ignore_case = true)]
-    #[redact(level = "personal")]
+    #[redact(level = "high")]
     email: String,
 }
 
@@ -65,14 +62,14 @@ let metadata = TypeMetadata::of::<User>();
 assert!(metadata.field("id").unwrap().is_identifier());
 assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
 let registry = ModelRegistry::try_global().expect("valid linked model graph");
-assert!(registry.metadata_for(metadata.descriptor()).is_some());
+assert!(registry.metadata_for(metadata.descriptor()).unwrap().is_some());
 ```
 
 The role macro delegates Rust structure to `qubit-reflect`, then attaches one
-typed `TypeMetadata` capability to that same descriptor. Rust behavior remains
-explicit: this example derives Serde and redaction traits directly.
+typed `TypeMetadata` capability to that same descriptor. The role defaults supply
+Rust behavior, with Debug, Display and Serialize delegated to rs-redact.
 
-Generated model code uses the hidden metadata-only ABI v5 facade. Concrete models and
+Generated model code uses the hidden metadata-only ABI v6 facade. Concrete models and
 generic definitions are both discovered through the unified frozen reflection
 snapshot; the model layer owns no separate inventory.
 
@@ -105,10 +102,18 @@ pipeline:
 - `#[ModelImpl]` merges public inherent getters and setters with fields
   into safe property metadata.
 
-The five role macros generate metadata only. They do not implement `Clone`,
-comparison, formatting, Serde, or redaction traits. Declare every required Rust
-trait explicitly with `#[derive(...)]`; legacy behavior options such as
-`no_hash`, `copy`, and `default` are rejected.
+The five roles default to Clone, Debug, Display, PartialEq, Eq, Hash, Redact,
+Serialize, and Deserialize. All-unit Enum also defaults to Copy. Use `no_*`
+to suppress a generated capability; `no_eq` removes default Hash as well.
+`copy`, `default`, `partial_ord`, and `ord` opt into additional capabilities.
+Place the role attribute before explicit derives so duplicate derives are visible.
+Handwritten implementations require the corresponding opt-out.
+
+`#[ModelImpl]` forwards reflection options and preserves ordinary methods and
+trait impl reflection. Only public, safe, synchronous, nongeneric inherent accessors
+contribute Properties. A getter without a stored field is automatically computed;
+`#[model_property(skip)]` excludes only that method's Property contribution.
+Generic runtime adapters use explicit reflection `specialize(...)` bindings.
 
 ## Boundaries
 

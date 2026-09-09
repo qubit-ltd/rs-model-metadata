@@ -5,6 +5,28 @@
 - 方法：CodeGraph 定位后查阅源码；对明确分支给出证据，运行限定的现有测试作为回归基线。
 - [逐项台账](rs-model-derive-requirements-coverage.zh_CN.md)将全部 338 个编号关联到本报告的评估组与重构任务。
 
+## 本轮实施复查（2026-09-10）
+
+下文 G01～G15 与 38 项测试保留为重构前的审计记录，不代表当前实现状态。
+本轮当前实现与验收入口如下；最终 CI 状态以[逐项台账](rs-model-derive-requirements-coverage.zh_CN.md)为准。
+
+| 原缺口 | 本轮实现 | 验收入口 |
+| --- | --- | --- |
+| G01～G02 默认能力/输出 | 五角色默认 trait、opt-in/opt-out、准确泛型/递归 bound、Serde 省略和 rs-redact 输出；修复 rs-redact 的 deserialize bound 与递归投影 | `default_output_tests`、rs-redact `derive_serde_runtime_tests` |
+| G03 ModelImpl | 委托完整 impl 反射，自动 computed，skip 仅排除 Property，多 impl block 和 concrete specialization 合并；rs-reflect 保留 unsized borrowed output 的 described-only 信息 | `model_impl_contract_tests`、`property_tests`、rs-reflect slice output 回归 |
+| G04～G06 路径/泛型/图 | slash/Parent ObjectPath、可选定义 ID、显式匿名根和 TypeId 闭包，缓存按 concrete 类型隔离 | `abi_v6_tests`、`structure_roots_tests`、`generic_feature_tests` |
+| G07～G08 角色/unique | Enum reference、Value 闭包、Entity payload 引用要求、能力驱动 unique 和延迟泛型默认 | `declaration_semantics_tests`、`resolver_graph_constraints_tests`、UI fixtures |
+| G09 Validator | 重复 occurrence 保序，独立 path/property、真实存储对象导航、显式父上下文，匿名执行计划与嵌套约束绑定 | `validation_binding_tests`、`model_validation_tests`、`structure_roots_tests` |
+| G10 查询 | 只保留直接查询声明和 indexed 原因，scope 校验保留在关系解析；移除 filter/flat-name 产品策略 | `structure_roots_tests`、`metadata_resolver_tests` |
+| G11 Codec | 匿名可达模型、显式优先和 canonical fallback，selector 与 tuple payload occurrence 不碰撞 | `codec_binding_tests` |
+| G12 约束/selector | 保留精确声明位置及严格冗余规则，修复 decimal 空区间；完整消费算法仍在下游章节 | `role_metadata_runtime_tests`、UI fixtures、约束测试 |
+| G13 共享基础 | checked v6、唯一反射根、源位置及错误 cause、只读注册和 Property 合并 | `abi_checked_contract_tests`、registry/property/error tests |
+| G14 迁移/文档 | 131 个模型迁移、20 个 ModelImpl、完整平台关系图测试、两 crate 双语 README/指南同步 | 平台 `model_graph_tests`、runtime fixtures、CI Markdown 检查 |
+| G15 未采纳入口/ABI | 移除 target/on_none/validate_nested 入口，依既定 selector/Option 边界声明；隐藏 ABI 同步切换 v6 | UI fixtures、facade tests、runtime fixtures |
+
+执行适配器已有的 map selector 与递归实例执行限制在指南中明确列出；这些属于下游执行能力，
+不能据此删除或削弱 metadata 的声明与结构要求。没有增加 filter、DAO 或随机生成产品实现。
+
 ## 结论
 
 现有代码已经具备反射 overlay、角色/字段声明、Property 合并、稳定 ID 注册、泛型实例缓存和可选执行绑定基础。

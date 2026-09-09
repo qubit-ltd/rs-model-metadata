@@ -36,10 +36,7 @@ use qubit_model_derive::Entity;
 use qubit_id::Id;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_reflect::{Reflect, TypeDescriptor};
 
-#[derive(Reflect)]
-#[reflect(crate = qubit_reflect)]
 #[Entity(id = "example.User")]
 struct User {
     #[identifier]
@@ -51,9 +48,8 @@ struct User {
 fn main() {
     let metadata = TypeMetadata::of::<User>();
     assert_eq!(metadata.model_id().unwrap().as_str(), "example.User");
-    assert!(std::ptr::eq(metadata.descriptor(), TypeDescriptor::of::<User>()));
     let registry = ModelRegistry::try_global().expect("链接模型图有效");
-    assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
+    assert!(registry.metadata_for(metadata.descriptor()).unwrap().is_some());
 }
 ```
 
@@ -82,7 +78,7 @@ fn main() {
 - 结构、codec 和 validation 错误分别由其所属层返回；resolver 不创建任何可执行绑定。
 
 本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的
-metadata 在穿过隐藏的 metadata-only ABI v5 边界前，会校验 descriptor、Field、Property 和角色
+metadata 在穿过隐藏的 metadata-only ABI v6 边界前，会校验 descriptor、Field、Property 和角色
 不变量；生成代码只依赖经过收窄的模块 facade 及其精确私有 ABI。
 
 需要隔离反射上下文时，应使用 `qubit-reflect` 的 `RegistrySnapshotBuilder` 构造快照，再传给显式的 `*_in` 查询；不要继续使用旧的隐藏 testing registry helper。全局初始化失败仍保持结构化错误：`ModelRegistry::try_global()` 的 source chain 会保留反射 registry 错误及其 capability conflict。
@@ -98,6 +94,17 @@ metadata 在穿过隐藏的 metadata-only ABI v5 边界前，会校验 descripto
 
 借用切片可按索引直接读取。显式 `into_invocation_output` 会用 O(n) 时间物化元素借用包装，
 不复制底层元素；切片 adapter 自身也需要一次装箱。该转换的成本与原始访问分别测量。
+
+## 声明默认能力与显式根
+
+角色宏默认生成 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize 和 Deserialize。
+有意关闭某项能力时使用 `no_*`；`no_eq` 同时关闭默认 Hash。Copy、Default 和排序能力通过
+`copy`、`default`、`partial_ord`、`ord` 启用。具名 Option 与标准集合字段支持缺失默认值和空值省略。
+
+无 ID 模型通过 `ResolveInputs { models: &registry, roots: &[metadata] }` 纳入结构图。
+泛型具体类型即使没有稳定 ID，也保留泛型定义关联。`QueryMetadata::declarations()` 返回直接 indexed
+声明及 identifier、unique、reference 等隐含原因。filter 生成和匹配规则由消费者设计。
+`reference.path` 使用 `/` 和 `..`；普通 Property 路径仍使用 `.`。
 
 ## 延伸阅读
 
