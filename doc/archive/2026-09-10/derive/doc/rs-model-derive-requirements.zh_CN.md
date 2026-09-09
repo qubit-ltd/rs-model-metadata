@@ -1,26 +1,23 @@
 # `rs-model-derive` 最终需求规范（中文版）
 
-- 状态：已冻结（2026-09-10 用户整体确认）
+- 状态：最终需求规范
 - 适用范围：角色化重构完成后的 `qubit-model-derive`、`qubit-model-metadata`、`rs-validator`、
   `rs-codec` 与 `qubit-redact` 集成契约
 - 面向读者：产品与架构审核者、实现者、测试者、用户手册维护者、下游框架开发者
-- 目标设计：[模型元数据与派生宏重构设计](rs-model-derive-final-design.zh_CN.md)（2026-09-10 重写）
-- 缺口评估：[实现缺口与必要性](rs-model-implementation-gaps.zh_CN.md)
-- 历史讨论：[2026-08-28 讨论记录](../../doc/archive/2026-09-10/derive/doc/2026-08-28-discuss-session.md)（本轮已确认修订优先）
-- 冻结审阅：[范围摘要与收尾审查](rs-model-requirements-freeze-review.zh_CN.md)
+- 最终设计：[基于 `rs-reflect` 的最终设计](rs-model-derive-final-design.zh_CN.md)
+- 决策来源：[完整讨论记录](2026-08-28-discuss-session.md)
 - 验证映射：[需求覆盖台账](rs-model-derive-requirements-coverage.zh_CN.md)
 - 下游基线：[`rs-platform` 模型声明基线](rs-platform-model-baseline.zh_CN.md)
 
 ## 0. 文档定位与规范用语
 
 本文定义系统最终必须呈现的公共能力、语义、API、约束和可观察行为。本文不描述迁移步骤，也不规定提交顺序。
-重构交付时，代码、测试、Rustdoc、新设计和用户手册必须与本文一致；当前历史材料及旧实现不因本次文档修订而自动满足要求。
+代码、测试、Rustdoc、最终设计和用户手册必须与本文一致。
 
-本轮确认后的本文是需求依据；历史讨论和旧设计与本文冲突时，以本文为准。结构层由 `qubit-reflect` 提供唯一的 `TypeDescriptor`、`FieldDescriptor`、
+重构不改变讨论记录确认的领域需求。结构层改由 `qubit-reflect` 提供唯一的 `TypeDescriptor`、`FieldDescriptor`、
 `VariantDescriptor`、`TypeRef`、泛型表达和安全动态访问；`qubit-model-metadata` 在同一个 descriptor 根上提供角色、
-字段约束、关系、策略、Property、注册与解析 overlay。本文确定领域语义、可观察行为与组件边界；最终设计和公开 API
-必须满足这些要求，不以现有实现反向定义需求。完整 Rust 签名集中在最终设计和 API 参考中维护；本文保留明确约定的
-宏名、核心查询入口及其语义，示例用于说明使用场景。
+字段约束、关系、策略、Property、注册与解析 overlay。凡本文早期接口草案与该边界冲突，均以此边界和最终设计中列出的
+公开 API 为准，领域语义需求本身继续有效。
 
 本文使用以下规范用语：
 
@@ -28,10 +25,10 @@
 - “应”表示默认必须遵循，只有有明确理由并补充规范时才可偏离；
 - “不得”表示禁止的行为；
 - “可以”表示规范允许但不强制的能力；
-- 正文按已确认决定持续修订；第 10 章明确标为设计参考的内容不构成强制实现要求。
+- 本文所有条目均为已确定要求，不保留未决占位符。
 
-需求编码按最终组件重新组织，不继承讨论过程中的 C/F/R/A 编号。编号不得复用于不相关需求；经确认的语义修订
-须同步更新相关条目与验收映射。废弃或降为设计参考的条目保留编号并明确状态。
+需求编码按最终组件重新组织，不继承讨论过程中的 C/F/R/A 编号。编码一经作为验收基准引用，后续修改内容时
+不得复用或改变其原始语义；废弃条目应保留编号并标记为废弃。
 
 ## 1. 系统概要
 
@@ -186,9 +183,7 @@ pub struct FindUserRequest {
 - **REQ-ROLE-005**：五种角色默认实现 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize、Deserialize。
 - **REQ-ROLE-006**：只有全部 variant 都是 unit 的 Enum 默认实现 Copy；其他角色默认不得实现 Copy。
 - **REQ-ROLE-007**：五种角色默认不得实现 Default、PartialOrd、Ord。
-- **REQ-ROLE-008**：角色宏必须识别当前类型声明上可见的显式 derive，避免重复生成同一能力；角色 attribute 必须位于
-  这些 derive 之前。用户通过独立 impl 或其他宏提供实现时，必须使用对应能力开关关闭自动生成；输出能力还须满足
-  第 7 章的脱敏契约。impl 反射可以记录方法和 trait 实现事实，但这些事实不作为类型声明宏自动抑制 trait 生成的依据。
+- **REQ-ROLE-008**：用户已显式派生或实现相同能力时，角色宏必须识别并避免重复实现。
 - **REQ-ROLE-009**：泛型类型的自动能力实现必须带准确 trait bound，不得要求所有潜在泛型实参无条件支持该能力。
 
 ### 2.3 Entity
@@ -244,7 +239,6 @@ pub struct OrderSummary {
   projector adapter 时，生成器必须报告明确错误。
 - **REQ-PRJ-007**：固定来源 Projection 的 producer getter 所属 Entity 必须与 source 一致，生成结果的 identifier
   必须等于来源 Entity identifier。
-  resolver 检查来源和声明结构，实际生成结果的 ID 一致性由调用 producer 的消费者检查；metadata 查询不执行 getter。
 - **REQ-PRJ-008**：Projection 的 `id` 可选；提供时进入注册表，省略时仍必须可以按 Rust 类型取得完整 metadata。
 
 ### 2.5 Model
@@ -290,9 +284,7 @@ pub enum PaymentResult<T> {
 
 - **REQ-ENUM-001**：`#[Enum]` 必须接受 unit、tuple、struct 和混合 variant。
 - **REQ-ENUM-002**：Enum 必须支持类型参数、`const N: usize` 和 where 子句，不得支持 lifetime 或 union。
-- **REQ-ENUM-003**：Enum 禁止 identifier 和独立持久化；payload 字段可以显式声明 reference，
-  保存 Entity、identifier 或其他被选择的 Property 值。Entity 或 Projection 载荷必须通过 reference 明确关联语义。
-  包含 reference 的 Enum 不得进入 Value 的传递字段闭包，不能借助 Enum 绕过 Value 的纯值限制。
+- **REQ-ENUM-003**：Enum 禁止 identifier、独立持久化和 direct relation；payload 不得直接包含 Entity 或 Projection。
 - **REQ-ENUM-004**：每个 payload 字段必须拥有完整 TypeDescriptor、约束与输出 metadata。
 - **REQ-ENUM-005**：Enum 的 `id` 可选；声明 id 时注册具体类型或泛型定义 capability。
 - **REQ-ENUM-006**：全部 unit variant 的 Enum 必须默认 Copy，且可用 `no_copy` 关闭。
@@ -319,7 +311,7 @@ pub struct Coordinate {
 - **REQ-VAL-002**：Value 必须支持类型参数、`const N: usize` 和 where 子句，不得支持 lifetime。
 - **REQ-VAL-003**：Value 禁止 identifier、reference 和独立持久化生命周期。
 - **REQ-VAL-004**：Value 的传递字段闭包不得包含 Entity、Projection 或 Model；它可以包含 scalar、Enum、其他 Value、
-  Option、容器和显式 opaque 外部值。可包含的 Enum 及其传递载荷必须同样满足纯值限制，不得包含 reference。
+  Option、容器和显式 opaque 外部值。
 - **REQ-VAL-005**：Value 的 `id` 可选；有 id 时可注册，但注册不得改变纯值角色。
 - **REQ-VAL-006**：`transparent` 只允许恰好一个存储字段的 Value，包括单字段 tuple 和单字段 named struct。
 - **REQ-VAL-007**：透明 Value 必须保留独立名义类型和完整 metadata；Serialize、Deserialize、Display 使用内部值表示，
@@ -348,9 +340,6 @@ struct SequenceNumber(u64);
 - **REQ-CAP-008**：自动 Default 只保证 Rust 值可构造，不得声明其一定满足模型约束或 validator。
 - **REQ-CAP-009**：`no_redact` 只允许类型及所有 selector 中不存在任何 redact 规则；关闭后保留的 Debug、Display、
   Serialize 使用普通非脱敏实现。
-  此开关只关闭当前类型自动生成的 Redact，不关闭整个对象图的脱敏；调用字段类型自身的 Debug、Display、Serialize
-  时，必须保留这些实现已有的脱敏行为。上述 redact 规则限制针对当前类型直接声明的字段及 selector 规则，
-  不因嵌套类型自身声明脱敏规则而禁止外层使用 no_redact。
 - **REQ-CAP-010**：`no_debug/no_display/no_serialize` 只关闭对应接口，不得关闭 Redact。
 
 ## 3. Field 与 Property metadata 组件
@@ -403,10 +392,7 @@ Property。系统不需要 `#[computed]`。
 
 ### 3.3 Property 约束
 
-- **REQ-PROP-001**：`#[ModelImpl]` 必须作为 impl 反射上的模型扩展入口，提供 `#[reflect_impl]` 的反射能力，
-  复用其 inherent impl、trait impl、泛型和动态调用支持边界。在 inherent impl 中，只有 public、同步、safe、
-  非泛型且符合 getter/setter 形状的方法自动贡献 Property；其他方法保留反射信息，不因不符合 Property 形状而报错。
-  trait impl 记录实现及方法信息，不自动贡献同名 Property；不能动态调用的方法仍按反射契约记录不可调用原因。
+- **REQ-PROP-001**：`#[ModelImpl]` 必须只收集 public、同步、safe、非泛型的合法 getter/setter 方法。
 - **REQ-PROP-002**：getter 形状必须为 `pub fn name(&self) -> T`，不得有额外参数，返回值不得为 `()`。
 - **REQ-PROP-003**：setter 形状必须为 `pub fn set_name(&mut self, value: T) -> ()`，并且只能有一个值参数。
 - **REQ-PROP-004**：同名 field、getter、setter 必须合并为一个 Property；显式 getter/setter 必须优先于生成的 field
@@ -423,13 +409,6 @@ Property。系统不需要 `#[computed]`。
 - **REQ-PROP-011**：getter/setter 的 erased 访问协议必须遵守 Rust ownership、aliasing 和 lifetime 规则；不得将借用结果
   伪装为 `'static` owned 值。
 - **REQ-PROP-012**：tuple Value 的无名字段不得自动形成具名 Property；Enum payload field 不得进入类型级 properties。
-- **REQ-PROP-013**：ModelImpl 必须支持方法级标记，显式排除该方法对 Property 的自动贡献，但保留其方法反射信息。
-  未标记的方法继续按 getter/setter 形状自动识别；标记名称与具体语法由设计阶段确定。
-  排除只作用于该方法，不删除同名存储字段或其他未排除方法贡献的 Property。
-
-getter 不扩展为 text、indexed、validator、codec、redact 等领域属性的声明位置；这些声明仍使用已有字段及 selector 入口。
-未被显式排除且符合 getter 形状的方法，在无同名存储字段时自动形成 computed Property；
-不提供 computed 宏或标记，遵循 REQ-PROP-007～008 和 REQ-OUT-002。
 
 ## 4. 身份、查询和关联组件
 
@@ -460,46 +439,43 @@ pub struct Order {
 ### 4.2 Identifier
 
 - **REQ-ID-001**：`#[identifier]` 只允许标在 Entity 或 Projection 的直接字段。
-- **REQ-ID-002**：identifier 必须是准确类型为 `qubit_id::Id` 的直接字段，按 Rust 类型身份判断；真正指向该类型的
-  类型别名合法。同名其他类型、包装 newtype、Option、容器以及嵌套字段路径不满足该契约。
+- **REQ-ID-002**：identifier 字段的准确类型必须为 `Id`；Option、容器、别名伪装和嵌套路径均不得接受。
 - **REQ-ID-003**：语法必须支持 `#[identifier]` 和
   `#[identifier(assigned_by = application | database)]`，默认 application。
 - **REQ-ID-004**：database assignment 只允许 Entity；Projection 必须使用默认 application。
 - **REQ-ID-005**：database assignment 表示数据库对最终 ID 负责。DAO 必须返回或回填数据库最终 ID，不得假设调用方
   暂时提供的值是权威值。
 - **REQ-ID-006**：identifier metadata 只记录分配责任方，不得记录序列、自增、触发器等数据库机制。
-- **REQ-ID-007**：identifier 必须隐含 indexed 查询能力；是否进入某种 list filter 由下游查询方案决定。
+- **REQ-ID-007**：identifier 必须隐含 indexed 查询能力，但所属根对象自身的 list filter 不得包含 identifier。
 
 ### 4.3 Indexed 和 list filter 投影
-
-`indexed` 的直接使用场景之一是供下游自动生成查询 filter。例如，User 的 `nickname`、`age`、`birthday`、
-`create_time` 标记为 indexed 后，未来查询消费者可以智能选择：字符串条件 `nickname = "abc"` 表达子串匹配，
-类似 SQL `LIKE '%abc%'`；适合排序比较的标量、日期和时间字段生成上下界，例如 `min_age`、`max_age`、
-`min_birthday`、`max_birthday`、`min_create_time`、`max_create_time`。
-这些例子说明 metadata 的用途，不规定本库生成 filter、SQL 或比较算法。参数命名、匹配方式、区间端点、
-缺省条件以及具体类型与操作的映射，由未来查询消费者单独设计。
 
 - **REQ-QRY-001**：`#[indexed]` 只支持无参数形式，语义是字段路径可参与查询过滤，不是创建物理数据库索引。
 - **REQ-QRY-002**：identifier、unique、reference 必须分别增加 IDENTIFIER、UNIQUE、REFERENCE 索引原因。
 - **REQ-QRY-003**：字段已有任一隐含 indexed 原因时，再显式添加 `#[indexed]` 必须编译报冗余错误。
 - **REQ-QRY-004**：IndexingReasons 必须是集合并支持 EXPLICIT、IDENTIFIER、UNIQUE、REFERENCE；`is_indexed()` 等价于
   该集合非空。
-REQ-QRY-005～014 的查询方案记录移至第 10.3 节，不再约束本库的解析或输出。
+- **REQ-QRY-005**：根对象 list filter 必须包含显式 indexed 普通字段和按 reference 规则展开的路径。
+- **REQ-QRY-006**：根对象自身 identifier 和无 respect_to 的全局 unique 字段不得进入 list filter，必须由专用唯一查找
+  API 使用。
+- **REQ-QRY-007**：scoped unique 的当前字段必须进入 list filter；完整 unique 字段组必须另形成唯一查找键。
+- **REQ-QRY-008**：显式 indexed 的非-reference 复杂字段只能沿内部有效 indexed 成员递归；未 indexed 中间节点必须
+  截断路径。
+- **REQ-QRY-009**：复杂 indexed 字段递归后没有任何可查询叶子时，派生必须报错。
+- **REQ-QRY-010**：查询条件的规范身份必须保存结构化 Property 路径，例如 `category.id`；生成平面名称时默认以 `_`
+  拼接，例如 `category_id`。
+- **REQ-QRY-011**：不同结构化路径产生相同平面名称时必须报错，不得增加 `name` 参数绕过歧义。
+- **REQ-QRY-012**：reference 图最多展开一跳；目标 Entity 的直接 identifier、显式 indexed、unique 可以成为根对象条件，
+  目标 Entity 的 reference 不得继续展开。
+- **REQ-QRY-013**：reference 一跳限制不得截断普通非-reference 值对象嵌套；其内部仍按有效 indexed 路径递归。
+- **REQ-QRY-014**：同时设置多个 filter 字段必须解释为 AND；系统不得为此增加组合 query attribute。
 - **REQ-QRY-015**：物理组合索引、字段顺序、排序、前缀、部分索引不得进入字段 `indexed` 语义。
-- **REQ-QRY-016**：本库必须记录并公开有意义的 indexed 声明、索引原因、来源字段或 Property 路径及其类型，
-  供下游生成 filter。实际 filter 对象生成、参数展开、操作选择和执行不属于本库职责；本节的 filter 示例不作为
-  本库输出这些对象或执行这些操作的验收要求。
 
 ### 4.4 Unique
 
 - **REQ-UNQ-001**：`#[unique]` 必须声明当前字段在全局或 respect_to scope 内唯一。
 - **REQ-UNQ-002**：`respect_to(field, ...)` 可选；当前字段与 scope 字段按声明顺序构成唯一约束。
 - **REQ-UNQ-003**：`ignore_case` 只对 text-capable 当前字段有效，默认 true；显式 false 表示大小写敏感。
-  非文本字段的普通 `#[unique]` 使用其值比较语义，不启用 ignore_case；对非文本字段显式指定 ignore_case 必须报告
-  参数不适用。text-capable 按类型能力判断，包括明确提供该能力的 Value，不依赖类型名称是否写成 `String`。
-  不区分大小写比较必须采用与语言区域无关的 Unicode 默认 case folding，不隐含 trim、重音移除或 Unicode
-  规范化；所用 Unicode 版本由实现契约统一固定，各消费者必须保持一致。持久化消费者无法等价实现该比较语义时，
-  必须报告不支持，不得静默使用数据库默认排序规则替代。
 - **REQ-UNQ-004**：unique 不得支持逻辑 `name` 参数。
 - **REQ-UNQ-005**：schema 必须能消费 unique metadata 建立约束；外部状态唯一性检查不属于纯字段 validator。
 - **REQ-UNQ-006**：随机生成器必须同时避开已有数据和当前批次的唯一冲突，并对不可满足情况返回明确错误。
@@ -528,30 +504,12 @@ pub approver: User,
 - **REQ-REF-003**：省略 property 表示保存完整 Entity；`property = id` 表示 identifier；其他路径必须通过统一
   PropertyMetadata 解析。
 - **REQ-REF-004**：reference property 必须存在、可读，并且 descriptor 与 reference 字段兼容；它是否 computed 不影响
-  可选性。兼容性检查以实际保存的引用值为对象，须穿透引用字段的 Option、Box/Rc/Arc、sequence、set、array
-  包装，不得直接用外层容器 descriptor 与目标属性比较；metadata 必须保留包装形状、可选性和多值结构。
+  可选性。
 - **REQ-REF-005**：`existing` 默认 true；false 表示目标无需预先持久化。
-- **REQ-REF-006**：`path` 必须表示在当前对象实例上下文中定位并复用同一 Entity 的绑定。路径以 `/` 分隔，
-  支持 `..` 向父对象导航及其组合，例如 `street/district`、`../country`、`../../province/country`。最终语法统一
-  使用 `/`，现有点分隔的 reference.path 声明须在重构时迁移。metadata 必须以结构化步骤区分属性导航与父级导航，
-  不要求消费者重新解释原始路径字符串。路径经过 reference 字段时，
-  导航的是该字段所绑定的完整 Entity，而不只是字段实际保存的 ID 或 Projection；终点必须符合声明的目标 Entity。
-  定位 Entity 后再由 `property` 选择其属性；`property` 及普通 Property 路径继续使用 `.` 分隔，
-  与 `path` 的对象绑定路径是不同语义。validator 依赖的对象导航与属性选择规则见 REQ-VLD-005。
-  普通相对路径从当前对象开始，不需要单独的 `.` 当前对象标记。父级导航依赖具体实例所处的对象图上下文，
-  不能仅凭模型类型注册表确定；本库收集并保留路径声明及其导航语义，实例绑定和父级缺失时的回退由下游消费者处理。
-
-例如，订单持有订单项列表时，订单项上的 `#[reference(entity = Order, property = id, path = "..")]`
-复用所属订单的绑定并取得订单 ID；列表本身不形成额外的领域父对象。地址中的 district 可以通过
-`path = "street/district"` 复用 street 所绑定的 Street Entity 的 district 关联，即使 street 字段只保存摘要 Projection。
-
-下游对象生成器也可以支持 Java 实现中的使用场景：单独生成订单项、没有父订单上下文时，准备一个新订单并按需持久化，
-再装配订单项的引用。这说明 path 信息如何被消费，不要求 metadata 库创建对象、访问数据库，或规定统一的回退策略。
-
+- **REQ-REF-006**：`path` 必须表示复用当前对象图中另一处 reference 已绑定的同一 Entity；它不得被解释为 property
+  选择。
 - **REQ-REF-007**：reference 不得支持 name、select、bind、reference_key 等替代参数。
 - **REQ-REF-008**：reference 必须隐含 indexed；Map 不得作为 reference 的直接保存形状。
-  reference 必须支持单值、Option 可选引用、Box/Rc/Arc 指针包装，以及 sequence、set、array 中的多值引用，
-  包括这些形状的组合；集合引用的查询、实例装配和持久化策略由下游消费者定义。
 - **REQ-REF-009**：对象生成器必须根据 existing、path 和 property 规划目标 Entity 创建顺序、既有对象复用和字段装配。
 
 ### 4.6 Key part
@@ -571,8 +529,7 @@ pub struct Owner {
 - **REQ-KEY-002**：未标注字段不得参与键投影；允许只选择部分字段。
 - **REQ-KEY-003**：order 必须从 0 连续、无重复、无缺号。
 - **REQ-KEY-004**：key_part 必须服务于复杂 unique、respect_to、随机去重和 DAO 重复键诊断。
-- **REQ-KEY-005**：下游键提取消费者必须先产生结构化键分量值，再进行比较、大小写规范化或诊断渲染。
-  本库提供字段选择和顺序 metadata；键值提取及 KeyComponentValue 的具体表示由下游设计。
+- **REQ-KEY-005**：运行时必须先产生结构化 KeyComponentValue，再由消费者进行比较、大小写规范化或诊断渲染。
 - **REQ-KEY-006**：key_part 不得创建物理数据库索引，不得成为通用序列化协议或安全边界。
 
 ## 5. 声明式值约束组件
@@ -635,8 +592,7 @@ pub amount: Decimal,
 
 - **REQ-DEC-001**：decimal 和 money 只允许精确 decimal-capable 类型，不得允许 f32/f64。
 - **REQ-DEC-002**：必须支持 precision、scale、字符串 min/max、min_inclusive/max_inclusive、rounding。
-- **REQ-DEC-003**：同时声明 scale 与 precision 时，scale 不得大于 precision；min 不得大于 max；
-  min 与 max 相等时两端必须均为包含边界，否则区间为空，必须报错。
+- **REQ-DEC-003**：scale 存在时不得大于 precision；min 不得大于 max；相同边界不得同时为排他。
 - **REQ-DEC-004**：min/max 必须以字符串保存，避免浮点字面量精度损失。
 - **REQ-DEC-005**：rounding 必须支持 up、down、ceiling、floor、half_up、half_down、half_even、unnecessary。
 - **REQ-DEC-006**：decimal 默认 rounding 为 half_even，并且至少包含一个有效约束。
@@ -701,7 +657,7 @@ pub attributes: HashMap<String, String>,
 ### 5.7 Selector 组合和递归位置
 
 - **REQ-SEL-001**：element、map_key、map_value 必须允许组合 text、decimal、money、time、validator、codec、redact。
-- **REQ-SEL-002**：同一 selector 内每种标准约束最多一个；decimal/money 互斥；允许多个 validator occurrence，包括相同 ID；codec/redact
+- **REQ-SEL-002**：同一 selector 内每种标准约束最多一个；decimal/money 互斥；允许多个不同 validator；codec/redact
   各最多一个。
 - **REQ-SEL-003**：selector 不得包含 identifier、indexed、unique、reference、key_part 或任意角色身份语义。
 - **REQ-SEL-004**：Option、Box、Rc、Arc 必须是透明包装；None 跳过标准约束、validator、codec，其他情况解包处理，
@@ -712,16 +668,13 @@ pub attributes: HashMap<String, String>,
 - **REQ-SEL-007**：未 opaque 的命名 Value、Model、Enum 必须按自身 descriptor 递归，无论位于字段、Option、元素或
   Map key/value。
 - **REQ-SEL-008**：opaque 必须截断叶子内部递归，但不得删除外层 Option/容器 shape。
-- **REQ-SEL-009**：类型自身约束与字段或 selector 使用位置的附加约束必须叠加，不能以使用位置声明覆盖或取消类型约束。
-  metadata 必须分别保留约束及其声明来源。例如 EmailAddress 内部的 text(format = email) 与使用字段上的
-  text(max_chars = 64) 同时成立。实际执行与不满足约束时的处理由消费者负责；本库不要求求解任意约束组合的可满足性。
 
 ## 6. 自定义策略组件
 
 ### 6.1 Validator 的作用与场景
 
-Validator 用于无法由标准属性充分表达、但由当前值及显式提供的对象图依赖上下文决定的语法和一致性检查，
-例如身份证校验位，以及其与当前对象或父对象中的 birthday/gender 的一致性。
+Validator 用于无法由标准属性充分表达、但完全由当前对象值决定的语法和一致性检查，例如身份证校验位以及其与同一
+对象 birthday/gender 的一致性。
 
 ```rust
 register_validator!(
@@ -738,30 +691,15 @@ register_validator!(
 pub identity_card: String,
 ```
 
-- **REQ-VLD-001**：validator 必须同步、确定、无副作用，只验证当前值及显式提供的对象图依赖上下文可决定的事实。
+- **REQ-VLD-001**：validator 必须同步、确定、无副作用，只验证当前对象自身可决定的事实。
 - **REQ-VLD-002**：validator 不得访问 repository、数据库、网络、权限、库存或其他外部业务状态。
 - **REQ-VLD-003**：字段 occurrence 必须使用稳定 ValidatorId，并可以携带 params 和 depends_on。
 - **REQ-VLD-004**：params 只允许 bool、整数、字符串及同类型数组；精确 decimal、时间等结构化值使用字符串。
-- **REQ-VLD-005**：validator 依赖声明必须支持 path 和父对象导航，不得限制为当前对象的 Field/Property。
-  每个依赖独立声明对象导航 path 和属性选择 property，而不是整个 validator 共用一个 path。
-  path 以 `/` 分隔并支持 `..` 父对象导航；省略 path 表示当前对象。property 使用普通点分隔 Property 路径。
-  字段及其 selector 上的依赖以该字段所属对象为起点；元素类型内部字段上的依赖以该元素对象为起点，
-  集合本身不额外形成一级领域父对象。metadata 必须保留结构化导航步骤、属性选择和声明位置。
-  此处复用 reference.path 的导航语法，不自动复用其 Entity 绑定语义：依赖读取显式提供的对象图，
-  不因字段声明 reference 而自动获取未提供的完整 Entity，不访问数据库或其他外部业务状态。
-  实例导航、父对象缺失处理及依赖值提供由 validation adapter/消费者负责；类型上下文不足不等于声明非法。
-  上述语义已确认，具体宏参数形式由设计阶段确定；原 depends_on 示例仅说明当前对象依赖的用途。
-
-例如，同一个身份证 validator 可以分别依赖当前对象的 gender（省略 path、property 为 gender）和父对象的
-birthday（path 为 `..`、property 为 birthday）。两项依赖独立定位，不要求它们来自同一对象。
-- **REQ-VLD-006**：同一字段或 selector 可以多次声明同一 validator ID，参数和依赖可以不同。
-  每次声明作为独立 occurrence 保留，执行和 violation 汇集顺序必须与源码顺序一致；不得按 ID 自动合并或去重。
-- **REQ-VLD-007**：validator 必须满足 `qubit-validator` 的执行与注册契约；注册项必须关联稳定 ID、执行实现与
-  支持的准确输入类型。模型字段统一通过稳定 ID 引用 validator，具体执行 trait 签名由 validator 组件契约定义。
-- **REQ-VLD-008**：结构解析必须检查在显式类型上下文中可确定的 validator 依赖路径的存在性与可读性；
-  依赖具体实例父对象上下文的部分必须保留为待上下文解析信息，不得仅因类型 registry 无法确定父对象而拒绝声明。
-  可选 validation adapter 必须在具有所需上下文的绑定阶段
-  按注册项的准确输入类型检查字段或 selector 目标类型、参数和依赖值，报告结构化不兼容错误。
+- **REQ-VLD-005**：depends_on 只允许当前对象中的 Field/Property 路径，并向 ValidationContext 暴露明确依赖值。
+- **REQ-VLD-006**：同一字段可以声明多个不同 validator，执行和 violation 汇集顺序必须与源码顺序一致。
+- **REQ-VLD-007**：validator 类型必须实现 `qubit_validator::Validator<T>`；`register_validator!` 使用稳定 ID、
+  validator 类型和值类型提交链接期 registration。
+- **REQ-VLD-008**：resolver 必须按 registration 中的准确 value `TypeId` 检查字段或 selector 目标类型。
 - **REQ-VLD-009**：ValidationResult 必须结构化，violation 至少包含稳定 code、字段路径和消息参数；本地化展示不属于
   validator 核心契约。
 - **REQ-VLD-010**：Validator trait、registration、registry 与 context 属于 `qubit-validator`；小写字段 helper 属于
@@ -788,15 +726,14 @@ pub international_phone: Phone,
 - **REQ-CODEC-001**：codec 类型必须实现 `ValueEncoder<T, Output = String>`、
   `ValueDecoder<str, Output = T>` 和 `Default`。
 - **REQ-CODEC-002**：`register_value_codec!` 必须用稳定 ID、codec 类型和值类型提交链接期 registration，并形成
-  可执行 `ValueCodecDescriptor`；注册入口必须在编译期检查 REQ-CODEC-001 的编码、解码和构造能力。
+  可执行 `ValueCodecDescriptor`。
 - **REQ-CODEC-003**：ValueCodecRegistry 必须按 ValueCodecId 查询，保存领域类型身份、文本外部表示和 erased 双向入口。
 - **REQ-CODEC-004**：同一领域类型允许注册多个不同 codec；重复 ID 和类型不匹配必须成为 registry 错误。
-- **REQ-CODEC-005**：Value 可以使用 `codec = RustType` 声明 canonical codec。模型宏只记录声明中的 Rust 类型身份；
-  使用 Rust 类型引用也必须提供相应 codec 注册项，由可选 codec adapter 显式绑定并检查 occurrence 的目标值类型。
+- **REQ-CODEC-005**：Value 可以使用 `codec = RustType` 声明 canonical codec。
 - **REQ-CODEC-006**：字段 `#[codec(RustType)]` 与 `#[codec(id = "ValueCodecId")]` 必须二选一，最多一个，
-  不得携带 params 或 depends_on；两种引用都遵循 REQ-CODEC-005 的注册与绑定边界。
-- **REQ-CODEC-007**：codec 解析优先级必须为字段显式、类型 canonical、无 codec；字段显式选择与类型 canonical
-  相同的 codec 合法，仍按字段显式声明处理。
+  不得携带 params 或 depends_on。
+- **REQ-CODEC-007**：codec 解析优先级必须为字段显式、类型 canonical、无 codec；字段显式选择 canonical 同一 codec
+  必须报冗余错误。
 - **REQ-CODEC-008**：codec trait、descriptor、ID、registration 与 registry 属于 `qubit-codec`；字段 helper 属于 derive。
 
 ### 6.3 Opaque
@@ -811,9 +748,8 @@ pub material: Option<ExternalKeyMaterial>,
 - **REQ-OPAQUE-001**：opaque 必须是无参数 marker，并把最终叶子视为外部黑盒。
 - **REQ-OPAQUE-002**：opaque 叶子不得要求 Reflect；默认 validation 不进入叶子，默认生成器不能自行构造。
 - **REQ-OPAQUE-003**：opaque 值必须由调用方提供或通过模型系统之外的类型生成 adapter 提供。
-- **REQ-OPAQUE-004**：opaque 不得与 identifier 或 reference 组合，不得隐藏 Entity、Projection、Model 以绕过角色检查。
-- **REQ-OPAQUE-005**：opaque 与 indexed/unique 同时声明时，本库必须保留 opaque 类型身份及查询、唯一性声明。
-  查询比较、filter 参数生成和持久化所需的 adapter 由对应消费者定义与检查，不作为本库接收声明的统一前提。
+- **REQ-OPAQUE-004**：opaque 不得与 reference 组合，不得隐藏 Entity、Projection、Model 以绕过角色检查。opaque identifier 可用于无法实现 `Reflect` 的外部稳定主键类型；该字段仍保留 identifier 语义，但其类型结构不可递归查询。
+- **REQ-OPAQUE-005**：opaque 与 indexed/unique 组合只在该类型显式提供查询比较和持久化 adapter 时允许。
 - **REQ-OPAQUE-006**：系统不得提供字段级 generator attribute；未来生成策略如有需求必须单独设计。
 
 ## 7. 输出表示与安全组件
@@ -838,16 +774,9 @@ pub password_hash: String,
 - **REQ-RED-005**：字段级 redact 必须穿透 Option、Box/Rc/Arc、sequence、set、array 到实际值。
 - **REQ-RED-006**：Map 字段级 redact 默认只进入 value；Map key 必须用 map_key(redact(...)) 显式选择。
 - **REQ-RED-007**：字段级与 selector redact 不得同时作用同一路径；重复或歧义必须报错。
-- **REQ-RED-008**：redact(skip) 表示启用脱敏时，在 Debug、Display/文本输出和 JSON/Serde 输出中省略整个字段，
-  不受字段值形状或具名/位置字段形式限制；适用于 tuple、Enum payload、newtype 和透明 Value 的字段。
-  省略整个容器字段，不等于逐个省略其中元素；skip 不得出现在 element/map_key/map_value。
-  输出和显式关闭脱敏时的行为遵循 qubit-redact：启用时不输出该字段的名称和值，disabled 时恢复字段，
-  但仍遵守独立的 Serde skip 配置。唯一载荷被省略后，外层格式所需的合法空表示由 qubit-redact/serializer 决定，
-  不得为维持原序列化形状而输出被省略的载荷，也不要求脱敏输出能反序列化还原原对象。
+- **REQ-RED-008**：redact(skip) 只允许省略整个字段，不得出现在 element/map_key/map_value。
 - **REQ-RED-009**：Map key 脱敏产生重复输出 key 时不得静默覆盖，必须返回结构化序列化错误。
 - **REQ-RED-010**：五种角色默认 Debug、Display、Serialize 必须执行字段脱敏；Deserialize 只负责输入，不应用脱敏。
-  对当前声明中可识别的、与脱敏契约冲突的显式输出 derive，宏必须编译报错。用户关闭相应自动输出并提供手写实现时，
-  由用户保证该实现遵守脱敏契约；宏不承诺自动验证任意手写输出实现的行为。
 
 ### 7.2 Serde 与 keep_serializing
 
@@ -863,14 +792,11 @@ pub aliases: Vec<String>,
 ```
 
 - **REQ-SER-001**：五种角色必须完整保留标准 Serde 类型、variant 和字段属性；显式 Serde 配置优先。
-  此优先级适用于命名、默认省略等自动策略，不得绕过字段脱敏。同一输出路径上的自定义序列化与脱敏模式
-  无法按 qubit-redact 契约安全组合时，宏必须明确报错；关闭自动输出后的手写实现遵循 REQ-RED-010。
 - **REQ-SER-002**：metadata 必须规范化最终序列化名称、反序列化名称、方向性 skip 等可发现事实，不得重新定义
   rename/skip/with/flatten 参数。
 - **REQ-SER-003**：宏默认只对具名字段省略 Option::None 和空标准集合，并在反序列化缺失时补默认。
 - **REQ-SER-004**：标准集合至少包含 Vec、VecDeque、LinkedList、HashMap、BTreeMap、HashSet、BTreeSet、BinaryHeap。
 - **REQ-SER-005**：固定数组、newtype、tuple struct、Enum tuple payload 不得自动省略位置。
-  此处仅限制默认的空值省略策略，不限制用户显式声明的 redact(skip) 或 Serde skip。
 - **REQ-SER-006**：keep_serializing 必须是无参数 marker，只允许可被默认省略的具名 Option/集合字段。
 - **REQ-SER-007**：keep_serializing 只关闭自动 skip_serializing_if，不关闭反序列化缺失默认，也不覆盖用户显式 serde skip。
 - **REQ-SER-008**：在不可能被默认省略的字段上使用 keep_serializing 必须报冗余错误。
@@ -889,8 +815,7 @@ pub enum ReviewState {
 
 - **REQ-VAR-001**：variant helper 只允许 `name = "CANONICAL_NAME"`。
 - **REQ-VAR-002**：省略 name 时，canonical name 必须由 Rust variant 名转换为 SCREAMING_SNAKE_CASE。
-- **REQ-VAR-003**：canonical name 不得为空，同一 Enum 内不得重复；index/ordinal 按当前声明顺序确定，
-  不承诺在增删或重排 variant 后保持不变，不得据此推导跨版本持久化编码。
+- **REQ-VAR-003**：canonical name 不得为空，同一 Enum 内不得重复；声明顺序形成稳定 index/ordinal。
 - **REQ-VAR-004**：Rust name、canonical name、serialized name 必须分别保存；Serde rename 可以使 wire name 与
   canonical name 不同。
 - **REQ-VAR-005**：按 canonical name 查询的 API 不得同时模糊匹配 Rust/serialized name；其他名称必须使用独立查询。
@@ -915,7 +840,7 @@ assert_eq!(user.role(), ModelRole::Entity);
 assert_eq!(user.type_id(), std::any::TypeId::of::<User>());
 assert_eq!(user.field("username").unwrap().name(), Some("username"));
 let registry = ModelRegistry::try_global().unwrap();
-assert!(registry.metadata_for(optional_infos).unwrap().is_none());
+assert!(registry.metadata_for(optional_infos).is_none());
 ```
 
 runtime metadata 的公共对象关系必须符合下图；任何被公开方法返回的 metadata 类型都不得只声明名称而没有公共接口定义：
@@ -932,9 +857,8 @@ ModelRegistry / Resolver --stable ID--> TypeMetadata / strategy metadata
 
 - **REQ-META-001**：runtime metadata 必须由类型描述、成员描述、角色描述、字段语义、泛型描述和动态发现六组公共组件
   构成；组件职责不得由一个无类型字符串属性表代替。
-- **REQ-META-002**：任何从稳定公共接口返回的公开 metadata 类型，都必须定义查询能力、返回信息、缺失语义、错误
-  语义、生命周期与共享边界，并提供使用示例。完整 Rust 签名集中由最终设计和 API 参考定义，必须满足本文的行为契约；
-  需求不重复维护整套签名，也不通过“以现有 API 为准”回避语义定义。
+- **REQ-META-002**：任何从稳定公共接口返回的公开 metadata 类型，都必须在需求规范和 API 参考中列出完整公开方法、
+  返回语义、空值语义和至少一个使用示例；不得保留未决占位符。
 - **REQ-META-003**：所有普通用户查询 API 必须只读；metadata 对象必须可静态共享，查询不得要求构造模型实例。
 
 ### 8.2 普通查询 API 与派生宏生产 API 的边界
@@ -961,13 +885,25 @@ pub mod __private {
 
 已知五种角色类型时使用：
 
-`TypeMetadata::try_of::<T>()` 返回静态共享的模型 metadata 或结构化 ABI 错误；
-`TypeMetadata::of::<T>()` 是相同查询的 panic 便利入口。两者均要求类型满足 `HasTypeMetadata` 和静态生命周期约束。
+```rust
+impl TypeMetadata {
+    pub fn try_of<T>() -> Result<&'static TypeMetadata, AbiViolation>
+    where
+        T: HasTypeMetadata + 'static;
+
+    pub fn of<T>() -> &'static TypeMetadata
+    where
+        T: HasTypeMetadata + 'static;
+}
+```
 
 已知任意可描述 Rust 类型时使用：
 
-`TypeDescriptor::of::<T>()` 提供结构描述符。持有显式 registry 时，`metadata_for(descriptor)`
-查询该类型的模型 overlay，区分成功找到、成功但不存在，以及反射初始化、capability 或 ABI 错误。
+```rust
+impl ModelRegistry {
+    fn metadata_for(&self, descriptor: &'static TypeDescriptor) -> Option<&'static TypeMetadata>;
+}
+```
 
 ```rust
 let user = TypeMetadata::of::<User>();
@@ -976,19 +912,18 @@ let optional_user = TypeDescriptor::of::<Option<User>>();
 
 assert_eq!(user.role(), ModelRole::Entity);
 let registry = ModelRegistry::try_global().unwrap();
-assert!(registry.metadata_for(string).unwrap().is_none());
-assert!(registry.metadata_for(TypeDescriptor::of::<User>()).unwrap().is_some());
+assert!(registry.metadata_for(string).is_none());
+assert!(registry.metadata_for(TypeDescriptor::of::<User>()).is_some());
 ```
 
 - **REQ-META-020**：`TypeMetadata` 只能描述 Entity、Projection、Model、Enum、Value 五种领域声明类型。
 - **REQ-META-021**：`TypeDescriptor` 必须描述任意模型系统可理解的 Rust 类型，包括 scalar、透明包装、容器、tuple、
   opaque、五种角色、泛型参数和 concrete 泛型实例。
-- **REQ-META-022**：五种角色类型的静态入口必须为 `TypeMetadata::try_of::<T>()` 与
+- **REQ-META-022**：五种角色类型的静态入口必须为上述 `TypeMetadata::try_of::<T>()` 与
   `TypeMetadata::of::<T>()`；类型不满足约束时必须编译失败，不得返回 `Option`。`try_of` 必须以结构化
   `AbiViolation` 报告 hidden ABI 不变量破坏；`of` 仅作为 ABI 完整时的便利入口，遇到同一错误时可以 panic。
 - **REQ-META-023**：任意可描述类型的唯一静态入口必须为 `TypeDescriptor::of::<T>()`；显式
-  `ModelRegistry::metadata_for()` 仅在 descriptor 对应五种角色类型且存在有效模型 overlay 时成功返回 metadata；
-  成功但不存在 overlay 与初始化、capability、ABI 错误必须区分。
+  `ModelRegistry::metadata_for()` 仅在 descriptor 对应五种角色类型时返回 `Some`。
 - **REQ-META-024**：系统不得同时公开 `metadata_of::<T>()` 自由函数，也不得向用户类型注入 `User::metadata()` 固有
   方法。
 - **REQ-META-025**：`HasTypeMetadata` 必须是 sealed 的公共泛型约束并继承 `Reflect`；业务代码不得手工实现内部
@@ -996,8 +931,42 @@ assert!(registry.metadata_for(TypeDescriptor::of::<User>()).unwrap().is_some());
 
 ### 8.4 `TypeMetadata` 公共 API
 
-`TypeMetadata` 必须提供类型身份、稳定模型 ID、泛型定义关联、注册状态、字段查询、可失败的 Property 查询、
-角色标签及角色专属 metadata 导航。各项语义由下列需求定义，完整签名由设计与 API 参考集中维护。
+`TypeMetadata` 的目标公共接口必须集中定义如下：
+
+```rust
+use std::any::TypeId;
+
+impl TypeMetadata {
+    pub fn try_of<T>() -> Result<&'static TypeMetadata, AbiViolation>
+    where
+        T: HasTypeMetadata + 'static;
+
+    pub fn of<T>() -> &'static TypeMetadata
+    where
+        T: HasTypeMetadata + 'static;
+
+    pub fn type_id(&self) -> TypeId;
+    pub fn type_name(&self) -> &'static str;
+    pub fn model_id(&self) -> Option<ModelId>;
+    pub fn generic_definition(&self) -> Option<&'static GenericModelMetadata>;
+    pub fn is_registered(&self) -> bool;
+
+    pub fn fields(&self) -> &[FieldMetadata];
+    pub fn field(&self, name: &str) -> Option<&FieldMetadata>;
+    pub fn field_at(&self, index: usize) -> Option<&FieldMetadata>;
+
+    pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, PropertyResolutionError>;
+    pub fn try_property(&'static self, name: &str) -> Result<Option<&'static PropertyMetadata>, PropertyResolutionError>;
+
+    pub fn role(&self) -> ModelRole;
+    pub fn role_metadata(&self) -> &RoleMetadata;
+    pub fn as_entity(&self) -> Option<&EntityMetadata>;
+    pub fn as_projection(&self) -> Option<&ProjectionMetadata>;
+    pub fn as_model(&self) -> Option<&ModelMetadata>;
+    pub fn as_enum(&self) -> Option<&EnumMetadata>;
+    pub fn as_value(&self) -> Option<&ValueMetadata>;
+}
+```
 
 身份示例：
 
@@ -1031,17 +1000,17 @@ assert_eq!(info.name(), "info");
 - **REQ-META-031**：`type_name()` 必须返回诊断用完整 Rust 类型名；其字符串不得作为稳定协议、持久化键或类型相等依据。
 - **REQ-META-032**：`model_id()` 必须表示稳定动态身份；未声明 ID 的非泛型类型和 concrete 泛型实例必须返回 `None`。
 - **REQ-META-033**：`generic_definition()` 必须让 concrete 泛型实例返回所属 `GenericModelMetadata`；非泛型类型返回
-  `None`。此能力不以泛型定义声明模型 ID 为前提；无 ID 定义同样保留模型元数据和实例到定义的关联。
+  `None`。
 - **REQ-META-034**：`is_registered()` 只表示当前 metadata 本身是否直接存在于 registry；不得等价于“可以静态查询”，
   也不得因为 concrete 实例链接到已注册定义就返回 `true`。
-- **REQ-META-035**：`fields()` 必须提供只读字段集合；`field(name)` 只查具名字段，
+- **REQ-META-035**：`fields()`、`field()`、`field_at()` 必须具有上述精确签名；`field(name)` 只查具名字段，
   `field_at(index)` 按 Rust 声明顺序查询，查不到返回 `None`。
 - **REQ-META-036**：Entity、Projection、具名 Model 和具名 Value 的 `fields()` 必须返回全部存储字段；unit Model 返回
   空切片；tuple Value 返回一个无名称字段；Enum 顶层返回空切片。
-- **REQ-META-037**：`try_properties()` 与 `try_property(name)` 必须提供可失败的只读 Property 查询；每个具名存储字段形成同名
+- **REQ-META-037**：`try_properties()` 与 `try_property(name)` 必须具有上述精确签名；每个存储字段形成同名
   Property，显式 getter/setter 再按名称合并。字段声明与独立 `#[ModelImpl]` 无法在单次宏展开中完成的跨来源
   一致性检查，必须以确定排序的 `PropertyBuildErrors` 返回，普通 metadata 查询不得因此 panic。
-- **REQ-META-038**：`role()`、`role_metadata()` 和五个 `as_*()` 方法必须提供角色标签、只读角色 payload 和角色导航；角色不匹配返回 `None`，
+- **REQ-META-038**：`role()`、`role_metadata()` 和五个 `as_*()` 方法必须具有上述精确签名；角色不匹配返回 `None`，
   不得提供 panic 型 `unwrap_*()` 便利方法。
 
 ### 8.5 `TypeDescriptor` 与 `TypeRef` 结构 API
@@ -1053,22 +1022,43 @@ Field 和 Property 的类型查询必须统一返回 `&'static TypeRef`；只有
 let field = TypeMetadata::of::<User>().field("aliases").unwrap();
 let descriptor: &'static TypeDescriptor = field.descriptor().unwrap();
 
-assert!(registry.metadata_for(descriptor).unwrap().is_none()); // Vec<String> 本身不是五种角色类型
+assert!(registry.metadata_for(descriptor).is_none()); // Vec<String> 本身不是五种角色类型
 ```
 
 - **REQ-META-040**：`TypeDescriptor::of()` 和 `ModelRegistry::metadata_for()` 必须具有第 8.3 节给出的精确语义。
 - **REQ-META-041**：`TypeDescriptor` 必须能够区分并导航 scalar、Option、sequence、set、array、map、tuple、
   `Box`/`Rc`/`Arc`、五种角色、opaque、泛型参数和 concrete 泛型实例，不得通过解析 `type_name()` 字符串推断结构。
 - **REQ-META-042**：公开结构表示、容器导航、descriptor 类型身份、能力查询和 opaque
-  查询必须保留已解析、opaque 与 symbolic 的区别，并提供只读导航和明确的缺失、失败语义。
-- **REQ-META-043**：类型能力查询必须区分 Rust trait 实现能力与字段约束适用能力；能力描述由反射层拥有，模型层复用，
-  不建立平行能力系统。
+  查询的精确接口以最终设计和公开 API 为准。
+- **REQ-META-043**：`TypeCapabilities` 的 flag、拥有者、查询入口以及 Rust trait 实现
+  能力与字段约束 capability 的边界以最终设计和公开 API 为准。
 
 ### 8.6 `FieldMetadata` 公共 API
 
-`FieldMetadata` 必须提供字段 index、可选名称、TypeRef、可选 resolved descriptor、源码可见性、
-规范化属性集合，以及 identifier、索引原因、unique、reference、约束、validator、codec 和 redact 的只读查询。
-单项声明不存在时返回缺失状态，多项声明不存在时返回空集合。
+```rust
+impl FieldMetadata {
+    pub fn index(&self) -> usize;
+    pub fn name(&self) -> Option<&'static str>;
+    pub fn type_ref(&self) -> &'static TypeRef;
+    pub fn descriptor(&self) -> Option<&'static TypeDescriptor>;
+    pub fn visibility(&self) -> FieldVisibility;
+    pub fn attributes(&self) -> &[FieldAttributeMetadata];
+
+    pub fn identifier(&self) -> Option<&IdentifierMetadata>;
+    pub fn is_identifier(&self) -> bool;
+    pub fn is_indexed(&self) -> bool;
+    pub fn indexing_reasons(&self) -> IndexingReasons;
+    pub fn unique(&self) -> Option<&UniqueMetadata>;
+    pub fn is_unique(&self) -> bool;
+    pub fn reference(&self) -> Option<&ReferenceMetadata>;
+    pub fn is_reference(&self) -> bool;
+
+    pub fn constraints(&self) -> &[ConstraintMetadata];
+    pub fn validators(&self) -> &[ValidatorMetadata];
+    pub fn codec(&self) -> Option<&CodecMetadata>;
+    pub fn redact(&self) -> Option<&RedactMetadata>;
+}
+```
 
 ```rust
 let field = TypeMetadata::of::<User>().field("username").unwrap();
@@ -1108,15 +1098,26 @@ pub enum FieldVisibility {
   `EXPLICIT` 和由 identifier、unique、reference 产生的重复显式声明。
 - **REQ-META-054**：`FieldVisibility` 必须精确区分 `Public`、`Crate`、`Super`、`Path`、`Private`；可见性只记录源码
   事实，不限制 metadata 查询或自动改变 Property 读写语义。
-- **REQ-META-055**：`FieldAttributeMetadata` 必须以可枚举的强类型声明表示字段语义，区分不同属性并保留规范化后的参数；
-  具体表示须满足 REQ-SYS-001 和 REQ-META-002。
+- **REQ-META-055**：`FieldAttributeMetadata` 的公开表示以最终设计和公开 API 为准。
 
 ### 8.7 `PropertyMetadata` 公共 API
 
-Property 必须提供名称、合并后的逻辑 TypeRef、可选 resolved descriptor、field/getter/setter 来源、
-可读写性与存储分类。来源可以同时存在，各来源缺失必须分别可查询。
-
 ```rust
+impl PropertyMetadata {
+    pub fn name(&self) -> &'static str;
+    pub fn descriptor(&self) -> &'static TypeDescriptor;
+    pub fn field(&self) -> Option<&FieldMetadata>;
+    pub fn getter(&self) -> Option<&GetterMetadata>;
+    pub fn setter(&self) -> Option<&SetterMetadata>;
+    pub fn is_field(&self) -> bool;
+    pub fn is_getter(&self) -> bool;
+    pub fn is_setter(&self) -> bool;
+    pub fn is_readable(&self) -> bool;
+    pub fn is_writable(&self) -> bool;
+    pub fn is_computed(&self) -> bool;
+    pub fn storage_kind(&self) -> PropertyStorageKind;
+}
+
 pub enum PropertyStorageKind {
     FieldBacked,
     Computed,
@@ -1147,8 +1148,8 @@ assert_eq!(property.is_setter(), property.setter().is_some());
   setter 的 Property 必须允许不可读但可写。
 - **REQ-META-064**：`Computed` 表示无同名 field 且有 getter；`Virtual` 表示无同名 field 且只有 setter；不得要求用户
   添加 `#[computed]` 标记。
-- **REQ-META-065**：`GetterMetadata`、`SetterMetadata` 必须公开方法来源、输入/输出类型、借用或所有权方式与可调用性；
-  erased 访问遵守 REQ-PROP-011，失败必须结构化，并区分调用前拒绝与调用后失败；线程安全边界必须显式定义。
+- **REQ-META-065**：`GetterMetadata`、`SetterMetadata` 的完整接口和 erased accessor
+  ABI 以最终设计和公开 API 为准，包括借用/所有权、失败类型与线程安全边界。
 
 ### 8.8 公共角色导航与角色专属 metadata
 
@@ -1187,7 +1188,7 @@ match metadata.role_metadata() {
 
 - **REQ-META-070**：`ModelRole` 与 `RoleMetadata` 必须具有上述五个角色；角色公共信息放在 `TypeMetadata`，不得在每个
   角色 payload 中重复存放字段、Property、类型身份和注册状态。
-- **REQ-META-071**：角色专属 metadata 必须提供最小角色信息：Entity 暴露 identifier；Projection 暴露
+- **REQ-META-071**：角色专属 metadata 必须采用最终设计中的最小接口：Entity 暴露 identifier；Projection 暴露
   identifier、declared source 与 open/fixed；Model 不重复公共字段；Enum 暴露 variant；Value 暴露 transparent
   field 与 canonical codec。
 
@@ -1196,22 +1197,27 @@ match metadata.role_metadata() {
 `IdentifierMetadata`、`UniqueMetadata`、`ReferenceMetadata`、`ConstraintMetadata`、`ValidatorMetadata`、
 `CodecMetadata` 和 `RedactMetadata` 都会由稳定公共方法直接返回，因此每个类型都必须形成闭合的公共 API。
 
-例如，schema 消费者读取 unique 的范围与大小写规则，validation 消费者按强类型 variant 读取约束，
-输出适配器读取 redact 的模式和作用位置；各消费者查询的是同一份规范化声明。
+```rust,ignore
+let field = TypeMetadata::of::<User>().field("username").unwrap();
 
-- **REQ-META-080**：`IdentifierMetadata` 必须提供 ID 分配责任方，语义遵循第 4.2 节。
-- **REQ-META-081**：`UniqueMetadata` 必须提供有序 scope 路径、全局或 scoped 分类及有效大小写比较规则，语义遵循第 4.4 节。
-- **REQ-META-082**：`ReferenceMetadata` 必须提供声明目标、Entity 或 Property 选择、existing 与复用路径；声明事实与解析结果分离。
-- **REQ-META-083**：`ConstraintMetadata` 必须区分第 5 章的约束种类，提供其完整规范化参数和 selector；未声明的边界必须可区分。
-- **REQ-META-084**：`ValidatorMetadata` 必须提供稳定策略 ID、有序参数和依赖路径，保留同一作用位置 occurrence 的源码顺序。
-  每个依赖必须分别提供结构化对象导航路径、Property 选择和声明位置，以支持 REQ-VLD-005 的相对起点语义。
-- **REQ-META-085**：`CodecMetadata` 必须区分 Rust 类型引用与稳定 ID 引用，并标明字段、类型 canonical 或 selector 声明来源；
-  查询声明不隐式绑定执行策略，codec 不提供 occurrence 参数。
-- **REQ-META-086**：`RedactMetadata` 必须提供规范化模式及字段或 selector 作用位置，语义遵循第 7.1 节。
+if let Some(unique) = field.unique() {
+    // 最终设计：读取 unique 的完整声明事实。
+}
+
+for constraint in field.constraints() {
+    // 最终设计：强类型匹配具体约束。
+}
+```
+
+- **REQ-META-080**：`IdentifierMetadata` 完整接口以最终设计和公开 API 为准。
+- **REQ-META-081**：`UniqueMetadata` 完整接口以最终设计和公开 API 为准。
+- **REQ-META-082**：`ReferenceMetadata` 完整接口以最终设计和公开 API 为准。
+- **REQ-META-083**：`ConstraintMetadata` 及各强类型约束 variant 的完整接口以最终设计和公开 API 为准。
+- **REQ-META-084**：`ValidatorMetadata`、策略 ID、参数和依赖路径视图以最终设计和公开 API 为准。
+- **REQ-META-085**：`CodecMetadata`、codec ID、参数和方向视图以最终设计和公开 API 为准。
+- **REQ-META-086**：`RedactMetadata` 及 selector 作用位置视图以最终设计和公开 API 为准。
 - **REQ-META-087**：`QueryMetadata` 必须由 `ModelGraph` 拥有并只为 Entity 构造；它不得塞入静态
   `EntityMetadata`。
-  此处仅表示 Entity 查询相关声明及已解析关系的只读视图，不包含具体 filter 的字段选择、展开、平面命名或执行计划。
-  第 10.3 节的候选查询策略不得成为该视图的构造前提。
 
 ## 9. ModelId、注册与完整解析组件
 
@@ -1223,12 +1229,11 @@ match metadata.role_metadata() {
 let static_metadata = TypeMetadata::of::<LocalRequest>();
 
 let dynamic_metadata = ModelRegistry::global()
-    .get("qubit.platform.iam.User")
+    .get(/* 最终设计：使用稳定 ID 字符串 */)
     .expect("linked User registration");
 ```
 
-注册表负责索引已经链接的稳定注册项；resolver 在该事实集合和显式入口上完成跨 crate 结构关系校验，策略 ID 绑定由
-对应 adapter 负责。两者都不得参与已知类型
+注册表负责索引已经链接的稳定注册项；resolver 在该事实集合上完成跨 crate 引用和策略 ID 校验。两者都不得参与已知类型
 的普通静态 metadata 递归。
 
 ### 9.2 ModelId
@@ -1247,7 +1252,7 @@ let dynamic_metadata = ModelRegistry::global()
 let id = ModelId::new("qubit.platform.iam.User");
 assert_eq!(id.as_str(), "qubit.platform.iam.User");
 
-let invalid = ModelIdBuf::parse("qubit..User");
+let invalid = ModelId::try_from("qubit..User");
 assert!(invalid.is_err());
 ```
 
@@ -1257,8 +1262,7 @@ assert!(invalid.is_err());
 ### 9.3 注册规则
 
 - **REQ-REG-010**：Entity id 必填并始终注册；Projection、Model、Enum、Value 只有声明 id 才注册。
-- **REQ-REG-011**：无 id 类型不得产生 ModelRegistry 的匿名稳定 ID 注册项；这不禁止反射层注册无 ID 类型或泛型定义，
-  不限制其模型 capability、静态查询或作为显式解析入口。
+- **REQ-REG-011**：无 id 类型不得产生只能枚举、不能稳定查询的匿名注册项。
 - **REQ-REG-012**：无论是否注册，五种角色都必须可以通过已知 Rust 类型取得 TypeMetadata。
 - **REQ-REG-013**：registry 必须检测重复 ModelId，并返回包含两个注册来源位置的结构化错误。
 - **REQ-REG-014**：registry 必须能够按 ModelId 查询注册 metadata，并能够使用标准 TypeId 管理当前进程 concrete 类型缓存。
@@ -1266,7 +1270,18 @@ assert!(invalid.is_err());
 
 `ModelRegistry` 的普通用户 API 必须覆盖以下能力：
 
-注册表提供稳定 ID 查询、注册来源、确定性遍历和 concrete 类型索引；完整能力见 REQ-REG-016。
+```rust,ignore
+impl ModelRegistry {
+    // 必需能力，方法名和返回类型见最终设计：
+    // - fallible global access
+    // - panic convenience global access
+    // - lookup metadata by stable ID
+    // - lookup registration details
+    // - deterministic iteration over registrations
+    // - deterministic iteration over generic definitions
+    // - optional lookup/cache by std::any::TypeId
+}
+```
 
 - **REQ-REG-016**：`ModelRegistry` 必须提供 fallible/panic 全局入口、按稳定 ID 查询 registration/concrete/generic、
   按 `TypeId` 查询 concrete metadata，以及确定性 registration 和 generic definition 迭代。
@@ -1277,9 +1292,7 @@ assert!(invalid.is_err());
 - **REQ-GEN-002**：定义必须描述类型参数、const 参数、where 约束和使用参数的字段 descriptor shape。
 - **REQ-GEN-003**：`TypeMetadata::of::<Concrete>()` 必须按需实例化并按当前进程标准 TypeId 缓存 concrete metadata。
 - **REQ-GEN-004**：定义 ID 标识泛型声明；首版不得为 concrete 实例拼接或合成新的 ModelId。
-- **REQ-GEN-005**：未声明模型 ID 的泛型定义仍由反射注册，并保留 generic-model capability；concrete 类型可静态查询，
-  也可查询所属泛型模型定义。模型 ID 决定是否能通过稳定 ID 发现定义，不决定是否具有模型元数据；
-  不得为无 ID 定义或 concrete 实例合成稳定 ID。
+- **REQ-GEN-005**：未声明模型 ID 的泛型定义仍由反射注册；它没有 generic-model capability，但 concrete 类型仍可静态查询。
 - **REQ-GEN-006**：未来若需要字符串 concrete 泛型身份，必须另行设计 TypeExpression，不得使用 Rust type_name 作为协议。
 
 ```rust
@@ -1299,20 +1312,19 @@ assert!(concrete.generic_definition().is_some());
 以上示例中的 `Page<UserInfo>` 是当前程序内可静态查询、可缓存的 concrete metadata，但不是链接期注册项。
 
 - **REQ-GEN-007**：`GenericModelMetadata`、类型参数、const 参数、where 约束、concrete
-  实参、定义关联和 registry 枚举必须可只读查询；symbolic 定义与 concrete 实例必须明确区分。
-- **REQ-GEN-008**：const generic 必须支持 Rust 基础整数类型、bool、char 参数，常量实参和直接参数引用，
-  包括 `[T; N]` 形状；本版不要求模型系统解释涉及泛型参数运算的复杂 const 表达式。
+  实参、定义关联和 registry 枚举的完整公共接口以最终设计和公开 API 为准。
+- **REQ-GEN-008**：讨论记录中对首版 const generic 支持存在不同阶段的结论；最终支持
+  边界必须确认后再写入稳定接口。
 
 ### 9.5 完整解析
 
 - **REQ-RES-001**：`StructureResolver` 必须解析 entity_id 与 source_id，并验证目标存在；validator 和 codec 的稳定
   ID 由各自可选 adapter 在结构解析后绑定。
 - **REQ-RES-002**：`StructureResolver` 必须验证 ID 目标角色、字段/property descriptor 兼容性和 validator 依赖
-  在显式类型上下文中可确定的属性路径；父对象依赖遵循 REQ-VLD-008，执行策略值类型兼容性由对应 adapter 验证。
+  属性路径；执行策略值类型兼容性由对应 adapter 验证。
 - **REQ-RES-003**：resolver 必须验证 fixed Projection source 与 producer 一致，并验证 Projection identifier 契约。
 - **REQ-RES-004**：resolver 必须检测跨 crate Value 传递闭包中的非法 Entity/Projection/Model/reference。
-- **REQ-RES-005**：resolver 错误必须确定性排序，并包含可用的稳定 ID、完整路径、期望/实际角色或类型及源码位置。
-  无 ID 类型通过类型诊断信息及其在解析图中的路径定位，不得为错误报告要求或合成模型 ID。
+- **REQ-RES-005**：resolver 错误必须确定性排序，并包含稳定 ID、完整路径、期望/实际角色或类型及源码位置。
 
 完整解析必须是显式操作，不得由 metadata getter 偷偷读取全局状态：
 
@@ -1332,22 +1344,16 @@ let resolved = graph.projection_source(projection);
 - **REQ-RES-006**：`ProjectionMetadata::source()`、`ReferenceMetadata` getter、validator/codec metadata getter 都不得隐式
   使用 `ModelRegistry::global()`；需要结构解析时必须由调用者显式提供 registry，需要执行绑定时必须显式提供相应
   执行 registry。
-- **REQ-RES-007**：resolver 必须接受显式结构解析输入，成功时返回只读结构图，失败时返回结构化多错误集合；
-  结构图须提供已解析关系、Projection source/producer、Property 与 Entity 查询 metadata。
-  调用者必须能显式提供无模型 ID 的类型及 concrete 泛型实例作为解析入口，并检查从这些入口可达的引用、
-  Property 和结构依赖；完整检查不得以入口具有稳定模型 ID 或链接期注册项为前提。
-  稳定 ID 引用仍通过调用者显式提供的 registry 解析。
-- **REQ-RES-008**：registry/resolver 错误必须提供稳定类别、结构化路径、相关 ID、源码位置与适用的期望/实际类型或角色；
-  多错误集合必须可确定性遍历，并保留底层错误原因。
+- **REQ-RES-007**：resolver 的公共形态、输入、结构图和返回类型
+  以最终设计和公开 API 为准。
+- **REQ-RES-008**：registry/resolver 的公开错误枚举、稳定错误类别、路径、相关 ID、
+  源码位置和多错误集合 API 以最终设计和公开 API 为准。
 
-## 10. 下游实现需求与设计参考
+## 10. 下游消费者契约
 
 ### 10.1 功能、作用和使用场景
 
 metadata 的价值来自多个下游共享同一模型事实。消费者可以选择只实现与自身相关的能力，但不得改变 metadata 定义。
-本章及其他章节中涉及查询执行、filter 生成、随机对象生成和 DAO 持久化的条目，是对相应消费者的语义约束与使用场景，
-不要求 `rs-model-metadata` 或其 derive 实现这些业务算法。消费策略的细化设计由各自 crate 承担。
-本章区分已确认的下游实现需求与尚未冻结的设计参考；后者不得成为本库或未来消费者的强制验收条款。
 
 ```text
 text(max_chars = 64)
@@ -1369,55 +1375,10 @@ reference(entity = User, property = id)
   返回结构化错误。
 - **REQ-CONS-004**：对象图生成必须使用 identifier/reference/existing/path/property 规划依赖，不得将 Value/Model
   误作 Entity 生命周期节点。
-- **REQ-CONS-005**：查询消费者必须依据 indexed 原因、类型、结构化属性路径、unique scope 和 reference 声明设计查询能力，
-  不得将某一种 filter 展开或命名策略反向作为本库接收合法 metadata 的条件。
+- **REQ-CONS-005**：查询生成器必须遵循根唯一键排除、scoped unique、复杂值递归、reference 一跳和平面名冲突规则。
 - **REQ-CONS-006**：接口文档必须能发现类型角色、字段约束、最终 Serde 名称、optional/container shape 和 redaction 分类，
   但不得输出敏感实际值。
 - **REQ-CONS-007**：DAO 重复键诊断和随机唯一缓存必须基于结构化 key components，不得依赖不稳定 Debug/Display 文本。
-
-### 10.2 Validator 与 codec 的下游实现需求
-
-以下为已确认的职责与能力要求，执行协议和具体 API 在相应组件设计中细化：
-
-- validator 组件拥有执行 trait、稳定 ID、注册表、上下文和结构化 violation；模型宏只提供 occurrence metadata。
-  adapter 显式绑定注册项，检查准确输入类型、参数和可确定的依赖类型；不得因上下文暂缺而把声明当成非法。
-- 每项依赖独立使用对象 path 与 property；支持父对象导航，起点遵循 REQ-VLD-005。
-  消费者提供对象图上下文、解析依赖值并明确父对象缺失时的处理；不自动加载 reference 指向但尚未提供的 Entity。
-- 执行须遵守标准约束、类型与使用位置约束叠加、Option/selector/opaque 边界；重复 validator ID 保留为独立 occurrence，
-  按声明顺序执行和汇集 violation。validator 同步、确定、无副作用，不访问外部业务状态。
-- codec 组件拥有注册与双向文本执行能力；adapter 显式检查注册和目标类型，按字段显式、类型 canonical、无 codec
-  的顺序选择。validator 不修改值，规范化由 codec、解析器或构造流程完成。
-
-### 10.3 Indexed、filter 与查询的下游需求和参考
-
-已确认的使用需求：未来查询组件可消费 indexed 信息生成 filter，利用类型能力选择合适操作。
-例如 nickname 为字符串时，条件 `"abc"` 可以表达子串匹配，类似 SQL `LIKE '%abc%'`；age、birthday、create_time
-等适合有序比较的字段可以形成 min/max 条件。具体匹配规则、参数名、区间端点、缺省条件与能力适配留待该组件设计。
-本库仅提供查询相关 metadata 并检查声明本身的类型和关系，不生成 filter，不执行比较，不验证消费者特有的展开结果。
-
-下列保留原需求编码供追溯，均已降为下游设计参考，**不是必须采用的查询方案**：
-
-- **REQ-QRY-005**：可从显式 indexed 字段和 reference 关联路径构造 list filter。
-- **REQ-QRY-006**：可为 identifier 和全局 unique 提供专用唯一查找；是否也进入 list filter 由查询组件决定。
-- **REQ-QRY-007**：可为 scoped unique 同时提供字段过滤和完整唯一键查找。
-- **REQ-QRY-008**：复杂字段的一种展开方案是只沿内部 indexed 成员递归，并在未标记节点停止。
-- **REQ-QRY-009**：采用叶子展开方案的消费者负责识别无法生成查询条件的情况，并提供路径、声明来源和明确诊断；
-  这不是本库宏或 StructureResolver 的查询展开错误。
-- **REQ-QRY-010**：查询身份应保留结构化路径；`category.id` 映射为 `category_id` 只是可选平面命名方案。
-- **REQ-QRY-011**：采用平面命名的消费者负责检测并处理冲突，诊断应标明原路径和生成名称；不得丢失或静默覆盖条件。
-- **REQ-QRY-012**：reference 只展开一跳是一种控制复杂度的候选方案，不是模型关系图的固定限制。
-- **REQ-QRY-013**：采用 reference 深度限制时，可分别设计普通值对象嵌套的展开规则。
-- **REQ-QRY-014**：多个条件按 AND 组合是一种默认方案；组合表达能力由查询组件设计。
-
-### 10.4 对象生成、唯一性、持久化及输出消费者
-
-- 对象生成器消费 identifier 分配责任、reference 的 existing/path/property 和 Projection 来源信息，规划对象创建与复用。
-  无父上下文时创建所需 Entity 是已记录的 Java 使用场景，是否启用及如何回退由生成器决定；本库不创建或持久化对象。
-- 唯一性消费者使用 unique scope、ignore_case、key_part 及其声明顺序；结构化键提取、Unicode case folding、
-  既有数据和批次去重、有限空间不可满足诊断由下游负责，须遵守已确认的唯一语义。
-- schema/DAO 消费者负责物理约束、索引、数据库分配 ID 的回填和重复键诊断；这些机制不进入字段 metadata 参数。
-- 输出实现集成 qubit-redact 的字段省略、嵌套脱敏和输出策略；接口文档消费类型、约束、Serde 名称和脱敏分类，
-  不公开敏感实际值。各组件分别承担其实现测试，本库测试负责声明收集、结构检查与约定的集成行为。
 
 ## 11. 诊断和错误组件
 
@@ -1427,11 +1388,10 @@ reference(entity = User, property = id)
   在编译期报告。
 - **REQ-ERR-002**：错误必须定位到导致问题的用户 token；涉及两处声明时应同时保留主错误和相关位置。
 - **REQ-ERR-003**：parser 应聚合互相独立的错误，使一次编译可以报告多个问题；不得在首个无关错误处停止。
-- **REQ-ERR-004**：重复显式/隐含 indexed、key_part 缺号、selector 非法嵌套必须有专用编译期诊断，不得退化为泛化的
-  “invalid attribute”。消费者特有的查询展开和平面名冲突诊断归属第 10.3 节，不由本库宏或 StructureResolver 执行。
+- **REQ-ERR-004**：重复显式/隐含 indexed、空复杂查询路径、平面名冲突、key_part 缺号、selector 非法嵌套必须有专用
+  诊断，不得退化为泛化的“invalid attribute”。
 - **REQ-ERR-005**：与类型 capability 不匹配的 text/decimal/time/container 约束必须通过清晰编译错误说明期望能力。
-- **REQ-ERR-006**：已废弃。原条款中的 validator/codec `with = RustType` 路径不属于模型声明契约；执行实现的注册
-  检查与 occurrence 绑定检查分别由 REQ-VLD-007～008、REQ-CODEC-002、REQ-CODEC-005～006 定义。
+- **REQ-ERR-006**：用户选择 `with = RustType` 的 validator/codec 路径时，应由生成的 trait bound 产生编译期类型检查。
 
 ### 11.2 运行时/注册表错误
 
@@ -1459,8 +1419,7 @@ reference(entity = User, property = id)
 
 ## 13. 需求验收和文档对齐
 
-- **REQ-ACC-001**：每个本库实现需求编码必须映射到自动化测试、可执行 doctest 或适用的文档边界审查清单。
-  第 10 章已确认的下游实现需求由对应组件验收；设计参考只保留追溯记录，不要求本库为其提供行为实现或测试。
+- **REQ-ACC-001**：每个需求编码必须至少映射到一个自动化测试或可执行 doctest；纯文档边界必须有审查清单。
 - **REQ-ACC-002**：每个合法宏示例必须有 compile-pass 或 runtime metadata 测试；每个明确非法组合必须有 compile-fail
   测试和稳定诊断断言。
 - **REQ-ACC-003**：跨 crate ID、注册、source、reference、validator、codec 必须使用真实多 crate fixture 验证。
@@ -1470,8 +1429,6 @@ reference(entity = User, property = id)
 - **REQ-ACC-007**：用户手册中的 API 名称、参数、代码示例和限制必须与本文需求编码一致；修改公共语义时必须同时更新
   本文、用户手册、Rustdoc 和测试。
 - **REQ-ACC-008**：需求规范、最终设计、公开签名、用户手册、Rustdoc 和测试必须同步，不得保留未决 API 占位符。
-  此项是重构交付验收要求；需求冻结不等于设计或实现完成。仅留给设计阶段的参数拼写、公开签名与内部表示
-  必须在新设计中确定，不能以历史设计中的占位符作为实现依据。
 
 ## 14. 需求索引
 
