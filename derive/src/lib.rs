@@ -6,14 +6,20 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Metadata-only attribute macros for the five Qubit model roles and model
-//! properties.
+//! Domain metadata, default Rust capabilities, and reflected model properties.
 //!
 //! A role macro turns one Rust declaration into reflection metadata plus the
 //! declarative model semantics consumed by Qubit runtimes. Use [`Entity`] and
 //! [`Projection`] for identity-bearing records and views, [`Model`] for
 //! structured data, [`Enum`] for domain enumerations, [`Value`] for value
 //! objects, and [`ModelImpl`] for getter/setter-backed properties.
+//!
+//! Roles supply Clone, equality, Hash, redacted Debug/Display/Serialize, and
+//! Deserialize by default. Capability opt-outs preserve metadata. Named Option
+//! and standard collections receive missing defaults and empty-value omission.
+//! `ModelImpl` preserves impl reflection; getter-only properties are computed
+//! automatically, and `model_property(skip)` excludes one method contribution.
+//! Reference object paths use `/` and `..`, while Property paths use `.`.
 //!
 //! # Examples
 //!

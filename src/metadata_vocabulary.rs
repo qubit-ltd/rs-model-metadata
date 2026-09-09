@@ -14,9 +14,11 @@ use core::hash::Hash;
 use core::hash::Hasher;
 
 use bitflags::bitflags;
+use qubit_reflect::descriptor::TypeRef;
 
 use crate::constraint::ConstraintMetadata;
 use crate::metadata::ModelId;
+use crate::relation::ObjectPath;
 use crate::relation::PropertyPath;
 use crate::type_metadata::TypeMetadata;
 
@@ -206,6 +208,12 @@ pub struct UniqueMetadata {
     respect_to: &'static [PropertyPath<'static>],
     /// Whether textual comparisons use case-insensitive matching.
     ignore_case: bool,
+    /// Explicit source option; absent when text capability supplies the
+    /// default.
+    declared_ignore_case: Option<bool>,
+    /// Whether the effective default awaits concrete generic field
+    /// capabilities.
+    deferred: bool,
 }
 
 impl UniqueMetadata {
@@ -216,6 +224,48 @@ impl UniqueMetadata {
         Self {
             respect_to,
             ignore_case,
+            declared_ignore_case: Some(ignore_case),
+            deferred: false,
+        }
+    }
+
+    /// Preserves a source-level generic declaration before concrete
+    /// substitution.
+    #[must_use]
+    pub const fn for_definition(respect_to: &'static [PropertyPath<'static>], ignore_case: Option<bool>) -> Self {
+        Self {
+            respect_to,
+            ignore_case: false,
+            declared_ignore_case: ignore_case,
+            deferred: true,
+        }
+    }
+
+    /// Computes implicit case comparison from the reflected field capability.
+    #[must_use]
+    pub fn for_type(respect_to: &'static [PropertyPath<'static>], ignore_case: Option<bool>, ty: &TypeRef) -> Self {
+        Self {
+            respect_to,
+            ignore_case: ignore_case.unwrap_or_else(|| text_reference(ty)),
+            declared_ignore_case: ignore_case,
+            deferred: false,
+        }
+    }
+
+    /// Returns the explicit declaration independently of the effective default.
+    #[must_use]
+    pub const fn declared_ignore_case(&self) -> Option<bool> {
+        self.declared_ignore_case
+    }
+
+    /// Returns the concrete comparison policy, or None before generic
+    /// substitution.
+    #[must_use]
+    pub const fn effective_ignore_case(&self) -> Option<bool> {
+        if self.deferred {
+            self.declared_ignore_case
+        } else {
+            Some(self.ignore_case)
         }
     }
 
@@ -341,7 +391,7 @@ pub struct ReferenceMetadata {
     /// Whether the referenced record must exist before assignment.
     existing: bool,
     /// An equivalent local property path, when declared.
-    same_as: Option<&'static PropertyPath<'static>>,
+    same_as: Option<&'static ObjectPath>,
 }
 
 impl ReferenceMetadata {
@@ -352,7 +402,7 @@ impl ReferenceMetadata {
         target: &'static DeclaredEntityTarget,
         selection: &'static ReferenceSelection,
         existing: bool,
-        same_as: Option<&'static PropertyPath<'static>>,
+        same_as: Option<&'static ObjectPath>,
     ) -> Self {
         Self {
             target,
@@ -386,7 +436,7 @@ impl ReferenceMetadata {
     /// Returns an equivalent property path, if declared.
     #[must_use]
     #[inline(always)]
-    pub const fn same_as(&self) -> Option<&'static PropertyPath<'static>> {
+    pub const fn path(&self) -> Option<&'static ObjectPath> {
         self.same_as
     }
 }
@@ -398,6 +448,10 @@ pub struct DependencyBindingMetadata {
     name: &'static str,
     /// The model property path supplying this dependency.
     path: PropertyPath<'static>,
+    /// Navigation from the owning object before selecting the property.
+    object_path: ObjectPath,
+    /// Source occurrence anchoring navigation to its owning object.
+    declaration: &'static crate::metadata::DeclarationLocation,
 }
 
 impl DependencyBindingMetadata {
@@ -405,15 +459,47 @@ impl DependencyBindingMetadata {
     #[must_use]
     #[inline(always)]
     pub const fn new(name: &'static str, path: PropertyPath<'static>) -> Self {
-        assert!(
-            !name.is_empty(),
-            "validator dependency name cannot be empty"
-        );
-        assert!(
-            !path.is_empty(),
-            "validator dependency path cannot be empty"
-        );
-        Self { name, path }
+        static UNKNOWN: crate::metadata::DeclarationLocation = crate::metadata::DeclarationLocation::unknown();
+        assert!(!name.is_empty(), "validator dependency name cannot be empty");
+        assert!(!path.is_empty(), "validator dependency path cannot be empty");
+        Self {
+            name,
+            path,
+            object_path: ObjectPath::current(),
+            declaration: &UNKNOWN,
+        }
+    }
+
+    /// Adds object navigation without changing the selected property.
+    #[must_use]
+    pub const fn with_object_path(mut self, path: ObjectPath) -> Self {
+        self.object_path = path;
+        self
+    }
+
+    /// Returns navigation relative to the declaration's owning object.
+    #[must_use]
+    pub const fn object_path(&self) -> ObjectPath {
+        self.object_path
+    }
+
+    /// Returns the property selected on the navigated object.
+    #[must_use]
+    pub const fn property(&self) -> PropertyPath<'static> {
+        self.path
+    }
+
+    /// Associates an exact field or selector occurrence with this binding.
+    #[must_use]
+    pub const fn with_declaration(mut self, declaration: &'static crate::metadata::DeclarationLocation) -> Self {
+        self.declaration = declaration;
+        self
+    }
+
+    /// Returns source and owning-object coordinates for this dependency.
+    #[must_use]
+    pub const fn declaration(&self) -> &'static crate::metadata::DeclarationLocation {
+        self.declaration
     }
 
     /// Returns the validator signature slot name.
@@ -506,14 +592,8 @@ impl ValidatorMetadata {
         let mut index = 0;
         while index < dependency_bindings.len() {
             let binding = dependency_bindings[index];
-            assert!(
-                !binding.name().is_empty(),
-                "validator dependency name cannot be empty"
-            );
-            assert!(
-                !binding.path().is_empty(),
-                "validator dependency path cannot be empty"
-            );
+            assert!(!binding.name().is_empty(), "validator dependency name cannot be empty");
+            assert!(!binding.path().is_empty(), "validator dependency path cannot be empty");
             assert!(
                 !contains_dependency_name(dependency_bindings, index, binding.name()),
                 "validator dependency names must be unique",
@@ -574,11 +654,7 @@ impl ValidatorMetadata {
 }
 
 /// Reports whether an earlier dependency binding already uses `name`.
-const fn contains_dependency_name(
-    bindings: &[DependencyBindingMetadata],
-    end: usize,
-    name: &str,
-) -> bool {
+const fn contains_dependency_name(bindings: &[DependencyBindingMetadata], end: usize, name: &str) -> bool {
     let mut index = 0;
     while index < end {
         if same_str(bindings[index].name(), name) {
@@ -734,11 +810,7 @@ impl RedactMetadata {
     /// Creates redact declaration metadata.
     #[must_use]
     #[inline(always)]
-    pub const fn new(
-        sensitivity: Option<Sensitivity>,
-        mode: RedactModeMetadata,
-        position: RedactPosition,
-    ) -> Self {
+    pub const fn new(sensitivity: Option<Sensitivity>, mode: RedactModeMetadata, position: RedactPosition) -> Self {
         Self {
             sensitivity,
             mode,
@@ -839,11 +911,7 @@ impl SerdeFieldMetadata {
     /// Records whether missing-value defaults and empty-value omission were
     /// explicit, generated, or suppressed.
     #[must_use]
-    pub const fn with_sources(
-        mut self,
-        default_source: SerdeBehaviorSource,
-        omit_source: SerdeBehaviorSource,
-    ) -> Self {
+    pub const fn with_sources(mut self, default_source: SerdeBehaviorSource, omit_source: SerdeBehaviorSource) -> Self {
         self.default_source = default_source;
         self.omit_source = omit_source;
         self
@@ -1000,4 +1068,19 @@ pub enum FieldAttributeMetadata {
     Opaque,
     /// Recursively validate the value described by this field.
     ValidateNested,
+}
+
+/// Recognizes text through supported optional and smart-pointer wrappers.
+pub(crate) fn text_reference(ty: &TypeRef) -> bool {
+    let Some(descriptor) = ty.as_resolved() else {
+        return false;
+    };
+    if descriptor.as_text().is_some() {
+        return true;
+    }
+    descriptor
+        .as_optional()
+        .map(|value| value.element_type())
+        .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()))
+        .is_some_and(text_reference)
 }

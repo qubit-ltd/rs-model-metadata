@@ -71,8 +71,14 @@ pub enum ModelResolutionCause {
 pub struct ResolveError {
     /// The machine-readable resolution failure class.
     kind: ResolveErrorKind,
+    /// Concrete owner identity, independent from stable registration.
+    owner: Option<(TypeId, &'static str)>,
+    /// Exact declaration position, including unnamed Enum payloads.
+    declaration: Option<crate::metadata::DeclarationLocation>,
     /// The involved property path, when the failure identifies one.
     pub(super) path: Option<OwnedPropertyPath>,
+    /// Object navigation remains separate from the selected Property path.
+    object_path: Option<crate::metadata::ObjectPath>,
     /// The involved stable model ID, when the failure identifies one.
     model_id: Option<&'static str>,
     /// The role expected by the resolution step, when applicable.
@@ -101,6 +107,9 @@ impl ResolveError {
     ) -> Self {
         Self {
             kind,
+            owner: None,
+            declaration: None,
+            object_path: None,
             path: path.map(|path| OwnedPropertyPath::from_segments(path.segments())),
             model_id,
             expected_role,
@@ -112,11 +121,24 @@ impl ResolveError {
         }
     }
 
+    /// Attaches object navigation without converting Parent into a property
+    /// name.
+    pub(super) fn with_object_path(mut self, path: &crate::metadata::ObjectPath) -> Self {
+        self.object_path = Some(*path);
+        self
+    }
+
+    /// Returns the declaration's typed object navigation, if applicable.
+    #[must_use]
+    pub const fn object_path(&self) -> Option<&crate::metadata::ObjectPath> {
+        self.object_path.as_ref()
+    }
+
     /// Creates a contextual error without discarding its underlying cause.
     pub(super) fn resolution(
         root: &'static TypeMetadata,
         path: Option<PropertyPath<'_>>,
-        source: &FragmentIdentity,
+        source: Option<&FragmentIdentity>,
         cause: impl Into<ModelResolutionCause>,
     ) -> Self {
         let cause = cause.into();
@@ -130,10 +152,45 @@ impl ResolveError {
             path,
             None,
             Some(root.role()),
-            Some(source),
+            source,
         );
+        error.owner = Some((root.type_id(), root.type_name()));
         error.cause = Some(cause);
         error
+    }
+
+    /// Adds concrete owner identity without inventing a stable ID.
+    pub(super) fn attach_owner(&mut self, owner: &'static TypeMetadata) {
+        self.owner.get_or_insert((owner.type_id(), owner.type_name()));
+    }
+
+    /// Associates a field diagnostic with its original declaration.
+    pub(super) fn with_declaration(mut self, declaration: crate::metadata::DeclarationLocation) -> Self {
+        self.attach_declaration(declaration);
+        self
+    }
+
+    /// Adds exact declaration source facts.
+    pub(super) fn attach_declaration(&mut self, declaration: crate::metadata::DeclarationLocation) {
+        self.declaration = Some(declaration);
+    }
+
+    /// Returns the concrete owner type, including anonymous models.
+    #[must_use]
+    pub fn owner_type_id(&self) -> Option<TypeId> {
+        self.owner.map(|(id, _)| id)
+    }
+
+    /// Returns the diagnostic Rust name of the concrete owner.
+    #[must_use]
+    pub fn owner_type_name(&self) -> Option<&'static str> {
+        self.owner.map(|(_, name)| name)
+    }
+
+    /// Returns the original field position when the error concerns a field.
+    #[must_use]
+    pub const fn declaration(&self) -> Option<crate::metadata::DeclarationLocation> {
+        self.declaration
     }
 
     /// Attaches the original failure to an already classified diagnostic.
@@ -160,6 +217,7 @@ impl ResolveError {
         left.kind
             .cmp(&right.kind)
             .then_with(|| left.model_id.cmp(&right.model_id))
+            .then_with(|| left.owner_type_name().cmp(&right.owner_type_name()))
             .then_with(|| {
                 left.path
                     .as_ref()
@@ -254,8 +312,6 @@ impl core::fmt::Display for ResolveErrors {
 impl std::error::Error for ResolveErrors {}
 impl std::error::Error for ResolveError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.cause
-            .as_ref()
-            .map(|cause| cause as &dyn std::error::Error)
+        self.cause.as_ref().map(|cause| cause as &dyn std::error::Error)
     }
 }

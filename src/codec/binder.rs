@@ -27,6 +27,7 @@ use crate::metadata::CodecSource;
 use crate::metadata::FieldMetadata;
 use crate::metadata::ModelIdBuf;
 use crate::metadata::SelectorPosition;
+use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
 
 /// Inputs for one codec binding pass.
@@ -40,7 +41,9 @@ pub struct CodecBindInputs<'a, 'graph> {
 /// Stable identity of one codec occurrence.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CodecOccurrenceId {
-    model: ModelIdBuf,
+    model: Option<ModelIdBuf>,
+    type_id: TypeId,
+    type_name: &'static str,
     property: Box<str>,
     source: CodecSource,
 }
@@ -48,9 +51,11 @@ pub struct CodecOccurrenceId {
 impl CodecOccurrenceId {
     /// Creates a stable occurrence identity.
     #[must_use]
-    pub fn new(model: ModelIdBuf, property: impl Into<Box<str>>, source: CodecSource) -> Self {
+    pub fn new(model: &'static TypeMetadata, property: impl Into<Box<str>>, source: CodecSource) -> Self {
         Self {
-            model,
+            model: model.model_id().map(ModelIdBuf::from),
+            type_id: model.type_id(),
+            type_name: model.type_name(),
             property: property.into(),
             source,
         }
@@ -58,8 +63,14 @@ impl CodecOccurrenceId {
 
     /// Returns the owning model ID.
     #[must_use]
-    pub const fn model(&self) -> &ModelIdBuf {
-        &self.model
+    pub const fn model(&self) -> Option<&ModelIdBuf> {
+        self.model.as_ref()
+    }
+
+    /// Returns the exact owner identity, including anonymous types.
+    #[must_use]
+    pub const fn type_id(&self) -> TypeId {
+        self.type_id
     }
 
     /// Returns the normalized property path, empty for canonical value codecs.
@@ -78,9 +89,9 @@ impl CodecOccurrenceId {
 impl core::fmt::Display for CodecOccurrenceId {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if self.property.is_empty() {
-            write!(formatter, "{}::<canonical>", self.model)
+            write!(formatter, "{}::<canonical>", self.type_name)
         } else {
-            write!(formatter, "{}::{}", self.model, self.property)
+            write!(formatter, "{}::{}", self.type_name, self.property)
         }
     }
 }
@@ -142,41 +153,30 @@ impl<'a> CodecBindings<'a> {
 /// # Errors
 ///
 /// Returns all missing, ambiguous, and value-type mismatched occurrences.
-pub fn bind_codecs<'a, 'graph>(
-    inputs: CodecBindInputs<'a, 'graph>,
-) -> Result<CodecBindings<'graph>, CodecBindErrors> {
+pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<CodecBindings<'graph>, CodecBindErrors> {
     let mut bindings = BTreeMap::new();
     let mut errors = Vec::new();
-    for (metadata, _) in inputs.graph.registry().concrete_entries() {
-        let model = ModelIdBuf::from(
-            metadata
-                .model_id()
-                .expect("registered concrete models have stable IDs"),
-        );
+    for &metadata in inputs.graph.models() {
+        let model = metadata;
         for field in metadata.fields() {
             bind_field(
-                model.clone(),
+                model,
                 field,
+                inputs.graph.models(),
                 inputs.codecs,
                 &mut bindings,
                 &mut errors,
             );
         }
-        for variant in metadata
-            .as_enum()
-            .into_iter()
-            .flat_map(|value| value.variants())
-        {
+        for variant in metadata.as_enum().into_iter().flat_map(|value| value.variants()) {
             for field in variant.fields() {
-                let path = format!(
-                    "{}.{}",
-                    variant.canonical_name(),
-                    field.name().unwrap_or("<unnamed>")
-                );
+                let field_name = field.name().map_or_else(|| field.index().to_string(), str::to_owned);
+                let path = format!("{}.{}", variant.canonical_name(), field_name);
                 bind_field_at(
-                    model.clone(),
+                    model,
                     path.into(),
                     field,
+                    inputs.graph.models(),
                     inputs.codecs,
                     &mut bindings,
                     &mut errors,
@@ -206,8 +206,9 @@ pub fn bind_codecs<'a, 'graph>(
 
 /// Binds codecs declared directly on one field and its selectors.
 fn bind_field<'a>(
-    model: ModelIdBuf,
+    model: &'static TypeMetadata,
     field: &'static FieldMetadata,
+    models: &[&'static TypeMetadata],
     codecs: &'a ValueCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
@@ -216,6 +217,7 @@ fn bind_field<'a>(
         model,
         field.name().unwrap_or("<unnamed>").into(),
         field,
+        models,
         codecs,
         bindings,
         errors,
@@ -224,9 +226,10 @@ fn bind_field<'a>(
 
 /// Binds codecs for a field using the supplied canonical property path.
 fn bind_field_at<'a>(
-    model: ModelIdBuf,
+    model: &'static TypeMetadata,
     path: Box<str>,
     field: &'static FieldMetadata,
+    models: &[&'static TypeMetadata],
     codecs: &'a ValueCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
@@ -234,13 +237,14 @@ fn bind_field_at<'a>(
     let Some(descriptor) = field.descriptor() else {
         return;
     };
-    if let Some(codec) = field.codec() {
-        let expected = descriptor
-            .as_optional()
-            .and_then(|value| runtime_type_id(value.element_type()))
-            .unwrap_or_else(|| descriptor.type_id());
+    let expected = descriptor
+        .as_optional()
+        .and_then(|value| runtime_type_id(value.element_type()))
+        .unwrap_or_else(|| descriptor.type_id());
+    let effective = field.codec().or_else(|| canonical_codec(expected, models));
+    if let Some(codec) = effective {
         bind_one(
-            CodecOccurrenceId::new(model.clone(), path.clone(), codec.source()),
+            CodecOccurrenceId::new(model, path.clone(), codec.source()),
             codec,
             expected,
             codecs,
@@ -248,9 +252,7 @@ fn bind_field_at<'a>(
             errors,
         );
     }
-    let sequence = field
-        .sequence_constraint()
-        .and_then(|value| value.element());
+    let sequence = field.sequence_constraint().and_then(|value| value.element());
     let map = field.map_constraint();
     for selector in [
         sequence,
@@ -260,14 +262,14 @@ fn bind_field_at<'a>(
     .into_iter()
     .flatten()
     {
-        let Some(codec) = selector.codec() else {
-            continue;
-        };
         let Some(expected) = selector_type_id(descriptor, selector.position()) else {
             continue;
         };
+        let Some(codec) = selector.codec().or_else(|| canonical_codec(expected, models)) else {
+            continue;
+        };
         bind_one(
-            CodecOccurrenceId::new(model.clone(), path.clone(), codec.source()),
+            CodecOccurrenceId::new(model, path.clone(), CodecSource::Selector(selector.position())),
             codec,
             expected,
             codecs,
@@ -275,6 +277,16 @@ fn bind_field_at<'a>(
             errors,
         );
     }
+}
+
+/// Reads a canonical declaration only from the resolved graph's concrete
+/// models.
+fn canonical_codec(expected: TypeId, models: &[&'static TypeMetadata]) -> Option<&'static CodecMetadata> {
+    models
+        .iter()
+        .find(|model| model.type_id() == expected)?
+        .as_value()?
+        .canonical_codec()
 }
 
 /// Resolves one declaration to exactly one compatible registry registration.
@@ -314,10 +326,7 @@ fn bind_one<'a>(
                 *declaration.codec(),
                 expected_type,
                 None,
-                candidates
-                    .iter()
-                    .map(|registration| registration.source())
-                    .collect(),
+                candidates.iter().map(|registration| registration.source()).collect(),
             ));
             return;
         }
@@ -346,10 +355,7 @@ fn bind_one<'a>(
 }
 
 /// Resolves the runtime value type at one nested selector position.
-fn selector_type_id(
-    descriptor: &'static TypeDescriptor,
-    position: SelectorPosition,
-) -> Option<TypeId> {
+fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosition) -> Option<TypeId> {
     let descriptor = transparent_descriptor(descriptor)?;
     let type_ref = match position {
         SelectorPosition::Element => descriptor
@@ -365,18 +371,12 @@ fn selector_type_id(
 }
 
 /// Removes optional and smart-pointer wrappers from a resolved descriptor.
-fn transparent_descriptor(
-    mut descriptor: &'static TypeDescriptor,
-) -> Option<&'static TypeDescriptor> {
+fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
     loop {
         let element = descriptor
             .as_optional()
             .map(|value| value.element_type())
-            .or_else(|| {
-                descriptor
-                    .as_smart_pointer()
-                    .map(|value| value.pointee_type())
-            });
+            .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()));
         let Some(element) = element else {
             return Some(descriptor);
         };

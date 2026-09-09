@@ -16,9 +16,7 @@ struct NamedDependencyExample {
     kind: u8,
     #[validator(
         id = "example.rule",
-        depends_on(kind = kind),
-        target = "value",
-        on_none = "skip"
+        depends_on(kind(property = kind))
     )]
     number: Option<String>,
 }
@@ -52,7 +50,7 @@ fn bare_dependency_metadata_remains_available_for_legacy_declarations() {
         .expect("value field");
     let validator = &field.validators()[0];
 
-    assert_eq!(validator.depends_on()[0].segments(), &["other"]);
+    assert_eq!(validator.dependency_bindings()[0].property().segments(), &["other"]);
     assert_eq!(validator.target(), TargetMode::Value);
     assert_eq!(validator.on_none(), OnNone::Skip);
 }

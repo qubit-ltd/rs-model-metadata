@@ -1,53 +1,23 @@
-error: unsupported model option 'copy'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/capability_conflicts.rs:15:9
+error: conflicting model capability options
+  --> tests/ui_roles/fail/capability_conflicts.rs:16:8
    |
-15 | #[Model(copy, no_clone)]
-   |         ^^^^
+16 | struct CopyWithoutClone;
+   |        ^^^^^^^^^^^^^^^^
 
-error: unsupported model option 'no_clone'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/capability_conflicts.rs:15:15
+error: no_copy is only supported by Enum
+  --> tests/ui_roles/fail/capability_conflicts.rs:19:8
    |
-15 | #[Model(copy, no_clone)]
-   |               ^^^^^^^^
+19 | struct CopyConflict;
+   |        ^^^^^^^^^^^^
 
-error: unsupported model option 'copy'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/capability_conflicts.rs:18:9
+error: conflicting model capability options
+  --> tests/ui_roles/fail/capability_conflicts.rs:22:8
    |
-18 | #[Model(copy, no_copy)]
-   |         ^^^^
+22 | struct PartialOrderConflict;
+   |        ^^^^^^^^^^^^^^^^^^^^
 
-error: unsupported model option 'no_copy'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/capability_conflicts.rs:18:15
+error: conflicting model capability options
+  --> tests/ui_roles/fail/capability_conflicts.rs:25:8
    |
-18 | #[Model(copy, no_copy)]
-   |               ^^^^^^^
-
-error: unsupported model option 'partial_ord'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/capability_conflicts.rs:21:9
-   |
-21 | #[Model(partial_ord, no_partial_eq)]
-   |         ^^^^^^^^^^^
-
-error: unsupported model option 'no_partial_eq'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/capability_conflicts.rs:21:22
-   |
-21 | #[Model(partial_ord, no_partial_eq)]
-   |                      ^^^^^^^^^^^^^
-
-error: unsupported model option 'ord'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/capability_conflicts.rs:24:9
-   |
-24 | #[Model(ord, no_eq)]
-   |         ^^^
-
-error: unsupported model option 'no_eq'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/capability_conflicts.rs:24:14
-   |
-24 | #[Model(ord, no_eq)]
-   |              ^^^^^
-
-error: unsupported model option 'no_clone'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/capability_conflicts.rs:27:9
-   |
-27 | #[Model(no_clone)]
-   |         ^^^^^^^^
+25 | struct OrderConflict;
+   |        ^^^^^^^^^^^^^

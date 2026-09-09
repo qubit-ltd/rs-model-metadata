@@ -14,8 +14,9 @@ use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 use qubit_validator::ValidatorId;
 
-use crate::metadata::ModelIdBuf;
+use crate::metadata::ModelId;
 use crate::metadata::SelectorPosition;
+use crate::metadata::TypeMetadata;
 
 // qubit-style: allow multiple-public-types
 
@@ -30,7 +31,7 @@ pub enum ValidationBuildErrorKind {
 
 /// One validation-plan binding failure with model and declaration context.
 pub struct ValidationBuildError {
-    model: ModelIdBuf,
+    model: &'static TypeMetadata,
     path: Option<String>,
     selector: Option<SelectorPosition>,
     kind: ValidationBuildErrorKind,
@@ -39,7 +40,7 @@ pub struct ValidationBuildError {
 
 impl ValidationBuildError {
     /// Wraps a shared validator binding error with model context.
-    pub(crate) fn new(model: ModelIdBuf, source: BindError) -> Self {
+    pub(crate) fn new(model: &'static TypeMetadata, source: BindError) -> Self {
         Self {
             model,
             path: None,
@@ -51,7 +52,7 @@ impl ValidationBuildError {
 
     /// Records a selector that the erased executor cannot run.
     pub(crate) fn unsupported_selector(
-        model: ModelIdBuf,
+        model: &'static TypeMetadata,
         path: impl Into<String>,
         selector: SelectorPosition,
     ) -> Self {
@@ -66,8 +67,20 @@ impl ValidationBuildError {
 
     /// Returns the model type name involved in the failure.
     #[must_use]
-    pub const fn model(&self) -> &ModelIdBuf {
-        &self.model
+    pub const fn model(&self) -> Option<ModelId> {
+        self.model.model_id()
+    }
+
+    /// Returns the exact Rust identity even for an anonymous root.
+    #[must_use]
+    pub fn type_id(&self) -> std::any::TypeId {
+        self.model.type_id()
+    }
+
+    /// Returns the Rust owner name independently of registration.
+    #[must_use]
+    pub fn type_name(&self) -> &'static str {
+        self.model.type_name()
     }
 
     /// Returns the declaration path, when available.
@@ -118,12 +131,7 @@ impl fmt::Debug for ValidationBuildError {
 
 impl fmt::Display for ValidationBuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "validation plan for {} failed: {:?}",
-            self.model,
-            self.kind()
-        )?;
+        write!(f, "validation plan for {} failed: {:?}", self.type_name(), self.kind())?;
         if let Some(path) = &self.path {
             write!(f, " at {path}")?;
         }
@@ -136,9 +144,7 @@ impl fmt::Display for ValidationBuildError {
 
 impl std::error::Error for ValidationBuildError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.source
-            .as_ref()
-            .map(|source| source as &dyn std::error::Error)
+        self.source.as_ref().map(|source| source as &dyn std::error::Error)
     }
 }
 
@@ -150,11 +156,11 @@ pub struct ValidationBuildErrors {
 
 impl ValidationBuildErrors {
     /// Converts shared binding failures into model-scoped diagnostics.
-    pub(crate) fn from_bind_errors(model: ModelIdBuf, errors: Vec<BindError>) -> Self {
+    pub(crate) fn from_bind_errors(model: &'static TypeMetadata, errors: Vec<BindError>) -> Self {
         Self {
             errors: errors
                 .into_iter()
-                .map(|error| ValidationBuildError::new(model.clone(), error))
+                .map(|error| ValidationBuildError::new(model, error))
                 .collect(),
         }
     }
@@ -162,8 +168,8 @@ impl ValidationBuildErrors {
     /// Sorts model-scoped diagnostics into stable declaration order.
     pub(crate) fn from_errors(mut errors: Vec<ValidationBuildError>) -> Self {
         errors.sort_by(|left, right| {
-            left.model
-                .cmp(&right.model)
+            left.type_name()
+                .cmp(right.type_name())
                 .then_with(|| left.path.cmp(&right.path))
                 .then_with(|| left.selector.cmp(&right.selector))
         });
@@ -229,20 +235,24 @@ impl AsRef<[ValidationBuildError]> for ValidationBuildErrors {
 mod tests {
     use std::error::Error;
 
+    use qubit_model_derive::Model;
     use qubit_validator::BindError;
     use qubit_validator::BindErrorKind;
 
     use super::ValidationBuildErrors;
-    use crate::metadata::ModelIdBuf;
+    use crate::metadata::TypeMetadata;
+
+    #[Model(id = "example.Model")]
+    struct ErrorModel;
 
     #[test]
     fn retains_bind_error_context_and_order() {
         let errors = ValidationBuildErrors::from_bind_errors(
-            ModelIdBuf::parse("example.Model").expect("valid model ID"),
+            TypeMetadata::of::<ErrorModel>(),
             vec![BindError::new(BindErrorKind::UnsupportedConstraint)],
         );
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].model().as_str(), "example.Model");
+        assert_eq!(errors[0].model().expect("registered model").as_str(), "example.Model");
         assert_eq!(
             errors[0].kind(),
             super::ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::UnsupportedConstraint),

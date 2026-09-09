@@ -18,6 +18,7 @@ pub(crate) fn is_option_path(path: &Path) -> bool {
 }
 
 /// Returns whether `path` names the standard `String` type.
+#[cfg(test)]
 pub(crate) fn is_string_path(path: &Path) -> bool {
     matches_path(path, &["String"])
         || matches_path(path, &["std", "string", "String"])
@@ -26,35 +27,20 @@ pub(crate) fn is_string_path(path: &Path) -> bool {
 
 /// Returns whether `path` names a standard collection with `is_empty`.
 pub(crate) fn is_collection_path(path: &Path) -> bool {
-    let Some(name) = path
-        .segments
-        .last()
-        .map(|segment| segment.ident.to_string())
-    else {
+    let Some(name) = path.segments.last().map(|segment| segment.ident.to_string()) else {
         return false;
     };
     if path.segments.len() == 1 {
         return matches!(
             name.as_str(),
-            "Vec"
-                | "VecDeque"
-                | "LinkedList"
-                | "BinaryHeap"
-                | "HashSet"
-                | "BTreeSet"
-                | "HashMap"
-                | "BTreeMap"
+            "Vec" | "VecDeque" | "LinkedList" | "BinaryHeap" | "HashSet" | "BTreeSet" | "HashMap" | "BTreeMap"
         );
     }
     match name.as_str() {
-        "Vec" => {
-            matches_path(path, &["std", "vec", "Vec"])
-                || matches_path(path, &["alloc", "vec", "Vec"])
-        }
+        "Vec" => matches_path(path, &["std", "vec", "Vec"]) || matches_path(path, &["alloc", "vec", "Vec"]),
         "HashSet" | "HashMap" => matches_collection_path(path, "std", &name),
         "VecDeque" | "LinkedList" | "BinaryHeap" | "BTreeSet" | "BTreeMap" => {
-            matches_collection_path(path, "std", &name)
-                || matches_collection_path(path, "alloc", &name)
+            matches_collection_path(path, "std", &name) || matches_collection_path(path, "alloc", &name)
         }
         _ => false,
     }

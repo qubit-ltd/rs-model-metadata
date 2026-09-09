@@ -6,17 +6,22 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 // qubit-style: allow test-file-name
-// The filename is part of a Cargo fixture rather than an integration-test target.
+// The filename is part of a Cargo fixture rather than an integration-test
+// target.
 
 //! Defines source-side models for linked registration and resolution fixtures.
 
 use qubit_model_derive::Model;
+use qubit_model_derive::Projection;
 use qubit_model_metadata::__private::qubit_id::Id;
 
 #[Model(id = "test.linked.Source")]
 pub struct Source {
     #[reference(entity_id = "test.linked.Target", property = id)]
     pub target_id: Id,
+    #[validator(id = "test.linked.text")]
+    #[codec(id = "test.linked.text")]
+    pub text: String,
 }
 
 #[cfg(feature = "duplicate-fixture")]
@@ -28,4 +33,10 @@ pub struct Duplicate;
 pub struct MissingTarget {
     #[reference(entity_id = "test.linked.Absent", property = id)]
     pub target_id: Id,
+}
+
+#[Projection(id = "test.linked.TargetView", source_id = "test.linked.Target")]
+pub struct TargetView {
+    #[identifier]
+    pub id: Id,
 }

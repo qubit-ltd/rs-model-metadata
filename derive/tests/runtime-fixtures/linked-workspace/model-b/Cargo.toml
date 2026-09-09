@@ -6,8 +6,11 @@ publish = false
 
 [dependencies]
 qubit-model-derive = { path = "../../../../" }
-qubit-model-metadata = { path = "../../../../../" }
+qubit-model-metadata = { path = "../../../../../", features = ["validation", "codec"] }
 serde = { version = "1", features = ["derive"] }
+
+qubit-codec = { version = "0.14", features = ["registry"] }
+qubit-validator = { version = "=0.1.0", path = "../../../../../../../rust-common/rs-validator" }
 
 [features]
 duplicate-fixture = []

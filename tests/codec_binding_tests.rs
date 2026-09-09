@@ -17,10 +17,13 @@ use qubit_codec::ValueCodecRegistrationSource;
 use qubit_codec::ValueCodecRegistry;
 use qubit_codec::ValueDecoder;
 use qubit_codec::ValueEncoder;
+use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
+use qubit_model_derive::Value;
 use qubit_model_metadata::codec::CodecBindErrorKind;
 use qubit_model_metadata::codec::CodecBindInputs;
 use qubit_model_metadata::codec::bind_codecs;
+use qubit_model_metadata::metadata::CodecSource;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ModelGraph;
@@ -112,6 +115,33 @@ struct Mismatch {
     value: String,
 }
 
+#[Model]
+struct AnonymousCodec {
+    #[codec(id = "test.string")]
+    value: String,
+}
+
+/// Codec occurrence identity remains exact for anonymous graph roots.
+#[test]
+fn binds_anonymous_root_codecs() {
+    let models = ModelRegistry::from_metadata(&[]).expect("empty registry");
+    let metadata = TypeMetadata::of::<AnonymousCodec>();
+    let roots = [metadata];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("anonymous graph");
+    let codecs = ValueCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let bindings = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("anonymous codec");
+    assert_eq!(bindings.bindings().len(), 1);
+}
+
 fn source() -> FragmentIdentity {
     FragmentIdentity::new("codec-tests", "fixture", line!(), 1, "model", 1)
 }
@@ -119,7 +149,7 @@ fn source() -> FragmentIdentity {
 fn graph<'a>(metadata: &'static TypeMetadata, source: &'a FragmentIdentity) -> ModelGraph<'a> {
     let models = ModelRegistry::from_metadata(&[(metadata, source)]).expect("model registry");
     let models = Box::leak(Box::new(models));
-    StructureResolver::new(ResolveInputs { models })
+    StructureResolver::new(ResolveInputs { roots: &[], models })
         .resolve()
         .expect("model graph")
 }
@@ -129,8 +159,7 @@ fn binds_declared_and_rust_type_references() {
     let source = source();
     let declared_graph = graph(TypeMetadata::of::<Success>(), &source);
     let rust_graph = graph(TypeMetadata::of::<RustType>(), &source);
-    let codecs =
-        ValueCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
 
     assert_eq!(
         bind_codecs(CodecBindInputs {
@@ -160,12 +189,9 @@ fn reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
     let missing_graph = graph(TypeMetadata::of::<Missing>(), &source);
     let mismatch_graph = graph(TypeMetadata::of::<Mismatch>(), &source);
     let rust_graph = graph(TypeMetadata::of::<RustType>(), &source);
-    let codecs = ValueCodecRegistry::from_registrations([
-        &STRING_REGISTRATION,
-        &STRING_ALIAS_REGISTRATION,
-        &U64_REGISTRATION,
-    ])
-    .expect("codec registry");
+    let codecs =
+        ValueCodecRegistry::from_registrations([&STRING_REGISTRATION, &STRING_ALIAS_REGISTRATION, &U64_REGISTRATION])
+            .expect("codec registry");
 
     let missing = bind_codecs(CodecBindInputs {
         graph: &missing_graph,
@@ -179,14 +205,8 @@ fn reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
         codecs: &codecs,
     })
     .unwrap_err();
-    assert_eq!(
-        mismatch.errors()[0].kind(),
-        CodecBindErrorKind::ValueTypeMismatch
-    );
-    assert_eq!(
-        mismatch.errors()[0].candidate_sources(),
-        &[U64_REGISTRATION.source()]
-    );
+    assert_eq!(mismatch.errors()[0].kind(), CodecBindErrorKind::ValueTypeMismatch);
+    assert_eq!(mismatch.errors()[0].candidate_sources(), &[U64_REGISTRATION.source()]);
     let ambiguous = bind_codecs(CodecBindInputs {
         graph: &rust_graph,
         codecs: &codecs,
@@ -194,4 +214,113 @@ fn reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
     .unwrap_err();
     assert_eq!(ambiguous.errors()[0].kind(), CodecBindErrorKind::Ambiguous);
     assert_eq!(ambiguous.errors()[0].candidate_sources().len(), 2);
+}
+
+#[derive(Default)]
+struct NameCodec;
+
+#[Value(id = "codec.Name", transparent, codec = NameCodec)]
+struct Name(String);
+
+impl ValueEncoder<Name> for NameCodec {
+    type Output = String;
+    type Error = core::convert::Infallible;
+    fn encode(&mut self, input: &Name) -> Result<String, Self::Error> {
+        Ok(input.0.clone())
+    }
+}
+
+impl ValueDecoder<str> for NameCodec {
+    type Output = Name;
+    type Error = core::convert::Infallible;
+    fn decode(&mut self, input: &str) -> Result<Name, Self::Error> {
+        Ok(Name(input.to_owned()))
+    }
+}
+
+#[Model(id = "codec.CanonicalOwner")]
+struct CanonicalOwner {
+    inherited: Name,
+    #[codec(NameCodec)]
+    explicit_same: Name,
+}
+
+/// Explicit equality with canonical is legal and unannotated uses inherit it.
+#[test]
+fn canonical_fallback_preserves_occurrence_sources() {
+    static DESCRIPTOR: ValueCodecDescriptor = ValueCodecDescriptor::of::<NameCodec, Name>();
+    static REGISTRATION: ValueCodecRegistration = ValueCodecRegistration::new(
+        ValueCodecId::new("test.name"),
+        &DESCRIPTOR,
+        ValueCodecRegistrationSource::new("codec-tests", "canonical", file!(), line!()),
+    );
+    let owner = TypeMetadata::of::<CanonicalOwner>();
+    let name = TypeMetadata::of::<Name>();
+    let source = source();
+    let models = ModelRegistry::from_metadata(&[(owner, &source), (name, &source)]).expect("models");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &[],
+    })
+    .resolve()
+    .expect("structure");
+    let codecs = ValueCodecRegistry::from_registrations([&REGISTRATION]).expect("codecs");
+    let bound = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("canonical binding");
+    let fields: Vec<_> = bound
+        .bindings()
+        .filter(|binding| binding.occurrence().type_id() == owner.type_id())
+        .collect();
+    assert_eq!(fields.len(), 2);
+    assert_eq!(
+        fields
+            .iter()
+            .find(|binding| binding.occurrence().property() == "inherited")
+            .unwrap()
+            .declaration()
+            .source(),
+        CodecSource::CanonicalValue
+    );
+    assert_eq!(
+        fields
+            .iter()
+            .find(|binding| binding.occurrence().property() == "explicit_same")
+            .unwrap()
+            .declaration()
+            .source(),
+        CodecSource::Field
+    );
+}
+
+#[Enum]
+enum TupleCodecs {
+    Pair(#[codec(StringCodec)] String, #[codec(StringCodec)] String),
+}
+
+/// Tuple payload occurrences cannot overwrite each other under an unnamed key.
+#[test]
+fn tuple_payload_codecs_have_distinct_occurrences() {
+    let roots = [TypeMetadata::of::<TupleCodecs>()];
+    let models = ModelRegistry::from_metadata(&[]).expect("empty registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("tuple graph");
+    let codecs = ValueCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codecs");
+    let bound = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("payload codecs");
+    assert_eq!(bound.bindings().len(), 2);
+    let paths: Vec<_> = bound
+        .bindings()
+        .map(|binding| binding.occurrence().property())
+        .collect();
+    assert_eq!(paths, ["PAIR.0", "PAIR.1"]);
 }

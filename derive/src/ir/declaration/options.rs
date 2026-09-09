@@ -10,11 +10,15 @@
 
 // qubit-style: allow public-type-layout
 
+use std::collections::BTreeSet;
+
 use syn::LitStr;
 use syn::Type;
 
 #[derive(Clone)]
 pub(crate) struct DeclarationOptions {
+    /// Explicit capability switches, independent of role defaults.
+    pub(crate) behavior: BTreeSet<String>,
     /// Explicit stable model ID.
     pub(crate) id: Option<LitStr>,
     /// Entity source type, when declared.

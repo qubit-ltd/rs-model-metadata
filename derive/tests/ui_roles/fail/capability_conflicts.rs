@@ -24,8 +24,4 @@ struct PartialOrderConflict;
 #[Model(ord, no_eq)]
 struct OrderConflict;
 
-#[Model(no_clone)]
-#[derive(Clone)]
-struct ExistingCloneConflict;
-
 fn main() {}

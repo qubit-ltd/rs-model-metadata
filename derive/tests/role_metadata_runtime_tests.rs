@@ -16,7 +16,6 @@ use model_runtime::__private::qubit_id::Id;
 use model_runtime::metadata::CodecReference;
 use model_runtime::metadata::IndexingReasons;
 use model_runtime::metadata::ModelRole;
-use model_runtime::metadata::PropertyPath;
 use model_runtime::metadata::SerdeBehaviorSource;
 use model_runtime::metadata::TypeMetadata;
 use model_runtime::registry::ModelRegistry;
@@ -37,16 +36,8 @@ struct EmailCodec;
 #[derive(Default)]
 struct EmailCanonicalCodec;
 
-register_value_codec!(
-    id = "runtime.alias_codec",
-    codec = EmailCodec,
-    value = String
-);
-register_value_codec!(
-    id = "runtime.email_codec",
-    codec = EmailCanonicalCodec,
-    value = Email
-);
+register_value_codec!(id = "runtime.alias_codec", codec = EmailCodec, value = String);
+register_value_codec!(id = "runtime.email_codec", codec = EmailCanonicalCodec, value = Email);
 
 impl ValueEncoder<String> for EmailCodec {
     type Output = String;
@@ -66,7 +57,6 @@ impl ValueDecoder<str> for EmailCodec {
     }
 }
 
-#[derive(serde::Serialize)]
 #[Entity(id = "runtime.Account")]
 struct Account {
     #[identifier]
@@ -74,7 +64,7 @@ struct Account {
     #[unique(respect_to(id), ignore_case = false)]
     #[validator(id = "runtime.email", depends_on(id), params(strict = true, regions = ["44", "45"]))]
     #[codec(EmailCodec)]
-    #[redact(level = "personal")]
+    #[redact(level = "high")]
     #[serde(rename = "mail")]
     email: String,
     aliases: Vec<String>,
@@ -92,20 +82,16 @@ struct AccountView {
     id: Id,
 }
 
-#[Model(id = "runtime.Payload")]
+#[Model(id = "runtime.Payload", no_hash)]
 struct Payload {
     #[text(min_chars = 1, max_chars = 8, allowed_chars = code)]
     value: String,
     #[sequence(min_items = 1, max_items = 4, unique_items)]
-    #[element(
-        text(max_chars = 8),
-        validator(id = "runtime.tag"),
-        redact(level = "public")
-    )]
+    #[element(text(max_chars = 8), validator(id = "runtime.tag"), redact(level = "low"))]
     tags: Vec<String>,
     #[map(min_entries = 1, max_entries = 3)]
-    #[map_key(text(max_chars = 8), redact(level = "confidential"))]
-    #[map_value(validator(id = "runtime.map_value"), redact(level = "confidential"))]
+    #[map_key(text(max_chars = 8), redact(level = "medium"))]
+    #[map_value(validator(id = "runtime.map_value"), redact(level = "medium"))]
     labels: std::collections::HashMap<String, String>,
 }
 
@@ -182,31 +168,15 @@ struct Coordinate {
 #[test]
 fn test_role_macros_generate_metadata_capability_and_registration() {
     let cases = [
-        (
-            TypeMetadata::of::<Account>(),
-            ModelRole::Entity,
-            "runtime.Account",
-        ),
+        (TypeMetadata::of::<Account>(), ModelRole::Entity, "runtime.Account"),
         (
             TypeMetadata::of::<AccountView>(),
             ModelRole::Projection,
             "runtime.AccountView",
         ),
-        (
-            TypeMetadata::of::<Payload>(),
-            ModelRole::Model,
-            "runtime.Payload",
-        ),
-        (
-            TypeMetadata::of::<Status>(),
-            ModelRole::Enum,
-            "runtime.Status",
-        ),
-        (
-            TypeMetadata::of::<Email>(),
-            ModelRole::Value,
-            "runtime.Email",
-        ),
+        (TypeMetadata::of::<Payload>(), ModelRole::Model, "runtime.Payload"),
+        (TypeMetadata::of::<Status>(), ModelRole::Enum, "runtime.Status"),
+        (TypeMetadata::of::<Email>(), ModelRole::Value, "runtime.Email"),
     ];
 
     let registry = ModelRegistry::try_global().expect("generated registrations");
@@ -244,41 +214,32 @@ fn test_field_occurrences_preserve_validator_order_and_declared_codec_id() {
     ));
     assert!(email.is_unique());
     assert!(email.reference().is_none());
-    assert_eq!(email.validators()[0].depends_on()[0].segments(), &["id"]);
+    assert_eq!(
+        email.validators()[0].dependency_bindings()[0].property().segments(),
+        &["id"]
+    );
     assert_eq!(email.validators()[0].params().len(), 2);
     assert_eq!(email.serde().serialize_name(), Some("mail"));
     assert!(email.redact().is_some());
     let owner = metadata.field("owner_id").unwrap();
     assert!(owner.reference().is_some());
-    assert!(
-        owner
-            .indexing_reasons()
-            .contains(IndexingReasons::REFERENCE)
-    );
-    assert!(!metadata.field("aliases").unwrap().serde().default());
+    assert!(owner.indexing_reasons().contains(IndexingReasons::REFERENCE));
+    assert!(metadata.field("aliases").unwrap().serde().default());
     assert_eq!(
         metadata.field("aliases").unwrap().serde().default_source(),
-        SerdeBehaviorSource::None
+        SerdeBehaviorSource::ModelDefault
     );
     assert_eq!(
         metadata.field("aliases").unwrap().serde().omit_source(),
-        SerdeBehaviorSource::None
+        SerdeBehaviorSource::ModelDefault
     );
     assert_eq!(
-        metadata
-            .field("kept_aliases")
-            .unwrap()
-            .serde()
-            .omit_source(),
-        SerdeBehaviorSource::None
+        metadata.field("kept_aliases").unwrap().serde().omit_source(),
+        SerdeBehaviorSource::Suppressed
     );
-    assert!(!metadata.field("nickname").unwrap().serde().default());
+    assert!(metadata.field("nickname").unwrap().serde().default());
     assert!(matches!(
-        metadata
-            .field("nickname")
-            .unwrap()
-            .codec()
-            .map(|value| value.codec()),
+        metadata.field("nickname").unwrap().codec().map(|value| value.codec()),
         Some(CodecReference::DeclaredId("runtime.alias_codec")),
     ));
 }
@@ -288,40 +249,20 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
     let enum_metadata = TypeMetadata::of::<Status>().as_enum().expect("enum role");
     assert!(TypeMetadata::of::<Status>().fields().is_empty());
     assert_eq!(
-        enum_metadata
-            .variant_by_rust_name("Ready")
-            .unwrap()
-            .canonical_name(),
+        enum_metadata.variant_by_rust_name("Ready").unwrap().canonical_name(),
         "APPROVED"
     );
-    assert_eq!(
-        enum_metadata
-            .variant_by_rust_name("Failed")
-            .unwrap()
-            .fields()
-            .len(),
-        1
-    );
+    assert_eq!(enum_metadata.variant_by_rust_name("Failed").unwrap().fields().len(), 1);
     let value = TypeMetadata::of::<Email>().as_value().expect("value role");
     assert!(value.is_transparent());
     assert_eq!(value.transparent_field().unwrap().index(), 0);
-    assert!(
-        !TypeMetadata::of::<Coordinate>()
-            .as_value()
-            .unwrap()
-            .is_transparent()
-    );
+    assert!(!TypeMetadata::of::<Coordinate>().as_value().unwrap().is_transparent());
     let coordinate = TypeMetadata::of::<Coordinate>();
-    assert_eq!(
-        coordinate.field("x").unwrap().key_part().unwrap().order(),
-        0
-    );
+    assert_eq!(coordinate.field("x").unwrap().key_part().unwrap().order(), 0);
     assert!(coordinate.field("y").unwrap().key_part().is_none());
     let _ = AccountView { id: Id::new(1) };
     let _ = Status::Ready;
-    let Status::Failed { message } = (Status::Failed {
-        message: "x".into(),
-    }) else {
+    let Status::Failed { message } = (Status::Failed { message: "x".into() }) else {
         unreachable!()
     };
     assert_eq!(message, "x");
@@ -333,19 +274,10 @@ fn test_enum_and_value_role_payloads_use_reflection_overlays() {
 fn test_constraints_and_selectors_are_normalized() {
     let metadata = TypeMetadata::of::<Payload>();
     assert_eq!(
-        metadata
-            .field("value")
-            .unwrap()
-            .text_constraint()
-            .unwrap()
-            .max_chars(),
+        metadata.field("value").unwrap().text_constraint().unwrap().max_chars(),
         Some(8)
     );
-    let sequence = metadata
-        .field("tags")
-        .unwrap()
-        .sequence_constraint()
-        .unwrap();
+    let sequence = metadata.field("tags").unwrap().sequence_constraint().unwrap();
     assert_eq!(sequence.min_items(), Some(1));
     assert!(sequence.unique_items());
     let element = sequence.element().expect("element selector");
@@ -354,10 +286,7 @@ fn test_constraints_and_selectors_are_normalized() {
     assert!(element.redact().is_some());
     let map = metadata.field("labels").unwrap().map_constraint().unwrap();
     assert!(map.key().is_some());
-    assert_eq!(
-        map.value().unwrap().validators()[0].declared_id(),
-        "runtime.map_value"
-    );
+    assert_eq!(map.value().unwrap().validators()[0].declared_id(), "runtime.map_value");
 }
 
 #[test]
@@ -372,7 +301,10 @@ fn test_generic_model_registers_only_its_definition() {
             .is_some()
     );
     let definition = concrete.generic_definition().expect("generic definition");
-    assert_eq!(definition.model_id().as_str(), "runtime.Page");
+    assert_eq!(
+        definition.model_id().expect("registered definition ID").as_str(),
+        "runtime.Page"
+    );
     assert_eq!(definition.definition().generics().parameters().len(), 1);
     assert_eq!(definition.fields().len(), 1);
     let template_field = &definition.fields()[0];
@@ -382,16 +314,11 @@ fn test_generic_model_registers_only_its_definition() {
         template_field.type_ref().as_symbolic(),
         Some(TypeExpression::Parameter(name)) if name.as_ref() == "T",
     ));
-    assert!(std::ptr::eq(
-        registry.generic("runtime.Page").unwrap(),
-        definition
-    ));
+    assert!(std::ptr::eq(registry.generic("runtime.Page").unwrap(), definition));
     assert!(registry.metadata("runtime.Page").is_none());
 
     let buffer = TypeMetadata::of::<Buffer<4>>();
-    let definition = buffer
-        .generic_definition()
-        .expect("const generic definition");
+    let definition = buffer.generic_definition().expect("const generic definition");
     assert_eq!(definition.definition().generics().parameters().len(), 1);
     assert!(definition.fields()[0].type_ref().as_symbolic().is_some());
 
@@ -436,24 +363,22 @@ fn test_generic_enum_registration_preserves_variant_field_overlays() {
 #[test]
 fn test_resolver_builds_scoped_unique_and_reference_queries() {
     let registry = ModelRegistry::try_global().expect("generated registrations");
-    let graph = StructureResolver::new(ResolveInputs { models: registry })
-        .resolve()
-        .expect("valid generated model graph");
+    let graph = StructureResolver::new(ResolveInputs {
+        roots: &[],
+        models: registry,
+    })
+    .resolve()
+    .expect("valid generated model graph");
     let entity = TypeMetadata::of::<Account>().as_entity().unwrap();
     let query = graph.query(entity).expect("entity query");
 
-    assert!(query.filter(&PropertyPath::new(&["email"])).is_some());
-    assert!(query.filter(&PropertyPath::new(&["owner_id"])).is_some());
-    assert_eq!(
-        query
-            .filter_by_flat_name("owner_id")
-            .unwrap()
-            .path()
-            .segments(),
-        &["owner_id"]
+    let declarations = query.declarations();
+    assert!(declarations.iter().any(|entry| entry.field().name() == Some("id")));
+    assert!(
+        declarations
+            .iter()
+            .any(|entry| entry.field().name() == Some("owner_id"))
     );
-    assert!(query.unique_keys().iter().any(|key| {
-        key.paths().map(|path| path.to_string()).collect::<Vec<_>>()
-            == vec!["email".to_owned(), "id".to_owned()]
-    }));
+    let email = TypeMetadata::of::<Account>().field("email").unwrap();
+    assert_eq!(email.unique().unwrap().respect_to()[0].segments(), &["id"]);
 }

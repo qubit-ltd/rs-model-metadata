@@ -4,4 +4,4 @@ error: generic model metadata requires the 'generic' feature
 11 | #[Model(id = "test.Generic")]
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = note: this error originates in the macro `::qubit_model_metadata::__private::v5::with_generic_feature` which comes from the expansion of the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the macro `::qubit_model_metadata::__private::v6::with_generic_feature` which comes from the expansion of the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)

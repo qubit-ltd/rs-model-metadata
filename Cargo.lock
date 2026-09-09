@@ -40,6 +40,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -464,6 +465,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "qubit-budget"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f93253bc135140ca58d3d4f7dffcc330394cf94fec873c5f86ec3bb41dbfa18e"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "qubit-clock"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -512,6 +522,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "qubit-json"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c34de3f5710b2cfd4d89099ffb53359b66e8bf69514590a3ef49f9378e47455"
+dependencies = [
+ "qubit-budget",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "qubit-model-derive"
 version = "0.1.0"
 dependencies = [
@@ -544,6 +566,7 @@ dependencies = [
  "qubit-datatype",
  "qubit-id",
  "qubit-model-derive",
+ "qubit-redact",
  "qubit-reflect",
  "qubit-validation-rules",
  "qubit-validator",
@@ -551,6 +574,28 @@ dependencies = [
  "thiserror",
  "trybuild",
  "uuid",
+]
+
+[[package]]
+name = "qubit-redact"
+version = "0.8.0"
+dependencies = [
+ "bigdecimal",
+ "qubit-budget",
+ "qubit-json",
+ "qubit-redact-derive",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "qubit-redact-derive"
+version = "0.8.0"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]

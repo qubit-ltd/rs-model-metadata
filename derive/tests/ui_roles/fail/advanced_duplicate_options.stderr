@@ -22,7 +22,7 @@ error: duplicate validator `limit` parameter
 23 |     #[validator(id = "trybuild.value", params(limit = 1, limit = 2))]
    |                                                          ^^^^^
 
-error: duplicate validator dependency path
+error: duplicate validator dependency slot
   --> tests/ui_roles/fail/advanced_duplicate_options.rs:25:63
    |
 25 |     #[validator(id = "trybuild.dependency", depends_on(value, value))]

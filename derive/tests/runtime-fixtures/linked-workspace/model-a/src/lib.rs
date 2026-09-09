@@ -11,8 +11,9 @@
 
 mod models;
 
-pub use models::Source;
 #[cfg(feature = "duplicate-fixture")]
 pub use models::Duplicate;
 #[cfg(feature = "missing-fixture")]
 pub use models::MissingTarget;
+pub use models::Source;
+pub use models::TargetView;

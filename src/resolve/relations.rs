@@ -34,7 +34,7 @@ pub(super) fn push_field_error(
     metadata: &'static TypeMetadata,
     field: &'static FieldMetadata,
     actual_role: Option<ModelRole>,
-    source: &FragmentIdentity,
+    source: Option<&FragmentIdentity>,
 ) {
     let path = field.name().map(|name| {
         let segments = [name];
@@ -46,8 +46,10 @@ pub(super) fn push_field_error(
         None,
         None,
         actual_role,
-        Some(source),
+        source,
     );
+    error.attach_owner(metadata);
+    error.attach_declaration(*field.declaration());
     error.path = path;
     errors.push(error);
 }
@@ -67,7 +69,7 @@ pub(super) fn reported_metadata(
     registry: &ModelRegistry,
     root: &'static TypeMetadata,
     path: Option<PropertyPath<'_>>,
-    source: &FragmentIdentity,
+    source: Option<&FragmentIdentity>,
     errors: &mut Vec<ResolveError>,
 ) -> Option<&'static TypeMetadata> {
     match metadata_for_descriptor(descriptor, registry) {
@@ -109,9 +111,7 @@ pub(super) fn forbidden_entity_nested_role(
     } else if let Some(array) = descriptor.as_array() {
         Some(array.element_type())
     } else {
-        descriptor
-            .as_smart_pointer()
-            .map(|pointer| pointer.pointee_type())
+        descriptor.as_smart_pointer().map(|pointer| pointer.pointee_type())
     };
     if let Some(nested) = nested.and_then(TypeRef::as_resolved) {
         return forbidden_entity_nested_role(nested, registry);
@@ -139,7 +139,7 @@ pub(super) fn validate_value_closure(
     metadata: &'static TypeMetadata,
     registry: &ModelRegistry,
     visited: &mut HashSet<TypeId>,
-    source: &FragmentIdentity,
+    source: Option<&FragmentIdentity>,
     errors: &mut Vec<ResolveError>,
 ) {
     validate_nested_value(metadata, metadata, &[], registry, visited, source, errors);
@@ -154,7 +154,7 @@ fn validate_nested_value(
     prefix: &[&'static str],
     registry: &ModelRegistry,
     visited: &mut HashSet<TypeId>,
-    source: &FragmentIdentity,
+    source: Option<&FragmentIdentity>,
     errors: &mut Vec<ResolveError>,
 ) -> bool {
     if !visited.insert(metadata.type_id()) {
@@ -169,15 +169,7 @@ fn validate_nested_value(
         let mut path = prefix.to_vec();
         path.push(name);
         let before = errors.len();
-        let closed = value_type_ref_is_closed(
-            field.type_ref(),
-            registry,
-            visited,
-            root,
-            source,
-            errors,
-            &path,
-        );
+        let closed = value_type_ref_is_closed(field.type_ref(), registry, visited, root, source, errors, &path);
         if !closed && errors.len() == before {
             let actual_role = field
                 .descriptor()
@@ -199,7 +191,7 @@ fn validate_nested_value(
                     Some(PropertyPath::new(&path)),
                     Some(ModelRole::Value),
                     actual_role,
-                    Some(source),
+                    source,
                 ));
             }
         }
@@ -215,13 +207,13 @@ fn value_type_ref_is_closed(
     registry: &ModelRegistry,
     visited: &mut HashSet<TypeId>,
     root: &'static TypeMetadata,
-    source: &FragmentIdentity,
+    source: Option<&FragmentIdentity>,
     errors: &mut Vec<ResolveError>,
     path: &[&'static str],
 ) -> bool {
-    type_ref.as_resolved().is_some_and(|descriptor| {
-        value_descriptor_is_closed(descriptor, registry, visited, root, source, errors, path)
-    })
+    type_ref
+        .as_resolved()
+        .is_some_and(|descriptor| value_descriptor_is_closed(descriptor, registry, visited, root, source, errors, path))
 }
 
 /// Checks a descriptor without turning lookup failures into role violations.
@@ -231,7 +223,7 @@ fn value_descriptor_is_closed(
     registry: &ModelRegistry,
     visited: &mut HashSet<TypeId>,
     root: &'static TypeMetadata,
-    source: &FragmentIdentity,
+    source: Option<&FragmentIdentity>,
     errors: &mut Vec<ResolveError>,
     path: &[&'static str],
 ) -> bool {
@@ -249,9 +241,7 @@ fn value_descriptor_is_closed(
     };
     if let Some(metadata) = metadata {
         return match metadata.role() {
-            ModelRole::Value => {
-                validate_nested_value(metadata, root, path, registry, visited, source, errors)
-            }
+            ModelRole::Value => validate_nested_value(metadata, root, path, registry, visited, source, errors),
             ModelRole::Enum => {
                 let Some(enumeration) = metadata.as_enum() else {
                     return false;
@@ -269,6 +259,21 @@ fn value_descriptor_is_closed(
                         nested.push(variant.canonical_name());
                         if let Some(name) = field.name() {
                             nested.push(name);
+                        }
+                        if field.reference().is_some() {
+                            let mut error = ResolveError::new(
+                                ResolveErrorKind::InvalidValueClosure,
+                                root.model_id().map(|id| id.as_str()),
+                                Some(PropertyPath::new(&nested)),
+                                Some(ModelRole::Value),
+                                Some(ModelRole::Enum),
+                                source,
+                            );
+                            error.attach_owner(root);
+                            error.attach_declaration(*field.declaration());
+                            errors.push(error);
+                            closed = false;
+                            continue;
                         }
                         closed &= value_type_ref_is_closed(
                             field.type_ref(),
@@ -299,39 +304,20 @@ fn value_descriptor_is_closed(
     } else if let Some(array) = descriptor.as_array() {
         Some(array.element_type())
     } else {
-        descriptor
-            .as_smart_pointer()
-            .map(|pointer| pointer.pointee_type())
+        descriptor.as_smart_pointer().map(|pointer| pointer.pointee_type())
     };
     if let Some(nested) = nested {
         return value_type_ref_is_closed(nested, registry, visited, root, source, errors, path);
     }
     if let Some(map) = descriptor.as_map() {
-        let key = value_type_ref_is_closed(
-            map.key_type(),
-            registry,
-            visited,
-            root,
-            source,
-            errors,
-            path,
-        );
-        let value = value_type_ref_is_closed(
-            map.value_type(),
-            registry,
-            visited,
-            root,
-            source,
-            errors,
-            path,
-        );
+        let key = value_type_ref_is_closed(map.key_type(), registry, visited, root, source, errors, path);
+        let value = value_type_ref_is_closed(map.value_type(), registry, visited, root, source, errors, path);
         return key && value;
     }
     if let Some(tuple) = descriptor.as_tuple() {
         let mut closed = true;
         for element in tuple.elements() {
-            closed &=
-                value_type_ref_is_closed(element, registry, visited, root, source, errors, path);
+            closed &= value_type_ref_is_closed(element, registry, visited, root, source, errors, path);
         }
         return closed;
     }
@@ -351,10 +337,27 @@ pub(super) fn resolve_property_path(
             return Ok(None);
         };
         result = Some(property);
+        if !property.is_readable() {
+            return Ok(result);
+        }
         if index + 1 < path.segments().len() {
-            let Some(descriptor) = property.descriptor() else {
+            let Some(mut descriptor) = property.descriptor() else {
                 return Ok(None);
             };
+            let mut visited = HashSet::new();
+            while visited.insert(descriptor.type_id()) {
+                let inner = descriptor
+                    .as_optional()
+                    .map(|value| value.element_type())
+                    .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()));
+                let Some(inner) = inner else {
+                    break;
+                };
+                let Some(resolved) = inner.as_resolved() else {
+                    return Ok(None);
+                };
+                descriptor = resolved;
+            }
             let Some(nested) = metadata_for_descriptor(descriptor, registry)? else {
                 return Ok(None);
             };
@@ -366,4 +369,172 @@ pub(super) fn resolve_property_path(
 /// Returns a stable target ID for textual target declarations.
 pub(super) fn declared_target_id(target: &DeclaredEntityTarget) -> Option<&'static str> {
     target.model_id().map(|id| id.as_str())
+}
+
+/// Checks scoped uniqueness structurally without prescribing query products.
+pub(super) fn validate_unique_scope(
+    metadata: &'static TypeMetadata,
+    field: &'static FieldMetadata,
+    registry: &ModelRegistry,
+    source: Option<&FragmentIdentity>,
+    errors: &mut Vec<ResolveError>,
+) {
+    let Some(unique) = field.unique() else {
+        return;
+    };
+    for scope in unique.respect_to() {
+        let kind = match resolve_property_path(metadata, scope, registry) {
+            Ok(Some(property)) if property.is_readable() => continue,
+            Ok(Some(_)) => ResolveErrorKind::UnreadableProperty,
+            Ok(None) => ResolveErrorKind::MissingProperty,
+            Err(error) => {
+                errors.push(
+                    ResolveError::resolution(metadata, Some(*scope), source, error)
+                        .with_declaration(*field.declaration()),
+                );
+                continue;
+            }
+        };
+        errors.push(
+            ResolveError::new(
+                kind,
+                metadata.model_id().map(|id| id.as_str()),
+                Some(*scope),
+                None,
+                Some(metadata.role()),
+                source,
+            )
+            .with_declaration(*field.declaration()),
+        );
+    }
+}
+
+/// Matches the selected value through allowed reference-container shapes.
+pub(super) fn reference_value_matches(expected: &TypeDescriptor, mut actual: &'static TypeDescriptor) -> bool {
+    let mut visited = HashSet::new();
+    while visited.insert(actual.type_id()) {
+        if actual.as_map().is_some() {
+            return false;
+        }
+        if expected.type_id() == actual.type_id() {
+            return true;
+        }
+        let inner = actual
+            .as_optional()
+            .map(|value| value.element_type())
+            .or_else(|| actual.as_sequence().map(|value| value.element_type()))
+            .or_else(|| actual.as_set().map(|value| value.element_type()))
+            .or_else(|| actual.as_array().map(|value| value.element_type()))
+            .or_else(|| actual.as_smart_pointer().map(|value| value.pointee_type()));
+        let Some(inner) = inner.and_then(|value| value.as_resolved()) else {
+            return false;
+        };
+        actual = inner;
+    }
+    false
+}
+
+/// Resolves object bindings rather than the IDs or projections stored in
+/// fields.
+pub(super) fn resolve_object_binding(
+    root: &'static TypeMetadata,
+    path: &crate::metadata::ObjectPath,
+    registry: &ModelRegistry,
+) -> Result<(Option<&'static TypeMetadata>, bool), super::error::ModelResolutionCause> {
+    resolve_object_path(root, path, registry, true)
+}
+
+/// Selects stored objects for validators or full Entity bindings for
+/// references.
+fn resolve_object_path(
+    root: &'static TypeMetadata,
+    path: &crate::metadata::ObjectPath,
+    registry: &ModelRegistry,
+    follow_entity_bindings: bool,
+) -> Result<(Option<&'static TypeMetadata>, bool), super::error::ModelResolutionCause> {
+    let mut current = root;
+    let mut parents = Vec::new();
+    for step in path.steps() {
+        match step {
+            crate::metadata::NavigationStep::Parent => {
+                let Some(parent) = parents.pop() else {
+                    return Ok((None, true));
+                };
+                current = parent;
+            }
+            crate::metadata::NavigationStep::Property(name) => {
+                let properties = registry.properties_for(current)?;
+                let Some(property) = properties.property(name).filter(|property| property.is_readable()) else {
+                    return Ok((None, false));
+                };
+                let next = if follow_entity_bindings
+                    && let Some(reference) = property.field().and_then(FieldMetadata::reference)
+                {
+                    resolve_declared_target(reference.target(), registry)
+                } else {
+                    let mut descriptor = property.descriptor();
+                    while let Some(value) = descriptor {
+                        let inner = value
+                            .as_optional()
+                            .map(|value| value.element_type())
+                            .or_else(|| value.as_smart_pointer().map(|value| value.pointee_type()));
+                        if let Some(inner) = inner {
+                            descriptor = inner.as_resolved();
+                        } else {
+                            break;
+                        }
+                    }
+                    match descriptor {
+                        Some(descriptor) => registry.metadata_for(descriptor)?,
+                        None => None,
+                    }
+                };
+                let Some(next) = next else {
+                    return Ok((None, false));
+                };
+                parents.push(current);
+                current = next;
+            }
+        }
+    }
+    Ok((Some(current), false))
+}
+
+/// Checks statically known dependency targets independently from validator
+/// binding.
+pub(super) fn validate_dependency(
+    owner: &'static TypeMetadata,
+    dependency: &crate::metadata::DependencyBindingMetadata,
+    registry: &ModelRegistry,
+    source: Option<&FragmentIdentity>,
+    errors: &mut Vec<ResolveError>,
+) {
+    let resolved = resolve_object_path(owner, &dependency.object_path(), registry, false);
+    let property = dependency.property();
+    let failure = match resolved {
+        Ok((_, true)) => return,
+        Ok((Some(target), false)) => match resolve_property_path(target, &property, registry) {
+            Ok(Some(value)) if value.is_readable() => return,
+            Ok(Some(_)) => Ok(ResolveErrorKind::UnreadableProperty),
+            Ok(None) => Ok(ResolveErrorKind::MissingProperty),
+            Err(cause) => Err(cause),
+        },
+        Ok((None, false)) => Ok(ResolveErrorKind::MissingProperty),
+        Err(cause) => Err(cause),
+    };
+    let mut error = match failure {
+        Ok(kind) => ResolveError::new(
+            kind,
+            owner.model_id().map(|id| id.as_str()),
+            Some(property),
+            None,
+            None,
+            source,
+        ),
+        Err(cause) => ResolveError::resolution(owner, Some(property), source, cause),
+    }
+    .with_object_path(&dependency.object_path());
+    error.attach_owner(owner);
+    error.attach_declaration(*dependency.declaration());
+    errors.push(error);
 }

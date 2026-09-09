@@ -34,6 +34,8 @@ use crate::metadata::ValidatorMetadata;
 /// Model semantics attached to one reflection-owned structural field.
 #[derive(Clone, Copy, Debug)]
 pub struct FieldMetadata {
+    /// Source position and owning object of this declaration.
+    declaration: crate::metadata::DeclarationLocation,
     /// The concrete reflection descriptor, when this is a runtime overlay.
     reflect: Option<&'static FieldDescriptor>,
     /// The source-level descriptor, when this is a generic declaration
@@ -58,6 +60,7 @@ impl FieldMetadata {
     #[must_use]
     pub const fn from_reflect(reflect: &'static FieldDescriptor) -> Self {
         Self {
+            declaration: crate::metadata::DeclarationLocation::unknown(),
             reflect: Some(reflect),
             definition: None,
             symbolic_type: None,
@@ -80,6 +83,7 @@ impl FieldMetadata {
         serde: &'static SerdeFieldMetadata,
     ) -> Self {
         Self {
+            declaration: crate::metadata::DeclarationLocation::unknown(),
             reflect: Some(reflect),
             definition: None,
             symbolic_type: None,
@@ -104,6 +108,7 @@ impl FieldMetadata {
         serde: &'static SerdeFieldMetadata,
     ) -> Self {
         Self {
+            declaration: crate::metadata::DeclarationLocation::unknown(),
             reflect: None,
             definition: Some(definition),
             symbolic_type: Some(symbolic_type),
@@ -113,6 +118,19 @@ impl FieldMetadata {
             validators,
             serde,
         }
+    }
+
+    /// Associates source coordinates without changing reflection identity.
+    #[must_use]
+    pub const fn with_declaration(mut self, declaration: crate::metadata::DeclarationLocation) -> Self {
+        self.declaration = declaration;
+        self
+    }
+
+    /// Returns the field's exact source occurrence.
+    #[must_use]
+    pub const fn declaration(&self) -> &crate::metadata::DeclarationLocation {
+        &self.declaration
     }
 
     /// Returns the underlying reflection field descriptor.
@@ -190,12 +208,10 @@ impl FieldMetadata {
     /// Returns the identifier declaration, when present.
     #[must_use]
     pub fn identifier(&self) -> Option<&'static IdentifierMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Identifier(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Identifier(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns whether this field is the model identifier.
@@ -207,13 +223,12 @@ impl FieldMetadata {
     /// Returns every reason this field participates in an index.
     #[must_use]
     pub fn indexing_reasons(&self) -> IndexingReasons {
-        self.attributes.iter().fold(
-            IndexingReasons::empty(),
-            |result, attribute| match attribute {
+        self.attributes
+            .iter()
+            .fold(IndexingReasons::empty(), |result, attribute| match attribute {
                 FieldAttributeMetadata::Indexed(value) => result | *value,
                 _ => result,
-            },
-        )
+            })
     }
 
     /// Returns whether this field participates in any index.
@@ -225,12 +240,10 @@ impl FieldMetadata {
     /// Returns the uniqueness declaration, when present.
     #[must_use]
     pub fn unique(&self) -> Option<&'static FieldUniqueMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Unique(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Unique(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns whether this field declares uniqueness.
@@ -242,23 +255,19 @@ impl FieldMetadata {
     /// Returns the entity reference declaration, when present.
     #[must_use]
     pub fn reference(&self) -> Option<&'static FieldReferenceMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Reference(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Reference(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns the ordered composite-key declaration, when present.
     #[must_use]
     pub fn key_part(&self) -> Option<&'static KeyPartMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::KeyPart(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::KeyPart(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns all standard field constraints.
@@ -323,23 +332,19 @@ impl FieldMetadata {
     /// Returns the field codec declaration, when present.
     #[must_use]
     pub fn codec(&self) -> Option<&'static CodecMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Codec(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Codec(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns the field redaction declaration, when present.
     #[must_use]
     pub fn redact(&self) -> Option<&'static RedactMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Redact(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Redact(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns the effective Serde behavior.

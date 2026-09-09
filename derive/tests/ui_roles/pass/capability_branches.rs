@@ -8,20 +8,18 @@
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
-//! Confirms model macros do not require generated behavior traits.
+//! Confirms opt-in behavior and all supported role shapes.
 
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Value;
 
-#[derive(Default, Eq, Ord, PartialEq, PartialOrd)]
-#[Model]
+#[Model(default, ord)]
 struct OrderedModel {
     value: u8,
 }
 
-#[derive(PartialEq, PartialOrd)]
-#[Model]
+#[Model(partial_ord)]
 struct PartiallyOrderedModel {
     value: u8,
 }
@@ -52,3 +50,7 @@ fn main() {
     let _ = PlainEnum::Tuple(1);
     let _ = PlainEnum::Named { value: 1 };
 }
+
+#[Model(no_clone)]
+#[derive(Clone)]
+struct ExplicitClone;

@@ -28,12 +28,6 @@ error: key_part is only valid on named Model or Value fields
 49 | struct PositionalValue(#[key_part(order = 0)] String);
    |                                               ^^^^^^
 
-error: unique(ignore_case = true) requires a text field
-  --> tests/ui_roles/fail/semantic_boundaries.rs:54:12
-   |
-54 |     value: u64,
-   |            ^^^
-
 error: text min_chars cannot exceed max_chars
   --> tests/ui_roles/fail/semantic_boundaries.rs:60:12
    |
@@ -45,3 +39,23 @@ error: text min_bytes cannot exceed max_bytes
    |
 60 |     value: String,
    |            ^^^^^^
+
+error[E0277]: the trait bound `u64: TextConstraintTarget` is not satisfied
+  --> tests/ui_roles/fail/semantic_boundaries.rs:54:12
+   |
+54 |     value: u64,
+   |            ^^^ the trait `TextConstraintTarget` is not implemented for `u64`
+   |
+   = help: the following other types implement trait `TextConstraintTarget`:
+             Arc<T>
+             Box<T>
+             Rc<T>
+             std::option::Option<T>
+             std::string::String
+             str
+note: required by a bound in `assert_text_unique`
+  --> tests/ui_roles/fail/semantic_boundaries.rs:51:1
+   |
+51 | #[Model]
+   | ^^^^^^^^ required by this bound in `assert_text_unique`
+   = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)

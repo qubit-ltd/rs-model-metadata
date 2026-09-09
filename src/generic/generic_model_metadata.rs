@@ -18,8 +18,8 @@ use crate::metadata::ModelRole;
 /// Immutable metadata for a generic model template.
 #[derive(Clone, Copy, Debug)]
 pub struct GenericModelMetadata {
-    /// The stable identifier registered for the generic model definition.
-    model_id: ModelId,
+    /// The optional stable identifier; anonymous definitions remain queryable.
+    model_id: Option<ModelId>,
     /// The semantic role assigned to the model definition.
     role: ModelRole,
     /// The reflection descriptor for the generic definition.
@@ -34,7 +34,7 @@ impl GenericModelMetadata {
     /// Creates generic model metadata.
     #[must_use]
     pub(crate) const fn new(
-        model_id: ModelId,
+        model_id: Option<ModelId>,
         role: ModelRole,
         definition: &'static TypeDefinitionDescriptor,
         fields: &'static [FieldMetadata],
@@ -51,7 +51,7 @@ impl GenericModelMetadata {
 
     /// Returns the stable identifier registered for this generic model.
     #[must_use = "the stable model ID identifies the registered generic definition"]
-    pub const fn model_id(&self) -> ModelId {
+    pub const fn model_id(&self) -> Option<ModelId> {
         self.model_id
     }
     /// Returns the semantic role assigned to this generic model.

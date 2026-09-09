@@ -11,16 +11,19 @@
 // qubit-style: allow type-file-name
 
 pub use qubit_id;
+pub use qubit_redact as redact;
 pub use qubit_reflect::__private::codegen_v3;
 pub use qubit_reflect::Reflect;
 pub use qubit_reflect::ReflectedMut;
 pub use qubit_reflect::ReflectedOwned;
 pub use qubit_reflect::ReflectedRef;
 pub use qubit_reflect::TypeDescriptor;
+pub use qubit_reflect::capability::CapabilityDescriptor;
 pub use qubit_reflect::capability::TypeCapabilities as ReflectTypeCapabilities;
 pub use qubit_reflect::descriptor::TypeRef;
 pub use qubit_reflect::expression::ConstExpression;
 pub use qubit_reflect::expression::TypeExpression;
+pub use qubit_reflect::reflect_impl;
 pub use qubit_reflect::register_type_capabilities;
 pub use serde;
 
@@ -29,6 +32,7 @@ pub use crate::metadata::Sensitivity;
 pub use crate::metadata::ValidationArgument;
 pub use crate::reflect_facade::ModelImplProvider;
 pub use crate::reflect_facade::ModelMetadataProvider;
+pub use crate::reflect_facade::model_impl_fragment_key;
 pub use crate::reflect_facade::model_impl_key;
 pub use crate::reflect_facade::model_metadata_key;
 
@@ -292,10 +296,7 @@ mod compile_assertions {
     #[must_use]
     pub const fn model_impl_metadata(
         fragments: &'static [crate::metadata::PropertyFragment],
-        properties: Result<
-            &'static crate::metadata::LocalPropertySet,
-            &'static crate::metadata::PropertyBuildErrors,
-        >,
+        properties: Result<&'static crate::metadata::LocalPropertySet, &'static crate::metadata::PropertyBuildErrors>,
     ) -> crate::metadata::ModelImplMetadata {
         crate::metadata::ModelImplMetadata::new(fragments, properties)
     }
@@ -305,10 +306,10 @@ mod compile_assertions {
 ///
 /// All intentionally permanent allocations used by generic metadata are
 /// centralized here. Generated code must finish each aggregate through
-/// [`v5::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
+/// [`v6::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
 /// its construction boundary.
 #[doc(hidden)]
-pub mod v5 {
+pub mod v6 {
     use qubit_reflect::FieldDefinitionDescriptor;
     use qubit_reflect::FieldDescriptor;
     #[cfg(feature = "generic")]
@@ -362,29 +363,20 @@ pub mod v5 {
         }
 
         /// Adds generated property metadata to the builder.
-        pub const fn properties(
-            mut self,
-            properties: &'static [crate::metadata::PropertyMetadata],
-        ) -> Self {
+        pub const fn properties(mut self, properties: &'static [crate::metadata::PropertyMetadata]) -> Self {
             self.metadata = self.metadata.with_properties(properties);
             self
         }
 
         /// Adds generated field property fragments to the builder.
-        pub const fn property_fragments(
-            mut self,
-            fragments: &'static [crate::metadata::PropertyFragment],
-        ) -> Self {
+        pub const fn property_fragments(mut self, fragments: &'static [crate::metadata::PropertyFragment]) -> Self {
             self.metadata = self.metadata.with_property_fragments(fragments);
             self
         }
 
         /// Records the generic definition represented by this metadata.
         #[cfg(feature = "generic")]
-        pub const fn generic_definition(
-            mut self,
-            definition: &'static crate::generic::GenericModelMetadata,
-        ) -> Self {
+        pub const fn generic_definition(mut self, definition: &'static crate::generic::GenericModelMetadata) -> Self {
             self.metadata = self.metadata.with_generic_definition(definition);
             self
         }
@@ -418,13 +410,7 @@ pub mod v5 {
         validators: &'static [crate::metadata::ValidatorMetadata],
         serde: &'static crate::metadata::SerdeFieldMetadata,
     ) -> crate::metadata::FieldMetadata {
-        crate::metadata::FieldMetadata::with_semantics(
-            reflect,
-            attributes,
-            constraints,
-            validators,
-            serde,
-        )
+        crate::metadata::FieldMetadata::with_semantics(reflect, attributes, constraints, validators, serde)
     }
 
     /// Builds a semantic overlay for one generic declaration field.
@@ -466,9 +452,7 @@ pub mod v5 {
     /// Builds entity-role metadata for an identifier field.
     #[doc(hidden)]
     #[must_use]
-    pub const fn entity_role(
-        identifier: &'static crate::metadata::FieldMetadata,
-    ) -> crate::metadata::RoleMetadata {
+    pub const fn entity_role(identifier: &'static crate::metadata::FieldMetadata) -> crate::metadata::RoleMetadata {
         crate::metadata::RoleMetadata::Entity(crate::metadata::EntityMetadata::new(identifier))
     }
 
@@ -479,9 +463,7 @@ pub mod v5 {
         identifier: &'static crate::metadata::FieldMetadata,
         source: Option<&'static crate::metadata::DeclaredEntityTarget>,
     ) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Projection(crate::metadata::ProjectionMetadata::new(
-            identifier, source,
-        ))
+        crate::metadata::RoleMetadata::Projection(crate::metadata::ProjectionMetadata::new(identifier, source))
     }
 
     /// Builds metadata for a general model role.
@@ -498,10 +480,7 @@ pub mod v5 {
         transparent_field: Option<&'static crate::metadata::FieldMetadata>,
         canonical_codec: Option<&'static crate::metadata::CodecMetadata>,
     ) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Value(crate::metadata::ValueMetadata::new(
-            transparent_field,
-            canonical_codec,
-        ))
+        crate::metadata::RoleMetadata::Value(crate::metadata::ValueMetadata::new(transparent_field, canonical_codec))
     }
 
     /// Builds metadata for one generated enum variant.
@@ -550,9 +529,7 @@ pub mod v5 {
     /// Builds enum-role metadata from generated variants.
     #[doc(hidden)]
     #[must_use]
-    pub const fn enum_role(
-        variants: &'static [crate::metadata::EnumVariantMetadata],
-    ) -> crate::metadata::RoleMetadata {
+    pub const fn enum_role(variants: &'static [crate::metadata::EnumVariantMetadata]) -> crate::metadata::RoleMetadata {
         crate::metadata::RoleMetadata::Enum(crate::metadata::EnumMetadata::new(variants))
     }
 
@@ -560,14 +537,14 @@ pub mod v5 {
     #[doc(hidden)]
     #[must_use]
     #[cfg(feature = "generic")]
-    pub const fn generic_model_metadata(
-        model_id: crate::metadata::ModelId,
+    pub fn generic_model_metadata(
+        model_id: impl Into<Option<crate::metadata::ModelId>>,
         role: crate::metadata::ModelRole,
         definition: &'static TypeDefinitionDescriptor,
         fields: &'static [crate::metadata::FieldMetadata],
         variants: &'static [crate::metadata::EnumVariantMetadata],
     ) -> crate::generic::GenericModelMetadata {
-        crate::generic::GenericModelMetadata::new(model_id, role, definition, fields, variants)
+        crate::generic::GenericModelMetadata::new(model_id.into(), role, definition, fields, variants)
     }
 
     /// Leaks a generated value for static metadata storage.
@@ -597,6 +574,35 @@ pub mod v5 {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __qubit_model_register_model_impl_capability {
+    ($target:ty, $provider:expr, $fingerprint:expr $(,)?) => {
+        const _: () = {
+            fn runtime_identity() -> $crate::__private::codegen_v3::registration::RuntimeIdentity {
+                $crate::__private::codegen_v3::registration::RuntimeIdentity::Capabilities(
+                    $crate::__private::codegen_v3::registration::CapabilityTarget::Type(
+                        ::core::any::TypeId::of::<$target>(),
+                    ),
+                )
+            }
+            fn payload() -> $crate::__private::codegen_v3::registration::FragmentPayload {
+                $crate::__private::codegen_v3::registration::FragmentPayload::Capability(
+                    $crate::__private::codegen_v3::registration::CapabilityRegistration::for_type(
+                        $crate::__private::TypeDescriptor::of::<$target>(),
+                        ::std::vec![$crate::__private::CapabilityDescriptor::with_adapter($crate::__private::model_impl_fragment_key(concat!("qubit.model.impl.v1.f", stringify!($fingerprint))), $provider)],
+                    ),
+                )
+            }
+            $crate::__private::codegen_v3::inventory::submit! {
+                $crate::__private::codegen_v3::registration::RegistrationFragment::new(
+                    $crate::__private::codegen_v3::registration::FragmentKind::Capability,
+                    $crate::__private::codegen_v3::registration::StaticFragmentIdentity::new(
+                        env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(), concat!("model-impl<", stringify!($target), ">"), $fingerprint,
+                    ),
+                    runtime_identity,
+                    payload,
+                )
+            }
+        };
+    };
     ($target:ty, $provider:expr $(,)?) => {
         $crate::__private::register_type_capabilities!(
             $target: [$crate::__private::model_impl_key() => $provider]

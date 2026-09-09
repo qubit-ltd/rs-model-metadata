@@ -1,5 +1,17 @@
-error: ModelImpl does not accept configuration arguments
-  --> tests/ui_roles/fail/model_impl_options.rs:17:13
+error: unknown reflection helper `unexpected`
+  --> tests/ui_roles/fail/model_impl_options.rs:19:13
    |
-17 | #[ModelImpl(unexpected)]
+19 | #[ModelImpl(unexpected)]
    |             ^^^^^^^^^^
+
+error[E0277]: the trait bound `Account: TypeMetadataProvider` is not satisfied
+  --> tests/ui_roles/fail/model_impl_options.rs:20:6
+   |
+20 | impl Account {}
+   |      ^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `TypeMetadataProvider` is not implemented for `Account`
+  --> tests/ui_roles/fail/model_impl_options.rs:17:1
+   |
+17 | struct Account;
+   | ^^^^^^^^^^^^^^

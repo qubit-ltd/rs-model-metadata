@@ -19,6 +19,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -54,7 +55,9 @@ version = "0.0.0"
 dependencies = [
  "model-a",
  "model-b",
+ "qubit-codec",
  "qubit-model-metadata",
+ "qubit-validator",
 ]
 
 [[package]]
@@ -119,6 +122,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "itoa"
+version = "1.0.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+
+[[package]]
 name = "js-sys"
 version = "0.3.105"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -169,8 +178,10 @@ dependencies = [
 name = "model-b"
 version = "0.0.0"
 dependencies = [
+ "qubit-codec",
  "qubit-model-derive",
  "qubit-model-metadata",
+ "qubit-validator",
  "serde",
 ]
 
@@ -256,12 +267,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "qubit-budget"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f93253bc135140ca58d3d4f7dffcc330394cf94fec873c5f86ec3bb41dbfa18e"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "qubit-clock"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b6ac8d4db46f084d6e21db1f091901d8a1561bacfe73d40eefae0cc4581a5e1"
 dependencies = [
  "qubit-collections",
+ "thiserror",
+]
+
+[[package]]
+name = "qubit-codec"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dd84631c4950529f775395738e856ccde0c761381ba91e94dc7d04807b922bf"
+dependencies = [
+ "inventory",
+ "qubit-utils",
  "thiserror",
 ]
 
@@ -293,6 +324,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "qubit-json"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c34de3f5710b2cfd4d89099ffb53359b66e8bf69514590a3ef49f9378e47455"
+dependencies = [
+ "qubit-budget",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "qubit-model-derive"
 version = "0.1.0"
 dependencies = [
@@ -310,10 +353,36 @@ dependencies = [
  "bigdecimal",
  "bitflags",
  "chrono",
+ "qubit-codec",
  "qubit-id",
+ "qubit-redact",
  "qubit-reflect",
+ "qubit-validation-rules",
+ "qubit-validator",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "qubit-redact"
+version = "0.8.0"
+dependencies = [
+ "bigdecimal",
+ "qubit-budget",
+ "qubit-json",
+ "qubit-redact-derive",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "qubit-redact-derive"
+version = "0.8.0"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -338,6 +407,28 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "qubit-utils"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f9bf5cd2e783a8a6edd6536826084ef0a82d1924b14f82e79fe0088b7b33748"
+
+[[package]]
+name = "qubit-validation-rules"
+version = "0.1.0"
+dependencies = [
+ "qubit-validator",
+ "thiserror",
+]
+
+[[package]]
+name = "qubit-validator"
+version = "0.1.0"
+dependencies = [
+ "inventory",
+ "thiserror",
 ]
 
 [[package]]
@@ -398,6 +489,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.5",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.151"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+dependencies = [
+ "itoa",
+ "memchr",
+ "serde",
+ "serde_core",
+ "zmij",
 ]
 
 [[package]]
@@ -559,3 +663,9 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "zmij"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"

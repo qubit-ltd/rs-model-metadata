@@ -4,14 +4,19 @@ error: identifier is only valid for Entity and Projection
 16 | struct InvalidModelIdentifier {
    |        ^^^^^^^^^^^^^^^^^^^^^^
 
-error: Enum and Value fields cannot declare references
+error: Value fields cannot declare references
   --> tests/ui_roles/fail/role_field_rules.rs:22:8
    |
 22 | struct InvalidValueReference {
    |        ^^^^^^^^^^^^^^^^^^^^^
 
-error: Enum and Value fields cannot declare references
-  --> tests/ui_roles/fail/role_field_rules.rs:28:6
+error[E0277]: the trait bound `HashMap<std::string::String, u64>: Hash` is not satisfied
+  --> tests/ui_roles/fail/role_field_rules.rs:31:9
    |
-28 | enum InvalidEnumReference {
-   |      ^^^^^^^^^^^^^^^^^^^^
+27 | #[Enum]
+   | ------- in this attribute macro expansion
+...
+31 |         entity: std::collections::HashMap<String, u64>,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Hash` is not implemented for `HashMap<std::string::String, u64>`
+   |
+   = note: this error originates in the derive macro `::core::hash::Hash` which comes from the expansion of the attribute macro `Enum` (in Nightly builds, run with -Z macro-backtrace for more info)

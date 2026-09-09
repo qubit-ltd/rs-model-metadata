@@ -18,7 +18,7 @@ pub(crate) struct UniqueIr {
     /// Property paths scoping uniqueness.
     pub(crate) respect_to: Vec<Vec<String>>,
     /// Whether textual comparison ignores case.
-    pub(crate) ignore_case: bool,
+    pub(crate) ignore_case: Option<bool>,
 }
 
 #[derive(Clone)]

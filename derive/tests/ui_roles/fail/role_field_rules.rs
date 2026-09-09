@@ -28,7 +28,7 @@ struct InvalidValueReference {
 enum InvalidEnumReference {
     Data {
         #[reference(entity_id = "example.Entity")]
-        entity: u64,
+        entity: std::collections::HashMap<String, u64>,
     },
 }
 

@@ -18,8 +18,8 @@ use qubit_datatype::DataType;
 use qubit_id::Id;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
-use qubit_model_metadata::__private::v5;
-use qubit_model_metadata::__private::v5::register_model_capability;
+use qubit_model_metadata::__private::v6;
+use qubit_model_metadata::__private::v6::register_model_capability;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::Reflect;
@@ -49,9 +49,8 @@ impl TypeMetadataProvider for Account {
     fn __type_metadata() -> &'static TypeMetadata {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
-            let role = v5::leak(v5::model_role());
-            v5::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role)
-                .finish::<Account>()
+            let role = v6::leak(v6::model_role());
+            v6::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
         })
     }
 }
@@ -86,8 +85,7 @@ fn model_metadata_reuses_the_reflect_descriptor_root() {
 
 #[test]
 fn public_metadata_entry_points_reject_cross_type_providers() {
-    let direct = std::panic::catch_unwind(TypeMetadata::of::<Impostor>)
-        .expect_err("cross-type provider must fail");
+    let direct = std::panic::catch_unwind(TypeMetadata::of::<Impostor>).expect_err("cross-type provider must fail");
     assert!(panic_message(direct).starts_with("QMM-ABI-001:"));
 
     let registry = ModelRegistry::try_global().expect("model registry must initialize");
@@ -104,10 +102,7 @@ fn reflect_facade_supports_enabled_ecosystem_and_qubit_types() {
     let descriptor = TypeDescriptor::of::<ExternalTypeFixture>();
 
     for field in ["id", "created_at", "amount", "request_id", "data_type"] {
-        assert!(
-            descriptor.field(field).is_some(),
-            "missing reflected field {field}"
-        );
+        assert!(descriptor.field(field).is_some(), "missing reflected field {field}");
     }
 }
 
@@ -115,10 +110,6 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
     payload
         .downcast_ref::<String>()
         .cloned()
-        .or_else(|| {
-            payload
-                .downcast_ref::<&'static str>()
-                .map(|value| (*value).to_owned())
-        })
+        .or_else(|| payload.downcast_ref::<&'static str>().map(|value| (*value).to_owned()))
         .expect("ABI panic must contain text")
 }

@@ -29,6 +29,7 @@ impl DeclarationOptions {
     /// Parses declaration-level options and rejects duplicates or bad values.
     pub(crate) fn parse(options: Punctuated<Meta, Token![,]>) -> Result<Self> {
         let mut result = Self {
+            behavior: Default::default(),
             id: None,
             source: None,
             source_id: None,
@@ -46,8 +47,7 @@ impl DeclarationOptions {
                     }
                 }
                 Meta::NameValue(value) if value.path.is_ident("source_id") => {
-                    if let Err(error) = set_lit_str(&mut result.source_id, value.value, "source_id")
-                    {
+                    if let Err(error) = set_lit_str(&mut result.source_id, value.value, "source_id") {
                         diagnostics.push(error);
                     }
                 }
@@ -73,13 +73,9 @@ impl DeclarationOptions {
                         Err(error) => diagnostics.push(error),
                     }
                 }
-                Meta::Path(path) if path.is_ident("open") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "open",
-                    &mut result.open,
-                    path.span(),
-                ),
+                Meta::Path(path) if path.is_ident("open") => {
+                    set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span())
+                }
                 Meta::Path(path) if path.is_ident("transparent") => set_marker_option(
                     &mut markers,
                     &mut diagnostics,
@@ -89,10 +85,9 @@ impl DeclarationOptions {
                 ),
                 Meta::Path(path) if is_behavior_option(&path) => {
                     let name = path.get_ident().expect("behavior option identifier");
-                    diagnostics.push(Error::new_spanned(
-                        &path,
-                        format!("unsupported model option '{name}'; derive Rust traits explicitly"),
-                    ));
+                    if !result.behavior.insert(name.to_string()) {
+                        diagnostics.push(Error::new_spanned(&path, "duplicate model capability option"));
+                    }
                 }
                 other => {
                     diagnostics.push(Error::new_spanned(other, "unsupported model option"));
@@ -104,7 +99,7 @@ impl DeclarationOptions {
     }
 }
 
-/// Returns whether `path` names a removed behavior-generating option.
+/// Returns whether `path` names a supported capability option.
 fn is_behavior_option(path: &Path) -> bool {
     const OPTIONS: &[&str] = &[
         "no_clone",
@@ -168,32 +163,21 @@ mod tests {
         let parsed = DeclarationOptions::parse(options).expect("supported options");
 
         assert_eq!(parsed.id.expect("id").value(), "example.Model");
-        assert_eq!(
-            parsed.source_id.expect("source id").value(),
-            "example.Source"
-        );
+        assert_eq!(parsed.source_id.expect("source id").value(), "example.Source");
         assert!(parsed.source.is_some());
         assert!(parsed.codec.is_some());
         assert!(parsed.open && parsed.transparent);
     }
 
-    /// Confirms legacy behavior switches direct callers to explicit derives.
+    /// Preserves every supported behavior switch for capability expansion.
     #[test]
-    fn test_reject_behavior_options() {
+    fn test_parse_behavior_options() {
         let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
         for name in ["no_hash", "copy", "default", "partial_ord", "ord"] {
             let option: TokenStream = name.parse().expect("option tokens");
             let options = parser.parse2(option).expect("option syntax");
-            let error = match DeclarationOptions::parse(options) {
-                Ok(_) => panic!("behavior option must fail"),
-                Err(error) => error,
-            };
-            assert!(
-                error.to_string().contains(&format!(
-                    "unsupported model option '{name}'; derive Rust traits explicitly"
-                )),
-                "unexpected error: {error}",
-            );
+            let options = DeclarationOptions::parse(options).expect("supported behavior option");
+            assert!(options.behavior.contains(name));
         }
     }
 

@@ -69,27 +69,5 @@ pub(crate) struct ValidatorIr {
     /// Legacy dependency paths.
     pub(crate) depends_on: Vec<Vec<String>>,
     /// Named dependency bindings.
-    pub(crate) dependency_bindings: Vec<(String, Vec<String>)>,
-    /// Validator input target mode.
-    pub(crate) target: TargetModeIr,
-    /// Behavior when an optional value is absent.
-    pub(crate) on_none: OnNoneIr,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum TargetModeIr {
-    /// Validate the transparent value.
-    #[default]
-    Value,
-    /// Validate the declared container.
-    Container,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum OnNoneIr {
-    /// Skip absent optional values.
-    #[default]
-    Skip,
-    /// Reject absent optional values.
-    Reject,
+    pub(crate) dependency_bindings: Vec<(String, Vec<String>, Vec<String>)>,
 }

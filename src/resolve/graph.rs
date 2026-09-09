@@ -15,7 +15,6 @@ use std::collections::HashMap;
 use qubit_id::Id;
 use qubit_reflect::FieldAccessError;
 use qubit_reflect::ReflectedRef;
-use qubit_reflect::TypeDescriptor;
 
 use super::owned_property_path::OwnedPropertyPath;
 use crate::metadata::FieldMetadata;
@@ -30,6 +29,36 @@ use crate::metadata::PropertyPath;
 use crate::metadata::PropertyValue;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
+/// Instance context that cannot be obtained from a structural registry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ContextRequirement {
+    /// All object navigation is local to the declared root.
+    None,
+    /// Navigation needs a containing object supplied by the consumer.
+    ParentObject,
+}
+
+/// A dependency occurrence with its independently retained context requirement.
+#[derive(Debug)]
+pub struct ResolvedDependency {
+    pub(super) declaration: &'static crate::metadata::DependencyBindingMetadata,
+    pub(super) context: ContextRequirement,
+}
+
+impl ResolvedDependency {
+    /// Returns the original occurrence, including source and separate paths.
+    #[must_use]
+    pub const fn declaration(&self) -> &'static crate::metadata::DependencyBindingMetadata {
+        self.declaration
+    }
+
+    /// Reports whether the consumer must supply a containing object.
+    #[must_use]
+    pub const fn context_requirement(&self) -> ContextRequirement {
+        self.context
+    }
+}
+
 /// A successfully resolved direct reference.
 #[derive(Debug)]
 pub struct ResolvedReference {
@@ -42,6 +71,16 @@ pub struct ResolvedReference {
 }
 
 impl ResolvedReference {
+    /// Reports whether the reference binding path needs a containing object.
+    #[must_use]
+    pub fn context_requirement(&self) -> ContextRequirement {
+        if self.declaration.path().is_some_and(|path| path.requires_parent()) {
+            ContextRequirement::ParentObject
+        } else {
+            ContextRequirement::None
+        }
+    }
+
     /// Returns the original field-reference declaration.
     #[must_use]
     pub const fn declaration(&self) -> &'static FieldReferenceMetadata {
@@ -118,13 +157,8 @@ impl ResolvedProjectionProducer {
     ///
     /// Returns a structured adapter, field-access, or identifier error.
     #[must_use = "handle projection execution failure"]
-    pub fn project<'a>(
-        &self,
-        source: ReflectedRef<'a>,
-    ) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
-        let projector = self
-            .projector
-            .ok_or(ProjectionExecutionError::MissingProjector)?;
+    pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
+        let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
         let source_identifier = self
             .source
             .as_entity()
@@ -156,10 +190,7 @@ impl ResolvedProjectionProducer {
     ///
     /// Returns [`ProjectionExecutionError`] when the target is not a valid
     /// Projection or its identifier field cannot be read as `qubit_id::Id`.
-    fn projection_identifier(
-        &self,
-        target: ReflectedRef<'_>,
-    ) -> Result<Id, ProjectionExecutionError> {
+    fn projection_identifier(&self, target: ReflectedRef<'_>) -> Result<Id, ProjectionExecutionError> {
         self.projection
             .as_projection()
             .ok_or(ProjectionExecutionError::InvalidProducer)?
@@ -210,6 +241,10 @@ impl ResolvedProjectionSource {
 #[must_use]
 #[derive(Debug)]
 pub struct ModelGraph<'a> {
+    /// Concrete model nodes accepted by this graph.
+    pub(super) models: Vec<&'static TypeMetadata>,
+    /// Dependency occurrences in model and source declaration order.
+    pub(super) dependencies: Vec<ResolvedDependency>,
     /// The registry used to resolve the graph.
     pub(super) registry: &'a ModelRegistry<'a>,
     /// Resolved field references keyed by declaration identity.
@@ -225,6 +260,18 @@ pub struct ModelGraph<'a> {
 }
 
 impl<'a> ModelGraph<'a> {
+    /// Returns every dependency occurrence, including deferred parent paths.
+    #[must_use]
+    pub fn dependencies(&self) -> &[ResolvedDependency] {
+        &self.dependencies
+    }
+
+    /// Returns registered and explicitly reachable concrete nodes.
+    #[must_use]
+    pub fn models(&self) -> &[&'static TypeMetadata] {
+        &self.models
+    }
+
     /// Returns locally merged properties accepted during graph resolution.
     #[must_use]
     pub fn properties(&self, model: &TypeMetadata) -> Option<&'static LocalPropertySet> {
@@ -252,10 +299,7 @@ impl<'a> ModelGraph<'a> {
 
     /// Returns a resolved source for `projection`, or `None` when it is open.
     #[must_use]
-    pub fn projection_source(
-        &self,
-        projection: &ProjectionMetadata,
-    ) -> Option<&ResolvedProjectionSource> {
+    pub fn projection_source(&self, projection: &ProjectionMetadata) -> Option<&ResolvedProjectionSource> {
         self.projection_sources
             .get(&(projection as *const ProjectionMetadata as usize))
     }
@@ -268,117 +312,51 @@ impl<'a> ModelGraph<'a> {
     }
 }
 
-/// Queryable indexed fields derived for one resolved entity.
+/// Direct indexed declarations available to downstream query generators.
 #[derive(Debug)]
 pub struct QueryMetadata {
-    /// Indexed field paths that can be used as query filters.
-    pub(super) filters: Box<[QueryField]>,
-    /// Identifier and globally unique lookup keys.
-    pub(super) unique_keys: Box<[UniqueQueryKey]>,
+    /// Direct declarations in source field order.
+    pub(super) declarations: Box<[QueryDeclaration]>,
 }
 
 impl QueryMetadata {
-    /// Returns queryable indexed fields in deterministic path order.
+    /// Returns declarations without choosing filter operators or external
+    /// names.
     #[must_use]
-    #[inline(always)]
-    pub fn filters(&self) -> &[QueryField] {
-        &self.filters
-    }
-
-    /// Returns identifier and globally unique keys in deterministic order.
-    #[must_use]
-    #[inline(always)]
-    pub fn unique_keys(&self) -> &[UniqueQueryKey] {
-        &self.unique_keys
-    }
-
-    /// Finds a queryable field by its complete property path.
-    #[must_use]
-    pub fn filter(&self, path: &PropertyPath<'_>) -> Option<&QueryField> {
-        self.filters
-            .iter()
-            .find(|field| field.path.as_path() == *path)
-    }
-
-    /// Finds a queryable field by its flattened external name.
-    #[must_use]
-    pub fn filter_by_flat_name(&self, name: &str) -> Option<&QueryField> {
-        self.filters
-            .iter()
-            .find(|field| field.flat_name.as_ref() == name)
+    pub fn declarations(&self) -> &[QueryDeclaration] {
+        &self.declarations
     }
 }
 
-/// One queryable field path.
+/// One declared indexed member and the facts making it indexed.
 #[derive(Clone, Debug)]
-pub struct QueryField {
-    /// The complete property path represented by this field.
+pub struct QueryDeclaration {
+    /// Original field carrying type, uniqueness and reference metadata.
+    pub(super) field: &'static FieldMetadata,
+    /// Direct member path relative to the declaring Entity.
     pub(super) path: OwnedPropertyPath,
-    /// The flattened external name used for queries.
-    pub(super) flat_name: Box<str>,
-    /// The resolved descriptor, or `None` for an opaque type.
-    pub(super) descriptor: Option<&'static TypeDescriptor>,
-    /// The declaration facts that made the field queryable.
-    pub(super) reasons: IndexingReasons,
 }
 
-impl QueryField {
-    /// Returns the complete property path.
+impl QueryDeclaration {
+    /// Returns the original declaration for further metadata navigation.
     #[must_use]
-    #[inline(always)]
+    pub const fn field(&self) -> &'static FieldMetadata {
+        self.field
+    }
+
+    /// Returns the direct property path in declaration order.
+    #[must_use]
     pub fn path(&self) -> PropertyPath<'_> {
         self.path.as_path()
     }
 
-    /// Returns the flattened external name used for queries.
+    /// Returns all explicit and implicit indexing reasons.
     #[must_use]
-    #[inline(always)]
-    pub fn flat_name(&self) -> &str {
-        &self.flat_name
-    }
-
-    /// Returns the resolved descriptor, or `None` for an opaque type.
-    #[must_use]
-    #[inline(always)]
-    pub const fn descriptor(&self) -> Option<&'static TypeDescriptor> {
-        self.descriptor
-    }
-
-    /// Returns the declaration facts that made the field queryable.
-    #[must_use]
-    #[inline(always)]
-    pub const fn reasons(&self) -> IndexingReasons {
-        self.reasons
+    pub fn reasons(&self) -> IndexingReasons {
+        self.field.indexing_reasons()
     }
 }
 
-/// One identifier or global-unique lookup key.
-#[derive(Clone, Debug)]
-pub struct UniqueQueryKey {
-    /// The property paths that form this lookup key.
-    paths: Box<[OwnedPropertyPath]>,
-}
-
-impl UniqueQueryKey {
-    /// Creates a lookup key from one or more owned property paths.
-    pub(super) fn new(paths: Vec<OwnedPropertyPath>) -> Self {
-        Self {
-            paths: paths.into_boxed_slice(),
-        }
-    }
-
-    /// Iterates over property paths in key-component order.
-    #[must_use]
-    pub fn paths(&self) -> impl ExactSizeIterator<Item = PropertyPath<'_>> + '_ {
-        self.paths.iter().map(OwnedPropertyPath::as_path)
-    }
-
-    /// Returns the sole path, or `None` when this key is composite.
-    #[must_use]
-    pub fn path(&self) -> Option<PropertyPath<'_>> {
-        (self.paths.len() == 1).then(|| self.paths[0].as_path())
-    }
-}
 /// Returns the stable identity key used for a static field declaration.
 pub(super) fn pointer_key(field: &FieldMetadata) -> usize {
     field as *const FieldMetadata as usize

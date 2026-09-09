@@ -35,11 +35,9 @@ pub(crate) use references::ReferenceIr;
 pub(crate) use references::ReferenceTargetIr;
 pub(crate) use references::UniqueIr;
 pub(crate) use serde::SerdeIr;
-pub(crate) use validation::OnNoneIr;
 pub(crate) use validation::SelectorIr;
 pub(crate) use validation::SelectorPositionIr;
 pub(crate) use validation::StrategyArgumentIr;
-pub(crate) use validation::TargetModeIr;
 pub(crate) use validation::ValidatorIr;
 
 use super::MacroKind;

@@ -46,7 +46,23 @@ impl<'a> ValidationPlan<'a> {
         value: ReflectedRef<'_>,
         options: &ValidationOptions,
     ) -> Result<ValidationReport, ModelValidationError> {
+        self.validate_with_context(value, &[], options)
+    }
+
+    /// Executes using explicit nearest-parent-first containing object borrows.
+    pub fn validate_with_context<'value>(
+        &self,
+        value: ReflectedRef<'value>,
+        ancestors: &[ReflectedRef<'value>],
+        options: &ValidationOptions,
+    ) -> Result<ValidationReport, ModelValidationError> {
         let mut report = ValidationReport::new();
+        if value.value_type_id() != self.root().type_id() {
+            return Err(ModelValidationError::new(
+                ExecutionError::new(ExecutionErrorKind::InputTypeMismatch),
+                report,
+            ));
+        }
         let mut nodes = 1usize;
         let mut comparisons = 0usize;
         if nodes > options.max_nodes() || options.max_depth() == 0 {
@@ -66,8 +82,7 @@ impl<'a> ValidationPlan<'a> {
             let input = reflected_value(&value);
             if !binding.input_type().accepts(input) {
                 return Err(ModelValidationError::new(
-                    ExecutionError::new(ExecutionErrorKind::InputTypeMismatch)
-                        .with_rule(binding.rule_id()),
+                    ExecutionError::new(ExecutionErrorKind::InputTypeMismatch).with_rule(binding.rule_id()),
                     report,
                 ));
             }
@@ -95,10 +110,7 @@ impl<'a> ValidationPlan<'a> {
                         report.push(prefix_violation(violation, &path));
                     }
                 }
-                Ok(RuleOutcome::Skipped {
-                    reason,
-                    prerequisites,
-                }) => {
+                Ok(RuleOutcome::Skipped { reason, prerequisites }) => {
                     for violation in prerequisites {
                         report.push(prefix_violation(violation, &path));
                     }
@@ -127,8 +139,7 @@ impl<'a> ValidationPlan<'a> {
             }
             if path.as_segments().len() > options.max_depth() {
                 return Err(ModelValidationError::new(
-                    ExecutionError::new(ExecutionErrorKind::TraversalLimit)
-                        .with_rule(binding.rule_id()),
+                    ExecutionError::new(ExecutionErrorKind::TraversalLimit).with_rule(binding.rule_id()),
                     report,
                 ));
             }
@@ -136,13 +147,10 @@ impl<'a> ValidationPlan<'a> {
                 return Err(ModelValidationError::new(error, report));
             }
             let (dependencies, dependency_paths) =
-                match read_dependency_values(binding.dependencies(), value.clone()) {
+                match read_dependency_values(binding.dependencies(), value.clone(), ancestors, self.graph()) {
                     Ok(values) => values,
                     Err(error) => {
-                        return Err(ModelValidationError::new(
-                            error.with_rule(binding.rule_id()).with_path(path.clone()),
-                            report,
-                        ));
+                        return Err(ModelValidationError::new(error.with_rule(binding.rule_id()), report));
                     }
                 };
             let result = match binding.selector() {
@@ -212,21 +220,46 @@ fn consume_node(
 fn read_dependency_values<'a>(
     paths: &[CompiledPropertyPath],
     root: ReflectedRef<'a>,
+    ancestors: &[ReflectedRef<'a>],
+    graph: &crate::resolve::ModelGraph<'_>,
 ) -> Result<(Vec<PropertyValue<'a>>, Vec<ValidationPath>), ExecutionError> {
     let mut values = Vec::with_capacity(paths.len());
     let mut dependency_paths = Vec::with_capacity(paths.len());
     for path in paths {
-        values.push(read_path(path, root.clone())?);
+        let owner = if path.context_depth() == 0 {
+            root.clone()
+        } else {
+            ancestors.get(path.context_depth() - 1).cloned().ok_or_else(|| {
+                ExecutionError::new(ExecutionErrorKind::MissingRequiredDependencyValue).with_path(path_for(path))
+            })?
+        };
+        if path.deferred().is_empty() {
+            values.push(read_path(path, owner)?);
+        } else {
+            let metadata = graph
+                .models()
+                .iter()
+                .find(|model| model.type_id() == owner.value_type_id())
+                .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))?;
+            let compiled = CompiledPropertyPath::compile(
+                metadata,
+                &crate::metadata::PropertyPath::new(path.deferred()),
+                graph,
+                crate::metadata::TargetMode::Value,
+            )
+            .map_err(|_| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))?;
+            if compiled.input_type() != path.input_type() {
+                return Err(ExecutionError::new(ExecutionErrorKind::DependencyTypeMismatch).with_path(path_for(path)));
+            }
+            values.push(read_path(&compiled, owner)?);
+        }
         dependency_paths.push(path_for(path));
     }
     Ok((values, dependency_paths))
 }
 
 /// Reads every step of a compiled path while preserving the root borrow.
-fn read_path<'a>(
-    path: &CompiledPropertyPath,
-    root: ReflectedRef<'a>,
-) -> Result<PropertyValue<'a>, ExecutionError> {
+fn read_path<'a>(path: &CompiledPropertyPath, root: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ExecutionError> {
     let mut receiver = root;
     for (index, step) in path.steps().iter().enumerate() {
         let output = step
@@ -268,9 +301,7 @@ fn execute_path(
 ) -> Result<(), ExecutionError> {
     let value = read_path(path, root)?;
     let sequence_count = match &value {
-        PropertyValue::BorrowedSlice(values)
-            if matches!(standard_target, Some(StandardTarget::SequenceCount)) =>
-        {
+        PropertyValue::BorrowedSlice(values) if matches!(standard_target, Some(StandardTarget::SequenceCount)) => {
             Some(values.len())
         }
         _ => None,
@@ -296,10 +327,7 @@ fn execute_path(
     match input {
         ValidationValue::Missing if path.is_optional() => {
             if on_none == OnNone::Reject {
-                report.push(
-                    Violation::new(rule_id, ViolationCode::new("value.required"))
-                        .with_path(rule_path.clone()),
-                );
+                report.push(Violation::new(rule_id, ViolationCode::new("value.required")).with_path(rule_path.clone()));
             } else {
                 report.record_skip(SkippedValidation::new(
                     occurrence,
@@ -313,9 +341,7 @@ fn execute_path(
             RuleOutcome::Valid => Ok(()),
             RuleOutcome::Invalid(violations) => {
                 if violations.is_empty() {
-                    return Err(ExecutionError::new(
-                        ExecutionErrorKind::AdapterContractViolation,
-                    ));
+                    return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation));
                 }
                 for violation in violations {
                     if report.violations().len() >= options.max_violations() {
@@ -326,25 +352,16 @@ fn execute_path(
                 }
                 Ok(())
             }
-            RuleOutcome::Skipped {
-                reason,
-                prerequisites,
-            } => {
+            RuleOutcome::Skipped { reason, prerequisites } => {
                 if matches!(reason, SkipReason::MissingOptional) && !prerequisites.is_empty()
                     || matches!(reason, SkipReason::FailedPrerequisite) && prerequisites.is_empty()
                 {
-                    return Err(ExecutionError::new(
-                        ExecutionErrorKind::AdapterContractViolation,
-                    ));
+                    return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation));
                 }
                 for violation in prerequisites {
                     report.push(prefix_violation(violation, rule_path));
                 }
-                report.record_skip(SkippedValidation::new(
-                    occurrence,
-                    rule_path.clone(),
-                    reason,
-                ));
+                report.record_skip(SkippedValidation::new(occurrence, rule_path.clone(), reason));
                 Ok(())
             }
         },
@@ -394,9 +411,7 @@ fn execute_selector(
             RuleOutcome::Valid => {}
             RuleOutcome::Invalid(violations) => {
                 if violations.is_empty() {
-                    return Err(ExecutionError::new(
-                        ExecutionErrorKind::AdapterContractViolation,
-                    ));
+                    return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation));
                 }
                 for violation in violations {
                     if report.violations().len() >= options.max_violations() {
@@ -406,16 +421,11 @@ fn execute_selector(
                     report.push(prefix_violation(violation, &element_path));
                 }
             }
-            RuleOutcome::Skipped {
-                reason,
-                prerequisites,
-            } => {
+            RuleOutcome::Skipped { reason, prerequisites } => {
                 if matches!(reason, SkipReason::MissingOptional) && !prerequisites.is_empty()
                     || matches!(reason, SkipReason::FailedPrerequisite) && prerequisites.is_empty()
                 {
-                    return Err(ExecutionError::new(
-                        ExecutionErrorKind::AdapterContractViolation,
-                    ));
+                    return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation));
                 }
                 for violation in prerequisites {
                     report.push(prefix_violation(violation, &element_path));
@@ -463,20 +473,22 @@ fn owned_value<'a>(value: &'a ReflectedOwned) -> ValidationValue<'a> {
 
 /// Converts a compiled property path into a report path.
 fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
-    path.steps()
-        .iter()
-        .fold(ValidationPath::root(), |path, step| {
-            path.with_field(step.property().name())
-        })
+    if !path.deferred().is_empty() {
+        return path
+            .deferred()
+            .iter()
+            .fold(ValidationPath::root(), |path, name| path.with_field(*name));
+    }
+    path.steps().iter().fold(ValidationPath::root(), |path, step| {
+        path.with_field(step.property().name())
+    })
 }
 
 /// Reports whether a validation path is selected by the caller.
 fn selected(selection: &ValidationSelection, path: &ValidationPath) -> bool {
     match selection {
         ValidationSelection::All => true,
-        ValidationSelection::Fields(fields) => {
-            fields.iter().any(|field| field_matches(field, path))
-        }
+        ValidationSelection::Fields(fields) => fields.iter().any(|field| field_matches(field, path)),
     }
 }
 
@@ -495,17 +507,16 @@ fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
 
 /// Prefixes a nested violation with its containing path.
 fn prefix_violation(violation: Violation, prefix: &ValidationPath) -> Violation {
-    let path = prefix
-        .as_segments()
-        .iter()
-        .chain(violation.path().as_segments())
-        .fold(ValidationPath::root(), |path, segment| match segment {
+    let path = prefix.as_segments().iter().chain(violation.path().as_segments()).fold(
+        ValidationPath::root(),
+        |path, segment| match segment {
             PathSegment::Field(field) => path.with_field(field.clone()),
             PathSegment::Index(index) => path.with_index(*index),
             PathSegment::MapEntry(index) => path.with_map_entry(*index),
             PathSegment::MapKey => path.with_map_key(),
             PathSegment::MapValue => path.with_map_value(),
-        });
+        },
+    );
     violation.with_path(path)
 }
 // =============================================================================

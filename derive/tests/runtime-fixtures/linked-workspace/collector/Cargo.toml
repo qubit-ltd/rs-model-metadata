@@ -7,7 +7,10 @@ publish = false
 [dependencies]
 model-a = { path = "../model-a" }
 model-b = { path = "../model-b" }
-qubit-model-metadata = { path = "../../../../../" }
+qubit-model-metadata = { path = "../../../../../", features = ["validation", "codec"] }
+
+qubit-codec = { version = "0.14", features = ["registry"] }
+qubit-validator = { version = "=0.1.0", path = "../../../../../../../rust-common/rs-validator" }
 
 [features]
 duplicate-fixture = ["model-a/duplicate-fixture", "model-b/duplicate-fixture"]

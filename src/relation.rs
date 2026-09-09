@@ -8,6 +8,14 @@
 
 //! Static property paths used by declarations and resolver diagnostics.
 
+mod declaration_location;
 mod field_path;
+mod navigation_step;
+mod object_path;
+mod object_path_error;
 
+pub use self::declaration_location::DeclarationLocation;
 pub use self::field_path::PropertyPath;
+pub use self::navigation_step::NavigationStep;
+pub use self::object_path::ObjectPath;
+pub use self::object_path_error::ObjectPathError;

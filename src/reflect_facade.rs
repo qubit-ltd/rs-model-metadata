@@ -9,7 +9,6 @@
 //! Model-specific access to the shared reflection descriptor root.
 // qubit-style: allow type-file-name
 
-use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
@@ -38,8 +37,7 @@ pub type GenericModelMetadataProvider = fn() -> &'static GenericModelMetadata;
 #[doc(hidden)]
 #[must_use]
 pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider> {
-    let id = CapabilityId::new("qubit.model.metadata.v1")
-        .expect("the model metadata capability ID must be valid");
+    let id = CapabilityId::new("qubit.model.metadata.v1").expect("the model metadata capability ID must be valid");
     CapabilityKey::new(id)
 }
 
@@ -47,8 +45,7 @@ pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider> {
 #[doc(hidden)]
 #[must_use]
 pub fn model_impl_key() -> CapabilityKey<ModelImplProvider> {
-    let id = CapabilityId::new("qubit.model.impl.v1")
-        .expect("the model implementation capability ID must be valid");
+    let id = CapabilityId::new("qubit.model.impl.v1").expect("the model implementation capability ID must be valid");
     CapabilityKey::new(id)
 }
 
@@ -86,10 +83,32 @@ pub fn model_capability<T: crate::metadata::HasTypeMetadata>() -> CapabilityDesc
 /// Returns the generated model-implementation overlay attached to an exact
 /// descriptor root in the frozen reflection snapshot.
 pub(crate) fn model_impl_metadata(
-    descriptor: &TypeDescriptor,
+    metadata: &TypeMetadata,
     registry: &ReflectRegistry,
 ) -> Result<Option<&'static ModelImplMetadata>, CapabilityAccessError> {
-    Ok(registry
-        .capability(descriptor, model_impl_key())?
-        .map(|provider| provider()))
+    let descriptor = metadata.descriptor();
+    let capabilities = registry
+        .capabilities(descriptor)
+        .map_err(CapabilityAccessError::IntrinsicConflict)?;
+    let mut providers = Vec::new();
+    for capability in capabilities.descriptors() {
+        let id = capability.id();
+        if (id.as_str() == "qubit.model.impl.v1" || id.as_str().starts_with("qubit.model.impl.v1.f"))
+            && let Some(provider) = registry.capability(descriptor, CapabilityKey::<ModelImplProvider>::new(*id))?
+        {
+            providers.push(*provider);
+        }
+    }
+    match providers.as_slice() {
+        [] => Ok(None),
+        [provider] => Ok(Some(provider())),
+        _ => Ok(Some(ModelImplMetadata::merge(metadata, &providers))),
+    }
+}
+
+/// Returns the checked key for an independently registered impl fragment.
+#[doc(hidden)]
+#[must_use]
+pub fn model_impl_fragment_key(name: &'static str) -> CapabilityKey<ModelImplProvider> {
+    CapabilityKey::new(CapabilityId::new(name).expect("valid generated impl capability ID"))
 }

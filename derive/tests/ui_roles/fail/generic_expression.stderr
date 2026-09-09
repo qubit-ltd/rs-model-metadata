@@ -13,3 +13,11 @@ error: integer literal is too large
    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: value exceeds limit of `340282366920938463463374607431768211455`
+
+error: integer literal is too large
+  --> tests/ui_roles/fail/generic_expression.rs:15:12
+   |
+15 |     value: [T; 340282366920938463463374607431768211456],
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: value exceeds limit of `340282366920938463463374607431768211455`

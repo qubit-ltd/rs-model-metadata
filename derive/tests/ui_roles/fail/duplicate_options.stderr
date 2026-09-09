@@ -1,10 +1,4 @@
-error: unsupported model option 'no_hash'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/duplicate_options.rs:23:9
-   |
-23 | #[Model(no_hash, no_hash)]
-   |         ^^^^^^^
-
-error: unsupported model option 'no_hash'; derive Rust traits explicitly
+error: duplicate model capability option
   --> tests/ui_roles/fail/duplicate_options.rs:23:18
    |
 23 | #[Model(no_hash, no_hash)]

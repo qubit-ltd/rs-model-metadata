@@ -26,31 +26,25 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
     match declaration.kind {
         MacroKind::Entity => {
             let Some(index) = identifier_index(&declaration.fields) else {
-                return Error::new(
-                    Span::call_site(),
-                    "Entity requires exactly one identifier field",
-                )
-                .into_compile_error();
+                return Error::new(Span::call_site(), "Entity requires exactly one identifier field")
+                    .into_compile_error();
             };
             quote! {
                 let role: &'static #runtime::metadata::RoleMetadata =
-                    #runtime::__private::v5::leak(#runtime::__private::v5::entity_role(&fields[#index]));
+                    #runtime::__private::v6::leak(#runtime::__private::v6::entity_role(&fields[#index]));
             }
         }
         MacroKind::Projection => {
             let Some(index) = identifier_index(&declaration.fields) else {
-                return Error::new(
-                    Span::call_site(),
-                    "Projection requires exactly one identifier field",
-                )
-                .into_compile_error();
+                return Error::new(Span::call_site(), "Projection requires exactly one identifier field")
+                    .into_compile_error();
             };
             let source = if let Some(source) = declaration.options.source.as_ref() {
-                quote!(Some(#runtime::__private::v5::leak(
+                quote!(Some(#runtime::__private::v6::leak(
                     #runtime::metadata::DeclaredEntityTarget::RustType(#runtime::metadata::TypeMetadata::of::<#source>),
                 ) as &'static #runtime::metadata::DeclaredEntityTarget))
             } else if let Some(id) = declaration.options.source_id.as_ref() {
-                quote!(Some(#runtime::__private::v5::leak(
+                quote!(Some(#runtime::__private::v6::leak(
                     #runtime::metadata::DeclaredEntityTarget::ModelId(#runtime::metadata::ModelId::new(#id)),
                 ) as &'static #runtime::metadata::DeclaredEntityTarget))
             } else {
@@ -59,12 +53,12 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
             quote! {
                 let source = #source;
                 let role: &'static #runtime::metadata::RoleMetadata =
-                    #runtime::__private::v5::leak(#runtime::__private::v5::projection_role(&fields[#index], source));
+                    #runtime::__private::v6::leak(#runtime::__private::v6::projection_role(&fields[#index], source));
             }
         }
         MacroKind::Model => quote! {
             let role: &'static #runtime::metadata::RoleMetadata =
-                #runtime::__private::v5::leak(#runtime::__private::v5::model_role());
+                #runtime::__private::v6::leak(#runtime::__private::v6::model_role());
         },
         MacroKind::Value => {
             let transparent = if declaration.options.transparent {
@@ -76,12 +70,12 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
                 || quote!(None),
                 |codec_type| {
                     quote!({
-                        let reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v5::leak(
+                        let reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v6::leak(
                             #runtime::metadata::CodecReference::RustType(
-                                #runtime::__private::v5::RustTypeReference::of::<#codec_type>(),
+                                #runtime::__private::v6::RustTypeReference::of::<#codec_type>(),
                             ),
                         );
-                        Some(#runtime::__private::v5::leak(
+                        Some(#runtime::__private::v6::leak(
                             #runtime::metadata::CodecMetadata::new(reference, #runtime::metadata::CodecSource::CanonicalValue),
                         ) as &'static #runtime::metadata::CodecMetadata)
                     })
@@ -89,17 +83,15 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
             );
             quote! {
                 let canonical_codec = #canonical_codec;
-                let role: &'static #runtime::metadata::RoleMetadata = #runtime::__private::v5::leak(
-                    #runtime::__private::v5::value_role(#transparent, canonical_codec),
+                let role: &'static #runtime::metadata::RoleMetadata = #runtime::__private::v6::leak(
+                    #runtime::__private::v6::value_role(#transparent, canonical_codec),
                 );
             }
         }
         MacroKind::Enum => expand_enum_role(&declaration.variants, runtime),
-        MacroKind::ModelImpl => Error::new(
-            Span::call_site(),
-            "ModelImpl does not produce role metadata",
-        )
-        .into_compile_error(),
+        MacroKind::ModelImpl => {
+            Error::new(Span::call_site(), "ModelImpl does not produce role metadata").into_compile_error()
+        }
     }
 }
 
@@ -119,10 +111,10 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
         quote! {
             {
                 #fields
-                let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v5::leak_slice(fields);
+                let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v6::leak_slice(fields);
                 let reflect = &descriptor.variants()[#variant_index];
                 debug_assert_eq!(reflect.rust_name(), #rust_name);
-                variants.push(#runtime::__private::v5::enum_variant_metadata(
+                variants.push(#runtime::__private::v6::enum_variant_metadata(
                     reflect,
                     #canonical,
                     #serialized,
@@ -136,9 +128,9 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
     quote! {
         let mut variants = ::std::vec::Vec::new();
         #(#variants)*
-        let variants: &'static [#runtime::metadata::EnumVariantMetadata] = #runtime::__private::v5::leak_slice(variants);
+        let variants: &'static [#runtime::metadata::EnumVariantMetadata] = #runtime::__private::v6::leak_slice(variants);
         let role: &'static #runtime::metadata::RoleMetadata =
-            #runtime::__private::v5::leak(#runtime::__private::v5::enum_role(variants));
+            #runtime::__private::v6::leak(#runtime::__private::v6::enum_role(variants));
         let fields: &'static [#runtime::metadata::FieldMetadata] = &[];
     }
 }

@@ -11,7 +11,9 @@
 //! Rejects configuration arguments supplied to `ModelImpl`.
 
 use qubit_model_derive::ModelImpl;
+use qubit_reflect::Reflect;
 
+#[derive(Reflect)]
 struct Account;
 
 #[ModelImpl(unexpected)]

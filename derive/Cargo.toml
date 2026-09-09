@@ -31,7 +31,7 @@ heck = "0.5"
 proc-macro-crate = "3"
 proc-macro2 = "1"
 quote = "1"
-syn = { version = "2", features = ["full"] }
+syn = { version = "2", features = ["full", "visit-mut"] }
 
 [dev-dependencies]
 bigdecimal = "0.4"

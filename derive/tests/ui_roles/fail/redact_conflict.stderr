@@ -1,5 +1,5 @@
-error: unsupported model option 'no_redact'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/redact_conflict.rs:13:9
+error: no_redact conflicts with field or selector redaction
+  --> tests/ui_roles/fail/redact_conflict.rs:14:8
    |
-13 | #[Model(no_redact)]
-   |         ^^^^^^^^^
+14 | struct Secret {
+   |        ^^^^^^

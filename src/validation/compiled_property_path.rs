@@ -45,6 +45,10 @@ impl PropertyStep {
 /// A fully checked path; no user getter is called while constructing it.
 #[derive(Clone, Debug)]
 pub(crate) struct CompiledPropertyPath {
+    /// Number of external containing objects needed to read this path.
+    context_depth: usize,
+    /// Property suffix whose owner type is supplied at execution.
+    deferred: Box<[&'static str]>,
     steps: Box<[PropertyStep]>,
     input: InputType,
     optional: bool,
@@ -110,10 +114,63 @@ impl CompiledPropertyPath {
             InputType::Typed(descriptor.type_id())
         };
         Ok(Self {
+            context_depth: 0,
+            deferred: Box::new([]),
             steps: steps.into_boxed_slice(),
             input,
             optional: path_optional || last.optional(),
         })
+    }
+
+    /// Compiles navigation relative to the owning object, then property
+    /// selection.
+    pub(crate) fn compile_dependency(
+        root: &'static TypeMetadata,
+        prefix: &[&'static str],
+        binding: &crate::metadata::DependencyBindingMetadata,
+        graph: &ModelGraph<'_>,
+        ancestors: &[&'static TypeMetadata],
+        expected: InputType,
+    ) -> Result<Self, BindError> {
+        let mut segments = prefix.to_vec();
+        let mut depth = 0usize;
+        for step in binding.object_path().steps() {
+            match step {
+                crate::metadata::NavigationStep::Property(name) => segments.push(*name),
+                crate::metadata::NavigationStep::Parent => {
+                    if segments.pop().is_none() {
+                        depth += 1;
+                    }
+                }
+            }
+        }
+        segments.extend_from_slice(binding.property().segments());
+        let owner = if depth == 0 {
+            root
+        } else if let Some(owner) = ancestors.get(depth - 1) {
+            *owner
+        } else {
+            return Ok(Self {
+                context_depth: depth,
+                deferred: segments.into_boxed_slice(),
+                steps: Box::new([]),
+                input: expected,
+                optional: false,
+            });
+        };
+        let mut path = Self::compile(owner, &PropertyPath::new(&segments), graph, TargetMode::Value)?;
+        path.context_depth = depth;
+        Ok(path)
+    }
+
+    /// Returns a suffix requiring a runtime containing-object type.
+    pub(crate) fn deferred(&self) -> &[&'static str] {
+        &self.deferred
+    }
+
+    /// Returns how many external parent objects precede the selected property.
+    pub(crate) const fn context_depth(&self) -> usize {
+        self.context_depth
     }
 
     /// Returns the checked path steps in traversal order.
@@ -139,11 +196,7 @@ fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDe
         let Some(element) = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| {
-                descriptor
-                    .as_smart_pointer()
-                    .map(|view| view.pointee_type())
-            })
+            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()))
         else {
             return (descriptor, optional);
         };

@@ -34,23 +34,17 @@ error: canonical codec is only valid for Value
 33 | struct ValueOptionsOnModel {
    |        ^^^^^^^^^^^^^^^^^^^
 
-error: unsupported model option 'no_copy'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/role_option_semantics.rs:37:9
+error: no_copy is only supported by Enum
+  --> tests/ui_roles/fail/role_option_semantics.rs:38:8
    |
-37 | #[Model(no_copy)]
-   |         ^^^^^^^
+38 | struct NoCopyOnModel;
+   |        ^^^^^^^^^^^^^
 
-error: unsupported model option 'copy'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/role_option_semantics.rs:40:8
+error: conflicting model capability options
+  --> tests/ui_roles/fail/role_option_semantics.rs:41:6
    |
-40 | #[Enum(copy, no_copy)]
-   |        ^^^^
-
-error: unsupported model option 'no_copy'; derive Rust traits explicitly
-  --> tests/ui_roles/fail/role_option_semantics.rs:40:14
-   |
-40 | #[Enum(copy, no_copy)]
-   |              ^^^^^^^
+41 | enum CopyAndNoCopy {
+   |      ^^^^^^^^^^^^^
 
 error: explicit indexed is redundant with identifier, unique, or reference
   --> tests/ui_roles/fail/role_option_semantics.rs:46:8

@@ -11,6 +11,8 @@
 
 mod models;
 
-pub use models::Target;
+pub use models::CODEC;
 #[cfg(feature = "duplicate-fixture")]
 pub use models::Duplicate;
+pub use models::RULE;
+pub use models::Target;

@@ -9,7 +9,7 @@
 // qubit-style: allow explicit-imports
 //! Integration tests for safe erased property access.
 
-use qubit_model_metadata::__private::v5;
+use qubit_model_metadata::__private::v6;
 use qubit_model_metadata::metadata::BorrowedPropertySlice;
 use qubit_model_metadata::metadata::FieldMetadata;
 use qubit_model_metadata::metadata::GetterMetadata;
@@ -49,15 +49,10 @@ fn owned_count<'a>(target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, Proper
 
 fn set_name(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
     let target = target.downcast::<PropertyFixture>().map_err(|_| {
-        PropertySetFailure::after_execution(PropertyAccessError::user(
-            "setter target was not prevalidated",
-        ))
+        PropertySetFailure::after_execution(PropertyAccessError::user("setter target was not prevalidated"))
     })?;
     let value = value.downcast::<String>().map_err(|value| {
-        PropertySetFailure::before_execution(
-            PropertyAccessError::user("setter value was not prevalidated"),
-            value,
-        )
+        PropertySetFailure::before_execution(PropertyAccessError::user("setter value was not prevalidated"), value)
     })?;
     target.name = value;
     Ok(())
@@ -80,23 +75,18 @@ fn test_property_supports_borrowed_and_owned_getters() {
         GetterOutputKind::Owned,
         owned_count,
     )));
-    let name = v5::property_metadata("name", name_type, None, Some(name_getter), None);
-    let count = v5::property_metadata("count", count_type, None, Some(count_getter), None);
+    let name = v6::property_metadata("name", name_type, None, Some(name_getter), None);
+    let count = v6::property_metadata("count", count_type, None, Some(count_getter), None);
     let value = PropertyFixture {
         name: "alice".to_owned(),
         count: 7,
     };
 
-    let PropertyValue::Borrowed(name_value) = name
-        .get(ReflectedRef::new(&value))
-        .expect("borrowed getter")
-    else {
+    let PropertyValue::Borrowed(name_value) = name.get(ReflectedRef::new(&value)).expect("borrowed getter") else {
         panic!("name getter must borrow");
     };
     assert_eq!(name_value.as_str(), Some("alice"));
-    let PropertyValue::Owned(count_value) =
-        count.get(ReflectedRef::new(&value)).expect("owned getter")
-    else {
+    let PropertyValue::Owned(count_value) = count.get(ReflectedRef::new(&value)).expect("owned getter") else {
         panic!("count getter must own");
     };
     assert_eq!(count_value.downcast_ref::<u32>(), Some(&7));
@@ -106,20 +96,15 @@ fn test_property_supports_borrowed_and_owned_getters() {
 #[test]
 fn test_property_optional_borrow_and_slice_bridge_to_reflection_output() {
     let value = 9_u32;
-    let optional =
-        PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(&value))).into_invocation_output();
+    let optional = PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(&value))).into_invocation_output();
     let InvocationOutput::OptionalRef { value, origins } = optional else {
         panic!("optional property borrow must remain optional");
     };
-    assert_eq!(
-        value.as_ref().and_then(|value| value.downcast_ref::<u32>()),
-        Some(&9),
-    );
+    assert_eq!(value.as_ref().and_then(|value| value.downcast_ref::<u32>()), Some(&9),);
     assert_eq!(origins.len(), 1);
 
     let values = [2_u32, 3_u32];
-    let slice =
-        PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values)).into_invocation_output();
+    let slice = PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values)).into_invocation_output();
     let InvocationOutput::RefSlice { values, origins } = slice else {
         panic!("borrowed property slice must remain borrowed");
     };
@@ -139,27 +124,18 @@ fn test_property_field_fallback_and_setter_recovery_are_safe() {
         field.type_ref(),
         set_name,
     )));
-    let property = v5::property_metadata("name", field.type_ref(), Some(field), None, Some(setter));
+    let property = v6::property_metadata("name", field.type_ref(), Some(field), None, Some(setter));
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,
     };
 
-    let PropertyValue::Borrowed(current) = property
-        .get(ReflectedRef::new(&value))
-        .expect("field getter")
-    else {
+    let PropertyValue::Borrowed(current) = property.get(ReflectedRef::new(&value)).expect("field getter") else {
         panic!("field fallback must borrow");
     };
-    assert_eq!(
-        current.downcast_ref::<String>().map(String::as_str),
-        Some("before")
-    );
+    assert_eq!(current.downcast_ref::<String>().map(String::as_str), Some("before"));
     property
-        .set(
-            ReflectedMut::new(&mut value),
-            ReflectedOwned::new("after".to_owned()),
-        )
+        .set(ReflectedMut::new(&mut value), ReflectedOwned::new("after".to_owned()))
         .expect("setter");
     assert_eq!(value.name, "after");
     assert_eq!(property.storage_kind(), PropertyStorageKind::FieldBacked);
@@ -168,9 +144,7 @@ fn test_property_field_fallback_and_setter_recovery_are_safe() {
         .set(ReflectedMut::new(&mut value), ReflectedOwned::new(42_u32))
         .expect_err("wrong replacement type must fail before execution");
     assert_eq!(
-        failure
-            .replacement()
-            .and_then(|value| value.downcast_ref::<u32>()),
+        failure.replacement().and_then(|value| value.downcast_ref::<u32>()),
         Some(&42)
     );
     assert_eq!(value.name, "after");
@@ -188,22 +162,19 @@ fn test_property_rejects_wrong_targets_and_field_fallback_can_write() {
         GetterOutputKind::Borrowed,
         borrowed_name,
     )));
-    let computed = v5::property_metadata("name", field.type_ref(), None, Some(getter), None);
+    let computed = v6::property_metadata("name", field.type_ref(), None, Some(getter), None);
     assert!(matches!(
         computed.get(ReflectedRef::new(&7_u32)),
         Err(PropertyAccessError::TargetTypeMismatch(_)),
     ));
 
-    let fallback = v5::property_metadata("name", field.type_ref(), Some(field), None, None);
+    let fallback = v6::property_metadata("name", field.type_ref(), Some(field), None, None);
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,
     };
     fallback
-        .set(
-            ReflectedMut::new(&mut value),
-            ReflectedOwned::new("field".to_owned()),
-        )
+        .set(ReflectedMut::new(&mut value), ReflectedOwned::new("field".to_owned()))
         .expect("reflected field setter");
     assert_eq!(value.name, "field");
     assert!(fallback.is_readable());

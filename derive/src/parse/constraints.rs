@@ -67,9 +67,9 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
                 Err(meta.error("unsupported time option"))
             }
         })?;
-        return Ok(ConstraintIr::Time(precision.ok_or_else(|| {
-            Error::new_spanned(attribute, "time requires precision")
-        })?));
+        return Ok(ConstraintIr::Time(
+            precision.ok_or_else(|| Error::new_spanned(attribute, "time requires precision"))?,
+        ));
     }
     if attribute.path().is_ident("sequence") {
         let (mut min, mut max, mut unique) = (None, None, false);
@@ -97,10 +97,7 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
             }
         })?;
         if !any {
-            return Err(Error::new_spanned(
-                attribute,
-                "sequence requires at least one option",
-            ));
+            return Err(Error::new_spanned(attribute, "sequence requires at least one option"));
         }
         return Ok(ConstraintIr::Sequence { min, max, unique });
     }
@@ -126,10 +123,7 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
         }
     })?;
     if !any {
-        return Err(Error::new_spanned(
-            attribute,
-            "map requires min_entries or max_entries",
-        ));
+        return Err(Error::new_spanned(attribute, "map requires min_entries or max_entries"));
     }
     Ok(ConstraintIr::Map { min, max })
 }
@@ -168,13 +162,7 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
             validate_closed_value(
                 &expression,
                 &allowed_chars,
-                &[
-                    "unicode",
-                    "printable_unicode",
-                    "ascii",
-                    "printable_ascii",
-                    "code",
-                ],
+                &["unicode", "printable_unicode", "ascii", "printable_ascii", "code"],
                 "invalid allowed_chars value",
             )?;
             value.allowed_chars = Some(allowed_chars);
@@ -195,10 +183,7 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
         }
     })?;
     if !any {
-        return Err(Error::new_spanned(
-            attribute,
-            "text requires at least one option",
-        ));
+        return Err(Error::new_spanned(attribute, "text requires at least one option"));
     }
     Ok(value)
 }
@@ -274,20 +259,14 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
         return Err(Error::new_spanned(attribute, "money requires scale"));
     }
     if precision.is_some_and(|precision| scale.is_some_and(|scale| scale > precision)) {
-        return Err(Error::new_spanned(
-            attribute,
-            "decimal scale cannot exceed precision",
-        ));
+        return Err(Error::new_spanned(attribute, "decimal scale cannot exceed precision"));
     }
     if let (Some(minimum), Some(maximum)) = (&min, &max) {
         match compare_decimal_literals(&minimum.value(), &maximum.value()) {
             Some(Ordering::Greater) => {
-                return Err(Error::new_spanned(
-                    attribute,
-                    "decimal min cannot exceed max",
-                ));
+                return Err(Error::new_spanned(attribute, "decimal min cannot exceed max"));
             }
-            Some(Ordering::Equal) if !min_inclusive && !max_inclusive => {
+            Some(Ordering::Equal) if !min_inclusive || !max_inclusive => {
                 return Err(Error::new_spanned(
                     attribute,
                     "equal decimal bounds cannot both be exclusive",
@@ -331,9 +310,7 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
 
 /// Splits a decimal literal into sign, digits, and fractional scale.
 fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
-    let (negative, unsigned) = value
-        .strip_prefix('-')
-        .map_or((false, value), |value| (true, value));
+    let (negative, unsigned) = value.strip_prefix('-').map_or((false, value), |value| (true, value));
     if unsigned.is_empty() || unsigned.starts_with('+') {
         return None;
     }
@@ -352,11 +329,7 @@ fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
     let fraction = fraction.trim_end_matches('0');
     let digits = format!("{integer}{fraction}");
     let digits = digits.trim_start_matches('0').to_owned();
-    let normalized = if digits.is_empty() {
-        "0".to_owned()
-    } else {
-        digits
-    };
+    let normalized = if digits.is_empty() { "0".to_owned() } else { digits };
     let scale = fraction.len();
     Some((negative && normalized != "0", normalized, scale))
 }
@@ -395,17 +368,22 @@ mod tests {
     #[test]
     fn test_decimal_literal_boundaries() {
         assert_eq!(parse_decimal_literal("1."), Some((false, "1".into(), 0)));
-        assert_eq!(
-            parse_decimal_literal("001.2300"),
-            Some((false, "123".into(), 2))
-        );
+        assert_eq!(parse_decimal_literal("001.2300"), Some((false, "123".into(), 2)));
         assert_eq!(parse_decimal_literal("-0.0"), Some((false, "0".into(), 0)));
         assert_eq!(parse_decimal_literal("+1"), None);
         assert_eq!(parse_decimal_literal("1.2.3"), None);
-        assert_eq!(
-            compare_decimal_literals("001.20", "1.2"),
-            Some(Ordering::Equal)
-        );
+        assert_eq!(compare_decimal_literals("001.20", "1.2"), Some(Ordering::Equal));
+    }
+
+    /// Either excluded endpoint makes equal decimal bounds an empty interval.
+    #[test]
+    fn test_equal_decimal_bounds_require_both_endpoints() {
+        for attribute in [
+            parse_quote!(#[decimal(min = "1.0", max = "1", min_inclusive = false)]),
+            parse_quote!(#[decimal(min = "1", max = "1.0", max_inclusive = false)]),
+        ] {
+            assert!(parse_constraint(&attribute).is_err());
+        }
     }
 
     /// Confirms closed-vocabulary constraint options are rejected by parsing.

@@ -8,18 +8,23 @@
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
-//! Rejects trait and generic implementation blocks for `ModelImpl`.
+//! Describes reflected trait and generic implementation blocks.
 
+use qubit_model_derive::Model;
+use qubit_reflect::reflect;
 use qubit_model_derive::ModelImpl;
 
+#[Model]
 struct Account;
 
+#[reflect]
 trait Named {}
 
 #[ModelImpl]
 impl Named for Account {}
 
-struct Generic<T>(T);
+#[Model]
+struct Generic<T> { value: T }
 
 #[ModelImpl]
 impl<T> Generic<T> {}

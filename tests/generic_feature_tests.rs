@@ -28,3 +28,17 @@ fn specialization_cache_is_stable_per_concrete_type() {
     assert!(!core::ptr::eq(first, different));
     assert!(first.generic_definition().is_some());
 }
+
+/// Concurrent queries share one metadata allocation for each concrete type.
+#[test]
+fn concurrent_specializations_share_metadata() {
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..16)
+            .map(|_| scope.spawn(TypeMetadata::of::<CacheFixture<String>>))
+            .collect();
+        let expected = TypeMetadata::of::<CacheFixture<String>>();
+        for handle in handles {
+            assert!(core::ptr::eq(handle.join().unwrap(), expected));
+        }
+    });
+}

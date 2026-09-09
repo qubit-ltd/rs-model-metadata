@@ -14,3 +14,6 @@ pub(crate) mod metadata;
 pub(crate) mod model_impl;
 pub(crate) mod pipeline;
 pub(crate) mod role;
+
+mod output;
+mod structural_traits;

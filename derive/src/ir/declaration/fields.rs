@@ -35,7 +35,6 @@ pub(crate) enum FieldOccurrence {
     Redact(RedactIr),
     Serde(SerdeIr),
     Opaque,
-    ValidateNested,
 }
 
 #[derive(Clone, Copy)]
@@ -46,6 +45,8 @@ pub(crate) enum IdentifierAssignmentIr {
 
 #[derive(Clone)]
 pub(crate) struct FieldIr {
+    /// Enum variant containing this field, when applicable.
+    pub(crate) variant_index: Option<usize>,
     /// Reflection declaration index.
     pub(crate) index: Located<usize>,
     /// Declared Rust field type.

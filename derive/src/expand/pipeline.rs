@@ -12,7 +12,6 @@ use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
 use syn::DeriveInput;
-use syn::Error;
 use syn::ItemImpl;
 use syn::Meta;
 use syn::Result;
@@ -24,7 +23,6 @@ use syn::punctuated::Punctuated;
 
 use crate::expand::metadata::expand_metadata;
 use crate::expand::model_impl::expand_model_impl;
-use crate::expand::model_impl::validate_model_impl;
 use crate::ir::MacroKind;
 use crate::normalize::declaration::normalize_declaration;
 use crate::normalize::declaration::validate_declaration_ir;
@@ -38,16 +36,9 @@ use crate::validate::declaration::validate_declaration;
 pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let raw_options = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     if kind == MacroKind::ModelImpl {
-        if let Some(option) = raw_options.first() {
-            return Err(Error::new_spanned(
-                option,
-                "ModelImpl does not accept configuration arguments",
-            ));
-        }
         let item: ItemImpl = parse2(input)?;
-        validate_model_impl(&item)?;
         let runtime = runtime_path()?;
-        return expand_model_impl(item, &runtime);
+        return expand_model_impl(item, &runtime, quote!(#raw_options));
     }
 
     let mut item: DeriveInput = parse2(input)?;
@@ -63,22 +54,22 @@ pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Res
     let mut declaration = parse_declaration(kind, raw_options, &item)?;
     normalize_declaration(&mut declaration);
     validate_declaration_ir(&declaration, &item)?;
+    let output = super::output::prepare(&mut item, &declaration, &runtime)?;
     rewrite_field_helpers(&mut item.data, &declaration);
-    item.attrs
-        .push(parse_quote!(#[derive(#runtime::__private::Reflect)]));
+    item.attrs.push(parse_quote!(#[derive(#runtime::__private::Reflect)]));
     item.attrs.push(parse_quote!(#[reflect(crate = #runtime)]));
-    if !item.generics.params.is_empty() && declaration.options.id.is_some() {
+    if !item.generics.params.is_empty() {
         let provider = format_ident!("__qubit_model_reflect_definition_{}", item.ident);
         item.attrs
             .push(parse_quote!(#[reflect(definition_provider_v2 = #provider)]));
     }
     item.attrs
-        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v5::model_capability))]));
+        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v6::model_capability))]));
     let metadata = expand_metadata(&declaration, &item, &runtime);
-    let expanded = quote!(#item #metadata);
+    let expanded = quote!(#item #metadata #output);
     if item.generics.params.is_empty() {
         Ok(expanded)
     } else {
-        Ok(quote!(#runtime::__private::v5::with_generic_feature! { #expanded }))
+        Ok(quote!(#runtime::__private::v6::with_generic_feature! { #expanded }))
     }
 }

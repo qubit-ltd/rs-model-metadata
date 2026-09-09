@@ -16,7 +16,7 @@ use qubit_reflect::registry::RegistrySnapshotBuilder;
 
 use super::ModelResolutionCause;
 use super::relations::resolve_property_path;
-use crate::__private::v5;
+use crate::__private::v6;
 use crate::metadata::ModelImplMetadata;
 use crate::metadata::PropertyBuildError;
 use crate::metadata::PropertyBuildErrorKind;
@@ -33,7 +33,7 @@ fn overlay() -> &'static ModelImplMetadata {
     static OVERLAY: std::sync::OnceLock<ModelImplMetadata> = std::sync::OnceLock::new();
     OVERLAY.get_or_init(|| {
         let error = PropertyBuildError::new(PropertyBuildErrorKind::GetterTypeMismatch, "value");
-        ModelImplMetadata::new(&[], Err(v5::leak(PropertyBuildErrors::new(vec![error]))))
+        ModelImplMetadata::new(&[], Err(v6::leak(PropertyBuildErrors::new(vec![error]))))
     })
 }
 
@@ -52,48 +52,38 @@ fn broken_overlay<T: 'static>() -> CapabilityDescriptor {
 fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
     let reflection = RegistrySnapshotBuilder::new().build().unwrap();
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
-    let metadata = v5::leak(
-        v5::GeneratedTypeMetadataBuilder::new(
-            TypeDescriptor::of::<Broken<1>>(),
-            None,
-            &[],
-            v5::leak(v5::model_role()),
-        )
-        .finish::<Broken<1>>(),
+    let metadata = v6::leak(
+        v6::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Broken<1>>(), None, &[], v6::leak(v6::model_role()))
+            .finish::<Broken<1>>(),
     );
-    let error =
-        resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &models).unwrap_err();
+    let error = resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &models).unwrap_err();
     let ModelResolutionCause::Properties(PropertyResolutionError::Assembly(errors)) = error else {
         panic!("expected original property assembly failure");
     };
-    assert!(std::ptr::eq(
-        errors,
-        overlay().try_properties().unwrap_err()
-    ));
+    assert!(std::ptr::eq(errors, overlay().try_properties().unwrap_err()));
     assert_eq!(errors.errors()[0].property_name(), "value");
 }
 
 fn registered_metadata() -> &'static crate::metadata::TypeMetadata {
-    static METADATA: std::sync::OnceLock<crate::metadata::TypeMetadata> =
-        std::sync::OnceLock::new();
+    static METADATA: std::sync::OnceLock<crate::metadata::TypeMetadata> = std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
-        v5::GeneratedTypeMetadataBuilder::new(
+        v6::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<Broken<2>>(),
             Some(crate::metadata::ModelId::new("error.Assembly")),
             &[],
-            v5::leak(v5::model_role()),
+            v6::leak(v6::model_role()),
         )
         .finish::<Broken<2>>()
     })
 }
 
 register_reflected_type!(Broken<2>);
-v5::register_model_capability!(Broken<2>, registered_metadata);
+v6::register_model_capability!(Broken<2>, registered_metadata);
 
 #[test]
 fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
     let models = ModelRegistry::try_global().unwrap();
-    let errors = super::StructureResolver::new(super::ResolveInputs { models })
+    let errors = super::StructureResolver::new(super::ResolveInputs { roots: &[], models })
         .resolve()
         .unwrap_err();
     let [error] = errors.errors() else {
@@ -105,8 +95,6 @@ fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
     assert!(std::error::Error::source(error).is_some());
     assert!(matches!(
         error.cause(),
-        Some(ModelResolutionCause::Properties(
-            PropertyResolutionError::Assembly(_)
-        ))
+        Some(ModelResolutionCause::Properties(PropertyResolutionError::Assembly(_)))
     ));
 }
