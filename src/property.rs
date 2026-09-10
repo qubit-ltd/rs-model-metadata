@@ -60,6 +60,12 @@ impl<'a> PropertyValue<'a> {
     /// the elements themselves are not cloned. This allocates output storage
     /// and origin metadata. Direct [`BorrowedPropertySlice::get`] avoids that
     /// materialization, although constructing the slice adapter also boxes it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the erased slice reports a length containing an index that it
+    /// cannot return. Implementations created by this crate preserve that
+    /// invariant.
     #[must_use]
     pub fn into_invocation_output(self) -> InvocationOutput<'a, Local> {
         let receiver_origin = || Box::new([BorrowOrigin::Receiver]);
@@ -578,6 +584,12 @@ impl PropertyMetadata {
     ///
     /// Returns [`PropertyAccessError::NotReadable`] when neither a getter nor
     /// a backing field exists, and otherwise propagates access failures.
+    ///
+    /// # Panics
+    ///
+    /// Panics if metadata contains a backing field without a concrete
+    /// reflection descriptor. Generated runtime metadata cannot create this
+    /// state.
     #[must_use = "handle property access failure"]
     pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         if let Some(getter) = self.getter {
@@ -600,6 +612,12 @@ impl PropertyMetadata {
     ///
     /// Returns [`PropertySetFailure`] retaining the replacement when no write
     /// operation has started, and otherwise reports the setter or field error.
+    ///
+    /// # Panics
+    ///
+    /// Panics if metadata contains a backing field without a concrete
+    /// reflection descriptor. Generated runtime metadata cannot create this
+    /// state.
     #[must_use = "handle property write failure and recover the replacement when available"]
     pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         if let Some(setter) = self.setter {

@@ -169,6 +169,11 @@ impl ResolvedProjectionProducer {
     /// [`ProjectionExecutionError::IdentifierMismatch`] if the produced
     /// projection changes the source identifier. Invalid producer metadata or
     /// output shapes are reported by the corresponding structural variants.
+    ///
+    /// # Panics
+    ///
+    /// Panics if resolved producer metadata refers to an identifier that is
+    /// not a concrete reflected field. The resolver guarantees this invariant.
     #[must_use = "handle projection execution failure"]
     pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
         let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;

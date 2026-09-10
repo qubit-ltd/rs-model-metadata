@@ -217,6 +217,8 @@ impl TypeMetadata {
     /// Returns effective field/getter/setter declarations from the global
     /// registry.
     ///
+    /// # Errors
+    ///
     /// Returns reflection initialization or intrinsic capability conflicts.
     pub fn property_fragments(&'static self) -> Result<&'static [PropertyFragment], PropertyResolutionError> {
         self.property_fragments_in(ReflectRegistry::initialize()?)
@@ -238,6 +240,8 @@ impl TypeMetadata {
     }
 
     /// Returns effective properties from the process-wide reflection snapshot.
+    ///
+    /// # Errors
     ///
     /// Returns [`PropertyResolutionError::Reflection`] for initialization
     /// failures, [`PropertyResolutionError::Capability`] for intrinsic
@@ -273,6 +277,11 @@ impl TypeMetadata {
     ///
     /// Returns `None` for an absent name and propagates initialization or
     /// capability or assembly errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns reflection initialization, capability, or property assembly
+    /// errors.
     pub fn try_property(
         &'static self,
         name: &str,
@@ -282,6 +291,8 @@ impl TypeMetadata {
 
     /// Finds an effective property in `registry` without accessing global
     /// state.
+    ///
+    /// # Errors
     ///
     /// Returns `Ok(None)` for an absent name and propagates capability or
     /// property assembly errors.
