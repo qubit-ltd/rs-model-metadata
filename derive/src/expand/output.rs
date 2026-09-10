@@ -25,6 +25,7 @@ use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 
+use crate::ir::MacroKind;
 use crate::ir::declaration::DeclarationIr;
 use crate::ir::declaration::FieldOccurrence;
 
@@ -165,6 +166,7 @@ pub(crate) fn prepare(
         if declaration.options.transparent && !has_serde_control(item, "transparent")? {
             item.attrs.push(parse_quote!(#[serde(transparent)]));
         }
+        apply_enum_default_serde_wire_names(item, declaration)?;
     }
     if !redact && enabled("display") && !explicit.contains("Display") {
         implementations.push(plain_display(item, declaration.options.transparent)?);
@@ -322,6 +324,56 @@ fn add_deserialize_bounds(item: &mut DeriveInput, runtime: &TokenStream) -> Resu
         field.attrs.push(parse_quote!(#[serde(bound(deserialize = #bound))]));
     }
     Ok(())
+}
+
+/// Installs default variant Serde names for Enum role declarations.
+///
+/// Wire names match metadata `serialized_name` / `deserialized_name` unless the
+/// enum or variant already declares Serde renaming.
+fn apply_enum_default_serde_wire_names(item: &mut DeriveInput, declaration: &DeclarationIr) -> Result<()> {
+    if declaration.kind != MacroKind::Enum {
+        return Ok(());
+    }
+    if has_serde_control(item, "rename_all")? {
+        return Ok(());
+    }
+    let Data::Enum(data) = &mut item.data else {
+        return Ok(());
+    };
+    for variant in &mut data.variants {
+        if variant_has_serde_rename(&variant.attrs)? {
+            continue;
+        }
+        let rust_name = variant.ident.to_string();
+        let Some(variant_ir) = declaration.variants.iter().find(|candidate| candidate.rust_name == rust_name) else {
+            continue;
+        };
+        let serialized = &variant_ir.serialized_name;
+        let deserialized = &variant_ir.deserialized_name;
+        if serialized == deserialized {
+            let name = LitStr::new(serialized, variant.ident.span());
+            variant.attrs.push(parse_quote!(#[serde(rename = #name)]));
+        } else {
+            let serialize = LitStr::new(serialized, variant.ident.span());
+            let deserialize = LitStr::new(deserialized, variant.ident.span());
+            variant
+                .attrs
+                .push(parse_quote!(#[serde(rename(serialize = #serialize, deserialize = #deserialize))]));
+        }
+    }
+    Ok(())
+}
+
+/// Returns whether a variant already declares Serde rename options.
+fn variant_has_serde_rename(attributes: &[syn::Attribute]) -> Result<bool> {
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("serde")) {
+        for meta in attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)? {
+            if meta.path().is_ident("rename") {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// Detects explicit container controls before adding model defaults.

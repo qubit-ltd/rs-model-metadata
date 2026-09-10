@@ -63,6 +63,8 @@ Entity 必须声明稳定模型 `id`，其他角色可以省略；ID 控制注�
 全部为 unit variant 的 Enum 还默认实现 Copy。`no_*` 关闭自动实现；`no_eq` 同时移除默认 Hash，
 `no_partial_eq` 同时关闭相等、Hash 与排序能力。额外能力使用 `copy`、`default`、`partial_ord`、`ord`。
 Enum 的 `default` 要求恰有一个标准 `#[default]` unit variant。可构造默认值不等于满足领域约束。
+未声明类型级 `serde(rename_all)` 时，宏会为每个 variant 安装与 metadata canonical 名一致的默认 Serde
+wire 名（通常为 SCREAMING_SNAKE_CASE）；`#[variant(name = "...")]` 或 variant 级 `#[serde(rename = "...")]` 仍优先。
 
 角色属性放在显式 derive 之前，宏才能识别并避免重复生成。手写实现使用对应的关闭开关。
 `no_redact` 禁止当前字段或 selector 上存在脱敏规则，但嵌套类型保留自己的安全输出。

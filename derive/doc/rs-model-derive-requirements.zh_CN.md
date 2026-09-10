@@ -895,6 +895,10 @@ pub enum ReviewState {
   canonical name 不同。
 - **REQ-VAR-005**：按 canonical name 查询的 API 不得同时模糊匹配 Rust/serialized name；其他名称必须使用独立查询。
 - **REQ-VAR-006**：variant 不得增加 code、weight 或随机生成概率参数；Default 使用标准 `#[default]`。
+- **REQ-VAR-007**：`#[Enum]` 在未声明类型级 `serde(rename_all)` 且 variant 未声明 Serde 重命名时，宏必须为每个
+  variant 注入与 metadata `serialized_name` / `deserialized_name` 一致的默认 Serde 重命名；其中未写
+  `#[variant(name)]` 且未写 variant Serde 重命名时，wire name 等于 canonical name（SCREAMING_SNAKE_CASE）。
+  类型级或 variant 级显式 Serde 配置优先（REQ-SER-001）。
 
 ## 8. Runtime metadata 组件
 

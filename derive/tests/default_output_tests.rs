@@ -226,6 +226,44 @@ struct OrderedMarker<T> {
     marker: std::marker::PhantomData<T>,
 }
 
+#[Enum(no_redact)]
+enum WireNameFixture {
+    InReview,
+    #[variant(name = "APPROVED")]
+    Ready,
+    #[serde(rename = "accepted")]
+    Accepted,
+}
+
+/// Enum wire names default to canonical metadata names unless Serde overrides them.
+#[test]
+fn test_enum_default_serde_wire_names_match_metadata() {
+    assert_eq!(
+        serde_json::to_string(&WireNameFixture::InReview).expect("serialize"),
+        "\"IN_REVIEW\""
+    );
+    assert_eq!(
+        serde_json::to_string(&WireNameFixture::Ready).expect("serialize"),
+        "\"APPROVED\""
+    );
+    assert_eq!(
+        serde_json::to_string(&WireNameFixture::Accepted).expect("serialize"),
+        "\"accepted\""
+    );
+    assert!(matches!(
+        serde_json::from_str::<WireNameFixture>("\"IN_REVIEW\"").expect("deserialize"),
+        WireNameFixture::InReview
+    ));
+    assert!(matches!(
+        serde_json::from_str::<WireNameFixture>("\"APPROVED\"").expect("deserialize"),
+        WireNameFixture::Ready
+    ));
+    assert!(matches!(
+        serde_json::from_str::<WireNameFixture>("\"accepted\"").expect("deserialize"),
+        WireNameFixture::Accepted
+    ));
+}
+
 #[Enum(no_redact, no_debug)]
 enum PlainDisplay {
     Named { value: u32 },
