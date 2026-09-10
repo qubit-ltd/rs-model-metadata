@@ -61,7 +61,11 @@ impl<'reflection> ModelRegistry<'reflection> {
             let provider = match reflection
                 .capability_lookup(descriptor, crate::reflect_facade::model_metadata_key())
                 .map_err(|error| {
-                    ModelRegistryError::capability(CapabilityAccessError::IntrinsicConflict(error), source.clone())
+                    ModelRegistryError::capability(
+                        CapabilityAccessError::IntrinsicConflict(error),
+                        source.clone(),
+                        descriptor.type_id(),
+                    )
                 })? {
                 CapabilityLookup::Missing => continue,
                 CapabilityLookup::Found(provider) => provider,

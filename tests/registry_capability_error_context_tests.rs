@@ -82,7 +82,7 @@ fn test_model_registry_rejects_fact_only_model_provider() {
     assert_eq!(error.capability_id(), Some(*model_metadata_key().id()));
     assert_eq!(error.expected_adapter_type(), None);
     assert_eq!(error.actual_adapter_type(), None);
-    assert_eq!(error.sources(), &[expected_source]);
+    assert_eq!(error.sources(), &[expected_source.clone()]);
     assert_eq!(error.origins(), &[CapabilityOrigin::Registered { source: expected_source }]);
 }
 
@@ -101,7 +101,7 @@ fn test_model_registry_rejects_model_provider_with_wrong_adapter_type() {
         Some(TypeId::of::<ModelMetadataProvider>())
     );
     assert_eq!(error.actual_adapter_type(), Some(TypeId::of::<u32>()));
-    assert_eq!(error.sources(), &[expected_source]);
+    assert_eq!(error.sources(), &[expected_source.clone()]);
     assert_eq!(error.origins(), &[CapabilityOrigin::Registered { source: expected_source }]);
 }
 

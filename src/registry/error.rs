@@ -69,12 +69,12 @@ pub struct ModelRegistryError {
 
 impl ModelRegistryError {
     /// Retains an intrinsic capability conflict and its registration source.
-    pub(crate) fn capability(error: CapabilityAccessError, source: FragmentIdentity) -> Self {
+    pub(crate) fn capability(error: CapabilityAccessError, source: FragmentIdentity, type_id: TypeId) -> Self {
         Self {
             kind: ModelRegistryErrorKind::CapabilityResolution,
             model_id: None,
             sources: vec![source],
-            origins: vec![CapabilityOrigin::Intrinsic],
+            origins: vec![CapabilityOrigin::Intrinsic { type_id }],
             reflection: None,
             capability: Some(error),
             capability_id: None,
@@ -92,8 +92,13 @@ impl ModelRegistryError {
     ) -> Self {
         let source = reflection.definition_source(definition.id()).cloned();
         let origin = reflection
-            .definition_capability_origin(definition.id(), crate::reflect_facade::generic_model_metadata_key().id())
-            .unwrap_or(CapabilityOrigin::Intrinsic);
+            .definition_capability_origin(
+                definition.id(),
+                crate::reflect_facade::generic_model_metadata_key().id().as_str(),
+            )
+            .unwrap_or(CapabilityOrigin::Intrinsic {
+                type_id: definition.id().marker_type_id(),
+            });
         let (kind, capability_id, expected_adapter_type, actual_adapter_type) = match &error {
             CapabilityAccessError::FactOnly { id, adapter_type } => (
                 ModelRegistryErrorKind::FactOnlyCapability,
@@ -131,7 +136,7 @@ impl ModelRegistryError {
             model_id: None,
             sources: match &origin {
                 CapabilityOrigin::Registered { source } => vec![source.clone()],
-                CapabilityOrigin::Intrinsic => Vec::new(),
+                CapabilityOrigin::Intrinsic { .. } => Vec::new(),
             },
             origins: vec![origin],
             reflection: None,
@@ -154,7 +159,7 @@ impl ModelRegistryError {
             model_id: None,
             sources: match &origin {
                 CapabilityOrigin::Registered { source } => vec![source.clone()],
-                CapabilityOrigin::Intrinsic => Vec::new(),
+                CapabilityOrigin::Intrinsic { .. } => Vec::new(),
             },
             origins: vec![origin],
             reflection: None,
