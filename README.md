@@ -15,15 +15,14 @@ creating a second reflection system.
 
 ## Installation
 
-The runtime crate supports Rust 1.94 and edition 2024. The Qubit model crates
-are currently internal and unpublished (`publish = false`), so use checkout
-paths and adjust them for your workspace layout:
+The runtime crate supports Rust 1.94 and edition 2024. The examples below use
+released crates from crates.io:
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
+qubit-model-metadata = { version = "0.1.0", default-features = false }
+qubit-model-derive = "0.1.0"
+qubit-id = "0.6.0"
 ```
 
 `qubit-id` supplies the exact `Id` type required by `Entity` and `Projection`

@@ -2,15 +2,28 @@
 
 [English](user_guide.md) · [README](../README.zh_CN.md) · [声明指南](../derive/doc/user_guide.zh_CN.md)
 
-本指南面向框架开发者，适用于工作区 0.1 契约。以用户目录为例，先读取模型结构和 indexed 声明，
-再按需显式绑定执行服务。项目要求 Rust 1.94、edition 2024，路径依赖见 README。
-默认 feature 集为空；generic、validation、codec 分别启用对应 API。
+## 手册目标与读者
 
-## 身份、字段与结构图
+本指南面向框架开发者，适用于 0.1.0 契约。以用户目录为例，先读取模型结构和 indexed 声明，
+再按需显式绑定执行服务。项目要求 Rust 1.94、edition 2024。默认 feature 集为空；generic、
+validation、codec 分别启用对应 API。
+
+## 概念模型
 
 Field 表示存储槽位，Property 合并存储字段和符合要求的访问器，两者复用 rs-reflect descriptor。
 TypeMetadata 是不依赖模型实例的静态信息。Entity 必须声明稳定的 ModelId；其他角色可省略 ModelId，匿名模型仍有准确的 TypeId，
 可以作为显式根纳入结构解析。
+
+## 贯穿场景与最小配置
+
+先使用已发布的依赖。只有在需要构建验证计划时，才为运行时 crate 启用 `validation`：
+
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.1.0", default-features = false }
+qubit-model-derive = "0.1.0"
+qubit-id = "0.6.0"
+```
 
 通过 `ModelRegistry::from_metadata` 创建的纯元数据注册表不会经反射发现其他元数据 provider。
 需要参与声明处理的匿名模型（包括嵌套子模型）都应加入显式 roots；也可以改用从指定反射快照构建的注册表。
@@ -58,7 +71,7 @@ fn main() {
 也不能借此增加或删除图中的声明。`ValidationPlan::root()` 返回实际采用的图内元数据，
 能力检查遵循同一快照边界。
 
-## 字段身份与 API 迁移
+## 进阶用法：字段身份与 API 迁移
 
 具体字段的 `location()` 返回 `Some(FieldLocation)`，由 owner 的 `TypeId`、可选 Enum variant 序号
 和字段序号组成；复制 `FieldMetadata` 不会改变身份。泛型定义字段尚未对应具体 Rust 类型，
@@ -81,7 +94,7 @@ fn main() {
 它们不控制执行。计划构建器负责发现受支持的嵌套声明，遍历边界按文档中的 reference 和 opaque 语义处理，
 不再使用递归开关。
 
-## 对象路径、引用与声明位置
+## 进阶用法：对象路径、引用与声明位置
 
 ObjectPath 使用 NavigationStep::Property 和 NavigationStep::Parent，显示为 `/` 分隔路径；
 PropertyPath 使用 `.` 选择普通属性。依赖的空 ObjectPath 表示当前对象，reference 省略 path 则表示未请求复用。
@@ -92,7 +105,7 @@ PropertyPath 使用 `.` 选择普通属性。依赖的空 ObjectPath 表示当�
 `ModelGraph::dependencies()` 保存各自独立的依赖 occurrence。DeclarationLocation 保存文件、行列、
 owner 名称、variant/field 序号与 selector 位置，无名 Enum payload 也能定位。
 
-## 显式绑定执行适配器
+## 进阶用法：显式绑定执行适配器
 
 启用 validation 后，调用 `ValidationPlan::build(root, ValidationBuildInputs { graph: &graph,
 validators: &validators })`，传入自己的 validator registry。
@@ -114,17 +127,16 @@ validators: &validators })`，传入自己的 validator registry。
 选择顺序为字段显式 codec、Value canonical codec、无 codec。Rust 类型形式也要求相应注册项存在；
 显式指定同一个 canonical codec 合法。occurrence 身份包含准确 TypeId、可选 ModelId、Property 路径和来源。
 
-## 从声明到验证报告
+## 核心工作流：从声明到验证报告
 
-给 runtime 依赖启用 `validation`，并为下列**可独立运行的完整程序**添加执行 API 的直接依赖。
-路径须指向 runtime 使用的同一份工作区检出：
+给 runtime 依赖启用 `validation`，并为下列**可独立运行的完整程序**添加已发布的执行 API 直接依赖：
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-reflect = { version = "0.1", path = "../rs-reflect" }
-qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
+qubit-model-metadata = { version = "0.1.0", features = ["validation"] }
+qubit-model-derive = "0.1.0"
+qubit-reflect = "0.1.0"
+qubit-validator = "0.1.0"
 ```
 
 下面的用户资料要求 label 与可选联系人的 name 非空白。先发现元数据、解析结构图，再绑定规则。
@@ -218,7 +230,7 @@ fn main() {
 使用 `#[validator(id = "...")]` 时，调用方必须在传入的 validator registry 中提供对应注册项。
 能力检查只检查声明与访问形状，不调用 getter、不绑定自定义注册项，也不能证明实例有效。
 
-## 执行范围与构建拒绝
+## 限制：执行范围与构建拒绝
 
 结构图合法不代表当前验证后端可以执行全部声明。下面的 Enum payload 能保留约束及声明来源，
 但构建执行计划时必须明确拒绝，不能返回遗漏了约束的空计划：
@@ -296,7 +308,7 @@ fn main() {
 即使某个实例的字段为 None，也不能跳过这项构建检查。完整 PersonInfo 正向执行仍需要时间适配器，
 删除约束会改变模型契约。
 
-## 停止条件与执行预算
+## 进阶用法：停止条件与执行预算
 
 使用 `ValidationOptions::default()` 获取默认策略。需要定制时，通过
 `ValidationOptions::builder()` 设置 `mode`、`selection` 和所需的 `max_*` 预算，
@@ -352,3 +364,9 @@ Property 的借用值不能逃出源实例生命周期，也不强制 Send。新
 仍由下游组件实现。完整契约见[冻结需求](../derive/doc/rs-model-derive-requirements.zh_CN.md)、
 [最终设计](../derive/doc/rs-model-derive-final-design.zh_CN.md)。
 运行 `cargo doc --workspace --all-features --no-deps` 可生成本地 API 文档。
+
+## 延伸阅读
+
+- [README](../README.zh_CN.md)
+- [English user guide](user_guide.md)
+- [派生宏声明指南](../derive/doc/user_guide.zh_CN.md)

@@ -13,14 +13,13 @@
 
 ## 安装
 
-运行时 crate 需要 Rust 1.94，使用 edition 2024。Qubit 模型 crate 目前仅供内部使用且不发布
-（`publish = false`），请使用检出路径，并按工作区布局调整：
+运行时 crate 需要 Rust 1.94，使用 edition 2024。以下示例假设所需 crate 已发布到 crates.io：
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
+qubit-model-metadata = { version = "0.1.0", default-features = false }
+qubit-model-derive = "0.1.0"
+qubit-id = "0.6.0"
 ```
 
 `qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。默认 feature 集为空；

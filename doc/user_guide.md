@@ -2,18 +2,32 @@
 
 [简体中文](user_guide.zh_CN.md) · [README](../README.md) · [Declaration guide](../derive/doc/user_guide.md)
 
-This guide covers the 0.1 workspace contract for framework authors. It uses a
+## Purpose and audience
+
+This guide covers the 0.1.0 contract for framework authors. It uses a
 user-directory scenario: inspect a model, resolve its indexed declarations, then
 bind optional execution services explicitly. Rust 1.94 and edition 2024 are
-required. Use the local checkout dependencies in the README; the default feature
-set is empty. `generic`, `validation`, and `codec` enable their respective APIs.
+required. The default feature set is empty; `generic`, `validation`, and `codec`
+enable their respective APIs.
 
-## Model identity and structural resolution
+## Conceptual model
 
 Field describes storage; Property combines storage and eligible accessors. Both
 reuse rs-reflect descriptors. TypeMetadata is static and independent of any model
 instance. Entity requires a stable ModelId. Other roles may be anonymous: they still have
 exact TypeId identity and can be supplied as roots.
+
+## Scenario and minimal configuration
+
+Start with a released dependency set. Add `validation` only when the application
+will build validation plans:
+
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.1.0", default-features = false }
+qubit-model-derive = "0.1.0"
+qubit-id = "0.6.0"
+```
 
 A metadata-only registry made with `ModelRegistry::from_metadata` does not
 discover additional metadata providers through reflection. Supply every
@@ -73,7 +87,7 @@ Rust type, that overlay cannot add or remove graph declarations.
 `ValidationPlan::root()` returns the graph metadata actually used by the plan;
 capability checks follow the same snapshot boundary.
 
-## Field identity and API migration
+## Advanced usage: field identity and API migration
 
 A concrete field's `location()` is `Some(FieldLocation)`, containing the owner
 `TypeId`, optional enum variant index, and field index. Copying `FieldMetadata`
@@ -101,7 +115,7 @@ The obsolete `FieldMetadata::validate_nested()` method and
 execution. Supported nested declarations are discovered by the plan builder;
 use the documented reference and opaque boundaries instead of a recursion flag.
 
-## Paths, references, and source locations
+## Advanced usage: paths, references, and source locations
 
 ObjectPath contains NavigationStep::Property and NavigationStep::Parent. Its
 Display form uses `/`; PropertyPath selects ordinary properties with `.`.
@@ -115,7 +129,7 @@ the resolved view. `ModelGraph::dependencies()` keeps distinct dependency
 occurrences. DeclarationLocation retains source coordinates, owner name,
 variant/field indices, and selector position, including unnamed Enum payloads.
 
-## Explicit execution adapters
+## Advanced usage: explicit execution adapters
 
 With `validation`, construct `ValidationPlan::build(root, ValidationBuildInputs
 { graph: &graph, validators: &validators })`. The validator registry is supplied
@@ -146,18 +160,17 @@ Value canonical codec, then no codec. Rust-type codec declarations also require
 registration. Explicitly naming the canonical codec is valid. Occurrence identity
 includes exact TypeId, optional stable ModelId, Property path, and source.
 
-## Validate a profile and keep partial results
+## Core workflow: validate a profile and keep partial results
 
 Enable `validation` in the runtime dependency. For the following **complete,
-independent programs**, add the execution types as direct dependencies too;
-keep them from the same checkout as the runtime:
+independent programs**, add the execution types as released direct dependencies:
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-reflect = { version = "0.1", path = "../rs-reflect" }
-qubit-validator = { version = "0.1", path = "../../rust-common/rs-validator" }
+qubit-model-metadata = { version = "0.1.0", features = ["validation"] }
+qubit-model-derive = "0.1.0"
+qubit-reflect = "0.1.0"
+qubit-validator = "0.1.0"
 ```
 
 The profile's label and optional contact name must be nonblank. Metadata discovery
@@ -255,7 +268,7 @@ matching registration in the supplied validator registry. Capability checking
 only verifies declarations and access shapes; it never runs getters, binds custom
 registrations, or proves an instance valid.
 
-## Execution support and explicit refusal
+## Limitations: execution support and explicit refusal
 
 A structurally valid graph can contain declarations unsupported by this validation
 backend. For example, the following enum retains its payload constraint and source
@@ -340,7 +353,7 @@ construction—even if a particular instance contains `None`. A complete PersonI
 validation service still needs a time adapter; removing the declaration would
 change the model's contract.
 
-## Stopping policies and work budgets
+## Advanced usage: stopping policies and work budgets
 
 Use `ValidationOptions::default()` for the default policy. For customization,
 use `ValidationOptions::builder()`, set `mode`, `selection` and the desired
@@ -412,3 +425,9 @@ Unicode comparison execution, and missing-parent business fallback remain
 consumer responsibilities. See the [frozen requirements](../derive/doc/rs-model-derive-requirements.zh_CN.md),
 [design](../derive/doc/rs-model-derive-final-design.md), and local API docs generated
 by `cargo doc --workspace --all-features --no-deps`.
+
+## Further reading
+
+- [README](../README.md)
+- [简体中文用户指南](user_guide.zh_CN.md)
+- [Declaration guide](../derive/doc/user_guide.md)
