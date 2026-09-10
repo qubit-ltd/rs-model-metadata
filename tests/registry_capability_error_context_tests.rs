@@ -20,8 +20,8 @@ use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityConflict;
 use qubit_reflect::capability::CapabilityConflictKind;
 use qubit_reflect::capability::CapabilityDescriptor;
-use qubit_reflect::capability::CapabilityOrigin;
 use qubit_reflect::capability::CapabilityKey;
+use qubit_reflect::capability::CapabilityOrigin;
 use qubit_reflect::error::RegistryError;
 use qubit_reflect::error::RegistryErrorKind;
 use qubit_reflect::identity::CapabilityId;
@@ -82,8 +82,13 @@ fn test_model_registry_rejects_fact_only_model_provider() {
     assert_eq!(error.capability_id(), Some(*model_metadata_key().id()));
     assert_eq!(error.expected_adapter_type(), None);
     assert_eq!(error.actual_adapter_type(), None);
-    assert_eq!(error.sources(), &[expected_source.clone()]);
-    assert_eq!(error.origins(), &[CapabilityOrigin::Registered { source: expected_source }]);
+    assert_eq!(error.sources(), std::slice::from_ref(&expected_source));
+    assert_eq!(
+        error.origins(),
+        &[CapabilityOrigin::Registered {
+            source: expected_source
+        }]
+    );
 }
 
 #[test]
@@ -101,8 +106,13 @@ fn test_model_registry_rejects_model_provider_with_wrong_adapter_type() {
         Some(TypeId::of::<ModelMetadataProvider>())
     );
     assert_eq!(error.actual_adapter_type(), Some(TypeId::of::<u32>()));
-    assert_eq!(error.sources(), &[expected_source.clone()]);
-    assert_eq!(error.origins(), &[CapabilityOrigin::Registered { source: expected_source }]);
+    assert_eq!(error.sources(), std::slice::from_ref(&expected_source));
+    assert_eq!(
+        error.origins(),
+        &[CapabilityOrigin::Registered {
+            source: expected_source
+        }]
+    );
 }
 
 #[test]
