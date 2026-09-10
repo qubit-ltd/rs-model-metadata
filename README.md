@@ -104,6 +104,10 @@ When a consumer needs an isolated reflection context, construct it with `Registr
 ## Recoverable queries
 
 `ModelRegistry::metadata_for` returns `Result<Option<&TypeMetadata>, ModelMetadataError>`.
+When registry construction fails, `ModelRegistryError::origins()` preserves whether
+the relevant capability was intrinsic or registered, including the exact fragment
+identity for registered capabilities. `sources()` remains available for direct
+fragment inspection.
 `Ok(None)` means no matching model metadata; capability conflicts and descriptor ABI mismatches
 return structured errors. `TypeMetadata::try_properties_in`, `try_property_in`, and
 `property_fragments_in` propagate `PropertyResolutionError`. Explicit snapshot queries never

@@ -86,6 +86,8 @@ metadata 在穿过隐藏的 metadata-only ABI v6 边界前，会校验 descripto
 ## 可恢复查询
 
 `ModelRegistry::metadata_for` 返回 `Result<Option<&TypeMetadata>, ModelMetadataError>`。
+注册表构建失败时，`ModelRegistryError::origins()` 会保留相关能力来自类型内建能力还是注册片段，
+并为注册能力保留精确的片段身份；`sources()` 仍可用于直接检查片段。
 `Ok(None)` 表示没有匹配的模型元数据；能力冲突和描述符 ABI 不匹配返回结构化错误。
 `TypeMetadata::try_properties_in`、`try_property_in`、`property_fragments_in` 传播
 `PropertyResolutionError`，显式 snapshot 查询不会初始化全局注册表。

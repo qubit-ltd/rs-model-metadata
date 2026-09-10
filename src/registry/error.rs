@@ -14,6 +14,7 @@ use std::any::TypeId;
 #[cfg(feature = "generic")]
 use qubit_reflect::TypeDefinitionDescriptor;
 use qubit_reflect::capability::CapabilityAccessError;
+use qubit_reflect::capability::CapabilityOrigin;
 use qubit_reflect::error::RegistryError;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
@@ -51,6 +52,8 @@ pub struct ModelRegistryError {
     model_id: Option<ModelId>,
     /// Fragment identities involved in the failure.
     sources: Vec<FragmentIdentity>,
+    /// Capability origins involved in the failure.
+    origins: Vec<CapabilityOrigin>,
     /// The underlying reflection failure, when reflection initialization
     /// failed.
     reflection: Option<RegistryError>,
@@ -71,6 +74,7 @@ impl ModelRegistryError {
             kind: ModelRegistryErrorKind::CapabilityResolution,
             model_id: None,
             sources: vec![source],
+            origins: vec![CapabilityOrigin::Intrinsic],
             reflection: None,
             capability: Some(error),
             capability_id: None,
@@ -87,6 +91,9 @@ impl ModelRegistryError {
         definition: &TypeDefinitionDescriptor,
     ) -> Self {
         let source = reflection.definition_source(definition.id()).cloned();
+        let origin = reflection
+            .definition_capability_origin(definition.id(), crate::reflect_facade::generic_model_metadata_key().id())
+            .unwrap_or(CapabilityOrigin::Intrinsic);
         let (kind, capability_id, expected_adapter_type, actual_adapter_type) = match &error {
             CapabilityAccessError::FactOnly { id, adapter_type } => (
                 ModelRegistryErrorKind::FactOnlyCapability,
@@ -108,6 +115,7 @@ impl ModelRegistryError {
             kind,
             model_id: None,
             sources: source.into_iter().collect(),
+            origins: vec![origin],
             reflection: None,
             capability: Some(error),
             capability_id,
@@ -117,11 +125,15 @@ impl ModelRegistryError {
     }
 
     /// Records a model capability fact without an executable provider.
-    pub(crate) fn fact_only_capability(capability_id: CapabilityId, source: FragmentIdentity) -> Self {
+    pub(crate) fn fact_only_capability(capability_id: CapabilityId, origin: CapabilityOrigin) -> Self {
         Self {
             kind: ModelRegistryErrorKind::FactOnlyCapability,
             model_id: None,
-            sources: vec![source],
+            sources: match &origin {
+                CapabilityOrigin::Registered { source } => vec![source.clone()],
+                CapabilityOrigin::Intrinsic => Vec::new(),
+            },
+            origins: vec![origin],
             reflection: None,
             capability: None,
             capability_id: Some(capability_id),
@@ -135,12 +147,16 @@ impl ModelRegistryError {
         capability_id: CapabilityId,
         expected: TypeId,
         actual: TypeId,
-        source: FragmentIdentity,
+        origin: CapabilityOrigin,
     ) -> Self {
         Self {
             kind: ModelRegistryErrorKind::AdapterTypeMismatch,
             model_id: None,
-            sources: vec![source],
+            sources: match &origin {
+                CapabilityOrigin::Registered { source } => vec![source.clone()],
+                CapabilityOrigin::Intrinsic => Vec::new(),
+            },
+            origins: vec![origin],
             reflection: None,
             capability: None,
             capability_id: Some(capability_id),
@@ -155,10 +171,16 @@ impl ModelRegistryError {
             || error.fragment_identity().into_iter().cloned().collect(),
             |(left, right)| vec![left.clone(), right.clone()],
         );
+        let origins = sources
+            .iter()
+            .cloned()
+            .map(|source| CapabilityOrigin::Registered { source })
+            .collect();
         Self {
             kind: ModelRegistryErrorKind::ReflectionRegistry,
             model_id: None,
             sources,
+            origins,
             reflection: Some(error),
             capability: None,
             capability_id: None,
@@ -169,10 +191,16 @@ impl ModelRegistryError {
 
     /// Records registrations that reuse the same stable model ID.
     pub(crate) fn duplicate(model_id: ModelId, sources: Vec<FragmentIdentity>) -> Self {
+        let origins = sources
+            .iter()
+            .cloned()
+            .map(|source| CapabilityOrigin::Registered { source })
+            .collect();
         Self {
             kind: ModelRegistryErrorKind::DuplicateModelId,
             model_id: Some(model_id),
             sources,
+            origins,
             reflection: None,
             capability: None,
             capability_id: None,
@@ -183,10 +211,16 @@ impl ModelRegistryError {
 
     /// Records a registration whose metadata conflicts with its target.
     pub(crate) fn conflict(model_id: Option<ModelId>, sources: Vec<FragmentIdentity>) -> Self {
+        let origins = sources
+            .iter()
+            .cloned()
+            .map(|source| CapabilityOrigin::Registered { source })
+            .collect();
         Self {
             kind: ModelRegistryErrorKind::RegistrationConflict,
             model_id,
             sources,
+            origins,
             reflection: None,
             capability: None,
             capability_id: None,
@@ -231,6 +265,12 @@ impl ModelRegistryError {
     #[inline(always)]
     pub fn sources(&self) -> &[FragmentIdentity] {
         &self.sources
+    }
+
+    /// Returns capability origins involved in the error.
+    #[must_use]
+    pub fn origins(&self) -> &[CapabilityOrigin] {
+        &self.origins
     }
 }
 

@@ -66,20 +66,28 @@ impl<'reflection> ModelRegistry<'reflection> {
                 CapabilityLookup::Missing => continue,
                 CapabilityLookup::Found(provider) => provider,
                 CapabilityLookup::FactOnly(capability) => {
+                    let origin = reflection
+                        .capability_origin(descriptor, capability.id().as_str())
+                        .expect("capability lookup already resolved the capability set")
+                        .expect("effective capability retains its origin");
                     return Err(ModelRegistryError::fact_only_capability(
                         *capability.id(),
-                        source.clone(),
+                        origin,
                     ));
                 }
                 CapabilityLookup::AdapterTypeMismatch {
                     descriptor: capability,
                     expected,
                 } => {
+                    let origin = reflection
+                        .capability_origin(descriptor, capability.id().as_str())
+                        .expect("capability lookup already resolved the capability set")
+                        .expect("effective capability retains its origin");
                     return Err(ModelRegistryError::adapter_type_mismatch(
                         *capability.id(),
                         expected,
                         capability.adapter_type(),
-                        source.clone(),
+                        origin,
                     ));
                 }
             };

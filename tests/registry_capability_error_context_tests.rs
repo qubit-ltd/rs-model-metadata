@@ -20,6 +20,7 @@ use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityConflict;
 use qubit_reflect::capability::CapabilityConflictKind;
 use qubit_reflect::capability::CapabilityDescriptor;
+use qubit_reflect::capability::CapabilityOrigin;
 use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::error::RegistryError;
 use qubit_reflect::error::RegistryErrorKind;
@@ -63,7 +64,10 @@ fn model_provider_snapshot(capability: CapabilityDescriptor) -> (ReflectRegistry
     let mut builder = RegistrySnapshotBuilder::new();
     builder.add_type(target, type_source.clone());
     builder.add_type_capabilities(target, vec![capability], source("model-provider-capability", 51));
-    (builder.build().expect("valid isolated snapshot"), type_source)
+    (
+        builder.build().expect("valid isolated snapshot"),
+        source("model-provider-capability", 51),
+    )
 }
 
 #[test]
@@ -79,6 +83,7 @@ fn test_model_registry_rejects_fact_only_model_provider() {
     assert_eq!(error.expected_adapter_type(), None);
     assert_eq!(error.actual_adapter_type(), None);
     assert_eq!(error.sources(), &[expected_source]);
+    assert_eq!(error.origins(), &[CapabilityOrigin::Registered { source: expected_source }]);
 }
 
 #[test]
@@ -97,6 +102,7 @@ fn test_model_registry_rejects_model_provider_with_wrong_adapter_type() {
     );
     assert_eq!(error.actual_adapter_type(), Some(TypeId::of::<u32>()));
     assert_eq!(error.sources(), &[expected_source]);
+    assert_eq!(error.origins(), &[CapabilityOrigin::Registered { source: expected_source }]);
 }
 
 #[test]
