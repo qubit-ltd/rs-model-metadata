@@ -143,6 +143,7 @@ impl<'a> CodecBindings<'a> {
     }
 
     /// Iterates over bindings in stable identity order.
+    #[must_use]
     pub fn bindings(&self) -> impl ExactSizeIterator<Item = &CodecBinding<'a>> {
         self.0.values()
     }
