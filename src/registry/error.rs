@@ -21,6 +21,7 @@ use qubit_reflect::identity::FragmentIdentity;
 #[cfg(feature = "generic")]
 use qubit_reflect::registry::ReflectRegistry;
 
+use crate::metadata::AbiViolation;
 use crate::metadata::ModelId;
 
 /// Machine-readable registry failure class.
@@ -57,6 +58,8 @@ pub struct ModelRegistryError {
     /// The underlying reflection failure, when reflection initialization
     /// failed.
     reflection: Option<RegistryError>,
+    /// Original checked metadata ABI failure, when present.
+    abi: Option<AbiViolation>,
     /// Complete intrinsic capability conflict, when present.
     capability: Option<CapabilityAccessError>,
     /// Stable capability identity involved in a provider contract failure.
@@ -76,6 +79,7 @@ impl ModelRegistryError {
             sources: vec![source],
             origins: vec![CapabilityOrigin::Intrinsic { type_id }],
             reflection: None,
+            abi: None,
             capability: Some(error),
             capability_id: None,
             expected_adapter_type: None,
@@ -122,6 +126,7 @@ impl ModelRegistryError {
             sources: source.into_iter().collect(),
             origins: vec![origin],
             reflection: None,
+            abi: None,
             capability: Some(error),
             capability_id,
             expected_adapter_type,
@@ -140,6 +145,7 @@ impl ModelRegistryError {
             },
             origins: vec![origin],
             reflection: None,
+            abi: None,
             capability: None,
             capability_id: Some(capability_id),
             expected_adapter_type: None,
@@ -163,6 +169,7 @@ impl ModelRegistryError {
             },
             origins: vec![origin],
             reflection: None,
+            abi: None,
             capability: None,
             capability_id: Some(capability_id),
             expected_adapter_type: Some(expected),
@@ -187,6 +194,7 @@ impl ModelRegistryError {
             sources,
             origins,
             reflection: Some(error),
+            abi: None,
             capability: None,
             capability_id: None,
             expected_adapter_type: None,
@@ -207,6 +215,7 @@ impl ModelRegistryError {
             sources,
             origins,
             reflection: None,
+            abi: None,
             capability: None,
             capability_id: None,
             expected_adapter_type: None,
@@ -227,11 +236,26 @@ impl ModelRegistryError {
             sources,
             origins,
             reflection: None,
+            abi: None,
             capability: None,
             capability_id: None,
             expected_adapter_type: None,
             actual_adapter_type: None,
         }
+    }
+
+    /// Retains checked metadata failure together with its registration context.
+    pub(crate) fn invalid_abi(model_id: Option<ModelId>, sources: Vec<FragmentIdentity>, cause: AbiViolation) -> Self {
+        let mut error = Self::conflict(model_id, sources);
+        error.abi = Some(cause);
+        error
+    }
+
+    /// Returns the original checked ABI failure, when metadata was malformed.
+    #[must_use]
+    #[inline(always)]
+    pub const fn abi_cause(&self) -> Option<&AbiViolation> {
+        self.abi.as_ref()
     }
 
     /// Returns the machine-readable error class.
@@ -311,10 +335,16 @@ impl core::fmt::Display for ModelRegistryError {
                 "duplicate model ID {}",
                 self.model_id.expect("duplicate errors retain their ID").as_str(),
             ),
-            ModelRegistryErrorKind::RegistrationConflict => match self.model_id {
-                Some(model_id) => write!(formatter, "model capability conflict for {}", model_id.as_str()),
-                None => formatter.write_str("model capability conflict without a stable model ID"),
-            },
+            ModelRegistryErrorKind::RegistrationConflict => {
+                match self.model_id {
+                    Some(model_id) => write!(formatter, "model capability conflict for {}", model_id.as_str())?,
+                    None => formatter.write_str("model capability conflict without a stable model ID")?,
+                }
+                if let Some(cause) = &self.abi {
+                    write!(formatter, ": {cause}")?;
+                }
+                Ok(())
+            }
             ModelRegistryErrorKind::UnsupportedPlatform => formatter.write_str("model registration is unsupported"),
         }
     }
@@ -322,13 +352,82 @@ impl core::fmt::Display for ModelRegistryError {
 
 impl std::error::Error for ModelRegistryError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.reflection
+        self.abi
             .as_ref()
             .map(|error| error as &(dyn std::error::Error + 'static))
+            .or_else(|| {
+                self.reflection
+                    .as_ref()
+                    .map(|error| error as &(dyn std::error::Error + 'static))
+            })
             .or_else(|| {
                 self.capability
                     .as_ref()
                     .map(|error| error as &(dyn std::error::Error + 'static))
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+    use std::error::Error;
+
+    use qubit_reflect::RegistryError;
+    use qubit_reflect::capability::CapabilityAccessError;
+    use qubit_reflect::capability::CapabilityOrigin;
+    use qubit_reflect::identity::CapabilityId;
+    use qubit_reflect::identity::FragmentIdentity;
+
+    use super::ModelRegistryError;
+    use super::ModelRegistryErrorKind;
+
+    #[test]
+    fn provider_contract_errors_retain_machine_readable_context() {
+        let id = CapabilityId::new("example.capability").expect("valid capability ID");
+        let origin = CapabilityOrigin::Intrinsic {
+            type_id: TypeId::of::<u8>(),
+        };
+        let fact = ModelRegistryError::fact_only_capability(id, origin.clone());
+        assert_eq!(fact.kind(), ModelRegistryErrorKind::FactOnlyCapability);
+        assert_eq!(fact.capability_id(), Some(id));
+        assert_eq!(fact.actual_adapter_type(), None);
+        assert_eq!(fact.origins().len(), 1);
+        assert!(fact.to_string().contains("no executable adapter"));
+
+        let mismatch = ModelRegistryError::adapter_type_mismatch(id, TypeId::of::<u8>(), TypeId::of::<u16>(), origin);
+        assert_eq!(mismatch.kind(), ModelRegistryErrorKind::AdapterTypeMismatch);
+        assert_eq!(mismatch.expected_adapter_type(), Some(TypeId::of::<u8>()));
+        assert_eq!(mismatch.actual_adapter_type(), Some(TypeId::of::<u16>()));
+        assert!(mismatch.to_string().contains("adapter type mismatch"));
+    }
+
+    #[test]
+    fn intrinsic_capability_conflicts_keep_the_original_cause() {
+        use qubit_reflect::capability::CapabilityDescriptor;
+        use qubit_reflect::capability::CapabilityKey;
+        use qubit_reflect::capability::TypeCapabilities;
+
+        let id = CapabilityId::new("example.conflict").expect("valid capability ID");
+        let first = CapabilityDescriptor::without_adapter(CapabilityKey::<u8>::new(id));
+        let second = CapabilityDescriptor::without_adapter(CapabilityKey::<u8>::new(id));
+        let conflict = TypeCapabilities::try_new(vec![first, second]).expect_err("duplicate capability");
+        let error = ModelRegistryError::capability(
+            CapabilityAccessError::IntrinsicConflict(conflict),
+            FragmentIdentity::new("fixture", "tests", 1, 1, "conflict", 1),
+            TypeId::of::<u8>(),
+        );
+        assert_eq!(error.kind(), ModelRegistryErrorKind::CapabilityResolution);
+        assert!(error.source().is_some());
+        assert!(error.to_string().contains("capability resolution failed"));
+    }
+
+    #[test]
+    fn reflection_failures_keep_registry_context() {
+        let cause = RegistryError::unsupported_platform();
+        let error = ModelRegistryError::reflection(cause);
+        assert_eq!(error.kind(), ModelRegistryErrorKind::ReflectionRegistry);
+        assert!(error.source().is_some());
+        assert!(error.to_string().contains("reflection registry initialization failed"));
     }
 }

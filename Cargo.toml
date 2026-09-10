@@ -53,6 +53,7 @@ thiserror = "2"
 
 [dev-dependencies]
 criterion = "0.5"
+serde_json = "1"
 qubit-datatype = { version = "=0.13.0", path = "../../rust-common/rs-datatype" }
 qubit-model-derive = { version = "=0.1.0", path = "derive" }
 trybuild = "1"
@@ -65,3 +66,8 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
 [[bench]]
 name = "property_output"
 harness = false
+
+[[bench]]
+name = "model_pipeline"
+harness = false
+required-features = ["validation"]

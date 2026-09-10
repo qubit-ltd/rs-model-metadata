@@ -31,10 +31,12 @@ impl User {
     pub fn diagnostic(&self) -> usize { self.tags.len() }
 }
 
-let metadata = TypeMetadata::of::<User>();
-assert!(metadata.field("nickname").unwrap().is_indexed());
-assert!(metadata.try_property("display_name").unwrap().unwrap().is_computed());
-assert!(metadata.try_property("diagnostic").unwrap().is_none());
+fn main() {
+    let metadata = TypeMetadata::of::<User>();
+    assert!(metadata.field("nickname").unwrap().is_indexed());
+    assert!(metadata.try_property("display_name").unwrap().unwrap().is_computed());
+    assert!(metadata.try_property("diagnostic").unwrap().is_none());
+}
 ```
 
 存储字段仍然是 Property；没有同名字段的 getter 自动成为 computed Property，不再需要 computed 标记。
@@ -54,7 +56,7 @@ assert!(metadata.try_property("diagnostic").unwrap().is_none());
 | Enum | unit、tuple、具名或混合 variant，可使用泛型 |
 | Value | 具名值对象或单字段 tuple 包装，可指定 `transparent` |
 
-稳定模型 `id` 可省略；它控制注册，不决定 metadata 是否存在。泛型定义与具体类型需要启用运行时
+Entity 必须声明稳定模型 `id`，其他角色可以省略；ID 控制注册，不决定匿名模型的 metadata 是否存在。泛型定义与具体类型需要启用运行时
 `generic` feature，不支持 lifetime 参数。
 
 角色默认实现 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize、Deserialize；
@@ -68,6 +70,10 @@ Enum 的 `default` 要求恰有一个标准 `#[default]` unit variant。可构�
 
 具名 Option 与标准集合字段在缺失时使用默认值，空值默认不序列化。`keep_serializing` 只关闭自动省略，
 显式 Serde 配置优先；位置字段不自动省略。
+
+默认序列化委托 rs-redact，不支持 Serde `flatten`。需要普通 Serde 的字段展开时，
+显式选择 `#[Model(no_redact)]`；该类型不能再声明本地字段或 selector 脱敏规则。
+元数据仍保留展开、双向名称、跳过控制和默认值来源。
 
 ## 引用和查询声明
 
@@ -110,9 +116,34 @@ text、decimal/money、time、sequence、map 记录声明的约束。
 `element(...)`、`map_key(...)`、`map_value(...)` 保留各自作用位置。
 Set 已有的唯一性和数组固定长度不能重复声明。opaque 截断内部遍历，但保留外层形状。
 旧宏参数 target、on_none、validate_nested 已移除，执行策略由消费者掌握。
+运行时的 `FieldAttributeMetadata::ValidateNested` 和 `FieldMetadata::validate_nested()` 也已移除。
+嵌套声明由计划构建器按支持矩阵发现，不需要额外标记；reference 和 opaque 仍界定遍历边界。
 
 codec 声明保留稳定 ID 或 Rust codec 类型，具体实现必须存在于显式传入的 registry。
 字段的显式 codec 优先于 Value 的 canonical codec；显式选择相同 canonical codec 也合法。
+
+## 能够声明不等于能够执行
+
+宏接受某项声明，只说明模型可以表达该语义。当前 runtime 验证适配器支持具名字段的现有 text 约束
+和自定义 validator，并递归处理直接及 Option 嵌套模型。需要穿过可选子对象时，应提供实际可用的
+借用 getter，例如 `Option<&Child>`。字段存储类型为 `Vec<T>` 本身不能证明可以读取元素，
+显式 element validator 需要借用 slice getter。
+
+含规则的 Enum payload、tuple/newtype 内部、容器元素模型、有可达执行声明的循环，以及 Decimal、
+Time、Map 约束、类型擦除后的唯一性检查、selector 内约束或依赖，都属于当前明确拒绝的执行形状。
+需要但缺少解包适配器，或 owned 中间对象无法继续借用时，也在计划构建阶段返回 `UnsupportedExecution`。
+unit Enum 和没有可达执行声明的循环仍可作为普通值通过。reference 只验证存储字段的显式规则，
+opaque 只截断内部遍历，不删除外层声明。
+
+先用 `ValidationCapabilities::check(root, &graph)` 检查访问能力，再把真实自定义注册表传给
+`ValidationPlan::build`。两者都保留声明来源；即使缺少规则注册项，错误中也有原始 ID。
+运行时指南提供[完整执行矩阵](../../doc/user_guide.zh_CN.md#执行范围与构建拒绝)、
+[可运行示例](../../doc/user_guide.zh_CN.md#从声明到验证报告)、报告上限与部分错误处理，
+并说明真实 `rs-platform` 的集成边界。不能为让某个后端接受模型而删除约束或添加 opaque。
+
+生成代码使用 checked `__private::v7`，runtime 与宏 crate 必须同步升级，不保留 v5/v6 兼容门面。
+具体字段通过 owner TypeId、variant 序号和字段序号识别；稳定外部命名仍使用 ModelId。
+`rs-reflect` 的协议版本独立维护。
 
 ## 方法反射、错误与排查
 

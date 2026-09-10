@@ -10,6 +10,8 @@
 //! Domain semantics attached to reflected model fields.
 
 use core::any::TypeId;
+use core::any::type_name;
+use core::fmt;
 use core::hash::Hash;
 use core::hash::Hasher;
 
@@ -18,6 +20,7 @@ use qubit_reflect::descriptor::TypeRef;
 
 use crate::constraint::ConstraintMetadata;
 use crate::metadata::ModelId;
+use crate::relation::DeclarationLocation;
 use crate::relation::ObjectPath;
 use crate::relation::PropertyPath;
 use crate::type_metadata::TypeMetadata;
@@ -25,7 +28,9 @@ use crate::type_metadata::TypeMetadata;
 /// A declaration-time reference to a Rust type.
 #[derive(Clone, Copy)]
 pub struct RustTypeReference {
+    /// Monomorphized identity query; no reflection descriptor is constructed.
     type_id: fn() -> TypeId,
+    /// Monomorphized diagnostic name query for the same Rust type.
     type_name: fn() -> &'static str,
 }
 
@@ -35,25 +40,27 @@ impl RustTypeReference {
     pub const fn of<T: 'static>() -> Self {
         Self {
             type_id: TypeId::of::<T>,
-            type_name: core::any::type_name::<T>,
+            type_name: type_name::<T>,
         }
     }
 
     /// Returns the referenced Rust [`TypeId`].
     #[must_use]
+    #[inline(always)]
     pub fn type_id(self) -> TypeId {
         (self.type_id)()
     }
 
     /// Returns the referenced Rust type name.
     #[must_use]
+    #[inline(always)]
     pub fn type_name(self) -> &'static str {
         (self.type_name)()
     }
 }
 
-impl core::fmt::Debug for RustTypeReference {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Debug for RustTypeReference {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("RustTypeReference")
             .field(&self.type_name())
@@ -99,7 +106,9 @@ pub enum ValidationArgument<'a> {
 /// One named validator parameter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NamedValidationArgument<'a> {
+    /// Nonempty parameter name borrowed for the lifetime of this argument.
     name: &'a str,
+    /// Typed parameter value borrowing data for the same lifetime.
     value: ValidationArgument<'a>,
 }
 
@@ -117,12 +126,14 @@ impl<'a> NamedValidationArgument<'a> {
 
     /// Returns the parameter name.
     #[must_use]
+    #[inline(always)]
     pub const fn name(&self) -> &'a str {
         self.name
     }
 
     /// Returns the parameter value.
     #[must_use]
+    #[inline(always)]
     pub const fn value(&self) -> ValidationArgument<'a> {
         self.value
     }
@@ -254,13 +265,16 @@ impl UniqueMetadata {
 
     /// Returns the explicit declaration independently of the effective default.
     #[must_use]
+    #[inline(always)]
     pub const fn declared_ignore_case(&self) -> Option<bool> {
         self.declared_ignore_case
     }
 
-    /// Returns the concrete comparison policy, or None before generic
-    /// substitution.
+    /// Returns an explicit policy even before generic substitution. Without
+    /// an explicit option, returns None for a definition and Some of the
+    /// inferred policy for a concrete field.
     #[must_use]
+    #[inline(always)]
     pub const fn effective_ignore_case(&self) -> Option<bool> {
         if self.deferred {
             self.declared_ignore_case
@@ -276,7 +290,9 @@ impl UniqueMetadata {
         self.respect_to
     }
 
-    /// Returns whether text comparison ignores case.
+    /// Returns the stored concrete comparison policy. Generic definitions
+    /// retain a false placeholder here; use [`Self::effective_ignore_case`] to
+    /// distinguish unresolved defaults and preserve explicit source options.
     #[must_use]
     #[inline(always)]
     pub const fn ignore_case(&self) -> bool {
@@ -343,7 +359,12 @@ impl DeclaredEntityTarget {
         }
     }
 
-    /// Returns directly supplied Rust metadata, if any.
+    /// Calls the Rust-type provider and returns its metadata. Returns None for
+    /// a stable-ID target; this method never resolves that ID in a registry.
+    /// The provider can initialize caches or perform its own side effects.
+    ///
+    /// # Panics
+    /// Propagates any panic raised by the supplied provider.
     #[must_use]
     pub fn metadata(&self) -> Option<&'static TypeMetadata> {
         match self {
@@ -363,8 +384,8 @@ impl DeclaredEntityTarget {
     }
 }
 
-impl core::fmt::Debug for DeclaredEntityTarget {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Debug for DeclaredEntityTarget {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("DeclaredEntityTarget")
             .field(&self.kind())
@@ -390,25 +411,27 @@ pub struct ReferenceMetadata {
     selection: &'static ReferenceSelection,
     /// Whether the referenced record must exist before assignment.
     existing: bool,
-    /// An equivalent local property path, when declared.
-    same_as: Option<&'static ObjectPath>,
+    /// Object navigation from the declaration to the target context, if
+    /// supplied.
+    path: Option<&'static ObjectPath>,
 }
 
 impl ReferenceMetadata {
-    /// Creates reference metadata.
+    /// Records the target, selected value, existence policy and optional
+    /// object navigation without resolving a registry or invoking a provider.
     #[must_use]
     #[inline(always)]
     pub const fn new(
         target: &'static DeclaredEntityTarget,
         selection: &'static ReferenceSelection,
         existing: bool,
-        same_as: Option<&'static ObjectPath>,
+        path: Option<&'static ObjectPath>,
     ) -> Self {
         Self {
             target,
             selection,
             existing,
-            same_as,
+            path,
         }
     }
 
@@ -433,11 +456,12 @@ impl ReferenceMetadata {
         self.existing
     }
 
-    /// Returns an equivalent property path, if declared.
+    /// Returns explicit object navigation, or None when no path was declared.
+    /// Property selection is retained separately by [`Self::selection`].
     #[must_use]
     #[inline(always)]
     pub const fn path(&self) -> Option<&'static ObjectPath> {
-        self.same_as
+        self.path
     }
 }
 
@@ -451,15 +475,18 @@ pub struct DependencyBindingMetadata {
     /// Navigation from the owning object before selecting the property.
     object_path: ObjectPath,
     /// Source occurrence anchoring navigation to its owning object.
-    declaration: &'static crate::metadata::DeclarationLocation,
+    declaration: &'static DeclarationLocation,
 }
 
 impl DependencyBindingMetadata {
     /// Creates a named dependency binding.
+    ///
+    /// # Panics
+    /// Panics if the slot name or property path is empty.
     #[must_use]
     #[inline(always)]
     pub const fn new(name: &'static str, path: PropertyPath<'static>) -> Self {
-        static UNKNOWN: crate::metadata::DeclarationLocation = crate::metadata::DeclarationLocation::unknown();
+        static UNKNOWN: DeclarationLocation = DeclarationLocation::unknown();
         assert!(!name.is_empty(), "validator dependency name cannot be empty");
         assert!(!path.is_empty(), "validator dependency path cannot be empty");
         Self {
@@ -479,26 +506,29 @@ impl DependencyBindingMetadata {
 
     /// Returns navigation relative to the declaration's owning object.
     #[must_use]
+    #[inline(always)]
     pub const fn object_path(&self) -> ObjectPath {
         self.object_path
     }
 
     /// Returns the property selected on the navigated object.
     #[must_use]
+    #[inline(always)]
     pub const fn property(&self) -> PropertyPath<'static> {
         self.path
     }
 
     /// Associates an exact field or selector occurrence with this binding.
     #[must_use]
-    pub const fn with_declaration(mut self, declaration: &'static crate::metadata::DeclarationLocation) -> Self {
+    pub const fn with_declaration(mut self, declaration: &'static DeclarationLocation) -> Self {
         self.declaration = declaration;
         self
     }
 
     /// Returns source and owning-object coordinates for this dependency.
     #[must_use]
-    pub const fn declaration(&self) -> &'static crate::metadata::DeclarationLocation {
+    #[inline(always)]
+    pub const fn declaration(&self) -> &'static DeclarationLocation {
         self.declaration
     }
 
@@ -557,6 +587,10 @@ pub struct ValidatorMetadata {
 
 impl ValidatorMetadata {
     /// Creates a validator occurrence without resolving a runtime registry.
+    /// Uses value expansion and skips absent optional values.
+    ///
+    /// # Panics
+    /// Panics if `declared_id` is empty.
     #[must_use]
     pub const fn new(
         declared_id: &'static str,
@@ -575,6 +609,11 @@ impl ValidatorMetadata {
     }
 
     /// Creates a validator occurrence with named dependency bindings.
+    ///
+    /// # Panics
+    /// Panics if the ID is empty, dependency slot names repeat, or container
+    /// input is combined with rejection of absent expanded values. Individual
+    /// bindings already require nonempty slot names and property paths.
     #[must_use]
     pub const fn new_bound(
         declared_id: &'static str,
@@ -592,8 +631,6 @@ impl ValidatorMetadata {
         let mut index = 0;
         while index < dependency_bindings.len() {
             let binding = dependency_bindings[index];
-            assert!(!binding.name().is_empty(), "validator dependency name cannot be empty");
-            assert!(!binding.path().is_empty(), "validator dependency path cannot be empty");
             assert!(
                 !contains_dependency_name(dependency_bindings, index, binding.name()),
                 "validator dependency names must be unique",
@@ -610,7 +647,8 @@ impl ValidatorMetadata {
         }
     }
 
-    /// Returns the validated declaration ID.
+    /// Returns the nonempty source ID. Full identifier grammar validation
+    /// belongs to the declaration producer or consuming registry.
     #[must_use]
     #[inline(always)]
     pub const fn declared_id(&self) -> &'static str {
@@ -1066,8 +1104,6 @@ pub enum FieldAttributeMetadata {
     Serde(&'static SerdeFieldMetadata),
     /// An explicit opaque-type marker.
     Opaque,
-    /// Recursively validate the value described by this field.
-    ValidateNested,
 }
 
 /// Recognizes text through supported optional and smart-pointer wrappers.

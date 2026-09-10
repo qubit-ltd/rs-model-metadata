@@ -26,7 +26,8 @@ use syn::Result;
 /// # Returns
 ///
 /// Returns a token stream naming the runtime crate, including a Cargo-renamed
-/// dependency, or `crate` when the runtime crate is itself.
+/// dependency. Within the runtime package, uses its canonical crate alias so
+/// generated paths also work in rustdoc's separate example crates.
 ///
 /// # Errors
 ///
@@ -34,7 +35,7 @@ use syn::Result;
 /// `qubit-model-metadata` as a dependency.
 pub(crate) fn runtime_path() -> Result<TokenStream> {
     match crate_name("qubit-model-metadata") {
-        Ok(FoundCrate::Itself) => Ok(quote!(crate)),
+        Ok(FoundCrate::Itself) => Ok(quote!(::qubit_model_metadata)),
         Ok(FoundCrate::Name(name)) => {
             let ident = Ident::new(&name, Span::call_site());
             Ok(quote!(::#ident))

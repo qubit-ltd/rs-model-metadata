@@ -32,10 +32,12 @@ impl User {
     pub fn diagnostic(&self) -> usize { self.tags.len() }
 }
 
-let metadata = TypeMetadata::of::<User>();
-assert!(metadata.field("nickname").unwrap().is_indexed());
-assert!(metadata.try_property("display_name").unwrap().unwrap().is_computed());
-assert!(metadata.try_property("diagnostic").unwrap().is_none());
+fn main() {
+    let metadata = TypeMetadata::of::<User>();
+    assert!(metadata.field("nickname").unwrap().is_indexed());
+    assert!(metadata.try_property("display_name").unwrap().unwrap().is_computed());
+    assert!(metadata.try_property("diagnostic").unwrap().is_none());
+}
 ```
 
 The stored fields remain Properties. The getter creates a computed Property
@@ -56,8 +58,8 @@ redaction mode that observes the field.
 | Enum | Unit, tuple, named, or mixed variants, optionally generic |
 | Value | Named value object or one-field tuple wrapper; optional `transparent` |
 
-A stable model `id` is optional. It controls registration, not the availability
-of metadata. Enable the runtime `generic` feature for generic definitions and
+Entity requires a stable model `id`; it is optional for the other roles. The ID
+controls registration, not the availability of metadata for anonymous models. Enable the runtime `generic` feature for generic definitions and
 concrete specializations; lifetime parameters are unsupported.
 
 Roles default to Clone, Debug, Display, PartialEq, Eq, Hash, Redact, Serialize,
@@ -76,6 +78,11 @@ Generic bounds follow stored field capabilities, including PhantomData and const
 Named Option and standard collection fields default when absent and omit empty
 values. `#[keep_serializing]` suppresses only automatic omission. Explicit Serde
 controls have precedence. Positional fields do not receive automatic omission.
+
+Default serialization delegates to rs-redact, which rejects Serde `flatten`.
+For plain Serde flattening, select `#[Model(no_redact)]`; this opt-out does not
+allow local field or selector redaction declarations. The metadata still records
+flattening, directional names, skip controls and the origins of defaults.
 
 ## Relationships and query declarations
 
@@ -128,11 +135,45 @@ positions. Existing Set uniqueness and fixed-array size constraints must not be
 restated redundantly. `opaque` stops internal traversal while preserving outer
 shape. Remove old `target`, `on_none`, and `validate_nested` macro options;
 execution policy belongs to consumers.
+The runtime `FieldAttributeMetadata::ValidateNested` marker and
+`FieldMetadata::validate_nested()` method are also removed. The plan builder
+discovers nested declarations according to its support matrix without an extra
+marker; reference and opaque semantics still define traversal boundaries.
 
 Codecs retain an explicit stable ID or Rust codec type. The codec must be
 registered with the supplied codec registry. Explicit field selection takes
 precedence over a Value's canonical codec; selecting that same canonical codec
 explicitly is legal.
+
+## Declaration support versus execution support
+
+A macro accepting a declaration does not promise that a particular consumer can
+execute it. The current runtime validation adapter binds supported text constraints
+and custom validators on named fields, including direct and optional nested models.
+Provide an actual borrowed intermediate getter such as `Option<&Child>` when the
+adapter must traverse an optional child. A `Vec<T>` storage type alone does not
+provide element access: explicit element validators need a borrowed-slice getter.
+
+Constrained enum payloads, tuple/newtype interiors, model declarations inside
+container elements, work-bearing cycles, Decimal/Time/Map constraints, erased
+uniqueness, selector constraints/dependencies, and unsupported unwrap/owned
+intermediate shapes produce `UnsupportedExecution` at plan construction. A unit
+enum or cycle with no reachable execution declarations remains a valid ordinary
+value. Reference fields validate only their explicit stored-field rules; opaque
+fields stop internal traversal without deleting outer declarations.
+
+Use `ValidationCapabilities::check(root, &graph)` to inspect access support,
+then `ValidationPlan::build` with the actual custom validator registry. Both
+retain source locations; a missing custom registration retains its original ID.
+See the runtime guide's [support matrix](../../doc/user_guide.md#execution-support-and-explicit-refusal)
+and [complete validation program](../../doc/user_guide.md#validate-a-profile-and-keep-partial-results)
+for report limits, partial errors, and the real `rs-platform` integration boundary.
+Do not remove a model constraint or add `opaque` just to make a backend accept it.
+
+Generated model code uses checked `__private::v7`; update the runtime and macro
+crate together. There is no v5/v6 compatibility facade. Concrete field identities
+use owner TypeId, variant index, and field index; model IDs remain the stable
+external naming mechanism. `rs-reflect` retains its independent protocol version.
 
 ## Reflection and diagnostics
 

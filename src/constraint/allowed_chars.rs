@@ -28,6 +28,6 @@ pub enum AllowedChars {
     Ascii,
     /// Printable ASCII characters only.
     PrintableAscii,
-    /// ASCII letters, digits, underscore, and hyphen.
+    /// ASCII letters, digits, period, underscore, and hyphen.
     Code,
 }

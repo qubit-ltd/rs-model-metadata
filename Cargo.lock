@@ -571,6 +571,7 @@ dependencies = [
  "qubit-validation-rules",
  "qubit-validator",
  "serde",
+ "serde_json",
  "thiserror",
  "trybuild",
  "uuid",

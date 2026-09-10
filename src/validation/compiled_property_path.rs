@@ -17,6 +17,7 @@ use qubit_validator::BindErrorKind;
 use qubit_validator::InputType;
 
 use super::build_error::path_error;
+use crate::metadata::GetterOutputKind;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyPath;
 use crate::metadata::TargetMode;
@@ -27,7 +28,6 @@ use crate::resolve::ModelGraph;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PropertyStep {
     property: &'static PropertyMetadata,
-    optional: bool,
 }
 
 impl PropertyStep {
@@ -35,23 +35,20 @@ impl PropertyStep {
     pub(crate) const fn property(self) -> &'static PropertyMetadata {
         self.property
     }
-
-    /// Returns whether this segment can produce no value.
-    pub(crate) const fn optional(self) -> bool {
-        self.optional
-    }
 }
 
 /// A fully checked path; no user getter is called while constructing it.
 #[derive(Clone, Debug)]
 pub(crate) struct CompiledPropertyPath {
     /// Number of external containing objects needed to read this path.
-    context_depth: usize,
+    pub(super) context_depth: usize,
+    /// Original named dependency navigation, when this path supplies a slot.
+    pub(super) dependency: Option<crate::metadata::DependencyBindingMetadata>,
     /// Property suffix whose owner type is supplied at execution.
-    deferred: Box<[&'static str]>,
-    steps: Box<[PropertyStep]>,
-    input: InputType,
-    optional: bool,
+    pub(super) deferred: Box<[&'static str]>,
+    pub(super) steps: Box<[PropertyStep]>,
+    pub(super) input: InputType,
+    pub(super) optional: bool,
 }
 
 impl CompiledPropertyPath {
@@ -62,19 +59,17 @@ impl CompiledPropertyPath {
         graph: &ModelGraph<'_>,
         target: TargetMode,
     ) -> Result<Self, BindError> {
-        if path.is_empty() {
+        if path.is_empty() || graph.model(root.type_id()).is_none() {
             return Err(path_error(BindErrorKind::UnreadablePath));
         }
         let mut current = root;
         let mut steps = Vec::with_capacity(path.segments().len());
         let mut path_optional = false;
+        let mut input = InputType::of::<()>();
         for (index, segment) in path.segments().iter().enumerate() {
-            let properties = graph
-                .registry()
-                .properties_for(current)
-                .map_err(|_| path_error(BindErrorKind::UnreadablePath))?;
-            let property = properties
-                .property(segment)
+            let property = graph
+                .properties(current)
+                .and_then(|properties| properties.property(segment))
                 .ok_or_else(|| path_error(BindErrorKind::UnreadablePath))?;
             if !property.is_readable() {
                 return Err(path_error(BindErrorKind::UnreadablePath));
@@ -82,43 +77,66 @@ impl CompiledPropertyPath {
             let descriptor = property
                 .descriptor()
                 .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
-            let (value_descriptor, optional) = match target {
-                TargetMode::Value => value_descriptor(descriptor),
-                TargetMode::Container => (descriptor, false),
+            let last = index + 1 == path.segments().len();
+            let value_target = !last || matches!(target, TargetMode::Value);
+            let expected = if value_target {
+                value_descriptor(descriptor).0
+            } else {
+                descriptor
             };
+            let (actual, optional) = if let Some(getter) = property.getter() {
+                let output = getter
+                    .output_type()
+                    .as_resolved()
+                    .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
+                if !last
+                    && matches!(
+                        getter.output_kind(),
+                        GetterOutputKind::Owned | GetterOutputKind::BorrowedSlice
+                    )
+                {
+                    return Err(path_error(BindErrorKind::UnsupportedConstraint));
+                }
+                if matches!(getter.output_kind(), GetterOutputKind::OptionalBorrowed) {
+                    let inner = output
+                        .as_optional()
+                        .and_then(|value| value.element_type().as_resolved())
+                        .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+                    (inner, true)
+                } else {
+                    (output, false)
+                }
+            } else {
+                (descriptor, false)
+            };
+            let slice = property
+                .getter()
+                .is_some_and(|getter| matches!(getter.output_kind(), GetterOutputKind::BorrowedSlice));
+            let compatible_text =
+                matches!(expected.kind(), TypeKind::Text(_)) && matches!(actual.kind(), TypeKind::Text(_));
+            if expected.type_id() != actual.type_id() && !compatible_text && !(last && slice && !value_target) {
+                return Err(path_error(BindErrorKind::UnsupportedConstraint));
+            }
             path_optional |= optional;
-            steps.push(PropertyStep { property, optional });
-            if index + 1 < path.segments().len() {
+            steps.push(PropertyStep { property });
+            input = if matches!(actual.kind(), TypeKind::Text(_)) {
+                InputType::Text
+            } else {
+                InputType::Typed(actual.type_id())
+            };
+            if !last {
                 current = graph
-                    .registry()
-                    .metadata_for(value_descriptor)
-                    .map_err(|_| path_error(BindErrorKind::UnreadablePath))?
+                    .model(actual.type_id())
                     .ok_or_else(|| path_error(BindErrorKind::UnreadablePath))?;
             }
         }
-        let last = steps.last().copied().expect("non-empty path");
-        let descriptor = graph
-            .registry()
-            .properties_for(current)
-            .map_err(|_| path_error(BindErrorKind::UnreadablePath))?
-            .property(path.segments().last().copied().expect("non-empty path"))
-            .and_then(PropertyMetadata::descriptor)
-            .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
-        let (descriptor, _optional) = match target {
-            TargetMode::Value => value_descriptor(descriptor),
-            TargetMode::Container => (descriptor, false),
-        };
-        let input = if matches!(descriptor.kind(), TypeKind::Text(_)) {
-            InputType::Text
-        } else {
-            InputType::Typed(descriptor.type_id())
-        };
         Ok(Self {
             context_depth: 0,
+            dependency: None,
             deferred: Box::new([]),
             steps: steps.into_boxed_slice(),
             input,
-            optional: path_optional || last.optional(),
+            optional: path_optional,
         })
     }
 
@@ -152,6 +170,7 @@ impl CompiledPropertyPath {
         } else {
             return Ok(Self {
                 context_depth: depth,
+                dependency: Some(*binding),
                 deferred: segments.into_boxed_slice(),
                 steps: Box::new([]),
                 input: expected,
@@ -160,7 +179,13 @@ impl CompiledPropertyPath {
         };
         let mut path = Self::compile(owner, &PropertyPath::new(&segments), graph, TargetMode::Value)?;
         path.context_depth = depth;
+        path.dependency = Some(*binding);
         Ok(path)
+    }
+
+    /// Returns the original named dependency declaration, if present.
+    pub(crate) const fn dependency(&self) -> Option<crate::metadata::DependencyBindingMetadata> {
+        self.dependency
     }
 
     /// Returns a suffix requiring a runtime containing-object type.
@@ -205,6 +230,32 @@ fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDe
             return (descriptor, optional);
         };
         descriptor = next;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use qubit_validator::InputType;
+
+    use super::CompiledPropertyPath;
+
+    #[test]
+    fn compiled_path_accessors_expose_structural_state() {
+        let path = CompiledPropertyPath {
+            context_depth: 2,
+            dependency: None,
+            deferred: vec!["parent", "value"].into_boxed_slice(),
+            steps: Box::new([]),
+            input: InputType::of::<u8>(),
+            optional: true,
+        };
+
+        assert!(path.dependency().is_none());
+        assert_eq!(path.deferred(), &["parent", "value"]);
+        assert_eq!(path.context_depth(), 2);
+        assert!(path.steps().is_empty());
+        assert_eq!(path.input_type(), InputType::of::<u8>());
+        assert!(path.is_optional());
     }
 }
 // =============================================================================

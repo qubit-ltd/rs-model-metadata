@@ -11,6 +11,7 @@
 #![allow(clippy::result_large_err)]
 
 use std::any::TypeId;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -27,10 +28,39 @@ use super::ModelRegistryError;
 use super::model_entry::ModelEntry;
 #[cfg(feature = "generic")]
 use crate::generic::GenericModelMetadata;
+use crate::metadata::LocalPropertySet;
 use crate::metadata::ModelId;
+use crate::metadata::ModelMetadataError;
+use crate::metadata::PropertyResolutionError;
 use crate::metadata::TypeMetadata;
+#[cfg(feature = "generic")]
+use crate::reflect_facade::generic_model_metadata_key;
+use crate::reflect_facade::model_metadata_key;
 
 /// An immutable registry sorted by stable model ID and fragment identity.
+///
+/// The lifetime retains borrowed reflection provenance. Metadata itself lives
+/// for the process. Use an explicit registry for isolation;
+/// [`Self::try_global`] initializes and caches the linked reflection registry,
+/// including failures. Anonymous roots are supplied directly to the structural
+/// resolver instead of being indexed under an invented stable ID.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+///
+/// #[Model(id = "example.RegistryNote")]
+/// struct Note { title: String }
+/// # fn main() {
+/// let registry = ModelRegistry::try_global().expect("valid linked registrations");
+/// let note = registry.metadata("example.RegistryNote").expect("linked model");
+/// assert_eq!(note.type_id(), TypeMetadata::of::<Note>().type_id());
+/// assert!(registry.get("example.Missing").is_none());
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct ModelRegistry<'reflection> {
     /// Registrations in deterministic model-ID and fragment-identity order.
@@ -50,16 +80,27 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Projects concrete and generic model registrations from one frozen
     /// reflection snapshot.
     ///
+    /// Invokes the snapshot's metadata providers and retains borrowed
+    /// registration provenance. Anonymous declarations are not indexed by
+    /// stable ID. The returned registry uses this snapshot for later capability
+    /// and property queries; it does not consult the global registry.
+    ///
     /// # Errors
     ///
-    /// Returns [`ModelRegistryError`] for duplicate model IDs or inconsistent
-    /// concrete registration metadata.
+    /// Returns [`ModelRegistryError`] for capability failures, duplicate model
+    /// IDs, conflicting concrete type registrations, or metadata inconsistent
+    /// with its reflected descriptor/definition. ABI failures retain their
+    /// cause.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from a registered metadata provider.
     #[must_use = "handle invalid model registrations"]
     pub fn from_reflect_registry(reflection: &'reflection ReflectRegistry) -> Result<Self, ModelRegistryError> {
         let mut entries = Vec::new();
         for (descriptor, source) in reflection.types_with_identity() {
             let provider = match reflection
-                .capability_lookup(descriptor, crate::reflect_facade::model_metadata_key())
+                .capability_lookup(descriptor, model_metadata_key())
                 .map_err(|error| {
                     ModelRegistryError::capability(
                         CapabilityAccessError::IntrinsicConflict(error),
@@ -93,8 +134,12 @@ impl<'reflection> ModelRegistry<'reflection> {
                 }
             };
             let metadata = provider();
-            if metadata.validate_descriptor(descriptor).is_err() {
-                return Err(ModelRegistryError::conflict(metadata.model_id(), vec![source.clone()]));
+            if let Err(cause) = metadata.validate_descriptor(descriptor) {
+                return Err(ModelRegistryError::invalid_abi(
+                    metadata.model_id(),
+                    vec![source.clone()],
+                    cause,
+                ));
             }
             if metadata.model_id().is_some() {
                 entries
@@ -104,7 +149,7 @@ impl<'reflection> ModelRegistry<'reflection> {
         #[cfg(feature = "generic")]
         for definition in reflection.definitions() {
             let Some(provider) = reflection
-                .definition_capability(definition.id(), crate::reflect_facade::generic_model_metadata_key())
+                .definition_capability(definition.id(), generic_model_metadata_key())
                 .map_err(|error| ModelRegistryError::capability_access(error, reflection, definition))?
             else {
                 continue;
@@ -130,10 +175,15 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Builds an isolated deterministic registry from explicit metadata.
     ///
+    /// Borrows each registration's provenance and retains its static metadata.
+    /// No metadata provider or global registry is invoked. Supply anonymous
+    /// models as structural roots instead of registrations under stable IDs.
+    ///
     /// # Errors
     ///
-    /// Returns [`ModelRegistryError`] when registrations repeat a model ID or
-    /// a concrete registration conflicts with its metadata.
+    /// Returns [`ModelRegistryError`] for an anonymous concrete registration,
+    /// a repeated stable model ID, or conflicting registrations of one concrete
+    /// Rust type.
     #[must_use = "handle invalid model registrations"]
     pub fn from_metadata<'a>(
         concrete: &[(&'static TypeMetadata, &'a FragmentIdentity)],
@@ -149,6 +199,17 @@ impl<'reflection> ModelRegistry<'reflection> {
     }
 
     /// Builds an isolated registry from concrete and generic declarations.
+    ///
+    /// Retains borrowed provenance without invoking providers or global state.
+    /// Anonymous generic definitions are skipped because they have no stable
+    /// registration ID; concrete anonymous registrations are rejected.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelRegistryError`] for an anonymous concrete registration,
+    /// duplicate stable IDs across either kind of declaration, or conflicting
+    /// registrations of one concrete Rust type.
+    #[must_use = "handle invalid model registrations"]
     #[cfg(feature = "generic")]
     pub fn from_metadata_with_generics<'a>(
         concrete: &[(&'static TypeMetadata, &'a FragmentIdentity)],
@@ -167,6 +228,44 @@ impl<'reflection> ModelRegistry<'reflection> {
                 .filter_map(|&(metadata, source)| ModelEntry::generic(metadata, source)),
         );
         ModelRegistry::<'a>::build(entries)
+    }
+
+    /// Initializes reflection first, then freezes all linked model
+    /// registrations.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelRegistryError`] when reflection initialization or model
+    /// registration validation fails. Both successful and failed results are
+    /// cached for the process; subsequent failures return clones of the error.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from an initializing metadata provider. A panic does
+    /// not cache a result. Providers must not recursively enter this global
+    /// initialization.
+    #[must_use = "handle model registry initialization failure"]
+    pub fn try_global() -> Result<&'static ModelRegistry<'static>, ModelRegistryError> {
+        static REGISTRY: OnceLock<Result<ModelRegistry<'static>, ModelRegistryError>> = OnceLock::new();
+        match REGISTRY.get_or_init(|| {
+            ModelRegistry::<'static>::from_reflect_registry(
+                ReflectRegistry::initialize().map_err(ModelRegistryError::reflection)?,
+            )
+        }) {
+            Ok(registry) => Ok(registry),
+            Err(error) => Err(error.clone()),
+        }
+    }
+
+    /// Returns the process-wide registry or panics with a stable diagnostic.
+    ///
+    /// # Panics
+    ///
+    /// Panics when global registry initialization returns an error, or when an
+    /// initializing metadata provider panics.
+    #[must_use]
+    pub fn global() -> &'static ModelRegistry<'static> {
+        Self::try_global().unwrap_or_else(|error| panic!("invalid global model registry: {error}"))
     }
 
     /// Validates and indexes owned registrations in deterministic order.
@@ -220,39 +319,10 @@ impl<'reflection> ModelRegistry<'reflection> {
         })
     }
 
-    /// Initializes reflection first, then freezes all linked model
-    /// registrations.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ModelRegistryError`] when reflection initialization or model
-    /// registration validation fails. The result is cached for the process.
-    #[must_use = "handle model registry initialization failure"]
-    pub fn try_global() -> Result<&'static ModelRegistry<'static>, ModelRegistryError> {
-        static REGISTRY: OnceLock<Result<ModelRegistry<'static>, ModelRegistryError>> = OnceLock::new();
-        match REGISTRY.get_or_init(|| {
-            ModelRegistry::<'static>::from_reflect_registry(
-                ReflectRegistry::initialize().map_err(ModelRegistryError::reflection)?,
-            )
-        }) {
-            Ok(registry) => Ok(registry),
-            Err(error) => Err(error.clone()),
-        }
-    }
-
-    /// Returns the process-wide registry or panics with a stable diagnostic.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the cached global registry initialization failed.
-    #[must_use]
-    pub fn global() -> &'static ModelRegistry<'static> {
-        Self::try_global().unwrap_or_else(|error| panic!("invalid global model registry: {error}"))
-    }
-
     /// Finds one immutable model entry by stable ID.
     /// Returns `None` for invalid IDs and IDs absent from this registry.
     #[must_use]
+    #[inline]
     pub fn get(&self, id: &str) -> Option<&ModelEntry<'reflection>> {
         if ModelId::validate(id).is_err() {
             return None;
@@ -262,25 +332,32 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Enumerates concrete and generic models in stable model-ID order.
     #[must_use]
+    #[inline(always)]
     pub fn entries(&self) -> &[ModelEntry<'reflection>] {
         &self.entries
     }
 
-    /// Returns concrete metadata for a stable ID.
+    /// Returns concrete metadata for a stable ID, or `None` for an invalid,
+    /// absent, or generic-definition-only ID.
     #[must_use]
+    #[inline(always)]
     pub fn metadata(&self, id: &str) -> Option<&'static TypeMetadata> {
         self.get(id).and_then(|entry| entry.metadata())
     }
 
-    /// Returns generic-definition metadata for a stable ID.
+    /// Returns generic-definition metadata for a stable ID, or `None` for an
+    /// invalid, absent, or concrete-only ID.
     #[must_use]
+    #[inline(always)]
     #[cfg(feature = "generic")]
     pub fn generic(&self, id: &str) -> Option<&'static GenericModelMetadata> {
         self.get(id).and_then(|entry| entry.generic_metadata())
     }
 
-    /// Returns registered concrete metadata by exact Rust identity.
+    /// Returns registered concrete metadata by exact Rust identity, or `None`
+    /// when that concrete type is absent from this registry.
     #[must_use]
+    #[inline(always)]
     pub fn by_type_id(&self, type_id: TypeId) -> Option<&'static TypeMetadata> {
         self.entries
             .get(*self.type_indices.get(&type_id)?)
@@ -289,17 +366,32 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Returns model metadata resolved for one exact concrete descriptor.
     ///
-    /// `Ok(None)` means no provider or explicit metadata is available.
-    /// Intrinsic capability conflicts and descriptor mismatches retain
-    /// their exact cause.
+    /// With a reflection snapshot, invokes its effective metadata provider on
+    /// each call before falling back to explicit registrations. No global
+    /// registry is consulted. Metadata-only registries use only their index.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some(metadata))` contains descriptor-checked metadata. `Ok(None)`
+    /// means neither a provider nor an explicit registration supplied metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelMetadataError`] for capability resolution or descriptor
+    /// ABI failures, preserving the exact queried type and underlying cause.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from the selected metadata provider.
+    #[must_use = "handle metadata lookup failures"]
     pub fn metadata_for(
         &self,
         descriptor: &'static TypeDescriptor,
-    ) -> Result<Option<&'static TypeMetadata>, crate::metadata::ModelMetadataError> {
+    ) -> Result<Option<&'static TypeMetadata>, ModelMetadataError> {
         let provided = match self.reflection {
             Some(reflection) => reflection
-                .capability(descriptor, crate::reflect_facade::model_metadata_key())
-                .map_err(|source| crate::metadata::ModelMetadataError::Capability {
+                .capability(descriptor, model_metadata_key())
+                .map_err(|source| ModelMetadataError::Capability {
                     type_id: descriptor.type_id(),
                     type_name: descriptor.type_name(),
                     source,
@@ -311,7 +403,7 @@ impl<'reflection> ModelRegistry<'reflection> {
         if let Some(metadata) = metadata {
             metadata
                 .validate_descriptor(descriptor)
-                .map_err(|source| crate::metadata::ModelMetadataError::Abi {
+                .map_err(|source| ModelMetadataError::Abi {
                     type_id: descriptor.type_id(),
                     type_name: descriptor.type_name(),
                     source,
@@ -322,19 +414,34 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Resolves properties using this model registry's reflection snapshot.
     ///
-    /// Explicit metadata-only registries use local field properties. Returns
-    /// assembly errors for inconsistent overlays; never consults global state.
+    /// Explicit metadata-only registries use local field properties. Snapshot
+    /// registries invoke their implementation providers, then reuse the merge
+    /// cached for that owner and ordered provider result set. The returned
+    /// properties live for the process. This never consults global state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PropertyResolutionError`] for capability or property assembly
+    /// failures, retaining the original diagnostics.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from an implementation provider or a poisoned merge
+    /// cache lock.
+    #[must_use = "handle property resolution failures"]
     pub fn properties_for(
         &self,
         metadata: &'static TypeMetadata,
-    ) -> Result<&'static crate::metadata::LocalPropertySet, crate::metadata::PropertyResolutionError> {
+    ) -> Result<&'static LocalPropertySet, PropertyResolutionError> {
         self.reflection.map_or_else(
             || Ok(metadata.local_properties()),
             |reflection| metadata.try_properties_in(reflection),
         )
     }
 
-    /// Returns model metadata for one generic declaration identity.
+    /// Returns registered generic metadata for one definition identity, or
+    /// `None` when no indexed definition matches. This does not instantiate a
+    /// concrete model or consult the global registry.
     #[must_use]
     #[cfg(feature = "generic")]
     pub fn generic_metadata_for(&self, definition_id: TypeDefinitionId) -> Option<&'static GenericModelMetadata> {
@@ -344,19 +451,12 @@ impl<'reflection> ModelRegistry<'reflection> {
             .find(|metadata| metadata.definition().id() == definition_id)
     }
 
-    /// Returns the reflection fragment source for a stable model ID.
+    /// Returns borrowed registration provenance for a stable ID, or `None` for
+    /// an invalid or absent ID.
     #[must_use]
+    #[inline(always)]
     pub fn source(&self, id: &str) -> Option<&'reflection FragmentIdentity> {
         Some(self.get(id)?.source)
-    }
-
-    /// Iterates over concrete registrations in stable registry order.
-    pub(crate) fn concrete_entries(
-        &self,
-    ) -> impl Iterator<Item = (&'static TypeMetadata, &'reflection FragmentIdentity)> + '_ {
-        self.entries
-            .iter()
-            .filter_map(|entry| entry.metadata().map(|metadata| (metadata, entry.source)))
     }
 
     /// Returns registered generic definitions in deterministic order.
@@ -366,11 +466,21 @@ impl<'reflection> ModelRegistry<'reflection> {
     pub fn generic_definitions(&self) -> &[&'static GenericModelMetadata] {
         &self.generic_definitions
     }
+
+    /// Iterates over concrete registrations in stable registry order.
+    #[must_use = "consume the concrete registration iterator"]
+    #[inline(always)]
+    pub(crate) fn concrete_entries(
+        &self,
+    ) -> impl Iterator<Item = (&'static TypeMetadata, &'reflection FragmentIdentity)> + '_ {
+        self.entries
+            .iter()
+            .filter_map(|entry| entry.metadata().map(|metadata| (metadata, entry.source)))
+    }
 }
 
 /// Compares registrations by stable model ID and then fragment identity.
-/// Orders entries by model ID and their registration provenance.
-fn compare_entries(left: &ModelEntry, right: &ModelEntry) -> std::cmp::Ordering {
+fn compare_entries(left: &ModelEntry, right: &ModelEntry) -> Ordering {
     left.model_id
         .cmp(&right.model_id)
         .then_with(|| left.source.cmp(right.source))

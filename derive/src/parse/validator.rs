@@ -16,6 +16,7 @@ use syn::Error;
 use syn::Expr;
 use syn::ExprLit;
 use syn::Lit;
+use syn::LitInt;
 use syn::LitStr;
 use syn::Result;
 use syn::Token;
@@ -149,7 +150,7 @@ fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
                     "negative validator parameters require an integer literal",
                 ));
             };
-            Ok(StrategyArgumentIr::Integer(-value.base10_parse::<i128>()?))
+            parse_negative_strategy_integer(&value).map(StrategyArgumentIr::Integer)
         }
         Expr::Array(array) => parse_strategy_array(array.elems.into_iter().collect()),
         other => Err(Error::new_spanned(
@@ -238,10 +239,7 @@ fn parse_strategy_signed_integer(value: &Expr) -> Result<i128> {
         Expr::Unary(unary) if matches!(unary.op, UnOp::Neg(_)) => match unary.expr.as_ref() {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(value), ..
-            }) => value
-                .base10_parse::<i128>()
-                .map(|value| -value)
-                .map_err(|error| Error::new_spanned(value, format!("invalid signed validator integer: {error}"))),
+            }) => parse_negative_strategy_integer(value),
             other => Err(Error::new_spanned(
                 other,
                 "negative validator parameters require an integer literal",
@@ -252,6 +250,15 @@ fn parse_strategy_signed_integer(value: &Expr) -> Result<i128> {
             "validator parameter arrays must be homogeneous integer arrays",
         )),
     }
+}
+
+/// Parses a negated literal without requiring its positive magnitude to fit in
+/// `i128`. Returns a diagnostic at the literal when the signed value
+/// underflows.
+fn parse_negative_strategy_integer(value: &LitInt) -> Result<i128> {
+    format!("-{}", value.base10_digits())
+        .parse::<i128>()
+        .map_err(|error| Error::new_spanned(value, format!("invalid signed validator integer: {error}")))
 }
 
 #[cfg(test)]

@@ -135,24 +135,24 @@ fn expand_inner(
                 GetterReturn::Borrowed(ty) => (quote!(#ty), quote!(#runtime::metadata::GetterOutputKind::Borrowed)),
                 GetterReturn::BorrowedStr => (quote!(str), quote!(#runtime::metadata::GetterOutputKind::Borrowed)),
                 GetterReturn::BorrowedSlice(element) => {
-                    (quote!([#element]), quote!(#runtime::metadata::GetterOutputKind::Borrowed))
+                    (quote!([#element]), quote!(#runtime::metadata::GetterOutputKind::BorrowedSlice))
                 }
                 GetterReturn::OptionalBorrowed(ty) => (
                     quote!(::core::option::Option<#ty>),
-                    quote!(#runtime::metadata::GetterOutputKind::Borrowed),
+                    quote!(#runtime::metadata::GetterOutputKind::OptionalBorrowed),
                 ),
                 GetterReturn::OptionalBorrowedStr => (
                     quote!(::core::option::Option<::std::string::String>),
-                    quote!(#runtime::metadata::GetterOutputKind::Borrowed),
+                    quote!(#runtime::metadata::GetterOutputKind::OptionalBorrowed),
                 ),
             };
             quote! {
                             {
-                                let output_type = #runtime::__private::v6::reflected_type_ref::<#ty>();
-            let getter = #runtime::__private::v6::leak(
+                                let output_type = #runtime::__private::v7::reflected_type_ref::<#ty>();
+            let getter = #runtime::__private::v7::leak(
                                     #runtime::metadata::GetterMetadata::new::<#target>(#method, output_type, #kind, #adapter),
                                 );
-                                fragments.push(#runtime::__private::v6::property_fragment(
+                                fragments.push(#runtime::__private::v7::property_fragment(
                                     #property,
                                     output_type,
                                     #runtime::metadata::PropertyFragmentSource::Getter(getter),
@@ -172,11 +172,11 @@ fn expand_inner(
             let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}");
             quote! {
                 {
-                    let input_type = #runtime::__private::v6::reflected_type_ref::<#ty>();
-                    let setter = #runtime::__private::v6::leak(
+                    let input_type = #runtime::__private::v7::reflected_type_ref::<#ty>();
+                    let setter = #runtime::__private::v7::leak(
                         #runtime::metadata::SetterMetadata::new::<#target, #ty>(#method, input_type, #adapter),
                     );
-                    fragments.push(#runtime::__private::v6::property_fragment(
+                    fragments.push(#runtime::__private::v7::property_fragment(
                         #property,
                         input_type,
                         #runtime::metadata::PropertyFragmentSource::Setter(setter),
@@ -220,7 +220,7 @@ fn expand_inner(
                 let mut fragments: ::std::vec::Vec<#runtime::metadata::PropertyFragment> = ::std::vec::Vec::new();
                 for field in metadata.fields() {
                     if let Some(name) = field.name() {
-                        fragments.push(#runtime::__private::v6::property_fragment(
+                        fragments.push(#runtime::__private::v7::property_fragment(
                             name,
                             field.type_ref(),
                             #runtime::metadata::PropertyFragmentSource::Field(field),
@@ -247,23 +247,23 @@ fn expand_inner(
                     }
                 }
                 let properties: ::std::vec::Vec<_> = merged.into_iter().map(|entry| {
-                    #runtime::__private::v6::property_metadata(
+                    #runtime::__private::v7::property_metadata(
                         entry.name, entry.type_ref, entry.field, entry.getter, entry.setter,
                     )
                 }).collect();
-                let properties = #runtime::__private::v6::leak_slice(properties);
+                let properties = #runtime::__private::v7::leak_slice(properties);
                 let properties = match metadata.validate_properties(properties) {
-                    Ok(()) => Ok(#runtime::__private::v6::leak(
-                        #runtime::__private::v6::local_property_set(properties),
+                    Ok(()) => Ok(#runtime::__private::v7::leak(
+                        #runtime::__private::v7::local_property_set(properties),
                     )),
-                    Err(errors) => Err(#runtime::__private::v6::leak(errors)),
+                    Err(errors) => Err(#runtime::__private::v7::leak(errors)),
                 };
-                let fragments = #runtime::__private::v6::leak_slice(fragments);
-                #runtime::__private::v6::model_impl_metadata(fragments, properties)
+                let fragments = #runtime::__private::v7::leak_slice(fragments);
+                #runtime::__private::v7::model_impl_metadata(fragments, properties)
             })
         }
 
-        #runtime::__private::v6::register_model_impl_capability!(
+        #runtime::__private::v7::register_model_impl_capability!(
             #target,
             #provider as #runtime::__private::ModelImplProvider,
             #fragment_fingerprint,
@@ -291,7 +291,7 @@ fn expand_property_compatibility_assertions(
                 const _: () = {
                     fn assert_property_types_are_compatible()
                     where
-                        #output: #runtime::__private::v6::PropertyOutputCompatible<#input>,
+                        #output: #runtime::__private::v7::PropertyOutputCompatible<#input>,
                     {}
                 };
             })
@@ -304,19 +304,19 @@ fn getter_output_type(output: &GetterReturn, runtime: &TokenStream) -> TokenStre
     match output {
         GetterReturn::Owned(ty) => quote!(#ty),
         GetterReturn::Borrowed(ty) => quote!(
-            #runtime::__private::v6::BorrowedPropertyOutput<#ty>
+            #runtime::__private::v7::BorrowedPropertyOutput<#ty>
         ),
         GetterReturn::BorrowedStr => quote!(
-            #runtime::__private::v6::BorrowedPropertyOutput<str>
+            #runtime::__private::v7::BorrowedPropertyOutput<str>
         ),
         GetterReturn::BorrowedSlice(element) => quote!(
-            #runtime::__private::v6::BorrowedPropertyOutput<[#element]>
+            #runtime::__private::v7::BorrowedPropertyOutput<[#element]>
         ),
         GetterReturn::OptionalBorrowed(ty) => quote!(
-            #runtime::__private::v6::OptionalBorrowedPropertyOutput<#ty>
+            #runtime::__private::v7::OptionalBorrowedPropertyOutput<#ty>
         ),
         GetterReturn::OptionalBorrowedStr => quote!(
-            #runtime::__private::v6::OptionalBorrowedPropertyOutput<str>
+            #runtime::__private::v7::OptionalBorrowedPropertyOutput<str>
         ),
     }
 }

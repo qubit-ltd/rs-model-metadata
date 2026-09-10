@@ -8,9 +8,12 @@
 
 //! Runtime coverage for resolved Projection producers and projectors.
 
+use std::sync::LazyLock;
+
 use model_runtime::__private::ReflectedRef;
 use model_runtime::__private::qubit_id::Id;
 use model_runtime::metadata::PropertyValue;
+use model_runtime::metadata::TypeMetadata;
 use model_runtime::registry::ModelRegistry;
 use model_runtime::resolve::ProjectionExecutionError;
 use model_runtime::resolve::ResolveInputs;
@@ -33,6 +36,13 @@ struct GoodProjection {
     name: String,
 }
 
+// A projection may be borrowed from an independent cache; it is not an
+// Entity storage field, where embedding a Projection is deliberately invalid.
+static CACHED_PROJECTION: LazyLock<GoodProjection> = LazyLock::new(|| GoodProjection {
+    id: Id::new(7),
+    name: "cached".to_owned(),
+});
+
 #[Projection(id = "projection.Bad", source = Source)]
 struct BadProjection {
     #[identifier]
@@ -41,6 +51,10 @@ struct BadProjection {
 
 #[ModelImpl]
 impl Source {
+    pub fn borrowed(&self) -> &GoodProjection {
+        &CACHED_PROJECTION
+    }
+
     pub fn good(&self) -> GoodProjection {
         GoodProjection {
             id: self.id,
@@ -64,7 +78,7 @@ fn test_resolver_discovers_and_executes_projection_producers() {
     })
     .resolve()
     .expect("valid projection graph");
-    assert_eq!(graph.projection_producers().len(), 2);
+    assert_eq!(graph.projection_producers().len(), 3);
 
     let source = Source {
         id: Id::new(7),
@@ -73,13 +87,20 @@ fn test_resolver_discovers_and_executes_projection_producers() {
     let good = graph
         .projection_producers()
         .iter()
-        .find(|producer| {
-            producer
-                .projection()
-                .model_id()
-                .is_some_and(|id| id.as_str() == "projection.Good")
-        })
+        .find(|producer| producer.property().name() == "good")
         .expect("good producer");
+    assert_eq!(good.source().type_id(), TypeMetadata::of::<Source>().type_id());
+    assert_eq!(
+        good.projection().type_id(),
+        TypeMetadata::of::<GoodProjection>().type_id()
+    );
+    let getter = good.projector().expect("executable getter");
+    assert_eq!(getter.rust_method_name(), "good");
+    assert!(std::ptr::eq(getter, good.property().getter().expect("property getter")));
+    assert!(matches!(
+        good.project(ReflectedRef::new(&7_u32)),
+        Err(ProjectionExecutionError::Field(_))
+    ));
     let PropertyValue::Owned(value) = good.project(ReflectedRef::new(&source)).expect("matching identifier") else {
         panic!("owned getter must produce an owned projection");
     };
@@ -103,5 +124,20 @@ fn test_resolver_discovers_and_executes_projection_producers() {
     assert!(matches!(
         bad.project(ReflectedRef::new(&source)),
         Err(ProjectionExecutionError::IdentifierMismatch),
+    ));
+    let borrowed = graph
+        .projection_producers()
+        .iter()
+        .find(|producer| producer.property().name() == "borrowed")
+        .expect("borrowed producer");
+    let PropertyValue::Borrowed(value) = borrowed
+        .project(ReflectedRef::new(&source))
+        .expect("matching borrowed identifier")
+    else {
+        panic!("borrowed projector must preserve the borrow");
+    };
+    assert!(std::ptr::eq(
+        value.downcast_ref::<GoodProjection>().expect("projection type"),
+        &*CACHED_PROJECTION
     ));
 }

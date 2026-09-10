@@ -24,6 +24,10 @@ use crate::metadata::AllowedChars;
 use crate::metadata::ConstraintMetadata;
 use crate::metadata::TextFormat;
 
+mod standard_rule;
+
+use standard_rule::StandardRule;
+
 /// Whether a standard binding validates the field value or its item count.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum StandardTarget {
@@ -43,12 +47,30 @@ pub(crate) struct StandardBinding {
 
 /// Combines the built-in rules with the caller's local rules.
 ///
-/// Built-in IDs are deliberately not overrideable: the registry's duplicate
-/// check makes an accidental semantic change visible during plan binding.
-pub(crate) fn registry(validators: &ValidatorRegistry) -> Result<ValidatorRegistry, BindError> {
+/// Built-in IDs cannot be overridden. Returns a canonical registry and one
+/// diagnostic per conflicting caller registration, allowing independent
+/// declarations to be checked before the plan is rejected.
+///
+/// # Errors
+/// Returns `InvalidDeclaration` if the built-in definitions themselves contain
+/// duplicate IDs and cannot form a registry.
+pub(crate) fn registry(validators: &ValidatorRegistry) -> Result<(ValidatorRegistry, Vec<BindError>), BindError> {
     let mut registrations = registrations();
-    registrations.extend(validators.registrations().iter().copied());
-    ValidatorRegistry::from_registrations(registrations).map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
+    let builtin_count = registrations.len();
+    let mut errors = Vec::new();
+    for registration in validators.registrations() {
+        if registrations[..builtin_count]
+            .iter()
+            .any(|builtin| builtin.id() == registration.id())
+        {
+            errors.push(BindError::new(BindErrorKind::InvalidDeclaration).with_rule(registration.id()));
+        } else {
+            registrations.push(*registration);
+        }
+    }
+    ValidatorRegistry::from_registrations(registrations)
+        .map(|registry| (registry, errors))
+        .map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
 }
 
 /// Binds the executable portion of one metadata constraint.
@@ -62,24 +84,45 @@ pub(crate) fn bind(
 ) -> Result<Vec<StandardBinding>, Vec<BindError>> {
     let mut bindings = Vec::new();
     let mut errors = Vec::new();
+    visit_rules(constraint, |rule| match rule {
+        StandardRule::Executable { id, target, args } => match validators.bind(id.as_str(), input_type(target), args) {
+            Ok(validator) => bindings.push(StandardBinding { validator, target }),
+            Err(error) => errors.push(error),
+        },
+        StandardRule::Unsupported { id } => {
+            let mut error = BindError::new(BindErrorKind::UnsupportedConstraint);
+            if let Some(id) = id {
+                error = error.with_rule(id);
+            }
+            errors.push(error);
+        }
+    });
+    if errors.is_empty() { Ok(bindings) } else { Err(errors) }
+}
+
+/// Returns every known rule mapping in execution order without consulting a
+/// registry or invoking a validator. Unknown backend mappings contribute no ID.
+pub(crate) fn rule_ids(constraint: &ConstraintMetadata) -> Vec<ValidatorId> {
+    let mut ids = Vec::new();
+    visit_rules(constraint, |rule| match rule {
+        StandardRule::Executable { id, .. } | StandardRule::Unsupported { id: Some(id) } => ids.push(id),
+        StandardRule::Unsupported { id: None } => {}
+    });
+    ids
+}
+
+/// Visits canonical rule mappings synchronously. Argument slices are valid
+/// only during the callback; no getter, registry or validator is invoked here.
+fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(StandardRule<'_>)) {
     match constraint {
         ConstraintMetadata::Text(text) => {
             if text.is_non_blank() {
-                bind_one(
-                    &mut bindings,
-                    &mut errors,
-                    validators,
-                    "qubit.rules.text.non_blank",
-                    &[],
-                    StandardTarget::Value,
-                );
+                visit_rule(&mut visitor, "qubit.rules.text.non_blank", &[], StandardTarget::Value);
             }
             if text.min_chars().is_some() || text.max_chars().is_some() {
                 let args = optional_u32_args(text.min_chars(), text.max_chars());
-                bind_one(
-                    &mut bindings,
-                    &mut errors,
-                    validators,
+                visit_rule(
+                    &mut visitor,
                     "qubit.rules.text.char_length",
                     &args,
                     StandardTarget::Value,
@@ -87,10 +130,8 @@ pub(crate) fn bind(
             }
             if text.min_bytes().is_some() || text.max_bytes().is_some() {
                 let args = optional_u32_args(text.min_bytes(), text.max_bytes());
-                bind_one(
-                    &mut bindings,
-                    &mut errors,
-                    validators,
+                visit_rule(
+                    &mut visitor,
                     "qubit.rules.text.byte_length",
                     &args,
                     StandardTarget::Value,
@@ -101,10 +142,8 @@ pub(crate) fn bind(
                     "set",
                     ValidationArgument::String(allowed_chars(text.allowed_chars())),
                 )];
-                bind_one(
-                    &mut bindings,
-                    &mut errors,
-                    validators,
+                visit_rule(
+                    &mut visitor,
                     "qubit.rules.text.allowed_chars",
                     &args,
                     StandardTarget::Value,
@@ -117,51 +156,46 @@ pub(crate) fn bind(
                     TextFormat::Uri => "qubit.rules.text.uri",
                     TextFormat::Uuid => "qubit.rules.text.uuid",
                 };
-                bind_one(&mut bindings, &mut errors, validators, id, &[], StandardTarget::Value);
+                visit_rule(&mut visitor, id, &[], StandardTarget::Value);
             }
         }
         ConstraintMetadata::Sequence(sequence) => {
             if sequence.min_items().is_some() || sequence.max_items().is_some() {
                 let args = optional_usize_args(sequence.min_items(), sequence.max_items());
-                bind_one(
-                    &mut bindings,
-                    &mut errors,
-                    validators,
+                visit_rule(
+                    &mut visitor,
                     "qubit.rules.collection.item_count",
                     &args,
                     StandardTarget::SequenceCount,
                 );
             }
             if sequence.unique_items() {
-                errors.push(
-                    BindError::new(BindErrorKind::UnsupportedConstraint)
-                        .with_rule(ValidatorId::new("qubit.rules.collection.unique")),
-                );
+                visitor(StandardRule::Unsupported {
+                    id: Some(ValidatorId::new("qubit.rules.collection.unique")),
+                });
             }
         }
         ConstraintMetadata::Map(_) => {
-            errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
+            visitor(StandardRule::Unsupported { id: None });
         }
         ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_) => {
-            errors.push(BindError::new(BindErrorKind::UnsupportedConstraint));
+            visitor(StandardRule::Unsupported { id: None });
         }
     }
-    if errors.is_empty() { Ok(bindings) } else { Err(errors) }
 }
 
-/// Converts one declared standard constraint into a prepared runtime rule.
-fn bind_one(
-    bindings: &mut Vec<StandardBinding>,
-    errors: &mut Vec<BindError>,
-    validators: &ValidatorRegistry,
+/// Emits one executable mapping while the caller's argument slice is alive.
+fn visit_rule(
+    visitor: &mut impl FnMut(StandardRule<'_>),
     id: &'static str,
-    args: &[NamedValidationArgument<'_>],
+    args: &[NamedValidationArgument<'static>],
     target: StandardTarget,
 ) {
-    match validators.bind(id, input_type(target), args) {
-        Ok(validator) => bindings.push(StandardBinding { validator, target }),
-        Err(error) => errors.push(error),
-    }
+    visitor(StandardRule::Executable {
+        id: ValidatorId::new(id),
+        target,
+        args,
+    });
 }
 
 /// Returns the runtime input type required by a standard target.
@@ -218,8 +252,3 @@ const fn allowed_chars(value: AllowedChars) -> &'static str {
         AllowedChars::Code => "code",
     }
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-// =============================================================================

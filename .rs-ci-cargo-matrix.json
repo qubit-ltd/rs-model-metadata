@@ -33,6 +33,20 @@
       "commands": ["check", "test", "doc", "clippy"],
       "packages": ["qubit-model-derive"],
       "allFeatures": true
+    },
+    {
+      "name": "metadata-codec-only",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-model-metadata"],
+      "defaultFeatures": false,
+      "features": ["codec"]
+    },
+    {
+      "name": "metadata-generic-only",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-model-metadata"],
+      "defaultFeatures": false,
+      "features": ["generic"]
     }
   ]
 }

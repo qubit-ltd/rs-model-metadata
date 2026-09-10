@@ -43,7 +43,7 @@ fn main() {
     let field = TypeMetadata::of::<Source>().field("target_id").expect("source field");
     assert_eq!(
         graph
-            .reference(field)
+            .reference(field.location().expect("concrete declaration"))
             .expect("resolved reference")
             .target()
             .model_id()
@@ -52,7 +52,7 @@ fn main() {
         "test.linked.Target",
     );
 
-    let projection = TypeMetadata::of::<TargetView>().as_projection().unwrap();
+    let projection = TypeMetadata::of::<TargetView>().type_id();
     assert_eq!(
         graph.projection_source(projection).unwrap().target().type_id(),
         TypeMetadata::of::<Target>().type_id(),

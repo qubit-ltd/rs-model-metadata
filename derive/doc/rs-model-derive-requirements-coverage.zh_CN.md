@@ -4,7 +4,7 @@
 - 本轮逐项对照全部 338 个编号，记录实现入口、自动化测试或适用的文档边界审查。每行的完整验收语义以冻结规范为准，摘要不替代规范。
 - 表中测试文件是该条契约的验收入口；compile-fail 文件由 `role_trybuild_tests` 执行。共享测试入口不表示每条需求都有独立测试函数；无运行行为的架构/排除条款通过对应源码和文档审查。
 - D 是下游责任，R 是参考或废弃，不是本库漏项。执行 adapter 对 map selector、递归实例遍历等能力限制见用户指南；不将这些限制反向写入声明需求。
-- 最终命令、退出状态及覆盖率见文末。验收日期为 2026-09-10；本库强制项已闭合，D/R 保持其既定归属。
+- 下表与 V1～V6 是前轮重构于 2026-09-10 留下的验收记录，不能作为本次 v7 修复的完成证据。D/R 归属不变；本次复查状态以文末新增记录为准，最终门禁尚未通过。
 
 ## 归属统计
 
@@ -363,7 +363,7 @@
 | `REQ-ACC-007` | 用户手册中的 API 名称、参数、代码示例和限制必须与本文需求编码一致；修改公共语义时必须同时更新 | 文档与交付验收 | 已验收：源码/边界审查及相关回归通过 | 必做/复用；T8 | 2026-09-10：[doc/user_guide.zh_CN.md](../../doc/user_guide.zh_CN.md)；[derive/doc/user_guide.zh_CN.md](user_guide.zh_CN.md)。两 crate 的双语指南与 API 名称、参数、限制逐项对照 |
 | `REQ-ACC-008` | 需求规范、最终设计、公开签名、用户手册、Rustdoc 和测试必须同步，不得保留未决 API 占位符。 | 文档与交付验收 | 已验收：源码/边界审查及相关回归通过 | 必做/复用；T8 | 2026-09-10：[derive/doc/rs-model-derive-final-design.zh_CN.md](rs-model-derive-final-design.zh_CN.md)；[doc/plans/2026-09-10-model-metadata-plan.md](../../doc/plans/2026-09-10-model-metadata-plan.md)。冻结规范、最终设计、接口和交付台账同步审查 |
 
-## 最终验证记录（2026-09-10）
+## 前轮重构验证记录（2026-09-10，历史）
 
 逐项表中的自动化测试入口由 V1/V2 和完整 CI 执行；UI `.rs`/`.stderr` 由 `role_trybuild_tests` 执行，
 不是手工推断 compile-fail 结果。架构、职责排除与文档条款使用对应源码/文档边界审查，辅以 V3～V6；
@@ -401,3 +401,32 @@ CI 使用 `RS_CI_CARGO_HOME_MODE=shared` 与 `RS_CI_ARTIFACT_CLEANUP_MODE=never`
 
 执行 adapter 的 map selector、递归实例遍历等限制仍按指南明确报告；完整实例引擎、filter 产品、DAO 和随机生成属于
 需求第 10 章的下游责任。本轮没有实现这些外部算法，也没有为适配已有实现而收窄 metadata 声明契约。
+
+## v7 执行正确性修订复查（2026-09-10，进行中）
+
+本节覆盖前轮记录对当前实现状态的解释；保留原始表和命令便于追溯，不能继续以“原有 CI 通过”
+推断本次修改已完成。runtime 和 derive 文件覆盖豁免现已全部移除，当前覆盖率未达门槛。
+
+| 本次范围 | 当前证据入口 | 验收状态 |
+| --- | --- | --- |
+| FieldLocation、图的 TypeId 索引与 checked v7 | `abi_v7_tests`、`abi_checked_contract_tests`、字段/关系回归 | 关键回归通过；完整源码与 item 复查未结束 |
+| Enum/tuple 声明完整性、嵌套 selector 及实际借用形状 | `tests/validation/declaration_binding_tests.rs` | 13 项聚焦用例通过，诊断边界仍在复查 |
+| FailFast、报告上限、预算及部分错误 | `tests/validation/execution_policy_tests.rs`、`model_validation_tests` | 26 项聚合用例及相关聚焦回归通过，最终完整验收未结束 |
+| 真实 CredentialInfo 与 PersonInfo Time 拒绝 | rs-platform testkit `validation_pipeline_tests`、`model_graph_tests` | 4 项管线和 1 项完整图测试通过；平台完整 CI 另行验收 |
+| 宏 runtime 路径与 Rustdoc | `runtime_fixtures_tests`、runtime doctests | 25 项 Rustdoc 与普通/重命名/多 crate fixture 通过 |
+| 双语 README/指南的实际代码块 | `tests/documentation_examples_tests.rs` | 8 份文档、12 个独立程序编译并运行；完整文档/item 审查未结束 |
+| 对齐与严格 Clippy | `./align-ci.sh` | 当前代码与文档测试对齐通过 |
+| 配置构造与实际执行 | `tests/validation/validation_options_tests.rs`、预算回归 | 独立 ValidationOptionsBuilder 已替换旧配置 setter；42 项 validation 回归通过 |
+| 覆盖率与独立 feature 轴 | `.rs-ci-coverage.json`、`.rs-ci-cargo-matrix.json` | 31 个 runtime 与 2 个 derive 豁免均已移除；codec-only/generic-only 已加入；完整覆盖率未通过 |
+| 1/8/32 字段性能观测 | `benches/model_pipeline.rs`、`benches/property_output.rs` | 三轮基线/实现配对比较及 72 组保留基准完成；最终源码版本仍需复测 |
+
+最近完成的 `./ci-check.sh`（标准约束规则 ID 列表修订前）在 coverage 门禁退出 1：
+函数 1194/1368、行 8802/10176、region 12855/15099。
+要求仍为函数 ≥ 95%、行 > 90%、region > 85%；未降低阈值。公共宏回归已证明两个 derive
+解析文件的分支可以被插桩观察，因此撤销豁免；两文件现已达到原阈值：constraints 为
+函数 22/22、行 297/326、region 578/662，validator 为函数 24/24、行 250/265、region 387/418。不能移动代码或省略测试来规避门禁。
+
+本次已修正文档中的旧图查询和 v6 API，补充能力检查、构建拒绝、部分报告、执行停止与真实下游边界。
+实际代码块检查也发现并修复了“Entity 未声明必需的稳定 ID”及对非 Debug 计划调用 expect_err 的问题。
+全量风格与生产 Rustdoc 逐项核对、剩余覆盖测试、最终 CI、最终基准复测及 Git 集成尚未结束；
+本节不将这些任务标记为完成。

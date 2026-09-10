@@ -1,10 +1,10 @@
 # 模型元数据与派生宏重构设计
 
 - 版本：2026-09-10，依据用户已确认的[冻结需求](rs-model-derive-requirements.zh_CN.md)。
-- 状态：本轮目标设计；描述重构后的行为，不表示当前实现已经支持。
+- 状态：本次执行正确性修订的契约设计；v7 身份、声明遍历、预算和错误契约见后文。实现与最终 CI 验收状态另见逐项台账，不以文档存在代替验收。
 - 适用范围：`qubit-model-metadata` 与 `qubit-model-derive`，以及必要的 reflect/redact/validator/codec 集成。
-- 现状证据：[实现缺口评估](rs-model-implementation-gaps.zh_CN.md)。
-- 重构任务：[实施计划](../../doc/plans/2026-09-10-model-metadata-plan.md)。
+- 历史证据：[实现缺口评估](rs-model-implementation-gaps.zh_CN.md)；本次进度见[逐项台账](rs-model-derive-requirements-coverage.zh_CN.md)。
+- 前轮重构任务：[历史实施计划](../../doc/plans/2026-09-10-model-metadata-plan.md)。
 - 本文替代原先以旧查询策略和 metadata-only 宏为前提的设计。历史讨论不覆盖冻结需求。
 
 ## 1. 架构与边界
@@ -205,7 +205,7 @@ validator/codec 的静态 metadata 不暴露执行 crate 类型；可选 adapter
 
 ValidationPlan 将根身份改为 TypeId 加 Option<ModelId>，不得 expect 一个必填 ID。上下文依赖路径分为静态编译前缀和运行时导航后缀；绑定只有在已具备目标类型时才核对注册依赖类型，否则保留显式上下文需求供消费端完成。执行时上下文不足返回带 occurrence/依赖路径的结构化错误，不能默认为 None 或静默跳过；调用者可以在执行前提供相应上下文。标准 None 跳过规则和业务父对象缺失是不同事件。
 
-本库只完成必要 adapter 的输入/输出连接；父实例栈、生成回退、数据库查找和 filter 算法由下游拥有。源码已有 target/on_none/validate_nested 扩展没有被本轮需求采纳为新增能力；迁移时改写为既定 selector/Option 语义或显式下游执行配置，不能悄悄扩充冻结语法。
+本库只完成必要 adapter 的输入/输出连接；父实例栈、生成回退、数据库查找和 filter 算法由下游拥有。旧 target/on_none/validate_nested 宏扩展不属于现行契约；迁移时改写为既定 selector/Option 语义或显式下游执行配置。运行时同样移除 FieldAttributeMetadata::ValidateNested 和 FieldMetadata::validate_nested()；统一声明收集器按支持矩阵和 reference/opaque 边界发现嵌套执行工作，不设置逐字段递归开关。
 
 ## 10. 查询声明视图
 
@@ -246,7 +246,7 @@ declarations 记录 Entity 直接 indexed 成员，包括 identifier、global un
 
 ## 12. 生产 ABI、迁移和错误分期
 
-保持版本化隐藏 ABI，新增协议集中发布为 `__private::v6`，同步 metadata 与 derive 版本；不改变 rs-reflect 自己的 ABI 版本。复用当前 checked 构造、capability 校验和 provider_v2 协议，不通过命名猜测调用反射内部函数。旧 v5 在重构阶段仅服务于旧测试迁移；交付时仓库展开统一使用 v6，错误消息明确 ABI mismatch。
+生成构造统一使用版本化隐藏 ABI `__private::v7`，同步 metadata 与 derive；不改变 rs-reflect 自己的 ABI 版本。复用 checked 构造、capability 校验和 definition_provider_v2 协议，不通过命名猜测调用反射内部函数。不保留 v5/v6 兼容层；普通依赖、重命名 runtime 和手写 ABI fixture 同步迁移。
 
 | 阶段 | 必须处理 | 不处理 |
 | --- | --- | --- |
@@ -271,3 +271,128 @@ declarations 记录 Entity 直接 indexed 成员，包括 identifier、global un
 9. 台账每项标明实际用例与结果，设计参考及下游算法不伪装成已完成本库测试；不降低冻结需求以适配旧测试。
 
 新 API 引入、借用访问和最终集成分别审查。测试细分命令、依赖顺序、任务写入范围见实施计划。
+
+## 14. 本次修订：具体字段身份与图查询
+
+FieldLocation 实现 Copy、Eq、Hash，私有成员是 `owner: TypeId`、`variant: Option<usize>`、
+`index: usize`。具体字段（含匿名模型和泛型实例）始终有 location；泛型定义字段为 None。
+生成器直接使用 `TypeId::of::<Self>()`，避免在构造字段时递归初始化完整 metadata。
+checked v7 检查 owner、字段与 variant 序号、反射顺序及 descriptor 身份。
+把泛型定义 variant 塞进具体 Enum 时返回 ABI 错误；重复单项属性计数不能在 256 次处溢出。
+
+图中的 references 使用 FieldLocation，projection/query 使用 TypeId。复制 FieldMetadata
+不改变查询结果；这些键只在当前进程中有效，对外持久化标识仍用 ModelId。
+以下为接口规格，不是可独立运行的 Rust 程序：
+
+```text
+FieldMetadata::location() -> Option<FieldLocation>
+FieldLocation::{owner(), variant(), index()}
+ModelGraph::model(TypeId) -> Option<&'static TypeMetadata>
+ModelGraph::reference(FieldLocation) -> Option<&ResolvedReference>
+ModelGraph::projection_source(TypeId) -> Option<&ResolvedProjectionSource>
+ModelGraph::query(TypeId) -> Option<&QueryMetadata>
+ValidationCapabilities::check(root, &graph) -> Result<(), ValidationBuildErrors>
+```
+
+图查询缺失返回 None，不从全局注册表补节点。结构图借用 registry，拥有解析视图与确定性模型序列；
+静态元数据不借用图或业务实例，Property 的借用值不能逃出实例生命周期。
+
+验证根参数只按准确 TypeId 选择图内元数据。声明发现和计划保存的 root 都使用图的 canonical overlay；
+调用方持有的另一份 overlay 不能删除图中约束，也不能从另一份快照引入声明。
+能力检查与计划构建遵循同一规则。
+
+## 15. 本次修订：完整声明发现与绑定
+
+`validation_plan.rs` 定义公开计划，并显式声明 `build` 与 `execute` 实现子模块。
+声明、绑定、读取、预算及汇总的私有类型放在 `validation/internal`。结构解析不绑定 validator、
+不调用 getter；计划构建和执行只使用传入 graph 已有的 metadata/Property 视图。
+
+能力检查和计划绑定共用一个声明收集器。先构建有限 TypeId 依赖图，用单调 worklist 向前驱传播
+“含可达执行工作”，再按源码顺序深度优先遍历使用路径，并以当前活动路径检测循环。
+无工作循环正常终止；需要执行的递归实例路径明确拒绝。类型分析可以按 TypeId 缓存，
+`left.child` 与 `right.child` 的 occurrence 不能因类型相同而去重。
+
+每项保留根与 owner 的 TypeId、原始 Field/FieldLocation、DeclarationLocation、完整使用路径、
+可选 selector、声明序号及原始约束或自定义 validator。字段按源码顺序；同位置先标准约束，后用户规则。
+相同 ID 的多项规则独立保留。Enum 与无名 tuple payload 的拒绝必须包含 variant/field 坐标，
+不能遗漏声明后返回“有效空计划”。
+
+结构包装遍历只用当前祖先路径检测循环，不按目标类型全局去重：`(Child, (Child, Child))`
+按源码顺序产生三个使用位置。不支持的诊断路径保留变体名和元组或无名字段序号，
+例如 `choice.First.name`、`pair.1.0.name`。容器后缀 `[]`、`[key]`、`[value]` 表示静态元素位置，
+不是实例下标。仅提供反射的 struct 和 enum 包装也需遍历，以发现图内模型。
+这些结构诊断路径与可执行 Property 路径分开保存。
+
+binder 对根、嵌套与 selector 共用实际 getter 形状检查。具名 text 约束、自定义 validator，
+直接借用和 Option 嵌套模型可执行。显式 element validator 要求 borrowed slice，sequence item count
+要求实际长度适配器。owned 中间对象、缺少适配器的 Option/指针元素解包、selector 内约束或依赖、
+MapKey/MapValue、Decimal/Time/Map、类型擦除后的唯一性检查、含规则的 Enum/tuple/newtype 内部、
+容器元素模型内部工作都明确拒绝。reference 停在存储字段；opaque 截断内部但保留外层规则。
+unit Enum 与没有执行声明的 payload 可作普通值。对外完整边界见[执行矩阵](../../doc/user_guide.zh_CN.md#执行范围与构建拒绝)。
+
+`ValidationCapabilities::check` 不调用 getter 或绑定自定义 registry；成功只说明声明和访问形状受支持。
+build 继续绑定所有受支持项，按声明顺序聚合独立的能力/绑定错误。根不在图中返回 RootNotInGraph。
+未知父类型保留延后的依赖导航，父 metadata 与实例按最近父对象优先排列，查询仍局限于当前图。
+
+## 16. 本次修订：统一执行、预算与诊断
+
+整次验证共用一个 ExecutionBudget 和 ReportAccumulator。准确检查根类型后，模型规则按加入顺序优先，
+字段和 selector 规则按声明顺序执行。每条模型规则、每条展开后的字段规则都有独立 execution occurrence。
+每个循环在 getter、依赖读取、规则调用、元素访问前检查全局停止状态。
+
+Invalid 必须带非空违规列表；MissingOptional 的 prerequisites 必须为空；FailedPrerequisite 必须非空。
+不满足合同返回适配错误。所有违规（包括失败前置条件）进入同一个 append 入口。
+FailFast 只保留首条；报告上限约束整个报告。策略停止设置 truncated 并返回 Ok(report)，合法 skip
+本身不停止。外部 validator 自己的内存分配和内部工作不受报告容量约束。
+基础执行错误立即返回原始 cause 和此前结果；已经停止后，不允许后续 getter 错误覆盖已有业务结果。
+
+| 预算 | 默认值 | 操作前计费方式 |
+| --- | ---: | --- |
+| Depth | 64 | 属性和元素路径段，依赖的 parent hop 也计入 |
+| Nodes | 100,000 | 根一次；实际属性/依赖/元素读取及规则调用各一次 |
+| Violations | 100 | 所有保留的违规，包括 prerequisites；达到上限正常停止 |
+| Comparisons | 1,000,000 | selector 元素规则调用次数，不统计自定义代码内比较 |
+
+配置值非零，计数 checked，重复读取重复计费。遍历预算不足返回 TraversalLimit 和部分报告，
+与正常策略截断区分。字段选择匹配完整字段名路径、忽略集合索引，不按父字段前缀展开。
+
+ValidationBuildError 提供 root_type_id、owner_type_id、可选 model ID、FieldLocation、
+DeclarationLocation、occurrence、path、selector、declared_rule_id、原始 constraint、kind、source。
+注册项缺失也保留原始自定义 ID；标准约束保留原声明，并通过 `constraint_rule_ids()`
+提供完整映射列表，绑定前也保留复合约束对应的全部规则。`rule()` 仅标识已到达具体规则的
+binder 失败；没有已知映射时 ID 列表为空。绑定与诊断共用一份规则映射。
+UnsupportedExecution、RootNotInGraph 不伪造 validator source。Display 简洁定位，
+Debug 不遍历整张 metadata 图，也不输出业务实例值。
+
+调用者注册项不能替换内置规则。冲突生成带规则 ID 的根级 InvalidDeclaration，
+同时保留内置定义以检查其他声明；构建仍报告独立的未支持形状和缺失规则，最终拒绝计划。
+根级注册诊断排在按声明顺序排列的错误之前。
+
+ModelValidationError 同时提供原始 ExecutionError、partial_report、root、owner、occurrence、
+字段/声明来源，以及分开的 dependency object/property path。Error::source 保留执行与适配 cause。
+ModelRegistryError 通过 abi_cause 和 Error::source 保留 typed AbiViolation，
+不丢失既有 capability origins 与反射错误链。
+
+## 17. 本次修订：迁移与验收
+
+旧图查询的指针/Field 引用参数改为 FieldLocation 或 TypeId；selector-only supports 改为根级 check；
+缺失自定义注册时改读 declared_rule_id；所有生成协议切换 v7。
+验证配置通过 `ValidationOptions::builder()` 创建独立的 `ValidationOptionsBuilder`，
+设置方法使用不带 `with_` 的配置项名称，`build(self)` 消耗 builder 并转移完整配置。
+`ValidationOptions::default()` 保留既定默认值，旧配置 setter 移除。
+runtime/derive 保持未发布的 0.1.0，
+不引入全局 validator plan 缓存。
+
+真实下游使用生产 CredentialInfo，验证 Option 包装及两个独立位置。完整 PersonInfo 结构图应可解析，
+但 delete_time 的 Time 声明在构建计划时明确拒绝，即使实例值为 None 也一样；
+不得删除该约束或增加 opaque 获得绿色测试。
+
+保留 property_output；新增 1/8/32 字段、多独立 impl 的冷组装、热 Property 查询、图构建、绑定与执行基准。
+metadata 和实例准备移出计时路径；冷观测单列。新增缓存必须有可重复的实测收益，
+性能结果不能变为普通测试的耗时阈值。
+
+解除全部 31 个 runtime 文件覆盖豁免，不降低阈值；两个 derive 豁免需要新的插桩证据与替代测试。
+默认、validation-only、codec-only、generic-only、all-features、UI、重命名 runtime、多 crate、
+Clippy、Rustdoc、下游验证均纳入验收。`documentation_examples_tests` 提取并运行两 crate 双语
+README/指南的实际 Rust 代码块，不能以近似副本替代。接口规格和声明片段不假装为独立程序。
+全量源码/item/风格审查、最终 CI 仍是独立门禁，由台账记录实际结果。

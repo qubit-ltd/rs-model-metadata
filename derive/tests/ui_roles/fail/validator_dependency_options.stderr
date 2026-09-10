@@ -1,0 +1,23 @@
+error: duplicate dependency path
+  --> tests/ui_roles/fail/validator_dependency_options.rs:15:74
+   |
+15 |     #[validator(id = "example.dependency", depends_on(owner(path = "..", path = "..", property = name)))]
+   |                                                                          ^^^^
+
+error: duplicate dependency property
+  --> tests/ui_roles/fail/validator_dependency_options.rs:21:78
+   |
+21 |     #[validator(id = "example.dependency", depends_on(owner(property = name, property = title)))]
+   |                                                                              ^^^^^^^^
+
+error: expected path or property
+  --> tests/ui_roles/fail/validator_dependency_options.rs:27:61
+   |
+27 |     #[validator(id = "example.dependency", depends_on(owner(optional = true, property = name)))]
+   |                                                             ^^^^^^^^
+
+error: duplicate validator dependency path
+  --> tests/ui_roles/fail/validator_dependency_options.rs:33:79
+   |
+33 |     #[validator(id = "example.dependency", depends_on(first(property = name), second(property = name)))]
+   |                                                                               ^^^^^^^^^^^^^^^^^^^^^^^

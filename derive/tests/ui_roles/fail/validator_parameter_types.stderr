@@ -1,0 +1,29 @@
+error: negative validator parameters require an integer literal
+  --> tests/ui_roles/fail/validator_parameter_types.rs:15:58
+   |
+15 |     #[validator(id = "example.parameter", params(value = -true))]
+   |                                                          ^^^^^
+
+error: validator params support bool, integer, string, and homogeneous arrays
+  --> tests/ui_roles/fail/validator_parameter_types.rs:21:58
+   |
+21 |     #[validator(id = "example.parameter", params(value = 1.5))]
+   |                                                          ^^^
+
+error: validator parameter arrays must be homogeneous
+  --> tests/ui_roles/fail/validator_parameter_types.rs:27:63
+   |
+27 |     #[validator(id = "example.parameter", params(values = [1, "two"]))]
+   |                                                               ^^^^^
+
+error: validator parameter arrays must be homogeneous
+  --> tests/ui_roles/fail/validator_parameter_types.rs:33:67
+   |
+33 |     #[validator(id = "example.parameter", params(values = ["one", 2]))]
+   |                                                                   ^
+
+error: validator parameter arrays must be homogeneous integer arrays
+  --> tests/ui_roles/fail/validator_parameter_types.rs:39:64
+   |
+39 |     #[validator(id = "example.parameter", params(values = [-1, "two"]))]
+   |                                                                ^^^^^

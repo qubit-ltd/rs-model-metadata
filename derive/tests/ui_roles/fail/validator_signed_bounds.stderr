@@ -1,0 +1,17 @@
+error: invalid signed validator integer: number too small to fit in target type
+  --> tests/ui_roles/fail/validator_signed_bounds.rs:15:56
+   |
+15 |     #[validator(id = "example.bounds", params(value = -170141183460469231731687303715884105729))]
+   |                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: invalid signed validator integer: number too small to fit in target type
+  --> tests/ui_roles/fail/validator_signed_bounds.rs:21:58
+   |
+21 |     #[validator(id = "example.bounds", params(values = [-170141183460469231731687303715884105729, 0]))]
+   |                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: invalid signed validator integer: number too large to fit in target type
+  --> tests/ui_roles/fail/validator_signed_bounds.rs:27:61
+   |
+27 |     #[validator(id = "example.bounds", params(values = [-1, 170141183460469231731687303715884105728]))]
+   |                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

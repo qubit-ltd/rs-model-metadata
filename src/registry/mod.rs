@@ -9,6 +9,7 @@
 //! Immutable model registration and lookup.
 
 mod error;
+mod internal;
 mod model_entry;
 mod model_registry;
 

@@ -14,8 +14,3 @@ use qubit_validator::BindErrorKind;
 pub(crate) fn path_error(kind: BindErrorKind) -> BindError {
     BindError::new(kind)
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-// =============================================================================

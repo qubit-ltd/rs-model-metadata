@@ -21,8 +21,3 @@ pub struct ValidationBuildInputs<'a> {
     /// The local executable validator registry.
     pub validators: &'a ValidatorRegistry,
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-// =============================================================================

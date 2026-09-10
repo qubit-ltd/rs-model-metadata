@@ -306,10 +306,10 @@ mod compile_assertions {
 ///
 /// All intentionally permanent allocations used by generic metadata are
 /// centralized here. Generated code must finish each aggregate through
-/// [`v6::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
+/// [`v7::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
 /// its construction boundary.
 #[doc(hidden)]
-pub mod v6 {
+pub mod v7 {
     use qubit_reflect::FieldDefinitionDescriptor;
     use qubit_reflect::FieldDescriptor;
     #[cfg(feature = "generic")]
@@ -404,13 +404,14 @@ pub mod v6 {
     #[doc(hidden)]
     #[must_use]
     pub const fn field_metadata(
+        owner: ::std::any::TypeId,
         reflect: &'static FieldDescriptor,
         attributes: &'static [crate::metadata::FieldAttributeMetadata],
         constraints: &'static [crate::metadata::ConstraintMetadata],
         validators: &'static [crate::metadata::ValidatorMetadata],
         serde: &'static crate::metadata::SerdeFieldMetadata,
     ) -> crate::metadata::FieldMetadata {
-        crate::metadata::FieldMetadata::with_semantics(reflect, attributes, constraints, validators, serde)
+        crate::metadata::FieldMetadata::with_semantics(owner, reflect, attributes, constraints, validators, serde)
     }
 
     /// Builds a semantic overlay for one generic declaration field.

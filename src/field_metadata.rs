@@ -8,6 +8,8 @@
 
 //! Immutable domain semantics over one reflected field descriptor.
 
+use std::any::TypeId;
+
 use qubit_reflect::FieldDefinitionDescriptor;
 use qubit_reflect::FieldDescriptor;
 use qubit_reflect::TypeDescriptor;
@@ -17,7 +19,9 @@ use qubit_reflect::descriptor::TypeRef;
 use crate::metadata::CodecMetadata;
 use crate::metadata::ConstraintMetadata;
 use crate::metadata::DecimalConstraint;
+use crate::metadata::DeclarationLocation;
 use crate::metadata::FieldAttributeMetadata;
+use crate::metadata::FieldLocation;
 use crate::metadata::FieldReferenceMetadata;
 use crate::metadata::FieldUniqueMetadata;
 use crate::metadata::IdentifierMetadata;
@@ -32,10 +36,37 @@ use crate::metadata::TimeConstraint;
 use crate::metadata::ValidatorMetadata;
 
 /// Model semantics attached to one reflection-owned structural field.
+///
+/// Concrete fields have a [`FieldLocation`] that remains unchanged when this
+/// value is copied. Uninstantiated generic definition fields have no concrete
+/// location. Source coordinates remain available separately through
+/// [`Self::declaration`], including unnamed Enum payload positions.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+///
+/// #[Model]
+/// struct Address { city: String }
+/// # fn main() {
+/// let metadata = TypeMetadata::of::<Address>();
+/// let field = metadata.field("city").expect("city field");
+/// let copied = *field;
+/// let location = copied.location().expect("concrete field");
+/// assert_eq!(field.location(), Some(location));
+/// assert_eq!(location.owner(), metadata.type_id());
+/// assert_eq!(location.index(), 0);
+/// assert_eq!(location.variant(), None);
+/// # }
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct FieldMetadata {
+    /// Concrete declaration identity; absent for generic definitions.
+    location: Option<FieldLocation>,
     /// Source position and owning object of this declaration.
-    declaration: crate::metadata::DeclarationLocation,
+    declaration: DeclarationLocation,
     /// The concrete reflection descriptor, when this is a runtime overlay.
     reflect: Option<&'static FieldDescriptor>,
     /// The source-level descriptor, when this is a generic declaration
@@ -57,10 +88,24 @@ pub struct FieldMetadata {
 
 impl FieldMetadata {
     /// Creates an overlay with no domain-specific declarations.
+    ///
+    /// # Parameters
+    ///
+    /// * `owner` - The concrete declaring Rust type identity. It must match
+    ///   `reflect`'s owner; the checked generated-code protocol validates this
+    ///   relationship when assembling a complete model.
+    /// * `reflect` - The permanently retained structural field descriptor.
+    ///
+    /// # Returns
+    ///
+    /// An overlay with a concrete location, unknown source coordinates, empty
+    /// domain declarations, and default Serde metadata. This constructor does
+    /// not infer domain markers from structural reflection facts.
     #[must_use]
-    pub const fn from_reflect(reflect: &'static FieldDescriptor) -> Self {
+    pub const fn from_reflect(owner: TypeId, reflect: &'static FieldDescriptor) -> Self {
         Self {
-            declaration: crate::metadata::DeclarationLocation::unknown(),
+            declaration: DeclarationLocation::unknown(),
+            location: Some(FieldLocation::new(owner, reflect.variant_index(), reflect.index())),
             reflect: Some(reflect),
             definition: None,
             symbolic_type: None,
@@ -76,6 +121,7 @@ impl FieldMetadata {
     #[doc(hidden)]
     #[must_use]
     pub(crate) const fn with_semantics(
+        owner: TypeId,
         reflect: &'static FieldDescriptor,
         attributes: &'static [FieldAttributeMetadata],
         constraints: &'static [ConstraintMetadata],
@@ -83,7 +129,8 @@ impl FieldMetadata {
         serde: &'static SerdeFieldMetadata,
     ) -> Self {
         Self {
-            declaration: crate::metadata::DeclarationLocation::unknown(),
+            declaration: DeclarationLocation::unknown(),
+            location: Some(FieldLocation::new(owner, reflect.variant_index(), reflect.index())),
             reflect: Some(reflect),
             definition: None,
             symbolic_type: None,
@@ -108,7 +155,8 @@ impl FieldMetadata {
         serde: &'static SerdeFieldMetadata,
     ) -> Self {
         Self {
-            declaration: crate::metadata::DeclarationLocation::unknown(),
+            declaration: DeclarationLocation::unknown(),
+            location: None,
             reflect: None,
             definition: Some(definition),
             symbolic_type: Some(symbolic_type),
@@ -122,31 +170,47 @@ impl FieldMetadata {
 
     /// Associates source coordinates without changing reflection identity.
     #[must_use]
-    pub const fn with_declaration(mut self, declaration: crate::metadata::DeclarationLocation) -> Self {
+    pub const fn with_declaration(mut self, declaration: DeclarationLocation) -> Self {
         self.declaration = declaration;
         self
     }
 
-    /// Returns the field's exact source occurrence.
+    /// Returns this concrete field's process-local identity.
+    ///
+    /// Generic definition fields return `None` until instantiated. Copies of a
+    /// concrete overlay retain the same identity.
     #[must_use]
-    pub const fn declaration(&self) -> &crate::metadata::DeclarationLocation {
+    #[inline(always)]
+    pub const fn location(&self) -> Option<FieldLocation> {
+        self.location
+    }
+
+    /// Returns the field's source occurrence, which may have unknown
+    /// coordinates for a manually constructed structural overlay.
+    #[must_use]
+    #[inline(always)]
+    pub const fn declaration(&self) -> &DeclarationLocation {
         &self.declaration
     }
 
-    /// Returns the underlying reflection field descriptor.
+    /// Returns the concrete reflection field descriptor, or `None` for an
+    /// uninstantiated generic definition field.
     #[must_use]
     #[inline(always)]
     pub const fn reflect(&self) -> Option<&'static FieldDescriptor> {
         self.reflect
     }
 
-    /// Returns the source-level field for a generic declaration overlay.
+    /// Returns the source-level field for a generic declaration overlay, or
+    /// `None` for a concrete field, including a specialized generic field.
     #[must_use]
+    #[inline(always)]
     pub const fn definition(&self) -> Option<&'static FieldDefinitionDescriptor> {
         self.definition
     }
 
-    /// Returns the source field index.
+    /// Returns the zero-based source field index, local to its struct or enum
+    /// variant. Generic definition and specialization preserve this index.
     #[must_use]
     #[inline(always)]
     pub const fn index(&self) -> usize {
@@ -157,7 +221,8 @@ impl FieldMetadata {
         }
     }
 
-    /// Returns the field query name, when it has one.
+    /// Returns the field query name, or `None` for an unnamed tuple payload.
+    /// This is independent of Serde serialization and deserialization names.
     #[must_use]
     #[inline(always)]
     pub const fn name(&self) -> Option<&'static str> {
@@ -168,7 +233,8 @@ impl FieldMetadata {
         }
     }
 
-    /// Returns the reflected field visibility.
+    /// Returns declared visibility for a struct field, or inherited variant
+    /// visibility for an enum payload. This also works for symbolic fields.
     #[must_use]
     #[inline(always)]
     pub const fn visibility(&self) -> FieldVisibility<'_> {
@@ -191,7 +257,8 @@ impl FieldMetadata {
         }
     }
 
-    /// Returns the resolved field type descriptor, when available.
+    /// Returns the resolved field type descriptor, or `None` for opaque and
+    /// symbolic type references.
     #[must_use]
     #[inline(always)]
     pub fn descriptor(&self) -> Option<&'static TypeDescriptor> {
@@ -354,19 +421,13 @@ impl FieldMetadata {
         self.serde
     }
 
-    /// Returns whether reflection treats the field type as opaque.
+    /// Returns whether the model declaration contains an explicit opaque
+    /// marker. A bare [`Self::from_reflect`] overlay has no domain markers,
+    /// even if its structural type reference is opaque.
     #[must_use]
     pub fn is_opaque(&self) -> bool {
         self.attributes
             .iter()
             .any(|attribute| matches!(attribute, FieldAttributeMetadata::Opaque))
-    }
-
-    /// Returns whether validation should recurse into this field's value.
-    #[must_use]
-    pub fn validate_nested(&self) -> bool {
-        self.attributes
-            .iter()
-            .any(|attribute| matches!(attribute, FieldAttributeMetadata::ValidateNested))
     }
 }

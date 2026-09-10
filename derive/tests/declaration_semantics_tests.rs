@@ -1,7 +1,16 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Domain declarations retain navigation and ordered validator occurrences.
 
 use model_runtime::metadata::NavigationStep;
 use model_runtime::metadata::TypeMetadata;
+use model_runtime::metadata::ValidationArgument;
 use qubit_id::Id;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
@@ -50,6 +59,37 @@ fn test_enum_reference_parent_path() {
 }
 
 type Title = String;
+
+#[Model]
+struct IntegerParameters {
+    #[validator(
+        id = "example.integer_bounds",
+        params(
+            minimum = -170141183460469231731687303715884105728,
+            bounds = [-170141183460469231731687303715884105728, 170141183460469231731687303715884105727],
+            unsigned = 340282366920938463463374607431768211455,
+            hexadecimal = -0x80000000000000000000000000000000i128,
+            zero = -0
+        )
+    )]
+    value: String,
+}
+
+/// Signed parameter bounds survive macro parsing and runtime metadata emission.
+#[test]
+fn test_validator_integer_parameters_preserve_full_range() {
+    let metadata = TypeMetadata::of::<IntegerParameters>();
+    let params = metadata.fields()[0].validators()[0].params();
+    assert_eq!(params[0].name(), "minimum");
+    assert_eq!(params[0].value(), ValidationArgument::Integer(i128::MIN));
+    assert_eq!(
+        params[1].value(),
+        ValidationArgument::IntegerList(&[i128::MIN, i128::MAX])
+    );
+    assert_eq!(params[2].value(), ValidationArgument::Unsigned(u128::MAX));
+    assert_eq!(params[3].value(), ValidationArgument::Integer(i128::MIN));
+    assert_eq!(params[4].value(), ValidationArgument::Integer(0));
+}
 
 #[Model]
 struct UniqueFields {

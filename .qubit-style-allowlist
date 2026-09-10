@@ -7,7 +7,6 @@ multiple-public-types | src/resolve/error.rs | Resolver causes, error kinds, pay
 multiple-public-types | src/resolve/graph.rs | Resolved structural edges and their immutable graph queries form one graph contract
 multiple-public-types | src/resolve/resolver.rs | Structure resolver inputs and executor form one construction contract
 multiple-public-types | src/metadata_vocabulary.rs | Declaration attributes share one ordered metadata vocabulary
-multiple-public-types | src/validation/build_errors.rs | Validation binding errors and their collection form one diagnostic contract
 multiple-public-types | src/property.rs | Property values, adapters, metadata, and failures form one safe access contract
 multiple-public-types | src/role.rs | Role tags and role-specific payloads form one closed metadata vocabulary
 multiple-public-types | derive/src/expand/metadata.rs | The declaration intermediate representation is intentionally co-located so parsing, normalization, validation, and token generation share one private semantic vocabulary
@@ -19,5 +18,5 @@ multiple-public-types | derive/src/ir/declaration/validation.rs | Selector and v
 multiple-public-types | derive/src/ir/declaration/constraints.rs | Constraint variants and their payloads form one private declaration vocabulary
 multiple-public-types | src/validation/compiled_property_path.rs | Property path steps and their compiled path form one private binding contract
 multiple-public-types | src/validation/validation_options.rs | Validation modes, selections, paths, and options form one public execution-options contract
-multiple-public-types | src/validation/validation_plan.rs | Rule bindings and the owning plan form one private-to-public binding contract
+type-file-name | src/resolve/tests.rs | The cfg(test) child module needs private path resolution and invalid assembly construction; its fixtures are not production types
 multiple-public-types | src/validation/standard_constraints.rs | Standard constraint target and bound validator form one private binding contract

@@ -1,6 +1,9 @@
 // =============================================================================
 //    Copyright (c) 2026 Haixing Hu.
+//
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Source coordinates for one field or selector declaration.
@@ -30,6 +33,7 @@ impl DeclarationLocation {
     /// Represents hand-constructed metadata without fabricated source
     /// coordinates.
     #[must_use]
+    #[inline(always)]
     pub const fn unknown() -> Self {
         Self {
             file: None,
@@ -44,6 +48,7 @@ impl DeclarationLocation {
 
     /// Selects a container position while preserving the field source.
     #[must_use]
+    #[inline(always)]
     pub const fn with_selector(mut self, selector: SelectorPosition) -> Self {
         self.selector = Some(selector);
         self

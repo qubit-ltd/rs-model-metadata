@@ -14,6 +14,33 @@ use qubit_reflect::VariantDescriptor;
 use crate::metadata::FieldMetadata;
 
 /// Immutable domain metadata for one enum variant.
+///
+/// Concrete variants borrow a reflection descriptor; generic definition
+/// variants instead borrow a symbolic declaration. Exactly one descriptor is
+/// present. Both forms retain source order and naming overlays, but only
+/// concrete payload fields have a [`FieldMetadata::location`]. Copying this
+/// overlay preserves its descriptors and payload field identities.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Enum;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+///
+/// #[Enum]
+/// enum Reply { Message { text: String }, Pair(u32, u32) }
+/// # fn main() {
+/// let metadata = TypeMetadata::of::<Reply>();
+/// let variants = metadata.as_enum().expect("enum metadata").variants();
+/// let message = &variants[0];
+/// assert_eq!(message.rust_name(), "Message");
+/// let text = message.field("text").expect("named payload field");
+/// assert_eq!(text.location().expect("concrete field").variant(), Some(0));
+/// assert!(variants[1].field("0").is_none());
+/// assert!(variants[1].field_at(0).is_some());
+/// assert!(variants[1].field_at(2).is_none());
+/// # }
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct EnumVariantMetadata {
     /// The reflection descriptor that defines the variant.
@@ -77,20 +104,26 @@ impl EnumVariantMetadata {
         }
     }
 
-    /// Returns the underlying structural descriptor.
+    /// Returns the concrete structural descriptor, or `None` for a generic
+    /// definition variant that has not been specialized.
     #[must_use]
     #[inline(always)]
     pub const fn reflect(&self) -> Option<&'static VariantDescriptor> {
         self.reflect
     }
 
-    /// Returns the generic source declaration variant, when present.
+    /// Returns the symbolic declaration descriptor, or `None` for a concrete
+    /// variant, including a specialized generic variant.
     #[must_use]
+    #[inline(always)]
     pub const fn definition(&self) -> Option<&'static VariantDefinitionDescriptor> {
         self.definition
     }
 
-    /// Returns the source declaration index.
+    /// Returns the zero-based variant index in the source declaration.
+    ///
+    /// The index is local to its enum and is unchanged by specialization or
+    /// renaming. It is not an explicit Rust discriminant value.
     #[must_use]
     #[inline(always)]
     pub const fn index(&self) -> usize {
@@ -133,21 +166,30 @@ impl EnumVariantMetadata {
         self.deserialized_name
     }
 
-    /// Returns payload field overlays in source order.
+    /// Returns payload field overlays in source order, or an empty slice for
+    /// a unit variant. Definition fields are symbolic; concrete fields retain
+    /// their owner, variant, and field coordinates.
     #[must_use]
     #[inline(always)]
     pub const fn fields(&self) -> &'static [FieldMetadata] {
         self.fields
     }
 
-    /// Finds a named payload field by query name.
+    /// Finds a named payload field by query name, or returns `None` when
+    /// absent.
+    ///
+    /// Tuple payloads have no query names: use [`Self::field_at`] for their
+    /// positions. Numeric strings are not interpreted as tuple indices.
     #[must_use]
     pub fn field(&self, name: &str) -> Option<&'static FieldMetadata> {
         self.fields.iter().find(|field| field.name() == Some(name))
     }
 
-    /// Returns a payload field by source index.
+    /// Returns a payload field by zero-based source index for either named or
+    /// tuple payloads. Returns `None` when the index is outside this variant's
+    /// field slice, including every index for a unit variant.
     #[must_use]
+    #[inline(always)]
     pub fn field_at(&self, index: usize) -> Option<&'static FieldMetadata> {
         self.fields.get(index)
     }

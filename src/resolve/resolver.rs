@@ -19,7 +19,6 @@ use super::graph::ModelGraph;
 use super::graph::ResolvedProjectionProducer;
 use super::graph::ResolvedProjectionSource;
 use super::graph::ResolvedReference;
-use super::graph::pointer_key;
 use super::queries::build_query;
 use super::reference_selection_ext::ReferenceSelectionExt;
 use super::relations::declared_target_id;
@@ -403,7 +402,7 @@ impl<'a> StructureResolver<'a> {
                             }
                             if local_reference_valid {
                                 references.insert(
-                                    pointer_key(field),
+                                    field.location().expect("validated concrete field identity"),
                                     ResolvedReference {
                                         declaration: reference,
                                         target,
@@ -461,10 +460,7 @@ impl<'a> StructureResolver<'a> {
                             );
                             continue;
                         }
-                        projection_sources.insert(
-                            projection as *const ProjectionMetadata as usize,
-                            ResolvedProjectionSource { target },
-                        );
+                        projection_sources.insert(metadata.type_id(), ResolvedProjectionSource { target });
                     }
                     Some(target) => errors.push(ResolveError::new(
                         ResolveErrorKind::WrongModelRole,
@@ -493,9 +489,9 @@ impl<'a> StructureResolver<'a> {
             for error in &mut errors[first_error..] {
                 error.attach_owner(metadata);
             }
-            if let Some(entity) = metadata.as_entity() {
+            if metadata.as_entity().is_some() {
                 let query = build_query(metadata);
-                queries.insert(entity as *const crate::metadata::EntityMetadata as usize, query);
+                queries.insert(metadata.type_id(), query);
             }
         }
 
@@ -573,6 +569,10 @@ impl<'a> StructureResolver<'a> {
                 registry: self.inputs.models,
                 dependencies,
                 models: nodes.iter().map(|(metadata, _)| *metadata).collect(),
+                model_index: nodes
+                    .iter()
+                    .map(|(metadata, _)| (metadata.type_id(), *metadata))
+                    .collect(),
                 references,
                 projection_sources,
                 queries,

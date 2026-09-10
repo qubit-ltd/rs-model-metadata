@@ -81,7 +81,7 @@ fn expand_field(
     };
     let span = field.index.span();
     let location = quote_spanned!(span=>
-        let field_declaration = #runtime::__private::v6::leak(#runtime::metadata::DeclarationLocation {
+        let field_declaration = #runtime::__private::v7::leak(#runtime::metadata::DeclarationLocation {
             file: Some(file!()), line: Some(line!()), column: Some(column!()), owner: Some(#owner),
             variant: #variant, field: Some(#index), selector: None,
         });
@@ -145,19 +145,19 @@ fn expand_field(
     });
     let element_selector = element_ir.map(|value| {
         let value_type = quote!(
-            <#field_type as #runtime::__private::v6::SequenceConstraintTarget>::Element
+            <#field_type as #runtime::__private::v7::SequenceConstraintTarget>::Element
         );
         expand_selector_metadata(value, &value_type, format_ident!("element_selector"), runtime)
     });
     let map_key_selector = map_key_ir.map(|value| {
         let value_type = quote!(
-            <#field_type as #runtime::__private::v6::MapConstraintTarget>::Key
+            <#field_type as #runtime::__private::v7::MapConstraintTarget>::Key
         );
         expand_selector_metadata(value, &value_type, format_ident!("map_key_selector"), runtime)
     });
     let map_value_selector = map_value_ir.map(|value| {
         let value_type = quote!(
-            <#field_type as #runtime::__private::v6::MapConstraintTarget>::Value
+            <#field_type as #runtime::__private::v7::MapConstraintTarget>::Value
         );
         expand_selector_metadata(value, &value_type, format_ident!("map_value_selector"), runtime)
     });
@@ -190,13 +190,13 @@ fn expand_field(
             .any(|value| matches!(value, ConstraintIr::Map { .. }));
     let sequence_assertion = requires_sequence.then(|| {
         quote! {
-            fn assert_sequence_target<T: #runtime::__private::v6::SequenceConstraintTarget>() {}
+            fn assert_sequence_target<T: #runtime::__private::v7::SequenceConstraintTarget>() {}
             assert_sequence_target::<#field_type>();
         }
     });
     let map_assertion = requires_map.then(|| {
         quote! {
-            fn assert_map_target<T: #runtime::__private::v6::MapConstraintTarget>() {}
+            fn assert_map_target<T: #runtime::__private::v7::MapConstraintTarget>() {}
             assert_map_target::<#field_type>();
         }
     });
@@ -208,9 +208,9 @@ fn expand_field(
             IdentifierAssignmentIr::Database => quote!(#runtime::metadata::IdentifierAssignment::Database),
         };
         quote! {
-            fn assert_identifier_type<T: #runtime::__private::v6::IdentifierType>() {}
+            fn assert_identifier_type<T: #runtime::__private::v7::IdentifierType>() {}
             assert_identifier_type::<#field_type>();
-            let identifier: &'static #runtime::metadata::IdentifierMetadata = #runtime::__private::v6::leak(
+            let identifier: &'static #runtime::metadata::IdentifierMetadata = #runtime::__private::v7::leak(
                 #runtime::metadata::IdentifierMetadata::new(#assignment),
             );
         }
@@ -224,13 +224,13 @@ fn expand_field(
             quote!(#runtime::metadata::FieldUniqueMetadata::for_type(unique_paths, #ignore_case, #descriptor_fields[#index].field_type()))
         };
         let assertion = (unique.ignore_case.is_some() && generic_variant_inherited.is_none()).then(|| quote! {
-            fn assert_text_unique<T: #runtime::__private::v6::TextConstraintTarget + ?Sized>() {}
+            fn assert_text_unique<T: #runtime::__private::v7::TextConstraintTarget + ?Sized>() {}
             assert_text_unique::<#field_type>();
         });
         quote! {
             #assertion
-            let unique_paths: &'static [#runtime::metadata::PropertyPath] = #runtime::__private::v6::leak_slice(::std::vec![#(#paths),*]);
-            let unique: &'static #runtime::metadata::FieldUniqueMetadata = #runtime::__private::v6::leak(
+            let unique_paths: &'static [#runtime::metadata::PropertyPath] = #runtime::__private::v7::leak_slice(::std::vec![#(#paths),*]);
+            let unique: &'static #runtime::metadata::FieldUniqueMetadata = #runtime::__private::v7::leak(
                 #constructor,
             );
         }
@@ -238,7 +238,7 @@ fn expand_field(
     let reference = reference_ir.map(|value| expand_reference(value, runtime));
     let key_part = key_part_order.map(|order| {
         quote! {
-            let key_part: &'static #runtime::metadata::KeyPartMetadata = #runtime::__private::v6::leak(
+            let key_part: &'static #runtime::metadata::KeyPartMetadata = #runtime::__private::v7::leak(
                 #runtime::metadata::KeyPartMetadata::new(#order),
             );
         }
@@ -248,13 +248,13 @@ fn expand_field(
             CodecIr::DeclaredId(id) => quote!(#runtime::metadata::CodecReference::DeclaredId(#id)),
             CodecIr::RustType(ty) => {
                 quote!(#runtime::metadata::CodecReference::RustType(
-                    #runtime::__private::v6::RustTypeReference::of::<#ty>(),
+                    #runtime::__private::v7::RustTypeReference::of::<#ty>(),
                 ))
             }
         };
         quote! {
-            let codec_reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v6::leak(#value);
-            let codec: &'static #runtime::metadata::CodecMetadata = #runtime::__private::v6::leak(
+            let codec_reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v7::leak(#value);
+            let codec: &'static #runtime::metadata::CodecMetadata = #runtime::__private::v7::leak(
                 #runtime::metadata::CodecMetadata::new(codec_reference, #runtime::metadata::CodecSource::Field),
             );
         }
@@ -329,7 +329,7 @@ fn expand_field(
         });
     let metadata = match generic_variant_inherited {
         Some(variant_inherited) => quote! {
-            #runtime::__private::v6::generic_field_metadata(
+            #runtime::__private::v7::generic_field_metadata(
                 &#descriptor_fields[#index],
                 #variant_inherited,
                 attributes,
@@ -339,7 +339,8 @@ fn expand_field(
             )
         },
         None => quote! {
-            #runtime::__private::v6::field_metadata(
+            #runtime::__private::v7::field_metadata(
+                ::std::any::TypeId::of::<Self>(),
                 &#descriptor_fields[#index],
                 attributes,
                 constraints,
@@ -359,7 +360,7 @@ fn expand_field(
             #reference
             #key_part
             let validators: &'static [#runtime::metadata::ValidatorMetadata] =
-                #runtime::__private::v6::leak_slice(::std::vec![#(#validators),*]);
+                #runtime::__private::v7::leak_slice(::std::vec![#(#validators),*]);
             #codec
             #redact
             #serde
@@ -367,12 +368,12 @@ fn expand_field(
             #map_key_selector
             #map_value_selector
             let constraints: &'static [#runtime::metadata::ConstraintMetadata] =
-                #runtime::__private::v6::leak_slice(::std::vec![#(#constraints),*]);
+                #runtime::__private::v7::leak_slice(::std::vec![#(#constraints),*]);
             let mut attributes = ::std::vec::Vec::new();
             #(#occurrence_tokens)*
             #indexed
             let attributes: &'static [#runtime::metadata::FieldAttributeMetadata] =
-                #runtime::__private::v6::leak_slice(attributes);
+                #runtime::__private::v7::leak_slice(attributes);
             fields.push((#metadata).with_declaration(*field_declaration));
         }
     }
@@ -499,39 +500,39 @@ fn expand_constraint_assertions(
 ) -> TokenStream {
     let assertions = constraints.iter().map(|constraint| match constraint {
         ConstraintIr::Text(_) => quote! {
-            fn assert_text_target<T: #runtime::__private::v6::TextConstraintTarget + ?Sized>() {}
+            fn assert_text_target<T: #runtime::__private::v7::TextConstraintTarget + ?Sized>() {}
             assert_text_target::<#target>();
         },
         ConstraintIr::Decimal(_) => quote! {
-            fn assert_decimal_target<T: #runtime::__private::v6::DecimalConstraintTarget>() {}
+            fn assert_decimal_target<T: #runtime::__private::v7::DecimalConstraintTarget>() {}
             assert_decimal_target::<#target>();
         },
         ConstraintIr::Time(_) => quote! {
-            fn assert_temporal_target<T: #runtime::__private::v6::TemporalConstraintTarget>() {}
+            fn assert_temporal_target<T: #runtime::__private::v7::TemporalConstraintTarget>() {}
             assert_temporal_target::<#target>();
         },
         ConstraintIr::Sequence { min, max, unique } => {
             let length = (min.is_some() || max.is_some()).then(|| {
                 quote! {
-                    fn assert_variable_sequence<T: #runtime::__private::v6::VariableLengthSequenceTarget>() {}
+                    fn assert_variable_sequence<T: #runtime::__private::v7::VariableLengthSequenceTarget>() {}
                     assert_variable_sequence::<#target>();
                 }
             });
             let uniqueness = unique.then(|| {
                 quote! {
-                    fn assert_unique_items_target<T: #runtime::__private::v6::UniqueItemsConstraintTarget>() {}
+                    fn assert_unique_items_target<T: #runtime::__private::v7::UniqueItemsConstraintTarget>() {}
                     assert_unique_items_target::<#target>();
                 }
             });
             quote! {
-                fn assert_sequence_constraint<T: #runtime::__private::v6::SequenceConstraintTarget>() {}
+                fn assert_sequence_constraint<T: #runtime::__private::v7::SequenceConstraintTarget>() {}
                 assert_sequence_constraint::<#target>();
                 #length
                 #uniqueness
             }
         }
         ConstraintIr::Map { .. } => quote! {
-            fn assert_map_constraint<T: #runtime::__private::v6::MapConstraintTarget>() {}
+            fn assert_map_constraint<T: #runtime::__private::v7::MapConstraintTarget>() {}
             assert_map_constraint::<#target>();
         },
     });
@@ -566,7 +567,7 @@ fn expand_selector_metadata(
         expand_validator(
             validator,
             runtime,
-            quote!(#runtime::__private::v6::leak((*field_declaration).with_selector(#position))),
+            quote!(#runtime::__private::v7::leak((*field_declaration).with_selector(#position))),
         )
     });
     let codec = value.codec.as_ref().map_or_else(
@@ -574,8 +575,8 @@ fn expand_selector_metadata(
         |codec| {
             let reference = codec_reference_expression(codec, value_type, runtime);
             quote!({
-                let reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v6::leak(#reference);
-                Some(#runtime::__private::v6::leak(
+                let reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v7::leak(#reference);
+                Some(#runtime::__private::v7::leak(
                     #runtime::metadata::CodecMetadata::new(reference, #runtime::metadata::CodecSource::Selector(#position)),
                 ) as &'static #runtime::metadata::CodecMetadata)
             })
@@ -593,16 +594,16 @@ fn expand_selector_metadata(
                 },
                 runtime,
             );
-            quote!(Some(#runtime::__private::v6::leak(#expression) as &'static #runtime::metadata::RedactMetadata))
+            quote!(Some(#runtime::__private::v7::leak(#expression) as &'static #runtime::metadata::RedactMetadata))
         },
     );
     quote! {
         #constraint_assertions
-        let selector_constraints: &'static [#runtime::metadata::ConstraintMetadata] = #runtime::__private::v6::leak_slice(::std::vec![#(#constraints),*]);
-        let selector_validators: &'static [#runtime::metadata::ValidatorMetadata] = #runtime::__private::v6::leak_slice(::std::vec![#(#validators),*]);
+        let selector_constraints: &'static [#runtime::metadata::ConstraintMetadata] = #runtime::__private::v7::leak_slice(::std::vec![#(#constraints),*]);
+        let selector_validators: &'static [#runtime::metadata::ValidatorMetadata] = #runtime::__private::v7::leak_slice(::std::vec![#(#validators),*]);
         let selector_codec = #codec;
         let selector_redact = #redact;
-        let #name: &'static #runtime::metadata::SelectorMetadata = #runtime::__private::v6::leak(
+        let #name: &'static #runtime::metadata::SelectorMetadata = #runtime::__private::v7::leak(
             #runtime::metadata::SelectorMetadata::new(#position, selector_constraints, selector_validators, selector_codec, selector_redact),
         );
     }
@@ -654,9 +655,9 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream, declaration:
         ))
     };
     quote!({
-        let params: &'static [#runtime::__private::NamedValidationArgument<'static>] = #runtime::__private::v6::leak_slice(::std::vec![#(#params),*]);
-        let depends_on: &'static [#runtime::metadata::PropertyPath<'static>] = #runtime::__private::v6::leak_slice(::std::vec![#(#depends_on),*]);
-        let dependency_bindings: &'static [#runtime::metadata::DependencyBindingMetadata] = #runtime::__private::v6::leak_slice(::std::vec![#(#dependency_bindings),*]);
+        let params: &'static [#runtime::__private::NamedValidationArgument<'static>] = #runtime::__private::v7::leak_slice(::std::vec![#(#params),*]);
+        let depends_on: &'static [#runtime::metadata::PropertyPath<'static>] = #runtime::__private::v7::leak_slice(::std::vec![#(#depends_on),*]);
+        let dependency_bindings: &'static [#runtime::metadata::DependencyBindingMetadata] = #runtime::__private::v7::leak_slice(::std::vec![#(#dependency_bindings),*]);
         #constructor
     })
 }
@@ -712,14 +713,14 @@ fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStre
         || quote!(None),
         |path| {
             let path = expand_object_path(path, runtime);
-            quote!(Some(#runtime::__private::v6::leak(#path) as &'static #runtime::metadata::ObjectPath))
+            quote!(Some(#runtime::__private::v7::leak(#path) as &'static #runtime::metadata::ObjectPath))
         },
     );
     let existing = reference.existing;
     quote! {
-        let reference_target: &'static #runtime::metadata::DeclaredEntityTarget = #runtime::__private::v6::leak(#target);
-        let reference_selection: &'static #runtime::metadata::ReferenceSelection = #runtime::__private::v6::leak(#selection);
-        let reference: &'static #runtime::metadata::FieldReferenceMetadata = #runtime::__private::v6::leak(
+        let reference_target: &'static #runtime::metadata::DeclaredEntityTarget = #runtime::__private::v7::leak(#target);
+        let reference_selection: &'static #runtime::metadata::ReferenceSelection = #runtime::__private::v7::leak(#selection);
+        let reference: &'static #runtime::metadata::FieldReferenceMetadata = #runtime::__private::v7::leak(
             #runtime::metadata::FieldReferenceMetadata::new(reference_target, reference_selection, #existing, #same_as),
         );
     }
@@ -729,7 +730,7 @@ fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStre
 fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
     let expression = redact_expression(redact, position, runtime);
     quote! {
-        let redact: &'static #runtime::metadata::RedactMetadata = #runtime::__private::v6::leak(#expression);
+        let redact: &'static #runtime::metadata::RedactMetadata = #runtime::__private::v7::leak(#expression);
     }
 }
 
@@ -777,7 +778,7 @@ fn codec_reference_expression<T: ToTokens>(codec: &CodecIr, _value_type: &T, run
         }
         CodecIr::RustType(ty) => {
             quote!(#runtime::metadata::CodecReference::RustType(
-                #runtime::__private::v6::RustTypeReference::of::<#ty>(),
+                #runtime::__private::v7::RustTypeReference::of::<#ty>(),
             ))
         }
     }
@@ -809,7 +810,7 @@ fn expand_serde(value: &SerdeIr, runtime: &TokenStream) -> TokenStream {
         quote!(#runtime::metadata::SerdeBehaviorSource::None)
     };
     quote! {
-        let serde: &'static #runtime::metadata::SerdeFieldMetadata = #runtime::__private::v6::leak(
+        let serde: &'static #runtime::metadata::SerdeFieldMetadata = #runtime::__private::v7::leak(
             #runtime::metadata::SerdeFieldMetadata::new(#serialize_name, #deserialize_name, #skip_serializing, #skip_deserializing, #flatten, #with, #default)
                 .with_sources(#default_source, #omit_source),
         );
@@ -837,7 +838,7 @@ fn expand_object_path(steps: &[String], runtime: &TokenStream) -> TokenStream {
             quote!(#runtime::metadata::NavigationStep::Property(#step))
         }
     });
-    quote!(#runtime::metadata::ObjectPath::new(#runtime::__private::v6::leak_slice(::std::vec![#(#steps),*])).expect("validated object navigation"))
+    quote!(#runtime::metadata::ObjectPath::new(#runtime::__private::v7::leak_slice(::std::vec![#(#steps),*])).expect("validated object navigation"))
 }
 
 #[cfg(test)]

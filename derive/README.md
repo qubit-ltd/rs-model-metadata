@@ -24,7 +24,7 @@ workspace layout:
 [dependencies]
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
-qubit-id = "0.6"
+qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 Generated code resolves `qubit-model-metadata` with `proc-macro-crate`; a
@@ -58,18 +58,20 @@ impl User {
     pub fn set_email(&mut self, value: String) { self.email = value; }
 }
 
-let metadata = TypeMetadata::of::<User>();
-assert!(metadata.field("id").unwrap().is_identifier());
-assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
-let registry = ModelRegistry::try_global().expect("valid linked model graph");
-assert!(registry.metadata_for(metadata.descriptor()).unwrap().is_some());
+fn main() {
+    let metadata = TypeMetadata::of::<User>();
+    assert!(metadata.field("id").unwrap().is_identifier());
+    assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
+    let registry = ModelRegistry::try_global().expect("valid linked model graph");
+    assert!(registry.metadata_for(metadata.descriptor()).unwrap().is_some());
+}
 ```
 
 The role macro delegates Rust structure to `qubit-reflect`, then attaches one
 typed `TypeMetadata` capability to that same descriptor. The role defaults supply
 Rust behavior, with Debug, Display and Serialize delegated to rs-redact.
 
-Generated model code uses the hidden metadata-only ABI v6 facade. Concrete models and
+Generated model code uses the hidden metadata-only ABI v7 facade. Concrete models and
 generic definitions are both discovered through the unified frozen reflection
 snapshot; the model layer owns no separate inventory.
 
@@ -148,6 +150,9 @@ consumers and the resolved model graph.
 - Local API documentation: run `cargo doc --open`
 - [Final design](doc/rs-model-derive-final-design.md)
 - [中文 README](README.zh_CN.md)
+
+Run the commands below from the **repository workspace root** (`rs-model-metadata`),
+not its `derive` subdirectory. The CI, alignment, and coverage scripts live there.
 
 ## Testing
 

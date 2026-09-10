@@ -19,7 +19,7 @@
 [dependencies]
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
-qubit-id = "0.6"
+qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 生成代码会通过 `proc-macro-crate` 解析 `qubit-model-metadata` 的实际依赖名，因此支持重命名 runtime
@@ -51,17 +51,19 @@ impl User {
     pub fn set_email(&mut self, value: String) { self.email = value; }
 }
 
-let metadata = TypeMetadata::of::<User>();
-assert!(metadata.field("id").unwrap().is_identifier());
-assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
-let registry = ModelRegistry::try_global().expect("链接模型图有效");
-assert!(registry.metadata_for(metadata.descriptor()).unwrap().is_some());
+fn main() {
+    let metadata = TypeMetadata::of::<User>();
+    assert!(metadata.field("id").unwrap().is_identifier());
+    assert!(metadata.try_property("email").unwrap().unwrap().is_writable());
+    let registry = ModelRegistry::try_global().expect("链接模型图有效");
+    assert!(registry.metadata_for(metadata.descriptor()).unwrap().is_some());
+}
 ```
 
 角色宏会委托 `qubit-reflect` 生成 Rust 结构描述符，再将唯一的 `TypeMetadata` 类型化能力
 附加到同一个描述符上。角色默认生成常用 Rust 能力，并将 Debug、Display 与 Serialize 委托 rs-redact。
 
-生成的模型代码使用隐藏的 metadata-only ABI v6 facade。具体模型和泛型定义都通过统一的冻结反射快照发现；模型层不再维护独立 inventory。
+生成的模型代码使用隐藏的 metadata-only ABI v7 facade。具体模型和泛型定义都通过统一的冻结反射快照发现；模型层不再维护独立 inventory。
 
 `#[key_part(order = n)]` 描述具名 `Model` 或具名 `Value` 的逻辑复合键及字段顺序。逻辑键可以只选择
 部分字段，但已选择字段的 order 必须从零开始、连续且不重复。它不是 Entity identifier，因此不能用于
@@ -119,6 +121,9 @@ codec 执行属于独立的可选 adapter：启用 runtime 的 `codec` feature�
 - 本地 API 文档：在 crate 根目录运行 `cargo doc --open`
 - [最终设计](doc/rs-model-derive-final-design.zh_CN.md)
 - [English README](README.md)
+
+以下命令均在 **rs-model-metadata 仓库根目录**运行，不能直接在 `derive` 子目录复制执行；
+CI、格式化与覆盖率脚本位于仓库根目录。
 
 ## 测试
 

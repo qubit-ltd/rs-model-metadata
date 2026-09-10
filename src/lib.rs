@@ -8,6 +8,9 @@
 
 //! Static metadata overlays for Rust domain models.
 
+// Gives derives the same absolute path inside this crate and in its doctests.
+extern crate self as qubit_model_metadata;
+
 #[doc(hidden)]
 pub mod __private;
 mod abi_violation;

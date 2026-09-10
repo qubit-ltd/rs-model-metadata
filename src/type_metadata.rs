@@ -53,6 +53,27 @@ use crate::metadata::SelectorPosition;
 use crate::metadata::ValueMetadata;
 
 /// Domain semantics for one concrete reflected Rust type.
+///
+/// This immutable overlay borrows process-lifetime descriptors and
+/// declarations. Obtain generated metadata with [`Self::of`]; a stable model ID
+/// is optional and is distinct from the concrete Rust [`TypeId`]. Inspecting
+/// declarations does not execute their validation rules or inspect an instance.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+///
+/// #[Model(id = "example.Note")]
+/// struct Note { #[text(non_blank)] title: String }
+/// # fn main() {
+/// let metadata = TypeMetadata::of::<Note>();
+/// assert_eq!(metadata.model_id().expect("named model").as_str(), "example.Note");
+/// let title = metadata.field("title").expect("declared field");
+/// assert!(title.text_constraint().expect("text declaration").is_non_blank());
+/// # }
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct TypeMetadata {
     /// The reflection descriptor that owns this metadata overlay.
@@ -439,14 +460,23 @@ fn validate_fields(
         ));
     }
     for (index, (field, reflect)) in metadata.iter().zip(reflected).enumerate() {
-        if field.index() != index
-            || !core::ptr::eq(field.reflect().expect("concrete metadata field"), reflect)
-            || !core::ptr::eq(
-                field.reflect().expect("concrete metadata field").declaring_type(),
-                descriptor,
-            )
+        let Some(location) = field.location() else {
+            return Err(abi_violation(
+                code,
+                "concrete field metadata has no declaration identity",
+            ));
+        };
+        if location.owner() != descriptor.type_id()
+            || location.index() != index
+            || location.variant() != reflect.variant_index()
+            || field.index() != index
+            || !field.reflect().is_some_and(|actual| core::ptr::eq(actual, reflect))
+            || !core::ptr::eq(reflect.declaring_type(), descriptor)
         {
-            return Err(abi_violation(code, "field metadata is not in reflection source order"));
+            return Err(abi_violation(
+                code,
+                "field metadata identity differs from reflection source order",
+            ));
         }
         validate_field_semantics(field)?;
     }
@@ -466,7 +496,9 @@ fn validate_fields(
 
 /// Verifies mutually compatible field-level semantic declarations.
 fn validate_field_semantics(field: &FieldMetadata) -> Result<(), AbiViolation> {
-    let mut singleton_counts = [0_u8; 9];
+    // Every counter is bounded by the slice length, so usize cannot overflow
+    // even for malformed generated input containing more than 255 repeats.
+    let mut singleton_counts = [0_usize; 9];
     let mut constraints = Vec::new();
     let mut validators = Vec::new();
     for attribute in field.attributes() {
@@ -488,7 +520,6 @@ fn validate_field_semantics(field: &FieldMetadata) -> Result<(), AbiViolation> {
             }
             FieldAttributeMetadata::Opaque => singleton_counts[7] += 1,
             FieldAttributeMetadata::Indexed(_) => singleton_counts[8] += 1,
-            FieldAttributeMetadata::ValidateNested => {}
             FieldAttributeMetadata::Constraint(value) => constraints.push(*value),
             FieldAttributeMetadata::Validator(value) => validators.push(*value),
         }
@@ -703,10 +734,9 @@ fn validate_properties(
         }
         if let Some(field) = property.field() {
             if !contains_field(fields, field)
-                || !core::ptr::eq(
-                    field.reflect().expect("concrete property field").declaring_type(),
-                    descriptor,
-                )
+                || field
+                    .reflect()
+                    .is_none_or(|reflected| !core::ptr::eq(reflected.declaring_type(), descriptor))
             {
                 errors.push(PropertyBuildError::new(
                     PropertyBuildErrorKind::ForeignField,
@@ -784,12 +814,15 @@ fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) -> Result
             let mut serialized_names = HashSet::with_capacity(role.variants().len());
             let mut deserialized_names = HashSet::with_capacity(role.variants().len());
             for (index, (variant, reflect)) in role.variants().iter().zip(reflected).enumerate() {
+                let Some(actual) = variant.reflect() else {
+                    return Err(abi_violation(
+                        "QMM-ABI-012",
+                        "concrete enum metadata contains a definition-only variant",
+                    ));
+                };
                 if variant.index() != index
-                    || !core::ptr::eq(variant.reflect().expect("concrete enum variant"), reflect)
-                    || !core::ptr::eq(
-                        variant.reflect().expect("concrete enum variant").declaring_type(),
-                        descriptor,
-                    )
+                    || !core::ptr::eq(actual, reflect)
+                    || !core::ptr::eq(actual.declaring_type(), descriptor)
                 {
                     return Err(abi_violation(
                         "QMM-ABI-012",

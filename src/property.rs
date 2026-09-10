@@ -153,6 +153,10 @@ impl<'a> BorrowedPropertySlice<'a> {
 /// Distinguishes lifetime-preserving borrowed output from owned output.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GetterOutputKind {
+    /// The adapter returns an optional borrow of the contained value.
+    OptionalBorrowed,
+    /// The adapter returns a slice supporting borrowed element access.
+    BorrowedSlice,
     /// The output borrows from its target.
     Borrowed,
     /// The output owns its value.

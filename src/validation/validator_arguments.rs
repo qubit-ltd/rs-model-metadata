@@ -15,6 +15,11 @@ use crate::metadata::NamedValidationArgument;
 use crate::metadata::ValidationArgument;
 
 /// Converts declaration arguments to the validator runtime vocabulary.
+///
+/// Allocates a new ordered vector while preserving names, scalar values, and
+/// the borrowed string/list storage. Those borrowed values remain tied to the
+/// declarations' lifetime; the conversion does not clone their contents.
+#[must_use = "retain the converted validator arguments"]
 pub(crate) fn validator_arguments<'a>(
     arguments: &[NamedValidationArgument<'a>],
 ) -> Vec<RuntimeNamedValidationArgument<'a>> {

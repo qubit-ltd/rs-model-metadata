@@ -369,7 +369,7 @@ fn test_resolver_builds_scoped_unique_and_reference_queries() {
     })
     .resolve()
     .expect("valid generated model graph");
-    let entity = TypeMetadata::of::<Account>().as_entity().unwrap();
+    let entity = TypeMetadata::of::<Account>().type_id();
     let query = graph.query(entity).expect("entity query");
 
     let declarations = query.declarations();

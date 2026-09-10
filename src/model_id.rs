@@ -29,7 +29,10 @@ pub use self::model_id_error::ModelIdError;
 /// ```
 #[must_use]
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct ModelId(&'static str);
+pub struct ModelId(
+    /// Validated dot-separated identifier borrowed for the process lifetime.
+    &'static str,
+);
 
 impl ModelId {
     /// Creates a validated model ID from a static value.
@@ -126,8 +129,8 @@ impl Borrow<str> for ModelId {
     }
 }
 
-/// Validates a stable model-ID string without allocating.
-/// Validates every dot-separated segment of a model ID.
+/// Validates every dot-separated segment without allocating, returning the
+/// first empty-ID, empty-segment or invalid-ASCII-identifier error.
 const fn validate_model_id(value: &str) -> Result<(), ModelIdError> {
     let bytes = value.as_bytes();
     if bytes.is_empty() {
@@ -153,8 +156,8 @@ const fn validate_model_id(value: &str) -> Result<(), ModelIdError> {
     validate_segment(bytes, start, bytes.len())
 }
 
-/// Validates one ASCII Java-full-class-name-style segment.
-/// Validates one non-empty ASCII identifier segment.
+/// Checks the non-empty `start..end` range supplied by `validate_model_id`.
+/// Returns `InvalidSegment` unless it matches `[A-Za-z][A-Za-z0-9_]*`.
 const fn validate_segment(bytes: &[u8], start: usize, end: usize) -> Result<(), ModelIdError> {
     if !is_ascii_letter(bytes[start]) {
         return Err(ModelIdError::InvalidSegment);
@@ -170,7 +173,6 @@ const fn validate_segment(bytes: &[u8], start: usize, end: usize) -> Result<(), 
     Ok(())
 }
 
-/// Returns whether `byte` is an ASCII alphabetic character.
 /// Returns whether `byte` is an ASCII letter.
 const fn is_ascii_letter(byte: u8) -> bool {
     (byte >= b'a' && byte <= b'z') || (byte >= b'A' && byte <= b'Z')

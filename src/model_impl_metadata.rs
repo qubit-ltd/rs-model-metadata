@@ -10,6 +10,8 @@
 
 use std::any::TypeId;
 use std::collections::HashMap;
+use std::ptr::eq;
+use std::ptr::from_ref;
 use std::sync::Mutex;
 use std::sync::OnceLock;
 
@@ -24,6 +26,11 @@ use crate::metadata::TypeMetadata;
 use crate::reflect_facade::ModelImplProvider;
 
 /// Stores raw implementation fragments and their fallible local merge.
+///
+/// Fragments, assembled properties, and errors are immutable process-lifetime
+/// metadata. Copying this view copies only references. Snapshot-specific merged
+/// views retain their data permanently; dropping a registry does not release
+/// it.
 #[derive(Clone, Copy, Debug)]
 pub struct ModelImplMetadata {
     /// Field/getter/setter declarations in deterministic source order.
@@ -35,17 +42,35 @@ pub struct ModelImplMetadata {
 impl ModelImplMetadata {
     /// Merges exactly the providers visible in one immutable reflection
     /// snapshot.
+    ///
+    /// Invokes every provider before looking up the cache, including on cache
+    /// hits. Providers run outside the cache mutex. Results are cached by the
+    /// concrete owner and ordered identities of the returned static overlays;
+    /// distinct overlay sets do not share their assembled properties or errors.
+    /// Each new key retains its cache cell and merge result for the process.
+    /// Initialization of a given cell is synchronized and must not reenter the
+    /// same merge recursively.
+    ///
+    /// Coalesces repeated backing-field fragments and combines complementary
+    /// getters and setters. Reusing the exact same accessor descriptor is
+    /// allowed; distinct getter or setter descriptors for one property produce
+    /// an assembly error. Failed merges retain raw fragments for diagnosis and
+    /// remain isolated from other snapshot configurations.
+    ///
+    /// # Panics
+    ///
+    /// Propagates provider panics and panics if the cache mutex is poisoned.
     pub(crate) fn merge(owner: &TypeMetadata, providers: &[ModelImplProvider]) -> &'static Self {
+        /// Exact owner and ordered identities of the selected static overlays.
         type CacheKey = (TypeId, Vec<usize>);
+        /// Synchronized lookup of permanently retained per-configuration cells.
         type Cache = Mutex<HashMap<CacheKey, &'static OnceLock<ModelImplMetadata>>>;
+        /// Process-wide cache; provider execution occurs before locking it.
         static CACHE: OnceLock<Cache> = OnceLock::new();
         let overlays: Vec<_> = providers.iter().map(|provider| provider()).collect();
         let key = (
             owner.type_id(),
-            overlays
-                .iter()
-                .map(|value| std::ptr::from_ref(*value) as usize)
-                .collect(),
+            overlays.iter().map(|value| from_ref(*value) as usize).collect(),
         );
         let cell = {
             let mut cache = CACHE.get_or_init(Mutex::default).lock().expect("impl cache lock");
@@ -78,11 +103,11 @@ impl ModelImplMetadata {
                                 let duplicate_getter = current
                                     .getter()
                                     .zip(property.getter())
-                                    .is_some_and(|(left, right)| !std::ptr::eq(left, right));
+                                    .is_some_and(|(left, right)| !eq(left, right));
                                 let duplicate_setter = current
                                     .setter()
                                     .zip(property.setter())
-                                    .is_some_and(|(left, right)| !std::ptr::eq(left, right));
+                                    .is_some_and(|(left, right)| !eq(left, right));
                                 if duplicate_getter || duplicate_setter {
                                     errors.push(PropertyBuildError::new(
                                         PropertyBuildErrorKind::InvalidName,
@@ -123,7 +148,11 @@ impl ModelImplMetadata {
     }
 
     /// Creates generated implementation metadata.
+    ///
+    /// Retains the supplied static source facts and assembly result without
+    /// allocation, revalidation, or invoking any property adapters.
     #[must_use]
+    #[inline]
     pub(crate) const fn new(
         fragments: &'static [PropertyFragment],
         properties: Result<&'static LocalPropertySet, &'static PropertyBuildErrors>,
@@ -131,7 +160,9 @@ impl ModelImplMetadata {
         Self { fragments, properties }
     }
 
-    /// Returns every unmerged field/getter/setter source fact.
+    /// Returns ordered source facts retained for this implementation view.
+    /// Combined views coalesce repeated field fragments while retaining
+    /// accessor fragments from the selected overlays.
     #[must_use]
     #[inline(always)]
     pub const fn fragments(&self) -> &'static [PropertyFragment] {
@@ -142,9 +173,11 @@ impl ModelImplMetadata {
     ///
     /// # Errors
     ///
-    /// Returns errors when field, getter, or setter fragments with the same
-    /// name do not share a compatible value type.
+    /// Returns the retained assembly diagnostics for incompatible types,
+    /// conflicting accessors, or invalid field ownership. This accessor does
+    /// not rerun assembly or invoke providers.
     #[must_use = "handle property assembly failures"]
+    #[inline(always)]
     pub const fn try_properties(&self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
         self.properties
     }
