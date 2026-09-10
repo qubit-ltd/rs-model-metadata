@@ -74,10 +74,7 @@ impl<'reflection> ModelRegistry<'reflection> {
                         .capability_origin(descriptor, capability.id().as_str())
                         .expect("capability lookup already resolved the capability set")
                         .expect("effective capability retains its origin");
-                    return Err(ModelRegistryError::fact_only_capability(
-                        *capability.id(),
-                        origin,
-                    ));
+                    return Err(ModelRegistryError::fact_only_capability(*capability.id(), origin));
                 }
                 CapabilityLookup::AdapterTypeMismatch {
                     descriptor: capability,
