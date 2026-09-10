@@ -137,8 +137,8 @@ opaque 只截断内部遍历，不删除外层声明。
 
 先用 `ValidationCapabilities::check(root, &graph)` 检查访问能力，再把真实自定义注册表传给
 `ValidationPlan::build`。两者都保留声明来源；即使缺少规则注册项，错误中也有原始 ID。
-运行时指南提供[完整执行矩阵](../../doc/user_guide.zh_CN.md#执行范围与构建拒绝)、
-[可运行示例](../../doc/user_guide.zh_CN.md#从声明到验证报告)、报告上限与部分错误处理，
+运行时指南提供[完整执行矩阵](../../doc/user_guide.zh_CN.md#限制执行范围与构建拒绝)、
+[可运行示例](../../doc/user_guide.zh_CN.md#核心工作流从声明到验证报告)、报告上限与部分错误处理，
 并说明真实 `rs-platform` 的集成边界。不能为让某个后端接受模型而删除约束或添加 opaque。
 
 生成代码使用 checked `__private::v7`，runtime 与宏 crate 必须同步升级，不保留 v5/v6 兼容门面。

@@ -328,7 +328,7 @@ binder 对根、嵌套与 selector 共用实际 getter 形状检查。具名 tex
 要求实际长度适配器。owned 中间对象、缺少适配器的 Option/指针元素解包、selector 内约束或依赖、
 MapKey/MapValue、Decimal/Time/Map、类型擦除后的唯一性检查、含规则的 Enum/tuple/newtype 内部、
 容器元素模型内部工作都明确拒绝。reference 停在存储字段；opaque 截断内部但保留外层规则。
-unit Enum 与没有执行声明的 payload 可作普通值。对外完整边界见[执行矩阵](../../doc/user_guide.zh_CN.md#执行范围与构建拒绝)。
+unit Enum 与没有执行声明的 payload 可作普通值。对外完整边界见[执行矩阵](../../doc/user_guide.zh_CN.md#限制执行范围与构建拒绝)。
 
 `ValidationCapabilities::check` 不调用 getter 或绑定自定义 registry；成功只说明声明和访问形状受支持。
 build 继续绑定所有受支持项，按声明顺序聚合独立的能力/绑定错误。根不在图中返回 RootNotInGraph。

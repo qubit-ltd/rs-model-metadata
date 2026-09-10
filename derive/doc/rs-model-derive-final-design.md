@@ -181,7 +181,7 @@ or dependencies, MapKey/MapValue, Decimal/Time/Map constraints, erased uniquenes
 constrained enum/tuple/newtype interiors, and model work inside container elements
 are rejected. Reference traversal stops at the stored field; opaque traversal
 stops internally while retaining explicit outer rules. Unit enums and no-work
-payloads remain ordinary values. The [runtime support matrix](../../doc/user_guide.md#execution-support-and-explicit-refusal)
+payloads remain ordinary values. The [runtime support matrix](../../doc/user_guide.md#limitations-execution-support-and-explicit-refusal)
 is the user-facing version of these boundaries.
 
 `ValidationCapabilities::check` runs declaration and access checks without calling

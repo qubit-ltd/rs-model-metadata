@@ -20,8 +20,8 @@ released crates from crates.io:
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1.0", default-features = false }
-qubit-model-derive = "0.1.0"
+qubit-model-metadata = { version = "0.1", default-features = false }
+qubit-model-derive = "0.1"
 qubit-id = "0.6.0"
 ```
 
@@ -106,8 +106,8 @@ Validation plans collect each supported nested declaration and reject unsupporte
 execution shapes explicitly; a structurally valid enum or time declaration is not
 a promise of backend execution support. FailFast and report caps stop the whole
 plan, and infrastructure errors preserve a partial report. See the user guide's
-[support matrix](doc/user_guide.md#execution-support-and-explicit-refusal) and
-[API migration](doc/user_guide.md#field-identity-and-api-migration).
+[support matrix](doc/user_guide.md#limitations-execution-support-and-explicit-refusal) and
+[API migration](doc/user_guide.md#advanced-usage-field-identity-and-api-migration).
 
 ## Recoverable queries
 

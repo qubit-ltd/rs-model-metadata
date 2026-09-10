@@ -17,8 +17,8 @@
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1.0", default-features = false }
-qubit-model-derive = "0.1.0"
+qubit-model-metadata = { version = "0.1", default-features = false }
+qubit-model-derive = "0.1"
 qubit-id = "0.6.0"
 ```
 
@@ -84,8 +84,8 @@ metadata 在穿过隐藏的 metadata-only ABI v7 边界前，会校验 descripto
 
 验证计划会收集受支持的各处嵌套声明，并明确拒绝不支持的执行形状；Enum、Time 等声明结构合法，
 不代表后端能够执行。FailFast 和报告上限会停止整个计划，基础执行错误则保留部分报告。
-具体边界见用户指南的[执行矩阵](doc/user_guide.zh_CN.md#执行范围与构建拒绝)与
-[API 迁移说明](doc/user_guide.zh_CN.md#字段身份与-api-迁移)。
+具体边界见用户指南的[执行矩阵](doc/user_guide.zh_CN.md#限制执行范围与构建拒绝)与
+[API 迁移说明](doc/user_guide.zh_CN.md#进阶用法字段身份与-api-迁移)。
 
 ## 可恢复查询
 

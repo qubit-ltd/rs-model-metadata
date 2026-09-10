@@ -165,8 +165,8 @@ fields stop internal traversal without deleting outer declarations.
 Use `ValidationCapabilities::check(root, &graph)` to inspect access support,
 then `ValidationPlan::build` with the actual custom validator registry. Both
 retain source locations; a missing custom registration retains its original ID.
-See the runtime guide's [support matrix](../../doc/user_guide.md#execution-support-and-explicit-refusal)
-and [complete validation program](../../doc/user_guide.md#validate-a-profile-and-keep-partial-results)
+See the runtime guide's [support matrix](../../doc/user_guide.md#limitations-execution-support-and-explicit-refusal)
+and [complete validation program](../../doc/user_guide.md#core-workflow-validate-a-profile-and-keep-partial-results)
 for report limits, partial errors, and the real `rs-platform` integration boundary.
 Do not remove a model constraint or add `opaque` just to make a backend accept it.
 
