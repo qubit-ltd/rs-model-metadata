@@ -5,6 +5,8 @@
 
 //! AST-based specialization of property signatures, preserving method bodies.
 
+// qubit-style: allow type-file-name
+
 use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;

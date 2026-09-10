@@ -8,6 +8,8 @@
 
 //! Canonicalizes declaration semantics and validates cross-attribute rules.
 
+// qubit-style: allow type-file-name
+
 use std::collections::HashSet;
 
 use syn::DeriveInput;
