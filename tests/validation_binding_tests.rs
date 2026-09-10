@@ -174,6 +174,11 @@ fn parent_dependency_uses_explicit_context() {
         graph.dependencies()[0].context_requirement(),
         ContextRequirement::ParentObject
     );
+    let dependency = graph.dependencies()[0].declaration();
+    assert!(std::ptr::eq(
+        dependency,
+        &child.field("value").expect("dependent field").validators()[0].dependency_bindings()[0]
+    ));
     let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("registry");
     let plan = ValidationPlan::build_with_context(
         child,

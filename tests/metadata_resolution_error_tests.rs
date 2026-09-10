@@ -9,7 +9,7 @@
 //! Metadata and property lookup distinguish invalid capabilities from absence.
 
 use qubit_model_metadata::__private::model_metadata_key;
-use qubit_model_metadata::__private::v6;
+use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::metadata::FieldMetadata;
 use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::ModelMetadataError;
@@ -57,8 +57,8 @@ fn test_metadata_and_properties_preserve_intrinsic_conflicts() {
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
     let descriptor = TypeDescriptor::of::<Invalid<1>>();
     assert!(models.metadata_for(descriptor).is_err());
-    let metadata = v6::leak(
-        v6::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], v6::leak(v6::model_role())).finish::<Invalid<1>>(),
+    let metadata = v7::leak(
+        v7::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], v7::leak(v7::model_role())).finish::<Invalid<1>>(),
     );
     assert!(metadata.try_properties_in(&reflection).is_err());
     assert!(metadata.property_fragments_in(&reflection).is_err());
@@ -78,18 +78,24 @@ fn root_metadata() -> &'static TypeMetadata {
     static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
-        let fields = v6::leak_slice(descriptor.fields().iter().map(FieldMetadata::from_reflect).collect());
-        v6::GeneratedTypeMetadataBuilder::new(
+        let fields = v7::leak_slice(
+            descriptor
+                .fields()
+                .iter()
+                .map(|field| FieldMetadata::from_reflect(field.declaring_type().type_id(), field))
+                .collect(),
+        );
+        v7::GeneratedTypeMetadataBuilder::new(
             descriptor,
             Some(ModelId::new("error.Root")),
             fields,
-            v6::leak(v6::value_role(None, None)),
+            v7::leak(v7::value_role(None, None)),
         )
         .finish::<Root>()
     })
 }
 
-v6::register_model_capability!(Root, root_metadata);
+v7::register_model_capability!(Root, root_metadata);
 
 #[allow(
     clippy::extra_unused_type_parameters,

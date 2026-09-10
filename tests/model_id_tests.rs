@@ -12,6 +12,8 @@ use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::ModelIdBuf;
 use qubit_model_metadata::metadata::ModelIdError;
 
+mod model_id;
+
 const STATIC_MODEL_ID: ModelId = ModelId::new("qubit.platform.iam.User");
 const CONST_CHECKED: Result<ModelId, ModelIdError> = ModelId::try_new("Single_segment");
 
@@ -29,7 +31,24 @@ fn test_model_id_uses_one_shared_ascii_segment_grammar() {
         assert_eq!(borrowed.as_str(), owned.as_str());
     }
     assert_eq!(STATIC_MODEL_ID.type_name(), "User");
-    assert_eq!(CONST_CHECKED.expect("const validation").as_str(), "Single_segment");
+    let single = CONST_CHECKED.expect("const validation");
+    assert_eq!(single.as_str(), "Single_segment");
+    assert_eq!(single.type_name(), "Single_segment");
+}
+
+/// Static IDs can index a registry queried by an unallocated string slice.
+#[test]
+fn test_static_model_id_borrowed_registry_lookup() {
+    let entries = std::collections::HashMap::from([(STATIC_MODEL_ID, "user metadata")]);
+    assert_eq!(entries.get("qubit.platform.iam.User"), Some(&"user metadata"));
+    assert_eq!(entries.get("qubit.platform.iam.user"), None);
+}
+
+/// The infallible constructor rejects the same invalid grammar at runtime.
+#[test]
+#[should_panic(expected = "invalid model ID")]
+fn test_static_model_id_constructor_rejects_invalid_input() {
+    let _ = ModelId::new("invalid..Name");
 }
 
 #[test]

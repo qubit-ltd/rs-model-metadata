@@ -27,8 +27,9 @@ qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 `qubit-id` supplies the exact `Id` type required by `Entity` and `Projection`
-identifiers. Enable only the execution adapters an application uses: `codec`,
-`validation`, or `generic`. The default feature set is empty.
+identifiers. Enable `codec` or `validation` for the corresponding execution
+adapters, and `generic` for generic-definition metadata. The default feature
+set is empty.
 
 ## Quick Start
 
@@ -60,9 +61,10 @@ fn main() {
 ```
 
 The result is static metadata for `User`; `TypeMetadata::of` does not initialize
-the global model registry. Descriptor capability and property lookup use the
-frozen `ReflectRegistry` snapshot so separately emitted model overlays remain
-visible. See the user guide for the subsequent cross-crate resolution step.
+the global model registry. A `ModelRegistry` constructed from a frozen
+`ReflectRegistry` uses that snapshot in `metadata_for` and `properties_for`,
+so separately emitted model overlays remain visible. See the user guide for
+the subsequent cross-crate resolution step.
 
 ## Why This Project Exists
 
@@ -96,10 +98,17 @@ the reflection model.
 It does not replace `qubit-reflect`, and static metadata lookup does not
 implicitly register models or resolve cross-model relationships. Generated
 metadata is checked against descriptor, field, property, and role invariants
-before it crosses the hidden metadata-only ABI v6 boundary. Generated model
+before it crosses the hidden metadata-only ABI v7 boundary. Generated model
 code uses only the curated module facade and its exact private ABI.
 
 When a consumer needs an isolated reflection context, construct it with `RegistrySnapshotBuilder` from `qubit-reflect` and pass it to the explicit `*_in` queries. Do not use the old hidden testing registry helper. Global initialization failures remain structured: `ModelRegistry::try_global()` preserves the reflection registry error and its capability conflict as the source chain.
+
+Validation plans collect each supported nested declaration and reject unsupported
+execution shapes explicitly; a structurally valid enum or time declaration is not
+a promise of backend execution support. FailFast and report caps stop the whole
+plan, and infrastructure errors preserve a partial report. See the user guide's
+[support matrix](doc/user_guide.md#execution-support-and-explicit-refusal) and
+[API migration](doc/user_guide.md#field-identity-and-api-migration).
 
 ## Recoverable queries
 
@@ -137,6 +146,7 @@ to consumers. `reference.path` uses `/` and `..`; Property paths retain `.`.
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
 - [`qubit-model-derive` declaration guide](derive/doc/user_guide.md)
+- [Coverage measurement and reproducible tooling checks](doc/coverage_measurement.md)
 - The paired derive crate lives in this repository's [`derive/`](derive/) workspace member.
 - Local API documentation: run `cargo doc --open`
 - [中文版 README](README.zh_CN.md)

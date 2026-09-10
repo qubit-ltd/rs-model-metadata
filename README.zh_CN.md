@@ -24,7 +24,7 @@ qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 `qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。默认 feature 集为空；
-应用只需按实际执行能力启用 `codec`、`validation` 或 `generic`。
+按需启用 `codec` 或 `validation` 执行适配器，以及提供泛型定义元数据的 `generic`。
 
 ## 快速开始
 
@@ -53,9 +53,9 @@ fn main() {
 }
 ```
 
-得到的是 `User` 的静态元数据；`TypeMetadata::of` 不会初始化全局模型注册表。descriptor capability
-和 Property 查询会使用冻结的 `ReflectRegistry` 快照，以便看见独立生成的模型 overlay。跨 crate
-关系的解析流程请参阅用户指南。
+得到的是 `User` 的静态元数据；`TypeMetadata::of` 不会初始化全局模型注册表。从冻结的
+`ReflectRegistry` 构造 `ModelRegistry` 后，其 `metadata_for` 和 `properties_for` 查询会使用
+该快照，以便看见独立生成的模型 overlay。跨 crate 关系的解析流程请参阅用户指南。
 
 ## 为什么需要这个项目
 
@@ -78,10 +78,15 @@ fn main() {
 - 结构、codec 和 validation 错误分别由其所属层返回；resolver 不创建任何可执行绑定。
 
 本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的
-metadata 在穿过隐藏的 metadata-only ABI v6 边界前，会校验 descriptor、Field、Property 和角色
+metadata 在穿过隐藏的 metadata-only ABI v7 边界前，会校验 descriptor、Field、Property 和角色
 不变量；生成代码只依赖经过收窄的模块 facade 及其精确私有 ABI。
 
 需要隔离反射上下文时，应使用 `qubit-reflect` 的 `RegistrySnapshotBuilder` 构造快照，再传给显式的 `*_in` 查询；不要继续使用旧的隐藏 testing registry helper。全局初始化失败仍保持结构化错误：`ModelRegistry::try_global()` 的 source chain 会保留反射 registry 错误及其 capability conflict。
+
+验证计划会收集受支持的各处嵌套声明，并明确拒绝不支持的执行形状；Enum、Time 等声明结构合法，
+不代表后端能够执行。FailFast 和报告上限会停止整个计划，基础执行错误则保留部分报告。
+具体边界见用户指南的[执行矩阵](doc/user_guide.zh_CN.md#执行范围与构建拒绝)与
+[API 迁移说明](doc/user_guide.zh_CN.md#字段身份与-api-迁移)。
 
 ## 可恢复查询
 
@@ -113,6 +118,7 @@ metadata 在穿过隐藏的 metadata-only ABI v6 边界前，会校验 descripto
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
 - [`qubit-model-derive` 声明指南](derive/doc/user_guide.zh_CN.md)
+- [覆盖率测量与工具复现检查](doc/coverage_measurement.zh_CN.md)
 - 配套的 derive crate 位于本仓库的 [`derive/`](derive/) workspace member 中。
 - 本地 API 文档：运行 `cargo doc --open`
 - [English README](README.md)

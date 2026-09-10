@@ -13,8 +13,8 @@ use std::sync::OnceLock;
 
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
-use qubit_model_metadata::__private::v6;
-use qubit_model_metadata::__private::v6::register_model_capability;
+use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v7::register_model_capability;
 use qubit_model_metadata::metadata::ModelId;
 #[cfg(feature = "generic")]
 use qubit_model_metadata::metadata::ModelRole;
@@ -47,8 +47,8 @@ impl TypeMetadataProvider for ProjectedFixture {
     fn __type_metadata() -> &'static TypeMetadata {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
-            let role = v6::leak(v6::model_role());
-            v6::GeneratedTypeMetadataBuilder::new(
+            let role = v7::leak(v7::model_role());
+            v7::GeneratedTypeMetadataBuilder::new(
                 TypeDescriptor::of::<ProjectedFixture>(),
                 Some(ModelId::new("example.ProjectedFixture")),
                 &[],
@@ -62,9 +62,9 @@ impl TypeMetadataProvider for ProjectedFixture {
 register_model_capability!(ProjectedFixture, ProjectedFixture::__type_metadata);
 
 fn entry(id: &'static str, fingerprint: u64) -> (&'static TypeMetadata, &'static FragmentIdentity) {
-    let role = v6::leak(v6::model_role());
-    let metadata = v6::leak(
-        v6::GeneratedTypeMetadataBuilder::new(
+    let role = v7::leak(v7::model_role());
+    let metadata = v7::leak(
+        v7::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<RegistryFixture>(),
             Some(ModelId::new(id)),
             &[],
@@ -86,8 +86,8 @@ fn entry(id: &'static str, fingerprint: u64) -> (&'static TypeMetadata, &'static
 fn local_provenance_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        let role = v6::leak(v6::model_role());
-        v6::GeneratedTypeMetadataBuilder::new(
+        let role = v7::leak(v7::model_role());
+        v7::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<RegistryFixture>(),
             Some(ModelId::new("example.LocalProvenance")),
             &[],
@@ -101,7 +101,13 @@ fn local_provenance_metadata() -> &'static TypeMetadata {
 fn explicit_registry_borrows_non_static_provenance() {
     let source = FragmentIdentity::new("fixture", "tests", line!(), 1, "model", 991);
     let registry = ModelRegistry::from_metadata(&[(local_provenance_metadata(), &source)]).expect("valid registry");
-    assert_eq!(registry.entries()[0].source(), &source);
+    let entry = registry.entries()[0];
+    assert_eq!(entry.source(), &source);
+    assert_eq!(entry.model_id().as_str(), "example.LocalProvenance");
+    assert!(std::ptr::eq(
+        entry.metadata().expect("concrete entry"),
+        local_provenance_metadata()
+    ));
 }
 
 #[test]
@@ -131,6 +137,11 @@ fn test_registry_reports_duplicate_ids_with_both_sources() {
     assert_eq!(error.kind(), ModelRegistryErrorKind::DuplicateModelId);
     assert_eq!(error.model_id().map(|id| id.as_str()), Some("example.Duplicate"));
     assert_eq!(error.sources().len(), 2);
+    assert!(error.abi_cause().is_none());
+    assert!(error.capability_id().is_none());
+    assert!(error.expected_adapter_type().is_none());
+    assert!(error.actual_adapter_type().is_none());
+    assert_eq!(error.origins().len(), 2);
 }
 
 #[test]
@@ -138,7 +149,7 @@ fn test_registry_reports_duplicate_ids_with_both_sources() {
 fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
     let concrete = TypeDescriptor::of::<GenericFixture<u8>>();
     let definition = concrete.type_definition().expect("generic definition");
-    let generic = v6::leak(v6::generic_model_metadata(
+    let generic = v7::leak(v7::generic_model_metadata(
         ModelId::new("example.GenericFixture"),
         ModelRole::Model,
         definition,
@@ -161,6 +172,14 @@ fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
     ));
     assert!(registry.metadata("example.GenericFixture").is_none());
     assert_eq!(registry.generic_definitions().len(), 1);
+    assert!(std::ptr::eq(
+        registry
+            .generic_metadata_for(definition.id())
+            .expect("definition identity lookup"),
+        generic,
+    ));
+    let isolated = ModelRegistry::from_metadata_with_generics(&[], &[]).expect("empty isolated registry");
+    assert!(isolated.generic_metadata_for(definition.id()).is_none());
 }
 
 #[test]
@@ -195,6 +214,12 @@ fn test_registry_exposes_read_only_entries_with_sources() {
     assert_eq!(entry.model_id().as_str(), "example.RegistryEntry");
     assert!(std::ptr::eq(entry.metadata().expect("concrete metadata"), item.0));
     assert!(std::ptr::eq(entry.source(), item.1));
+    assert!(std::ptr::eq(
+        registry.source("example.RegistryEntry").expect("registry source"),
+        item.1,
+    ));
+    #[cfg(feature = "generic")]
+    assert!(registry.generic("example.RegistryEntry").is_none());
     #[cfg(feature = "generic")]
     assert!(entry.generic_metadata().is_none());
 }

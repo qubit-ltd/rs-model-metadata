@@ -10,6 +10,11 @@
 
 #![cfg(feature = "codec")]
 
+use std::any::TypeId;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::error::Error;
+
 use qubit_codec::ValueCodecDescriptor;
 use qubit_codec::ValueCodecId;
 use qubit_codec::ValueCodecRegistration;
@@ -22,8 +27,10 @@ use qubit_model_derive::Model;
 use qubit_model_derive::Value;
 use qubit_model_metadata::codec::CodecBindErrorKind;
 use qubit_model_metadata::codec::CodecBindInputs;
+use qubit_model_metadata::codec::CodecOccurrenceId;
 use qubit_model_metadata::codec::bind_codecs;
 use qubit_model_metadata::metadata::CodecSource;
+use qubit_model_metadata::metadata::SelectorPosition;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ModelGraph;
@@ -207,6 +214,10 @@ fn reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
     .unwrap_err();
     assert_eq!(mismatch.errors()[0].kind(), CodecBindErrorKind::ValueTypeMismatch);
     assert_eq!(mismatch.errors()[0].candidate_sources(), &[U64_REGISTRATION.source()]);
+    assert_eq!(mismatch.errors()[0].actual_type(), Some(TypeId::of::<u64>()));
+    assert_eq!(mismatch.errors()[0].declaration().declared_id(), Some("test.wrong"));
+    assert!(mismatch.errors()[0].to_string().contains("codec binding failed"));
+    assert_eq!(mismatch.to_string(), "1 codec binding error(s)");
     let ambiguous = bind_codecs(CodecBindInputs {
         graph: &rust_graph,
         codecs: &codecs,
@@ -214,6 +225,7 @@ fn reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
     .unwrap_err();
     assert_eq!(ambiguous.errors()[0].kind(), CodecBindErrorKind::Ambiguous);
     assert_eq!(ambiguous.errors()[0].candidate_sources().len(), 2);
+    assert_eq!(ambiguous.into_vec().len(), 1);
 }
 
 #[derive(Default)]
@@ -323,4 +335,133 @@ fn tuple_payload_codecs_have_distinct_occurrences() {
         .map(|binding| binding.occurrence().property())
         .collect();
     assert_eq!(paths, ["PAIR.0", "PAIR.1"]);
+}
+
+#[Model]
+struct CodecContainers {
+    #[element(codec(StringCodec))]
+    sequence: Vec<String>,
+    #[element(codec(StringCodec))]
+    optional: Option<Vec<String>>,
+    #[element(codec(StringCodec))]
+    // Exercise a smart-pointer layer outside the collection itself.
+    #[allow(clippy::box_collection)]
+    pointer: Box<Vec<String>>,
+    #[element(codec(StringCodec))]
+    set: BTreeSet<String>,
+    #[element(codec(StringCodec))]
+    array: [String; 2],
+    #[map_key(codec(StringCodec))]
+    #[map_value(codec(StringCodec))]
+    map: BTreeMap<String, String>,
+}
+
+/// Bind selector positions to executable codecs rather than just counting them.
+#[test]
+fn test_container_selector_bindings_preserve_identity_and_execute() {
+    let root = TypeMetadata::of::<CodecContainers>();
+    let roots = [root];
+    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("container graph");
+    let codecs = ValueCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let bindings = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("selector codecs");
+    assert_eq!(bindings.bindings().len(), 7);
+    for (field, selector) in [
+        ("sequence", SelectorPosition::Element),
+        ("optional", SelectorPosition::Element),
+        ("pointer", SelectorPosition::Element),
+        ("set", SelectorPosition::Element),
+        ("array", SelectorPosition::Element),
+        ("map", SelectorPosition::MapKey),
+        ("map", SelectorPosition::MapValue),
+    ] {
+        let id = CodecOccurrenceId::new(root, field, CodecSource::Selector(selector));
+        let binding = bindings.get(&id).expect("each distinct selector is indexed");
+        assert_eq!(binding.occurrence(), &id);
+        assert_eq!(id.model(), None, "anonymous identity does not fabricate a model ID");
+        assert_eq!(id.source(), CodecSource::Selector(selector));
+        assert_eq!(binding.registration().source(), STRING_REGISTRATION.source());
+        let descriptor = binding.descriptor();
+        let input = format!("{field} value");
+        let encoded = descriptor.encode(&input).expect("bound String encoder");
+        let decoded = descriptor.decode(&encoded).expect("bound String decoder");
+        assert_eq!(*decoded.downcast::<String>().expect("exact bound value type"), input);
+        assert!(id.to_string().ends_with(&format!("::{field}")));
+    }
+    assert!(
+        bindings
+            .get(&CodecOccurrenceId::new(root, "absent", CodecSource::Field))
+            .is_none()
+    );
+}
+
+/// Diagnostics retain the expected and registered types after collection moves.
+#[test]
+fn test_codec_errors_expose_recoverable_declaration_context() {
+    let source = source();
+    let models = ModelRegistry::from_metadata(&[
+        (TypeMetadata::of::<Missing>(), &source),
+        (TypeMetadata::of::<Mismatch>(), &source),
+        (TypeMetadata::of::<RustType>(), &source),
+    ])
+    .expect("diagnostic roots");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &[],
+    })
+    .resolve()
+    .expect("valid declarations");
+    let codecs =
+        ValueCodecRegistry::from_registrations([&STRING_ALIAS_REGISTRATION, &U64_REGISTRATION, &STRING_REGISTRATION])
+            .expect("independent codec IDs");
+    let errors = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect_err("three distinct failures");
+    assert_eq!(errors.to_string(), "3 codec binding error(s)");
+    assert!(errors.source().is_none());
+    let owned = errors.into_vec();
+    assert_eq!(owned.len(), 3);
+    for error in &owned {
+        assert_eq!(error.expected_type(), TypeId::of::<String>());
+        assert_eq!(error.occurrence().property(), "value");
+        assert_eq!(error.occurrence().source(), CodecSource::Field);
+        assert!(error.occurrence().model().is_some());
+        assert!(error.to_string().contains(&error.occurrence().to_string()));
+        assert!(error.source().is_none());
+        match error.kind() {
+            CodecBindErrorKind::Missing => {
+                assert_eq!(error.actual_type(), None);
+                assert_eq!(error.declaration().declared_id(), Some("test.missing"));
+            }
+            CodecBindErrorKind::ValueTypeMismatch => {
+                assert_eq!(error.actual_type(), Some(TypeId::of::<u64>()));
+                assert_eq!(error.declaration().declared_id(), Some("test.wrong"));
+            }
+            CodecBindErrorKind::Ambiguous => {
+                assert_eq!(error.actual_type(), None);
+                assert_eq!(
+                    error
+                        .declaration()
+                        .rust_type()
+                        .expect("Rust codec declaration")
+                        .type_id(),
+                    TypeId::of::<StringCodec>()
+                );
+                let candidates = error.candidate_sources();
+                assert_eq!(candidates.len(), 2);
+                assert!(candidates.windows(2).all(|pair| pair[0] <= pair[1]));
+            }
+        }
+    }
 }

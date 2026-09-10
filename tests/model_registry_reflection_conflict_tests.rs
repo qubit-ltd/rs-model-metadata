@@ -12,7 +12,7 @@ use std::error::Error as _;
 
 use qubit_model_metadata::__private::ModelImplProvider;
 use qubit_model_metadata::__private::model_impl_key;
-use qubit_model_metadata::__private::v6::register_model_impl_capability;
+use qubit_model_metadata::__private::v7::register_model_impl_capability;
 use qubit_model_metadata::metadata::ModelImplMetadata;
 use qubit_model_metadata::metadata::PropertyResolutionError;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -30,6 +30,13 @@ use qubit_reflect::registry::RegistrySnapshotBuilder;
 struct DuplicateReflectionSource;
 
 register_reflected_type!(DuplicateReflectionSource);
+
+/// The infallible convenience API preserves its documented panic boundary.
+#[test]
+#[should_panic(expected = "invalid global model registry:")]
+fn test_global_registry_panics_on_linked_registration_conflict() {
+    let _ = ModelRegistry::global();
+}
 
 #[test]
 fn test_duplicate_concrete_source_is_reported_by_reflection_registry() {
@@ -49,13 +56,13 @@ fn test_duplicate_concrete_source_is_reported_by_reflection_registry() {
 /// properties.
 #[test]
 fn test_property_lookup_preserves_reflection_initialization_failure() {
-    use qubit_model_metadata::__private::v6;
-    let metadata = v6::leak(
-        v6::GeneratedTypeMetadataBuilder::new(
+    use qubit_model_metadata::__private::v7;
+    let metadata = v7::leak(
+        v7::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
             None,
             &[],
-            v6::leak(v6::model_role()),
+            v7::leak(v7::model_role()),
         )
         .finish::<DuplicateReflectionSource>(),
     );
@@ -93,12 +100,12 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
 /// Supplies a method overlay distinguishable from the declaration's empty
 /// properties.
 fn overlay_provider() -> &'static ModelImplMetadata {
-    use qubit_model_metadata::__private::v6;
+    use qubit_model_metadata::__private::v7;
     static OVERLAY: std::sync::OnceLock<ModelImplMetadata> = std::sync::OnceLock::new();
     OVERLAY.get_or_init(|| {
-        let type_ref = v6::leak(TypeRef::Resolved(TypeDescriptor::of::<u32>()));
-        let properties = v6::leak_slice(vec![v6::property_metadata("computed", type_ref, None, None, None)]);
-        v6::model_impl_metadata(&[], Ok(v6::leak(v6::local_property_set(properties))))
+        let type_ref = v7::leak(TypeRef::Resolved(TypeDescriptor::of::<u32>()));
+        let properties = v7::leak_slice(vec![v7::property_metadata("computed", type_ref, None, None, None)]);
+        v7::model_impl_metadata(&[], Ok(v7::leak(v7::local_property_set(properties))))
     })
 }
 
@@ -108,7 +115,7 @@ register_model_impl_capability!(DuplicateReflectionSource, overlay_provider);
 /// fails.
 #[test]
 fn test_isolated_snapshot_selects_its_own_property_overlay() {
-    use qubit_model_metadata::__private::v6;
+    use qubit_model_metadata::__private::v7;
     let mut snapshot = RegistrySnapshotBuilder::new();
     snapshot.add_type_capabilities(
         TypeDescriptor::of::<DuplicateReflectionSource>(),
@@ -119,12 +126,12 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
         FragmentIdentity::new("model-test", "isolated", 1, 1, "capability", 1),
     );
     let reflection = snapshot.build().expect("isolated capability snapshot");
-    let metadata = v6::leak(
-        v6::GeneratedTypeMetadataBuilder::new(
+    let metadata = v7::leak(
+        v7::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
             None,
             &[],
-            v6::leak(v6::model_role()),
+            v7::leak(v7::model_role()),
         )
         .finish::<DuplicateReflectionSource>(),
     );

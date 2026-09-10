@@ -33,10 +33,14 @@ struct UnsupportedMapKey {
 
 #[test]
 fn capability_matrix_is_explicit() {
-    let capabilities = ValidationCapabilities;
-    assert!(capabilities.supports(SelectorPosition::Element));
-    assert!(!capabilities.supports(SelectorPosition::MapKey));
-    assert!(!capabilities.supports(SelectorPosition::MapValue));
+    let models = ModelRegistry::try_global().unwrap();
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
+        .resolve()
+        .unwrap();
+    let errors = ValidationCapabilities::check(TypeMetadata::of::<UnsupportedMapKey>(), &graph).unwrap_err();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(errors[0].selector(), Some(SelectorPosition::MapKey));
 }
 
 #[test]
@@ -63,7 +67,7 @@ fn unsupported_map_selector_retains_model_path_and_position() {
         panic!("map-key execution is unsupported")
     };
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedSelectorExecution);
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].model().unwrap().as_str(), "validation.UnsupportedMapKey");
     assert_eq!(errors[0].path(), Some("values"));
     assert_eq!(errors[0].selector(), Some(SelectorPosition::MapKey));

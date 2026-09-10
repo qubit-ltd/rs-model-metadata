@@ -1,0 +1,17 @@
+error[E0599]: no variant or associated item named `ValidateNested` found for enum `FieldAttributeMetadata` in the current scope
+  --> tests/ui/fail/removed_nested_validation_tests.rs:13:37
+   |
+13 |     let _ = FieldAttributeMetadata::ValidateNested;
+   |                                     ^^^^^^^^^^^^^^ variant or associated item not found in `FieldAttributeMetadata`
+
+error[E0599]: no method named `validate_nested` found for reference `&FieldMetadata` in the current scope
+  --> tests/ui/fail/removed_nested_validation_tests.rs:14:11
+   |
+14 |     field.validate_nested()
+   |           ^^^^^^^^^^^^^^^
+   |
+help: there is a method `validators` with a similar name
+   |
+14 -     field.validate_nested()
+14 +     field.validators()
+   |

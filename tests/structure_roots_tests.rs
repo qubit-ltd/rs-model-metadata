@@ -68,7 +68,7 @@ fn test_anonymous_root_validation_binds() {
     .resolve()
     .expect("root graph");
     let validators = ValidatorRegistry::empty();
-    ValidationPlan::build(
+    let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
             graph: &graph,
@@ -76,6 +76,7 @@ fn test_anonymous_root_validation_binds() {
         },
     )
     .expect("anonymous validation plan");
+    assert!(plan.root().model_id().is_none());
 }
 
 #[Model]
@@ -101,10 +102,7 @@ fn test_query_declarations_do_not_apply_product_filter_policy() {
         .resolve()
         .expect("indexed model is a valid declaration");
     let root = TypeMetadata::of::<Record>();
-    let declarations = graph
-        .query(root.as_entity().expect("entity"))
-        .expect("query declarations")
-        .declarations();
+    let declarations = graph.query(root.type_id()).expect("query declarations").declarations();
     let names: Vec<_> = declarations
         .iter()
         .map(|value| value.field().name().expect("named field"))
@@ -127,7 +125,7 @@ fn test_optional_sequence_reference_resolves() {
     let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
         .resolve()
         .expect("wrapped reference");
-    assert!(graph.reference(&root.fields()[0]).is_some());
+    assert!(graph.reference(root.fields()[0].location().unwrap()).is_some());
     assert!(
         root.fields()[0]
             .descriptor()
@@ -197,7 +195,11 @@ fn test_binding_path_navigates_entity_behind_saved_id() {
         .resolve()
         .expect("binding navigation follows Entity metadata");
     assert_eq!(
-        graph.reference(&root.fields()[1]).unwrap().target().type_id(),
+        graph
+            .reference(root.fields()[1].location().unwrap())
+            .unwrap()
+            .target()
+            .type_id(),
         TypeMetadata::of::<Nation>().type_id()
     );
 }

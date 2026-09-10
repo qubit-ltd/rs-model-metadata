@@ -19,10 +19,12 @@ use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::FieldPath;
 use qubit_model_metadata::validation::ModelRuleBinding;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_model_metadata::validation::ValidationSelection;
 use qubit_reflect::ReflectRegistry;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
@@ -176,6 +178,14 @@ fn executes_typed_model_rule_binding() {
     .resolve()
     .expect("structure");
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let binding =
+        ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.reject"), Arc::new(RejectModel));
+    let diagnostic = format!("{binding:?}");
+    assert!(diagnostic.contains("test.model.reject"));
+    assert!(
+        !diagnostic.contains("RejectModel"),
+        "debug output does not inspect the prepared implementation"
+    );
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -184,10 +194,7 @@ fn executes_typed_model_rule_binding() {
         },
     )
     .expect("binding")
-    .with_model_rule(ModelRuleBinding::from_prepared::<TestModel>(
-        ValidatorId::new("test.model.reject"),
-        Arc::new(RejectModel),
-    ));
+    .with_model_rule(binding);
     let report = plan
         .validate(
             ReflectedRef::new(&TestModel { name: "bad".to_owned() }),
@@ -196,6 +203,17 @@ fn executes_typed_model_rule_binding() {
         .expect("execution");
     assert_eq!(report.violations().len(), 2);
     assert_eq!(report.violations()[0].path().render(), "");
+    let empty: [&str; 0] = [];
+    for (path, expected) in [(FieldPath::from_segments(empty), ""), (FieldPath::new("name"), "name")] {
+        let options = ValidationOptions::builder()
+            .selection(ValidationSelection::Fields(vec![path]))
+            .build();
+        let selected = plan
+            .validate(ReflectedRef::new(&TestModel { name: "bad".to_owned() }), &options)
+            .expect("selected model or field rule");
+        assert_eq!(selected.violations().len(), 1);
+        assert_eq!(selected.violations()[0].path().render(), expected);
+    }
 }
 
 #[test]
@@ -228,7 +246,9 @@ fn executes_element_selector_for_borrowed_slice() {
         .expect("execution");
     assert_eq!(report.violations().len(), 2);
     assert_eq!(report.violations()[1].path().render(), "values[1]");
-    let comparison_limited = ValidationOptions::default().with_max_comparisons(NonZeroUsize::new(1).expect("non-zero"));
+    let comparison_limited = ValidationOptions::builder()
+        .max_comparisons(NonZeroUsize::new(1).expect("non-zero"))
+        .build();
     assert!(
         plan.validate(
             ReflectedRef::new(&SelectorFixture {
@@ -304,9 +324,13 @@ fn traversal_budgets_are_enforced_before_execution() {
     .expect("binding");
     let model = TestModel { name: "bad".to_owned() };
     let value = ReflectedRef::new(&model);
-    let depth = ValidationOptions::default().with_max_depth(NonZeroUsize::new(1).expect("non-zero"));
+    let depth = ValidationOptions::builder()
+        .max_depth(NonZeroUsize::new(1).expect("non-zero"))
+        .build();
     assert!(plan.validate(value.clone(), &depth).is_ok());
-    let nodes = ValidationOptions::default().with_max_nodes(NonZeroUsize::new(1).expect("non-zero"));
+    let nodes = ValidationOptions::builder()
+        .max_nodes(NonZeroUsize::new(1).expect("non-zero"))
+        .build();
     assert!(plan.validate(value, &nodes).is_err());
 }
 // =============================================================================

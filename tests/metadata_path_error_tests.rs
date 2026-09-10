@@ -8,7 +8,7 @@
 
 //! A failed property path must not suppress independent relationship failures.
 
-use qubit_model_metadata::__private::v6;
+use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::metadata::DeclaredEntityTarget;
 use qubit_model_metadata::metadata::FieldAttributeMetadata;
 use qubit_model_metadata::metadata::FieldMetadata;
@@ -56,42 +56,46 @@ fn metadata() -> &'static TypeMetadata {
     static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
-        let reference = v6::leak(FieldReferenceMetadata::new(
-            v6::leak(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))),
-            v6::leak(ReferenceSelection::Entity),
+        let reference = v7::leak(FieldReferenceMetadata::new(
+            v7::leak(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))),
+            v7::leak(ReferenceSelection::Entity),
             false,
-            Some(v6::leak(
+            Some(v7::leak(
                 ObjectPath::new(&[NavigationStep::Property("invalid"), NavigationStep::Property("value")]).unwrap(),
             )),
         ));
-        let fields = v6::leak_slice(vec![
-            FieldMetadata::from_reflect(descriptor.field_at(0).unwrap()),
-            v6::field_metadata(
+        let fields = v7::leak_slice(vec![
+            FieldMetadata::from_reflect(
+                (descriptor.field_at(0).unwrap()).declaring_type().type_id(),
+                descriptor.field_at(0).unwrap(),
+            ),
+            v7::field_metadata(
+                (descriptor.field_at(1).unwrap()).declaring_type().type_id(),
                 descriptor.field_at(1).unwrap(),
-                v6::leak_slice(vec![FieldAttributeMetadata::Reference(reference)]),
+                v7::leak_slice(vec![FieldAttributeMetadata::Reference(reference)]),
                 &[],
                 &[],
                 &SerdeFieldMetadata::DEFAULT,
             ),
         ]);
-        let properties = v6::leak_slice(
+        let properties = v7::leak_slice(
             fields
                 .iter()
-                .map(|field| v6::property_metadata(field.name().unwrap(), field.type_ref(), Some(field), None, None))
+                .map(|field| v7::property_metadata(field.name().unwrap(), field.type_ref(), Some(field), None, None))
                 .collect(),
         );
-        v6::GeneratedTypeMetadataBuilder::new(
+        v7::GeneratedTypeMetadataBuilder::new(
             descriptor,
             Some(ModelId::new("error.PathRoot")),
             fields,
-            v6::leak(v6::model_role()),
+            v7::leak(v7::model_role()),
         )
         .properties(properties)
         .finish::<Root>()
     })
 }
 
-v6::register_model_capability!(Root, metadata);
+v7::register_model_capability!(Root, metadata);
 
 #[test]
 fn test_path_conflict_and_missing_target_are_both_reported() {

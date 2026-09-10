@@ -20,8 +20,8 @@ use qubit_model_metadata::__private::codegen_v3::registration::FragmentPayload;
 use qubit_model_metadata::__private::codegen_v3::registration::RegistrationFragment;
 use qubit_model_metadata::__private::codegen_v3::registration::RuntimeIdentity;
 use qubit_model_metadata::__private::codegen_v3::registration::StaticFragmentIdentity;
-use qubit_model_metadata::__private::v6;
-use qubit_model_metadata::__private::v6::register_generic_model_capability;
+use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v7::register_generic_model_capability;
 use qubit_model_metadata::generic::GenericModelMetadata;
 use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::ModelRole;
@@ -52,7 +52,7 @@ enum SecondGeneric<T> {
 fn first_metadata() -> &'static GenericModelMetadata {
     static METADATA: OnceLock<GenericModelMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v6::generic_model_metadata(
+        v7::generic_model_metadata(
             ModelId::new("example.FirstGeneric"),
             ModelRole::Model,
             first_definition(),
@@ -66,7 +66,7 @@ fn first_metadata() -> &'static GenericModelMetadata {
 fn second_metadata() -> &'static GenericModelMetadata {
     static METADATA: OnceLock<GenericModelMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v6::generic_model_metadata(
+        v7::generic_model_metadata(
             ModelId::new("example.SecondGeneric"),
             ModelRole::Enum,
             second_definition(),
@@ -101,7 +101,7 @@ fn first_conflict_identity() -> RuntimeIdentity {
 fn first_conflict_payload() -> FragmentPayload {
     FragmentPayload::Capability(CapabilityRegistration::for_definition(
         first_definition(),
-        vec![v6::generic_model_capability(first_metadata)],
+        vec![v7::generic_model_capability(first_metadata)],
     ))
 }
 
@@ -122,7 +122,7 @@ fn second_conflict_identity() -> RuntimeIdentity {
 fn second_conflict_payload() -> FragmentPayload {
     FragmentPayload::Capability(CapabilityRegistration::for_definition(
         second_definition(),
-        vec![v6::generic_model_capability(second_metadata)],
+        vec![v7::generic_model_capability(second_metadata)],
     ))
 }
 
@@ -137,7 +137,7 @@ static SECOND_CONFLICT: RegistrationFragment = RegistrationFragment::new(
 /// Asserts that the model helper preserves reflection's canonical descriptor
 /// root for `T`.
 fn assert_reflected_root<T: Reflect + ?Sized>() {
-    let reference: &'static TypeRef = v6::reflected_type_ref::<T>();
+    let reference: &'static TypeRef = v7::reflected_type_ref::<T>();
     let resolved = reference.as_resolved().expect("the helper must return a resolved root");
     assert!(std::ptr::eq(resolved, TypeDescriptor::of::<T>()));
 }
@@ -155,7 +155,7 @@ fn find_generic_model_capability_fragment(
                 return false;
             };
             registry
-                .definition_capability(definition.id(), v6::generic_model_metadata_key())
+                .definition_capability(definition.id(), v7::generic_model_metadata_key())
                 .unwrap()
                 .is_some_and(|provider| std::ptr::eq(provider(), expected_metadata))
         })
@@ -193,7 +193,7 @@ fn test_generic_model_registration_preserves_definition_providers_and_sources() 
     ];
     for (definition, expected_metadata, model_id) in cases {
         let provider = reflection
-            .definition_capability(definition.id(), v6::generic_model_metadata_key())
+            .definition_capability(definition.id(), v7::generic_model_metadata_key())
             .unwrap()
             .expect("the definition must carry a generic model provider");
         assert!(std::ptr::eq(provider(), expected_metadata));
