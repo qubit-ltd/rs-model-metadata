@@ -39,25 +39,25 @@ generic = []
 validation = ["dep:qubit-validation-rules", "dep:qubit-validator"]
 
 [dependencies]
-qubit-redact = { version = "=0.8.0", path = "../../rust-common/rs-redact", features = ["derive", "serde", "json", "bigdecimal"] }
-bitflags = "2.10.0"
-bigdecimal = "0.4"
-chrono = { version = "0.4", features = ["std"], default-features = false }
+qubit-redact = { version = "=0.9.0", path = "../../rust-common/rs-redact", features = ["derive", "serde", "json", "bigdecimal"] }
+bitflags = "^2.10"
+bigdecimal = "^0.4"
+chrono = { version = "^0.4", features = ["std"], default-features = false }
 qubit-id = { version = "=0.6.0", path = "../../rust-common/rs-id", features = ["serde"] }
 qubit-reflect = { version = "=0.1.0", path = "../rs-reflect", default-features = false, features = ["derive", "ecosystem-types", "qubit-types"] }
 qubit-codec = { version = "0.14", features = ["registry"], optional = true }
 qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator", optional = true }
 qubit-validation-rules = { version = "=0.1.0", path = "../../rust-common/rs-validation-rules", features = ["inventory"], optional = true }
-serde = { version = "1", features = ["derive"] }
-thiserror = "2"
+serde = { version = "^1", features = ["derive"] }
+thiserror = "^2"
 
 [dev-dependencies]
-criterion = "0.5"
-serde_json = "1"
-qubit-datatype = { version = "=0.13.0", path = "../../rust-common/rs-datatype" }
+criterion = "^0.8"
+serde_json = "^1"
+qubit-datatype = { version = "=0.14.0", path = "../../rust-common/rs-datatype" }
 qubit-model-derive = { version = "=0.1.0", path = "derive" }
-trybuild = "1"
-uuid = "1"
+trybuild = "^1"
+uuid = "^1.26"
 qubit-codec = { version = "0.14", features = ["registry"] }
 
 [lints.rust]
