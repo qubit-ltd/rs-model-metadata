@@ -345,7 +345,11 @@ fn apply_enum_default_serde_wire_names(item: &mut DeriveInput, declaration: &Dec
             continue;
         }
         let rust_name = variant.ident.to_string();
-        let Some(variant_ir) = declaration.variants.iter().find(|candidate| candidate.rust_name == rust_name) else {
+        let Some(variant_ir) = declaration
+            .variants
+            .iter()
+            .find(|candidate| candidate.rust_name == rust_name)
+        else {
             continue;
         };
         let serialized = &variant_ir.serialized_name;

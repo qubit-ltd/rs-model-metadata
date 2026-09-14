@@ -235,7 +235,8 @@ enum WireNameFixture {
     Accepted,
 }
 
-/// Enum wire names default to canonical metadata names unless Serde overrides them.
+/// Enum wire names default to canonical metadata names unless Serde overrides
+/// them.
 #[test]
 fn test_enum_default_serde_wire_names_match_metadata() {
     assert_eq!(
