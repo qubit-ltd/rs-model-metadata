@@ -24,7 +24,7 @@ class CiWrapperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="model CI wrappers ") as directory:
             root = Path(directory)
             vendor = root / ".infra" / "tools" / "rs-ci"
-            vendor.mkdir()
+            vendor.mkdir(parents=True)
             shutil.copyfile(PROJECT_ROOT / wrapper, root / wrapper)
             helper = PROJECT_ROOT / "scripts" / "coverage-rustflags.sh"
             if helper.exists():
