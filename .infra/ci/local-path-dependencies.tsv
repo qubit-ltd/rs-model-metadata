@@ -1,0 +1,6 @@
+../../rust-common/rs-redact	https://github.com/qubit-ltd/rs-redact.git	main
+../../rust-common/rs-id	https://github.com/qubit-ltd/rs-id.git	main
+../../rust-common/rs-validator	https://github.com/qubit-ltd/rs-validator.git	main
+../../rust-common/rs-validation-rules	https://github.com/qubit-ltd/rs-validation-rules.git	main
+../../rust-common/rs-datatype	https://github.com/qubit-ltd/rs-datatype.git	main
+../rs-reflect	https://github.com/qubit-ltd/rs-reflect.git	main

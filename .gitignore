@@ -82,3 +82,12 @@ external/
 *.tar.gz
 *.rar
 *.7z
+# rs-infra generated tools and reports
+/.infra/tools/bin/
+/public/
+/coverage.json
+/lcov.info
+/coverage.txt
+/coverage-badge.json
+/coverage-summary.md
+/ci-summary.json

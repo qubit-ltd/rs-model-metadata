@@ -1,0 +1,106 @@
+format = 1
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/__private.rs"
+reason = "Generated code consumes this cohesive hidden ABI as one versioned surface"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/codec/binder.rs"
+reason = "Codec binding inputs, stable occurrence identities, and immutable results form one adapter contract"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/codec/error.rs"
+reason = "Codec binding error kind, payload, and collection form one diagnostic contract"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/registry/error.rs"
+reason = "Registry error kind and payload form one diagnostic contract"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/resolve/error.rs"
+reason = "Resolver causes, error kinds, payloads, and collection form one diagnostic contract"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/resolve/graph.rs"
+reason = "Resolved structural edges and their immutable graph queries form one graph contract"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/resolve/resolver.rs"
+reason = "Structure resolver inputs and executor form one construction contract"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/metadata_vocabulary.rs"
+reason = "Declaration attributes share one ordered metadata vocabulary"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/property.rs"
+reason = "Property values, adapters, metadata, and failures form one safe access contract"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/role.rs"
+reason = "Role tags and role-specific payloads form one closed metadata vocabulary"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "derive/src/expand/metadata.rs"
+reason = "The declaration intermediate representation is intentionally co-located so parsing, normalization, validation, and token generation share one private semantic vocabulary"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "derive/src/ir/declaration.rs"
+reason = "The declaration IR is one private semantic vocabulary shared by parsing, normalization, validation, and expansion"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "derive/src/ir/declaration/fields.rs"
+reason = "Field and enum-variant IR share one private declaration vocabulary"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "derive/src/ir/declaration/redact.rs"
+reason = "Redaction mode and options form one private declaration vocabulary"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "derive/src/ir/declaration/references.rs"
+reason = "Reference targets and uniqueness form one private declaration vocabulary"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "derive/src/ir/declaration/validation.rs"
+reason = "Selector and validator IR form one private declaration vocabulary"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "derive/src/ir/declaration/constraints.rs"
+reason = "Constraint variants and their payloads form one private declaration vocabulary"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/validation/compiled_property_path.rs"
+reason = "Property path steps and their compiled path form one private binding contract"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/validation/validation_options.rs"
+reason = "Validation modes, selections, paths, and options form one public execution-options contract"
+
+[[exceptions]]
+rule = "type-file-name"
+path = "src/resolve/tests.rs"
+reason = "The cfg(test) child module needs private path resolution and invalid assembly construction; its fixtures are not production types"
+
+[[exceptions]]
+rule = "multiple-public-types"
+path = "src/validation/standard_constraints.rs"
+reason = "Standard constraint target and bound validator form one private binding contract"
