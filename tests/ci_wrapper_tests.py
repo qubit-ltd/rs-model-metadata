@@ -2,7 +2,7 @@
 # Copyright (c) 2025 - 2026 Haixing Hu.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Project CI wrappers preserve caller flags and observable coverage mappings."""
+"""Project CI wrappers preserve caller flags and coverage mappings."""
 
 import json
 import os
@@ -18,32 +18,40 @@ WRAPPERS = ("ci-check.sh", "coverage.sh")
 
 
 class CiWrapperTests(unittest.TestCase):
-    """Exercise actual entry scripts against a recording vendor command."""
+    """Exercise the rs-infra wrappers against a recording tool runner."""
 
     def run_wrapper(self, wrapper, flags, arguments=(), exit_code=0):
         with tempfile.TemporaryDirectory(prefix="model CI wrappers ") as directory:
             root = Path(directory)
-            vendor = root / ".infra" / "tools" / "rs-ci"
-            vendor.mkdir(parents=True)
+            tools = root / ".infra" / "tools"
+            tools.mkdir(parents=True)
+            (root / "scripts").mkdir()
             shutil.copyfile(PROJECT_ROOT / wrapper, root / wrapper)
-            helper = PROJECT_ROOT / "scripts" / "coverage-rustflags.sh"
-            if helper.exists():
-                (root / "scripts").mkdir()
-                shutil.copyfile(helper, root / "scripts" / helper.name)
-            command = vendor / wrapper
-            command.write_text(
+            shutil.copyfile(
+                PROJECT_ROOT / "scripts" / "coverage-rustflags.sh",
+                root / "scripts" / "coverage-rustflags.sh",
+            )
+            (tools / "cleanup-build-artifacts.sh").write_text("#!/usr/bin/env bash\n")
+            prepare = tools / "prepare-local-path-dependencies.sh"
+            prepare.write_text("#!/usr/bin/env bash\n")
+            prepare.chmod(0o755)
+            runner = tools / "infra-tool.sh"
+            runner.write_text(
                 "#!/usr/bin/env python3\n"
                 "import json, os, sys\n"
                 "print(json.dumps({\n"
                 "  'arguments': sys.argv[1:],\n"
-                "  'root': os.environ['RS_CI_PROJECT_ROOT'],\n"
                 "  'rustflags': os.environ.get('RUSTFLAGS'),\n"
                 "  'encoded': os.environ.get('CARGO_ENCODED_RUSTFLAGS'),\n"
                 "}))\n"
                 "sys.exit(int(os.environ['FIXTURE_EXIT_CODE']))\n",
                 encoding="utf-8",
             )
-            command.chmod(0o755)
+            runner.chmod(0o755)
+            report = tools / "coverage-report.sh"
+            report.write_text("#!/usr/bin/env bash\necho report-complete\n")
+            report.chmod(0o755)
+
             environment = os.environ.copy()
             for name in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS"):
                 environment.pop(name, None)
@@ -58,9 +66,11 @@ class CiWrapperTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(result.returncode, exit_code, result.stderr)
-            data = json.loads(result.stdout)
-            self.assertEqual(data["root"], str(root))
-            self.assertEqual(data["arguments"], list(arguments))
+            data = json.loads(result.stdout.splitlines()[0])
+            expected_task = "rs-infra-ci" if wrapper == "ci-check.sh" else "rs-infra-coverage"
+            expected_args = [expected_task, "--project", str(root)]
+            expected_args += ([*arguments, "check"] if wrapper == "ci-check.sh" else ["collect", *arguments])
+            self.assertEqual(data["arguments"], expected_args)
             return data
 
     def test_default_flags_retain_coverage_mappings(self):
@@ -96,7 +106,7 @@ class CiWrapperTests(unittest.TestCase):
                 )
                 self.assertEqual(result["encoded"], "-C\x1flink-dead-code=yes")
 
-    def test_arguments_and_vendor_failure_are_forwarded(self):
+    def test_arguments_and_tool_failure_are_forwarded(self):
         for wrapper in WRAPPERS:
             with self.subTest(wrapper=wrapper):
                 self.run_wrapper(wrapper, {}, ("json", "path with spaces", "$(literal)"), exit_code=23)

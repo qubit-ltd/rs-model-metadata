@@ -1,9 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# The vendor CI runner invokes its own coverage script, so the parent must
-# supply the same code-generation policy as the standalone coverage entry.
-# shellcheck source=scripts/coverage-rustflags.sh
-source "$PROJECT_ROOT/scripts/coverage-rustflags.sh"
-exec env RS_CI_PROJECT_ROOT="$PROJECT_ROOT" "$PROJECT_ROOT/.infra/tools/rs-ci/ci-check.sh" "$@"
+project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# Preserve the project coverage code-generation contract.
+source "$project_root/scripts/coverage-rustflags.sh"
+source "$project_root/.infra/tools/cleanup-build-artifacts.sh"
+export RS_INFRA_STYLE_TOOLCHAIN="${RS_INFRA_STYLE_TOOLCHAIN:-nightly-2026-06-05}"
+if [ -f "$project_root/.infra/style/rustfmt.toml" ]; then
+    export RS_INFRA_STYLE_RUSTFMT_CONFIG="$project_root/.infra/style/rustfmt.toml"
+elif [ -f "$project_root/rustfmt.toml" ]; then
+    export RS_INFRA_STYLE_RUSTFMT_CONFIG="$project_root/rustfmt.toml"
+fi
+"$project_root/.infra/tools/prepare-local-path-dependencies.sh"
+"$project_root/.infra/tools/infra-tool.sh" rs-infra-ci --project "$project_root" "$@" check

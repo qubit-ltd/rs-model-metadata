@@ -1,13 +1,5 @@
-#!/bin/bash
-################################################################################
-#
-#    Copyright (c) 2025 - 2026 Haixing Hu.
-#
-#    SPDX-License-Identifier: Apache-2.0
-#
-################################################################################
-
+#!/usr/bin/env bash
 set -euo pipefail
-
-PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-exec "$PROJECT_ROOT/.infra/tools/rs-ci/update-submodule.sh" "$@"
+project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+echo "This project no longer has an rs-ci submodule; updating pinned rs-infra tools instead." >&2
+exec "$project_root/update-infra.sh" "$@"

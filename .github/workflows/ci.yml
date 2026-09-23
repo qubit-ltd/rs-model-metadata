@@ -3,8 +3,8 @@ name: Rust CI
 on:
   push:
     branches:
-      - dev
       - main
+      - dev
       - dev-starfish
   pull_request:
   workflow_dispatch:
@@ -15,17 +15,246 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   dependency-policy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-platform/rs-model-metadata
     steps:
-      - uses: actions/checkout@v4
-      - uses: qubit-ltd/rs-dependency-policy/.github/actions/check@39895c60b725068b7a72dc14d0ae18ee60c30e46
+      - uses: actions/checkout@v6
+        with:
+          path: rust-platform/rs-model-metadata
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-reflect
+          ref: main
+          path: rust-platform/rs-reflect
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-id
+          ref: main
+          path: rust-common/rs-id
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-datatype
+          ref: main
+          path: rust-common/rs-datatype
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-redact
+          ref: main
+          path: rust-common/rs-redact
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-validator
+          ref: main
+          path: rust-common/rs-validator
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-validation-rules
+          ref: main
+          path: rust-common/rs-validation-rules
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - run: ./.infra/tools/prepare-local-path-dependencies.sh
+      - run: ./dependency-update.sh --check
 
   rust-ci:
-    uses: qubit-ltd/rs-ci/.github/workflows/rust-ci.yml@main
-    with:
-      coverage_enforce_thresholds: "1"
-      run_windows_tests: true
-      run_macos_tests: true
-    secrets: inherit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-platform/rs-model-metadata
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: rust-platform/rs-model-metadata
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-reflect
+          ref: main
+          path: rust-platform/rs-reflect
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-id
+          ref: main
+          path: rust-common/rs-id
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-datatype
+          ref: main
+          path: rust-common/rs-datatype
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-redact
+          ref: main
+          path: rust-common/rs-redact
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-validator
+          ref: main
+          path: rust-common/rs-validator
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-validation-rules
+          ref: main
+          path: rust-common/rs-validation-rules
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - name: Install Rust toolchains
+        run: |
+          rustup toolchain install 1.94.0 --profile minimal
+          rustup toolchain install nightly-2026-06-05 --profile minimal --component rustfmt --component clippy
+      - run: ./style-check.sh
+      - name: Install coverage and audit tools
+        run: |
+          rustup component add llvm-tools-preview --toolchain 1.94.0
+          cargo install --locked cargo-llvm-cov --version 0.8.6
+          cargo install --locked cargo-audit
+      - run: RS_INFRA_ARTIFACT_CLEANUP=0 ./ci-check.sh
+      - run: ./.infra/tools/coverage-report.sh
+      - name: Comment coverage on pull request
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/github-script@v7
+        continue-on-error: true
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- rs-ci-coverage-report -->';
+            const body = `${marker}\n${fs.readFileSync('coverage-summary.md', 'utf8')}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const previous = comments.find((comment) => comment.user.type === 'Bot' && comment.body && comment.body.includes(marker));
+            if (previous) await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-reports
+          path: |
+            coverage.json
+            lcov.info
+            coverage.txt
+            coverage-badge.json
+            coverage-summary.md
+            target/llvm-cov/html
+            target/llvm-cov/cobertura.xml
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build project (release)
+        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
+        run: cargo +1.94.0 build --release --verbose
+      - name: Build Pages site
+        if: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        run: ./.infra/tools/infra-tool.sh rs-infra-pages --project "$PWD" build
+      - name: Configure GitHub Pages
+        if: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        uses: actions/configure-pages@v6
+      - name: Upload GitHub Pages artifact
+        if: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: public
+
+  deploy-pages:
+    if: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    needs: rust-ci
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  cross-platform-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            target: windows
+          - os: macos-15
+            target: macos
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: rust-platform/rs-model-metadata
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: rust-platform/rs-model-metadata
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-reflect
+          ref: main
+          path: rust-platform/rs-reflect
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-id
+          ref: main
+          path: rust-common/rs-id
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-datatype
+          ref: main
+          path: rust-common/rs-datatype
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-redact
+          ref: main
+          path: rust-common/rs-redact
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-validator
+          ref: main
+          path: rust-common/rs-validator
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-validation-rules
+          ref: main
+          path: rust-common/rs-validation-rules
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.94.0
+      - run: cargo test --all-features --verbose
+      - run: cargo clippy --all-targets --all-features -- -D warnings
