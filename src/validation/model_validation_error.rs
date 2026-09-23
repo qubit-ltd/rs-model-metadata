@@ -121,13 +121,11 @@ impl ModelValidationError {
     }
 
     /// Returns the original execution failure.
-    #[must_use]
     pub const fn error(&self) -> &ExecutionError {
         &self.error
     }
 
     /// Returns the report collected before the failure.
-    #[must_use]
     pub const fn partial_report(&self) -> &ValidationReport {
         &self.partial_report
     }
@@ -191,7 +189,6 @@ impl ModelValidationError {
     }
 
     /// Consumes the error and returns the original failure and partial report.
-    #[must_use]
     pub fn into_parts(self) -> (ExecutionError, ValidationReport) {
         (*self.error, *self.partial_report)
     }

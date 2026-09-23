@@ -85,7 +85,7 @@ pub(crate) fn bind(
     let mut bindings = Vec::new();
     let mut errors = Vec::new();
     visit_rules(constraint, |rule| match rule {
-        StandardRule::Executable { id, target, args } => match validators.bind(id.as_str(), input_type(target), args) {
+        StandardRule::Executable { id, target, args } => match validators.bind(id.as_str(), input_type(target), args, &[]) {
             Ok(validator) => bindings.push(StandardBinding { validator, target }),
             Err(error) => errors.push(error),
         },

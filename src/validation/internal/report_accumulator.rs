@@ -11,9 +11,9 @@
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
 use qubit_validator::PathSegment;
-use qubit_validator::RuleOutcome;
 use qubit_validator::SkipReason;
-use qubit_validator::SkippedValidation;
+use qubit_validator::ValidationLimits;
+use qubit_validator::ValidationOutcome;
 use qubit_validator::ValidationPath;
 use qubit_validator::ValidationReport;
 use qubit_validator::Violation;
@@ -29,6 +29,8 @@ pub(crate) struct ReportAccumulator<'options> {
     report: ValidationReport,
     /// Whether the caller's violation policy has stopped all subsequent work.
     stopped: bool,
+    /// Top-level and prerequisite violations accepted under the caller limit.
+    violation_count: usize,
 }
 
 impl<'options> ReportAccumulator<'options> {
@@ -36,8 +38,12 @@ impl<'options> ReportAccumulator<'options> {
     pub(crate) fn new(options: &'options ValidationOptions) -> Self {
         Self {
             options,
-            report: ValidationReport::new(),
+            report: ValidationReport::with_limits(ValidationLimits {
+                max_violations: Some(options.max_violations()),
+                max_skipped: None,
+            }),
             stopped: false,
+            violation_count: 0,
         }
     }
 
@@ -53,29 +59,45 @@ impl<'options> ReportAccumulator<'options> {
         &mut self,
         occurrence: usize,
         path: &ValidationPath,
-        outcome: RuleOutcome,
+        outcome: ValidationOutcome,
     ) -> Result<(), ExecutionError> {
         if self.stopped {
             return Ok(());
         }
-        match outcome {
-            RuleOutcome::Valid => {}
-            RuleOutcome::Invalid(violations) => {
+        let violation_count = match &outcome {
+            ValidationOutcome::Valid => 0,
+            ValidationOutcome::Invalid(violations) => {
                 if violations.is_empty() {
                     return Err(contract_error());
                 }
-                self.append(violations, path);
+                violations.len()
             }
-            RuleOutcome::Skipped { reason, prerequisites } => {
-                if reason == SkipReason::MissingOptional && !prerequisites.is_empty()
-                    || reason == SkipReason::FailedPrerequisite && prerequisites.is_empty()
+            ValidationOutcome::Skipped { reason, prerequisites } => {
+                if (*reason == SkipReason::MissingOptional && !prerequisites.is_empty())
+                    || (*reason == SkipReason::FailedPrerequisite && prerequisites.is_empty())
                 {
                     return Err(contract_error());
                 }
-                self.append(prerequisites, path);
-                self.report
-                    .record_skip(SkippedValidation::new(occurrence, path.clone(), reason));
+                prerequisites.len()
             }
+            _ => return Err(contract_error()),
+        };
+
+        let fail_fast = self.options.mode() == ValidationMode::FailFast && violation_count > 0;
+        let remaining = self.options.max_violations() - self.violation_count;
+        let accepted_limit = if fail_fast { 1 } else { remaining };
+        let truncated = violation_count > accepted_limit;
+        let outcome = prefix_and_limit_outcome(outcome, path, accepted_limit)?;
+        self.report
+            .record_outcome(occurrence, path.clone(), outcome)
+            .map_err(|_| contract_error())?;
+        self.violation_count += violation_count.min(accepted_limit);
+
+        if violation_count > 0
+            && (truncated || fail_fast || self.violation_count >= self.options.max_violations())
+        {
+            self.stopped = true;
+            self.report.mark_truncated();
         }
         Ok(())
     }
@@ -84,22 +106,40 @@ impl<'options> ReportAccumulator<'options> {
     pub(crate) fn into_report(self) -> ValidationReport {
         self.report
     }
+}
 
-    /// Appends violations up to the hard limit and marks global stopping
-    /// immediately.
-    fn append(&mut self, violations: Vec<Violation>, path: &ValidationPath) {
-        for violation in violations {
-            if self.stopped {
-                break;
+/// Prefixes nested violations and retains only the part allowed by execution
+/// policy before passing the result to the shared report type.
+fn prefix_and_limit_outcome(
+    outcome: ValidationOutcome,
+    path: &ValidationPath,
+    limit: usize,
+) -> Result<ValidationOutcome, ExecutionError> {
+    match outcome {
+        ValidationOutcome::Valid => Ok(ValidationOutcome::Valid),
+        ValidationOutcome::Invalid(violations) => {
+            let violations: Vec<_> = violations
+                .into_iter()
+                .take(limit)
+                .map(|violation| prefix_violation(violation, path))
+                .collect();
+            if violations.is_empty() {
+                return Err(contract_error());
             }
-            self.report.push(prefix_violation(violation, path));
-            if self.options.mode() == ValidationMode::FailFast
-                || self.report.violations().len() >= self.options.max_violations()
-            {
-                self.stopped = true;
-                self.report.mark_truncated();
-            }
+            Ok(ValidationOutcome::Invalid(violations))
         }
+        ValidationOutcome::Skipped { reason, prerequisites } => {
+            let prerequisites = prerequisites
+                .into_iter()
+                .take(limit)
+                .map(|violation| prefix_violation(violation, path))
+                .collect::<Vec<_>>();
+            if reason == SkipReason::FailedPrerequisite && prerequisites.is_empty() {
+                return Err(contract_error());
+            }
+            Ok(ValidationOutcome::Skipped { reason, prerequisites })
+        }
+        _ => Err(contract_error()),
     }
 }
 
@@ -118,6 +158,7 @@ fn prefix_violation(violation: Violation, prefix: &ValidationPath) -> Violation 
             PathSegment::MapEntry(index) => path.with_map_entry(*index),
             PathSegment::MapKey => path.with_map_key(),
             PathSegment::MapValue => path.with_map_value(),
+            _ => path,
         },
     );
     violation.with_path(path)

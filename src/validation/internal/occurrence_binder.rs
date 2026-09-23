@@ -163,7 +163,7 @@ pub(crate) fn bind(
                 .map(|standard| FieldRuleBinding {
                     context: occurrence.clone(),
                     occurrence: occurrence.ordinal,
-                    rule_id: standard.validator.rule_id().expect("bound rule ID"),
+                    rule_id: standard.validator.rule_id(),
                     value: value.clone(),
                     dependencies: Box::new([]),
                     validator: standard.validator,
@@ -192,8 +192,19 @@ pub(crate) fn bind(
                 value.input_type()
             };
             let params = validator_arguments(declaration.params());
+            let dependencies = validators
+                .get(declaration.declared_id())
+                .and_then(|registration| {
+                    registration
+                        .descriptor()
+                        .signatures()
+                        .iter()
+                        .find(|signature| signature.input() == input)
+                        .map(|signature| signature.dependencies())
+                })
+                .unwrap_or(&[]);
             let validator = validators
-                .bind(declaration.declared_id(), input, &params)
+                .bind(declaration.declared_id(), input, &params, dependencies)
                 .map_err(|error| vec![ValidationBuildError::at_occurrence(occurrence, error)])?;
             if occurrence.selector.is_some() && !validator.dependency_specs().is_empty() {
                 return Err(vec![ValidationBuildError::unsupported(occurrence)]);
@@ -208,7 +219,7 @@ pub(crate) fn bind(
             Ok(vec![FieldRuleBinding {
                 context: occurrence.clone(),
                 occurrence: occurrence.ordinal,
-                rule_id: validator.rule_id().expect("bound rule ID"),
+                rule_id: validator.rule_id(),
                 value,
                 dependencies,
                 validator,
@@ -237,7 +248,7 @@ fn bind_dependencies(
     } else {
         declared.len()
     };
-    let rule_id = validator.rule_id().expect("bound rule ID");
+    let rule_id = validator.rule_id();
     if specs.len() != count {
         return Err(vec![
             BindError::new(if specs.len() > count {

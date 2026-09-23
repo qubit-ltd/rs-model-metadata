@@ -14,10 +14,10 @@ use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
 use qubit_validator::PathSegment;
-use qubit_validator::RuleOutcome;
 use qubit_validator::SkipReason;
 use qubit_validator::ValidationPath;
 use qubit_validator::ValidationReport;
+use qubit_validator::ValidationOutcome;
 use qubit_validator::ValidationValue;
 use qubit_validator::Violation;
 use qubit_validator::ViolationCode;
@@ -87,7 +87,11 @@ impl<'a> ValidationPlan<'a> {
                 }
                 let context = BoundValidationContext::new_with_paths(&[], &[])?;
                 budget.invoke(0, false)?;
-                let outcome = binding.validator().validate(input, &context)?;
+                let outcome = binding
+                    .validator()
+                    .validate(input, &context)?
+                    .into_bound(binding.rule_id())
+                    .map_err(|_| ExecutionError::new(ExecutionErrorKind::AdapterContractViolation))?;
                 report.accept(occurrence, &path, outcome)
             })();
             if let Err(error) = result {
@@ -148,12 +152,12 @@ fn execute_field<'value>(
             return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
         }
         let outcome = if binding.on_none() == OnNone::Reject {
-            RuleOutcome::Invalid(vec![Violation::new(
+            ValidationOutcome::Invalid(vec![Violation::new(
                 binding.rule_id(),
                 ViolationCode::new("value.required"),
             )])
         } else {
-            RuleOutcome::Skipped {
+            ValidationOutcome::Skipped {
                 reason: SkipReason::MissingOptional,
                 prerequisites: Vec::new(),
             }
@@ -245,6 +249,7 @@ fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionErro
                 PathSegment::MapEntry(index) => path.with_map_entry(*index),
                 PathSegment::MapKey => path.with_map_key(),
                 PathSegment::MapValue => path.with_map_value(),
+                _ => path,
             });
     error.with_path(path)
 }
