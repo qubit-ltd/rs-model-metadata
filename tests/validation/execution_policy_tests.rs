@@ -34,9 +34,9 @@ use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
 use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
+use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
-use qubit_validator::RuleOutcome;
 use qubit_validator::SkipReason;
 use qubit_validator::ValidationReport;
 use qubit_validator::ValidationValue;
@@ -47,6 +47,7 @@ use qubit_validator::ValidatorRegistry;
 use qubit_validator::ValidatorSignature;
 use qubit_validator::Violation;
 use qubit_validator::ViolationCode;
+use qubit_validator::ViolationDraft;
 
 thread_local! {
     static GETTER_CALLS: Cell<usize> = const { Cell::new(0) };
@@ -69,17 +70,22 @@ struct Many {
     prerequisite: bool,
 }
 impl PreparedValidator for Many {
-    fn validate(&self, _: ValidationValue<'_>, _: &BoundValidationContext<'_>) -> Result<RuleOutcome, ExecutionError> {
+    fn validate(
+        &self,
+        _: ValidationValue<'_>,
+        _: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
         let violations = (0..3)
             .map(|_| Violation::new(ValidatorId::new("execution.many"), ViolationCode::new("bad")))
             .collect();
+        let drafts = (0..3).map(|_| ViolationDraft::new(ViolationCode::new("bad"))).collect();
         Ok(if self.prerequisite {
-            RuleOutcome::Skipped {
+            PreparedOutcome::Skipped {
                 reason: SkipReason::FailedPrerequisite,
                 prerequisites: violations,
             }
         } else {
-            RuleOutcome::Invalid(violations)
+            PreparedOutcome::Invalid(drafts)
         })
     }
 }
@@ -107,7 +113,13 @@ fn assert_stopped(prerequisite: bool, options: ValidationOptions, expected: usiz
     let report = plan
         .validate(ReflectedRef::new(&Root { value: String::new() }), &options)
         .unwrap();
-    assert_eq!(report.violations().len(), expected, "report must obey the hard limit");
+    if prerequisite {
+        assert!(report.violations().is_empty());
+        assert_eq!(report.skipped().len(), 1);
+        assert_eq!(report.skipped()[0].prerequisites().len(), expected);
+    } else {
+        assert_eq!(report.violations().len(), expected, "report must obey the hard limit");
+    }
     assert_eq!(
         GETTER_CALLS.with(Cell::get),
         0,
@@ -151,9 +163,13 @@ struct InvalidSkip {
     missing: bool,
 }
 impl PreparedValidator for InvalidSkip {
-    fn validate(&self, _: ValidationValue<'_>, _: &BoundValidationContext<'_>) -> Result<RuleOutcome, ExecutionError> {
+    fn validate(
+        &self,
+        _: ValidationValue<'_>,
+        _: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
         Ok(if self.missing {
-            RuleOutcome::Skipped {
+            PreparedOutcome::Skipped {
                 reason: SkipReason::MissingOptional,
                 prerequisites: vec![Violation::new(
                     ValidatorId::new("execution.skip"),
@@ -161,7 +177,7 @@ impl PreparedValidator for InvalidSkip {
                 )],
             }
         } else {
-            RuleOutcome::Skipped {
+            PreparedOutcome::Skipped {
                 reason: SkipReason::FailedPrerequisite,
                 prerequisites: vec![],
             }
@@ -282,37 +298,37 @@ impl PreparedValidator for OutcomeRule {
         &self,
         value: ValidationValue<'_>,
         _: &BoundValidationContext<'_>,
-    ) -> Result<RuleOutcome, ExecutionError> {
+    ) -> Result<PreparedOutcome, ExecutionError> {
         RULE_CALLS.with(|calls| calls.set(calls.get() + 1));
         let violations = || {
             (0..3)
                 .map(|_| Violation::new(ValidatorId::new("execution.rule"), ViolationCode::new("bad")))
                 .collect()
         };
+        let drafts = || (0..3).map(|_| ViolationDraft::new(ViolationCode::new("bad"))).collect();
         Ok(match value.as_text().unwrap() {
-            "invalid" => RuleOutcome::Invalid(violations()),
-            "prerequisite" => RuleOutcome::Skipped {
+            "invalid" => PreparedOutcome::Invalid(drafts()),
+            "prerequisite" => PreparedOutcome::Skipped {
                 reason: SkipReason::FailedPrerequisite,
                 prerequisites: violations(),
             },
-            "missing" => RuleOutcome::Skipped {
+            "missing" => PreparedOutcome::Skipped {
                 reason: SkipReason::MissingOptional,
                 prerequisites: vec![],
             },
-            "empty-invalid" => RuleOutcome::Invalid(vec![]),
-            "empty-prerequisite" => RuleOutcome::Skipped {
+            "empty-invalid" => PreparedOutcome::Invalid(vec![]),
+            "empty-prerequisite" => PreparedOutcome::Skipped {
                 reason: SkipReason::FailedPrerequisite,
                 prerequisites: vec![],
             },
-            "bad-missing" => RuleOutcome::Skipped {
+            "bad-missing" => PreparedOutcome::Skipped {
                 reason: SkipReason::MissingOptional,
                 prerequisites: violations(),
             },
             "error" => {
-                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                    .with_source(std::io::Error::other("original validator cause")));
+                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
             }
-            _ => RuleOutcome::Valid,
+            _ => PreparedOutcome::Valid,
         })
     }
 }
@@ -373,7 +389,12 @@ fn test_fields_and_selectors_stop_globally_for_every_violation_branch() {
                     .max_violations(NonZeroUsize::new(limit).unwrap())
                     .build();
                 let report = run(root, value.clone(), &options).unwrap();
-                assert_eq!(report.violations().len(), limit);
+                if outcome == "invalid" {
+                    assert_eq!(report.violations().len(), limit);
+                } else {
+                    assert_eq!(report.skipped().len(), 1);
+                    assert_eq!(report.skipped()[0].prerequisites().len(), limit);
+                }
                 assert!(report.is_truncated());
                 assert_eq!(GETTER_CALLS.with(Cell::get), 1);
                 assert_eq!(RULE_CALLS.with(Cell::get), 1);
@@ -384,7 +405,12 @@ fn test_fields_and_selectors_stop_globally_for_every_violation_branch() {
                 &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
             )
             .unwrap();
-            assert_eq!(report.violations().len(), 1);
+            if outcome == "invalid" {
+                assert_eq!(report.violations().len(), 1);
+            } else {
+                assert_eq!(report.skipped().len(), 1);
+                assert_eq!(report.skipped()[0].prerequisites().len(), 1);
+            }
             assert_eq!(RULE_CALLS.with(Cell::get), 1);
             assert_eq!(GETTER_CALLS.with(Cell::get), 1);
         }
@@ -437,7 +463,7 @@ fn test_legal_skip_does_not_trigger_fail_fast_and_occurrences_are_unique() {
 }
 
 #[test]
-fn test_execution_error_retains_partial_report_occurrence_and_original_source() {
+fn test_execution_error_retains_partial_report_occurrence_without_source() {
     let value = Fields {
         first: "invalid".into(),
         second: "error".into(),
@@ -458,15 +484,7 @@ fn test_execution_error_retains_partial_report_occurrence_and_original_source() 
     assert_eq!(error.error().path().render(), "second");
     assert!(!format!("{error}").is_empty());
     assert!(format!("{error:?}").contains("ModelValidationError"));
-    assert!(
-        error
-            .source()
-            .unwrap()
-            .source()
-            .unwrap()
-            .downcast_ref::<std::io::Error>()
-            .is_some()
-    );
+    assert!(error.source().unwrap().source().is_none());
     let (execution_error, partial_report) = error.into_parts();
     assert_eq!(execution_error.path().render(), "second");
     assert_eq!(partial_report.violations().len(), 3);
@@ -574,8 +592,12 @@ impl OptionalField {
 }
 struct Skip;
 impl PreparedValidator for Skip {
-    fn validate(&self, _: ValidationValue<'_>, _: &BoundValidationContext<'_>) -> Result<RuleOutcome, ExecutionError> {
-        Ok(RuleOutcome::Skipped {
+    fn validate(
+        &self,
+        _: ValidationValue<'_>,
+        _: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
+        Ok(PreparedOutcome::Skipped {
             reason: SkipReason::MissingOptional,
             prerequisites: vec![],
         })
@@ -650,9 +672,9 @@ impl PreparedValidator for ParentRule {
         &self,
         _: ValidationValue<'_>,
         context: &BoundValidationContext<'_>,
-    ) -> Result<RuleOutcome, ExecutionError> {
+    ) -> Result<PreparedOutcome, ExecutionError> {
         assert_eq!(context.value(0)?.as_text(), Some("parent"));
-        Ok(RuleOutcome::Valid)
+        Ok(PreparedOutcome::Valid)
     }
 }
 fn prepare_parent(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {

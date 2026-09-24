@@ -33,17 +33,17 @@ use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
+use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
-use qubit_validator::RuleOutcome;
 use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorDescriptor;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
 use qubit_validator::ValidatorRegistry;
 use qubit_validator::ValidatorSignature;
-use qubit_validator::Violation;
 use qubit_validator::ViolationCode;
+use qubit_validator::ViolationDraft;
 
 #[Model(id = "validation.TestModel")]
 struct TestModel {
@@ -89,12 +89,11 @@ impl PreparedValidator for Reject {
         &self,
         value: ValidationValue<'_>,
         _: &BoundValidationContext<'_>,
-    ) -> Result<RuleOutcome, ExecutionError> {
+    ) -> Result<PreparedOutcome, ExecutionError> {
         assert!(value.as_text().is_some());
-        Ok(RuleOutcome::Invalid(vec![Violation::new(
-            ValidatorId::new("test.reject"),
-            ViolationCode::new("value.invalid"),
-        )]))
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+            "value.invalid",
+        ))]))
     }
 }
 fn prepare(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
@@ -107,12 +106,11 @@ impl PreparedValidator for RejectModel {
         &self,
         value: ValidationValue<'_>,
         _: &BoundValidationContext<'_>,
-    ) -> Result<RuleOutcome, ExecutionError> {
+    ) -> Result<PreparedOutcome, ExecutionError> {
         assert!(value.typed::<TestModel>().is_some());
-        Ok(RuleOutcome::Invalid(vec![Violation::new(
-            ValidatorId::new("test.model.reject"),
-            ViolationCode::new("model.invalid"),
-        )]))
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+            "model.invalid",
+        ))]))
     }
 }
 static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare)];

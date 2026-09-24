@@ -24,9 +24,9 @@ use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
+use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
-use qubit_validator::RuleOutcome;
 use qubit_validator::ValidationArgument;
 use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorDescriptor;
@@ -34,8 +34,8 @@ use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
 use qubit_validator::ValidatorRegistry;
 use qubit_validator::ValidatorSignature;
-use qubit_validator::Violation;
 use qubit_validator::ViolationCode;
+use qubit_validator::ViolationDraft;
 
 #[Model]
 struct ConfiguredToken {
@@ -63,14 +63,13 @@ impl PreparedValidator for AllowToken {
         &self,
         value: ValidationValue<'_>,
         _: &BoundValidationContext<'_>,
-    ) -> Result<RuleOutcome, ExecutionError> {
+    ) -> Result<PreparedOutcome, ExecutionError> {
         if value.as_text() == Some(self.0.as_str()) {
-            Ok(RuleOutcome::Valid)
+            Ok(PreparedOutcome::Valid)
         } else {
-            Ok(RuleOutcome::Invalid(vec![Violation::new(
-                ValidatorId::new("arguments.allow_token"),
-                ViolationCode::new("unexpected_token"),
-            )]))
+            Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+                "unexpected_token",
+            ))]))
         }
     }
 }

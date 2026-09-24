@@ -30,9 +30,9 @@ use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
+use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
-use qubit_validator::RuleOutcome;
 use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorDescriptor;
 use qubit_validator::ValidatorId;
@@ -59,9 +59,9 @@ impl PreparedValidator for AcceptText {
         &self,
         value: ValidationValue<'_>,
         _context: &BoundValidationContext<'_>,
-    ) -> Result<RuleOutcome, ExecutionError> {
+    ) -> Result<PreparedOutcome, ExecutionError> {
         assert!(value.as_text().is_some());
-        Ok(RuleOutcome::Valid)
+        Ok(PreparedOutcome::Valid)
     }
 }
 
@@ -134,9 +134,9 @@ impl PreparedValidator for CheckParent {
         &self,
         _: ValidationValue<'_>,
         context: &BoundValidationContext<'_>,
-    ) -> Result<RuleOutcome, ExecutionError> {
+    ) -> Result<PreparedOutcome, ExecutionError> {
         assert_eq!(context.value(0)?.as_text(), Some("parent"));
-        Ok(RuleOutcome::Valid)
+        Ok(PreparedOutcome::Valid)
     }
 }
 
@@ -207,11 +207,14 @@ fn parent_dependency_uses_explicit_context() {
     let options = ValidationOptions::default();
     assert!(plan.validate(ReflectedRef::new(&value), &options).is_err());
     assert!(deferred.validate(ReflectedRef::new(&value), &options).is_err());
-    deferred
+    let deferred_report = deferred
         .validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&parent_value)], &options)
         .expect("deferred parent execution");
-    plan.validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&parent_value)], &options)
+    assert!(deferred_report.is_valid());
+    let plan_report = plan
+        .validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&parent_value)], &options)
         .expect("parent execution");
+    assert!(plan_report.is_valid());
 }
 // =============================================================================
 //    Copyright (c) 2025 - 2026 Haixing Hu.
@@ -231,9 +234,13 @@ static EXECUTION_ORDER: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::
 struct RecordOrder(u32);
 
 impl PreparedValidator for RecordOrder {
-    fn validate(&self, _: ValidationValue<'_>, _: &BoundValidationContext<'_>) -> Result<RuleOutcome, ExecutionError> {
+    fn validate(
+        &self,
+        _: ValidationValue<'_>,
+        _: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
         EXECUTION_ORDER.lock().expect("execution log").push(self.0);
-        Ok(RuleOutcome::Valid)
+        Ok(PreparedOutcome::Valid)
     }
 }
 
@@ -274,12 +281,14 @@ fn repeated_validator_ids_execute_every_occurrence() {
     .expect("binding");
     assert_eq!(plan.binding_count(), 2);
     EXECUTION_ORDER.lock().expect("execution log").clear();
-    plan.validate(
-        ReflectedRef::new(&RepeatedRules {
-            value: "text".to_owned(),
-        }),
-        &ValidationOptions::default(),
-    )
-    .expect("execution");
+    let report = plan
+        .validate(
+            ReflectedRef::new(&RepeatedRules {
+                value: "text".to_owned(),
+            }),
+            &ValidationOptions::default(),
+        )
+        .expect("execution");
+    assert!(report.is_valid());
     assert_eq!(*EXECUTION_ORDER.lock().expect("execution log"), [1, 2]);
 }

@@ -28,7 +28,7 @@ use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
-use qubit_validator::RuleOutcome;
+use qubit_validator::PreparedOutcome;
 use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorDescriptor;
 use qubit_validator::ValidatorId;
@@ -81,9 +81,9 @@ impl PreparedValidator for TextRule {
         &self,
         value: ValidationValue<'_>,
         _: &BoundValidationContext<'_>,
-    ) -> Result<RuleOutcome, ExecutionError> {
+    ) -> Result<PreparedOutcome, ExecutionError> {
         assert_eq!(value.as_text(), Some("cross-crate"));
-        Ok(RuleOutcome::Valid)
+        Ok(PreparedOutcome::Valid)
     }
 }
 
