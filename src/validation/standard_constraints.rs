@@ -18,6 +18,7 @@ use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
 use qubit_validator::ValidationArgument;
 use qubit_validator::ValidatorId;
+use qubit_validator::ValidatorRegistration;
 use qubit_validator::ValidatorRegistry;
 
 use crate::metadata::AllowedChars;
@@ -25,6 +26,24 @@ use crate::metadata::ConstraintMetadata;
 use crate::metadata::TextFormat;
 
 mod standard_rule;
+
+#[cfg(test)]
+mod tests {
+    use qubit_validation_rules::registrations;
+    use qubit_validator::BindErrorKind;
+
+    use super::build_builtin_registry;
+
+    #[test]
+    fn test_builtin_registry_rejects_duplicate_declarations() {
+        let registration = registrations()[0];
+
+        let error = build_builtin_registry(vec![registration, registration])
+            .expect_err("duplicate built-in IDs must not form a registry");
+
+        assert_eq!(error.kind(), BindErrorKind::InvalidDeclaration);
+    }
+}
 
 use standard_rule::StandardRule;
 
@@ -68,9 +87,13 @@ pub(crate) fn registry(validators: &ValidatorRegistry) -> Result<(ValidatorRegis
             registrations.push(*registration);
         }
     }
-    ValidatorRegistry::from_registrations(registrations)
-        .map(|registry| (registry, errors))
-        .map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
+    build_builtin_registry(registrations).map(|registry| (registry, errors))
+}
+
+/// Builds the canonical registry and maps malformed built-in declarations to
+/// the metadata binding error category.
+fn build_builtin_registry(registrations: Vec<ValidatorRegistration>) -> Result<ValidatorRegistry, BindError> {
+    ValidatorRegistry::from_registrations(registrations).map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
 }
 
 /// Binds the executable portion of one metadata constraint.
