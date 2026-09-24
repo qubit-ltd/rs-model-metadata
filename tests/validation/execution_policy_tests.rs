@@ -20,12 +20,14 @@ use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::FieldPath;
 use qubit_model_metadata::validation::ModelRuleBinding;
 use qubit_model_metadata::validation::ModelValidationError;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationMode;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_model_metadata::validation::ValidationSelection;
 use qubit_reflect::ReflectedRef;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
@@ -156,6 +158,17 @@ fn test_violation_limit_stops_before_fields() {
 }
 
 #[test]
+fn test_exact_limit_stops_before_later_selected_work() {
+    assert_stopped(
+        false,
+        ValidationOptions::builder()
+            .max_violations(NonZeroUsize::new(3).unwrap())
+            .build(),
+        3,
+    );
+}
+
+#[test]
 fn test_prerequisites_share_the_same_hard_report_limit() {
     assert_stopped(
         true,
@@ -164,6 +177,41 @@ fn test_prerequisites_share_the_same_hard_report_limit() {
             .build(),
         1,
     );
+}
+
+#[test]
+fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
+    GETTER_CALLS.with(|calls| calls.set(0));
+    let models = ModelRegistry::try_global().unwrap();
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
+        .resolve()
+        .unwrap();
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        TypeMetadata::of::<Root>(),
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .unwrap()
+    .with_model_rule(ModelRuleBinding::from_prepared::<Root>(
+        ValidatorId::new("execution.many"),
+        Arc::new(Many { prerequisite: false }),
+    ));
+    let options = ValidationOptions::builder()
+        .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
+            std::iter::empty::<String>(),
+        )]))
+        .max_violations(NonZeroUsize::new(3).unwrap())
+        .build();
+    let report = plan
+        .validate(ReflectedRef::new(&Root { value: "valid".into() }), &options)
+        .unwrap();
+
+    assert_eq!(report.failure_count(), 3);
+    assert!(!report.is_truncated());
+    assert_eq!(GETTER_CALLS.with(Cell::get), 0);
 }
 
 struct InvalidSkip {

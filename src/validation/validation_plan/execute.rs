@@ -92,7 +92,14 @@ impl<'a> ValidationPlan<'a> {
                     .validate(input, &context)?
                     .into_bound(binding.rule_id())
                     .map_err(|_| ExecutionError::new(ExecutionErrorKind::AdapterContractViolation))?;
-                report.accept(occurrence, &path, outcome)
+                let has_more_work = self.model_rules()[occurrence + 1..]
+                    .iter()
+                    .any(|_| selected(options.selection(), &path))
+                    || self
+                        .bindings()
+                        .iter()
+                        .any(|field| selected(options.selection(), &path_for(field.value())));
+                report.accept(occurrence, &path, outcome, has_more_work)
             })();
             if let Err(error) = result {
                 return Err(
@@ -101,7 +108,7 @@ impl<'a> ValidationPlan<'a> {
                 );
             }
         }
-        for binding in self.bindings() {
+        for (binding_index, binding) in self.bindings().iter().enumerate() {
             if report.stopped() {
                 break;
             }
@@ -110,6 +117,9 @@ impl<'a> ValidationPlan<'a> {
                 continue;
             }
             let occurrence = self.model_rules().len() + binding.occurrence();
+            let has_more_work = self.bindings()[binding_index + 1..]
+                .iter()
+                .any(|field| selected(options.selection(), &path_for(field.value())));
             if let Err(failure) = execute_field(
                 binding,
                 occurrence,
@@ -118,6 +128,7 @@ impl<'a> ValidationPlan<'a> {
                 self.graph(),
                 &mut budget,
                 &mut report,
+                has_more_work,
             ) {
                 let mut error = failure.error.with_rule(binding.rule_id());
                 if error.path().as_segments().is_empty() {
@@ -144,6 +155,7 @@ fn execute_field<'value>(
     graph: &ModelGraph<'_>,
     budget: &mut ExecutionBudget<'_>,
     report: &mut ReportAccumulator<'_>,
+    has_more_work: bool,
 ) -> Result<(), ExecutionFailure> {
     let path = path_for(binding.value());
     let value = path_reader::read(binding.value(), root.clone(), 0, budget)?;
@@ -162,14 +174,14 @@ fn execute_field<'value>(
                 prerequisites: Vec::new(),
             }
         };
-        report.accept(occurrence, &path, outcome)?;
+        report.accept(occurrence, &path, outcome, has_more_work)?;
         return Ok(());
     }
     if let Some(selector) = binding.selector() {
         if selector.position() != SelectorPosition::Element {
             return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
         }
-        return execute_elements(binding, occurrence, value, &path, budget, report).map_err(Into::into);
+        return execute_elements(binding, occurrence, value, &path, budget, report, has_more_work).map_err(Into::into);
     }
     let (dependencies, paths) = path_reader::dependencies(binding.dependencies(), root, ancestors, graph, budget)?;
     let values: Vec<_> = dependencies.iter().map(property_value).collect();
@@ -192,7 +204,7 @@ fn execute_field<'value>(
         .validator()
         .validate(input, &context)
         .map_err(|error| prefix_error(error, &path))?;
-    report.accept(occurrence, &path, outcome)?;
+    report.accept(occurrence, &path, outcome, has_more_work)?;
     Ok(())
 }
 
@@ -205,6 +217,7 @@ fn execute_elements(
     path: &ValidationPath,
     budget: &mut ExecutionBudget<'_>,
     report: &mut ReportAccumulator<'_>,
+    has_more_work: bool,
 ) -> Result<(), ExecutionError> {
     let PropertyValue::BorrowedSlice(values) = value else {
         return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
@@ -230,7 +243,12 @@ fn execute_elements(
             .validate(reflected_value(&element), &context)
             .map_err(|error| prefix_error(error, &element_path))?;
         report
-            .accept(occurrence, &element_path, outcome)
+            .accept(
+                occurrence,
+                &element_path,
+                outcome,
+                index + 1 < values.len() || has_more_work,
+            )
             .map_err(|error| error.with_path(element_path))?;
     }
     Ok(())

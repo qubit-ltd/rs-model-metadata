@@ -53,12 +53,25 @@ impl<'options> ReportAccumulator<'options> {
     }
 
     /// Checks the outcome contract and appends all report content through one
-    /// limit.
+    /// limit. When this result fills the limit, `has_more_work` determines
+    /// whether stopping execution makes the report incomplete.
+    ///
+    /// # Parameters
+    ///
+    /// * `occurrence` - Stable execution position of the result.
+    /// * `path` - Model location used to prefix relative violation paths.
+    /// * `outcome` - Bound result to validate and record.
+    /// * `has_more_work` - Whether selected occurrences remain after this one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an adapter contract violation when the outcome shape is invalid.
     pub(crate) fn accept(
         &mut self,
         occurrence: usize,
         path: &ValidationPath,
         outcome: ValidationOutcome,
+        has_more_work: bool,
     ) -> Result<(), ExecutionError> {
         if self.stopped {
             return Ok(());
@@ -70,10 +83,10 @@ impl<'options> ReportAccumulator<'options> {
             .map_err(|_| contract_error())?;
         let added_failures = self.report.failure_count() > previous_failures;
         let at_limit = self.report.failure_count() >= self.options.max_violations();
-        if !accepted
-            || (added_failures && self.options.mode() == ValidationMode::FailFast)
-            || (added_failures && at_limit)
-        {
+        if !accepted {
+            self.stopped = true;
+            self.report.mark_truncated();
+        } else if added_failures && has_more_work && (self.options.mode() == ValidationMode::FailFast || at_limit) {
             self.stopped = true;
             self.report.mark_truncated();
         }
