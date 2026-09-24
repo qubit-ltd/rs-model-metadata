@@ -258,7 +258,26 @@ fn test_sequence_count_uses_the_actual_slice_length() {
 #[test]
 fn test_sequence_minimum_above_u32_max_binds_and_reports_empty_values() {
     let value = HugeSequenceMinimum { values: Vec::new() };
-    let report = validate(TypeMetadata::of::<HugeSequenceMinimum>(), ReflectedRef::new(&value));
+    let root = TypeMetadata::of::<HugeSequenceMinimum>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: ModelRegistry::global(),
+        roots: &roots,
+    })
+    .resolve()
+    .expect("large sequence minimum structure");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("large sequence minimum binding");
+    assert_eq!(plan.binding_count(), 1);
+
+    let report = validate(root, ReflectedRef::new(&value));
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "values");
     assert_eq!(
