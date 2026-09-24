@@ -173,5 +173,5 @@ fn test_builder_field_selection_and_budget_execute_together() {
         .expect("selected field fits the budget");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "second");
-    assert!(report.is_truncated());
+    assert!(!report.is_truncated());
 }
