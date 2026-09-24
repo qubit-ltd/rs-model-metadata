@@ -102,3 +102,31 @@ impl<'options> ReportAccumulator<'options> {
 fn contract_error() -> ExecutionError {
     ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
 }
+
+#[cfg(test)]
+mod tests {
+    use qubit_validator::ExecutionErrorKind;
+    use qubit_validator::ValidationOutcome;
+    use qubit_validator::ValidationPath;
+
+    use super::ReportAccumulator;
+    use crate::validation::ValidationOptions;
+
+    #[test]
+    fn invalid_outcome_shape_is_reported_as_an_adapter_contract_violation() {
+        let options = ValidationOptions::default();
+        let mut report = ReportAccumulator::new(&options);
+
+        let error = report
+            .accept(
+                0,
+                &ValidationPath::root(),
+                ValidationOutcome::Invalid(Vec::new()),
+                false,
+            )
+            .expect_err("an empty invalid outcome violates the result contract");
+
+        assert_eq!(error.kind(), ExecutionErrorKind::AdapterContractViolation);
+        assert!(!report.stopped());
+    }
+}
