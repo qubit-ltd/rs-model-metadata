@@ -10,6 +10,8 @@
 
 use std::ptr::eq;
 use std::sync::OnceLock;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::ModelImplProvider;
@@ -26,6 +28,7 @@ use qubit_model_metadata::metadata::PropertySetFailure;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::ReflectRegistry;
 use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
@@ -144,6 +147,107 @@ fn snapshot(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegis
         );
     }
     builder.build().expect("distinct capability slots")
+}
+
+#[test]
+fn test_model_registry_caches_properties_per_snapshot() {
+    static GETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static SETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
+    fn counted_getter() -> &'static ModelImplMetadata {
+        GETTER_CALLS.fetch_add(1, Ordering::SeqCst);
+        getter_a()
+    }
+    fn counted_setter() -> &'static ModelImplMetadata {
+        SETTER_CALLS.fetch_add(1, Ordering::SeqCst);
+        setter_a()
+    }
+
+    let owner = TypeMetadata::of::<Record>();
+    let first = snapshot(counted_getter, counted_setter);
+    let models = ModelRegistry::from_reflect_registry(&first).expect("valid snapshot");
+    let initial_getters = GETTER_CALLS.load(Ordering::SeqCst);
+    let initial_setters = SETTER_CALLS.load(Ordering::SeqCst);
+    let properties = models.properties_for(owner).expect("first properties");
+    assert!(eq(properties, models.properties_for(owner).expect("cached properties")));
+    assert_eq!(GETTER_CALLS.load(Ordering::SeqCst) - initial_getters, 1);
+    assert_eq!(SETTER_CALLS.load(Ordering::SeqCst) - initial_setters, 1);
+
+    let second = snapshot(counted_getter, counted_setter);
+    let other_models = ModelRegistry::from_reflect_registry(&second).expect("independent snapshot");
+    other_models.properties_for(owner).expect("other snapshot properties");
+    assert_eq!(GETTER_CALLS.load(Ordering::SeqCst) - initial_getters, 2);
+    assert_eq!(SETTER_CALLS.load(Ordering::SeqCst) - initial_setters, 2);
+}
+
+#[test]
+fn test_model_registry_caches_property_assembly_errors() {
+    static FIRST_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static SECOND_CALLS: AtomicUsize = AtomicUsize::new(0);
+    fn first_getter() -> &'static ModelImplMetadata {
+        FIRST_CALLS.fetch_add(1, Ordering::SeqCst);
+        getter_a()
+    }
+    fn second_getter() -> &'static ModelImplMetadata {
+        SECOND_CALLS.fetch_add(1, Ordering::SeqCst);
+        getter_b()
+    }
+
+    let reflection = snapshot(first_getter, second_getter);
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("valid snapshot");
+    let owner = TypeMetadata::of::<Record>();
+    for _ in 0..2 {
+        assert!(matches!(
+            models.properties_for(owner),
+            Err(PropertyResolutionError::Assembly(_))
+        ));
+    }
+    assert_eq!(FIRST_CALLS.load(Ordering::SeqCst), 1);
+    assert_eq!(SECOND_CALLS.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn test_model_registry_retries_provider_after_panic() {
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    fn panicking_getter() -> &'static ModelImplMetadata {
+        if CALLS.fetch_add(1, Ordering::SeqCst) == 0 {
+            panic!("first provider call");
+        }
+        getter_a()
+    }
+
+    let reflection = snapshot(panicking_getter, setter_a);
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("valid snapshot");
+    let owner = TypeMetadata::of::<Record>();
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| models.properties_for(owner))).is_err());
+    assert!(models.properties_for(owner).is_ok());
+    assert_eq!(CALLS.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn test_model_registry_initializes_properties_once_under_concurrency() {
+    static GETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static SETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
+    fn counted_getter() -> &'static ModelImplMetadata {
+        GETTER_CALLS.fetch_add(1, Ordering::SeqCst);
+        getter_a()
+    }
+    fn counted_setter() -> &'static ModelImplMetadata {
+        SETTER_CALLS.fetch_add(1, Ordering::SeqCst);
+        setter_a()
+    }
+
+    let reflection = snapshot(counted_getter, counted_setter);
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("valid snapshot");
+    let owner = TypeMetadata::of::<Record>();
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| {
+                assert!(models.properties_for(owner).is_ok());
+            });
+        }
+    });
+    assert_eq!(GETTER_CALLS.load(Ordering::SeqCst), 1);
+    assert_eq!(SETTER_CALLS.load(Ordering::SeqCst), 1);
 }
 
 #[test]

@@ -14,6 +14,8 @@ use std::any::TypeId;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::OnceLock;
 
 #[cfg(feature = "generic")]
@@ -36,6 +38,9 @@ use crate::metadata::TypeMetadata;
 #[cfg(feature = "generic")]
 use crate::reflect_facade::generic_model_metadata_key;
 use crate::reflect_facade::model_metadata_key;
+
+/// One snapshot-local initialization of a model's resolved properties.
+type PropertyCacheCell = OnceLock<Result<&'static LocalPropertySet, PropertyResolutionError>>;
 
 /// An immutable registry sorted by stable model ID and fragment identity.
 ///
@@ -74,6 +79,8 @@ pub struct ModelRegistry<'reflection> {
     generic_definitions: Box<[&'static GenericModelMetadata]>,
     /// Reflection snapshot that owns effective capability resolution.
     reflection: Option<&'reflection ReflectRegistry>,
+    /// Per-snapshot property resolution, including assembly failures.
+    property_cache: Mutex<HashMap<TypeId, Arc<PropertyCacheCell>>>,
 }
 
 impl<'reflection> ModelRegistry<'reflection> {
@@ -316,6 +323,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             #[cfg(feature = "generic")]
             generic_definitions: generic_definitions.into_boxed_slice(),
             reflection: None,
+            property_cache: Mutex::new(HashMap::new()),
         })
     }
 
@@ -415,9 +423,10 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Resolves properties using this model registry's reflection snapshot.
     ///
     /// Explicit metadata-only registries use local field properties. Snapshot
-    /// registries invoke their implementation providers, then reuse the merge
-    /// cached for that owner and ordered provider result set. The returned
-    /// properties live for the process. This never consults global state.
+    /// registries resolve each type once per registry instance, caching both
+    /// successful properties and failures. The returned properties live for the
+    /// process. This never consults global state. A provider panic is not
+    /// cached.
     ///
     /// # Errors
     ///
@@ -426,17 +435,25 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// # Panics
     ///
-    /// Propagates a panic from an implementation provider or a poisoned merge
-    /// cache lock.
+    /// Propagates a panic from an implementation provider or a poisoned cache
+    /// lock. Providers run outside the registry cache map lock.
     #[must_use = "handle property resolution failures"]
     pub fn properties_for(
         &self,
         metadata: &'static TypeMetadata,
     ) -> Result<&'static LocalPropertySet, PropertyResolutionError> {
-        self.reflection.map_or_else(
-            || Ok(metadata.local_properties()),
-            |reflection| metadata.try_properties_in(reflection),
-        )
+        let Some(reflection) = self.reflection else {
+            return Ok(metadata.local_properties());
+        };
+        let cell = {
+            let mut cache = self.property_cache.lock().expect("property cache lock");
+            Arc::clone(
+                cache
+                    .entry(metadata.type_id())
+                    .or_insert_with(|| Arc::new(OnceLock::new())),
+            )
+        };
+        cell.get_or_init(|| metadata.try_properties_in(reflection)).clone()
     }
 
     /// Returns registered generic metadata for one definition identity, or

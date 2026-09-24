@@ -74,6 +74,15 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     }
     properties.finish();
 
+    let mut cached = criterion.benchmark_group("model_registry_properties_warm");
+    for &(root, size) in roots {
+        models.properties_for(root).expect("warm model properties");
+        cached.bench_with_input(BenchmarkId::new("fields_and_impls", size), &root, |bencher, root| {
+            bencher.iter(|| black_box(models.properties_for(black_box(*root))));
+        });
+    }
+    cached.finish();
+
     let mut graphs = criterion.benchmark_group("model_graph_build");
     for &(root, size) in roots {
         let root_set = [root];
