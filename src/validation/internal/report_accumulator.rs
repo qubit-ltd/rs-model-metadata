@@ -83,10 +83,9 @@ impl<'options> ReportAccumulator<'options> {
             .map_err(|_| contract_error())?;
         let added_failures = self.report.failure_count() > previous_failures;
         let at_limit = self.report.failure_count() >= self.options.max_violations();
-        if !accepted {
-            self.stopped = true;
-            self.report.mark_truncated();
-        } else if added_failures && has_more_work && (self.options.mode() == ValidationMode::FailFast || at_limit) {
+        if !accepted
+            || (added_failures && has_more_work && (self.options.mode() == ValidationMode::FailFast || at_limit))
+        {
             self.stopped = true;
             self.report.mark_truncated();
         }
