@@ -93,9 +93,7 @@ impl<'options> ReportAccumulator<'options> {
             .map_err(|_| contract_error())?;
         self.violation_count += violation_count.min(accepted_limit);
 
-        if violation_count > 0
-            && (truncated || fail_fast || self.violation_count >= self.options.max_violations())
-        {
+        if violation_count > 0 && (truncated || fail_fast || self.violation_count >= self.options.max_violations()) {
             self.stopped = true;
             self.report.mark_truncated();
         }

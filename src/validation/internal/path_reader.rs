@@ -35,9 +35,10 @@ pub(crate) fn read<'value>(
             .and_then(|depth| depth.checked_add(1))
             .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit))?;
         budget.read(depth).map_err(|error| error.with_path(path_for(path)))?;
-        let output = step.property().get(receiver).map_err(|_error| {
-            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
-        })?;
+        let output = step
+            .property()
+            .get(receiver)
+            .map_err(|_error| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))?;
         if index + 1 == path.steps().len() {
             return Ok(output);
         }
@@ -105,10 +106,7 @@ fn read_dependency<'value>(
         .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))?;
     let compiled =
         CompiledPropertyPath::compile(metadata, &PropertyPath::new(path.deferred()), graph, TargetMode::Value)
-            .map_err(|_error| {
-                ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                    .with_path(path_for(path))
-            })?;
+            .map_err(|_error| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))?;
     if compiled.input_type() != path.input_type() {
         return Err(ExecutionError::new(ExecutionErrorKind::DependencyTypeMismatch).with_path(path_for(path)));
     }

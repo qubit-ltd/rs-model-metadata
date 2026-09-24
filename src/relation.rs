@@ -10,14 +10,14 @@
 
 mod declaration_location;
 mod field_location;
-mod field_path;
 mod navigation_step;
 mod object_path;
 mod object_path_error;
+mod property_path;
 
 pub use self::declaration_location::DeclarationLocation;
 pub use self::field_location::FieldLocation;
-pub use self::field_path::PropertyPath;
 pub use self::navigation_step::NavigationStep;
 pub use self::object_path::ObjectPath;
 pub use self::object_path_error::ObjectPathError;
+pub use self::property_path::PropertyPath;

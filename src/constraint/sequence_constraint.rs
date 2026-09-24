@@ -28,7 +28,7 @@ pub struct SequenceConstraint {
     /// Whether sequence elements must be unique.
     unique_items: bool,
     /// Optional non-recursive element semantics.
-    element: Option<&'static crate::field_semantics::SelectorMetadata>,
+    element: Option<&'static crate::metadata::SelectorMetadata>,
 }
 
 impl SequenceConstraint {
@@ -66,7 +66,7 @@ impl SequenceConstraint {
 
     /// Attaches non-recursive element semantics.
     #[must_use]
-    pub const fn with_element(mut self, element: &'static crate::field_semantics::SelectorMetadata) -> Self {
+    pub const fn with_element(mut self, element: &'static crate::metadata::SelectorMetadata) -> Self {
         self.element = Some(element);
         self
     }
@@ -107,7 +107,7 @@ impl SequenceConstraint {
     /// Returns element semantics, if declared.
     #[must_use]
     #[inline(always)]
-    pub const fn element(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
+    pub const fn element(&self) -> Option<&'static crate::metadata::SelectorMetadata> {
         self.element
     }
 }

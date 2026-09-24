@@ -31,37 +31,3 @@ pub use self::temporal_constraint::TemporalConstraint as TimeConstraint;
 pub use self::temporal_precision::TemporalPrecision;
 pub use self::text_constraint::TextConstraint;
 pub use self::text_format::TextFormat;
-
-/// A standard constraint occurrence on a field or selector.
-///
-/// # Examples
-///
-/// ```
-/// use qubit_model_metadata::metadata::AllowedChars;
-/// use qubit_model_metadata::metadata::ConstraintMetadata;
-/// use qubit_model_metadata::metadata::TextConstraint;
-///
-/// let constraint = ConstraintMetadata::Text(TextConstraint::new(
-///     None,
-///     Some(80),
-///     None,
-///     None,
-///     AllowedChars::Unicode,
-///     false,
-///     None,
-/// ));
-/// assert!(matches!(constraint, ConstraintMetadata::Text(_)));
-/// ```
-#[derive(Clone, Copy, Debug)]
-pub enum ConstraintMetadata {
-    /// Text constraints.
-    Text(TextConstraint),
-    /// Decimal or money constraints.
-    Decimal(DecimalConstraint),
-    /// Time constraints.
-    Time(TimeConstraint),
-    /// Sequence constraints.
-    Sequence(SequenceConstraint),
-    /// Map constraints.
-    Map(MapConstraint),
-}

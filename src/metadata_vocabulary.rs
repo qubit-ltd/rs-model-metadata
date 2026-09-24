@@ -18,7 +18,7 @@ use core::hash::Hasher;
 use bitflags::bitflags;
 use qubit_reflect::descriptor::TypeRef;
 
-use crate::constraint::ConstraintMetadata;
+use crate::constraint_metadata::ConstraintMetadata;
 use crate::metadata::ModelId;
 use crate::relation::DeclarationLocation;
 use crate::relation::ObjectPath;

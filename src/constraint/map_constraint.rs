@@ -26,9 +26,9 @@ pub struct MapConstraint {
     /// The maximum number of entries, if constrained.
     max_entries: Option<usize>,
     /// Optional key semantics.
-    key: Option<&'static crate::field_semantics::SelectorMetadata>,
+    key: Option<&'static crate::metadata::SelectorMetadata>,
     /// Optional value semantics.
-    value: Option<&'static crate::field_semantics::SelectorMetadata>,
+    value: Option<&'static crate::metadata::SelectorMetadata>,
 }
 
 impl MapConstraint {
@@ -66,8 +66,8 @@ impl MapConstraint {
     #[must_use]
     pub const fn with_selectors(
         mut self,
-        key: Option<&'static crate::field_semantics::SelectorMetadata>,
-        value: Option<&'static crate::field_semantics::SelectorMetadata>,
+        key: Option<&'static crate::metadata::SelectorMetadata>,
+        value: Option<&'static crate::metadata::SelectorMetadata>,
     ) -> Self {
         self.key = key;
         self.value = value;
@@ -99,14 +99,14 @@ impl MapConstraint {
     /// Returns key semantics, if declared.
     #[must_use]
     #[inline(always)]
-    pub const fn key(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
+    pub const fn key(&self) -> Option<&'static crate::metadata::SelectorMetadata> {
         self.key
     }
 
     /// Returns value semantics, if declared.
     #[must_use]
     #[inline(always)]
-    pub const fn value(&self) -> Option<&'static crate::field_semantics::SelectorMetadata> {
+    pub const fn value(&self) -> Option<&'static crate::metadata::SelectorMetadata> {
         self.value
     }
 }

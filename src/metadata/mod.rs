@@ -33,7 +33,6 @@ pub use validation::ValidatorMetadata;
 
 pub use crate::abi_violation::AbiViolation;
 pub use crate::constraint::AllowedChars;
-pub use crate::constraint::ConstraintMetadata;
 pub use crate::constraint::DecimalConstraint;
 pub use crate::constraint::DecimalSemantic;
 pub use crate::constraint::MapConstraint;
@@ -44,6 +43,7 @@ pub use crate::constraint::TemporalPrecision;
 pub use crate::constraint::TextConstraint;
 pub use crate::constraint::TextFormat;
 pub use crate::constraint::TimeConstraint;
+pub use crate::constraint_metadata::ConstraintMetadata;
 pub use crate::field_metadata::FieldMetadata;
 pub use crate::local_property_set::LocalPropertySet;
 pub use crate::metadata_vocabulary::DeclaredEntityTarget;

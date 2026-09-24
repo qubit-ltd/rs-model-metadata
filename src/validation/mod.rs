@@ -9,7 +9,6 @@
 //! Read-only validation binding for resolved model metadata.
 
 mod build_error;
-mod build_inputs;
 mod compiled_property_path;
 mod internal;
 mod model_rule_binding;
@@ -18,17 +17,18 @@ mod standard_constraints;
 mod validation_build_error;
 mod validation_build_error_kind;
 mod validation_build_errors;
+mod validation_build_inputs;
 mod validation_capabilities;
 mod validation_options;
 mod validation_plan;
 mod validator_arguments;
 
-pub use build_inputs::ValidationBuildInputs;
 pub use model_rule_binding::ModelRuleBinding;
 pub use model_validation_error::ModelValidationError;
 pub use validation_build_error::ValidationBuildError;
 pub use validation_build_error_kind::ValidationBuildErrorKind;
 pub use validation_build_errors::ValidationBuildErrors;
+pub use validation_build_inputs::ValidationBuildInputs;
 pub use validation_capabilities::ValidationCapabilities;
 pub use validation_options::FieldPath;
 pub use validation_options::ValidationMode;

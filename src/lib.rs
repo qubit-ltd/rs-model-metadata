@@ -9,7 +9,7 @@
 //! Static metadata overlays for Rust domain models.
 
 // Gives derives the same absolute path inside this crate and in its doctests.
-extern crate self as qubit_model_metadata;
+pub use crate as qubit_model_metadata;
 
 #[doc(hidden)]
 pub mod __private;
@@ -17,18 +17,14 @@ mod abi_violation;
 #[cfg(feature = "codec")]
 pub mod codec;
 mod constraint;
+mod constraint_metadata;
 mod field_metadata;
-mod metadata_vocabulary;
-// Keep the implementation namespace private while allowing internal modules
-// to refer to the vocabulary without coupling them to its file layout.
-mod field_semantics {
-    pub use super::metadata_vocabulary::*;
-}
 #[cfg(feature = "generic")]
 pub mod generic;
 mod local_property_set;
 /// Declaration-side metadata types grouped under one stable namespace.
 pub mod metadata;
+mod metadata_vocabulary;
 mod model_id;
 mod model_impl_metadata;
 mod model_metadata_error;
