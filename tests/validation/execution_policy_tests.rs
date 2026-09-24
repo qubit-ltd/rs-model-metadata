@@ -38,6 +38,7 @@ use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
 use qubit_validator::SkipReason;
+use qubit_validator::ValidationPath;
 use qubit_validator::ValidationReport;
 use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorDescriptor;
@@ -75,10 +76,16 @@ impl PreparedValidator for Many {
         _: ValidationValue<'_>,
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
+        let nested_path = ValidationPath::root().with_field("nested");
         let violations = (0..3)
-            .map(|_| Violation::new(ValidatorId::new("execution.many"), ViolationCode::new("bad")))
+            .map(|_| {
+                Violation::new(ValidatorId::new("execution.many"), ViolationCode::new("bad"))
+                    .with_path(nested_path.clone())
+            })
             .collect();
-        let drafts = (0..3).map(|_| ViolationDraft::new(ViolationCode::new("bad"))).collect();
+        let drafts = (0..3)
+            .map(|_| ViolationDraft::new(ViolationCode::new("bad")).with_path(nested_path.clone()))
+            .collect();
         Ok(if self.prerequisite {
             PreparedOutcome::Skipped {
                 reason: SkipReason::FailedPrerequisite,
@@ -302,10 +309,20 @@ impl PreparedValidator for OutcomeRule {
         RULE_CALLS.with(|calls| calls.set(calls.get() + 1));
         let violations = || {
             (0..3)
-                .map(|_| Violation::new(ValidatorId::new("execution.rule"), ViolationCode::new("bad")))
+                .map(|_| {
+                    Violation::new(ValidatorId::new("execution.rule"), ViolationCode::new("bad"))
+                        .with_path(ValidationPath::root().with_field("nested"))
+                })
                 .collect()
         };
-        let drafts = || (0..3).map(|_| ViolationDraft::new(ViolationCode::new("bad"))).collect();
+        let drafts = || {
+            (0..3)
+                .map(|_| {
+                    ViolationDraft::new(ViolationCode::new("bad"))
+                        .with_path(ValidationPath::root().with_field("nested"))
+                })
+                .collect()
+        };
         Ok(match value.as_text().unwrap() {
             "invalid" => PreparedOutcome::Invalid(drafts()),
             "prerequisite" => PreparedOutcome::Skipped {
@@ -384,6 +401,11 @@ fn test_fields_and_selectors_stop_globally_for_every_violation_branch() {
             (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields)),
             (TypeMetadata::of::<Elements>(), ReflectedRef::new(&elements)),
         ] {
+            let expected_path = if root.type_id() == TypeId::of::<Fields>() {
+                "first.nested"
+            } else {
+                "values[0].nested"
+            };
             for limit in [1, 2] {
                 let options = ValidationOptions::builder()
                     .max_violations(NonZeroUsize::new(limit).unwrap())
@@ -391,10 +413,13 @@ fn test_fields_and_selectors_stop_globally_for_every_violation_branch() {
                 let report = run(root, value.clone(), &options).unwrap();
                 if outcome == "invalid" {
                     assert_eq!(report.violations().len(), limit);
+                    assert_eq!(report.violations()[0].path().render(), expected_path);
                 } else {
                     assert_eq!(report.skipped().len(), 1);
                     assert_eq!(report.skipped()[0].prerequisites().len(), limit);
+                    assert_eq!(report.skipped()[0].prerequisites()[0].path().render(), expected_path);
                 }
+                assert_eq!(report.failure_count(), limit);
                 assert!(report.is_truncated());
                 assert_eq!(GETTER_CALLS.with(Cell::get), 1);
                 assert_eq!(RULE_CALLS.with(Cell::get), 1);
@@ -407,10 +432,13 @@ fn test_fields_and_selectors_stop_globally_for_every_violation_branch() {
             .unwrap();
             if outcome == "invalid" {
                 assert_eq!(report.violations().len(), 1);
+                assert_eq!(report.violations()[0].path().render(), expected_path);
             } else {
                 assert_eq!(report.skipped().len(), 1);
                 assert_eq!(report.skipped()[0].prerequisites().len(), 1);
+                assert_eq!(report.skipped()[0].prerequisites()[0].path().render(), expected_path);
             }
+            assert_eq!(report.failure_count(), 1);
             assert_eq!(RULE_CALLS.with(Cell::get), 1);
             assert_eq!(GETTER_CALLS.with(Cell::get), 1);
         }
@@ -459,7 +487,7 @@ fn test_legal_skip_does_not_trigger_fail_fast_and_occurrences_are_unique() {
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.skipped().len(), 1);
     assert_eq!(report.skipped()[0].occurrence(), 0);
-    assert_eq!(report.violations()[0].path().render(), "second");
+    assert_eq!(report.violations()[0].path().render(), "second.nested");
 }
 
 #[test]
