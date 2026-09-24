@@ -64,6 +64,13 @@ struct SequenceCount {
     values: Vec<String>,
 }
 
+#[cfg(target_pointer_width = "64")]
+#[Model]
+struct HugeSequenceMinimum {
+    #[sequence(min_items = 4294967296)]
+    values: Vec<String>,
+}
+
 #[Enum]
 enum UnsupportedChoice {
     Named {
@@ -81,6 +88,14 @@ struct IndependentFailures {
 
 #[ModelImpl]
 impl SequenceCount {
+    pub fn values(&self) -> &[String] {
+        &self.values
+    }
+}
+
+#[cfg(target_pointer_width = "64")]
+#[ModelImpl]
+impl HugeSequenceMinimum {
     pub fn values(&self) -> &[String] {
         &self.values
     }
@@ -195,6 +210,28 @@ fn test_text_formats_bind_and_report_their_own_rule_identity() {
     );
 }
 
+/// URI validation accepts a non-HTTP scheme and rejects malformed escapes.
+#[test]
+fn test_uri_format_preserves_rfc3986_boundaries_and_rule_identity() {
+    let root = TypeMetadata::of::<Formats>();
+    let valid = Formats {
+        email: "user@example.com".to_owned(),
+        mobile: "13800138000".to_owned(),
+        uri: "mailto:user@example.com".to_owned(),
+        uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
+    };
+    assert!(validate(root, ReflectedRef::new(&valid)).is_valid());
+
+    let invalid = Formats {
+        uri: "https://example.com/%GG".to_owned(),
+        ..valid
+    };
+    let report = validate(root, ReflectedRef::new(&invalid));
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].path().render(), "uri");
+    assert_eq!(report.violations()[0].rule_id().as_str(), "qubit.rules.text.uri");
+}
+
 /// Item-count validation reads the exposed slice and includes both boundaries.
 #[test]
 fn test_sequence_count_uses_the_actual_slice_length() {
@@ -214,6 +251,21 @@ fn test_sequence_count_uses_the_actual_slice_length() {
             );
         }
     }
+}
+
+/// Binding must retain sequence bounds above `u32::MAX` on 64-bit targets.
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn test_sequence_minimum_above_u32_max_binds_and_reports_empty_values() {
+    let value = HugeSequenceMinimum { values: Vec::new() };
+    let report = validate(TypeMetadata::of::<HugeSequenceMinimum>(), ReflectedRef::new(&value));
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].path().render(), "values");
+    assert_eq!(
+        report.violations()[0].rule_id().as_str(),
+        "qubit.rules.collection.item_count"
+    );
+    assert_eq!(report.violations()[0].code().as_str(), "collection.too_small");
 }
 
 /// A supplied registration cannot override the meaning of a standard rule ID.
