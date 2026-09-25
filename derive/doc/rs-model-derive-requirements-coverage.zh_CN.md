@@ -449,4 +449,4 @@ CI 使用 `RS_CI_CARGO_HOME_MODE=shared` 与 `RS_CI_ARTIFACT_CLEANUP_MODE=never`
 
 ### 覆盖率门槛补齐结果（2026-09-25）
 
-根据完整 coverage JSON 报告补充空集合访问器、元数据查找失败路径、关系位置/路径边界及重复内建 validator 声明失败路径的行为测试。未调整 `.rs-ci-coverage.json` 中的阈值或豁免。最终完整 `./align-ci.sh && ./ci-check.sh` 通过，coverage 汇总为：函数 1330/1399（95.07%）、行 9572/10469（91.43%）、region 14013/15650（89.54%），分别满足函数 ≥ 95%、行 > 90%、region > 85%。覆盖率报告由 `ci-check.sh` 的 coverage 门禁生成；该结果为本次最后一次完整运行。
+根据完整 coverage JSON 报告补充空集合访问器、元数据查找失败路径、关系位置/路径边界及重复内建 validator 声明失败路径的行为测试。未调整 `.rs-ci-coverage.json` 中的阈值或豁免。最终完整 `./align-ci.sh && ./ci-check.sh` 通过，coverage 汇总为：函数 1332/1399（95.21%）、行 9562/10444（91.55%）、region 13984/15599（89.65%），分别满足函数 ≥ 95%、行 > 90%、region > 85%。覆盖率报告由 `ci-check.sh` 的 coverage 门禁生成；该结果为本次最后一次完整运行。
