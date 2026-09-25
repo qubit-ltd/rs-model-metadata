@@ -21,6 +21,9 @@ use crate::metadata::ModelImplMetadata;
 use crate::metadata::TypeMetadata;
 use crate::model_impl_metadata::MergedModelImpl;
 
+const MODEL_IMPL_BASE_ID: &str = "qubit.model.impl.v1";
+const MODEL_IMPL_FRAGMENT_PREFIX: &str = "qubit.model.impl.v1.f";
+
 /// The typed capability adapter supplied by generated model declarations.
 #[doc(hidden)]
 pub type ModelMetadataProvider = fn() -> &'static TypeMetadata;
@@ -97,12 +100,19 @@ pub(crate) fn model_impl_metadata(
     let capabilities = registry
         .capabilities(descriptor)
         .map_err(CapabilityAccessError::IntrinsicConflict)?;
+    let descriptors = capabilities.descriptors();
+    let base_pos = descriptors.partition_point(|item| item.id().as_str() < MODEL_IMPL_BASE_ID);
+    let base = descriptors
+        .get(base_pos)
+        .filter(|item| item.id().as_str() == MODEL_IMPL_BASE_ID);
+    let start = descriptors.partition_point(|item| item.id().as_str() < MODEL_IMPL_FRAGMENT_PREFIX);
+    let fragments = descriptors[start..]
+        .iter()
+        .take_while(|item| item.id().as_str().starts_with(MODEL_IMPL_FRAGMENT_PREFIX));
     let mut providers = Vec::new();
-    for capability in capabilities.descriptors() {
+    for capability in base.into_iter().chain(fragments) {
         let id = capability.id();
-        if (id.as_str() == "qubit.model.impl.v1" || id.as_str().starts_with("qubit.model.impl.v1.f"))
-            && let Some(provider) = registry.capability(descriptor, CapabilityKey::<ModelImplProvider>::new(*id))?
-        {
+        if let Some(provider) = registry.capability(descriptor, CapabilityKey::<ModelImplProvider>::new(*id))? {
             providers.push(*provider);
         }
     }

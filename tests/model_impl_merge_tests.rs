@@ -165,6 +165,40 @@ fn snapshot(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegis
     builder.build().expect("distinct capability slots")
 }
 
+fn snapshot_with_unrelated_capabilities(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegistry {
+    let mut builder = RegistrySnapshotBuilder::new();
+    for (key, provider) in [
+        ("qubit.model.impl.v1.fmerge_a", first),
+        ("qubit.model.impl.v1.fmerge_b", second),
+        ("qubit.model.impl.v1.other", getter_b),
+    ] {
+        builder.add_type_capabilities(
+            TypeMetadata::of::<Record>().descriptor(),
+            vec![CapabilityDescriptor::with_adapter(
+                model_impl_fragment_key(key),
+                provider,
+            )],
+            FragmentIdentity::new("model-impl-test", key, 1, 1, "capability", 1),
+        );
+    }
+    for index in 0..128 {
+        let key = if index < 64 {
+            format!("qubit.model.impl.v1.e{index:03}")
+        } else {
+            format!("qubit.model.impl.v1.g{index:03}")
+        };
+        builder.add_type_capabilities(
+            TypeMetadata::of::<Record>().descriptor(),
+            vec![CapabilityDescriptor::with_adapter(
+                model_impl_fragment_key(Box::leak(key.into_boxed_str())),
+                getter_b,
+            )],
+            FragmentIdentity::new("model-impl-test", "unrelated-capability", index, 1, "capability", index as u64),
+        );
+    }
+    builder.build().expect("distinct capability slots")
+}
+
 #[test]
 fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
     let owner = TypeMetadata::of::<Record>();
@@ -302,10 +336,11 @@ fn direct_snapshot_queries_own_independent_merges() {
 #[test]
 fn distinct_model_registries_do_not_share_their_property_cache() {
     let owner = TypeMetadata::of::<Record>();
-    let reflection = snapshot(getter_a, setter_a);
-    let first_registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection)
+    let first_reflection = snapshot(getter_a, setter_a);
+    let second_reflection = snapshot(getter_a, setter_a);
+    let first_registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&first_reflection)
         .expect("first model registry");
-    let second_registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection)
+    let second_registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&second_reflection)
         .expect("second model registry");
     let first = first_registry.properties_for(owner).expect("first merge");
     let second = second_registry.properties_for(owner).expect("second merge");
@@ -330,6 +365,29 @@ fn registry_cache_initializes_once_for_concurrent_queries() {
         }
     });
     assert_eq!(PROVIDER_CALLS.load(Ordering::SeqCst), 1);
+    registry.properties_for(owner).expect("cached merge");
+    assert_eq!(PROVIDER_CALLS.load(Ordering::SeqCst), 1, "cached queries do not call providers again");
+}
+
+#[test]
+fn capability_range_ignores_unrelated_ids_and_preserves_conflict_errors() {
+    let owner = TypeMetadata::of::<Record>();
+    let registry = snapshot_with_unrelated_capabilities(getter_a, setter_a);
+    let properties = owner.try_properties_in(&registry).expect("only the two fragments are merged");
+    let name = properties.property("name").expect("name property");
+    assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
+    assert_eq!(name.setter().expect("setter").rust_method_name(), "set_name");
+
+    let conflicting = snapshot_with_unrelated_capabilities(getter_a, getter_b);
+    let PropertyResolutionError::Assembly(errors) = owner
+        .try_properties_in(&conflicting)
+        .expect_err("conflicting provider accessors remain an assembly error")
+    else {
+        panic!("property assembly error");
+    };
+    assert_eq!(errors.errors().len(), 1);
+    assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::InvalidName);
+    assert_eq!(errors.errors()[0].property_name(), "name");
 }
 
 #[test]
