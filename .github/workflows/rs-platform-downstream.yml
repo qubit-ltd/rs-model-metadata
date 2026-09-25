@@ -26,57 +26,57 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-reflect
-          ref: main
+          ref: b36be13d2f217ecc1c3afddd042a03ba50cf73a7
           path: platform/rs-reflect
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-platform
-          ref: main
+          ref: 299a21b64b27b6213b4212bbc614b2d96d5917e7
           path: platform/rs-platform
 
       - name: Check out Rust common path dependencies
         uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-id
-          ref: main
+          ref: 7425188a7fdebcc94aac9915bcc79c535b3eb1db
           path: rust-common/rs-id
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-datatype
-          ref: main
+          ref: 48c4aee096f97c483dd44d6ded00bd166ccb0985
           path: rust-common/rs-datatype
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-redact
-          ref: main
+          ref: 5b992b879ab1bbff5a34c141693d0c6334604cdc
           path: rust-common/rs-redact
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-redact-derive
-          ref: main
+          ref: fdb0ad4b73d5a22745d5db1326075eaa852ec483
           path: rust-common/rs-redact-derive
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-codec
-          ref: main
+          ref: 975501f075de49cfb3c473c5048137daec608b43
           path: rust-common/rs-codec
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validator
-          ref: main
+          ref: 35106d70c6a983c8f72b9cb7b2489be81f733de7
           path: rust-common/rs-validator
 
       - name: Check out validation rule definitions
         uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validation-rules
-          ref: 25c15f9660d0e7c903181b43b521bc7f78789916
+          ref: 815b4bc35f69e8e0b6ae29459497d59dd50a0a4c
           path: rust-common/rs-validation-rules
 
       - name: Install the platform build toolchain
