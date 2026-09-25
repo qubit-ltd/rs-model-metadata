@@ -193,7 +193,14 @@ fn snapshot_with_unrelated_capabilities(first: ModelImplProvider, second: ModelI
                 model_impl_fragment_key(Box::leak(key.into_boxed_str())),
                 getter_b,
             )],
-            FragmentIdentity::new("model-impl-test", "unrelated-capability", index, 1, "capability", index as u64),
+            FragmentIdentity::new(
+                "model-impl-test",
+                "unrelated-capability",
+                index,
+                1,
+                "capability",
+                index as u64,
+            ),
         );
     }
     builder.build().expect("distinct capability slots")
@@ -366,14 +373,20 @@ fn registry_cache_initializes_once_for_concurrent_queries() {
     });
     assert_eq!(PROVIDER_CALLS.load(Ordering::SeqCst), 1);
     registry.properties_for(owner).expect("cached merge");
-    assert_eq!(PROVIDER_CALLS.load(Ordering::SeqCst), 1, "cached queries do not call providers again");
+    assert_eq!(
+        PROVIDER_CALLS.load(Ordering::SeqCst),
+        1,
+        "cached queries do not call providers again"
+    );
 }
 
 #[test]
 fn capability_range_ignores_unrelated_ids_and_preserves_conflict_errors() {
     let owner = TypeMetadata::of::<Record>();
     let registry = snapshot_with_unrelated_capabilities(getter_a, setter_a);
-    let properties = owner.try_properties_in(&registry).expect("only the two fragments are merged");
+    let properties = owner
+        .try_properties_in(&registry)
+        .expect("only the two fragments are merged");
     let name = properties.property("name").expect("name property");
     assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
     assert_eq!(name.setter().expect("setter").rust_method_name(), "set_name");
