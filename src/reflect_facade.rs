@@ -103,12 +103,16 @@ pub(crate) fn model_impl_metadata(
         if (id.as_str() == "qubit.model.impl.v1" || id.as_str().starts_with("qubit.model.impl.v1.f"))
             && let Some(provider) = registry.capability(descriptor, CapabilityKey::<ModelImplProvider>::new(*id))?
         {
-            providers.push(*provider);
+            let origin = registry
+                .capability_origin(descriptor, id.as_str())
+                .map_err(CapabilityAccessError::IntrinsicConflict)?
+                .expect("a resolved model implementation capability retains its origin");
+            providers.push((*provider, origin));
         }
     }
     match providers.as_slice() {
         [] => Ok(None),
-        [provider] => Ok(Some(ModelImplResolution::Static(provider()))),
+        [(provider, _)] => Ok(Some(ModelImplResolution::Static(provider()))),
         _ => Ok(Some(ModelImplResolution::Merged(Arc::new(ModelImplMetadata::merge(
             metadata, &providers,
         ))))),

@@ -74,6 +74,7 @@ pub use crate::property::PropertyStorageKind;
 pub use crate::property::PropertyValue;
 pub use crate::property::SetterAdapter;
 pub use crate::property::SetterMetadata;
+pub use crate::property_accessor_conflict::PropertyAccessorConflict;
 pub use crate::property_build_error::PropertyBuildError;
 pub use crate::property_build_error_kind::PropertyBuildErrorKind;
 pub use crate::property_build_errors::PropertyBuildErrors;

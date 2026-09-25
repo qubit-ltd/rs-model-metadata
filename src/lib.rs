@@ -30,6 +30,7 @@ mod model_impl_metadata;
 mod model_metadata_error;
 pub mod prelude;
 mod property;
+mod property_accessor_conflict;
 mod property_build_error;
 mod property_build_error_kind;
 mod property_build_errors;

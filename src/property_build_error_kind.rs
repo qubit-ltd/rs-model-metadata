@@ -23,4 +23,8 @@ pub enum PropertyBuildErrorKind {
     GetterTypeMismatch,
     /// A setter target or input differs from the selected property type.
     SetterTypeMismatch,
+    /// Distinct getter descriptors were selected for one property.
+    ConflictingGetter,
+    /// Distinct setter descriptors were selected for one property.
+    ConflictingSetter,
 }

@@ -105,6 +105,7 @@ fn test_property_errors_preserve_all_failures_in_deterministic_order() {
             "property MissingSource for `z_missing`",
         )
     );
+    assert!(errors.errors().iter().all(|error| error.conflict().is_none()));
     assert!(errors.source().is_none());
 }
 
