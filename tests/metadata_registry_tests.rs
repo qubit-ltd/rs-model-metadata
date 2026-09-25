@@ -11,6 +11,8 @@
 
 use std::sync::OnceLock;
 
+#[cfg(feature = "generic")]
+use qubit_model_derive::Model;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
 use qubit_model_metadata::__private::v7;
@@ -34,6 +36,19 @@ struct RegistryFixture;
 #[reflect(crate = qubit_model_metadata)]
 #[cfg(feature = "generic")]
 struct GenericFixture<T> {
+    value: T,
+}
+
+#[derive(Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+#[cfg(feature = "generic")]
+struct OtherGenericFixture<T> {
+    value: T,
+}
+
+#[Model]
+#[cfg(feature = "generic")]
+struct AnonymousGenericFixture<T> {
     value: T,
 }
 
@@ -184,6 +199,108 @@ fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
     ));
     let isolated = ModelRegistry::from_metadata_with_generics(&[], &[]).expect("empty isolated registry");
     assert!(isolated.generic_metadata_for(definition.id()).is_none());
+}
+
+#[test]
+#[cfg(feature = "generic")]
+fn anonymous_generic_definition_is_queryable_but_not_an_id_entry() {
+    let definition = TypeDescriptor::of::<GenericFixture<u8>>()
+        .type_definition()
+        .expect("generic definition");
+    let generic = v7::leak(v7::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
+    let source = FragmentIdentity::new("fixture", "tests", 41, 1, "generic-model", 41);
+    let registry = ModelRegistry::from_metadata_with_generics(&[], &[(generic, &source)]).expect("anonymous registry");
+
+    assert!(registry.entries().is_empty());
+    assert_eq!(registry.generic_definitions().len(), 1);
+    assert!(std::ptr::eq(registry.generic_definitions()[0], generic));
+    assert!(std::ptr::eq(
+        registry
+            .generic_metadata_for(definition.id())
+            .expect("definition lookup"),
+        generic,
+    ));
+    assert!(registry.generic("example.ArbitraryStableId").is_none());
+}
+
+#[test]
+#[cfg(feature = "generic")]
+fn anonymous_generic_definition_survives_reflection_projection() {
+    let definition = TypeMetadata::of::<AnonymousGenericFixture<u8>>()
+        .generic_definition()
+        .expect("derived generic definition");
+    let reflection = ReflectRegistry::initialize().expect("valid reflection registry");
+    let registry = ModelRegistry::from_reflect_registry(reflection).expect("valid model projection");
+
+    assert!(std::ptr::eq(
+        registry
+            .generic_metadata_for(definition.definition().id())
+            .expect("definition lookup"),
+        definition,
+    ));
+    assert!(
+        registry
+            .generic_definitions()
+            .iter()
+            .any(|candidate| std::ptr::eq(*candidate, definition))
+    );
+    assert!(registry.entries().iter().all(|entry| {
+        entry
+            .generic_metadata()
+            .is_none_or(|candidate| !std::ptr::eq(candidate, definition))
+    }));
+}
+
+#[test]
+#[cfg(feature = "generic")]
+fn generic_definitions_order_by_fragment_identity() {
+    let first_definition = TypeDescriptor::of::<GenericFixture<u8>>()
+        .type_definition()
+        .expect("first generic definition");
+    let second_definition = TypeDescriptor::of::<OtherGenericFixture<u8>>()
+        .type_definition()
+        .expect("second generic definition");
+    let first = v7::leak(v7::generic_model_metadata(
+        None,
+        ModelRole::Model,
+        first_definition,
+        &[],
+        &[],
+    ));
+    let second = v7::leak(v7::generic_model_metadata(
+        None,
+        ModelRole::Model,
+        second_definition,
+        &[],
+        &[],
+    ));
+    let first_source = FragmentIdentity::new("fixture", "tests", 10, 1, "generic-model", 10);
+    let second_source = FragmentIdentity::new("fixture", "tests", 20, 1, "generic-model", 20);
+    let registry = ModelRegistry::from_metadata_with_generics(&[], &[(second, &second_source), (first, &first_source)])
+        .expect("two anonymous generic definitions");
+
+    assert_eq!(registry.generic_definitions().len(), 2);
+    assert!(std::ptr::eq(registry.generic_definitions()[0], first));
+    assert!(std::ptr::eq(registry.generic_definitions()[1], second));
+}
+
+#[test]
+#[cfg(feature = "generic")]
+fn duplicate_anonymous_generic_definition_reports_both_sources() {
+    let definition = TypeDescriptor::of::<GenericFixture<u8>>()
+        .type_definition()
+        .expect("generic definition");
+    let first = v7::leak(v7::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
+    let second = v7::leak(v7::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
+    let first_source = FragmentIdentity::new("fixture", "tests", 11, 1, "generic-model", 11);
+    let second_source = FragmentIdentity::new("fixture", "tests", 12, 1, "generic-model", 12);
+    let error = ModelRegistry::from_metadata_with_generics(&[], &[(first, &first_source), (second, &second_source)])
+        .expect_err("duplicate definition identity must fail");
+
+    assert_eq!(error.kind(), ModelRegistryErrorKind::RegistrationConflict);
+    assert_eq!(error.sources().len(), 2);
+    assert!(error.sources().contains(&first_source));
+    assert!(error.sources().contains(&second_source));
 }
 
 #[test]

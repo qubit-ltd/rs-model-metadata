@@ -78,6 +78,9 @@ pub struct ModelRegistry<'reflection> {
     /// Generic definitions retained in deterministic registration order.
     #[cfg(feature = "generic")]
     generic_definitions: Box<[&'static GenericModelMetadata]>,
+    /// Lookup from process-local definition identity to generic metadata.
+    #[cfg(feature = "generic")]
+    generic_definition_indices: BTreeMap<TypeDefinitionId, &'static GenericModelMetadata>,
     /// Reflection snapshot that owns effective capability resolution.
     reflection: Option<&'reflection ReflectRegistry>,
     /// Per-registry cache for snapshot-specific property resolutions.
@@ -96,9 +99,9 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// # Errors
     ///
     /// Returns [`ModelRegistryError`] for capability failures, duplicate model
-    /// IDs, conflicting concrete type registrations, or metadata inconsistent
-    /// with its reflected descriptor/definition. ABI failures retain their
-    /// cause.
+    /// IDs or generic definition identities, conflicting concrete type
+    /// registrations, or metadata inconsistent with its reflected
+    /// descriptor/definition. ABI failures retain their cause.
     ///
     /// # Panics
     ///
@@ -106,6 +109,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     #[must_use = "handle invalid model registrations"]
     pub fn from_reflect_registry(reflection: &'reflection ReflectRegistry) -> Result<Self, ModelRegistryError> {
         let mut entries = Vec::new();
+        #[cfg(feature = "generic")]
+        let mut generic_inputs = Vec::new();
         for (descriptor, source) in reflection.types_with_identity() {
             let provider = match reflection
                 .capability_lookup(descriptor, model_metadata_key())
@@ -172,11 +177,13 @@ impl<'reflection> ModelRegistry<'reflection> {
             let source = reflection
                 .definition_source(definition.id())
                 .expect("registered definitions retain source identity");
-            if let Some(entry) = ModelEntry::generic(metadata, source) {
-                entries.push(entry);
-            }
+            generic_inputs.push((metadata, source));
         }
-        let mut registry = Self::build(entries)?;
+        let mut registry = Self::build(
+            entries,
+            #[cfg(feature = "generic")]
+            generic_inputs,
+        )?;
         registry.reflection = Some(reflection);
         Ok(registry)
     }
@@ -203,20 +210,24 @@ impl<'reflection> ModelRegistry<'reflection> {
             };
             entries.push(entry);
         }
-        ModelRegistry::<'a>::build(entries)
+        ModelRegistry::<'a>::build(
+            entries,
+            #[cfg(feature = "generic")]
+            Vec::new(),
+        )
     }
 
     /// Builds an isolated registry from concrete and generic declarations.
     ///
     /// Retains borrowed provenance without invoking providers or global state.
-    /// Anonymous generic definitions are skipped because they have no stable
-    /// registration ID; concrete anonymous registrations are rejected.
+    /// Anonymous generic definitions remain available by definition identity;
+    /// concrete anonymous registrations are rejected.
     ///
     /// # Errors
     ///
     /// Returns [`ModelRegistryError`] for an anonymous concrete registration,
-    /// duplicate stable IDs across either kind of declaration, or conflicting
-    /// registrations of one concrete Rust type.
+    /// duplicate stable IDs or generic definition identities across
+    /// declarations, or conflicting registrations of one concrete Rust type.
     #[must_use = "handle invalid model registrations"]
     #[cfg(feature = "generic")]
     pub fn from_metadata_with_generics<'a>(
@@ -230,12 +241,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             };
             entries.push(entry);
         }
-        entries.extend(
-            generic
-                .iter()
-                .filter_map(|&(metadata, source)| ModelEntry::generic(metadata, source)),
-        );
-        ModelRegistry::<'a>::build(entries)
+        ModelRegistry::<'a>::build(entries, generic.to_vec())
     }
 
     /// Initializes reflection first, then freezes all linked model
@@ -280,9 +286,47 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// # Errors
     ///
-    /// Returns [`ModelRegistryError`] for duplicate model IDs or inconsistent
-    /// concrete registration metadata.
-    fn build(mut entries: Vec<ModelEntry<'reflection>>) -> Result<Self, ModelRegistryError> {
+    /// Returns [`ModelRegistryError`] for duplicate model IDs or generic
+    /// definition identities, or inconsistent concrete registration metadata.
+    fn build(
+        mut entries: Vec<ModelEntry<'reflection>>,
+        #[cfg(feature = "generic")] mut generic_inputs: Vec<(
+            &'static GenericModelMetadata,
+            &'reflection FragmentIdentity,
+        )>,
+    ) -> Result<Self, ModelRegistryError> {
+        #[cfg(feature = "generic")]
+        {
+            generic_inputs.sort_by(|(left, left_source), (right, right_source)| {
+                left_source
+                    .cmp(right_source)
+                    .then_with(|| left.definition().rust_path().cmp(right.definition().rust_path()))
+            });
+        }
+        #[cfg(feature = "generic")]
+        let mut generic_definition_indices = BTreeMap::new();
+        #[cfg(feature = "generic")]
+        let mut definition_sources = BTreeMap::new();
+        #[cfg(feature = "generic")]
+        let mut generic_definitions = Vec::with_capacity(generic_inputs.len());
+        #[cfg(feature = "generic")]
+        for &(metadata, source) in &generic_inputs {
+            let definition_id = metadata.definition().id();
+            if let Some(previous_source) = definition_sources.insert(definition_id, source) {
+                return Err(ModelRegistryError::conflict(
+                    metadata.model_id(),
+                    vec![previous_source.clone(), source.clone()],
+                ));
+            }
+            generic_definition_indices.insert(definition_id, metadata);
+            generic_definitions.push(metadata);
+        }
+        #[cfg(feature = "generic")]
+        entries.extend(
+            generic_inputs
+                .iter()
+                .filter_map(|&(metadata, source)| ModelEntry::generic(metadata, source)),
+        );
         entries.sort_by(compare_entries);
         for pair in entries.windows(2) {
             if pair[0].model_id == pair[1].model_id {
@@ -293,8 +337,6 @@ impl<'reflection> ModelRegistry<'reflection> {
 
         let mut indices = BTreeMap::new();
         let mut type_indices = HashMap::new();
-        #[cfg(feature = "generic")]
-        let mut generic_definitions = Vec::new();
         for (index, entry) in entries.iter().copied().enumerate() {
             indices.insert(entry.model_id, index);
             if let Some(metadata) = entry.metadata() {
@@ -311,10 +353,6 @@ impl<'reflection> ModelRegistry<'reflection> {
                     ));
                 }
             }
-            #[cfg(feature = "generic")]
-            if let Some(generic) = entry.generic_metadata() {
-                generic_definitions.push(generic);
-            }
         }
 
         Ok(Self {
@@ -323,6 +361,8 @@ impl<'reflection> ModelRegistry<'reflection> {
             type_indices,
             #[cfg(feature = "generic")]
             generic_definitions: generic_definitions.into_boxed_slice(),
+            #[cfg(feature = "generic")]
+            generic_definition_indices,
             reflection: None,
             property_cache: Mutex::default(),
         })
@@ -456,10 +496,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     #[must_use]
     #[cfg(feature = "generic")]
     pub fn generic_metadata_for(&self, definition_id: TypeDefinitionId) -> Option<&'static GenericModelMetadata> {
-        self.generic_definitions
-            .iter()
-            .copied()
-            .find(|metadata| metadata.definition().id() == definition_id)
+        self.generic_definition_indices.get(&definition_id).copied()
     }
 
     /// Returns borrowed registration provenance for a stable ID, or `None` for
@@ -469,7 +506,8 @@ impl<'reflection> ModelRegistry<'reflection> {
         Some(self.get(id)?.source)
     }
 
-    /// Returns registered generic definitions in deterministic order.
+    /// Returns registered generic definitions ordered by fragment identity and
+    /// then Rust path, including definitions without stable model IDs.
     #[must_use]
     #[cfg(feature = "generic")]
     #[inline]
@@ -505,7 +543,12 @@ mod tests {
 
     #[test]
     fn empty_metadata_registry_exposes_empty_indexes() {
-        let registry = ModelRegistry::build(Vec::new()).expect("empty registry is valid");
+        let registry = ModelRegistry::build(
+            Vec::new(),
+            #[cfg(feature = "generic")]
+            Vec::new(),
+        )
+        .expect("empty registry is valid");
 
         let entries = <ModelRegistry<'static>>::entries;
         assert!(entries(&registry).is_empty());
