@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-platform
-          ref: 299a21b64b27b6213b4212bbc614b2d96d5917e7
+          ref: 912bfb45d7e29cf3df71cc4bf26aa8d2d2e6f173
           path: platform/rs-platform
 
       - name: Check out Rust common path dependencies
@@ -69,7 +69,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validator
-          ref: 35106d70c6a983c8f72b9cb7b2489be81f733de7
+          ref: fb64546a16ca7659e10d9296728e1cfdace86de0
           path: rust-common/rs-validator
 
       - name: Check out validation rule definitions
