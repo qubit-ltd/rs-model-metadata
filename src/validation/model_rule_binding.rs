@@ -39,7 +39,7 @@ impl fmt::Debug for ModelRuleBinding {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("ModelRuleBinding")
-            .field("rule_id", &self.rule_id)
+            .field("rule_id", &self.rule_id())
             .finish()
     }
 }
