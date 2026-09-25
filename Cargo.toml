@@ -68,6 +68,10 @@ name = "property_output"
 harness = false
 
 [[bench]]
+name = "property_resolution"
+harness = false
+
+[[bench]]
 name = "model_pipeline"
 harness = false
 required-features = ["validation"]
