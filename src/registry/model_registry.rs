@@ -193,8 +193,9 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Borrows each registration's provenance and retains its static metadata.
     /// No metadata provider or global registry is invoked. Supply anonymous
     /// models as structural roots instead of registrations under stable IDs.
-    /// Property resolution uses only [`TypeMetadata::local_properties`] and
-    /// does not read independently registered `ModelImpl` capabilities.
+    /// Property resolution uses only the model's statically declared local
+    /// properties and does not read independently registered `ModelImpl`
+    /// capabilities.
     ///
     /// # Errors
     ///
@@ -466,8 +467,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// Registries built by `from_static_metadata` or
     /// `from_static_metadata_with_generics` use only
-    /// [`TypeMetadata::local_properties`], without independently registered
-    /// `ModelImpl` capabilities. Snapshot registries invoke their
+    /// the model's statically declared local properties, without independently
+    /// registered `ModelImpl` capabilities. Snapshot registries invoke their
     /// implementation providers on a cache miss, then reuse the owned merge
     /// for the same metadata identity. Cache storage is released with this
     /// registry. This never consults global state.
