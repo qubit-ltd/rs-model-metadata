@@ -82,7 +82,19 @@ fn main() {
 metadata 在穿过隐藏的 metadata-only ABI v7 边界前，会校验 descriptor、Field、Property 和角色
 不变量；生成代码只依赖经过收窄的模块 facade 及其精确私有 ABI。
 
-需要隔离反射上下文时，应使用 `qubit-reflect` 的 `RegistrySnapshotBuilder` 构造快照，再传给显式的 `*_in` 查询；不要继续使用旧的隐藏 testing registry helper。全局初始化失败仍保持结构化错误：`ModelRegistry::try_global()` 的 source chain 会保留反射 registry 错误及其 capability conflict。
+全局入口 `ModelRegistry::try_global()` 表示完整的链接注册集合；发生冲突时，整体初始化会失败，source chain 会保留反射错误及 capability conflict。需要隔离模型视图时，只将所需描述符加入 `ReflectRegistry` 快照，再把同一个快照传给 `ModelRegistry::from_reflect_registry`：
+
+```rust,ignore
+let mut builder = qubit_reflect::registry::RegistrySnapshotBuilder::new();
+builder.add_type(
+    qubit_reflect::TypeDescriptor::of::<MyModel>(),
+    qubit_reflect::identity::FragmentIdentity::new("example", "models", 1, 1, "type", 1),
+);
+let snapshot = builder.build()?;
+let models = ModelRegistry::from_reflect_registry(&snapshot)?;
+```
+
+显式快照从空集合开始，不会自动包含进程中链接的所有注册信息。不要使用旧的隐藏 testing registry helper。
 
 验证计划会收集受支持的各处嵌套声明，并明确拒绝不支持的执行形状；Enum、Time 等声明结构合法，
 不代表后端能够执行。FailFast 和报告上限会停止整个计划，基础执行错误则保留部分报告。

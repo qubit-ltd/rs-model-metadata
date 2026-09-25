@@ -103,7 +103,25 @@ metadata is checked against descriptor, field, property, and role invariants
 before it crosses the hidden metadata-only ABI v7 boundary. Generated model
 code uses only the curated module facade and its exact private ABI.
 
-When a consumer needs an isolated reflection context, construct it with `RegistrySnapshotBuilder` from `qubit-reflect` and pass it to the explicit `*_in` queries. Do not use the old hidden testing registry helper. Global initialization failures remain structured: `ModelRegistry::try_global()` preserves the reflection registry error and its capability conflict as the source chain.
+The global `ModelRegistry::try_global()` entry point represents the complete set
+of linked registrations; a conflict makes initialization fail as a whole and
+preserves the reflection error and capability conflict in its source chain. For
+an isolated model view, build a `ReflectRegistry` snapshot from only the desired
+descriptors, then pass that same snapshot to `ModelRegistry::from_reflect_registry`:
+
+```rust,ignore
+let mut builder = qubit_reflect::registry::RegistrySnapshotBuilder::new();
+builder.add_type(
+    qubit_reflect::TypeDescriptor::of::<MyModel>(),
+    qubit_reflect::identity::FragmentIdentity::new("example", "models", 1, 1, "type", 1),
+);
+let snapshot = builder.build()?;
+let models = ModelRegistry::from_reflect_registry(&snapshot)?;
+```
+
+An explicit snapshot starts empty and does not automatically include every
+registration linked into the process. Do not use the old hidden testing
+registry helper.
 
 Validation plans collect each supported nested declaration and reject unsupported
 execution shapes explicitly; a structurally valid enum or time declaration is not
