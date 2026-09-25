@@ -225,8 +225,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Retains borrowed provenance without invoking providers or global state.
     /// Anonymous generic definitions remain available by definition identity;
     /// concrete anonymous registrations are rejected. Property resolution uses
-    /// only [`TypeMetadata::local_properties`] and does not read independently
-    /// registered `ModelImpl` capabilities.
+    /// only the model's statically declared local properties and does not read
+    /// independently registered `ModelImpl` capabilities.
     ///
     /// # Errors
     ///
