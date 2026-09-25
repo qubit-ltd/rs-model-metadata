@@ -338,9 +338,12 @@ fn test_fields_and_selectors_prefix_relative_violation_paths() {
         let report = run(root, value, &ValidationOptions::default()).unwrap();
         assert_eq!(report.violations().len(), 3);
         assert!(report.skipped().is_empty());
-        assert!(report.violations().iter().all(|violation| {
-            violation.path().render() == format!("{occurrence_path}.nested")
-        }));
+        assert!(
+            report
+                .violations()
+                .iter()
+                .all(|violation| { violation.path().render() == format!("{occurrence_path}.nested") })
+        );
     }
 }
 fn prepare_outcome(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
