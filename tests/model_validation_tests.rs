@@ -31,6 +31,7 @@ use qubit_reflect::identity::FragmentIdentity;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
+use qubit_validator::ExecutionErrorKind;
 use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedOutcome;
@@ -111,6 +112,17 @@ impl PreparedValidator for RejectModel {
         Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
             "model.invalid",
         ))]))
+    }
+}
+
+struct FailModel;
+impl PreparedValidator for FailModel {
+    fn validate(
+        &self,
+        _: ValidationValue<'_>,
+        _: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
+        Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed))
     }
 }
 static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare)];
@@ -212,6 +224,42 @@ fn executes_typed_model_rule_binding() {
         assert_eq!(selected.violations().len(), 1);
         assert_eq!(selected.violations()[0].path().render(), expected);
     }
+}
+
+#[test]
+fn model_rule_execution_errors_keep_the_bound_rule_id() {
+    let metadata = TypeMetadata::of::<TestModel>();
+    let reflection = ReflectRegistry::initialize().expect("reflection registry");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        roots: &[],
+        models: &models,
+    })
+    .resolve()
+    .expect("structure");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let binding =
+        ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.failure"), Arc::new(FailModel));
+    let plan = ValidationPlan::build(
+        metadata,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("binding")
+    .with_model_rule(binding);
+
+    let error = plan
+        .validate(
+            ReflectedRef::new(&TestModel {
+                name: "value".to_owned(),
+            }),
+            &ValidationOptions::default(),
+        )
+        .expect_err("model rule execution fails");
+    assert_eq!(error.error().kind(), ExecutionErrorKind::PropertyReadFailed);
+    assert_eq!(error.error().rule_id(), Some(ValidatorId::new("test.model.failure")));
 }
 
 #[test]
