@@ -11,8 +11,12 @@
 use std::fmt;
 use std::sync::Arc;
 
-use qubit_validator::InputType;
+use qubit_validator::BoundValidationContext;
+use qubit_validator::BoundValidator;
+use qubit_validator::ExecutionError;
 use qubit_validator::PreparedValidator;
+use qubit_validator::ValidationOutcome;
+use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorId;
 
 /// A typed model-level validator prepared for execution against the plan root.
@@ -22,12 +26,8 @@ use qubit_validator::ValidatorId;
 /// inspecting the validator, which need not implement `Debug`.
 #[derive(Clone)]
 pub struct ModelRuleBinding {
-    /// Rule identity attached to execution failures and violations.
-    rule_id: ValidatorId,
-    /// Exact root type accepted by this prepared validator.
-    input_type: InputType,
-    /// Shared immutable rule implementation, without an instance borrow.
-    validator: Arc<dyn PreparedValidator>,
+    /// Prepared implementation with checked input and dependency metadata.
+    validator: BoundValidator,
 }
 
 impl fmt::Debug for ModelRuleBinding {
@@ -66,27 +66,29 @@ impl ModelRuleBinding {
     #[inline]
     pub fn from_prepared<T: 'static>(rule_id: ValidatorId, validator: Arc<dyn PreparedValidator>) -> Self {
         Self {
-            rule_id,
-            input_type: InputType::of::<T>(),
-            validator,
+            validator: BoundValidator::from_prepared::<T>(rule_id, validator),
         }
     }
     /// Returns the bound rule identifier.
     #[must_use]
     #[inline]
     pub(crate) const fn rule_id(&self) -> ValidatorId {
-        self.rule_id
+        self.validator.rule_id()
     }
-    /// Returns the input type accepted by the rule.
+
+    /// Validates one model value through the common bound-validator checks.
+    ///
+    /// # Errors
+    ///
+    /// Returns an input, context, adapter, or rule execution error associated
+    /// with this binding's rule ID.
     #[must_use]
     #[inline]
-    pub(crate) const fn input_type(&self) -> InputType {
-        self.input_type
-    }
-    /// Returns the prepared validator implementation.
-    #[must_use]
-    #[inline]
-    pub(crate) fn validator(&self) -> &dyn PreparedValidator {
-        self.validator.as_ref()
+    pub(crate) fn validate(
+        &self,
+        value: ValidationValue<'_>,
+        context: &BoundValidationContext<'_>,
+    ) -> Result<ValidationOutcome, ExecutionError> {
+        self.validator.validate(value, context)
     }
 }

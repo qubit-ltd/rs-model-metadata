@@ -48,7 +48,6 @@ use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
 use qubit_validator::ValidatorRegistry;
 use qubit_validator::ValidatorSignature;
-use qubit_validator::Violation;
 use qubit_validator::ViolationCode;
 use qubit_validator::ViolationDraft;
 
@@ -308,21 +307,9 @@ impl PreparedValidator for OutcomeRule {
                 })
                 .collect()
         };
-        let prerequisites = || {
-            (0..3)
-                .map(|_| {
-                    Violation::new(ValidatorId::new("execution.rule"), ViolationCode::new("prerequisite"))
-                        .with_path(ValidationPath::root().with_field("source").with_field("nested"))
-                })
-                .collect()
-        };
         Ok(match value.as_text().unwrap() {
             "invalid" => PreparedOutcome::Invalid(drafts()),
             "empty-invalid" => PreparedOutcome::Invalid(vec![]),
-            "prerequisite" => PreparedOutcome::Skipped {
-                reason: SkipReason::FailedPrerequisite,
-                prerequisites: prerequisites(),
-            },
             "error" => {
                 return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
             }
@@ -332,13 +319,13 @@ impl PreparedValidator for OutcomeRule {
 }
 
 #[test]
-fn test_fields_and_selectors_preserve_prerequisite_paths() {
+fn test_fields_and_selectors_prefix_relative_violation_paths() {
     let fields = Fields {
-        first: "prerequisite".into(),
+        first: "invalid".into(),
         second: "valid".into(),
     };
     let elements = Elements {
-        values: vec!["prerequisite".into()],
+        values: vec!["invalid".into()],
     };
     for (root, value, occurrence_path) in [
         (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields), "first"),
@@ -349,17 +336,11 @@ fn test_fields_and_selectors_preserve_prerequisite_paths() {
         ),
     ] {
         let report = run(root, value, &ValidationOptions::default()).unwrap();
-        assert!(report.violations().is_empty());
-        assert_eq!(report.skipped().len(), 1);
-        let skipped = &report.skipped()[0];
-        assert_eq!(skipped.path().render(), occurrence_path);
-        assert_eq!(skipped.prerequisites().len(), 3);
-        assert!(
-            skipped
-                .prerequisites()
-                .iter()
-                .all(|violation| violation.path().render() == "source.nested")
-        );
+        assert_eq!(report.violations().len(), 3);
+        assert!(report.skipped().is_empty());
+        assert!(report.violations().iter().all(|violation| {
+            violation.path().render() == format!("{occurrence_path}.nested")
+        }));
     }
 }
 fn prepare_outcome(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {

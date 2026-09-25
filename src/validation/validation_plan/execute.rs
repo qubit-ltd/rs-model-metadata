@@ -82,16 +82,9 @@ impl<'a> ValidationPlan<'a> {
             }
             let result = (|| {
                 let input = reflected_value(&value);
-                if !binding.input_type().accepts(input) {
-                    return Err(ExecutionError::new(ExecutionErrorKind::InputTypeMismatch));
-                }
                 let context = BoundValidationContext::new_with_paths(&[], &[])?;
                 budget.invoke(0, false)?;
-                let outcome = binding
-                    .validator()
-                    .validate(input, &context)?
-                    .into_bound(binding.rule_id())
-                    .map_err(|_| ExecutionError::new(ExecutionErrorKind::AdapterContractViolation))?;
+                let outcome = binding.validate(input, &context)?;
                 let has_more_work = self.model_rules()[occurrence + 1..]
                     .iter()
                     .any(|_| selected(options.selection(), &path))
