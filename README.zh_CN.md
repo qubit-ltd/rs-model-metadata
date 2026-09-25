@@ -13,13 +13,14 @@
 
 ## 安装
 
-运行时 crate 需要 Rust 1.94，使用 edition 2024。以下示例假设所需 crate 已发布到 crates.io：
+运行时 crate 需要 Rust 1.94，使用 edition 2024。本仓库和 derive crate 均设置了
+`publish = false`，因此应从应用 crate 使用 platform 工作区中的本地检出：
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", default-features = false }
-qubit-model-derive = "0.1"
-qubit-id = "0.6.0"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
+qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 ```
 
 `qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。默认 feature 集为空；
@@ -54,7 +55,8 @@ fn main() {
 
 得到的是 `User` 的静态元数据；`TypeMetadata::of` 不会初始化全局模型注册表。从冻结的
 `ReflectRegistry` 构造 `ModelRegistry` 后，其 `metadata_for` 和 `properties_for` 查询会使用
-该快照，以便看见独立生成的模型 overlay。跨 crate 关系的解析流程请参阅用户指南。
+该快照，以便看见独立生成的模型 overlay。显式 Property 查询返回拥有型视图，动态合并数据随视图释放；
+`ModelRegistry` 的缓存只在 registry 生命周期内复用。跨 crate 关系的解析流程请参阅用户指南。
 
 ## 为什么需要这个项目
 

@@ -69,7 +69,9 @@ flowchart TD
 
 ModelImpl 先提取模型方法标记，再将 impl 委托给 reflect_impl；trait impl、泛型 impl 和不能动态调用的方法按反射契约描述。模型层不复制整个方法调用系统。
 
-同一类型可以有多个 ModelImpl block。每个 block 以独立 checked capability 注册；读取时仅聚合当前反射快照可见的 provider，并按 owner TypeId 与 provider 集合缓存结果。聚合检查各 provider 的 owner 和 accessor 类型，不使用每个 impl 重复实现的 seal trait。泛型 concrete 方法贡献沿用 reflect_impl 的显式 specialize 声明。
+同一类型可以有多个 ModelImpl block。每个 block 以独立 checked capability 注册；读取时仅聚合当前反射快照可见的 provider，并检查各 provider 的 owner 和 accessor 类型，不使用每个 impl 重复实现的 seal trait。直接调用 `TypeMetadata::*_in` 返回拥有型 `ResolvedProperties` 和 `ResolvedPropertyFragments`，不会写入进程级缓存。`ModelRegistry` 在自身内部按 `(TypeId, TypeMetadata 指针)` 缓存成功结果与组装错误；显式 registry 丢弃后，其动态合并结果也会释放。泛型 concrete 方法贡献沿用 reflect_impl 的显式 specialize 声明。
+
+`ResolvedProperties::Static` 引用生成的静态 metadata，`Merged` 拥有 `Arc<[PropertyMetadata]>`。`try_property[_in]` 复制实现了 `Copy` 的 property 记录。`ModelGraph` 持有解析得到的属性视图，查询借用受 graph 生命周期约束。组装错误通过 `Arc<PropertyBuildErrors>` 拥有诊断内容。快照级属性、fragment、缓存单元和错误不会再永久泄漏到进程生命周期。
 
 确定退出自动 Property 的语法为：
 

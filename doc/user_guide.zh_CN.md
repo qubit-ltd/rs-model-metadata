@@ -16,13 +16,15 @@ TypeMetadata 是不依赖模型实例的静态信息。Entity 必须声明稳定
 
 ## 贯穿场景与最小配置
 
-先使用已发布的依赖。只有在需要构建验证计划时，才为运行时 crate 启用 `validation`：
+两个 model-metadata package 都设置了 `publish = false`，需要使用本地检出。
+以下路径假设应用 crate 与 `rs-model-metadata` 同属 `rs-platform` 工作区。只有构建验证计划时，
+才为运行时 crate 启用 `validation`：
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1.0", default-features = false }
-qubit-model-derive = "0.1.0"
-qubit-id = "0.6.0"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
+qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 ```
 
 通过 `ModelRegistry::from_metadata` 创建的纯元数据注册表不会经反射发现其他元数据 provider。
@@ -90,6 +92,23 @@ fn main() {
 生成代码采用 checked `__private::v7`。升级时同步更新 runtime、derive 与手写生成协议 fixture；
 旧私有协议没有兼容层。应用代码使用上表的公开接口即可，`rs-reflect` 的生成协议版本独立维护。
 
+### 快照拥有的 Property 视图
+
+`TypeMetadata::try_properties[_in]` 现在返回 `ResolvedProperties`。需要读取切片或查找属性时，
+先保留这个视图：
+
+```rust,ignore
+let resolved = metadata.try_properties_in(&reflection)?;
+let properties = resolved.properties();
+let title = resolved.property("title");
+```
+
+`try_property[_in]` 返回复制后的 `Option<PropertyMetadata>`。fragment 查询返回
+`ResolvedPropertyFragments`，其 `fragments()` 切片不能超过视图本身的生命周期。直接调用 `*_in`
+会自行持有合并结果，但不会写入全局缓存；重复查询可通过 `ModelRegistry::properties_for` 复用。
+缓存归所属 registry 管理，registry 丢弃后即可释放。`ModelGraph` 会在自身生命周期内保留属性视图，
+从 `graph.properties()` 借出的引用也不能超过 graph。
+
 旧的 `FieldMetadata::validate_nested()` 方法和 `FieldAttributeMetadata::ValidateNested` 标记已移除；
 它们不控制执行。计划构建器负责发现受支持的嵌套声明，遍历边界按文档中的 reference 和 opaque 语义处理，
 不再使用递归开关。
@@ -133,8 +152,8 @@ validators: &validators })`，传入自己的 validator registry。
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1.0", features = ["validation"] }
-qubit-model-derive = "0.1.0"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-reflect = "0.1.0"
 qubit-validator = "0.1.0"
 ```

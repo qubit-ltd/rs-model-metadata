@@ -19,14 +19,15 @@ exact TypeId identity and can be supplied as roots.
 
 ## Scenario and minimal configuration
 
-Start with a released dependency set. Add `validation` only when the application
-will build validation plans:
+Both model-metadata packages set `publish = false`, so use local checkouts.
+These paths assume the application crate sits beside `rs-model-metadata` under
+`rs-platform`. Add `validation` only when the application builds plans:
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1.0", default-features = false }
-qubit-model-derive = "0.1.0"
-qubit-id = "0.6.0"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
+qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 ```
 
 A metadata-only registry made with `ModelRegistry::from_metadata` does not
@@ -110,6 +111,25 @@ and hand-written generated-code fixtures together; older private protocols have
 no compatibility shim. Application code should use the public APIs above.
 `rs-reflect` keeps its own independent code-generation protocol version.
 
+### Snapshot-owned property views
+
+`TypeMetadata::try_properties[_in]` now returns `ResolvedProperties`. Keep that
+value while borrowing its slice or looking up a property:
+
+```rust,ignore
+let resolved = metadata.try_properties_in(&reflection)?;
+let properties = resolved.properties();
+let title = resolved.property("title");
+```
+
+`try_property[_in]` returns a copied `Option<PropertyMetadata>`. The fragment
+methods return `ResolvedPropertyFragments`, whose `fragments()` slice is tied to
+the view. Direct `*_in` calls own their merge and do not cache it globally; when
+repeated queries should reuse a merge, call `ModelRegistry::properties_for`.
+That cache belongs to the registry and is released when the registry is dropped.
+`ModelGraph` retains property views for its own lifetime, and references obtained
+from `graph.properties()` must not outlive the graph.
+
 The obsolete `FieldMetadata::validate_nested()` method and
 `FieldAttributeMetadata::ValidateNested` marker are removed. Neither controls
 execution. Supported nested declarations are discovered by the plan builder;
@@ -167,8 +187,8 @@ independent programs**, add the execution types as released direct dependencies:
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1.0", features = ["validation"] }
-qubit-model-derive = "0.1.0"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-reflect = "0.1.0"
 qubit-validator = "0.1.0"
 ```

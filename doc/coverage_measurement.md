@@ -62,3 +62,11 @@ fixture and full workspace coverage without the option. Remove the helper and
 its wrapper wiring together only when both correctly retain executed mappings.
 Never compensate by editing report counts, lowering gates, or adding file
 exemptions.
+
+The 2026-09-24 metadata review audited every production `inline(always)` hint
+in the runtime and derive crates. Thin `const` accessors keep ordinary
+`#[inline]`; non-const methods no longer force inlining without benchmark
+evidence. The two `inline(always)` methods in the isolated coverage fixture are
+intentional: they reproduce the mapping issue described above.
+The per-method inventory is available in the [English audit](inline-always-audit.md)
+and [简体中文审计](inline-always-audit.zh_CN.md).

@@ -52,3 +52,9 @@ RUSTFLAGS='-C link-dead-code=yes' cargo +1.94.0 llvm-cov --manifest-path tests/f
 工具链更新后，应在不设置该选项的情况下重新运行 fixture 和
 完整 workspace 覆盖率。只有两者都能正确保留已执行映射时，才一起移除 helper
 和两个入口中的加载逻辑。不得通过改写报告、降低门槛或新增文件豁免抵消误差。
+
+2026-09-24 的 metadata 审查逐项检查了 runtime 与 derive crate 的生产代码
+`inline(always)` 提示。精简的 `const` 访问器改用普通 `#[inline]`，非 const 方法在
+缺少基准证据时不再强制内联。隔离覆盖率 fixture 中的两个 `inline(always)` 方法是
+有意保留的，用于复现上文的映射问题。
+逐项清单见[英文审计](inline-always-audit.md)和[简体中文审计](inline-always-audit.zh_CN.md)。

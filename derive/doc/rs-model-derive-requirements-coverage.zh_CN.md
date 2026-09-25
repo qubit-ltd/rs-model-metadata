@@ -431,3 +431,22 @@ CI 使用 `RS_CI_CARGO_HOME_MODE=shared` 与 `RS_CI_ARTIFACT_CLEANUP_MODE=never`
 实际代码块检查也发现并修复了“Entity 未声明必需的稳定 ID”及对非 Debug 计划调用 expect_err 的问题。
 全量风格与生产 Rustdoc 逐项核对、剩余覆盖测试、最终 CI、最终基准复测及 Git 集成尚未结束；
 本节不将这些任务标记为完成。
+
+## 2026-09-24 元数据修复方案实施复核
+
+以下结果对应本轮已接受的重构方案；上面的 2026-09-10 记录保留为当时状态快照。
+
+| 方案项 | 当前证据 | 状态 |
+| --- | --- | --- |
+| 动态属性与 fragment 合并只在 snapshot/registry/graph 生命周期内拥有 | [`model_impl_merge_tests`](../../tests/model_impl_merge_tests.rs)：独立 snapshot、registry 隔离、drop 释放成功/失败缓存、并发单次初始化、provider panic 后可恢复 | 已实现并回归 |
+| 消除动态 `Box::leak`，保留静态 derive 元数据 | [`model_impl_metadata.rs`](../../src/model_impl_metadata.rs)、[`resolved_properties.rs`](../../src/resolved_properties.rs)、[`resolved_property_fragments.rs`](../../src/resolved_property_fragments.rs)、[`model_registry.rs`](../../src/registry/model_registry.rs) | 已实现；运行时合并路径无 `Box::leak` |
+| 下游按结构化路径排序并遵守 Eq/Ord/Hash 契约 | rs-validator `path_order_tests`；rs-platform `validation_violation_order_tests` | 已实现；下游适配器迁移到 prepared outcomes |
+| 双语安装说明、用户指南、设计说明 | 根 README、`doc/user_guide*`、双语 final-design | 已更新；文档示例测试验证本地路径依赖及 `publish = false` |
+| `inline(always)` 逐项审计 | [双语逐项清单](../../doc/inline-always-audit.md)：224 项中 190 个 const 访问器/构造函数、24 个转发/切片访问器降为 `inline`；其余 10 项移除。快跑 Criterion 未显示整体回归，单字段 registry 查询对紧邻基线有小幅显著改善，其余主要阶段无显著变化 | 已完成；单项提示收益未被隔离验证 |
+| 下游 CI 输入固定到不可变提交 | [rs-platform-downstream.yml](../../.github/workflows/rs-platform-downstream.yml) 与 [`ci_wrapper_tests.py`](../../tests/ci_wrapper_tests.py) | 已加入 40 位 SHA 检查；rs-platform 固定到本轮集成提交 |
+| 对齐脚本和仓库 CI | rs-validator、rs-platform、rs-model-metadata 的 `align-ci.sh` / `ci-check.sh` | 最终结果见本轮结束记录 |
+| 1/8/32 字段管线性能复测 | `benches/model_pipeline.rs`，与旧的直接查询基线比较 | 复测结果及噪声限制见本轮结束记录 |
+
+### 覆盖率门槛补齐结果（2026-09-25）
+
+根据完整 coverage JSON 报告补充空集合访问器、元数据查找失败路径、关系位置/路径边界及重复内建 validator 声明失败路径的行为测试。未调整 `.rs-ci-coverage.json` 中的阈值或豁免。最终完整 `./align-ci.sh && ./ci-check.sh` 通过，coverage 汇总为：函数 1330/1399（95.07%）、行 9572/10469（91.43%）、region 14013/15650（89.54%），分别满足函数 ≥ 95%、行 > 90%、region > 85%。覆盖率报告由 `ci-check.sh` 的 coverage 门禁生成；该结果为本次最后一次完整运行。

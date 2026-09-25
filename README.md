@@ -15,14 +15,15 @@ creating a second reflection system.
 
 ## Installation
 
-The runtime crate supports Rust 1.94 and edition 2024. The examples below use
-released crates from crates.io:
+The runtime crate supports Rust 1.94 and edition 2024. This package and its
+derive package are `publish = false`; use checkout paths from an application
+crate beside `rs-model-metadata` in the platform workspace:
 
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", default-features = false }
-qubit-model-derive = "0.1"
-qubit-id = "0.6.0"
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
+qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 ```
 
 `qubit-id` supplies the exact `Id` type required by `Entity` and `Projection`
@@ -63,7 +64,9 @@ The result is static metadata for `User`; `TypeMetadata::of` does not initialize
 the global model registry. A `ModelRegistry` constructed from a frozen
 `ReflectRegistry` uses that snapshot in `metadata_for` and `properties_for`,
 so separately emitted model overlays remain visible. See the user guide for
-the subsequent cross-crate resolution step.
+the subsequent cross-crate resolution step. Explicit property queries return
+owned views; their dynamic merge is released with the view, while a
+`ModelRegistry` reuses its own cached merge only for that registry's lifetime.
 
 ## Why This Project Exists
 
