@@ -174,6 +174,24 @@ fn test_character_policies_preserve_unicode_and_printability() {
             .iter()
             .all(|item| item.rule_id().as_str() == "qubit.rules.text.allowed_chars")
     );
+
+    let zero_width = CharacterPolicies {
+        unicode: "\u{200B}".to_owned(),
+        printable_unicode: "\u{200B}".to_owned(),
+        ascii: "ascii".to_owned(),
+        printable_ascii: "ASCII".to_owned(),
+        code: "Account_7.example-name".to_owned(),
+    };
+    let report = validate(root, ReflectedRef::new(&zero_width));
+    assert_eq!(
+        report
+            .violations()
+            .iter()
+            .map(|item| item.rule_id().as_str())
+            .collect::<Vec<_>>(),
+        ["qubit.rules.text.allowed_chars"]
+    );
+    assert_eq!(report.violations()[0].path().render(), "printable_unicode");
 }
 
 /// Each format maps to its own built-in rule, with visible declaration paths.
