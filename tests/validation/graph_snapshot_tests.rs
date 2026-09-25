@@ -58,7 +58,7 @@ fn test_plan_uses_the_graphs_canonical_root_declarations() {
     let declared = TypeMetadata::of::<Record>();
     let stripped = unconstrained::<Record>();
     let roots = [declared];
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -96,7 +96,7 @@ fn test_plan_does_not_import_constraints_from_another_overlay() {
     let declared = TypeMetadata::of::<Record>();
     let stripped = unconstrained::<Record>();
     let roots = [stripped];
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -135,7 +135,7 @@ fn test_capabilities_check_graph_declarations_for_the_requested_type() {
     let declared = TypeMetadata::of::<UniqueValues>();
     let stripped = unconstrained::<UniqueValues>();
     let roots = [declared];
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,

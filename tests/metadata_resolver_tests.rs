@@ -33,7 +33,7 @@ use qubit_reflect::TypeDescriptor;
 use qubit_reflect::identity::FragmentIdentity;
 
 fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]) -> ModelRegistry<'static> {
-    ModelRegistry::from_metadata(entries).expect("valid isolated model registry")
+    ModelRegistry::from_static_metadata(entries).expect("valid isolated model registry")
 }
 
 #[derive(Reflect)]

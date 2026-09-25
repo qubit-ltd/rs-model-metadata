@@ -97,7 +97,7 @@ fn structure_resolution_and_binding_are_separate() {
     let owner = TypeMetadata::of::<Owner>();
     let fixture = TypeMetadata::of::<BindingFixture>();
     let models =
-        ModelRegistry::from_metadata(&[(owner, source()), (fixture, source())]).expect("isolated model registry");
+        ModelRegistry::from_static_metadata(&[(owner, source()), (fixture, source())]).expect("isolated model registry");
     let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION]).expect("isolated validator registry");
     let graph = StructureResolver::new(inputs(&models))
         .resolve()
@@ -160,7 +160,7 @@ static PARENT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
 /// Parent dependencies require explicit type and instance contexts.
 #[test]
 fn parent_dependency_uses_explicit_context() {
-    let models = ModelRegistry::from_metadata(&[]).expect("empty registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
     let child = TypeMetadata::of::<Child>();
     let parent = TypeMetadata::of::<Parent>();
     let roots = [child, parent];

@@ -275,7 +275,7 @@ impl ResolvedProjectionSource {
 /// #[Model]
 /// struct Draft { title: String }
 /// # fn main() {
-/// let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
 /// let root = TypeMetadata::of::<Draft>();
 /// let roots = [root];
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })

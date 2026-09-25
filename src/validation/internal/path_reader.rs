@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn missing_external_context_is_reported_before_graph_lookup() {
-        let models = ModelRegistry::from_metadata(&[]).unwrap();
+        let models = ModelRegistry::from_static_metadata(&[]).unwrap();
         let graph = StructureResolver::new(ResolveInputs {
             models: &models,
             roots: &[],

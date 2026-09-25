@@ -48,7 +48,7 @@ use crate::validation::standard_constraints;
 /// enum Choice { Named { #[text(non_blank)] name: String } }
 /// # fn main() {
 /// let root = TypeMetadata::of::<Choice>();
-/// let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
 /// let roots = [root];
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
 ///     .resolve().expect("enum metadata is structurally valid");

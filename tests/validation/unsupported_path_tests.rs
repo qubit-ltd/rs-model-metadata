@@ -116,7 +116,7 @@ fn test_unsupported_constraints_retain_complete_rule_mappings() {
 /// Checks only the explicit root graph and returns its unsupported
 /// declarations.
 fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let roots = [root, TypeMetadata::of::<Child>(), TypeMetadata::of::<Choice>()];
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,

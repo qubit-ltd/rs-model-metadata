@@ -193,6 +193,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Borrows each registration's provenance and retains its static metadata.
     /// No metadata provider or global registry is invoked. Supply anonymous
     /// models as structural roots instead of registrations under stable IDs.
+    /// Property resolution uses only [`TypeMetadata::local_properties`] and
+    /// does not read independently registered `ModelImpl` capabilities.
     ///
     /// # Errors
     ///
@@ -200,7 +202,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// a repeated stable model ID, or conflicting registrations of one concrete
     /// Rust type.
     #[must_use = "handle invalid model registrations"]
-    pub fn from_metadata<'a>(
+    pub fn from_static_metadata<'a>(
         concrete: &[(&'static TypeMetadata, &'a FragmentIdentity)],
     ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
         let mut entries = Vec::with_capacity(concrete.len());
@@ -221,7 +223,9 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// Retains borrowed provenance without invoking providers or global state.
     /// Anonymous generic definitions remain available by definition identity;
-    /// concrete anonymous registrations are rejected.
+    /// concrete anonymous registrations are rejected. Property resolution uses
+    /// only [`TypeMetadata::local_properties`] and does not read independently
+    /// registered `ModelImpl` capabilities.
     ///
     /// # Errors
     ///
@@ -230,7 +234,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// declarations, or conflicting registrations of one concrete Rust type.
     #[must_use = "handle invalid model registrations"]
     #[cfg(feature = "generic")]
-    pub fn from_metadata_with_generics<'a>(
+    pub fn from_static_metadata_with_generics<'a>(
         concrete: &[(&'static TypeMetadata, &'a FragmentIdentity)],
         generic: &[(&'static GenericModelMetadata, &'a FragmentIdentity)],
     ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
@@ -460,10 +464,13 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Resolves properties using this model registry's reflection snapshot.
     ///
-    /// Explicit metadata-only registries use local field properties. Snapshot
-    /// registries invoke their implementation providers on a cache miss, then
-    /// reuse the owned merge for the same metadata identity. Cache storage is
-    /// released with this registry. This never consults global state.
+    /// Registries built by `from_static_metadata` or
+    /// `from_static_metadata_with_generics` use only
+    /// [`TypeMetadata::local_properties`], without independently registered
+    /// `ModelImpl` capabilities. Snapshot registries invoke their implementation
+    /// providers on a cache miss, then reuse the owned merge for the same
+    /// metadata identity. Cache storage is released with this registry. This
+    /// never consults global state.
     ///
     /// # Errors
     ///

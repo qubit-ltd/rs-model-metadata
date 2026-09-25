@@ -65,7 +65,7 @@ fn object_path_contract_covers_current_parent_and_rendering() {
 #[test]
 fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
     let root = TypeMetadata::of::<SelectedEnvelope>();
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let roots = [root, TypeMetadata::of::<SelectedFields>()];
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
@@ -137,7 +137,7 @@ fn test_builder_preserves_default_options() {
 #[test]
 fn test_builder_field_selection_and_budget_execute_together() {
     let root = TypeMetadata::of::<SelectedFields>();
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let roots = [root];
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
