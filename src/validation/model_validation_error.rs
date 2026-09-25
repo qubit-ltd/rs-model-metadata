@@ -55,7 +55,7 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// # fn main() {
 /// let root = TypeMetadata::of::<Profile>();
 /// let roots = [root];
-/// let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
 ///     .resolve().expect("valid structure");
 /// let validators = ValidatorRegistry::empty();

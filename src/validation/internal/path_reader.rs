@@ -121,7 +121,7 @@ pub(crate) fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
         return path
             .deferred()
             .iter()
-            .fold(ValidationPath::root(), |path, name| path.with_field(*name));
+            .fold(ValidationPath::root(), |path, name| path.with_field(name));
     }
     path.steps().iter().fold(ValidationPath::root(), |path, step| {
         path.with_field(step.property().name())
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn missing_external_context_is_reported_before_graph_lookup() {
-        let models = ModelRegistry::from_metadata(&[]).unwrap();
+        let models = ModelRegistry::from_static_metadata(&[]).unwrap();
         let graph = StructureResolver::new(ResolveInputs {
             models: &models,
             roots: &[],

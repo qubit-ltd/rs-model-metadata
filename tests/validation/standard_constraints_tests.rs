@@ -341,7 +341,7 @@ fn test_custom_registry_cannot_override_a_builtin_rule() {
 fn test_builtin_collision_retains_independent_declaration_errors() {
     let root = TypeMetadata::of::<IndependentFailures>();
     let roots = [root, TypeMetadata::of::<UnsupportedChoice>()];
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,

@@ -36,6 +36,7 @@ use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::capability::CapabilityDescriptor;
+use qubit_reflect::capability::CapabilityOrigin;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
@@ -131,6 +132,16 @@ fn setter_a() -> &'static ModelImplMetadata {
 fn setter_b() -> &'static ModelImplMetadata {
     static VALUE: OnceLock<ModelImplMetadata> = OnceLock::new();
     VALUE.get_or_init(|| overlay(None, Some("replace_name")))
+}
+
+fn combined_a() -> &'static ModelImplMetadata {
+    static VALUE: OnceLock<ModelImplMetadata> = OnceLock::new();
+    VALUE.get_or_init(|| overlay(Some("get_name"), Some("set_name")))
+}
+
+fn combined_b() -> &'static ModelImplMetadata {
+    static VALUE: OnceLock<ModelImplMetadata> = OnceLock::new();
+    VALUE.get_or_init(|| overlay(Some("read_name"), Some("replace_name")))
 }
 
 static PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -259,9 +270,21 @@ fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
 #[test]
 fn test_distinct_accessors_conflict_without_poisoning_other_snapshots() {
     let owner = TypeMetadata::of::<Record>();
-    for (first, second) in [
-        (getter_a as ModelImplProvider, getter_b as ModelImplProvider),
-        (setter_a, setter_b),
+    for (first, second, kind, first_method, second_method) in [
+        (
+            getter_a as ModelImplProvider,
+            getter_b as ModelImplProvider,
+            PropertyBuildErrorKind::ConflictingGetter,
+            "get_name",
+            "read_name",
+        ),
+        (
+            setter_a,
+            setter_b,
+            PropertyBuildErrorKind::ConflictingSetter,
+            "set_name",
+            "replace_name",
+        ),
     ] {
         let registry = snapshot(first, second);
         let PropertyResolutionError::Assembly(errors) = owner
@@ -271,8 +294,28 @@ fn test_distinct_accessors_conflict_without_poisoning_other_snapshots() {
             panic!("property assembly error");
         };
         assert_eq!(errors.errors().len(), 1);
-        assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::InvalidName);
-        assert_eq!(errors.errors()[0].property_name(), "name");
+        let error = &errors.errors()[0];
+        assert_eq!(error.kind(), kind);
+        assert_eq!(error.property_name(), "name");
+        let conflict = error.conflict().expect("accessor conflict details");
+        assert_eq!(conflict.first_method(), first_method);
+        assert_eq!(conflict.second_method(), second_method);
+        assert_eq!(
+            conflict.first_origin(),
+            &CapabilityOrigin::Registered {
+                source: FragmentIdentity::new("model-impl-test", "qubit.model.impl.v1.fmerge_a", 1, 1, "capability", 1),
+            }
+        );
+        assert_eq!(
+            conflict.second_origin(),
+            &CapabilityOrigin::Registered {
+                source: FragmentIdentity::new("model-impl-test", "qubit.model.impl.v1.fmerge_b", 1, 1, "capability", 1),
+            }
+        );
+        let display = error.to_string();
+        assert!(display.contains(first_method));
+        assert!(display.contains(second_method));
+        assert!(display.contains("model-impl-test"));
         let PropertyResolutionError::Assembly(repeated) =
             owner.try_properties_in(&registry).expect_err("cached conflict")
         else {
@@ -293,6 +336,22 @@ fn test_distinct_accessors_conflict_without_poisoning_other_snapshots() {
         owner.try_properties_in(&valid).is_ok(),
         "a failed snapshot must not contaminate another overlay set"
     );
+}
+
+#[test]
+fn test_distinct_getter_and_setter_report_both_conflicts() {
+    let owner = TypeMetadata::of::<Record>();
+    let registry = snapshot(combined_a, combined_b);
+    let PropertyResolutionError::Assembly(errors) = owner
+        .try_properties_in(&registry)
+        .expect_err("both accessor kinds conflict")
+    else {
+        panic!("property assembly error");
+    };
+    assert_eq!(errors.errors().len(), 2);
+    assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::ConflictingGetter);
+    assert_eq!(errors.errors()[1].kind(), PropertyBuildErrorKind::ConflictingSetter);
+    assert!(errors.errors().iter().all(|error| error.conflict().is_some()));
 }
 
 #[test]
@@ -399,7 +458,7 @@ fn capability_range_ignores_unrelated_ids_and_preserves_conflict_errors() {
         panic!("property assembly error");
     };
     assert_eq!(errors.errors().len(), 1);
-    assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::InvalidName);
+    assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::ConflictingGetter);
     assert_eq!(errors.errors()[0].property_name(), "name");
 }
 

@@ -53,9 +53,11 @@ fn main() {
 }
 ```
 
-得到的是 `User` 的静态元数据；`TypeMetadata::of` 不会初始化全局模型注册表。从冻结的
-`ReflectRegistry` 构造 `ModelRegistry` 后，其 `metadata_for` 和 `properties_for` 查询会使用
-该快照，以便看见独立生成的模型 overlay。显式 Property 查询返回拥有型视图，动态合并数据随视图释放；
+得到的是 `User` 的静态元数据；`TypeMetadata::of` 不会初始化全局模型注册表。
+`ModelRegistry::from_static_metadata` 根据显式传入的元数据构造隔离注册表，查询 Property 时
+只使用 `TypeMetadata::local_properties()`。若通过 `ModelRegistry::from_reflect_registry`
+投影冻结的 `ReflectRegistry` 快照，`metadata_for` 和 `properties_for` 则以该快照为准，
+能够读取独立注册的 `ModelImpl` provider。显式 Property 查询返回拥有型视图，动态合并数据随视图释放；
 `ModelRegistry` 的缓存只在 registry 生命周期内复用。跨 crate 关系的解析流程请参阅用户指南。
 
 ## 为什么需要这个项目
@@ -70,7 +72,10 @@ fn main() {
 与 `#[ModelImpl]` 声明生成 metadata。
 - `metadata` 模块拥有与执行引擎无关的声明词汇，包括 `TypeMetadata`、`ModelId`、codec 引用、
   validation 参数和脱敏敏感度。
-- `registry::ModelRegistry` 从冻结的 `ReflectRegistry` 快照投影具体模型；启用 `generic` 后才包含泛型定义。
+- `registry::ModelRegistry` 可从冻结的 `ReflectRegistry` 快照投影具体模型，也可从显式静态元数据
+  构造隔离注册表。启用 `generic` 后，可通过 `generic_metadata_for` 按进程内的
+  `TypeDefinitionId` 查询泛型定义；`generic_definitions()` 同时列出有 ID 和匿名定义。
+  `entries()` 只包含具有稳定 `ModelId` 的注册项，因此不列出匿名泛型定义。
 - `resolve::StructureResolver` 只解析结构关系并生成不可变的 `resolve::ModelGraph`。
 - 启用 `codec` 后，`codec::bind_codecs` 在图构建后绑定 codec occurrence，并确定性地汇总错误。
 - 启用 `validation` feature 后，`ValidationPlan::build` 编译 Property 路径，并绑定调用方提供的

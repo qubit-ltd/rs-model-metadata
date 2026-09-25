@@ -111,7 +111,7 @@ static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
 /// Typed parameters reach preparation, then influence real plan execution.
 #[test]
 fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated model registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated model registry");
     let root = TypeMetadata::of::<ConfiguredToken>();
     let roots = [root];
     let graph = StructureResolver::new(ResolveInputs {

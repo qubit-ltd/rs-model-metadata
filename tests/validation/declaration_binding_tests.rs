@@ -285,7 +285,7 @@ fn test_capability_check_does_not_require_a_registered_validator() {
 
 #[test]
 fn test_explicit_root_not_in_graph_is_rejected() {
-    let models = ModelRegistry::from_metadata(&[]).unwrap();
+    let models = ModelRegistry::from_static_metadata(&[]).unwrap();
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &[],

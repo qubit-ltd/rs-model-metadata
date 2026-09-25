@@ -34,7 +34,7 @@ use crate::validation::internal::occurrence_binder;
 /// # fn main() {
 /// let root = TypeMetadata::of::<Profile>();
 /// let roots = [root];
-/// let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
 ///     .resolve().expect("readable field structure");
 /// // No custom rule registry is needed to check the access shape.

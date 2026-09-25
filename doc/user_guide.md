@@ -30,8 +30,9 @@ qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 ```
 
-A metadata-only registry made with `ModelRegistry::from_metadata` does not
-discover additional metadata providers through reflection. Supply every
+A static registry made with `ModelRegistry::from_static_metadata` reads only
+the supplied metadata and `TypeMetadata::local_properties()`; it cannot see
+independently registered `ModelImpl` providers. Supply every
 anonymous model whose declarations should participate, including nested models,
 in the explicit roots. Alternatively, use a registry built from the intended
 reflection snapshot. Validation consumes the resulting graph without filling
@@ -55,7 +56,7 @@ struct User {
 fn main() {
     let root = TypeMetadata::of::<User>();
     assert_eq!(root.model_id().expect("Entity ID").as_str(), "guide.directory.User");
-    let models = ModelRegistry::from_metadata(&[]).unwrap();
+    let models = ModelRegistry::from_static_metadata(&[]).unwrap();
     let roots = [root];
     let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
         .resolve().unwrap();
@@ -74,12 +75,19 @@ are not metadata output contracts.
 
 For linked model crates, use `ModelRegistry::try_global()` or construct an
 explicit rs-reflect snapshot and project it with `ModelRegistry::from_reflect_registry`.
-Link the participating crates before freezing the registry. Resolution traverses
-the registered models and explicit roots, deduplicates concrete TypeIds, and
+That snapshot lets `properties_for` include independently registered `ModelImpl`
+accessors. Link the participating crates before freezing the registry. Resolution
+traverses the registered models and explicit roots, deduplicates concrete TypeIds, and
 checks references, Projection sources, Property conflicts, and Value closure.
 An explicit registry never acquires unprovided registrations from a global one.
-Generic definitions remain associated with concrete metadata whether or not the
-definition has a stable ID; only named definitions enter the stable-ID registry.
+With `generic`, `ModelRegistry::from_static_metadata_with_generics` accepts
+explicit generic definitions, while snapshot registries collect their registered
+definition providers. In either registry, `generic_metadata_for(definition.id())`
+looks up a definition by process-local identity, and `generic_definitions()` lists
+named and anonymous definitions. Only definitions with stable `ModelId`s appear
+in `entries()` or support ID-based lookup; anonymous definitions remain available
+through the definition APIs. Concrete generic metadata retains its definition
+association even when the definition has no stable ID.
 Repeated concurrent concrete metadata queries share the same allocation.
 
 Validation entry points use the supplied root's TypeId to select the graph's
@@ -99,6 +107,8 @@ when an external stable identifier is needed.
 
 | Earlier API | Current API |
 | --- | --- |
+| `ModelRegistry::from_metadata` | `ModelRegistry::from_static_metadata` |
+| `ModelRegistry::from_metadata_with_generics` | `ModelRegistry::from_static_metadata_with_generics` (`generic` feature) |
 | `graph.reference(field)` | `graph.reference(location)` after handling `field.location()` |
 | `graph.query(entity_payload)` | `graph.query(entity_type_id)` |
 | `graph.projection_source(projection_payload)` | `graph.projection_source(projection_type_id)` |
@@ -313,7 +323,7 @@ enum ContactMethod {
 fn main() {
     let root = TypeMetadata::of::<ContactMethod>();
     let roots = [root];
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("enum declarations are structurally supported");
     let validators = ValidatorRegistry::empty();

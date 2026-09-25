@@ -71,7 +71,7 @@ fn overlay(getter: bool) -> ModelImplMetadata {
             read_name,
         ))
     });
-    let setter = (!getter.is_some()).then(|| {
+    let setter = getter.is_none().then(|| {
         v7::leak(SetterMetadata::new::<ResolutionFixture, String>(
             "write_name",
             field.type_ref(),

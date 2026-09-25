@@ -304,7 +304,7 @@ fn executes_validators_declared_by_an_optional_nested_model() {
 #[test]
 fn traversal_budgets_are_enforced_before_execution() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let models = ModelRegistry::from_metadata(&[(metadata, source())]).expect("model registry");
+    let models = ModelRegistry::from_static_metadata(&[(metadata, source())]).expect("model registry");
     let graph = StructureResolver::new(ResolveInputs {
         roots: &[],
         models: &models,

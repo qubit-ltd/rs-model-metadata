@@ -88,7 +88,7 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
             .fragments()
             .is_empty()
     );
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated model registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated model registry");
     assert!(
         models
             .properties_for(metadata)

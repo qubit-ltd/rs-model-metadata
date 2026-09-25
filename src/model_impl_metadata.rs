@@ -11,6 +11,8 @@
 use std::ptr::eq;
 use std::sync::Arc;
 
+use qubit_reflect::capability::CapabilityOrigin;
+
 use crate::metadata::LocalPropertySet;
 use crate::metadata::PropertyBuildError;
 use crate::metadata::PropertyBuildErrorKind;
@@ -50,12 +52,15 @@ impl ModelImplMetadata {
     /// # Panics
     ///
     /// Propagates provider panics.
-    pub(crate) fn merge(owner: &TypeMetadata, providers: &[ModelImplProvider]) -> MergedModelImpl {
-        let overlays: Vec<_> = providers.iter().map(|provider| provider()).collect();
+    pub(crate) fn merge(owner: &TypeMetadata, providers: &[(ModelImplProvider, CapabilityOrigin)]) -> MergedModelImpl {
+        let overlays: Vec<_> = providers
+            .iter()
+            .map(|(provider, origin)| (provider(), origin))
+            .collect();
         let mut fragments = Vec::new();
-        let mut properties: Vec<PropertyMetadata> = Vec::new();
+        let mut properties: Vec<(PropertyMetadata, Option<CapabilityOrigin>, Option<CapabilityOrigin>)> = Vec::new();
         let mut errors = Vec::new();
-        for overlay in overlays {
+        for (overlay, origin) in overlays {
             for fragment in overlay.fragments() {
                 if matches!(fragment.source(), PropertyFragmentSource::Field(_))
                     && fragments.iter().any(|existing: &PropertyFragment| {
@@ -74,20 +79,39 @@ impl ModelImplMetadata {
                         errors.extend_from_slice(error.errors());
                     }
                     for property in local.properties() {
-                        if let Some(current) = properties.iter_mut().find(|value| value.name() == property.name()) {
-                            let duplicate_getter = current
-                                .getter()
-                                .zip(property.getter())
-                                .is_some_and(|(left, right)| !eq(left, right));
-                            let duplicate_setter = current
-                                .setter()
-                                .zip(property.setter())
-                                .is_some_and(|(left, right)| !eq(left, right));
-                            if duplicate_getter || duplicate_setter {
-                                errors.push(PropertyBuildError::new(
-                                    PropertyBuildErrorKind::InvalidName,
+                        if let Some((current, getter_origin, setter_origin)) = properties
+                            .iter_mut()
+                            .find(|(value, _, _)| value.name() == property.name())
+                        {
+                            if let Some((first, second)) = current.getter().zip(property.getter())
+                                && !eq(first, second)
+                            {
+                                errors.push(PropertyBuildError::with_conflict(
+                                    PropertyBuildErrorKind::ConflictingGetter,
                                     current.name(),
+                                    first.rust_method_name(),
+                                    second.rust_method_name(),
+                                    getter_origin.clone().expect("selected getter retains its origin"),
+                                    origin.clone(),
                                 ));
+                            }
+                            if let Some((first, second)) = current.setter().zip(property.setter())
+                                && !eq(first, second)
+                            {
+                                errors.push(PropertyBuildError::with_conflict(
+                                    PropertyBuildErrorKind::ConflictingSetter,
+                                    current.name(),
+                                    first.rust_method_name(),
+                                    second.rust_method_name(),
+                                    setter_origin.clone().expect("selected setter retains its origin"),
+                                    origin.clone(),
+                                ));
+                            }
+                            if getter_origin.is_none() && property.getter().is_some() {
+                                *getter_origin = Some(origin.clone());
+                            }
+                            if setter_origin.is_none() && property.setter().is_some() {
+                                *setter_origin = Some(origin.clone());
                             }
                             let selected = if current.field().is_some() || current.getter().is_some() {
                                 *current
@@ -102,12 +126,17 @@ impl ModelImplMetadata {
                                 current.setter().or(property.setter()),
                             );
                         } else {
-                            properties.push(*property);
+                            properties.push((
+                                *property,
+                                property.getter().map(|_| origin.clone()),
+                                property.setter().map(|_| origin.clone()),
+                            ));
                         }
                     }
                 }
             }
         }
+        let properties: Vec<_> = properties.into_iter().map(|(property, _, _)| property).collect();
         if let Err(error) = owner.validate_properties(&properties) {
             errors.extend_from_slice(error.errors());
         }

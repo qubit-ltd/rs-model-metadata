@@ -262,7 +262,7 @@ fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionErro
             .iter()
             .chain(error.path().as_segments())
             .fold(ValidationPath::root(), |path, segment| match segment {
-                PathSegment::Field(field) => path.with_field(field.clone()),
+                PathSegment::Field(field) => path.with_field(field),
                 PathSegment::Index(index) => path.with_index(*index),
                 PathSegment::MapEntry(index) => path.with_map_entry(*index),
                 PathSegment::MapKey => path.with_map_key(),
@@ -316,7 +316,7 @@ fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
         .as_segments()
         .iter()
         .filter_map(|segment| match segment {
-            PathSegment::Field(name) => Some(name.as_ref()),
+            PathSegment::Field(name) => Some(*name),
             _ => None,
         })
         .collect();

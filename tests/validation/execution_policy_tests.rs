@@ -48,7 +48,6 @@ use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
 use qubit_validator::ValidatorRegistry;
 use qubit_validator::ValidatorSignature;
-use qubit_validator::Violation;
 use qubit_validator::ViolationCode;
 use qubit_validator::ViolationDraft;
 
@@ -69,9 +68,7 @@ impl Root {
     }
 }
 
-struct Many {
-    prerequisite: bool,
-}
+struct Many;
 impl PreparedValidator for Many {
     fn validate(
         &self,
@@ -79,28 +76,15 @@ impl PreparedValidator for Many {
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
         let nested_path = ValidationPath::root().with_field("nested");
-        let violations = (0..3)
-            .map(|_| {
-                Violation::new(ValidatorId::new("execution.many"), ViolationCode::new("bad"))
-                    .with_path(nested_path.clone())
-            })
-            .collect();
         let drafts = (0..3)
             .map(|_| ViolationDraft::new(ViolationCode::new("bad")).with_path(nested_path.clone()))
             .collect();
-        Ok(if self.prerequisite {
-            PreparedOutcome::Skipped {
-                reason: SkipReason::FailedPrerequisite,
-                prerequisites: violations,
-            }
-        } else {
-            PreparedOutcome::Invalid(drafts)
-        })
+        Ok(PreparedOutcome::Invalid(drafts))
     }
 }
 
 /// Runs a model rule before a field whose getter records whether it was read.
-fn assert_stopped(prerequisite: bool, options: ValidationOptions, expected: usize) {
+fn assert_stopped(options: ValidationOptions, expected: usize) {
     GETTER_CALLS.with(|calls| calls.set(0));
     let models = ModelRegistry::try_global().unwrap();
     let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
@@ -117,18 +101,12 @@ fn assert_stopped(prerequisite: bool, options: ValidationOptions, expected: usiz
     .unwrap()
     .with_model_rule(ModelRuleBinding::from_prepared::<Root>(
         ValidatorId::new("execution.many"),
-        Arc::new(Many { prerequisite }),
+        Arc::new(Many),
     ));
     let report = plan
         .validate(ReflectedRef::new(&Root { value: String::new() }), &options)
         .unwrap();
-    if prerequisite {
-        assert!(report.violations().is_empty());
-        assert_eq!(report.skipped().len(), 1);
-        assert_eq!(report.skipped()[0].prerequisites().len(), expected);
-    } else {
-        assert_eq!(report.violations().len(), expected, "report must obey the hard limit");
-    }
+    assert_eq!(report.violations().len(), expected, "report must obey the hard limit");
     assert_eq!(
         GETTER_CALLS.with(Cell::get),
         0,
@@ -139,17 +117,12 @@ fn assert_stopped(prerequisite: bool, options: ValidationOptions, expected: usiz
 
 #[test]
 fn test_fail_fast_retains_only_one_violation_and_stops_before_fields() {
-    assert_stopped(
-        false,
-        ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
-        1,
-    );
+    assert_stopped(ValidationOptions::builder().mode(ValidationMode::FailFast).build(), 1);
 }
 
 #[test]
 fn test_violation_limit_stops_before_fields() {
     assert_stopped(
-        false,
         ValidationOptions::builder()
             .max_violations(NonZeroUsize::new(1).unwrap())
             .build(),
@@ -160,22 +133,10 @@ fn test_violation_limit_stops_before_fields() {
 #[test]
 fn test_exact_limit_stops_before_later_selected_work() {
     assert_stopped(
-        false,
         ValidationOptions::builder()
             .max_violations(NonZeroUsize::new(3).unwrap())
             .build(),
         3,
-    );
-}
-
-#[test]
-fn test_prerequisites_share_the_same_hard_report_limit() {
-    assert_stopped(
-        true,
-        ValidationOptions::builder()
-            .max_violations(NonZeroUsize::new(1).unwrap())
-            .build(),
-        1,
     );
 }
 
@@ -197,7 +158,7 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
     .unwrap()
     .with_model_rule(ModelRuleBinding::from_prepared::<Root>(
         ValidatorId::new("execution.many"),
-        Arc::new(Many { prerequisite: false }),
+        Arc::new(Many),
     ));
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
@@ -214,60 +175,43 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
     assert_eq!(GETTER_CALLS.with(Cell::get), 0);
 }
 
-struct InvalidSkip {
-    missing: bool,
-}
-impl PreparedValidator for InvalidSkip {
+struct EmptyInvalid;
+impl PreparedValidator for EmptyInvalid {
     fn validate(
         &self,
         _: ValidationValue<'_>,
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
-        Ok(if self.missing {
-            PreparedOutcome::Skipped {
-                reason: SkipReason::MissingOptional,
-                prerequisites: vec![Violation::new(
-                    ValidatorId::new("execution.skip"),
-                    ViolationCode::new("bad"),
-                )],
-            }
-        } else {
-            PreparedOutcome::Skipped {
-                reason: SkipReason::FailedPrerequisite,
-                prerequisites: vec![],
-            }
-        })
+        Ok(PreparedOutcome::Invalid(vec![]))
     }
 }
 
 #[test]
-fn test_invalid_skip_contracts_are_execution_errors() {
+fn test_model_empty_invalid_outcome_is_an_execution_error() {
     let models = ModelRegistry::try_global().unwrap();
     let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
         .resolve()
         .unwrap();
     let validators = ValidatorRegistry::empty();
-    for missing in [false, true] {
-        let plan = ValidationPlan::build(
-            TypeMetadata::of::<Root>(),
-            ValidationBuildInputs {
-                graph: &graph,
-                validators: &validators,
-            },
+    let plan = ValidationPlan::build(
+        TypeMetadata::of::<Root>(),
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .unwrap()
+    .with_model_rule(ModelRuleBinding::from_prepared::<Root>(
+        ValidatorId::new("execution.empty"),
+        Arc::new(EmptyInvalid),
+    ));
+    let error = plan
+        .validate(
+            ReflectedRef::new(&Root { value: "ok".into() }),
+            &ValidationOptions::default(),
         )
-        .unwrap()
-        .with_model_rule(ModelRuleBinding::from_prepared::<Root>(
-            ValidatorId::new("execution.skip"),
-            Arc::new(InvalidSkip { missing }),
-        ));
-        let error = plan
-            .validate(
-                ReflectedRef::new(&Root { value: "ok".into() }),
-                &ValidationOptions::default(),
-            )
-            .unwrap_err();
-        assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
-    }
+        .unwrap_err();
+    assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
 }
 
 #[test]
@@ -355,14 +299,6 @@ impl PreparedValidator for OutcomeRule {
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
         RULE_CALLS.with(|calls| calls.set(calls.get() + 1));
-        let violations = || {
-            (0..3)
-                .map(|_| {
-                    Violation::new(ValidatorId::new("execution.rule"), ViolationCode::new("bad"))
-                        .with_path(ValidationPath::root().with_field("nested"))
-                })
-                .collect()
-        };
         let drafts = || {
             (0..3)
                 .map(|_| {
@@ -373,23 +309,7 @@ impl PreparedValidator for OutcomeRule {
         };
         Ok(match value.as_text().unwrap() {
             "invalid" => PreparedOutcome::Invalid(drafts()),
-            "prerequisite" => PreparedOutcome::Skipped {
-                reason: SkipReason::FailedPrerequisite,
-                prerequisites: violations(),
-            },
-            "missing" => PreparedOutcome::Skipped {
-                reason: SkipReason::MissingOptional,
-                prerequisites: vec![],
-            },
             "empty-invalid" => PreparedOutcome::Invalid(vec![]),
-            "empty-prerequisite" => PreparedOutcome::Skipped {
-                reason: SkipReason::FailedPrerequisite,
-                prerequisites: vec![],
-            },
-            "bad-missing" => PreparedOutcome::Skipped {
-                reason: SkipReason::MissingOptional,
-                prerequisites: violations(),
-            },
             "error" => {
                 return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
             }
@@ -436,106 +356,96 @@ fn run(
 }
 
 #[test]
-fn test_fields_and_selectors_stop_globally_for_every_violation_branch() {
-    for outcome in ["invalid", "prerequisite"] {
-        let fields = Fields {
-            first: outcome.into(),
-            second: "invalid".into(),
-        };
-        let elements = Elements {
-            values: vec![outcome.into(), "invalid".into()],
-        };
-        for (root, value) in [
-            (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields)),
-            (TypeMetadata::of::<Elements>(), ReflectedRef::new(&elements)),
-        ] {
-            let expected_path = if root.type_id() == TypeId::of::<Fields>() {
-                "first.nested"
-            } else {
-                "values[0].nested"
-            };
-            for limit in [1, 2] {
-                let options = ValidationOptions::builder()
-                    .max_violations(NonZeroUsize::new(limit).unwrap())
-                    .build();
-                let report = run(root, value.clone(), &options).unwrap();
-                if outcome == "invalid" {
-                    assert_eq!(report.violations().len(), limit);
-                    assert_eq!(report.violations()[0].path().render(), expected_path);
-                } else {
-                    assert_eq!(report.skipped().len(), 1);
-                    assert_eq!(report.skipped()[0].prerequisites().len(), limit);
-                    assert_eq!(report.skipped()[0].prerequisites()[0].path().render(), expected_path);
-                }
-                assert_eq!(report.failure_count(), limit);
-                assert!(report.is_truncated());
-                assert_eq!(GETTER_CALLS.with(Cell::get), 1);
-                assert_eq!(RULE_CALLS.with(Cell::get), 1);
-            }
-            let report = run(
-                root,
-                value,
-                &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
-            )
-            .unwrap();
-            if outcome == "invalid" {
-                assert_eq!(report.violations().len(), 1);
-                assert_eq!(report.violations()[0].path().render(), expected_path);
-            } else {
-                assert_eq!(report.skipped().len(), 1);
-                assert_eq!(report.skipped()[0].prerequisites().len(), 1);
-                assert_eq!(report.skipped()[0].prerequisites()[0].path().render(), expected_path);
-            }
-            assert_eq!(report.failure_count(), 1);
-            assert_eq!(RULE_CALLS.with(Cell::get), 1);
-            assert_eq!(GETTER_CALLS.with(Cell::get), 1);
-        }
-    }
-}
-
-#[test]
-fn test_fields_and_selectors_reject_invalid_outcome_contracts() {
-    for outcome in ["empty-invalid", "empty-prerequisite", "bad-missing"] {
-        let fields = Fields {
-            first: outcome.into(),
-            second: "valid".into(),
-        };
-        let elements = Elements {
-            values: vec![outcome.into()],
-        };
-        for (root, value) in [
-            (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields)),
-            (TypeMetadata::of::<Elements>(), ReflectedRef::new(&elements)),
-        ] {
-            let error = run(root, value, &ValidationOptions::default()).unwrap_err();
-            assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
-            assert!(error.partial_report().violations().is_empty());
-            assert_eq!(error.root_type_id(), Some(root.type_id()));
-            assert_eq!(error.owner_type_id(), Some(root.type_id()));
-            assert_eq!(error.field_location().unwrap().index(), 0);
-            assert_eq!(error.declared_rule_id(), Some("execution.rule"));
-            assert!(error.source().unwrap().downcast_ref::<ExecutionError>().is_some());
-        }
-    }
-}
-
-#[test]
-fn test_legal_skip_does_not_trigger_fail_fast_and_occurrences_are_unique() {
+fn test_fields_and_selectors_stop_globally_after_invalid_outcomes() {
     let fields = Fields {
-        first: "missing".into(),
+        first: "invalid".into(),
         second: "invalid".into(),
     };
+    let elements = Elements {
+        values: vec!["invalid".into(), "invalid".into()],
+    };
+    for (root, value) in [
+        (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields)),
+        (TypeMetadata::of::<Elements>(), ReflectedRef::new(&elements)),
+    ] {
+        let expected_path = if root.type_id() == TypeId::of::<Fields>() {
+            "first.nested"
+        } else {
+            "values[0].nested"
+        };
+        for limit in [1, 2] {
+            let options = ValidationOptions::builder()
+                .max_violations(NonZeroUsize::new(limit).unwrap())
+                .build();
+            let report = run(root, value.clone(), &options).unwrap();
+            assert_eq!(report.violations().len(), limit);
+            assert_eq!(report.violations()[0].path().render(), expected_path);
+            assert_eq!(report.failure_count(), limit);
+            assert!(report.is_truncated());
+            assert_eq!(GETTER_CALLS.with(Cell::get), 1);
+            assert_eq!(RULE_CALLS.with(Cell::get), 1);
+        }
+        let report = run(
+            root,
+            value,
+            &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
+        )
+        .unwrap();
+        assert_eq!(report.violations().len(), 1);
+        assert_eq!(report.violations()[0].path().render(), expected_path);
+        assert_eq!(report.failure_count(), 1);
+        assert_eq!(RULE_CALLS.with(Cell::get), 1);
+        assert_eq!(GETTER_CALLS.with(Cell::get), 1);
+    }
+}
+
+#[test]
+fn test_fields_and_selectors_reject_empty_invalid_outcomes() {
+    let fields = Fields {
+        first: "empty-invalid".into(),
+        second: "valid".into(),
+    };
+    let elements = Elements {
+        values: vec!["empty-invalid".into()],
+    };
+    for (root, value) in [
+        (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields)),
+        (TypeMetadata::of::<Elements>(), ReflectedRef::new(&elements)),
+    ] {
+        let error = run(root, value, &ValidationOptions::default()).unwrap_err();
+        assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
+        assert!(error.partial_report().violations().is_empty());
+        assert_eq!(error.root_type_id(), Some(root.type_id()));
+        assert_eq!(error.owner_type_id(), Some(root.type_id()));
+        assert_eq!(error.field_location().unwrap().index(), 0);
+        assert_eq!(error.declared_rule_id(), Some("execution.rule"));
+        assert!(error.source().unwrap().downcast_ref::<ExecutionError>().is_some());
+    }
+}
+
+#[test]
+fn test_missing_optional_does_not_trigger_fail_fast_before_invalid_field() {
+    let fields = OptionalFields {
+        first: None,
+        second: None,
+        third: Some("invalid".into()),
+    };
     let report = run(
-        TypeMetadata::of::<Fields>(),
+        TypeMetadata::of::<OptionalFields>(),
         ReflectedRef::new(&fields),
         &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
     )
     .unwrap();
-    assert_eq!(RULE_CALLS.with(Cell::get), 2);
+    assert_eq!(RULE_CALLS.with(Cell::get), 1);
     assert_eq!(report.violations().len(), 1);
-    assert_eq!(report.skipped().len(), 1);
+    assert_eq!(report.skipped().len(), 2);
     assert_eq!(report.skipped()[0].occurrence(), 0);
-    assert_eq!(report.violations()[0].path().render(), "second.nested");
+    assert_eq!(report.skipped()[1].occurrence(), 1);
+    assert_eq!(report.skipped()[0].reason(), SkipReason::MissingOptional);
+    assert_eq!(report.skipped()[1].reason(), SkipReason::MissingOptional);
+    assert_eq!(report.skipped()[0].path().render(), "first");
+    assert_eq!(report.skipped()[1].path().render(), "second");
+    assert_eq!(report.violations()[0].path().render(), "third.nested");
 }
 
 #[test]
@@ -656,63 +566,42 @@ fn test_node_budget_boundary_preserves_completed_field_results() {
 }
 
 #[Model]
-struct OptionalField {
+struct OptionalFields {
     #[validator(id = "execution.rule")]
-    value: Option<String>,
+    first: Option<String>,
+    #[validator(id = "execution.rule")]
+    second: Option<String>,
+    #[validator(id = "execution.rule")]
+    third: Option<String>,
 }
 #[ModelImpl]
-impl OptionalField {
-    pub fn value(&self) -> Option<&str> {
-        self.value.as_deref()
+impl OptionalFields {
+    pub fn first(&self) -> Option<&str> {
+        self.first.as_deref()
     }
-}
-struct Skip;
-impl PreparedValidator for Skip {
-    fn validate(
-        &self,
-        _: ValidationValue<'_>,
-        _: &BoundValidationContext<'_>,
-    ) -> Result<PreparedOutcome, ExecutionError> {
-        Ok(PreparedOutcome::Skipped {
-            reason: SkipReason::MissingOptional,
-            prerequisites: vec![],
-        })
+    pub fn second(&self) -> Option<&str> {
+        self.second.as_deref()
+    }
+    pub fn third(&self) -> Option<&str> {
+        self.third.as_deref()
     }
 }
 
 #[test]
-fn test_model_and_field_skip_occurrences_are_unique_without_triggering_fail_fast() {
-    let root = TypeMetadata::of::<OptionalField>();
-    let models = ModelRegistry::try_global().unwrap();
-    let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
-    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).unwrap();
-    let plan = ValidationPlan::build(
-        root,
-        ValidationBuildInputs {
-            graph: &graph,
-            validators: &validators,
-        },
+fn test_missing_optional_occurrences_are_unique_without_triggering_fail_fast() {
+    let report = run(
+        TypeMetadata::of::<OptionalFields>(),
+        ReflectedRef::new(&OptionalFields {
+            first: None,
+            second: None,
+            third: None,
+        }),
+        &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
     )
-    .unwrap()
-    .with_model_rule(ModelRuleBinding::from_prepared::<OptionalField>(
-        ValidatorId::new("execution.skip"),
-        Arc::new(Skip),
-    ))
-    .with_model_rule(ModelRuleBinding::from_prepared::<OptionalField>(
-        ValidatorId::new("execution.skip"),
-        Arc::new(Skip),
-    ));
-    let report = plan
-        .validate(
-            ReflectedRef::new(&OptionalField { value: None }),
-            &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
-        )
-        .unwrap();
-    assert!(report.violations().is_empty());
+    .expect("absent optional fields should be skipped");
+    assert!(report.is_valid());
     assert!(!report.is_truncated());
+    assert_eq!(RULE_CALLS.with(Cell::get), 0);
     assert_eq!(
         report
             .skipped()
@@ -721,6 +610,10 @@ fn test_model_and_field_skip_occurrences_are_unique_without_triggering_fail_fast
             .collect::<Vec<_>>(),
         [0, 1, 2]
     );
+    for skipped in report.skipped() {
+        assert_eq!(skipped.reason(), SkipReason::MissingOptional);
+        assert!(skipped.prerequisites().is_empty());
+    }
 }
 
 thread_local! {
