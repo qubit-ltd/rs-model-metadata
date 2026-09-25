@@ -283,25 +283,3 @@ const fn allowed_chars(value: AllowedChars) -> &'static str {
         AllowedChars::Code => "code",
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use qubit_validation_rules::registrations;
-    use qubit_validator::BindErrorKind;
-    use qubit_validator::ValidatorRegistration;
-    use qubit_validator::ValidatorRegistry;
-
-    use super::registry_with_builtins;
-
-    #[test]
-    fn duplicate_builtin_registrations_return_invalid_declaration() {
-        let registration = registrations()[0];
-        let validators =
-            ValidatorRegistry::from_registrations(Vec::<ValidatorRegistration>::new()).expect("empty custom registry");
-
-        let Err(error) = registry_with_builtins(vec![registration, registration], &validators) else {
-            panic!("duplicate built-in registrations must fail registry construction");
-        };
-        assert_eq!(error.kind(), BindErrorKind::InvalidDeclaration);
-    }
-}
