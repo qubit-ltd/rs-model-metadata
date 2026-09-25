@@ -80,7 +80,7 @@ impl MapConstraint {
     ///
     /// `Some` with the minimum entry count when constrained; otherwise, `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn min_entries(&self) -> Option<usize> {
         self.min_entries
     }
@@ -91,21 +91,21 @@ impl MapConstraint {
     ///
     /// `Some` with the maximum entry count when constrained; otherwise, `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn max_entries(&self) -> Option<usize> {
         self.max_entries
     }
 
     /// Returns key semantics, if declared.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn key(&self) -> Option<&'static crate::metadata::SelectorMetadata> {
         self.key
     }
 
     /// Returns value semantics, if declared.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn value(&self) -> Option<&'static crate::metadata::SelectorMetadata> {
         self.value
     }

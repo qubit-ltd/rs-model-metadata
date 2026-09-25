@@ -329,14 +329,15 @@ pub(super) fn resolve_property_path(
     target: &'static TypeMetadata,
     path: &PropertyPath<'_>,
     registry: &ModelRegistry,
-) -> Result<Option<&'static PropertyMetadata>, ModelResolutionCause> {
+) -> Result<Option<PropertyMetadata>, ModelResolutionCause> {
     let mut current = target;
     let mut result = None;
     for (index, segment) in path.segments().iter().enumerate() {
-        let Some(property) = registry.properties_for(current)?.property(segment) else {
+        let properties = registry.properties_for(current)?;
+        let Some(property) = properties.property(segment) else {
             return Ok(None);
         };
-        result = Some(property);
+        result = Some(*property);
         if !property.is_readable() {
             return Ok(result);
         }

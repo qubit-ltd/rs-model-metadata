@@ -33,7 +33,7 @@ impl DeclarationLocation {
     /// Represents hand-constructed metadata without fabricated source
     /// coordinates.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn unknown() -> Self {
         Self {
             file: None,
@@ -48,9 +48,23 @@ impl DeclarationLocation {
 
     /// Selects a container position while preserving the field source.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn with_selector(mut self, selector: SelectorPosition) -> Self {
         self.selector = Some(selector);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DeclarationLocation;
+    use crate::metadata::SelectorPosition;
+
+    #[test]
+    fn unknown_location_can_retain_a_selector_position() {
+        let location = DeclarationLocation::unknown().with_selector(SelectorPosition::Element);
+
+        assert_eq!(location.file, None);
+        assert_eq!(location.selector, Some(SelectorPosition::Element));
     }
 }

@@ -92,7 +92,7 @@ impl FieldPath {
 
     /// Returns the owned path segments used for matching.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) fn segments(&self) -> &[String] {
         &self.segments
     }
@@ -171,37 +171,37 @@ impl ValidationOptions {
 
     /// Returns the selected execution mode for the executor.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn mode(&self) -> ValidationMode {
         self.mode
     }
     /// Returns the field selection for the executor.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn selection(&self) -> &ValidationSelection {
         &self.selection
     }
     /// Returns the maximum traversal depth as a plain integer.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn max_depth(&self) -> usize {
         self.max_depth.get()
     }
     /// Returns the maximum visited-node budget.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn max_nodes(&self) -> usize {
         self.max_nodes.get()
     }
     /// Returns the maximum retained-violation budget.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn max_violations(&self) -> usize {
         self.max_violations.get()
     }
     /// Returns the maximum collection-comparison budget.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn max_comparisons(&self) -> usize {
         self.max_comparisons.get()
     }

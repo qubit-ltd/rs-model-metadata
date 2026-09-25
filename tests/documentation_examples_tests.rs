@@ -47,6 +47,7 @@ fn test_bilingual_documentation_examples() {
         "derive/doc/user_guide.md",
         "derive/doc/user_guide.zh_CN.md",
     ];
+    assert_local_installation_examples(root, &documents);
     let fixture_parent = root.join("target/documentation-fixtures");
     fs::create_dir_all(&fixture_parent).expect("documentation fixture parent");
     let fixture = create_fixture(&fixture_parent);
@@ -82,6 +83,16 @@ fn test_bilingual_documentation_examples() {
         toml_path(&root.join("../../rust-common/rs-validator")),
     );
     fs::write(fixture.directory.join("Cargo.toml"), manifest).expect("documentation manifest");
+    let metadata = Command::new(env!("CARGO"))
+        .args(["metadata", "--offline", "--format-version", "1", "--manifest-path"])
+        .arg(fixture.directory.join("Cargo.toml"))
+        .output()
+        .expect("start offline documentation fixture metadata");
+    assert!(
+        metadata.status.success(),
+        "offline documentation dependency resolution failed:\n{}",
+        String::from_utf8_lossy(&metadata.stderr),
+    );
     let target = root.join("target/documentation-examples");
     let output = Command::new(env!("CARGO"))
         .args(["build", "--offline", "--quiet", "--bins"])
@@ -109,6 +120,75 @@ fn test_bilingual_documentation_examples() {
             String::from_utf8_lossy(&output.stderr),
         );
     }
+}
+
+/// Ensures install snippets match the unpublished local-checkout package
+/// contract instead of suggesting that either package is available on
+/// crates.io.
+fn assert_local_installation_examples(root: &Path, documents: &[&str]) {
+    for document in documents {
+        let markdown = fs::read_to_string(root.join(document)).expect("document exists");
+        let Some(installation) = toml_blocks(&markdown)
+            .into_iter()
+            .find(|block| block.contains("qubit-model-metadata"))
+        else {
+            assert!(
+                markdown.contains("checkout") || markdown.contains("检出路径"),
+                "{document} must explain local checkout installation"
+            );
+            continue;
+        };
+        assert!(
+            installation
+                .lines()
+                .any(|line| { line.contains("qubit-model-metadata") && line.contains("path =") }),
+            "{document} must use a local runtime checkout"
+        );
+        assert!(
+            installation
+                .lines()
+                .any(|line| { line.contains("qubit-model-derive") && line.contains("path =") }),
+            "{document} must use a local derive checkout"
+        );
+    }
+
+    let output = Command::new(env!("CARGO"))
+        .args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path"])
+        .arg(root.join("Cargo.toml"))
+        .output()
+        .expect("start package metadata inspection");
+    assert!(output.status.success(), "Cargo metadata inspection failed");
+    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout).expect("Cargo metadata JSON");
+    for package in metadata["packages"].as_array().expect("workspace packages") {
+        if matches!(
+            package["name"].as_str(),
+            Some("qubit-model-metadata" | "qubit-model-derive")
+        ) {
+            assert_eq!(package["publish"].as_array().map(Vec::len), Some(0));
+        }
+    }
+}
+
+/// Extracts complete TOML code fences from Markdown.
+fn toml_blocks(markdown: &str) -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut in_toml = false;
+    let mut source = String::new();
+    for line in markdown.lines() {
+        if let Some(language) = line.strip_prefix("```") {
+            if in_toml {
+                blocks.push(std::mem::take(&mut source));
+                in_toml = false;
+            } else {
+                in_toml = language == "toml";
+            }
+        } else if in_toml {
+            source.push_str(line);
+            source.push('\n');
+        }
+    }
+    assert!(!in_toml, "unclosed TOML fence");
+    blocks
 }
 
 /// Uses exclusive directory creation, never adopting or deleting an existing

@@ -70,28 +70,28 @@ impl ValidationBuildErrors {
 
     /// Returns the total number of independently retained diagnostics.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn len(&self) -> usize {
         self.errors.len()
     }
 
     /// Returns whether the collection contains no diagnostics.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Returns failures in deterministic declaration order.
     #[must_use = "inspect the declaration diagnostics"]
-    #[inline(always)]
+    #[inline]
     pub fn as_slice(&self) -> &[ValidationBuildError] {
         &self.errors
     }
 
     /// Iterates over failures in declaration order.
     #[must_use = "inspect the declaration diagnostics"]
-    #[inline(always)]
+    #[inline]
     pub fn iter(&self) -> impl Iterator<Item = &ValidationBuildError> {
         self.errors.iter()
     }
@@ -106,7 +106,7 @@ impl Index<usize> for ValidationBuildErrors {
     /// # Panics
     ///
     /// Panics when `index` is greater than or equal to the diagnostic count.
-    #[inline(always)]
+    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         &self.errors[index]
     }
@@ -119,7 +119,7 @@ impl<'a> IntoIterator for &'a ValidationBuildErrors {
     type IntoIter = Iter<'a, ValidationBuildError>;
 
     /// Borrows each diagnostic in root-before-occurrence order.
-    #[inline(always)]
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.errors.iter()
     }
@@ -140,7 +140,7 @@ impl Error for ValidationBuildErrors {}
 
 impl AsRef<[ValidationBuildError]> for ValidationBuildErrors {
     /// Exposes the complete ordered diagnostics without allocating or cloning.
-    #[inline(always)]
+    #[inline]
     fn as_ref(&self) -> &[ValidationBuildError] {
         self.as_slice()
     }

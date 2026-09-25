@@ -39,13 +39,17 @@ pub(crate) fn check_access(
     graph: &ModelGraph<'_>,
 ) -> Result<CompiledPropertyPath, Box<ValidationBuildError>> {
     let requires_slice = match occurrence.declaration {
-        ExecutionDeclaration::Traversal => return Err(Box::new(ValidationBuildError::unsupported(occurrence))),
+        ExecutionDeclaration::Traversal => {
+            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+        }
         ExecutionDeclaration::Constraint(_) if occurrence.selector.is_some() => {
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         }
         ExecutionDeclaration::Constraint(ConstraintMetadata::Text(_)) => false,
         ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(value)) if !value.unique_items() => true,
-        ExecutionDeclaration::Constraint(_) => return Err(Box::new(ValidationBuildError::unsupported(occurrence))),
+        ExecutionDeclaration::Constraint(_) => {
+            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+        }
         ExecutionDeclaration::Validator(value) => {
             if let Some(selector) = occurrence.selector {
                 if selector != SelectorPosition::Element

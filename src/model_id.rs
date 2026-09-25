@@ -49,7 +49,7 @@ impl ModelId {
     ///
     /// Panics when `value` does not follow the stable-ID protocol. Use
     /// [`ModelId::try_new`] when callers need a recoverable error.
-    #[inline(always)]
+    #[inline]
     pub const fn new(value: &'static str) -> Self {
         match Self::validate(value) {
             Ok(()) => Self(value),
@@ -98,7 +98,7 @@ impl ModelId {
 
     /// Returns the complete stable model ID.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn as_str(self) -> &'static str {
         let Self(value) = self;
         value

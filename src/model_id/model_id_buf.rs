@@ -54,7 +54,7 @@ impl ModelIdBuf {
 
     /// Returns the complete stable model ID.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn as_str(&self) -> &str {
         let Self(value) = self;
         value

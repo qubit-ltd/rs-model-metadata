@@ -177,7 +177,7 @@ impl<'a> StructureResolver<'a> {
                                 Some(metadata.role()),
                                 fragment_source,
                             )
-                            .with_cause(PropertyResolutionError::Assembly(build_errors).into()),
+                            .with_cause(PropertyResolutionError::Assembly(build_errors.clone()).into()),
                         );
                     }
                 }
@@ -499,7 +499,7 @@ impl<'a> StructureResolver<'a> {
             if source.role() != ModelRole::Entity {
                 continue;
             }
-            let Some(local_properties) = properties.get(&source.type_id()).copied() else {
+            let Some(local_properties) = properties.get(&source.type_id()) else {
                 continue;
             };
             for property in local_properties.properties() {
@@ -558,7 +558,7 @@ impl<'a> StructureResolver<'a> {
                 projection_producers.push(ResolvedProjectionProducer {
                     source,
                     projection,
-                    property,
+                    property: *property,
                     projector: Some(getter),
                 });
             }

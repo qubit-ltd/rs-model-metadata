@@ -85,6 +85,7 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
         metadata
             .property_fragments_in(&isolated)
             .expect("valid isolated capabilities")
+            .fragments()
             .is_empty()
     );
     let models = ModelRegistry::from_metadata(&[]).expect("isolated model registry");

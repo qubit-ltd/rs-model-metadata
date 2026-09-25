@@ -19,6 +19,7 @@ use qubit_reflect::registry::ReflectRegistry;
 use crate::generic::GenericModelMetadata;
 use crate::metadata::ModelImplMetadata;
 use crate::metadata::TypeMetadata;
+use crate::model_impl_metadata::MergedModelImpl;
 
 /// The typed capability adapter supplied by generated model declarations.
 #[doc(hidden)]
@@ -27,6 +28,12 @@ pub type ModelMetadataProvider = fn() -> &'static TypeMetadata;
 /// The typed capability adapter supplied by `ModelImpl`.
 #[doc(hidden)]
 pub type ModelImplProvider = fn() -> &'static ModelImplMetadata;
+
+/// A static implementation block or an owned multi-provider merge.
+pub(crate) enum ModelImplResolution {
+    Static(&'static ModelImplMetadata),
+    Merged(Arc<MergedModelImpl>),
+}
 
 /// The typed capability adapter supplied by generic model declarations.
 #[doc(hidden)]
@@ -85,7 +92,7 @@ pub fn model_capability<T: crate::metadata::HasTypeMetadata>() -> CapabilityDesc
 pub(crate) fn model_impl_metadata(
     metadata: &TypeMetadata,
     registry: &ReflectRegistry,
-) -> Result<Option<&'static ModelImplMetadata>, CapabilityAccessError> {
+) -> Result<Option<ModelImplResolution>, CapabilityAccessError> {
     let descriptor = metadata.descriptor();
     let capabilities = registry
         .capabilities(descriptor)
@@ -101,8 +108,10 @@ pub(crate) fn model_impl_metadata(
     }
     match providers.as_slice() {
         [] => Ok(None),
-        [provider] => Ok(Some(provider())),
-        _ => Ok(Some(ModelImplMetadata::merge(metadata, &providers))),
+        [provider] => Ok(Some(ModelImplResolution::Static(provider()))),
+        _ => Ok(Some(ModelImplResolution::Merged(Arc::new(ModelImplMetadata::merge(
+            metadata, &providers,
+        ))))),
     }
 }
 
@@ -112,3 +121,4 @@ pub(crate) fn model_impl_metadata(
 pub fn model_impl_fragment_key(name: &'static str) -> CapabilityKey<ModelImplProvider> {
     CapabilityKey::new(CapabilityId::new(name).expect("valid generated impl capability ID"))
 }
+use std::sync::Arc;

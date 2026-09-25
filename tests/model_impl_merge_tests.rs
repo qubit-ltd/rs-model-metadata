@@ -9,7 +9,9 @@
 //! Snapshot-selected implementation overlays preserve conflicts and ownership.
 
 use std::ptr::eq;
+use std::sync::Arc;
 use std::sync::OnceLock;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
@@ -26,9 +28,9 @@ use qubit_model_metadata::metadata::PropertyFragmentSource;
 use qubit_model_metadata::metadata::PropertyResolutionError;
 use qubit_model_metadata::metadata::PropertySetFailure;
 use qubit_model_metadata::metadata::PropertyValue;
+use qubit_model_metadata::metadata::ResolvedProperties;
 use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::ReflectRegistry;
 use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
@@ -131,6 +133,20 @@ fn setter_b() -> &'static ModelImplMetadata {
     VALUE.get_or_init(|| overlay(None, Some("replace_name")))
 }
 
+static PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+fn counting_getter() -> &'static ModelImplMetadata {
+    PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst);
+    getter_a()
+}
+
+static PANIC_ONCE: AtomicBool = AtomicBool::new(true);
+
+fn panic_once_getter() -> &'static ModelImplMetadata {
+    assert!(!PANIC_ONCE.swap(false, Ordering::SeqCst), "provider panic fixture");
+    getter_a()
+}
+
 fn snapshot(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegistry {
     let mut builder = RegistrySnapshotBuilder::new();
     for (key, provider) in [
@@ -150,115 +166,18 @@ fn snapshot(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegis
 }
 
 #[test]
-fn test_model_registry_caches_properties_per_snapshot() {
-    static GETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
-    static SETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
-    fn counted_getter() -> &'static ModelImplMetadata {
-        GETTER_CALLS.fetch_add(1, Ordering::SeqCst);
-        getter_a()
-    }
-    fn counted_setter() -> &'static ModelImplMetadata {
-        SETTER_CALLS.fetch_add(1, Ordering::SeqCst);
-        setter_a()
-    }
-
-    let owner = TypeMetadata::of::<Record>();
-    let first = snapshot(counted_getter, counted_setter);
-    let models = ModelRegistry::from_reflect_registry(&first).expect("valid snapshot");
-    let initial_getters = GETTER_CALLS.load(Ordering::SeqCst);
-    let initial_setters = SETTER_CALLS.load(Ordering::SeqCst);
-    let properties = models.properties_for(owner).expect("first properties");
-    assert!(eq(properties, models.properties_for(owner).expect("cached properties")));
-    assert_eq!(GETTER_CALLS.load(Ordering::SeqCst) - initial_getters, 1);
-    assert_eq!(SETTER_CALLS.load(Ordering::SeqCst) - initial_setters, 1);
-
-    let second = snapshot(counted_getter, counted_setter);
-    let other_models = ModelRegistry::from_reflect_registry(&second).expect("independent snapshot");
-    other_models.properties_for(owner).expect("other snapshot properties");
-    assert_eq!(GETTER_CALLS.load(Ordering::SeqCst) - initial_getters, 2);
-    assert_eq!(SETTER_CALLS.load(Ordering::SeqCst) - initial_setters, 2);
-}
-
-#[test]
-fn test_model_registry_caches_property_assembly_errors() {
-    static FIRST_CALLS: AtomicUsize = AtomicUsize::new(0);
-    static SECOND_CALLS: AtomicUsize = AtomicUsize::new(0);
-    fn first_getter() -> &'static ModelImplMetadata {
-        FIRST_CALLS.fetch_add(1, Ordering::SeqCst);
-        getter_a()
-    }
-    fn second_getter() -> &'static ModelImplMetadata {
-        SECOND_CALLS.fetch_add(1, Ordering::SeqCst);
-        getter_b()
-    }
-
-    let reflection = snapshot(first_getter, second_getter);
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("valid snapshot");
-    let owner = TypeMetadata::of::<Record>();
-    for _ in 0..2 {
-        assert!(matches!(
-            models.properties_for(owner),
-            Err(PropertyResolutionError::Assembly(_))
-        ));
-    }
-    assert_eq!(FIRST_CALLS.load(Ordering::SeqCst), 1);
-    assert_eq!(SECOND_CALLS.load(Ordering::SeqCst), 1);
-}
-
-#[test]
-fn test_model_registry_retries_provider_after_panic() {
-    static CALLS: AtomicUsize = AtomicUsize::new(0);
-    fn panicking_getter() -> &'static ModelImplMetadata {
-        if CALLS.fetch_add(1, Ordering::SeqCst) == 0 {
-            panic!("first provider call");
-        }
-        getter_a()
-    }
-
-    let reflection = snapshot(panicking_getter, setter_a);
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("valid snapshot");
-    let owner = TypeMetadata::of::<Record>();
-    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| models.properties_for(owner))).is_err());
-    assert!(models.properties_for(owner).is_ok());
-    assert_eq!(CALLS.load(Ordering::SeqCst), 2);
-}
-
-#[test]
-fn test_model_registry_initializes_properties_once_under_concurrency() {
-    static GETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
-    static SETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
-    fn counted_getter() -> &'static ModelImplMetadata {
-        GETTER_CALLS.fetch_add(1, Ordering::SeqCst);
-        getter_a()
-    }
-    fn counted_setter() -> &'static ModelImplMetadata {
-        SETTER_CALLS.fetch_add(1, Ordering::SeqCst);
-        setter_a()
-    }
-
-    let reflection = snapshot(counted_getter, counted_setter);
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("valid snapshot");
-    let owner = TypeMetadata::of::<Record>();
-    std::thread::scope(|scope| {
-        for _ in 0..8 {
-            scope.spawn(|| {
-                assert!(models.properties_for(owner).is_ok());
-            });
-        }
-    });
-    assert_eq!(GETTER_CALLS.load(Ordering::SeqCst), 1);
-    assert_eq!(SETTER_CALLS.load(Ordering::SeqCst), 1);
-}
-
-#[test]
 fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
     let owner = TypeMetadata::of::<Record>();
+    let static_properties = owner.try_properties().expect("generated static properties");
+    assert_eq!(
+        static_properties.property("name").map(|property| property.name()),
+        Some("name")
+    );
+    assert!(static_properties.property("missing").is_none());
     let registry = snapshot(getter_a, setter_a);
     let properties = owner.try_properties_in(&registry).expect("complementary accessors");
-    assert!(eq(
-        properties,
-        owner.try_properties_in(&registry).expect("cached merge")
-    ));
+    let repeated = owner.try_properties_in(&registry).expect("owned merge");
+    assert_eq!(properties.properties().len(), repeated.properties().len());
     assert_eq!(properties.properties().len(), 2);
     let name = properties.property("name").expect("merged name");
     assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
@@ -276,6 +195,7 @@ fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
     assert_eq!(value.name, "after");
     assert_eq!(value.count, 7);
     let fragments = owner.property_fragments_in(&registry).expect("raw fragments");
+    let fragments = fragments.fragments();
     assert_eq!(fragments.len(), 4);
     assert_eq!(
         fragments
@@ -285,7 +205,7 @@ fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
         2
     );
     for fragment in fragments {
-        assert!(eq(
+        assert!(std::ptr::eq(
             fragment.type_ref(),
             properties
                 .property(fragment.name())
@@ -317,11 +237,12 @@ fn test_distinct_accessors_conflict_without_poisoning_other_snapshots() {
         else {
             panic!("same assembly category");
         };
-        assert!(eq(errors, repeated));
+        assert_eq!(errors.errors().len(), repeated.errors().len());
         assert_eq!(
             owner
                 .property_fragments_in(&registry)
                 .expect("diagnostic source facts")
+                .fragments()
                 .len(),
             4
         );
@@ -340,7 +261,104 @@ fn test_repeated_identity_is_not_a_distinct_accessor_conflict() {
         let registry = snapshot(provider, provider);
         let merged = owner.try_properties_in(&registry).expect("same accessor identity");
         assert_eq!(merged.properties().len(), 2);
-        let repeated = owner.try_properties_in(&registry).expect("cached result");
-        assert!(eq(merged, repeated));
+        let repeated = owner.try_properties_in(&registry).expect("owned result");
+        assert_eq!(merged.properties().len(), repeated.properties().len());
     }
+}
+
+#[test]
+fn registry_cache_owns_dynamic_results_and_releases_them_with_the_registry() {
+    let owner = TypeMetadata::of::<Record>();
+    let reflection = snapshot(getter_a, setter_a);
+    let registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection)
+        .expect("snapshot model registry");
+    let first = registry.properties_for(owner).expect("first merge");
+    let second = registry.properties_for(owner).expect("cached merge");
+    let weak = match (&first, &second) {
+        (ResolvedProperties::Merged(first), ResolvedProperties::Merged(second)) => {
+            assert!(Arc::ptr_eq(first, second));
+            Arc::downgrade(first)
+        }
+        _ => panic!("expected dynamic merge"),
+    };
+    drop(first);
+    drop(second);
+    drop(registry);
+    assert!(weak.upgrade().is_none(), "registry cache retained merged storage");
+}
+
+#[test]
+fn direct_snapshot_queries_own_independent_merges() {
+    let owner = TypeMetadata::of::<Record>();
+    let reflection = snapshot(getter_a, setter_a);
+    let first = owner.try_properties_in(&reflection).expect("first merge");
+    let second = owner.try_properties_in(&reflection).expect("second merge");
+    let (ResolvedProperties::Merged(first), ResolvedProperties::Merged(second)) = (&first, &second) else {
+        panic!("expected dynamic merge");
+    };
+    assert!(!Arc::ptr_eq(first, second), "direct queries do not keep a cache");
+}
+
+#[test]
+fn distinct_model_registries_do_not_share_their_property_cache() {
+    let owner = TypeMetadata::of::<Record>();
+    let reflection = snapshot(getter_a, setter_a);
+    let first_registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection)
+        .expect("first model registry");
+    let second_registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection)
+        .expect("second model registry");
+    let first = first_registry.properties_for(owner).expect("first merge");
+    let second = second_registry.properties_for(owner).expect("second merge");
+    let (ResolvedProperties::Merged(first), ResolvedProperties::Merged(second)) = (&first, &second) else {
+        panic!("expected dynamic merge");
+    };
+    assert!(!Arc::ptr_eq(first, second));
+}
+
+#[test]
+fn registry_cache_initializes_once_for_concurrent_queries() {
+    PROVIDER_CALLS.store(0, Ordering::SeqCst);
+    let owner = TypeMetadata::of::<Record>();
+    let reflection = snapshot(counting_getter, setter_a);
+    let registry =
+        qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| {
+                registry.properties_for(owner).expect("concurrent merge");
+            });
+        }
+    });
+    assert_eq!(PROVIDER_CALLS.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn provider_panic_does_not_poison_registry_cache() {
+    PANIC_ONCE.store(true, Ordering::SeqCst);
+    let owner = TypeMetadata::of::<Record>();
+    let reflection = snapshot(panic_once_getter, setter_a);
+    let registry =
+        qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| registry.properties_for(owner)));
+    assert!(panic.is_err());
+    assert!(registry.properties_for(owner).is_ok());
+}
+
+#[test]
+fn registry_cache_releases_failed_assembly_diagnostics_on_drop() {
+    let owner = TypeMetadata::of::<Record>();
+    let reflection = snapshot(getter_a, getter_b);
+    let registry =
+        qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let first = registry.properties_for(owner).expect_err("conflicting getters");
+    let second = registry.properties_for(owner).expect_err("cached diagnostic");
+    let (PropertyResolutionError::Assembly(first), PropertyResolutionError::Assembly(second)) = (first, second) else {
+        panic!("expected assembly failures");
+    };
+    assert!(Arc::ptr_eq(&first, &second));
+    let weak = Arc::downgrade(&first);
+    drop(first);
+    drop(second);
+    drop(registry);
+    assert!(weak.upgrade().is_none(), "registry cache retained failed diagnostics");
 }

@@ -33,7 +33,7 @@ impl PropertyBuildErrors {
 
     /// Returns every local property failure in deterministic order.
     #[must_use = "inspect the property assembly failures"]
-    #[inline(always)]
+    #[inline]
     pub const fn errors(&self) -> &[PropertyBuildError] {
         &self.errors
     }

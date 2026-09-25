@@ -26,7 +26,7 @@ impl EnumMetadata {
 
     /// Returns variants in source order.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn variants(&self) -> &'static [EnumVariantMetadata] {
         self.variants
     }

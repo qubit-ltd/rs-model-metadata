@@ -75,7 +75,11 @@ impl Profile {
 fn test_model_impl_merges_fields_getters_and_setters() {
     let metadata = TypeMetadata::of::<Profile>();
     assert_eq!(
-        metadata.property_fragments().expect("valid reflection registry").len(),
+        metadata
+            .property_fragments()
+            .expect("valid reflection registry")
+            .fragments()
+            .len(),
         10
     );
     let properties = metadata.try_properties().expect("profile properties must merge");

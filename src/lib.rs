@@ -42,6 +42,8 @@ pub mod registry;
 mod relation;
 /// Cross-model resolution types grouped under one stable namespace.
 pub mod resolve;
+mod resolved_properties;
+mod resolved_property_fragments;
 mod role;
 mod type_metadata;
 #[cfg(feature = "validation")]

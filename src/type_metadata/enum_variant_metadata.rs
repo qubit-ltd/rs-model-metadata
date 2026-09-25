@@ -107,7 +107,7 @@ impl EnumVariantMetadata {
     /// Returns the concrete structural descriptor, or `None` for a generic
     /// definition variant that has not been specialized.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn reflect(&self) -> Option<&'static VariantDescriptor> {
         self.reflect
     }
@@ -115,7 +115,7 @@ impl EnumVariantMetadata {
     /// Returns the symbolic declaration descriptor, or `None` for a concrete
     /// variant, including a specialized generic variant.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn definition(&self) -> Option<&'static VariantDefinitionDescriptor> {
         self.definition
     }
@@ -125,7 +125,7 @@ impl EnumVariantMetadata {
     /// The index is local to its enum and is unchanged by specialization or
     /// renaming. It is not an explicit Rust discriminant value.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn index(&self) -> usize {
         match (self.reflect, self.definition) {
             (Some(reflect), _) => reflect.index(),
@@ -136,7 +136,7 @@ impl EnumVariantMetadata {
 
     /// Returns the immutable Rust identifier.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn rust_name(&self) -> &'static str {
         match (self.reflect, self.definition) {
             (Some(reflect), _) => reflect.rust_name(),
@@ -147,21 +147,21 @@ impl EnumVariantMetadata {
 
     /// Returns the canonical model name.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn canonical_name(&self) -> &'static str {
         self.canonical_name
     }
 
     /// Returns the serialization name.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn serialized_name(&self) -> &'static str {
         self.serialized_name
     }
 
     /// Returns the deserialization name.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn deserialized_name(&self) -> &'static str {
         self.deserialized_name
     }
@@ -170,7 +170,7 @@ impl EnumVariantMetadata {
     /// a unit variant. Definition fields are symbolic; concrete fields retain
     /// their owner, variant, and field coordinates.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn fields(&self) -> &'static [FieldMetadata] {
         self.fields
     }
@@ -189,14 +189,14 @@ impl EnumVariantMetadata {
     /// tuple payloads. Returns `None` when the index is outside this variant's
     /// field slice, including every index for a unit variant.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn field_at(&self, index: usize) -> Option<&'static FieldMetadata> {
         self.fields.get(index)
     }
 
     /// Returns whether this is the default variant.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn is_default(&self) -> bool {
         self.default
     }

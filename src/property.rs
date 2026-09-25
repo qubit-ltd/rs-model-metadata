@@ -136,21 +136,21 @@ impl<'a> BorrowedPropertySlice<'a> {
 
     /// Returns the number of elements.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn len(&self) -> usize {
         self.value.len()
     }
 
     /// Returns whether the slice contains no elements.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns one element as a borrowed reflected value.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn get(&self, index: usize) -> Option<ReflectedRef<'a>> {
         self.value.get(index)
     }
@@ -243,7 +243,7 @@ impl PropertySetFailure {
 
     /// Returns the structured failure.
     #[must_use = "inspect the property failure before discarding it"]
-    #[inline(always)]
+    #[inline]
     pub const fn error(&self) -> &PropertyAccessError {
         &self.error
     }
@@ -314,19 +314,19 @@ impl GetterMetadata {
 
     /// Returns the Rust getter method name.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn rust_method_name(&self) -> &'static str {
         self.rust_method_name
     }
     /// Returns the declared getter output type.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn output_type(&self) -> &'static TypeRef {
         self.output_type
     }
     /// Returns whether the getter borrows or owns its output.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn output_kind(&self) -> GetterOutputKind {
         self.output_kind
     }
@@ -401,13 +401,13 @@ impl SetterMetadata {
 
     /// Returns the Rust setter method name.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn rust_method_name(&self) -> &'static str {
         self.rust_method_name
     }
     /// Returns the exact setter input type.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn input_type(&self) -> &'static TypeRef {
         self.input_type
     }
@@ -499,39 +499,39 @@ impl PropertyMetadata {
 
     /// Returns the public property name.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn name(&self) -> &'static str {
         self.name
     }
     /// Returns the property type reference.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn type_ref(&self) -> &'static TypeRef {
         self.type_ref
     }
     /// Returns the resolved property type descriptor, or `None` for symbolic
     /// and opaque property types.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn descriptor(&self) -> Option<&'static TypeDescriptor> {
         self.type_ref.as_resolved()
     }
     /// Returns the backing field, or `None` for computed and virtual
     /// properties.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn field(&self) -> Option<&'static FieldMetadata> {
         self.field
     }
     /// Returns the explicit getter, or `None` when reads use field fallback.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn getter(&self) -> Option<&'static GetterMetadata> {
         self.getter
     }
     /// Returns the explicit setter, or `None` when writes use field fallback.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn setter(&self) -> Option<&'static SetterMetadata> {
         self.setter
     }

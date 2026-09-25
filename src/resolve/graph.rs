@@ -23,11 +23,11 @@ use crate::metadata::FieldMetadata;
 use crate::metadata::FieldReferenceMetadata;
 use crate::metadata::GetterMetadata;
 use crate::metadata::IndexingReasons;
-use crate::metadata::LocalPropertySet;
 use crate::metadata::PropertyAccessError;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyPath;
 use crate::metadata::PropertyValue;
+use crate::metadata::ResolvedProperties;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
 
@@ -52,14 +52,14 @@ pub struct ResolvedDependency {
 impl ResolvedDependency {
     /// Returns the original occurrence, including source and separate paths.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn declaration(&self) -> &'static DependencyBindingMetadata {
         self.declaration
     }
 
     /// Reports whether the consumer must supply a containing object.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn context_requirement(&self) -> ContextRequirement {
         self.context
     }
@@ -73,7 +73,7 @@ pub struct ResolvedReference {
     /// The resolved target model metadata.
     pub(super) target: &'static TypeMetadata,
     /// The selected target property, or `None` for an entity-level reference.
-    pub(super) property: Option<&'static PropertyMetadata>,
+    pub(super) property: Option<PropertyMetadata>,
 }
 
 impl ResolvedReference {
@@ -89,23 +89,23 @@ impl ResolvedReference {
 
     /// Returns the original field-reference declaration.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn declaration(&self) -> &'static FieldReferenceMetadata {
         self.declaration
     }
 
     /// Returns the resolved target model metadata.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn target(&self) -> &'static TypeMetadata {
         self.target
     }
 
     /// Returns the selected target property, or `None` for an entity reference.
     #[must_use]
-    #[inline(always)]
-    pub const fn property(&self) -> Option<&'static PropertyMetadata> {
-        self.property
+    #[inline]
+    pub const fn property(&self) -> Option<&PropertyMetadata> {
+        self.property.as_ref()
     }
 }
 
@@ -124,7 +124,7 @@ pub struct ResolvedProjectionProducer {
     /// Projection returned by the property getter.
     pub(super) projection: &'static TypeMetadata,
     /// Merged local property that declares the producer edge.
-    pub(super) property: &'static PropertyMetadata,
+    pub(super) property: PropertyMetadata,
     /// Executable getter adapter, when automatic projection is available.
     pub(super) projector: Option<&'static GetterMetadata>,
 }
@@ -132,29 +132,29 @@ pub struct ResolvedProjectionProducer {
 impl ResolvedProjectionProducer {
     /// Returns the producing Entity metadata.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn source(&self) -> &'static TypeMetadata {
         self.source
     }
 
     /// Returns the produced Projection metadata.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn projection(&self) -> &'static TypeMetadata {
         self.projection
     }
 
     /// Returns the property that declares this edge.
     #[must_use]
-    #[inline(always)]
-    pub const fn property(&self) -> &'static PropertyMetadata {
-        self.property
+    #[inline]
+    pub const fn property(&self) -> &PropertyMetadata {
+        &self.property
     }
 
     /// Returns the executable getter used as projector. The current resolver
     /// only creates producer edges for properties with a registered getter.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn projector(&self) -> Option<&'static GetterMetadata> {
         self.projector
     }
@@ -249,7 +249,7 @@ pub enum ProjectionExecutionError {
 impl ResolvedProjectionSource {
     /// Returns the resolved entity model supplying the projection.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn target(&self) -> &'static TypeMetadata {
         self.target
     }
@@ -302,7 +302,7 @@ pub struct ModelGraph<'a> {
     /// Resolved query metadata keyed by entity declaration identity.
     pub(super) queries: HashMap<TypeId, QueryMetadata>,
     /// Locally assembled properties keyed by concrete type identity.
-    pub(super) properties: HashMap<TypeId, &'static LocalPropertySet>,
+    pub(super) properties: HashMap<TypeId, ResolvedProperties>,
     /// Automatic Entity-to-Projection producer edges.
     pub(super) projection_producers: Vec<ResolvedProjectionProducer>,
 }
@@ -310,14 +310,14 @@ pub struct ModelGraph<'a> {
 impl<'a> ModelGraph<'a> {
     /// Returns every dependency occurrence, including deferred parent paths.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn dependencies(&self) -> &[ResolvedDependency] {
         &self.dependencies
     }
 
     /// Returns registered and explicitly reachable concrete nodes.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn models(&self) -> &[&'static TypeMetadata] {
         &self.models
     }
@@ -328,19 +328,19 @@ impl<'a> ModelGraph<'a> {
     /// The lookup uses the supplied metadata's type identity; it does not
     /// reassemble its properties or consult the global registry.
     #[must_use]
-    pub fn properties(&self, model: &TypeMetadata) -> Option<&'static LocalPropertySet> {
-        self.properties.get(&model.type_id()).copied()
+    pub fn properties(&self, model: &TypeMetadata) -> Option<&ResolvedProperties> {
+        self.properties.get(&model.type_id())
     }
 
     /// Returns all resolved Entity-to-Projection producer edges.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn projection_producers(&self) -> &[ResolvedProjectionProducer] {
         &self.projection_producers
     }
     /// Returns the registry used for this resolution pass.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn registry(&self) -> &'a ModelRegistry<'a> {
         self.registry
     }
@@ -383,7 +383,7 @@ impl QueryMetadata {
     /// Returns declarations without choosing filter operators or external
     /// names.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn declarations(&self) -> &[QueryDeclaration] {
         &self.declarations
     }
@@ -401,7 +401,7 @@ pub struct QueryDeclaration {
 impl QueryDeclaration {
     /// Returns the original declaration for further metadata navigation.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn field(&self) -> &'static FieldMetadata {
         self.field
     }

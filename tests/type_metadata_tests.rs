@@ -58,6 +58,7 @@ fn test_type_metadata_delegates_structure_to_reflection() {
         descriptor.field_at(0).expect("reflected field"),
     ));
     assert!(metadata.try_properties().is_ok());
+    assert!(metadata.try_property("missing").unwrap().is_none());
 }
 
 #[test]

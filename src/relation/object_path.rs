@@ -82,3 +82,27 @@ impl fmt::Display for ObjectPath {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::NavigationStep;
+    use super::ObjectPath;
+
+    #[test]
+    fn object_paths_validate_steps_and_track_parent_context() {
+        let current = ObjectPath::current();
+        assert!(current.steps().is_empty());
+        assert!(!current.requires_parent());
+
+        let nested = ObjectPath::new(&[NavigationStep::Property("parent"), NavigationStep::Parent])
+            .expect("balanced parent traversal");
+        assert_eq!(nested.steps().len(), 2);
+        assert!(!nested.requires_parent());
+        assert_eq!(nested.to_string(), "parent/..");
+
+        let external = ObjectPath::new(&[NavigationStep::Parent]).expect("leading parent traversal");
+        assert!(external.requires_parent());
+        assert_eq!(external.to_string(), "..");
+        assert!(ObjectPath::new(&[NavigationStep::Property("invalid/name")]).is_err());
+    }
+}

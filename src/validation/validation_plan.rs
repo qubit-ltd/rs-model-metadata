@@ -83,21 +83,21 @@ pub struct ValidationPlan<'a> {
 impl<'a> ValidationPlan<'a> {
     /// Returns the number of bound validator occurrences.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn binding_count(&self) -> usize {
         self.bindings.len() + self.model_rules.len()
     }
 
     /// Returns the canonical graph metadata this plan was built for.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn root(&self) -> &'static TypeMetadata {
         self.root
     }
 
     /// Returns the borrowed graph used for both binding and execution.
     #[must_use = "inspect the graph retained by this plan"]
-    #[inline(always)]
+    #[inline]
     pub const fn graph(&self) -> &'a ModelGraph<'a> {
         self.graph
     }
@@ -111,14 +111,14 @@ impl<'a> ValidationPlan<'a> {
 
     /// Returns model-level rules retained by the plan.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) fn model_rules(&self) -> &[ModelRuleBinding] {
         &self.model_rules
     }
 
     /// Returns the immutable bound occurrences for the executor.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) fn bindings(&self) -> &[FieldRuleBinding] {
         &self.bindings
     }

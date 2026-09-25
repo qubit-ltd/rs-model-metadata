@@ -32,21 +32,21 @@ impl PropertyFragment {
 
     /// Returns the canonical public property name.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn name(&self) -> &'static str {
         self.name
     }
 
     /// Returns the exact type declared by this source fragment.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn type_ref(&self) -> &'static TypeRef {
         self.type_ref
     }
 
     /// Returns the field, getter, or setter that declared this fragment.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn source(&self) -> PropertyFragmentSource {
         self.source
     }

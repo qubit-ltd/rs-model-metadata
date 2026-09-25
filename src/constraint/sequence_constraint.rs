@@ -77,7 +77,7 @@ impl SequenceConstraint {
     ///
     /// `Some` with the minimum item count when constrained; otherwise, `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn min_items(&self) -> Option<usize> {
         self.min_items
     }
@@ -88,7 +88,7 @@ impl SequenceConstraint {
     ///
     /// `Some` with the maximum item count when constrained; otherwise, `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn max_items(&self) -> Option<usize> {
         self.max_items
     }
@@ -99,14 +99,14 @@ impl SequenceConstraint {
     ///
     /// `true` when sequence elements must be unique; otherwise, `false`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn unique_items(&self) -> bool {
         self.unique_items
     }
 
     /// Returns element semantics, if declared.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn element(&self) -> Option<&'static crate::metadata::SelectorMetadata> {
         self.element
     }

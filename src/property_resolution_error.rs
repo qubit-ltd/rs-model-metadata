@@ -24,5 +24,6 @@ pub enum PropertyResolutionError {
     Reflection(#[from] RegistryError),
     /// Linked field and method declarations cannot form valid properties.
     #[error("property assembly error: {0}")]
-    Assembly(#[from] &'static PropertyBuildErrors),
+    Assembly(#[from] Arc<PropertyBuildErrors>),
 }
+use std::sync::Arc;

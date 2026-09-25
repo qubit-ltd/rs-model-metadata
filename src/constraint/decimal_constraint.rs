@@ -102,7 +102,7 @@ impl DecimalConstraint {
     ///
     /// `Some` with the precision when constrained; otherwise, `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn precision(self) -> Option<u16> {
         self.precision
     }
@@ -113,7 +113,7 @@ impl DecimalConstraint {
     ///
     /// The number of decimal places.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn scale(self) -> u16 {
         self.scale
     }
@@ -124,7 +124,7 @@ impl DecimalConstraint {
     ///
     /// The required rounding strategy.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn rounding(self) -> RoundingMode {
         self.rounding
     }
@@ -135,35 +135,35 @@ impl DecimalConstraint {
     ///
     /// The domain meaning of the decimal value.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn semantic(self) -> DecimalSemantic {
         self.semantic
     }
 
     /// Returns the exact lower-bound declaration.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn min(self) -> Option<&'static str> {
         self.min
     }
 
     /// Returns the exact upper-bound declaration.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn max(self) -> Option<&'static str> {
         self.max
     }
 
     /// Returns whether the lower bound includes equality.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn min_inclusive(self) -> bool {
         self.min_inclusive
     }
 
     /// Returns whether the upper bound includes equality.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn max_inclusive(self) -> bool {
         self.max_inclusive
     }

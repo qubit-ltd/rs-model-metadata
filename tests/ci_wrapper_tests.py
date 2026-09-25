@@ -6,6 +6,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -110,6 +111,31 @@ class CiWrapperTests(unittest.TestCase):
         for wrapper in WRAPPERS:
             with self.subTest(wrapper=wrapper):
                 self.run_wrapper(wrapper, {}, ("json", "path with spaces", "$(literal)"), exit_code=23)
+
+    def test_downstream_repositories_use_immutable_revisions(self):
+        workflow = (PROJECT_ROOT / ".github/workflows/rs-platform-downstream.yml").read_text(
+            encoding="utf-8"
+        )
+        checkouts = re.findall(
+            r"repository:\s*(qubit-ltd/[^\s]+)\s*\n\s*ref:\s*([^\s]+)",
+            workflow,
+        )
+        expected_repositories = {
+            "qubit-ltd/rs-reflect",
+            "qubit-ltd/rs-platform",
+            "qubit-ltd/rs-id",
+            "qubit-ltd/rs-datatype",
+            "qubit-ltd/rs-redact",
+            "qubit-ltd/rs-redact-derive",
+            "qubit-ltd/rs-codec",
+            "qubit-ltd/rs-validator",
+            "qubit-ltd/rs-validation-rules",
+        }
+        repositories = {repository for repository, _ in checkouts}
+        self.assertEqual(repositories, expected_repositories)
+        for repository, revision in checkouts:
+            with self.subTest(repository=repository):
+                self.assertRegex(revision, r"^[0-9a-f]{40}$")
 
 
 if __name__ == "__main__":

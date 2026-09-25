@@ -253,45 +253,45 @@ impl ModelRegistryError {
 
     /// Returns the original checked ABI failure, when metadata was malformed.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn abi_cause(&self) -> Option<&AbiViolation> {
         self.abi.as_ref()
     }
 
     /// Returns the machine-readable error class.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn kind(&self) -> ModelRegistryErrorKind {
         self.kind
     }
     /// Returns the conflicting model ID, or `None` when the failure is not
     /// associated with a model.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn model_id(&self) -> Option<ModelId> {
         self.model_id
     }
     /// Returns the capability ID involved in a provider contract failure.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn capability_id(&self) -> Option<CapabilityId> {
         self.capability_id
     }
     /// Returns the expected adapter type for a provider type mismatch.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn expected_adapter_type(&self) -> Option<TypeId> {
         self.expected_adapter_type
     }
     /// Returns the actual adapter type for a provider type mismatch.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn actual_adapter_type(&self) -> Option<TypeId> {
         self.actual_adapter_type
     }
     /// Returns the registration sources involved in the error.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub fn sources(&self) -> &[FragmentIdentity] {
         &self.sources
     }

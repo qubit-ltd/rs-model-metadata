@@ -73,19 +73,19 @@ impl ModelRuleBinding {
     }
     /// Returns the bound rule identifier.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn rule_id(&self) -> ValidatorId {
         self.rule_id
     }
     /// Returns the input type accepted by the rule.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn input_type(&self) -> InputType {
         self.input_type
     }
     /// Returns the prepared validator implementation.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) fn validator(&self) -> &dyn PreparedValidator {
         self.validator.as_ref()
     }

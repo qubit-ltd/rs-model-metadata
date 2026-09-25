@@ -86,6 +86,8 @@ pub use crate::relation::NavigationStep;
 pub use crate::relation::ObjectPath;
 pub use crate::relation::ObjectPathError;
 pub use crate::relation::PropertyPath;
+pub use crate::resolved_properties::ResolvedProperties;
+pub use crate::resolved_property_fragments::ResolvedPropertyFragments;
 pub use crate::role::EntityMetadata;
 pub use crate::role::ModelMetadata;
 pub use crate::role::ModelRole;

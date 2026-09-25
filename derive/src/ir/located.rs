@@ -25,14 +25,14 @@ impl<T> Located<T> {
 
     /// Returns the parsed value without changing its source location.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn value(&self) -> &T {
         &self.value
     }
 
     /// Returns the source span that declared this value.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(crate) const fn span(&self) -> Span {
         self.span
     }

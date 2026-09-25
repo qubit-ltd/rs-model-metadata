@@ -180,7 +180,7 @@ impl FieldMetadata {
     /// Generic definition fields return `None` until instantiated. Copies of a
     /// concrete overlay retain the same identity.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn location(&self) -> Option<FieldLocation> {
         self.location
     }
@@ -188,7 +188,7 @@ impl FieldMetadata {
     /// Returns the field's source occurrence, which may have unknown
     /// coordinates for a manually constructed structural overlay.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn declaration(&self) -> &DeclarationLocation {
         &self.declaration
     }
@@ -196,7 +196,7 @@ impl FieldMetadata {
     /// Returns the concrete reflection field descriptor, or `None` for an
     /// uninstantiated generic definition field.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn reflect(&self) -> Option<&'static FieldDescriptor> {
         self.reflect
     }
@@ -204,7 +204,7 @@ impl FieldMetadata {
     /// Returns the source-level field for a generic declaration overlay, or
     /// `None` for a concrete field, including a specialized generic field.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn definition(&self) -> Option<&'static FieldDefinitionDescriptor> {
         self.definition
     }
@@ -212,7 +212,7 @@ impl FieldMetadata {
     /// Returns the zero-based source field index, local to its struct or enum
     /// variant. Generic definition and specialization preserve this index.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn index(&self) -> usize {
         match (self.reflect, self.definition) {
             (Some(reflect), _) => reflect.index(),
@@ -224,7 +224,7 @@ impl FieldMetadata {
     /// Returns the field query name, or `None` for an unnamed tuple payload.
     /// This is independent of Serde serialization and deserialization names.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn name(&self) -> Option<&'static str> {
         match (self.reflect, self.definition) {
             (Some(reflect), _) => reflect.query_name(),
@@ -236,7 +236,7 @@ impl FieldMetadata {
     /// Returns declared visibility for a struct field, or inherited variant
     /// visibility for an enum payload. This also works for symbolic fields.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn visibility(&self) -> FieldVisibility<'_> {
         match (self.reflect, self.definition) {
             (Some(reflect), _) => reflect.visibility(),
@@ -248,7 +248,6 @@ impl FieldMetadata {
 
     /// Returns the exact resolved, opaque, or symbolic field type reference.
     #[must_use]
-    #[inline(always)]
     pub fn type_ref(&self) -> &'static TypeRef {
         match (self.reflect, self.symbolic_type) {
             (Some(reflect), _) => reflect.field_type(),
@@ -260,14 +259,13 @@ impl FieldMetadata {
     /// Returns the resolved field type descriptor, or `None` for opaque and
     /// symbolic type references.
     #[must_use]
-    #[inline(always)]
     pub fn descriptor(&self) -> Option<&'static TypeDescriptor> {
         self.type_ref().as_resolved()
     }
 
     /// Returns all semantic occurrences in source order.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn attributes(&self) -> &'static [FieldAttributeMetadata] {
         self.attributes
     }
@@ -339,7 +337,7 @@ impl FieldMetadata {
 
     /// Returns all standard field constraints.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn constraints(&self) -> &'static [ConstraintMetadata] {
         self.constraints
     }
@@ -391,7 +389,7 @@ impl FieldMetadata {
 
     /// Returns validator declarations in source order.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn validators(&self) -> &'static [ValidatorMetadata] {
         self.validators
     }
@@ -416,7 +414,7 @@ impl FieldMetadata {
 
     /// Returns the effective Serde behavior.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn serde(&self) -> &'static SerdeFieldMetadata {
         self.serde
     }

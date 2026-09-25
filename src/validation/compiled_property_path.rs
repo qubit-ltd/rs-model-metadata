@@ -27,12 +27,12 @@ use crate::resolve::ModelGraph;
 /// One property access step retained for a later executor.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PropertyStep {
-    property: &'static PropertyMetadata,
+    property: PropertyMetadata,
 }
 
 impl PropertyStep {
     /// Returns the metadata for this path segment.
-    pub(crate) const fn property(self) -> &'static PropertyMetadata {
+    pub(crate) const fn property(self) -> PropertyMetadata {
         self.property
     }
 }
@@ -118,7 +118,7 @@ impl CompiledPropertyPath {
                 return Err(path_error(BindErrorKind::UnsupportedConstraint));
             }
             path_optional |= optional;
-            steps.push(PropertyStep { property });
+            steps.push(PropertyStep { property: *property });
             input = if matches!(actual.kind(), TypeKind::Text(_)) {
                 InputType::Text
             } else {

@@ -62,7 +62,7 @@ impl<'a> PropertyPath<'a> {
     ///
     /// The statically allocated field-name segments.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn segments(self) -> &'a [&'static str] {
         self.segments
     }
@@ -73,7 +73,7 @@ impl<'a> PropertyPath<'a> {
     ///
     /// `true` when the path is empty; otherwise `false`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn is_empty(self) -> bool {
         self.segments.is_empty()
     }

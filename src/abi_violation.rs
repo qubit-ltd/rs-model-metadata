@@ -27,14 +27,14 @@ impl AbiViolation {
 
     /// Returns the stable diagnostic code.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn code(&self) -> &'static str {
         self.code
     }
 
     /// Returns the stable diagnostic message.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn message(&self) -> &'static str {
         self.message
     }

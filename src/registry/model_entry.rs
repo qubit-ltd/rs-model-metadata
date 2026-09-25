@@ -62,7 +62,7 @@ impl<'reflection> ModelEntry<'reflection> {
 
     /// Returns the stable model ID shared by concrete and generic entries.
     #[must_use = "inspect the model identity"]
-    #[inline(always)]
+    #[inline]
     pub const fn model_id(&self) -> ModelId {
         self.model_id
     }
@@ -71,14 +71,14 @@ impl<'reflection> ModelEntry<'reflection> {
     /// Its lifetime follows the supplied reflection snapshot or explicit
     /// source.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn source(&self) -> &'reflection FragmentIdentity {
         self.source
     }
 
     /// Returns concrete metadata, or `None` for a generic declaration.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn metadata(self) -> Option<&'static TypeMetadata> {
         match self.target {
             ModelEntryTarget::Concrete(metadata) => Some(metadata),
@@ -89,7 +89,7 @@ impl<'reflection> ModelEntry<'reflection> {
 
     /// Returns generic metadata, or `None` for a concrete entry.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     #[cfg(feature = "generic")]
     pub const fn generic_metadata(self) -> Option<&'static GenericModelMetadata> {
         match self.target {

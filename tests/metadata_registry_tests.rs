@@ -114,6 +114,8 @@ fn explicit_registry_borrows_non_static_provenance() {
 fn test_registry_indexes_registration_metadata_and_type_identity() {
     let item = entry("example.RegistryFixture", 1);
     let registry = ModelRegistry::from_metadata(&[item]).expect("valid registry");
+    let entries = std::hint::black_box(ModelRegistry::entries);
+    assert_eq!(entries(&registry).len(), 1);
 
     assert!(std::ptr::eq(
         registry.metadata("example.RegistryFixture").expect("metadata"),
@@ -165,6 +167,8 @@ fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
         3,
     )));
     let registry = ModelRegistry::from_metadata_with_generics(&[], &[(generic, source)]).expect("generic registry");
+    let generic_definitions = std::hint::black_box(ModelRegistry::generic_definitions);
+    assert_eq!(generic_definitions(&registry).len(), 1);
 
     assert!(std::ptr::eq(
         registry.generic("example.GenericFixture").expect("generic lookup"),

@@ -111,7 +111,7 @@ impl TextConstraint {
     /// `Some` with the minimum scalar-value count when constrained; otherwise,
     /// `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn min_chars(self) -> Option<u32> {
         self.min_chars
     }
@@ -123,7 +123,7 @@ impl TextConstraint {
     /// `Some` with the maximum scalar-value count when constrained; otherwise,
     /// `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn max_chars(self) -> Option<u32> {
         self.max_chars
     }
@@ -134,7 +134,7 @@ impl TextConstraint {
     ///
     /// `Some` with the minimum byte length when constrained; otherwise, `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn min_bytes(self) -> Option<u32> {
         self.min_bytes
     }
@@ -145,7 +145,7 @@ impl TextConstraint {
     ///
     /// `Some` with the maximum byte length when constrained; otherwise, `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn max_bytes(self) -> Option<u32> {
         self.max_bytes
     }
@@ -156,7 +156,7 @@ impl TextConstraint {
     ///
     /// The permitted character set.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn allowed_chars(self) -> AllowedChars {
         self.allowed_chars
     }
@@ -167,7 +167,7 @@ impl TextConstraint {
     ///
     /// `true` when whitespace-only values are forbidden; otherwise, `false`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn is_non_blank(self) -> bool {
         self.non_blank
     }
@@ -179,7 +179,7 @@ impl TextConstraint {
     /// `Some` with the required format when one is configured; otherwise,
     /// `None`.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn format(self) -> Option<TextFormat> {
         self.format
     }

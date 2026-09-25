@@ -69,7 +69,7 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     let mut properties = criterion.benchmark_group("multi_impl_properties_warm");
     for &(root, size) in roots {
         properties.bench_with_input(BenchmarkId::new("fields_and_impls", size), &root, |bencher, root| {
-            bencher.iter(|| black_box(root.try_properties_in(black_box(reflection))));
+            bencher.iter(|| black_box(models.properties_for(black_box(root))));
         });
     }
     properties.finish();

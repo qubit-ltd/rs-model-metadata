@@ -44,7 +44,9 @@ pub(crate) fn read<'value>(
         }
         receiver = match output {
             PropertyValue::Borrowed(value) | PropertyValue::OptionalBorrowed(Some(value)) => value,
-            PropertyValue::OptionalBorrowed(None) => return Ok(PropertyValue::OptionalBorrowed(None)),
+            PropertyValue::OptionalBorrowed(None) => {
+                return Ok(PropertyValue::OptionalBorrowed(None));
+            }
             PropertyValue::Owned(_) | PropertyValue::BorrowedSlice(_) => {
                 return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)));
             }

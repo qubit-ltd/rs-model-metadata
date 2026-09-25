@@ -52,22 +52,38 @@ impl FieldLocation {
 
     /// Returns the concrete owner type identity.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn owner(&self) -> TypeId {
         self.owner
     }
 
     /// Returns the variant index, or `None` for a struct field.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn variant(&self) -> Option<usize> {
         self.variant
     }
 
     /// Returns the source field index within the struct or variant.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn index(&self) -> usize {
         self.index
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use super::FieldLocation;
+
+    #[test]
+    fn location_preserves_owner_variant_and_field_index() {
+        let location = FieldLocation::new(TypeId::of::<String>(), Some(2), 4);
+
+        assert_eq!(location.owner(), TypeId::of::<String>());
+        assert_eq!(location.variant(), Some(2));
+        assert_eq!(location.index(), 4);
     }
 }

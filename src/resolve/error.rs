@@ -291,7 +291,7 @@ pub struct ResolveErrors {
 impl ResolveErrors {
     /// Returns every collected resolution failure.
     #[must_use = "inspect the resolution failures"]
-    #[inline(always)]
+    #[inline]
     pub fn errors(&self) -> &[ResolveError] {
         &self.errors
     }

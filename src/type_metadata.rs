@@ -48,6 +48,8 @@ use crate::metadata::PropertyBuildErrors;
 use crate::metadata::PropertyFragment;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyResolutionError;
+use crate::metadata::ResolvedProperties;
+use crate::metadata::ResolvedPropertyFragments;
 use crate::metadata::RoleMetadata;
 use crate::metadata::SelectorPosition;
 use crate::metadata::ValueMetadata;
@@ -165,7 +167,7 @@ impl TypeMetadata {
 
     /// Returns the unique reflection descriptor root.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn descriptor(&self) -> &'static TypeDescriptor {
         self.descriptor
     }
@@ -184,7 +186,7 @@ impl TypeMetadata {
 
     /// Returns the declared model ID, when registered.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn model_id(&self) -> Option<ModelId> {
         self.model_id
     }
@@ -197,7 +199,7 @@ impl TypeMetadata {
 
     /// Returns structural field overlays in reflection order.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn fields(&self) -> &'static [FieldMetadata] {
         self.fields
     }
@@ -220,13 +222,13 @@ impl TypeMetadata {
     /// # Errors
     ///
     /// Returns reflection initialization or intrinsic capability conflicts.
-    pub fn property_fragments(&'static self) -> Result<&'static [PropertyFragment], PropertyResolutionError> {
+    pub fn property_fragments(&'static self) -> Result<ResolvedPropertyFragments, PropertyResolutionError> {
         self.property_fragments_in(ReflectRegistry::initialize()?)
     }
 
     /// Returns declarations from `registry`, falling back to local fields when
     /// no implementation overlay is present. Never accesses the global
-    /// registry.
+    /// registry. Dynamic fragments are owned by the returned view.
     ///
     /// # Errors
     ///
@@ -234,12 +236,18 @@ impl TypeMetadata {
     pub fn property_fragments_in(
         &'static self,
         registry: &ReflectRegistry,
-    ) -> Result<&'static [PropertyFragment], PropertyResolutionError> {
-        Ok(crate::reflect_facade::model_impl_metadata(self, registry)?
-            .map_or(self.property_fragments, |metadata| metadata.fragments()))
+    ) -> Result<ResolvedPropertyFragments, PropertyResolutionError> {
+        use crate::reflect_facade::ModelImplResolution;
+
+        Ok(match crate::reflect_facade::model_impl_metadata(self, registry)? {
+            None => ResolvedPropertyFragments::Static(self.property_fragments),
+            Some(ModelImplResolution::Static(metadata)) => ResolvedPropertyFragments::Static(metadata.fragments()),
+            Some(ModelImplResolution::Merged(metadata)) => metadata.fragments(),
+        })
     }
 
     /// Returns effective properties from the process-wide reflection snapshot.
+    /// Dynamic properties are owned by the returned view.
     ///
     /// # Errors
     ///
@@ -247,12 +255,14 @@ impl TypeMetadata {
     /// failures, [`PropertyResolutionError::Capability`] for intrinsic
     /// conflicts, and [`PropertyResolutionError::Assembly`] for
     /// incompatible declarations.
-    pub fn try_properties(&'static self) -> Result<&'static LocalPropertySet, PropertyResolutionError> {
+    pub fn try_properties(&'static self) -> Result<ResolvedProperties, PropertyResolutionError> {
         self.try_properties_in(ReflectRegistry::initialize()?)
     }
 
     /// Returns effective properties in `registry`. Never initializes global
-    /// state.
+    /// state. Dynamic results are owned by the returned view and are not cached
+    /// by this method; use [`crate::registry::ModelRegistry::properties_for`]
+    /// to reuse merges within a registry's lifetime.
     ///
     /// # Errors
     ///
@@ -261,10 +271,19 @@ impl TypeMetadata {
     pub fn try_properties_in(
         &'static self,
         registry: &ReflectRegistry,
-    ) -> Result<&'static LocalPropertySet, PropertyResolutionError> {
-        crate::reflect_facade::model_impl_metadata(self, registry)?.map_or(Ok(&self.properties), |metadata| {
-            metadata.try_properties().map_err(Into::into)
-        })
+    ) -> Result<ResolvedProperties, PropertyResolutionError> {
+        use crate::reflect_facade::ModelImplResolution;
+
+        match crate::reflect_facade::model_impl_metadata(self, registry)? {
+            None => Ok(ResolvedProperties::Static(&self.properties)),
+            Some(ModelImplResolution::Static(metadata)) => metadata
+                .try_properties()
+                .map(ResolvedProperties::Static)
+                .map_err(|error| PropertyResolutionError::Assembly(std::sync::Arc::new(error.clone()))),
+            Some(ModelImplResolution::Merged(metadata)) => {
+                metadata.try_properties().map_err(PropertyResolutionError::Assembly)
+            }
+        }
     }
 
     /// Returns declaration-local field properties without consulting any
@@ -282,11 +301,9 @@ impl TypeMetadata {
     ///
     /// Returns reflection initialization, capability, or property assembly
     /// errors.
-    pub fn try_property(
-        &'static self,
-        name: &str,
-    ) -> Result<Option<&'static PropertyMetadata>, PropertyResolutionError> {
-        self.try_properties().map(|properties| properties.property(name))
+    pub fn try_property(&'static self, name: &str) -> Result<Option<PropertyMetadata>, PropertyResolutionError> {
+        self.try_properties()
+            .map(|properties| properties.property(name).copied())
     }
 
     /// Finds an effective property in `registry` without accessing global
@@ -300,14 +317,14 @@ impl TypeMetadata {
         &'static self,
         registry: &ReflectRegistry,
         name: &str,
-    ) -> Result<Option<&'static PropertyMetadata>, PropertyResolutionError> {
+    ) -> Result<Option<PropertyMetadata>, PropertyResolutionError> {
         self.try_properties_in(registry)
-            .map(|properties| properties.property(name))
+            .map(|properties| properties.property(name).copied())
     }
 
     /// Returns the generic model template that produced this metadata.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     #[cfg(feature = "generic")]
     pub const fn generic_definition(&self) -> Option<&'static GenericModelMetadata> {
         self.generic_definition
@@ -315,7 +332,7 @@ impl TypeMetadata {
 
     /// Returns concrete reflection substitutions for a generic instance.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     #[cfg(feature = "generic")]
     pub const fn concrete_generic(&self) -> Option<&'static ConcreteGenericDescriptor> {
         self.descriptor.concrete_generic()
@@ -323,21 +340,21 @@ impl TypeMetadata {
 
     /// Returns the model role tag.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn role(&self) -> ModelRole {
         self.role.role()
     }
 
     /// Returns the role-specific metadata payload.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn role_metadata(&self) -> &'static RoleMetadata {
         self.role
     }
 
     /// Returns Entity metadata when this is an Entity.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn as_entity(&self) -> Option<&'static EntityMetadata> {
         match self.role {
             RoleMetadata::Entity(value) => Some(value),
@@ -347,7 +364,7 @@ impl TypeMetadata {
 
     /// Returns Projection metadata when this is a Projection.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn as_projection(&self) -> Option<&'static ProjectionMetadata> {
         match self.role {
             RoleMetadata::Projection(value) => Some(value),
@@ -357,7 +374,7 @@ impl TypeMetadata {
 
     /// Returns Model metadata when this is a Model.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn as_model(&self) -> Option<&'static ModelMetadata> {
         match self.role {
             RoleMetadata::Model(value) => Some(value),
@@ -367,7 +384,7 @@ impl TypeMetadata {
 
     /// Returns Enum metadata when this is an Enum.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn as_enum(&self) -> Option<&'static EnumMetadata> {
         match self.role {
             RoleMetadata::Enum(value) => Some(value),
@@ -377,7 +394,7 @@ impl TypeMetadata {
 
     /// Returns Value metadata when this is a Value.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn as_value(&self) -> Option<&'static ValueMetadata> {
         match self.role {
             RoleMetadata::Value(value) => Some(value),
@@ -930,4 +947,31 @@ fn getter_type_compatible(property: &TypeRef, output: &TypeRef) -> bool {
 /// Creates a stable ABI diagnostic for invalid generated metadata.
 const fn abi_violation(code: &'static str, message: &'static str) -> AbiViolation {
     AbiViolation::new(code, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use qubit_reflect::TypeDescriptor;
+    use qubit_reflect::registry::RegistrySnapshotBuilder;
+
+    use crate::__private::v7;
+
+    #[test]
+    fn missing_property_lookup_returns_none_for_static_metadata() {
+        let metadata = Box::leak(Box::new(
+            v7::GeneratedTypeMetadataBuilder::new(
+                TypeDescriptor::of::<String>(),
+                None,
+                &[],
+                v7::leak(v7::model_role()),
+            )
+            .finish::<String>(),
+        ));
+
+        assert!(metadata.try_property("missing").unwrap().is_none());
+        let registry = RegistrySnapshotBuilder::new()
+            .build()
+            .expect("empty reflection snapshot");
+        assert!(metadata.try_property_in(&registry, "missing").unwrap().is_none());
+    }
 }

@@ -28,14 +28,14 @@ impl PropertyBuildError {
 
     /// Returns the stable failure category.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn kind(&self) -> PropertyBuildErrorKind {
         self.kind
     }
 
     /// Returns the canonical property name associated with the failure.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub const fn property_name(&self) -> &'static str {
         self.property_name
     }

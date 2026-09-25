@@ -12,7 +12,6 @@
 // apply. qubit-style: allow type-file-name
 
 use std::error::Error;
-use std::ptr;
 use std::sync::OnceLock;
 
 use qubit_reflect::Reflect;
@@ -70,11 +69,23 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
         v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Broken<1>>(), None, &[], v7::leak(v7::model_role()))
             .finish::<Broken<1>>(),
     );
+    let empty_merge = ModelImplMetadata::merge(metadata, &[]);
+    assert!(empty_merge.fragments().fragments().is_empty());
+    assert!(
+        empty_merge
+            .try_properties()
+            .expect("no providers produce an empty property view")
+            .properties()
+            .is_empty()
+    );
     let error = resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &models).unwrap_err();
     let ModelResolutionCause::Properties(PropertyResolutionError::Assembly(errors)) = error else {
         panic!("expected original property assembly failure");
     };
-    assert!(ptr::eq(errors, overlay().try_properties().unwrap_err()));
+    assert_eq!(
+        errors.errors().len(),
+        overlay().try_properties().unwrap_err().errors().len()
+    );
     assert_eq!(errors.errors()[0].property_name(), "value");
 }
 

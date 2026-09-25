@@ -188,5 +188,8 @@ fn test_multiple_impl_blocks_merge_accessors() {
     let title = properties.property("title").expect("computed property");
     assert!(title.getter().is_some());
     assert!(title.setter().is_some());
-    assert!(std::ptr::eq(properties, metadata.try_properties().expect("cached")));
+    let repeated = metadata.try_properties().expect("repeat resolution");
+    let repeated_title = repeated.property("title").expect("repeated computed property");
+    assert!(repeated_title.getter().is_some());
+    assert!(repeated_title.setter().is_some());
 }
