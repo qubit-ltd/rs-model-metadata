@@ -82,7 +82,6 @@ impl ModelRuleBinding {
     ///
     /// Returns an input, context, adapter, or rule execution error associated
     /// with this binding's rule ID.
-    #[must_use]
     #[inline]
     pub(crate) fn validate(
         &self,
