@@ -14,7 +14,7 @@ Field 表示存储槽位，Property 合并存储字段和符合要求的访问�
 TypeMetadata 是不依赖模型实例的静态信息。Entity 必须声明稳定的 ModelId；其他角色可省略 ModelId，匿名模型仍有准确的 TypeId，
 可以作为显式根纳入结构解析。
 
-## 贯穿场景与最小配置
+## 实战场景与最小配置
 
 两个 model-metadata package 都设置了 `publish = false`，需要使用本地检出。
 以下路径假设应用 crate 与 `rs-model-metadata` 同属 `rs-platform` 工作区。只有构建验证计划时，
