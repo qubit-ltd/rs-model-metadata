@@ -27,7 +27,8 @@ qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 ```
 
-通过 `ModelRegistry::from_metadata` 创建的纯元数据注册表不会经反射发现其他元数据 provider。
+`ModelRegistry::from_static_metadata` 只读取显式传入的元数据，查询 Property 时仅使用
+`TypeMetadata::local_properties()`，因此看不到独立注册的 `ModelImpl` provider。
 需要参与声明处理的匿名模型（包括嵌套子模型）都应加入显式 roots；也可以改用从指定反射快照构建的注册表。
 验证器只消费得到的图，不会从进程级注册表补入缺失声明。
 
@@ -49,7 +50,7 @@ struct User {
 fn main() {
     let root = TypeMetadata::of::<User>();
     assert_eq!(root.model_id().expect("Entity ID").as_str(), "guide.directory.User");
-    let models = ModelRegistry::from_metadata(&[]).unwrap();
+    let models = ModelRegistry::from_static_metadata(&[]).unwrap();
     let roots = [root];
     let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
         .resolve().unwrap();
@@ -65,9 +66,14 @@ fn main() {
 
 已链接的模型 crate 可以使用 `ModelRegistry::try_global()`，也可以先构造显式 rs-reflect 快照，再通过
 `ModelRegistry::from_reflect_registry` 投影。冻结注册表前应完成所需 crate 的链接。
+快照注册表的 `properties_for` 能合并独立注册的 `ModelImpl` 访问器。
 解析器遍历注册类型与显式根的并集，按 TypeId 去重，检查引用、Projection 来源、Property 冲突和 Value 闭包。
-显式注册表不会从全局注册表补入未提供的注册项。泛型具体 metadata 始终保留定义关联，
-只有具有稳定 ID 的定义进入按 ID 枚举的注册表；并发重复查询同一具体类型会共享 metadata 分配。
+显式注册表不会从全局注册表补入未提供的注册项。启用 `generic` 后，
+`ModelRegistry::from_static_metadata_with_generics` 可接收显式泛型定义；快照注册表则收集已注册的
+定义 provider。两种注册表都可用 `generic_metadata_for(definition.id())` 按进程内定义身份查询，
+`generic_definitions()` 也会列出匿名定义。`entries()` 和其他按 ID 查询的入口只包含具有稳定
+`ModelId` 的注册项，匿名泛型定义仍可通过定义身份入口取得。泛型具体 metadata 始终保留定义关联；
+并发重复查询同一具体类型会共享 metadata 分配。
 
 验证入口通过传入根的 TypeId 选择图中的元数据。同一 Rust 类型即使有另一份经过检查的 overlay，
 也不能借此增加或删除图中的声明。`ValidationPlan::root()` 返回实际采用的图内元数据，
@@ -82,6 +88,8 @@ fn main() {
 
 | 旧 API | 当前 API |
 | --- | --- |
+| `ModelRegistry::from_metadata` | `ModelRegistry::from_static_metadata` |
+| `ModelRegistry::from_metadata_with_generics` | `ModelRegistry::from_static_metadata_with_generics`（启用 `generic`） |
 | `graph.reference(field)` | 处理 `field.location()` 后调用 `graph.reference(location)` |
 | `graph.query(entity_payload)` | `graph.query(entity_type_id)` |
 | `graph.projection_source(projection_payload)` | `graph.projection_source(projection_type_id)` |
@@ -273,7 +281,7 @@ enum ContactMethod {
 fn main() {
     let root = TypeMetadata::of::<ContactMethod>();
     let roots = [root];
-    let models = ModelRegistry::from_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("enum declarations are structurally supported");
     let validators = ValidatorRegistry::empty();

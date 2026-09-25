@@ -61,9 +61,12 @@ fn main() {
 ```
 
 The result is static metadata for `User`; `TypeMetadata::of` does not initialize
-the global model registry. A `ModelRegistry` constructed from a frozen
-`ReflectRegistry` uses that snapshot in `metadata_for` and `properties_for`,
-so separately emitted model overlays remain visible. See the user guide for
+the global model registry. `ModelRegistry::from_static_metadata` builds an
+isolated registry from explicit metadata and resolves properties only from
+`TypeMetadata::local_properties()`. A registry built with
+`ModelRegistry::from_reflect_registry` uses its frozen `ReflectRegistry` snapshot
+for `metadata_for` and `properties_for`, so independently registered `ModelImpl`
+providers remain visible. See the user guide for
 the subsequent cross-crate resolution step. Explicit property queries return
 owned views; their dynamic merge is released with the view, while a
 `ModelRegistry` reuses its own cached merge only for that registry's lifetime.
@@ -84,8 +87,11 @@ the reflection model.
   `TypeMetadata`, `ModelId`, codec references, validation arguments, and
   redaction sensitivity.
 - `registry::ModelRegistry` projects concrete models from a frozen
-  `ReflectRegistry` snapshot. The optional `generic` feature adds generic
-  definitions.
+  `ReflectRegistry` snapshot or builds an isolated registry from explicit static
+  metadata. With `generic`, `generic_metadata_for` finds a definition by its
+  process-local `TypeDefinitionId`, and `generic_definitions()` lists named and
+  anonymous definitions. `entries()` contains only registrations with stable
+  `ModelId`s, so anonymous definitions do not appear there.
 - `resolve::StructureResolver` produces an immutable `resolve::ModelGraph`
   containing only structural relationships.
 - With the `codec` feature, `codec::bind_codecs` binds declared codec
