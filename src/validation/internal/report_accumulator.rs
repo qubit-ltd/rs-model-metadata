@@ -105,12 +105,128 @@ fn contract_error() -> ExecutionError {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+
     use qubit_validator::ExecutionErrorKind;
+    use qubit_validator::SkipReason;
     use qubit_validator::ValidationOutcome;
     use qubit_validator::ValidationPath;
+    use qubit_validator::ValidatorId;
+    use qubit_validator::Violation;
+    use qubit_validator::ViolationCode;
 
     use super::ReportAccumulator;
+    use crate::validation::ValidationMode;
     use crate::validation::ValidationOptions;
+
+    fn prerequisite_violations() -> Vec<Violation> {
+        (0..3)
+            .map(|_| {
+                Violation::new(ValidatorId::new("execution.prerequisite"), ViolationCode::new("bad"))
+                    .with_path(ValidationPath::root().with_field("original"))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_prerequisites_share_the_limit_with_ordinary_violations() {
+        let options = ValidationOptions::builder()
+            .max_violations(NonZeroUsize::new(2).expect("the limit is nonzero"))
+            .build();
+        let mut accumulator = ReportAccumulator::new(&options);
+        accumulator
+            .accept(
+                0,
+                &ValidationPath::root(),
+                ValidationOutcome::Invalid(vec![Violation::new(
+                    ValidatorId::new("execution.rule"),
+                    ViolationCode::new("bad"),
+                )]),
+                true,
+            )
+            .expect("the first violation fits the limit");
+        assert!(!accumulator.stopped());
+        accumulator
+            .accept(
+                1,
+                &ValidationPath::root().with_field("skipped"),
+                ValidationOutcome::Skipped {
+                    reason: SkipReason::FailedPrerequisite,
+                    prerequisites: prerequisite_violations(),
+                },
+                true,
+            )
+            .expect("prerequisite evidence is a valid outcome");
+        assert!(accumulator.stopped());
+        let report = accumulator.into_report();
+        assert_eq!(report.failure_count(), 2);
+        assert_eq!(report.violations().len(), 1);
+        assert_eq!(report.skipped().len(), 1);
+        let skipped = &report.skipped()[0];
+        assert_eq!(skipped.occurrence(), 1);
+        assert_eq!(skipped.path().render(), "skipped");
+        assert_eq!(skipped.prerequisites().len(), 1);
+        assert_eq!(skipped.prerequisites()[0].path().render(), "original");
+        assert!(report.is_truncated());
+    }
+
+    #[test]
+    fn test_failed_prerequisite_triggers_fail_fast_and_ignores_later_outcomes() {
+        let options = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
+        let mut accumulator = ReportAccumulator::new(&options);
+        accumulator
+            .accept(
+                0,
+                &ValidationPath::root().with_field("skipped"),
+                ValidationOutcome::Skipped {
+                    reason: SkipReason::FailedPrerequisite,
+                    prerequisites: prerequisite_violations(),
+                },
+                true,
+            )
+            .expect("prerequisite evidence is a valid outcome");
+        assert!(accumulator.stopped());
+        accumulator
+            .accept(
+                1,
+                &ValidationPath::root().with_field("later"),
+                ValidationOutcome::missing_optional(),
+                false,
+            )
+            .expect("a stopped accumulator ignores later outcomes");
+        let report = accumulator.into_report();
+        assert_eq!(report.failure_count(), 1);
+        assert!(report.violations().is_empty());
+        assert_eq!(report.skipped().len(), 1);
+        assert_eq!(report.skipped()[0].prerequisites().len(), 1);
+        assert!(report.is_truncated());
+    }
+
+    #[test]
+    fn test_invalid_skip_contracts_are_execution_errors_without_report_mutation() {
+        for outcome in [
+            ValidationOutcome::Skipped {
+                reason: SkipReason::FailedPrerequisite,
+                prerequisites: vec![],
+            },
+            ValidationOutcome::Skipped {
+                reason: SkipReason::MissingOptional,
+                prerequisites: prerequisite_violations(),
+            },
+        ] {
+            let options = ValidationOptions::default();
+            let mut accumulator = ReportAccumulator::new(&options);
+            let error = accumulator
+                .accept(0, &ValidationPath::root(), outcome, false)
+                .expect_err("the skip shape violates the result contract");
+            assert_eq!(error.kind(), ExecutionErrorKind::AdapterContractViolation);
+            assert!(!accumulator.stopped());
+            let report = accumulator.into_report();
+            assert_eq!(report.failure_count(), 0);
+            assert!(report.skipped().is_empty());
+            assert!(!report.is_truncated());
+        }
+    }
 
     #[test]
     fn invalid_outcome_shape_is_reported_as_an_adapter_contract_violation() {
