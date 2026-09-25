@@ -10,6 +10,7 @@
 
 // qubit-style: allow multiple-public-types
 
+use qubit_validation_rules::ids;
 use qubit_validation_rules::registrations;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
@@ -148,44 +149,29 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
     match constraint {
         ConstraintMetadata::Text(text) => {
             if text.is_non_blank() {
-                visit_rule(&mut visitor, "qubit.rules.text.non_blank", &[], StandardTarget::Value);
+                visit_rule(&mut visitor, ids::TEXT_NON_BLANK, &[], StandardTarget::Value);
             }
             if text.min_chars().is_some() || text.max_chars().is_some() {
                 let args = optional_u32_args(text.min_chars(), text.max_chars());
-                visit_rule(
-                    &mut visitor,
-                    "qubit.rules.text.char_length",
-                    &args,
-                    StandardTarget::Value,
-                );
+                visit_rule(&mut visitor, ids::TEXT_CHAR_LENGTH, &args, StandardTarget::Value);
             }
             if text.min_bytes().is_some() || text.max_bytes().is_some() {
                 let args = optional_u32_args(text.min_bytes(), text.max_bytes());
-                visit_rule(
-                    &mut visitor,
-                    "qubit.rules.text.byte_length",
-                    &args,
-                    StandardTarget::Value,
-                );
+                visit_rule(&mut visitor, ids::TEXT_BYTE_LENGTH, &args, StandardTarget::Value);
             }
             if !matches!(text.allowed_chars(), AllowedChars::Unicode) {
                 let args = [NamedValidationArgument::new(
                     "set",
                     ValidationArgument::String(allowed_chars(text.allowed_chars())),
                 )];
-                visit_rule(
-                    &mut visitor,
-                    "qubit.rules.text.allowed_chars",
-                    &args,
-                    StandardTarget::Value,
-                );
+                visit_rule(&mut visitor, ids::TEXT_ALLOWED_CHARS, &args, StandardTarget::Value);
             }
             if let Some(format) = text.format() {
                 let id = match format {
-                    TextFormat::Email => "qubit.rules.text.email_ascii",
-                    TextFormat::Mobile => "qubit.rules.text.china_mobile_structure",
-                    TextFormat::Uri => "qubit.rules.text.uri",
-                    TextFormat::Uuid => "qubit.rules.text.uuid",
+                    TextFormat::Email => ids::TEXT_EMAIL_ASCII,
+                    TextFormat::Mobile => ids::TEXT_CHINA_MOBILE_STRUCTURE,
+                    TextFormat::Uri => ids::TEXT_URI,
+                    TextFormat::Uuid => ids::TEXT_UUID,
                 };
                 visit_rule(&mut visitor, id, &[], StandardTarget::Value);
             }
@@ -195,7 +181,7 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
                 let args = optional_usize_args(sequence.min_items(), sequence.max_items());
                 visit_rule(
                     &mut visitor,
-                    "qubit.rules.collection.item_count",
+                    ids::COLLECTION_ITEM_COUNT,
                     &args,
                     StandardTarget::SequenceCount,
                 );
