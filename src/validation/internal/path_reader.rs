@@ -121,7 +121,7 @@ pub(crate) fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
         return path
             .deferred()
             .iter()
-            .fold(ValidationPath::root(), |path, name| path.with_field(*name));
+            .fold(ValidationPath::root(), |path, name| path.with_field(name));
     }
     path.steps().iter().fold(ValidationPath::root(), |path, step| {
         path.with_field(step.property().name())

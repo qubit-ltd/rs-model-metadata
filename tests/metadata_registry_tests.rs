@@ -128,7 +128,8 @@ fn local_provenance_metadata() -> &'static TypeMetadata {
 #[test]
 fn explicit_registry_borrows_non_static_provenance() {
     let source = FragmentIdentity::new("fixture", "tests", line!(), 1, "model", 991);
-    let registry = ModelRegistry::from_static_metadata(&[(local_provenance_metadata(), &source)]).expect("valid registry");
+    let registry =
+        ModelRegistry::from_static_metadata(&[(local_provenance_metadata(), &source)]).expect("valid registry");
     let entry = registry.entries()[0];
     assert_eq!(entry.source(), &source);
     assert_eq!(entry.model_id().as_str(), "example.LocalProvenance");
@@ -194,7 +195,8 @@ fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
         "generic-model",
         3,
     )));
-    let registry = ModelRegistry::from_static_metadata_with_generics(&[], &[(generic, source)]).expect("generic registry");
+    let registry =
+        ModelRegistry::from_static_metadata_with_generics(&[], &[(generic, source)]).expect("generic registry");
     let generic_definitions = std::hint::black_box(ModelRegistry::generic_definitions);
     assert_eq!(generic_definitions(&registry).len(), 1);
 
@@ -222,7 +224,8 @@ fn anonymous_generic_definition_is_queryable_but_not_an_id_entry() {
         .expect("generic definition");
     let generic = v7::leak(v7::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
     let source = FragmentIdentity::new("fixture", "tests", 41, 1, "generic-model", 41);
-    let registry = ModelRegistry::from_static_metadata_with_generics(&[], &[(generic, &source)]).expect("anonymous registry");
+    let registry =
+        ModelRegistry::from_static_metadata_with_generics(&[], &[(generic, &source)]).expect("anonymous registry");
 
     assert!(registry.entries().is_empty());
     assert_eq!(registry.generic_definitions().len(), 1);
@@ -289,8 +292,9 @@ fn generic_definitions_order_by_fragment_identity() {
     ));
     let first_source = FragmentIdentity::new("fixture", "tests", 10, 1, "generic-model", 10);
     let second_source = FragmentIdentity::new("fixture", "tests", 20, 1, "generic-model", 20);
-    let registry = ModelRegistry::from_static_metadata_with_generics(&[], &[(second, &second_source), (first, &first_source)])
-        .expect("two anonymous generic definitions");
+    let registry =
+        ModelRegistry::from_static_metadata_with_generics(&[], &[(second, &second_source), (first, &first_source)])
+            .expect("two anonymous generic definitions");
 
     assert_eq!(registry.generic_definitions().len(), 2);
     assert!(std::ptr::eq(registry.generic_definitions()[0], first));
@@ -307,8 +311,9 @@ fn duplicate_anonymous_generic_definition_reports_both_sources() {
     let second = v7::leak(v7::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
     let first_source = FragmentIdentity::new("fixture", "tests", 11, 1, "generic-model", 11);
     let second_source = FragmentIdentity::new("fixture", "tests", 12, 1, "generic-model", 12);
-    let error = ModelRegistry::from_static_metadata_with_generics(&[], &[(first, &first_source), (second, &second_source)])
-        .expect_err("duplicate definition identity must fail");
+    let error =
+        ModelRegistry::from_static_metadata_with_generics(&[], &[(first, &first_source), (second, &second_source)])
+            .expect_err("duplicate definition identity must fail");
 
     assert_eq!(error.kind(), ModelRegistryErrorKind::RegistrationConflict);
     assert_eq!(error.sources().len(), 2);
@@ -358,7 +363,8 @@ fn test_registry_exposes_read_only_entries_with_sources() {
     assert!(entry.generic_metadata().is_none());
 }
 
-/// Static constructors retain local properties while snapshots include impl getters.
+/// Static constructors retain local properties while snapshots include impl
+/// getters.
 #[test]
 fn test_static_registry_excludes_independently_registered_model_impl_getter() {
     let metadata = TypeMetadata::of::<StaticPropertyFixture>();

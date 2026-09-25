@@ -467,10 +467,10 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Registries built by `from_static_metadata` or
     /// `from_static_metadata_with_generics` use only
     /// [`TypeMetadata::local_properties`], without independently registered
-    /// `ModelImpl` capabilities. Snapshot registries invoke their implementation
-    /// providers on a cache miss, then reuse the owned merge for the same
-    /// metadata identity. Cache storage is released with this registry. This
-    /// never consults global state.
+    /// `ModelImpl` capabilities. Snapshot registries invoke their
+    /// implementation providers on a cache miss, then reuse the owned merge
+    /// for the same metadata identity. Cache storage is released with this
+    /// registry. This never consults global state.
     ///
     /// # Errors
     ///

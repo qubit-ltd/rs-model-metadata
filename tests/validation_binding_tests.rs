@@ -96,8 +96,8 @@ fn inputs<'a>(models: &'a ModelRegistry<'a>) -> ResolveInputs<'a> {
 fn structure_resolution_and_binding_are_separate() {
     let owner = TypeMetadata::of::<Owner>();
     let fixture = TypeMetadata::of::<BindingFixture>();
-    let models =
-        ModelRegistry::from_static_metadata(&[(owner, source()), (fixture, source())]).expect("isolated model registry");
+    let models = ModelRegistry::from_static_metadata(&[(owner, source()), (fixture, source())])
+        .expect("isolated model registry");
     let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION]).expect("isolated validator registry");
     let graph = StructureResolver::new(inputs(&models))
         .resolve()
