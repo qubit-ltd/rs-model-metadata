@@ -99,7 +99,11 @@ the reflection model.
 - With the `validation` feature, `ValidationPlan::build` compiles declared
   property paths and binds them to the supplied `qubit-validator::ValidatorRegistry`.
   `ValidationPlan::validate` executes those immutable bindings and returns a
-  structured `ValidationReport`.
+  structured `ValidationReport`. Build diagnostics expose
+  `ConstraintRuleRef::Registry` for registry-backed rules and
+  `ConstraintRuleRef::ModelIntrinsic` for rules executed by the model plan.
+  The former `constraint_rule_ids()` method is replaced by `constraint_rules()`;
+  each reference retains its stable ID through `.id().as_str()`.
 - Structural, codec, and validation failures are returned independently by the
   layer that owns them; no resolver pass creates executable bindings.
 

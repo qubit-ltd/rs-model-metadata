@@ -227,9 +227,10 @@ ValidationBuildError exposes root_type_id, owner_type_id, optional model ID,
 FieldLocation, DeclarationLocation, occurrence, path, selector, declared_rule_id,
 original constraint, kind, and source. A missing registration still retains the
 raw custom ID. A standard constraint retains its original declaration and its
-mapped rules through `constraint_rule_ids()`, including all rules of a compound
+mapped rules through `constraint_rules()`, including all rules of a compound
 constraint even before binding. `rule()` identifies only a concrete binder failure;
-no known constraint mapping yields an empty ID list. Binding and diagnostics use
+registry-backed rules and model-intrinsic rules have distinct reference variants.
+No known constraint mapping yields an empty reference list. Binding and diagnostics use
 one canonical mapping. UnsupportedExecution and RootNotInGraph do not fabricate
 a validator source. Display is concise and contextual; Debug never traverses the
 whole graph or includes model instance values.

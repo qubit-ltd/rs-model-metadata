@@ -80,7 +80,10 @@ fn main() {
 - 启用 `codec` 后，`codec::bind_codecs` 在图构建后绑定 codec occurrence，并确定性地汇总错误。
 - 启用 `validation` feature 后，`ValidationPlan::build` 编译 Property 路径，并绑定调用方提供的
   `qubit-validator::ValidatorRegistry`；`ValidationPlan::validate` 执行这些不可变绑定并返回结构化的
-  `ValidationReport`。
+  `ValidationReport`。构建诊断以 `ConstraintRuleRef::Registry` 表示经注册表绑定的规则，
+  以 `ConstraintRuleRef::ModelIntrinsic` 表示由模型计划直接执行的规则。
+  原 `constraint_rule_ids()` 方法已由 `constraint_rules()` 取代；每个引用仍可通过
+  `.id().as_str()` 取得稳定的规则 ID。
 - 结构、codec 和 validation 错误分别由其所属层返回；resolver 不创建任何可执行绑定。
 
 本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的

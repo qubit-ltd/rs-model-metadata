@@ -360,9 +360,10 @@ FailFast 只保留首条；报告上限约束整个报告。策略停止设置 t
 
 ValidationBuildError 提供 root_type_id、owner_type_id、可选 model ID、FieldLocation、
 DeclarationLocation、occurrence、path、selector、declared_rule_id、原始 constraint、kind、source。
-注册项缺失也保留原始自定义 ID；标准约束保留原声明，并通过 `constraint_rule_ids()`
+注册项缺失也保留原始自定义 ID；标准约束保留原声明，并通过 `constraint_rules()`
 提供完整映射列表，绑定前也保留复合约束对应的全部规则。`rule()` 仅标识已到达具体规则的
-binder 失败；没有已知映射时 ID 列表为空。绑定与诊断共用一份规则映射。
+binder 失败；注册表规则与模型内置规则使用不同的引用变体。没有已知映射时引用列表为空。
+绑定与诊断共用一份规则映射。
 UnsupportedExecution、RootNotInGraph 不伪造 validator source。Display 简洁定位，
 Debug 不遍历整张 metadata 图，也不输出业务实例值。
 

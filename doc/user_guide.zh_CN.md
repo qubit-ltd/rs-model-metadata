@@ -272,6 +272,7 @@ use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
+use qubit_model_metadata::validation::ConstraintRuleRef;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_validator::ValidatorRegistry;
@@ -302,10 +303,21 @@ fn main() {
     assert_eq!(location.variant(), Some(0));
     assert_eq!(location.index(), 0);
     assert!(errors[0].constraint().is_some());
-    assert_eq!(errors[0].constraint_rule_ids()[0].as_str(), "qubit.rules.text.non_blank");
+    let mapped = errors[0].constraint_rules();
+    assert_eq!(mapped[0].id().as_str(), "qubit.rules.text.non_blank");
+    match mapped[0] {
+        ConstraintRuleRef::Registry(id) => assert_eq!(id.as_str(), "qubit.rules.text.non_blank"),
+        ConstraintRuleRef::ModelIntrinsic(_) => panic!("文本规则应使用注册表"),
+    }
     assert!(errors[0].source_error().is_none());
 }
 ```
+
+`ValidationBuildError::constraint_rules()` 即使在声明无法执行时，也会按执行顺序列出
+已知映射。`Registry(id)` 仍须由相应注册表按输入类型和参数完成绑定；
+`ModelIntrinsic(id)` 由模型计划直接执行，不能通过注册表绑定。序列 `unique_items`
+属于后一类。原 `constraint_rule_ids()` 方法已删除；如只需读取旧有 ID 字符串，
+可使用 `rule.id().as_str()`。
 
 | 声明或访问形状 | 当前验证后端 |
 | --- | --- |

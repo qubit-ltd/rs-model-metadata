@@ -315,6 +315,7 @@ use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
+use qubit_model_metadata::validation::ConstraintRuleRef;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_validator::ValidatorRegistry;
@@ -345,10 +346,23 @@ fn main() {
     assert_eq!(location.variant(), Some(0));
     assert_eq!(location.index(), 0);
     assert!(errors[0].constraint().is_some());
-    assert_eq!(errors[0].constraint_rule_ids()[0].as_str(), "qubit.rules.text.non_blank");
+    let mapped = errors[0].constraint_rules();
+    assert_eq!(mapped[0].id().as_str(), "qubit.rules.text.non_blank");
+    match mapped[0] {
+        ConstraintRuleRef::Registry(id) => assert_eq!(id.as_str(), "qubit.rules.text.non_blank"),
+        ConstraintRuleRef::ModelIntrinsic(_) => panic!("text rule must use the registry"),
+    }
     assert!(errors[0].source_error().is_none());
 }
 ```
+
+`ValidationBuildError::constraint_rules()` lists known mappings in execution
+order even when a declaration cannot run. `Registry(id)` is eligible for
+`ValidatorRegistry::bind` only if that registry contains a matching signature
+and arguments. `ModelIntrinsic(id)` is executed by the metadata plan and has
+no registry binding; sequence `unique_items` uses this category. The former
+`constraint_rule_ids()` method has been removed. Existing ID strings remain
+available through `rule.id().as_str()`.
 
 | Declaration or access shape | Current validation backend |
 | --- | --- |
