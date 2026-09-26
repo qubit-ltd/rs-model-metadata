@@ -216,6 +216,80 @@ fn parent_dependency_uses_explicit_context() {
         .expect("parent execution");
     assert!(plan_report.is_valid());
 }
+
+#[Model(id = "test.NamedDependencies")]
+struct NamedDependencies {
+    first: String,
+    second: String,
+    #[validator(id = "test.same_type", depends_on(second(property = second), first(property = first)))]
+    value: String,
+}
+
+struct CheckNamedDependencies;
+
+impl PreparedValidator for CheckNamedDependencies {
+    fn validate(
+        &self,
+        _: ValidationValue<'_>,
+        context: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
+        assert_eq!(context.value(0)?.as_text(), Some("first value"));
+        assert_eq!(context.value(1)?.as_text(), Some("second value"));
+        Ok(PreparedOutcome::Valid)
+    }
+}
+
+fn prepare_same_type(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+    Ok(Arc::new(CheckNamedDependencies))
+}
+
+static SAME_TYPE_SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(
+    InputType::Text,
+    &[
+        DependencySpec::new("first", InputType::Text, false),
+        DependencySpec::new("second", InputType::Text, false),
+    ],
+    prepare_same_type,
+)];
+static SAME_TYPE_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SAME_TYPE_SIGNATURES);
+static SAME_TYPE_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
+    ValidatorId::new("test.same_type"),
+    &SAME_TYPE_DESCRIPTOR,
+    RegistrationSource::new("validation-binding-tests", "same_type", file!(), line!()),
+);
+
+/// Reversed declarations are reordered by their names before ordered execution.
+#[test]
+fn same_type_dependencies_follow_signature_order() {
+    let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
+    let model = TypeMetadata::of::<NamedDependencies>();
+    let roots = [model];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("dependency graph");
+    let validators = ValidatorRegistry::from_registrations([SAME_TYPE_REGISTRATION]).expect("registry");
+    let plan = ValidationPlan::build(
+        model,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("named dependencies bind by signature name");
+    let value = NamedDependencies {
+        first: "first value".into(),
+        second: "second value".into(),
+        value: "input".into(),
+    };
+    assert!(
+        plan.validate(ReflectedRef::new(&value), &ValidationOptions::default())
+            .unwrap()
+            .is_valid()
+    );
+}
 // =============================================================================
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //

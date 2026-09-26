@@ -178,6 +178,8 @@ fn execute_field<'value>(
     }
     let (dependencies, paths) = path_reader::dependencies(binding.dependencies(), root, ancestors, graph, budget)?;
     let values: Vec<_> = dependencies.iter().map(property_value).collect();
+    // The plan binder matched dependencies by signature name, so this ordered
+    // fast path receives values in the validator's declared order.
     let context = BoundValidationContext::new_with_paths(&values, &paths)?;
     let count = match &value {
         PropertyValue::BorrowedSlice(values) => Some(values.len()),
