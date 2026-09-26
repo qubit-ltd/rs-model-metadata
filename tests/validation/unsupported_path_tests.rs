@@ -18,10 +18,12 @@ use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ConstraintRuleRef;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildErrors;
 use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_reflect::Reflect;
+use qubit_validator::ValidatorId;
 
 #[Model]
 struct Child {
@@ -106,27 +108,34 @@ enum MappedConstraints {
 fn test_unsupported_constraints_retain_complete_rule_mappings() {
     let errors = unsupported(TypeMetadata::of::<MappedConstraints>());
     assert_eq!(errors.len(), 3);
-    let text_rules = errors[0].constraint_rule_ids();
+    let text_rules = errors[0].constraint_rules();
     assert_eq!(
-        text_rules.iter().map(|id| id.as_str()).collect::<Vec<_>>(),
+        text_rules,
         [
-            "qubit.rules.text.non_blank",
-            "qubit.rules.text.char_length",
-            "qubit.rules.text.byte_length",
-            "qubit.rules.text.allowed_chars",
-            "qubit.rules.text.email_ascii",
+            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.non_blank")),
+            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.char_length")),
+            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.byte_length")),
+            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.allowed_chars")),
+            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.email_ascii")),
         ]
     );
-    let sequence_rules = errors[1].constraint_rule_ids();
+    let sequence_rules = errors[1].constraint_rules();
     assert_eq!(
-        sequence_rules.iter().map(|id| id.as_str()).collect::<Vec<_>>(),
-        ["qubit.rules.collection.item_count", "qubit.rules.collection.unique",]
+        sequence_rules,
+        [
+            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.collection.item_count")),
+            ConstraintRuleRef::ModelIntrinsic(ValidatorId::new("qubit.rules.collection.unique")),
+        ]
     );
-    let map_rules = errors[2].constraint_rule_ids();
+    let map_rules = errors[2].constraint_rules();
     assert_eq!(
-        map_rules.iter().map(|id| id.as_str()).collect::<Vec<_>>(),
-        ["qubit.rules.collection.item_count"]
+        map_rules,
+        [ConstraintRuleRef::Registry(ValidatorId::new(
+            "qubit.rules.collection.item_count"
+        ))]
     );
+    assert_eq!(sequence_rules[0].registry_id(), Some(sequence_rules[0].id()));
+    assert_eq!(sequence_rules[1].registry_id(), None);
     assert!(errors.iter().all(|error| error.source_error().is_none()));
     assert!(errors.iter().all(|error| error.rule().is_none()), "no rule was bound");
 }
@@ -215,21 +224,17 @@ fn test_missing_collection_adapters_reject_each_declaration() {
     assert_eq!(errors.len(), 2);
     assert_eq!(errors[0].path(), Some("entries"));
     assert_eq!(
-        errors[0]
-            .constraint_rule_ids()
-            .iter()
-            .map(|id| id.as_str())
-            .collect::<Vec<_>>(),
-        ["qubit.rules.collection.item_count"]
+        errors[0].constraint_rules(),
+        [ConstraintRuleRef::Registry(ValidatorId::new(
+            "qubit.rules.collection.item_count"
+        ))]
     );
     assert_eq!(errors[1].path(), Some("values"));
     assert_eq!(
-        errors[1]
-            .constraint_rule_ids()
-            .iter()
-            .map(|id| id.as_str())
-            .collect::<Vec<_>>(),
-        ["qubit.rules.collection.unique"]
+        errors[1].constraint_rules(),
+        [ConstraintRuleRef::ModelIntrinsic(ValidatorId::new(
+            "qubit.rules.collection.unique"
+        ))]
     );
 }
 

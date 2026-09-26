@@ -16,6 +16,7 @@ use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 use qubit_validator::ValidatorId;
 
+use super::ConstraintRuleRef;
 use super::validation_build_error_kind::ValidationBuildErrorKind;
 use crate::metadata::ConstraintMetadata;
 use crate::metadata::DeclarationLocation;
@@ -238,16 +239,19 @@ impl ValidationBuildError {
         }
     }
 
-    /// Returns all known rule IDs mapped from the original standard constraint
-    /// in binding order, even when its access shape prevents execution.
+    /// Returns all known rules mapped from the original standard constraint in
+    /// binding order, even when its access shape prevents execution.
     ///
     /// Returns an empty vector for custom declarations, root-level errors, or
-    /// constraints with no known backend mapping. This does not bind a rule or
-    /// create a validator source; [`Self::rule`] still identifies only a rule
-    /// reached by the binder. Compound constraints can map to several IDs.
+    /// constraints with no known backend mapping. Registry references require
+    /// a matching registration, input type, and arguments before they can be
+    /// bound; model-intrinsic references cannot be bound through a registry.
+    /// This method does not create a validator source; [`Self::rule`] still
+    /// identifies only a rule reached by the binder. Compound constraints can
+    /// map to several rules.
     #[must_use]
-    pub fn constraint_rule_ids(&self) -> Vec<ValidatorId> {
-        self.constraint.map_or_else(Vec::new, standard_constraints::rule_ids)
+    pub fn constraint_rules(&self) -> Vec<ConstraintRuleRef> {
+        self.constraint.map_or_else(Vec::new, standard_constraints::rule_refs)
     }
 
     /// Returns the underlying validator binding error, or `None` for an
@@ -277,7 +281,7 @@ impl fmt::Debug for ValidationBuildError {
             .field("selector", &self.selector)
             .field("kind", &self.kind())
             .field("rule", &self.rule())
-            .field("constraint_rule_ids", &self.constraint_rule_ids())
+            .field("constraint_rules", &self.constraint_rules())
             .finish()
     }
 }

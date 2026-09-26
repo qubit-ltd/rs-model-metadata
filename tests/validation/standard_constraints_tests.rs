@@ -393,7 +393,7 @@ fn test_builtin_collision_retains_independent_declaration_errors() {
         ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::InvalidDeclaration)
     );
     assert_eq!(errors[0].rule(), Some(builtin.id()));
-    assert!(errors[0].constraint_rule_ids().is_empty(), "registration-level error");
+    assert!(errors[0].constraint_rules().is_empty(), "registration-level error");
     assert_eq!(errors[1].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[1].path(), Some("choice.Named.name"));
     assert_eq!(
@@ -402,5 +402,5 @@ fn test_builtin_collision_retains_independent_declaration_errors() {
     );
     assert_eq!(errors[2].path(), Some("value"));
     assert_eq!(errors[2].declared_rule_id(), Some("example.missing_independent_rule"));
-    assert!(errors[2].constraint_rule_ids().is_empty(), "custom rule declaration");
+    assert!(errors[2].constraint_rules().is_empty(), "custom rule declaration");
 }

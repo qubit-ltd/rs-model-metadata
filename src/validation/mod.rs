@@ -10,6 +10,7 @@
 
 mod build_error;
 mod compiled_property_path;
+mod constraint_rule_ref;
 mod internal;
 mod model_rule_binding;
 mod model_validation_error;
@@ -23,6 +24,7 @@ mod validation_options;
 mod validation_plan;
 mod validator_arguments;
 
+pub use constraint_rule_ref::ConstraintRuleRef;
 pub use model_rule_binding::ModelRuleBinding;
 pub use model_validation_error::ModelValidationError;
 pub use validation_build_error::ValidationBuildError;

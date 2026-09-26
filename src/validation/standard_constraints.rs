@@ -26,15 +26,29 @@ use crate::metadata::AllowedChars;
 use crate::metadata::ConstraintMetadata;
 use crate::metadata::TemporalPrecision;
 use crate::metadata::TextFormat;
+use crate::validation::ConstraintRuleRef;
 
 mod standard_rule;
 
 #[cfg(test)]
 mod tests {
+    use chrono::NaiveTime;
+    use qubit_validation_rules::ids;
     use qubit_validation_rules::registrations;
     use qubit_validator::BindErrorKind;
+    use qubit_validator::InputType;
+    use qubit_validator::ValidationArgument;
+    use qubit_validator::ValidatorRegistry;
 
+    use super::StandardRule;
     use super::build_builtin_registry;
+    use super::visit_rules;
+    use crate::metadata::AllowedChars;
+    use crate::metadata::ConstraintMetadata;
+    use crate::metadata::TemporalPrecision;
+    use crate::metadata::TextConstraint;
+    use crate::metadata::TextFormat;
+    use crate::metadata::TimeConstraint;
 
     #[test]
     fn test_builtin_registry_rejects_duplicate_declarations() {
@@ -44,6 +58,122 @@ mod tests {
             .expect_err("duplicate built-in IDs must not form a registry");
 
         assert_eq!(error.kind(), BindErrorKind::InvalidDeclaration);
+    }
+
+    /// Checks every temporal token against the actual registered signature.
+    #[test]
+    fn test_all_temporal_precisions_map_to_bindable_rules() {
+        let registry = ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
+        for precision in [
+            TemporalPrecision::Second,
+            TemporalPrecision::Millisecond,
+            TemporalPrecision::Microsecond,
+            TemporalPrecision::Nanosecond,
+        ] {
+            let expected = match precision {
+                TemporalPrecision::Second => "second",
+                TemporalPrecision::Millisecond => "millisecond",
+                TemporalPrecision::Microsecond => "microsecond",
+                TemporalPrecision::Nanosecond => "nanosecond",
+            };
+            let constraint = ConstraintMetadata::Time(TimeConstraint::new(precision));
+            let mut count = 0;
+            visit_rules(&constraint, |rule| {
+                count += 1;
+                let StandardRule::Executable { id, args, .. } = rule else {
+                    panic!("time precision must use the registry");
+                };
+                assert_eq!(id.as_str(), ids::TIME_PRECISION);
+                assert_eq!(args.len(), 1);
+                assert_eq!(args[0].name(), "precision");
+                assert_eq!(args[0].value(), ValidationArgument::String(expected));
+                registry
+                    .bind(id.as_str(), InputType::of::<NaiveTime>(), args)
+                    .expect("time precision must bind");
+            });
+            assert_eq!(count, 1);
+        }
+    }
+
+    /// Checks every character policy token against the text registration.
+    #[test]
+    fn test_all_character_policies_map_to_bindable_rules() {
+        let registry = ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
+        for set in [
+            AllowedChars::Unicode,
+            AllowedChars::PrintableUnicode,
+            AllowedChars::Ascii,
+            AllowedChars::PrintableAscii,
+            AllowedChars::Code,
+        ] {
+            let expected = match set {
+                AllowedChars::Unicode => None,
+                AllowedChars::PrintableUnicode => Some("printable_unicode"),
+                AllowedChars::Ascii => Some("ascii"),
+                AllowedChars::PrintableAscii => Some("printable_ascii"),
+                AllowedChars::Code => Some("code"),
+            };
+            let constraint = ConstraintMetadata::Text(TextConstraint::new(None, None, None, None, set, false, None));
+            let mut count = 0;
+            visit_rules(&constraint, |rule| {
+                count += 1;
+                let StandardRule::Executable { id, args, .. } = rule else {
+                    panic!("character policy must use the registry");
+                };
+                assert_eq!(id.as_str(), ids::TEXT_ALLOWED_CHARS);
+                assert_eq!(args.len(), 1);
+                assert_eq!(args[0].name(), "set");
+                assert_eq!(
+                    args[0].value(),
+                    ValidationArgument::String(expected.expect("non-default policy"))
+                );
+                registry
+                    .bind(id.as_str(), InputType::Text, args)
+                    .expect("character policy must bind");
+            });
+            assert_eq!(count, usize::from(expected.is_some()));
+        }
+    }
+
+    /// Checks every format's identity and parameterless text signature.
+    #[test]
+    fn test_all_text_formats_map_to_bindable_rules() {
+        let registry = ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
+        for format in [
+            TextFormat::EmailAscii,
+            TextFormat::Mobile,
+            TextFormat::Uri,
+            TextFormat::Uuid,
+        ] {
+            let expected = match format {
+                TextFormat::EmailAscii => ids::TEXT_EMAIL_ASCII,
+                TextFormat::Mobile => ids::TEXT_CHINA_MOBILE_STRUCTURE,
+                TextFormat::Uri => ids::TEXT_URI,
+                TextFormat::Uuid => ids::TEXT_UUID,
+            };
+            let constraint = ConstraintMetadata::Text(TextConstraint::new(
+                None,
+                None,
+                None,
+                None,
+                AllowedChars::Unicode,
+                false,
+                Some(format),
+            ));
+            let mut count = 0;
+            visit_rules(&constraint, |rule| {
+                count += 1;
+                let StandardRule::Executable { id, args, .. } = rule else {
+                    panic!("text format must use the registry");
+                };
+                assert_eq!(id.as_str(), expected);
+                assert!(args.is_empty());
+                registry
+                    .bind(id.as_str(), InputType::Text, args)
+                    .expect("text format must bind");
+            });
+            assert_eq!(count, 1);
+        }
     }
 }
 
@@ -133,13 +263,12 @@ pub(crate) fn bind(
 }
 
 /// Returns every known rule mapping in execution order without consulting a
-/// registry or invoking a validator. Unknown backend mappings contribute no ID.
-pub(crate) fn rule_ids(constraint: &ConstraintMetadata) -> Vec<ValidatorId> {
-    let mut ids = Vec::new();
-    visit_rules(constraint, |rule| match rule {
-        StandardRule::Executable { id, .. } | StandardRule::SequenceUnique { id } => ids.push(id),
-    });
-    ids
+/// registry or invoking a validator. Unknown backend mappings contribute no
+/// reference.
+pub(crate) fn rule_refs(constraint: &ConstraintMetadata) -> Vec<ConstraintRuleRef> {
+    let mut refs = Vec::new();
+    visit_rules(constraint, |rule| refs.push(rule.diagnostic_ref()));
+    refs
 }
 
 /// Visits canonical rule mappings synchronously. Argument slices are valid

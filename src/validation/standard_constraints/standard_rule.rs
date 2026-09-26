@@ -12,6 +12,7 @@ use qubit_validator::NamedValidationArgument;
 use qubit_validator::ValidatorId;
 
 use super::StandardTarget;
+use crate::validation::ConstraintRuleRef;
 
 /// A constraint mapping visited synchronously while its arguments are alive.
 pub(super) enum StandardRule<'arguments> {
@@ -30,4 +31,14 @@ pub(super) enum StandardRule<'arguments> {
         /// Stable rule identity.
         id: ValidatorId,
     },
+}
+
+impl StandardRule<'_> {
+    /// Returns the execution category and stable ID for diagnostics.
+    pub(super) const fn diagnostic_ref(&self) -> ConstraintRuleRef {
+        match self {
+            Self::Executable { id, .. } => ConstraintRuleRef::Registry(*id),
+            Self::SequenceUnique { id } => ConstraintRuleRef::ModelIntrinsic(*id),
+        }
+    }
 }
