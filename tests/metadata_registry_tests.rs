@@ -136,6 +136,7 @@ fn explicit_registry_borrows_non_static_provenance() {
         ModelRegistry::from_static_metadata(&[(local_provenance_metadata(), &source)]).expect("valid registry");
     let entry = registry.entries()[0];
     assert_eq!(entry.source(), &source);
+    assert_eq!(entry.declaration_source(), None);
     assert_eq!(entry.model_id().as_str(), "example.LocalProvenance");
     assert!(std::ptr::eq(
         entry.metadata().expect("concrete entry"),
@@ -329,13 +330,25 @@ fn duplicate_anonymous_generic_definition_reports_both_sources() {
 fn test_registry_projects_concrete_models_and_sources_from_reflection() {
     let reflection = ReflectRegistry::initialize().expect("valid reflection registry");
     let registry = ModelRegistry::from_reflect_registry(reflection).expect("valid model projection");
+    let descriptor = TypeDescriptor::of::<ProjectedFixture>();
     let reflected_source = reflection
-        .type_source(TypeDescriptor::of::<ProjectedFixture>().type_id())
+        .capability_source(descriptor, model_metadata_key().id().as_str())
+        .expect("reflected model capability source");
+    let declaration_source = reflection
+        .type_source(descriptor.type_id())
         .expect("reflected type source");
 
     assert!(std::ptr::eq(
         registry.source("example.ProjectedFixture").expect("projected source"),
         reflected_source,
+    ));
+    assert!(std::ptr::eq(
+        registry
+            .get("example.ProjectedFixture")
+            .expect("entry")
+            .declaration_source()
+            .expect("declaration source"),
+        declaration_source,
     ));
     assert!(std::ptr::eq(
         registry

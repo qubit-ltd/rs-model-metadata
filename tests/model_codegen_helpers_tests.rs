@@ -206,7 +206,17 @@ fn test_generic_model_registration_preserves_definition_providers_and_sources() 
         assert!(std::ptr::eq(
             models
                 .source(model_id)
-                .expect("the projected model must retain its definition source"),
+                .expect("the projected model must retain its capability source"),
+            reflection
+                .definition_capability_source(definition.id(), v7::generic_model_metadata_key().id().as_str())
+                .expect("the generic capability must retain its source"),
+        ));
+        assert!(std::ptr::eq(
+            models
+                .get(model_id)
+                .expect("entry")
+                .declaration_source()
+                .expect("declaration source"),
             reflection
                 .definition_source(definition.id())
                 .expect("the generic definition must retain its source"),

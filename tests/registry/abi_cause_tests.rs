@@ -42,7 +42,7 @@ fn invalid_metadata() -> &'static TypeMetadata {
 #[test]
 fn test_registry_retains_typed_abi_violation() {
     let descriptor = TypeDescriptor::of::<Invalid>();
-    let source = FragmentIdentity::new("registry-test", "invalid", 1, 1, "type", 1);
+    let source = FragmentIdentity::new("registry-test", "invalid", 2, 1, "capability", 2);
     let mut builder = RegistrySnapshotBuilder::new();
     builder.add_type_with_capabilities(
         descriptor,
@@ -50,8 +50,8 @@ fn test_registry_retains_typed_abi_violation() {
             model_metadata_key(),
             invalid_metadata as ModelMetadataProvider,
         )],
+        FragmentIdentity::new("registry-test", "invalid", 1, 1, "type", 1),
         source.clone(),
-        FragmentIdentity::new("registry-test", "invalid", 2, 1, "capability", 2),
     );
     let reflection = builder.build().expect("valid reflection snapshot");
     let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("missing overlay must fail");

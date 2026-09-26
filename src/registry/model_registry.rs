@@ -24,6 +24,7 @@ use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::capability::CapabilityLookup;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::registry::CapabilityTarget;
 use qubit_reflect::registry::ReflectRegistry;
 
 use super::ModelRegistryError;
@@ -98,7 +99,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// # Errors
     ///
-    /// Returns [`ModelRegistryError`] for capability failures, duplicate model
+    /// Returns [`ModelRegistryError`] for capability failures, model metadata
+    /// capability targets that are not snapshot members, duplicate model
     /// IDs or generic definition identities, conflicting concrete type
     /// registrations, or metadata inconsistent with its reflected
     /// descriptor/definition. ABI failures retain their cause.
@@ -108,6 +110,27 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Propagates a panic from a registered metadata provider.
     #[must_use = "handle invalid model registrations"]
     pub fn from_reflect_registry(reflection: &'reflection ReflectRegistry) -> Result<Self, ModelRegistryError> {
+        if let Some((type_id, source)) = reflection
+            .capability_only_type_targets(model_metadata_key().id().as_str())
+            .first()
+        {
+            return Err(ModelRegistryError::unregistered_model_target(
+                CapabilityTarget::Type(*type_id),
+                *model_metadata_key().id(),
+                (*source).clone(),
+            ));
+        }
+        #[cfg(feature = "generic")]
+        if let Some((definition_id, source)) = reflection
+            .capability_only_definition_targets(generic_model_metadata_key().id().as_str())
+            .first()
+        {
+            return Err(ModelRegistryError::unregistered_model_target(
+                CapabilityTarget::TypeDefinition(*definition_id),
+                *generic_model_metadata_key().id(),
+                (*source).clone(),
+            ));
+        }
         let mut entries = Vec::new();
         #[cfg(feature = "generic")]
         let mut generic_inputs = Vec::new();
@@ -146,17 +169,22 @@ impl<'reflection> ModelRegistry<'reflection> {
                     ));
                 }
             };
+            let capability_source = reflection
+                .capability_source(descriptor, model_metadata_key().id().as_str())
+                .expect("effective model capabilities retain their source fragment");
             let metadata = provider();
             if let Err(cause) = metadata.validate_descriptor(descriptor) {
                 return Err(ModelRegistryError::invalid_abi(
                     metadata.model_id(),
-                    vec![source.clone()],
+                    vec![capability_source.clone()],
                     cause,
                 ));
             }
             if metadata.model_id().is_some() {
-                entries
-                    .push(ModelEntry::concrete(metadata, source).expect("metadata with a model ID creates an entry"));
+                entries.push(
+                    ModelEntry::concrete(metadata, capability_source, Some(source))
+                        .expect("metadata with a model ID creates an entry"),
+                );
             }
         }
         #[cfg(feature = "generic")]
@@ -167,17 +195,20 @@ impl<'reflection> ModelRegistry<'reflection> {
             else {
                 continue;
             };
+            let capability_source = reflection
+                .definition_capability_source(definition.id(), generic_model_metadata_key().id().as_str())
+                .expect("effective generic model capabilities retain their source fragment");
             let metadata = provider();
             if metadata.definition().id() != definition.id() {
-                let source = reflection
-                    .definition_source(definition.id())
-                    .expect("registered definitions retain source identity");
-                return Err(ModelRegistryError::conflict(metadata.model_id(), vec![source.clone()]));
+                return Err(ModelRegistryError::conflict(
+                    metadata.model_id(),
+                    vec![capability_source.clone()],
+                ));
             }
             let source = reflection
                 .definition_source(definition.id())
                 .expect("registered definitions retain source identity");
-            generic_inputs.push((metadata, source));
+            generic_inputs.push((metadata, capability_source, Some(source)));
         }
         let mut registry = Self::build(
             entries,
@@ -208,7 +239,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
         let mut entries = Vec::with_capacity(concrete.len());
         for &(metadata, source) in concrete {
-            let Some(entry) = ModelEntry::concrete(metadata, source) else {
+            let Some(entry) = ModelEntry::concrete(metadata, source, None) else {
                 return Err(ModelRegistryError::conflict(None, vec![source.clone()]));
             };
             entries.push(entry);
@@ -241,12 +272,18 @@ impl<'reflection> ModelRegistry<'reflection> {
     ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
         let mut entries = Vec::with_capacity(concrete.len() + generic.len());
         for &(metadata, source) in concrete {
-            let Some(entry) = ModelEntry::concrete(metadata, source) else {
+            let Some(entry) = ModelEntry::concrete(metadata, source, None) else {
                 return Err(ModelRegistryError::conflict(None, vec![source.clone()]));
             };
             entries.push(entry);
         }
-        ModelRegistry::<'a>::build(entries, generic.to_vec())
+        ModelRegistry::<'a>::build(
+            entries,
+            generic
+                .iter()
+                .map(|&(metadata, source)| (metadata, source, None))
+                .collect(),
+        )
     }
 
     /// Initializes reflection first, then freezes all linked model
@@ -298,11 +335,12 @@ impl<'reflection> ModelRegistry<'reflection> {
         #[cfg(feature = "generic")] mut generic_inputs: Vec<(
             &'static GenericModelMetadata,
             &'reflection FragmentIdentity,
+            Option<&'reflection FragmentIdentity>,
         )>,
     ) -> Result<Self, ModelRegistryError> {
         #[cfg(feature = "generic")]
         {
-            generic_inputs.sort_by(|(left, left_source), (right, right_source)| {
+            generic_inputs.sort_by(|(left, left_source, _), (right, right_source, _)| {
                 left_source
                     .cmp(right_source)
                     .then_with(|| left.definition().rust_path().cmp(right.definition().rust_path()))
@@ -315,7 +353,7 @@ impl<'reflection> ModelRegistry<'reflection> {
         #[cfg(feature = "generic")]
         let mut generic_definitions = Vec::with_capacity(generic_inputs.len());
         #[cfg(feature = "generic")]
-        for &(metadata, source) in &generic_inputs {
+        for &(metadata, source, _) in &generic_inputs {
             let definition_id = metadata.definition().id();
             if let Some(previous_source) = definition_sources.insert(definition_id, source) {
                 return Err(ModelRegistryError::conflict(
@@ -330,7 +368,9 @@ impl<'reflection> ModelRegistry<'reflection> {
         entries.extend(
             generic_inputs
                 .iter()
-                .filter_map(|&(metadata, source)| ModelEntry::generic(metadata, source)),
+                .filter_map(|&(metadata, source, declaration_source)| {
+                    ModelEntry::generic(metadata, source, declaration_source)
+                }),
         );
         entries.sort_by(compare_entries);
         for pair in entries.windows(2) {
@@ -507,8 +547,9 @@ impl<'reflection> ModelRegistry<'reflection> {
         self.generic_definition_indices.get(&definition_id).copied()
     }
 
-    /// Returns borrowed registration provenance for a stable ID, or `None` for
-    /// an invalid or absent ID.
+    /// Returns the metadata capability source for snapshot projections or the
+    /// explicit input source for static metadata, or `None` for an invalid or
+    /// absent ID.
     #[must_use]
     pub fn source(&self, id: &str) -> Option<&'reflection FragmentIdentity> {
         Some(self.get(id)?.source)

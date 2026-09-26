@@ -9,13 +9,23 @@
 //! Verifies that downstream users can inspect capability conflict context.
 
 use std::any::TypeId;
+#[cfg(feature = "generic")]
+use std::sync::LazyLock;
 
+use qubit_model_metadata::__private::ModelImplProvider;
 use qubit_model_metadata::__private::ModelMetadataProvider;
+use qubit_model_metadata::__private::model_impl_key;
 use qubit_model_metadata::__private::model_metadata_key;
 use qubit_model_metadata::__private::register_type_capabilities;
+#[cfg(feature = "generic")]
+use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::registry::ModelRegistryErrorKind;
 use qubit_reflect::Reflect;
+#[cfg(feature = "generic")]
+use qubit_reflect::TypeDefinitionDescriptor;
+#[cfg(feature = "generic")]
+use qubit_reflect::TypeDefinitionId;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityConflict;
 use qubit_reflect::capability::CapabilityConflictKind;
@@ -24,6 +34,8 @@ use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::capability::CapabilityOrigin;
 use qubit_reflect::error::RegistryError;
 use qubit_reflect::error::RegistryErrorKind;
+#[cfg(feature = "generic")]
+use qubit_reflect::expression::GenericDefinitionDescriptor;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::register_reflected_type;
@@ -38,6 +50,23 @@ struct DiagnosticsTarget;
 #[derive(Reflect)]
 #[reflect(crate = qubit_reflect)]
 struct GlobalConflict;
+
+#[cfg(feature = "generic")]
+struct GenericOrphan;
+
+#[cfg(feature = "generic")]
+static EMPTY_GENERICS: LazyLock<GenericDefinitionDescriptor> =
+    LazyLock::new(|| GenericDefinitionDescriptor::new([], []));
+#[cfg(feature = "generic")]
+static GENERIC_ORPHAN_DEFINITION: LazyLock<TypeDefinitionDescriptor> = LazyLock::new(|| {
+    TypeDefinitionDescriptor::enum_type(
+        TypeDefinitionId::of::<GenericOrphan>(),
+        "snapshot::GenericOrphan",
+        "GenericOrphan",
+        &EMPTY_GENERICS,
+        &[],
+    )
+});
 
 register_reflected_type!(GlobalConflict);
 register_type_capabilities!(GlobalConflict: [key("model.test.global_context") => 11_u32]);
@@ -72,6 +101,126 @@ fn model_provider_snapshot(capability: CapabilityDescriptor) -> (ReflectRegistry
         builder.build().expect("valid isolated snapshot"),
         source("model-provider-capability", 51),
     )
+}
+
+fn unreachable_metadata_provider() -> &'static qubit_model_metadata::metadata::TypeMetadata {
+    panic!("orphan audit must precede provider invocation")
+}
+
+fn unreachable_model_impl_provider() -> &'static qubit_model_metadata::metadata::ModelImplMetadata {
+    panic!("unrelated ModelImpl provider is not projected here")
+}
+
+#[cfg(feature = "generic")]
+fn unreachable_generic_metadata_provider() -> &'static qubit_model_metadata::generic::GenericModelMetadata {
+    panic!("orphan audit must precede generic provider invocation")
+}
+
+#[cfg(feature = "generic")]
+#[test]
+fn test_model_registry_rejects_capability_only_generic_targets_before_provider_call() {
+    let capability_source = source("orphan-generic-capability", 70);
+    let mut builder = RegistrySnapshotBuilder::new();
+    builder.add_definition_capabilities(
+        &GENERIC_ORPHAN_DEFINITION,
+        vec![CapabilityDescriptor::with_adapter(
+            v7::generic_model_metadata_key(),
+            unreachable_generic_metadata_provider
+                as fn() -> &'static qubit_model_metadata::generic::GenericModelMetadata,
+        )],
+        capability_source.clone(),
+    );
+    let reflection = builder.build().expect("capability-only generic fact is valid");
+    let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("orphan generic target rejected");
+    assert_eq!(error.kind(), ModelRegistryErrorKind::UnregisteredModelTarget);
+    assert_eq!(
+        error.capability_target(),
+        Some(CapabilityTarget::TypeDefinition(GENERIC_ORPHAN_DEFINITION.id()))
+    );
+    assert_eq!(error.capability_id(), Some(*v7::generic_model_metadata_key().id()));
+    assert_eq!(error.sources(), &[capability_source]);
+}
+
+#[cfg(feature = "generic")]
+#[test]
+fn test_generic_provider_contract_errors_report_capability_sources() {
+    for capability in [
+        CapabilityDescriptor::without_adapter(v7::generic_model_metadata_key()),
+        CapabilityDescriptor::with_adapter(key::<u32>("qubit.model.generic_metadata.v1"), 7_u32),
+    ] {
+        let declaration_source = source("generic-model-declaration", 71);
+        let capability_source = source("generic-model-capability", 72);
+        let mut builder = RegistrySnapshotBuilder::new();
+        builder.add_definition(&GENERIC_ORPHAN_DEFINITION, declaration_source);
+        builder.add_definition_capabilities(&GENERIC_ORPHAN_DEFINITION, vec![capability], capability_source.clone());
+        let reflection = builder.build().expect("valid generic capability snapshot");
+        let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("invalid provider contract");
+        assert!(matches!(
+            error.kind(),
+            ModelRegistryErrorKind::FactOnlyCapability | ModelRegistryErrorKind::AdapterTypeMismatch
+        ));
+        assert_eq!(error.sources(), &[capability_source]);
+        assert_eq!(error.origins().len(), 1);
+    }
+}
+
+#[test]
+fn test_model_registry_rejects_capability_only_model_targets_before_provider_call() {
+    let orphan_source = source("orphan-model-capability", 61);
+    let mut builder = RegistrySnapshotBuilder::new();
+    builder.add_type_capabilities(
+        TypeDescriptor::of::<DiagnosticsTarget>(),
+        vec![CapabilityDescriptor::with_adapter(
+            model_metadata_key(),
+            unreachable_metadata_provider as ModelMetadataProvider,
+        )],
+        orphan_source.clone(),
+    );
+    let reflection = builder.build().expect("capability-only fact is a valid snapshot");
+    let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("orphan model capability rejected");
+    assert_eq!(error.kind(), ModelRegistryErrorKind::UnregisteredModelTarget);
+    assert_eq!(
+        error.capability_target(),
+        Some(CapabilityTarget::Type(TypeId::of::<DiagnosticsTarget>()))
+    );
+    assert_eq!(error.capability_id(), Some(*model_metadata_key().id()));
+    assert_eq!(error.sources(), &[orphan_source]);
+
+    for capability in [
+        CapabilityDescriptor::without_adapter(model_metadata_key()),
+        CapabilityDescriptor::with_adapter(key::<u32>("qubit.model.metadata.v1"), 7_u32),
+    ] {
+        let mut builder = RegistrySnapshotBuilder::new();
+        builder.add_type_capabilities(
+            TypeDescriptor::of::<DiagnosticsTarget>(),
+            vec![capability],
+            source("orphan-model-capability-variant", 62),
+        );
+        let reflection = builder.build().expect("capability-only fact is valid");
+        let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("orphan model target rejected");
+        assert_eq!(error.kind(), ModelRegistryErrorKind::UnregisteredModelTarget);
+        assert_eq!(
+            error.capability_target(),
+            Some(CapabilityTarget::Type(TypeId::of::<DiagnosticsTarget>()))
+        );
+    }
+
+    let mut builder = RegistrySnapshotBuilder::new();
+    builder.add_type_capabilities(
+        TypeDescriptor::of::<DiagnosticsTarget>(),
+        vec![CapabilityDescriptor::with_adapter(
+            model_impl_key(),
+            unreachable_model_impl_provider as ModelImplProvider,
+        )],
+        source("orphan-model-impl-capability", 63),
+    );
+    let reflection = builder.build().expect("ModelImpl capability is independent");
+    assert!(
+        ModelRegistry::from_reflect_registry(&reflection)
+            .expect("ModelImpl-only capability does not create a model requirement")
+            .entries()
+            .is_empty()
+    );
 }
 
 #[test]

@@ -18,6 +18,7 @@ use qubit_reflect::capability::CapabilityOrigin;
 use qubit_reflect::error::RegistryError;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::registry::CapabilityTarget;
 #[cfg(feature = "generic")]
 use qubit_reflect::registry::ReflectRegistry;
 
@@ -33,6 +34,9 @@ pub enum ModelRegistryErrorKind {
     FactOnlyCapability,
     /// A model capability declares an incompatible adapter contract.
     AdapterTypeMismatch,
+    /// A model metadata capability targets a type or definition outside the
+    /// reflected member set.
+    UnregisteredModelTarget,
     /// The shared reflection registry could not initialize.
     ReflectionRegistry,
     /// Two linked registrations declared the same model ID.
@@ -64,6 +68,8 @@ pub struct ModelRegistryError {
     capability: Option<CapabilityAccessError>,
     /// Stable capability identity involved in a provider contract failure.
     capability_id: Option<CapabilityId>,
+    /// Capability target rejected by the model projection audit.
+    capability_target: Option<CapabilityTarget>,
     /// Adapter type expected by the model metadata capability key.
     expected_adapter_type: Option<TypeId>,
     /// Adapter type declared by the reflected capability descriptor.
@@ -82,6 +88,7 @@ impl ModelRegistryError {
             abi: None,
             capability: Some(error),
             capability_id: None,
+            capability_target: None,
             expected_adapter_type: None,
             actual_adapter_type: None,
         }
@@ -94,7 +101,6 @@ impl ModelRegistryError {
         reflection: &ReflectRegistry,
         definition: &TypeDefinitionDescriptor,
     ) -> Self {
-        let source = reflection.definition_source(definition.id()).cloned();
         let origin = reflection
             .definition_capability_origin(
                 definition.id(),
@@ -103,6 +109,10 @@ impl ModelRegistryError {
             .unwrap_or(CapabilityOrigin::Intrinsic {
                 type_id: definition.id().marker_type_id(),
             });
+        let source = match &origin {
+            CapabilityOrigin::Registered { source } => Some(source.clone()),
+            CapabilityOrigin::Intrinsic { .. } => reflection.definition_source(definition.id()).cloned(),
+        };
         let (kind, capability_id, expected_adapter_type, actual_adapter_type) = match &error {
             CapabilityAccessError::FactOnly { id, adapter_type } => (
                 ModelRegistryErrorKind::FactOnlyCapability,
@@ -129,6 +139,7 @@ impl ModelRegistryError {
             abi: None,
             capability: Some(error),
             capability_id,
+            capability_target: None,
             expected_adapter_type,
             actual_adapter_type,
         }
@@ -148,6 +159,7 @@ impl ModelRegistryError {
             abi: None,
             capability: None,
             capability_id: Some(capability_id),
+            capability_target: None,
             expected_adapter_type: None,
             actual_adapter_type: None,
         }
@@ -172,6 +184,7 @@ impl ModelRegistryError {
             abi: None,
             capability: None,
             capability_id: Some(capability_id),
+            capability_target: None,
             expected_adapter_type: Some(expected),
             actual_adapter_type: Some(actual),
         }
@@ -179,6 +192,7 @@ impl ModelRegistryError {
 
     /// Wraps a failure from reflection registry initialization.
     pub(crate) fn reflection(error: RegistryError) -> Self {
+        let capability_target = error.capability_target();
         let sources = error.conflicting_fragments().map_or_else(
             || error.fragment_identity().into_iter().cloned().collect(),
             |(left, right)| vec![left.clone(), right.clone()],
@@ -197,6 +211,7 @@ impl ModelRegistryError {
             abi: None,
             capability: None,
             capability_id: None,
+            capability_target,
             expected_adapter_type: None,
             actual_adapter_type: None,
         }
@@ -218,6 +233,7 @@ impl ModelRegistryError {
             abi: None,
             capability: None,
             capability_id: None,
+            capability_target: None,
             expected_adapter_type: None,
             actual_adapter_type: None,
         }
@@ -239,6 +255,27 @@ impl ModelRegistryError {
             abi: None,
             capability: None,
             capability_id: None,
+            capability_target: None,
+            expected_adapter_type: None,
+            actual_adapter_type: None,
+        }
+    }
+
+    pub(crate) fn unregistered_model_target(
+        target: CapabilityTarget,
+        capability_id: CapabilityId,
+        source: FragmentIdentity,
+    ) -> Self {
+        Self {
+            kind: ModelRegistryErrorKind::UnregisteredModelTarget,
+            model_id: None,
+            sources: vec![source.clone()],
+            origins: vec![CapabilityOrigin::Registered { source }],
+            reflection: None,
+            abi: None,
+            capability: None,
+            capability_id: Some(capability_id),
+            capability_target: Some(target),
             expected_adapter_type: None,
             actual_adapter_type: None,
         }
@@ -276,6 +313,12 @@ impl ModelRegistryError {
     #[inline]
     pub const fn capability_id(&self) -> Option<CapabilityId> {
         self.capability_id
+    }
+    /// Returns the unregistered target involved in a model projection error.
+    #[must_use]
+    #[inline]
+    pub const fn capability_target(&self) -> Option<CapabilityTarget> {
+        self.capability_target
     }
     /// Returns the expected adapter type for a provider type mismatch.
     #[must_use]
@@ -324,6 +367,14 @@ impl core::fmt::Display for ModelRegistryError {
                     .expect("adapter mismatch errors retain the expected type"),
                 self.actual_adapter_type
                     .expect("adapter mismatch errors retain the actual type"),
+            ),
+            ModelRegistryErrorKind::UnregisteredModelTarget => write!(
+                formatter,
+                "model capability {} targets an unregistered {:?}",
+                self.capability_id
+                    .expect("unregistered target errors retain capability ID"),
+                self.capability_target
+                    .expect("unregistered target errors retain target"),
             ),
             ModelRegistryErrorKind::ReflectionRegistry => write!(
                 formatter,
@@ -374,13 +425,39 @@ mod tests {
     use std::error::Error;
 
     use qubit_reflect::RegistryError;
+    use qubit_reflect::TypeDefinitionId;
     use qubit_reflect::capability::CapabilityAccessError;
     use qubit_reflect::capability::CapabilityOrigin;
     use qubit_reflect::identity::CapabilityId;
     use qubit_reflect::identity::FragmentIdentity;
+    use qubit_reflect::registry::CapabilityTarget;
 
     use super::ModelRegistryError;
     use super::ModelRegistryErrorKind;
+
+    #[test]
+    fn unregistered_model_targets_retain_target_and_capability_source() {
+        let id = CapabilityId::new("qubit.model.metadata.v1").expect("valid capability ID");
+        let source = FragmentIdentity::new("fixture", "tests", 9, 1, "capability", 9);
+        for target in [
+            CapabilityTarget::Type(TypeId::of::<u8>()),
+            CapabilityTarget::TypeDefinition(TypeDefinitionId::of::<u16>()),
+        ] {
+            let error = ModelRegistryError::unregistered_model_target(target, id, source.clone());
+            assert_eq!(error.kind(), ModelRegistryErrorKind::UnregisteredModelTarget);
+            assert_eq!(error.capability_target(), Some(target));
+            assert_eq!(error.capability_id(), Some(id));
+            assert_eq!(error.model_id(), None);
+            assert_eq!(error.sources(), std::slice::from_ref(&source));
+            assert_eq!(
+                error.origins(),
+                &[CapabilityOrigin::Registered { source: source.clone() }]
+            );
+            assert!(error.to_string().contains("qubit.model.metadata.v1"));
+            assert!(error.to_string().contains(&format!("{target:?}")));
+            assert!(error.source().is_none());
+        }
+    }
 
     #[test]
     fn provider_contract_errors_retain_machine_readable_context() {

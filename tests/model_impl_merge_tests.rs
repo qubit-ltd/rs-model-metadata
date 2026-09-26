@@ -163,6 +163,10 @@ fn panic_once_getter() -> &'static ModelImplMetadata {
 
 fn snapshot(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegistry {
     let mut builder = RegistrySnapshotBuilder::new();
+    builder.add_type(
+        TypeMetadata::of::<Record>().descriptor(),
+        FragmentIdentity::new("model-impl-test", "record", 1, 1, "type", 1),
+    );
     for (key, provider) in [
         ("qubit.model.impl.v1.fmerge_a", first),
         ("qubit.model.impl.v1.fmerge_b", second),
@@ -181,6 +185,10 @@ fn snapshot(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegis
 
 fn snapshot_with_unrelated_capabilities(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegistry {
     let mut builder = RegistrySnapshotBuilder::new();
+    builder.add_type(
+        TypeMetadata::of::<Record>().descriptor(),
+        FragmentIdentity::new("model-impl-test", "record", 1, 1, "type", 1),
+    );
     for (key, provider) in [
         ("qubit.model.impl.v1.fmerge_a", first),
         ("qubit.model.impl.v1.fmerge_b", second),

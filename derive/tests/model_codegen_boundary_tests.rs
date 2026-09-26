@@ -75,20 +75,29 @@ fn test_generic_model_registration_preserves_definition_identity_and_source() {
 
     let source = registry
         .source("test.derive.CodegenBoundaryGeneric")
+        .expect("generic model entry must retain its capability source");
+    assert_eq!(source.member_kind(), "generic-model-capability");
+    let declaration_source = registry
+        .get("test.derive.CodegenBoundaryGeneric")
+        .expect("generic model entry")
+        .declaration_source()
         .expect("generic definition must retain its declaration source");
-    assert_eq!(source.declaring_crate(), "qubit-model-derive");
+    assert_eq!(declaration_source.declaring_crate(), "qubit-model-derive");
     assert!(
-        source
+        declaration_source
             .module_path()
             .starts_with("model_codegen_boundary_tests::__qubit_reflect_type_definition_registration_")
     );
-    assert!(!source.module_path().contains("reflect_codegen"));
-    assert_eq!(source.member_kind(), "type-definition");
-    assert!((GENERIC_DECLARATION_START_LINE..=GENERIC_DECLARATION_END_LINE).contains(&source.line()));
-    assert!(source.column() > 0);
+    assert!(!declaration_source.module_path().contains("reflect_codegen"));
+    assert_eq!(declaration_source.member_kind(), "type-definition");
+    assert!((GENERIC_DECLARATION_START_LINE..=GENERIC_DECLARATION_END_LINE).contains(&declaration_source.line()));
+    assert!(declaration_source.column() > 0);
 
     let reflection = ReflectRegistry::initialize().expect("reflection registrations must be valid");
-    assert_eq!(reflection.definition_source(generic.definition().id()), Some(source));
+    assert_eq!(
+        reflection.definition_source(generic.definition().id()),
+        Some(declaration_source)
+    );
 }
 
 #[test]

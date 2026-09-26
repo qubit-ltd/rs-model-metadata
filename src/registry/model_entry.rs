@@ -23,8 +23,11 @@ pub struct ModelEntry<'reflection> {
     pub(super) model_id: ModelId,
     /// Concrete or generic metadata carried by this entry.
     target: ModelEntryTarget,
-    /// Registration fragment that produced this entry.
+    /// Metadata capability fragment for snapshot projections, or the explicit
+    /// caller-provided source for static entries.
     pub(super) source: &'reflection FragmentIdentity,
+    /// Reflected type or definition member that declared this entry.
+    declaration_source: Option<&'reflection FragmentIdentity>,
 }
 
 impl<'reflection> ModelEntry<'reflection> {
@@ -34,11 +37,16 @@ impl<'reflection> ModelEntry<'reflection> {
     /// without initializing reflection or copying either borrowed input.
     #[must_use]
     #[inline]
-    pub(super) fn concrete(metadata: &'static TypeMetadata, source: &'reflection FragmentIdentity) -> Option<Self> {
+    pub(super) fn concrete(
+        metadata: &'static TypeMetadata,
+        source: &'reflection FragmentIdentity,
+        declaration_source: Option<&'reflection FragmentIdentity>,
+    ) -> Option<Self> {
         Some(Self {
             model_id: metadata.model_id()?,
             target: ModelEntryTarget::Concrete(metadata),
             source,
+            declaration_source,
         })
     }
 
@@ -52,11 +60,13 @@ impl<'reflection> ModelEntry<'reflection> {
     pub(super) fn generic(
         metadata: &'static GenericModelMetadata,
         source: &'reflection FragmentIdentity,
+        declaration_source: Option<&'reflection FragmentIdentity>,
     ) -> Option<Self> {
         Some(Self {
             model_id: metadata.model_id()?,
             target: ModelEntryTarget::Generic(metadata),
             source,
+            declaration_source,
         })
     }
 
@@ -67,13 +77,20 @@ impl<'reflection> ModelEntry<'reflection> {
         self.model_id
     }
 
-    /// Returns the fragment borrowed from this entry's registration provenance.
-    /// Its lifetime follows the supplied reflection snapshot or explicit
-    /// source.
+    /// Returns the metadata capability fragment for snapshot projections, or
+    /// the source supplied to a static registry constructor.
     #[must_use]
     #[inline]
     pub const fn source(&self) -> &'reflection FragmentIdentity {
         self.source
+    }
+
+    /// Returns the reflected type or generic definition source for snapshot
+    /// projections, or `None` for entries built from static metadata.
+    #[must_use]
+    #[inline]
+    pub const fn declaration_source(&self) -> Option<&'reflection FragmentIdentity> {
+        self.declaration_source
     }
 
     /// Returns concrete metadata, or `None` for a generic declaration.
