@@ -76,7 +76,10 @@ are not metadata output contracts.
 For linked model crates, use `ModelRegistry::try_global()` or construct an
 explicit rs-reflect snapshot and project it with `ModelRegistry::from_reflect_registry`.
 That snapshot lets `properties_for` include independently registered `ModelImpl`
-accessors. Link the participating crates before freezing the registry. Resolution
+accessors. `from_reflect_registry` projects only descriptors in the snapshot's
+`types()` membership; capability-only overlays remain queryable through reflection
+but do not become model roots. Link the participating crates before freezing the registry.
+Resolution
 traverses the registered models and explicit roots, deduplicates concrete TypeIds, and
 checks references, Projection sources, Property conflicts, and Value closure.
 An explicit registry never acquires unprovided registrations from a global one.

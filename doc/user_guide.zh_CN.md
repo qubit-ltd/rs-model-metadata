@@ -67,6 +67,8 @@ fn main() {
 已链接的模型 crate 可以使用 `ModelRegistry::try_global()`，也可以先构造显式 rs-reflect 快照，再通过
 `ModelRegistry::from_reflect_registry` 投影。冻结注册表前应完成所需 crate 的链接。
 快照注册表的 `properties_for` 能合并独立注册的 `ModelImpl` 访问器。
+`from_reflect_registry` 只投影快照 `types()` 中的描述符；仅附加能力的 overlay 仍可通过
+rs-reflect 查询，但不会成为模型根。
 解析器遍历注册类型与显式根的并集，按 TypeId 去重，检查引用、Projection 来源、Property 冲突和 Value 闭包。
 显式注册表不会从全局注册表补入未提供的注册项。启用 `generic` 后，
 `ModelRegistry::from_static_metadata_with_generics` 可接收显式泛型定义；快照注册表则收集已注册的
