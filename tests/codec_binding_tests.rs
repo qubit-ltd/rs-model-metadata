@@ -348,6 +348,9 @@ struct CodecContainers {
     #[allow(clippy::box_collection)]
     pointer: Box<Vec<String>>,
     #[element(codec(StringCodec))]
+    #[allow(clippy::box_collection)]
+    chain: Option<Box<Vec<String>>>,
+    #[element(codec(StringCodec))]
     set: BTreeSet<String>,
     #[element(codec(StringCodec))]
     array: [String; 2],
@@ -374,11 +377,12 @@ fn test_container_selector_bindings_preserve_identity_and_execute() {
         codecs: &codecs,
     })
     .expect("selector codecs");
-    assert_eq!(bindings.bindings().len(), 7);
+    assert_eq!(bindings.bindings().len(), 8);
     for (field, selector) in [
         ("sequence", SelectorPosition::Element),
         ("optional", SelectorPosition::Element),
         ("pointer", SelectorPosition::Element),
+        ("chain", SelectorPosition::Element),
         ("set", SelectorPosition::Element),
         ("array", SelectorPosition::Element),
         ("map", SelectorPosition::MapKey),
@@ -402,6 +406,63 @@ fn test_container_selector_bindings_preserve_identity_and_execute() {
             .get(&CodecOccurrenceId::new(root, "absent", CodecSource::Field))
             .is_none()
     );
+}
+
+#[Model]
+struct OpaqueCodecContainer {
+    #[reflect(opaque)]
+    #[codec(id = "test.string")]
+    hidden: Option<Vec<String>>,
+}
+
+#[test]
+fn test_opaque_collection_field_is_not_resolved_for_codec_binding() {
+    let root = TypeMetadata::of::<OpaqueCodecContainer>();
+    let roots = [root];
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("opaque graph");
+    let codecs = ValueCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let bindings = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("opaque field skipped");
+    assert_eq!(bindings.bindings().len(), 0);
+}
+
+#[Model]
+struct WholeCollectionCodec {
+    #[codec(id = "test.string")]
+    values: Vec<String>,
+}
+
+#[test]
+fn test_collection_is_not_unwrapped_for_direct_codec_binding() {
+    let root = TypeMetadata::of::<WholeCollectionCodec>();
+    let roots = [root];
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("collection graph");
+    let codecs = ValueCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let errors = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect_err("collection type differs from element codec");
+    assert_eq!(errors.errors().len(), 1);
+    let error = &errors.errors()[0];
+    assert_eq!(error.kind(), CodecBindErrorKind::ValueTypeMismatch);
+    assert_eq!(error.expected_type(), TypeId::of::<Vec<String>>());
+    assert_eq!(error.actual_type(), Some(TypeId::of::<String>()));
 }
 
 /// Diagnostics retain the expected and registered types after collection moves.

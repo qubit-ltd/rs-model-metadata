@@ -9,6 +9,8 @@
 // qubit-style: allow explicit-imports
 //! Integration tests for safe erased property access.
 
+use std::any::TypeId;
+
 use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::metadata::BorrowedPropertySlice;
 use qubit_model_metadata::metadata::FieldMetadata;
@@ -56,6 +58,67 @@ fn set_name(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), Prope
     })?;
     target.name = value;
     Ok(())
+}
+
+#[test]
+fn test_property_adapters_validate_exact_dynamic_value_identity() {
+    let descriptor = TypeDescriptor::of::<PropertyFixture>();
+    let name_type = descriptor.field_at(0).expect("name field").field_type();
+    let getter = GetterMetadata::new::<PropertyFixture>("name", name_type, GetterOutputKind::Borrowed, borrowed_name);
+    let setter = SetterMetadata::new::<PropertyFixture, String>("set_name", name_type, set_name);
+    let mut target = PropertyFixture {
+        name: "before".to_owned(),
+        count: 0,
+    };
+
+    let borrowed = ReflectedRef::new(&target);
+    assert_eq!(borrowed.value_type_id(), TypeId::of::<PropertyFixture>());
+    assert!(matches!(getter.get(borrowed), Ok(PropertyValue::Borrowed(_))));
+
+    let text = ReflectedRef::new_str("text");
+    assert_eq!(text.value_type_id(), TypeId::of::<str>());
+    assert!(text.as_any().is_none());
+    let error = getter.get(text).err().expect("str target must be rejected");
+    let PropertyAccessError::TargetTypeMismatch(mismatch) = error else {
+        panic!("exact target mismatch")
+    };
+    assert_eq!(mismatch.expected(), TypeId::of::<PropertyFixture>());
+    assert_eq!(mismatch.actual(), TypeId::of::<str>());
+
+    let wrong = ReflectedMut::new(&mut target.count);
+    assert_eq!(wrong.value_type_id(), TypeId::of::<u32>());
+    let failure = setter
+        .set(wrong, ReflectedOwned::new("retry".to_owned()))
+        .expect_err("wrong target");
+    let PropertyAccessError::TargetTypeMismatch(mismatch) = failure.error() else {
+        panic!("exact target mismatch")
+    };
+    assert_eq!(mismatch.expected(), TypeId::of::<PropertyFixture>());
+    assert_eq!(mismatch.actual(), TypeId::of::<u32>());
+    assert_eq!(
+        failure.replacement().and_then(|value| value.downcast_ref::<String>()),
+        Some(&"retry".to_owned())
+    );
+
+    let replacement = ReflectedOwned::new(7_u32);
+    assert_eq!(replacement.value_type_id(), TypeId::of::<u32>());
+    let failure = setter
+        .set(ReflectedMut::new(&mut target), replacement)
+        .expect_err("wrong replacement");
+    let PropertyAccessError::ValueTypeMismatch(mismatch) = failure.error() else {
+        panic!("exact value mismatch")
+    };
+    assert_eq!(mismatch.expected(), TypeId::of::<String>());
+    assert_eq!(mismatch.actual(), TypeId::of::<u32>());
+    assert_eq!(
+        failure.replacement().and_then(|value| value.downcast_ref::<u32>()),
+        Some(&7)
+    );
+
+    setter
+        .set(ReflectedMut::new(&mut target), ReflectedOwned::new("after".to_owned()))
+        .expect("exact write");
+    assert_eq!(target.name, "after");
 }
 
 #[test]

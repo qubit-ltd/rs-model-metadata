@@ -22,7 +22,6 @@ use std::collections::HashSet;
 use qubit_reflect::ConcreteGenericDescriptor;
 use qubit_reflect::FieldDescriptor;
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::descriptor::OpaqueTypeDescriptor;
 use qubit_reflect::descriptor::TextKind;
 use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::registry::ReflectRegistry;
@@ -53,6 +52,7 @@ use crate::metadata::ResolvedPropertyFragments;
 use crate::metadata::RoleMetadata;
 use crate::metadata::SelectorPosition;
 use crate::metadata::ValueMetadata;
+use crate::transparent_descriptor::transparent_descriptor;
 
 /// Domain semantics for one concrete reflected Rust type.
 ///
@@ -675,7 +675,7 @@ fn validate_selector(
     validate_validators(selector.validators())?;
     validate_codec(
         selector.codec(),
-        type_ref_id(selected_type),
+        selected_type.concrete_type_id(),
         crate::metadata::CodecSource::Selector(position),
     )
 }
@@ -702,11 +702,11 @@ fn validate_codec(
 /// Returns the codec-compatible type ID for a field type reference.
 fn field_codec_type_id(type_ref: &TypeRef) -> Option<TypeId> {
     let Some(descriptor) = type_ref.as_resolved() else {
-        return type_ref_id(type_ref);
+        return type_ref.concrete_type_id();
     };
     descriptor
         .as_optional()
-        .and_then(|view| type_ref_id(view.element_type()))
+        .and_then(|view| view.element_type().concrete_type_id())
         .or_else(|| Some(descriptor.type_id()))
 }
 
@@ -722,20 +722,6 @@ fn selector_type_ref(type_ref: &TypeRef, position: SelectorPosition) -> Option<&
             .or_else(|| descriptor.as_slice().map(|view| view.element_type())),
         SelectorPosition::MapKey => descriptor.as_map().map(|view| view.key_type()),
         SelectorPosition::MapValue => descriptor.as_map().map(|view| view.value_type()),
-    }
-}
-
-/// Returns the innermost descriptor through transparent smart-pointer layers.
-fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
-    loop {
-        let element = descriptor
-            .as_optional()
-            .map(|view| view.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()));
-        let Some(element) = element else {
-            return Some(descriptor);
-        };
-        descriptor = element.as_resolved()?;
     }
 }
 
@@ -790,7 +776,10 @@ fn validate_properties(
         if let Some(setter) = property.setter()
             && (setter.target_type_id() != descriptor.type_id()
                 || !type_refs_equal(property.type_ref(), setter.input_type())
-                || type_ref_id(property.type_ref()).is_some_and(|id| id != setter.input_type_id()))
+                || property
+                    .type_ref()
+                    .concrete_type_id()
+                    .is_some_and(|id| id != setter.input_type_id()))
         {
             errors.push(PropertyBuildError::new(
                 PropertyBuildErrorKind::SetterTypeMismatch,
@@ -900,17 +889,9 @@ fn contains_field(fields: &[FieldMetadata], candidate: &FieldMetadata) -> bool {
     fields.iter().any(|field| core::ptr::eq(field, candidate))
 }
 
-/// Returns the exact type ID for a resolved type reference.
-fn type_ref_id(type_ref: &TypeRef) -> Option<TypeId> {
-    type_ref
-        .as_resolved()
-        .map(TypeDescriptor::type_id)
-        .or_else(|| type_ref.as_opaque().map(OpaqueTypeDescriptor::type_id))
-}
-
 /// Returns whether two type references resolve to the same exact type.
 fn type_refs_equal(left: &TypeRef, right: &TypeRef) -> bool {
-    match (type_ref_id(left), type_ref_id(right)) {
+    match (left.concrete_type_id(), right.concrete_type_id()) {
         (Some(left), Some(right)) => left == right,
         (None, None) => left.as_symbolic() == right.as_symbolic(),
         _ => false,

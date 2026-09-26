@@ -346,7 +346,7 @@ impl GetterMetadata {
     /// a different concrete type, or propagates the generated adapter error.
     #[must_use = "handle property access failure"]
     pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
-        let actual = reflected_ref_type_id(&target);
+        let actual = target.value_type_id();
         let expected = (self.target_type_id)();
         if actual != expected {
             return Err(PropertyAccessError::TargetTypeMismatch(TypeMismatch::new(
@@ -434,7 +434,7 @@ impl SetterMetadata {
     /// validation fails before adapter execution, or reports the adapter error.
     #[must_use = "handle property write failure and recover the replacement when available"]
     pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
-        let actual_target = reflected_mut_type_id(&target);
+        let actual_target = target.value_type_id();
         let expected_target = (self.target_type_id)();
         if actual_target != expected_target {
             return Err(PropertySetFailure::before_execution(
@@ -442,7 +442,7 @@ impl SetterMetadata {
                 value,
             ));
         }
-        let actual_value = reflected_owned_type_id(&value);
+        let actual_value = value.value_type_id();
         let expected_value = (self.input_type_id)();
         if actual_value != expected_value {
             return Err(PropertySetFailure::before_execution(
@@ -641,19 +641,4 @@ impl PropertyMetadata {
             value,
         ))
     }
-}
-
-/// Returns the concrete type ID represented by a reflected shared borrow.
-fn reflected_ref_type_id(value: &ReflectedRef<'_>) -> TypeId {
-    value.as_any().map_or_else(TypeId::of::<str>, std::any::Any::type_id)
-}
-
-/// Returns the concrete type ID represented by a reflected mutable borrow.
-fn reflected_mut_type_id(value: &ReflectedMut<'_>) -> TypeId {
-    value.as_any().map_or_else(TypeId::of::<str>, std::any::Any::type_id)
-}
-
-/// Returns the concrete type ID represented by an owned reflected value.
-fn reflected_owned_type_id(value: &ReflectedOwned) -> TypeId {
-    value.as_any().map_or_else(TypeId::of::<()>, std::any::Any::type_id)
 }

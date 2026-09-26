@@ -16,7 +16,6 @@ use qubit_codec::ValueCodecDescriptor;
 use qubit_codec::ValueCodecRegistration;
 use qubit_codec::ValueCodecRegistry;
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::descriptor::TypeRef;
 
 use super::CodecBindError;
 use super::CodecBindErrorKind;
@@ -29,6 +28,7 @@ use crate::metadata::ModelIdBuf;
 use crate::metadata::SelectorPosition;
 use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
+use crate::transparent_descriptor::transparent_descriptor;
 
 /// Inputs for one codec binding pass.
 pub struct CodecBindInputs<'a, 'graph> {
@@ -240,7 +240,7 @@ fn bind_field_at<'a>(
     };
     let expected = descriptor
         .as_optional()
-        .and_then(|value| runtime_type_id(value.element_type()))
+        .and_then(|value| value.element_type().concrete_type_id())
         .unwrap_or_else(|| descriptor.type_id());
     let effective = field.codec().or_else(|| canonical_codec(expected, models));
     if let Some(codec) = effective {
@@ -368,27 +368,5 @@ fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosit
         SelectorPosition::MapKey => descriptor.as_map().map(|value| value.key_type()),
         SelectorPosition::MapValue => descriptor.as_map().map(|value| value.value_type()),
     }?;
-    runtime_type_id(type_ref)
-}
-
-/// Removes optional and smart-pointer wrappers from a resolved descriptor.
-fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
-    loop {
-        let element = descriptor
-            .as_optional()
-            .map(|value| value.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()));
-        let Some(element) = element else {
-            return Some(descriptor);
-        };
-        descriptor = element.as_resolved()?;
-    }
-}
-
-/// Extracts a runtime type identity from a resolved or opaque type reference.
-fn runtime_type_id(type_ref: &TypeRef) -> Option<TypeId> {
-    type_ref
-        .as_resolved()
-        .map(TypeDescriptor::type_id)
-        .or_else(|| type_ref.as_opaque().map(|descriptor| descriptor.type_id()))
+    type_ref.concrete_type_id()
 }
