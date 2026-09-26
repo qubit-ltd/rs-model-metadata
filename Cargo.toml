@@ -47,7 +47,7 @@ qubit-id = { version = "=0.6.0", path = "../../rust-common/rs-id", features = ["
 qubit-reflect = { version = "=0.1.0", path = "../rs-reflect", default-features = false, features = ["derive", "ecosystem-types", "qubit-types"] }
 qubit-codec = { version = "0.14", features = ["registry"], optional = true }
 qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator", optional = true }
-qubit-validation-rules = { version = "=0.1.0", path = "../../rust-common/rs-validation-rules", features = ["inventory"], optional = true }
+qubit-validation-rules = { version = "=0.1.0", path = "../../rust-common/rs-validation-rules", default-features = false, optional = true }
 serde = { version = "^1.0", features = ["derive"] }
 thiserror = "^2.0"
 
