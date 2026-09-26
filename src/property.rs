@@ -247,7 +247,7 @@ impl PropertyAccessError {
     /// Reports that an erased borrowed value has the wrong exact Rust type.
     #[doc(hidden)]
     pub fn value_type_mismatch<T: 'static>(actual: &ReflectedRef<'_>) -> Self {
-        Self::ValueTypeMismatch(TypeMismatch::new(TypeId::of::<T>(), reflected_ref_type_id(actual)))
+        Self::ValueTypeMismatch(TypeMismatch::new(TypeId::of::<T>(), actual.value_type_id()))
     }
 }
 
