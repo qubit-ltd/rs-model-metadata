@@ -122,6 +122,11 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 解析器通过 `ResolveError::cause()` 保留原始错误，并附加模型、属性路径和来源。
 独立错误继续聚合，基础失败不会被改写成属性缺失。
 
+每个 `qubit.model.metadata.v1` 能力目标也必须是反射快照的成员；缺少成员声明时，
+`ModelRegistry::from_reflect_registry` 会在调用任何模型 provider 前返回 `UnregisteredModelTarget`。
+快照投影的 `ModelEntry::source()` 和 `ModelRegistry::source()` 指向元数据能力片段；
+`ModelEntry::declaration_source()` 指向反射类型或泛型定义片段。静态元数据条目的该方法返回 `None`。
+
 借用切片可按索引直接读取。显式 `into_invocation_output` 会用 O(n) 时间物化元素借用包装，
 不复制底层元素；切片 adapter 自身也需要一次装箱。该转换的成本与原始访问分别测量。
 

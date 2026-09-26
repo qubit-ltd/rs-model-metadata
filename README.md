@@ -156,6 +156,12 @@ initialize the global registry. `ResolveError::cause()` retains the underlying f
 model, property path, and provenance. Independent failures are aggregated; underlying failures
 do not become missing-property diagnostics.
 
+Every `qubit.model.metadata.v1` capability target must also be a member of the reflected snapshot;
+`ModelRegistry::from_reflect_registry` reports `UnregisteredModelTarget` before invoking any model
+provider when that membership is missing. `ModelEntry::source()` and `ModelRegistry::source()`
+identify the metadata capability fragment for snapshot projections. `ModelEntry::declaration_source()`
+returns the reflected type or generic definition fragment, and is `None` for static metadata entries.
+
 Borrowed slices support direct indexed access. Explicit `into_invocation_output` materializes
 per-element borrow wrappers in O(n) time without copying the underlying elements. The slice adapter
 itself also requires boxing. Conversion and original access costs are measured separately.

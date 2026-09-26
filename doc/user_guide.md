@@ -490,6 +490,12 @@ closure discovery and at a specific relationship path. ResolveError exposes the
 owner Rust identity, optional stable ID, declaration position when known, and
 underlying cause. Do not turn failures into empty metadata.
 
+Every `qubit.model.metadata.v1` target in a reflection snapshot must also be a
+registered type member. Snapshot projection reports `UnregisteredModelTarget`
+before invoking providers when that membership is missing. `ModelEntry::source()`
+identifies the metadata capability fragment; `declaration_source()` identifies
+the reflected type or generic definition and is absent for static entries.
+
 The graph borrows its immutable registry. Static metadata never borrows graph
 allocations or instances. Borrowed Property values cannot escape their source
 lifetimes and do not require Send. The new generated-code protocol is the private

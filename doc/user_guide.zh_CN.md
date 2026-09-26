@@ -416,6 +416,10 @@ precision 为 1、scale 为 0 时会接受 `1e3`，新版拒绝。元数据中�
 ResolveErrors 聚合独立问题；同一错误 descriptor 可能分别在可达闭包检查和具体引用路径处报告。
 ResolveError 提供 owner Rust 身份、可选稳定 ID、已知声明位置和底层 cause，不应把失败转换成空 metadata。
 
+反射快照中的每个 `qubit.model.metadata.v1` 目标也必须是已注册类型成员；缺少成员时，
+快照投影会在调用 provider 前报告 `UnregisteredModelTarget`。`ModelEntry::source()` 指向元数据能力片段；
+`declaration_source()` 指向反射类型或泛型定义，静态条目没有声明来源。
+
 结构图借用不可变注册表；静态 metadata 不借用 graph 分配或模型实例。
 Property 的借用值不能逃出源实例生命周期，也不强制 Send。新生成代码采用 rs-reflect codegen v3 上的
 私有 checked v7 门面，应用应使用公开 API。
