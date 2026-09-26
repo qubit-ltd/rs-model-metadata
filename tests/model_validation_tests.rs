@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
+use qubit_model_metadata::metadata::PropertyAccessError;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
@@ -122,7 +123,8 @@ impl PreparedValidator for FailModel {
         _: ValidationValue<'_>,
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
-        Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed))
+        Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+            .with_trusted_source(PropertyAccessError::user("sensitive property detail")))
     }
 }
 static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare)];
@@ -260,6 +262,14 @@ fn model_rule_execution_errors_keep_the_bound_rule_id() {
         .expect_err("model rule execution fails");
     assert_eq!(error.error().kind(), ExecutionErrorKind::PropertyReadFailed);
     assert_eq!(error.error().rule_id(), Some(ValidatorId::new("test.model.failure")));
+    let source = error.error().trusted_source().expect("trusted cause retained");
+    assert!(source.is::<PropertyAccessError>());
+    assert!(source.to_string().contains("sensitive property detail"));
+    assert!(!error.to_string().contains("sensitive property detail"));
+    assert!(!format!("{error:?}").contains("sensitive property detail"));
+    let standard_source = std::error::Error::source(&error).expect("execution error is standard source");
+    assert!(standard_source.is::<ExecutionError>());
+    assert!(std::error::Error::source(standard_source).is_none());
 }
 
 #[test]

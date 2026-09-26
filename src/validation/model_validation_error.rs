@@ -30,8 +30,10 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// Inspect [`Self::partial_report`] before discarding the error: earlier rules
 /// may already have reported violations or skips. An infrastructure failure
 /// does not mean the instance passed validation. [`std::error::Error::source`]
-/// returns the original [`ExecutionError`], which may retain an adapter
-/// or validator failure.
+/// returns the [`ExecutionError`]; the standard source chain ends there.
+/// When the error retains an owned underlying cause, trusted diagnostic code
+/// can inspect it through [`ExecutionError::trusted_source`] without exposing
+/// it to ordinary error-chain formatting.
 ///
 /// # Examples
 ///

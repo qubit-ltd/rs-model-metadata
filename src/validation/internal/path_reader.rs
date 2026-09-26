@@ -35,11 +35,10 @@ pub(crate) fn read<'value>(
             .and_then(|depth| depth.checked_add(1))
             .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit))?;
         budget.read(depth).map_err(|error| error.with_path(path_for(path)))?;
-        let output = step.property().get(receiver).map_err(|error| {
-            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                .with_trusted_source(error)
-                .with_path(path_for(path))
-        })?;
+        let output = step
+            .property()
+            .get(receiver)
+            .map_err(|error| property_read_error(error, path_for(path)))?;
         if index + 1 == path.steps().len() {
             return Ok(output);
         }
@@ -54,6 +53,14 @@ pub(crate) fn read<'value>(
         };
     }
     Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))
+}
+
+/// Retains an owned property adapter failure behind the trusted diagnostic
+/// accessor while keeping ordinary execution output safe.
+fn property_read_error(error: crate::metadata::PropertyAccessError, path: ValidationPath) -> ExecutionError {
+    ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+        .with_trusted_source(error)
+        .with_path(path)
 }
 
 /// Reads dependency slots under the same budget as the value and validator
@@ -135,17 +142,36 @@ pub(crate) fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
+
     use qubit_reflect::ReflectedRef;
     use qubit_validator::ExecutionErrorKind;
     use qubit_validator::InputType;
+    use qubit_validator::ValidationPath;
 
     use super::CompiledPropertyPath;
     use super::ExecutionBudget;
+    use super::property_read_error;
     use super::read_dependency;
+    use crate::metadata::PropertyAccessError;
     use crate::registry::ModelRegistry;
     use crate::resolve::ResolveInputs;
     use crate::resolve::StructureResolver;
     use crate::validation::ValidationOptions;
+
+    #[test]
+    fn property_getter_cause_is_available_only_through_trusted_diagnostics() {
+        let error = property_read_error(
+            PropertyAccessError::user("sensitive"),
+            ValidationPath::root().with_field("name"),
+        );
+        let cause = error.trusted_source().expect("owned getter error retained");
+        assert!(cause.is::<PropertyAccessError>());
+        assert!(cause.to_string().contains("sensitive"));
+        assert!(!error.to_string().contains("sensitive"));
+        assert!(!format!("{error:?}").contains("sensitive"));
+        assert!(Error::source(&error).is_none());
+    }
 
     #[test]
     fn missing_external_context_is_reported_before_graph_lookup() {

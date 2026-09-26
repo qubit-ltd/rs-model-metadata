@@ -361,7 +361,8 @@ fn main() {
 
 同时检查 `ModelValidationError::error()` 与 `partial_report()`，结合 root、owner、occurrence、
 字段身份和声明来源定位失败操作。依赖的对象导航与属性选择分别有独立 getter；
-`Error::source()` 链保留原始执行或适配器错误。
+标准 `Error::source()` 链到 `ExecutionError` 为止。可信诊断代码可通过
+`ModelValidationError::error().trusted_source()` 显式读取可用的拥有型原因；普通错误链输出不包含该原因。
 
 ## 错误处理与排查
 

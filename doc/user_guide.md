@@ -419,7 +419,10 @@ execution policy and cannot bypass declaration or binding errors.
 Inspect `ModelValidationError::error()` and `partial_report()` together. Its root,
 owner, occurrence, field location, and declaration identify the failed operation;
 dependency object navigation and property selection have separate getters. The
-`Error::source()` chain retains the original execution/adapter cause.
+standard `Error::source()` chain ends at the `ExecutionError`. For trusted
+diagnostics, inspect an available owned cause explicitly with
+`ModelValidationError::error().trusted_source()`; ordinary error-chain output
+does not include that cause.
 
 ## Errors and troubleshooting
 
