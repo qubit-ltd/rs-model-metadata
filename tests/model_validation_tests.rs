@@ -98,6 +98,12 @@ impl SelectorFixture {
 
 struct Reject;
 impl PreparedValidator for Reject {
+    fn input_type(&self) -> InputType {
+        InputType::Text
+    }
+    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+        &[]
+    }
     fn validate(
         &self,
         value: ValidationValue<'_>,
@@ -115,6 +121,12 @@ fn prepare(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidato
 
 struct RejectModel;
 impl PreparedValidator for RejectModel {
+    fn input_type(&self) -> InputType {
+        InputType::of::<TestModel>()
+    }
+    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+        &[]
+    }
     fn validate(
         &self,
         value: ValidationValue<'_>,
@@ -129,6 +141,12 @@ impl PreparedValidator for RejectModel {
 
 struct FailModel;
 impl PreparedValidator for FailModel {
+    fn input_type(&self) -> InputType {
+        InputType::of::<TestModel>()
+    }
+    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+        &[]
+    }
     fn validate(
         &self,
         _: ValidationValue<'_>,
@@ -202,7 +220,8 @@ fn executes_typed_model_rule_binding() {
     .expect("structure");
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let binding =
-        ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.reject"), Arc::new(RejectModel));
+        ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.reject"), Arc::new(RejectModel))
+            .expect("prepared model shape");
     let diagnostic = format!("{binding:?}");
     assert!(diagnostic.contains("test.model.reject"));
     assert!(
@@ -252,7 +271,8 @@ fn model_rule_execution_errors_keep_the_bound_rule_id() {
     .expect("structure");
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let binding =
-        ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.failure"), Arc::new(FailModel));
+        ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.failure"), Arc::new(FailModel))
+            .expect("prepared model shape");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {

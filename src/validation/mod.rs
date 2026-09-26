@@ -22,7 +22,6 @@ mod validation_build_inputs;
 mod validation_capabilities;
 mod validation_options;
 mod validation_plan;
-mod validator_arguments;
 
 pub use constraint_rule_ref::ConstraintRuleRef;
 pub use model_rule_binding::ModelRuleBinding;
@@ -38,7 +37,6 @@ pub use validation_options::ValidationOptions;
 pub use validation_options::ValidationOptionsBuilder;
 pub use validation_options::ValidationSelection;
 pub use validation_plan::ValidationPlan;
-pub(crate) use validator_arguments::validator_arguments;
 // =============================================================================
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //

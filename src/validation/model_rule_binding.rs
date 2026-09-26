@@ -11,6 +11,7 @@
 use std::fmt;
 use std::sync::Arc;
 
+use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::BoundValidator;
 use qubit_validator::ExecutionError;
@@ -60,14 +61,22 @@ impl ModelRuleBinding {
     ///
     /// # Returns
     ///
-    /// Returns a binding which can be appended to a plan. A mismatched plan
-    /// root produces `InputTypeMismatch` at execution before invoking the rule.
-    #[must_use]
+    /// Returns a binding which can be appended to a plan when its prepared
+    /// validator accepts exactly `T` and declares no dependencies.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PreparedSignatureMismatch` with the rule ID when the prepared
+    /// validator shape does not match the requested root type.
+    #[must_use = "handle model rule binding errors"]
     #[inline]
-    pub fn from_prepared<T: 'static>(rule_id: ValidatorId, validator: Arc<dyn PreparedValidator>) -> Self {
-        Self {
-            validator: BoundValidator::from_prepared::<T>(rule_id, validator),
-        }
+    pub fn from_prepared<T: 'static>(
+        rule_id: ValidatorId,
+        validator: Arc<dyn PreparedValidator>,
+    ) -> Result<Self, BindError> {
+        Ok(Self {
+            validator: BoundValidator::try_from_prepared::<T>(rule_id, validator)?,
+        })
     }
     /// Returns the bound rule identifier.
     #[must_use]

@@ -77,6 +77,8 @@ pub static CODEC: ValueCodecRegistration = ValueCodecRegistration::new(
 struct TextRule;
 
 impl PreparedValidator for TextRule {
+    fn input_type(&self) -> qubit_validator::InputType { qubit_validator::InputType::Text }
+    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] { &[] }
     fn validate(
         &self,
         value: ValidationValue<'_>,

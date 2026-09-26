@@ -39,7 +39,6 @@ use crate::resolve::ModelGraph;
 use crate::validation::ValidationBuildError;
 use crate::validation::compiled_property_path::CompiledPropertyPath;
 use crate::validation::standard_constraints;
-use crate::validation::validator_arguments;
 
 /// Checks actual adapter shape without calling getters or binding registries.
 pub(crate) fn check_access(
@@ -350,9 +349,8 @@ pub(crate) fn bind(
             } else {
                 value.input_type()
             };
-            let params = validator_arguments(declaration.params());
             let validator = validators
-                .bind(declaration.declared_id(), input, &params)
+                .bind(declaration.declared_id(), input, declaration.params())
                 .map_err(|error| vec![ValidationBuildError::at_occurrence(occurrence, error)])?;
             if occurrence.selector.is_some() && !validator.dependency_specs().is_empty() {
                 return Err(vec![ValidationBuildError::unsupported(occurrence)]);
@@ -438,6 +436,18 @@ fn bind_dependencies(
             CompiledPropertyPath::compile_dependency(occurrence.root, prefix, binding, graph, ancestors, spec.input())
         };
         match path {
+            Ok(path)
+                if path.input_type() == spec.input()
+                    && path.deferred().is_empty()
+                    && path.is_optional()
+                    && !spec.optional() =>
+            {
+                errors.push(
+                    BindError::new(BindErrorKind::DependencyOptionalityMismatch)
+                        .with_rule(rule_id)
+                        .with_dependency(spec.name()),
+                )
+            }
             Ok(path) if path.input_type() == spec.input() => dependencies.push(path),
             Ok(_) => errors.push(
                 BindError::new(BindErrorKind::DependencyTypeMismatch)

@@ -46,6 +46,7 @@ use qubit_validator::ValidatorRegistry;
 use qubit_validator::ValidatorSignature;
 use qubit_validator::ViolationCode;
 use qubit_validator::ViolationDraft;
+use qubit_validator::prepare_text_with_context;
 
 #[Model(id = "binding.Child")]
 struct Child {
@@ -167,6 +168,12 @@ fn test_enum_payload_constraint_is_not_silently_omitted() {
 /// Rejects every selected string to make nested execution observable.
 struct Reject;
 impl PreparedValidator for Reject {
+    fn input_type(&self) -> qubit_validator::InputType {
+        qubit_validator::InputType::Text
+    }
+    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+        &[]
+    }
     fn validate(
         &self,
         value: ValidationValue<'_>,
@@ -188,6 +195,76 @@ static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     &DESCRIPTOR,
     RegistrationSource::new("binding-tests", "nested", file!(), line!()),
 );
+
+static OPTIONAL_REQUIRED_DEPS: &[qubit_validator::DependencySpec] =
+    &[qubit_validator::DependencySpec::new("expected", InputType::Text, false)];
+static OPTIONAL_ALLOWED_DEPS: &[qubit_validator::DependencySpec] =
+    &[qubit_validator::DependencySpec::new("expected", InputType::Text, true)];
+fn prepare_optional_required(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+    Ok(prepare_text_with_context(OPTIONAL_REQUIRED_DEPS, |_, _| {
+        Ok(PreparedOutcome::Valid)
+    }))
+}
+fn prepare_optional_allowed(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+    Ok(prepare_text_with_context(OPTIONAL_ALLOWED_DEPS, |_, context| {
+        let _ = context.value(0)?;
+        Ok(PreparedOutcome::Valid)
+    }))
+}
+static OPTIONAL_REQUIRED_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(&[ValidatorSignature::new(
+    InputType::Text,
+    OPTIONAL_REQUIRED_DEPS,
+    prepare_optional_required,
+)]);
+static OPTIONAL_ALLOWED_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(&[ValidatorSignature::new(
+    InputType::Text,
+    OPTIONAL_ALLOWED_DEPS,
+    prepare_optional_allowed,
+)]);
+static OPTIONAL_VALIDATORS: &[ValidatorRegistration] = &[
+    ValidatorRegistration::new(
+        ValidatorId::new("binding.optional_required"),
+        &OPTIONAL_REQUIRED_DESCRIPTOR,
+        RegistrationSource::new("binding-tests", "optional", file!(), line!()),
+    ),
+    ValidatorRegistration::new(
+        ValidatorId::new("binding.optional_allowed"),
+        &OPTIONAL_ALLOWED_DESCRIPTOR,
+        RegistrationSource::new("binding-tests", "optional", file!(), line!()),
+    ),
+];
+#[Model(id = "binding.OptionalDependency")]
+struct OptionalDependency {
+    maybe: Option<String>,
+    #[validator(id = "binding.optional_required", depends_on(expected(property = maybe)))]
+    required_value: String,
+    #[validator(id = "binding.optional_allowed", depends_on(expected(property = maybe)))]
+    optional_value: String,
+}
+#[ModelImpl]
+impl OptionalDependency {
+    pub fn maybe(&self) -> Option<&str> {
+        self.maybe.as_deref()
+    }
+}
+#[Model(id = "binding.PresentOptionalDependency")]
+struct PresentOptionalDependency {
+    expected: String,
+    #[validator(id = "binding.optional_allowed", depends_on(expected(property = expected)))]
+    value: String,
+}
+#[Model(id = "binding.OptionalAllowedDependency")]
+struct OptionalAllowedDependency {
+    maybe: Option<String>,
+    #[validator(id = "binding.optional_allowed", depends_on(expected(property = maybe)))]
+    value: String,
+}
+#[ModelImpl]
+impl OptionalAllowedDependency {
+    pub fn maybe(&self) -> Option<&str> {
+        self.maybe.as_deref()
+    }
+}
 
 #[Model(id = "binding.OptionalParent")]
 struct OptionalParent {
@@ -615,4 +692,63 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_exp
         .unwrap();
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "values");
+}
+
+#[test]
+fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
+    let models = ModelRegistry::try_global().expect("valid registrations");
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
+        .resolve()
+        .expect("valid structure");
+    let validators =
+        ValidatorRegistry::from_registrations(OPTIONAL_VALIDATORS.iter().copied()).expect("rules register");
+    let root = TypeMetadata::of::<OptionalDependency>();
+    let Err(errors) = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    ) else {
+        panic!("required dependency cannot use an optional getter path");
+    };
+    let mismatch = errors
+        .iter()
+        .find(|error| error.declared_rule_id() == Some("binding.optional_required"))
+        .expect("mismatch diagnostic");
+    assert_eq!(
+        mismatch.kind(),
+        ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::DependencyOptionalityMismatch)
+    );
+    let cause = mismatch
+        .source()
+        .and_then(|source| source.downcast_ref::<BindError>())
+        .expect("typed cause");
+    assert_eq!(cause.rule_id(), Some(ValidatorId::new("binding.optional_required")));
+    assert_eq!(cause.dependency(), Some("expected"));
+    let root = TypeMetadata::of::<PresentOptionalDependency>();
+    let _plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("optional slot permits a required path");
+    let plan = ValidationPlan::build(
+        TypeMetadata::of::<OptionalAllowedDependency>(),
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("optional dependency path binds");
+    let missing = OptionalAllowedDependency {
+        maybe: None,
+        value: "value".into(),
+    };
+    let report = plan
+        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .expect("missing optional dependency is passed through to the validator");
+    assert!(report.violations().is_empty());
 }

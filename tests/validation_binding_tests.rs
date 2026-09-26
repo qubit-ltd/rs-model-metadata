@@ -55,6 +55,12 @@ struct BindingFixture {
 struct AcceptText;
 
 impl PreparedValidator for AcceptText {
+    fn input_type(&self) -> InputType {
+        InputType::Text
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        &[]
+    }
     fn validate(
         &self,
         value: ValidationValue<'_>,
@@ -129,6 +135,12 @@ struct Child {
 struct CheckParent;
 
 impl PreparedValidator for CheckParent {
+    fn input_type(&self) -> InputType {
+        InputType::Text
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        PARENT_SIGNATURES[0].dependencies()
+    }
     /// Verifies that parent navigation did not silently select the child field.
     fn validate(
         &self,
@@ -228,6 +240,12 @@ struct NamedDependencies {
 struct CheckNamedDependencies;
 
 impl PreparedValidator for CheckNamedDependencies {
+    fn input_type(&self) -> InputType {
+        InputType::Text
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        SAME_TYPE_SIGNATURES[0].dependencies()
+    }
     fn validate(
         &self,
         _: ValidationValue<'_>,
@@ -308,6 +326,12 @@ static EXECUTION_ORDER: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::
 struct RecordOrder(u32);
 
 impl PreparedValidator for RecordOrder {
+    fn input_type(&self) -> InputType {
+        InputType::Text
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        &[]
+    }
     fn validate(
         &self,
         _: ValidationValue<'_>,

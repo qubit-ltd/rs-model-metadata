@@ -323,6 +323,7 @@ dependencies = [
  "qubit-id",
  "qubit-redact",
  "qubit-reflect",
+ "qubit-validation-vocabulary",
  "serde",
  "thiserror",
 ]
@@ -374,6 +375,10 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "qubit-validation-vocabulary"
+version = "0.1.0"
 
 [[package]]
 name = "quote"

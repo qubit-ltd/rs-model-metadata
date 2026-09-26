@@ -70,6 +70,12 @@ impl Root {
 
 struct Many;
 impl PreparedValidator for Many {
+    fn input_type(&self) -> InputType {
+        InputType::of::<Root>()
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        &[]
+    }
     fn validate(
         &self,
         _: ValidationValue<'_>,
@@ -99,10 +105,10 @@ fn assert_stopped(options: ValidationOptions, expected: usize) {
         },
     )
     .unwrap()
-    .with_model_rule(ModelRuleBinding::from_prepared::<Root>(
-        ValidatorId::new("execution.many"),
-        Arc::new(Many),
-    ));
+    .with_model_rule(
+        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.many"), Arc::new(Many))
+            .expect("prepared model shape"),
+    );
     let report = plan
         .validate(ReflectedRef::new(&Root { value: String::new() }), &options)
         .unwrap();
@@ -156,10 +162,10 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
         },
     )
     .unwrap()
-    .with_model_rule(ModelRuleBinding::from_prepared::<Root>(
-        ValidatorId::new("execution.many"),
-        Arc::new(Many),
-    ));
+    .with_model_rule(
+        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.many"), Arc::new(Many))
+            .expect("prepared model shape"),
+    );
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
             std::iter::empty::<String>(),
@@ -177,6 +183,12 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
 
 struct EmptyInvalid;
 impl PreparedValidator for EmptyInvalid {
+    fn input_type(&self) -> InputType {
+        InputType::of::<Root>()
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        &[]
+    }
     fn validate(
         &self,
         _: ValidationValue<'_>,
@@ -201,10 +213,10 @@ fn test_model_empty_invalid_outcome_is_an_execution_error() {
         },
     )
     .unwrap()
-    .with_model_rule(ModelRuleBinding::from_prepared::<Root>(
-        ValidatorId::new("execution.empty"),
-        Arc::new(EmptyInvalid),
-    ));
+    .with_model_rule(
+        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.empty"), Arc::new(EmptyInvalid))
+            .expect("prepared model shape"),
+    );
     let error = plan
         .validate(
             ReflectedRef::new(&Root { value: "ok".into() }),
@@ -293,6 +305,12 @@ impl OwnedField {
 /// calls.
 struct OutcomeRule;
 impl PreparedValidator for OutcomeRule {
+    fn input_type(&self) -> InputType {
+        InputType::Text
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        &[]
+    }
     fn validate(
         &self,
         value: ValidationValue<'_>,
@@ -666,6 +684,12 @@ struct Dependent {
 }
 struct ParentRule;
 impl PreparedValidator for ParentRule {
+    fn input_type(&self) -> InputType {
+        InputType::Text
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        PARENT_SIGNATURES[0].dependencies()
+    }
     fn validate(
         &self,
         _: ValidationValue<'_>,

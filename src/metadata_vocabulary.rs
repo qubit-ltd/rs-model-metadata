@@ -17,6 +17,8 @@ use core::hash::Hasher;
 
 use bitflags::bitflags;
 use qubit_reflect::descriptor::TypeRef;
+pub use qubit_validation_vocabulary::NamedValidationArgument;
+pub use qubit_validation_vocabulary::ValidationArgument;
 
 use crate::constraint_metadata::ConstraintMetadata;
 use crate::metadata::ModelId;
@@ -77,63 +79,6 @@ impl Eq for RustTypeReference {}
 impl Hash for RustTypeReference {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.type_id().hash(state);
-    }
-}
-
-/// One statically typed validator parameter value.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ValidationArgument<'a> {
-    /// A Boolean value.
-    Bool(bool),
-    /// A signed integer value.
-    Integer(i128),
-    /// An unsigned integer value.
-    Unsigned(u128),
-    /// A string value.
-    String(&'a str),
-    /// A Boolean list.
-    BoolList(&'a [bool]),
-    /// A signed integer list.
-    IntegerList(&'a [i128]),
-    /// An unsigned integer list.
-    UnsignedList(&'a [u128]),
-    /// A string list.
-    StringList(&'a [&'a str]),
-}
-
-/// One named validator parameter.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NamedValidationArgument<'a> {
-    /// Nonempty parameter name borrowed for the lifetime of this argument.
-    name: &'a str,
-    /// Typed parameter value borrowing data for the same lifetime.
-    value: ValidationArgument<'a>,
-}
-
-impl<'a> NamedValidationArgument<'a> {
-    /// Creates a named parameter.
-    ///
-    /// # Panics
-    ///
-    /// Panics when `name` is empty.
-    #[must_use]
-    pub const fn new(name: &'a str, value: ValidationArgument<'a>) -> Self {
-        assert!(!name.is_empty(), "validator parameter name cannot be empty");
-        Self { name, value }
-    }
-
-    /// Returns the parameter name.
-    #[must_use]
-    #[inline]
-    pub const fn name(&self) -> &'a str {
-        self.name
-    }
-
-    /// Returns the parameter value.
-    #[must_use]
-    #[inline]
-    pub const fn value(&self) -> ValidationArgument<'a> {
-        self.value
     }
 }
 
