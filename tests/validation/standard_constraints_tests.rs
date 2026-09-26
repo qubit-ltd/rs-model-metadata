@@ -25,6 +25,7 @@ use qubit_validation_rules::registrations;
 use qubit_validator::BindErrorKind;
 use qubit_validator::ValidationReport;
 use qubit_validator::ValidatorRegistry;
+use qubit_validator::ViolationParam;
 
 #[Model]
 struct TextUnits {
@@ -143,6 +144,13 @@ fn test_text_character_and_byte_bounds_are_independent() {
         let rules: Vec<_> = report.violations().iter().map(|item| item.rule_id().as_str()).collect();
         assert_eq!(rules, expected_rules, "{text:?}");
         assert!(report.violations().iter().all(|item| item.path().render() == "value"));
+        if text == "a" {
+            assert_eq!(report.violations()[0].code().as_str(), "text.too_few_bytes");
+            assert_eq!(
+                report.violations()[0].params().get("bound"),
+                Some(&ViolationParam::Unsigned(2))
+            );
+        }
     }
 }
 
@@ -226,6 +234,14 @@ fn test_text_formats_bind_and_report_their_own_rule_identity() {
             ("uuid".to_owned(), "qubit.rules.text.uuid"),
         ]
     );
+    assert_eq!(
+        report
+            .violations()
+            .iter()
+            .map(|item| item.code().as_str())
+            .collect::<Vec<_>>(),
+        ["text.email", "text.mobile", "text.uri", "text.uuid"]
+    );
 }
 
 /// URI validation accepts a non-HTTP scheme and rejects malformed escapes.
@@ -266,6 +282,18 @@ fn test_sequence_count_uses_the_actual_slice_length() {
             assert_eq!(
                 report.violations()[0].rule_id().as_str(),
                 "qubit.rules.collection.item_count"
+            );
+            assert_eq!(
+                report.violations()[0].code().as_str(),
+                if count == 0 {
+                    "collection.too_small"
+                } else {
+                    "collection.too_large"
+                }
+            );
+            assert_eq!(
+                report.violations()[0].params().get("bound"),
+                Some(&ViolationParam::Unsigned(if count == 0 { 1 } else { 2 }))
             );
         }
     }

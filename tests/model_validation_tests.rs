@@ -508,6 +508,10 @@ fn map_count_validates_hash_and_tree_bounds_on_field_paths() {
                     "collection.too_large"
                 }
             );
+            assert_eq!(
+                violation.params().get("bound"),
+                Some(&ViolationParam::Unsigned(if count == 0 { 1 } else { 2 }))
+            );
         }
     }
 }
@@ -861,6 +865,12 @@ struct ScalarDecimalFixture {
 }
 
 #[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct DecimalCapacityFixture {
+    #[decimal(precision = 3, scale = 2)]
+    amount: BigDecimal,
+}
+
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
 struct ScalarTimeFixture {
     #[time(precision = second)]
     instant: DateTime<Utc>,
@@ -925,6 +935,32 @@ fn scalar_decimal_normalizes_scale_and_checks_precision_and_exact_range() {
 }
 
 #[test]
+fn scalar_decimal_precision_is_total_capacity_at_declared_scale() {
+    let plan = map_plan(TypeMetadata::of::<DecimalCapacityFixture>()).expect("decimal capacity binding");
+    for (literal, expected) in [
+        ("1.2300", None),
+        ("12", Some("decimal.precision")),
+        ("1.234", Some("decimal.scale")),
+    ] {
+        let model = DecimalCapacityFixture {
+            amount: literal.parse().expect("decimal literal"),
+        };
+        let report = plan
+            .validate(ReflectedRef::new(&model), &ValidationOptions::default())
+            .expect("decimal execution");
+        assert_eq!(
+            report.violations().first().map(|v| v.code().as_str()),
+            expected,
+            "{literal}"
+        );
+        if let Some(violation) = report.violations().first() {
+            assert_eq!(violation.rule_id().as_str(), "qubit.rules.decimal.value");
+            assert_eq!(violation.path().render(), "amount");
+        }
+    }
+}
+
+#[test]
 fn scalar_time_resolutions_apply_to_utc_and_naive_getters() {
     let plan = map_plan(TypeMetadata::of::<ScalarTimeFixture>()).expect("time binding");
     let model = ScalarTimeFixture {
@@ -943,6 +979,12 @@ fn scalar_time_resolutions_apply_to_utc_and_naive_getters() {
             .violations()
             .iter()
             .all(|v| v.code().as_str() == "time.precision")
+    );
+    assert!(
+        report
+            .violations()
+            .iter()
+            .all(|v| v.rule_id().as_str() == "qubit.rules.time.precision")
     );
 }
 
