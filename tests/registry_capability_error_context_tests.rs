@@ -62,8 +62,12 @@ fn model_provider_snapshot(capability: CapabilityDescriptor) -> (ReflectRegistry
     let target = TypeDescriptor::of::<DiagnosticsTarget>();
     let type_source = source("model-provider-type", 50);
     let mut builder = RegistrySnapshotBuilder::new();
-    builder.add_type(target, type_source.clone());
-    builder.add_type_capabilities(target, vec![capability], source("model-provider-capability", 51));
+    builder.add_type_with_capabilities(
+        target,
+        vec![capability],
+        type_source.clone(),
+        source("model-provider-capability", 51),
+    );
     (
         builder.build().expect("valid isolated snapshot"),
         source("model-provider-capability", 51),

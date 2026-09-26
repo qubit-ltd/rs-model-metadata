@@ -44,13 +44,13 @@ fn test_registry_retains_typed_abi_violation() {
     let descriptor = TypeDescriptor::of::<Invalid>();
     let source = FragmentIdentity::new("registry-test", "invalid", 1, 1, "type", 1);
     let mut builder = RegistrySnapshotBuilder::new();
-    builder.add_type(descriptor, source.clone());
-    builder.add_type_capabilities(
+    builder.add_type_with_capabilities(
         descriptor,
         vec![CapabilityDescriptor::with_adapter(
             model_metadata_key(),
             invalid_metadata as ModelMetadataProvider,
         )],
+        source.clone(),
         FragmentIdentity::new("registry-test", "invalid", 2, 1, "capability", 2),
     );
     let reflection = builder.build().expect("valid reflection snapshot");

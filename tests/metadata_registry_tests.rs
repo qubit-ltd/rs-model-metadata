@@ -13,8 +13,10 @@ use std::sync::OnceLock;
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
+use qubit_model_metadata::__private::ModelMetadataProvider;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
+use qubit_model_metadata::__private::model_metadata_key;
 use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::__private::v7::register_model_capability;
 use qubit_model_metadata::metadata::ModelId;
@@ -26,7 +28,9 @@ use qubit_model_metadata::registry::ModelRegistryErrorKind;
 use qubit_reflect::Reflect;
 use qubit_reflect::ReflectRegistry;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
 
 #[Model(id = "example.StaticPropertyFixture")]
 struct StaticPropertyFixture {
@@ -339,6 +343,31 @@ fn test_registry_projects_concrete_models_and_sources_from_reflection() {
             .expect("concrete metadata"),
         ProjectedFixture::__type_metadata(),
     ));
+}
+
+#[test]
+fn test_combined_reflection_registration_projects_concrete_metadata() {
+    let descriptor = TypeDescriptor::of::<ProjectedFixture>();
+    let mut builder = RegistrySnapshotBuilder::new();
+    builder.add_type_with_capabilities(
+        descriptor,
+        vec![CapabilityDescriptor::with_adapter(
+            model_metadata_key(),
+            ProjectedFixture::__type_metadata as ModelMetadataProvider,
+        )],
+        FragmentIdentity::new("fixture", "projected", 1, 1, "type", 1),
+        FragmentIdentity::new("fixture", "projected", 2, 1, "model", 2),
+    );
+    let reflection = builder.build().expect("valid projected snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("projected models");
+    let by_id = models.metadata("example.ProjectedFixture").expect("metadata by ID");
+    let by_type = models
+        .metadata_for(descriptor)
+        .expect("metadata by type")
+        .expect("projected type");
+
+    assert!(std::ptr::eq(by_id, by_type));
+    assert!(std::ptr::eq(by_id, ProjectedFixture::__type_metadata()));
 }
 
 /// Consumers can enumerate immutable model metadata and registration

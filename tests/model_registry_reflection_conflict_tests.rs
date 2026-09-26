@@ -127,6 +127,7 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
         FragmentIdentity::new("model-test", "isolated", 1, 1, "capability", 1),
     );
     let reflection = snapshot.build().expect("isolated capability snapshot");
+    assert!(reflection.types().is_empty());
     let metadata = v7::leak(
         v7::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
