@@ -167,10 +167,10 @@ variant/field indices, and selector position, including unnamed Enum payloads.
 With `validation`, construct `ValidationPlan::build(root, ValidationBuildInputs
 { graph: &graph, validators: &validators })`. The validator registry is supplied
 by the caller. Binding checks the declared stable IDs, parameters, readable
-Property paths, and available input/dependency types. The shared borrowed parameter
-types come from `qubit-validation-vocabulary`; metadata re-exports the same types
-without converting or allocating a second argument vector. Binding compares each
-prepared validator shape with its signature. A statically known optional getter
+Property paths, and available input/dependency types. Metadata stores borrowed
+declaration parameters and converts them to `qubit-validator` arguments when binding
+each rule. Binding compares each prepared validator shape with its signature.
+A statically known optional getter
 path cannot satisfy a required dependency slot; deferred parent paths are checked
 when their context is supplied. Repeated IDs are separate occurrences. Standard
 constraints use the existing validation-rules adapters.

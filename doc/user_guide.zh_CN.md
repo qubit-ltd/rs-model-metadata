@@ -139,7 +139,7 @@ owner 名称、variant/field 序号与 selector 位置，无名 Enum payload 也
 启用 validation 后，调用 `ValidationPlan::build(root, ValidationBuildInputs { graph: &graph,
 validators: &validators })`，传入自己的 validator registry。
 绑定检查稳定 ID、参数、可读 Property 路径及已知的输入、依赖类型。预备实例的形状还会与签名逐项核对。
-共享的借用参数类型由 `qubit-validation-vocabulary` 提供，metadata 直接重新导出，不转换参数也不分配第二个向量。
+metadata 保存借用的声明参数，并在绑定每条规则时将其转换为 `qubit-validator` 的参数。
 静态可判定的 optional getter 路径不能满足必需依赖；deferred 父路径会在上下文提供后检查。同 ID 声明分别绑定，不会互相覆盖。
 标准约束使用现有 validation-rules 适配器。
 
