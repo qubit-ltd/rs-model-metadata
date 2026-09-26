@@ -22,6 +22,7 @@ mod validation_build_inputs;
 mod validation_capabilities;
 mod validation_options;
 mod validation_plan;
+mod validator_arguments;
 
 pub use constraint_rule_ref::ConstraintRuleRef;
 pub use model_rule_binding::ModelRuleBinding;

@@ -603,7 +603,6 @@ dependencies = [
  "qubit-redact",
  "qubit-reflect",
  "qubit-validation-rules",
- "qubit-validation-vocabulary",
  "qubit-validator",
  "serde",
  "serde_json",
@@ -679,14 +678,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "qubit-validation-vocabulary"
-version = "0.1.0"
-
-[[package]]
 name = "qubit-validator"
 version = "0.1.0"
 dependencies = [
- "qubit-validation-vocabulary",
  "thiserror",
 ]
 

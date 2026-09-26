@@ -17,8 +17,6 @@ use core::hash::Hasher;
 
 use bitflags::bitflags;
 use qubit_reflect::descriptor::TypeRef;
-pub use qubit_validation_vocabulary::NamedValidationArgument;
-pub use qubit_validation_vocabulary::ValidationArgument;
 
 use crate::constraint_metadata::ConstraintMetadata;
 use crate::metadata::ModelId;
@@ -79,6 +77,90 @@ impl Eq for RustTypeReference {}
 impl Hash for RustTypeReference {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.type_id().hash(state);
+    }
+}
+
+/// One statically typed validator parameter value.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum ValidationArgument<'a> {
+    /// A Boolean value.
+    Bool(bool),
+    /// A signed integer value.
+    Integer(i128),
+    /// An unsigned integer value.
+    Unsigned(u128),
+    /// A borrowed string value.
+    String(&'a str),
+    /// A borrowed Boolean list.
+    BoolList(&'a [bool]),
+    /// A borrowed signed integer list.
+    IntegerList(&'a [i128]),
+    /// A borrowed unsigned integer list.
+    UnsignedList(&'a [u128]),
+    /// A borrowed string list.
+    StringList(&'a [&'a str]),
+}
+
+impl fmt::Debug for ValidationArgument<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bool(_) => formatter.write_str("Bool(<redacted>)"),
+            Self::Integer(_) => formatter.write_str("Integer(<redacted>)"),
+            Self::Unsigned(_) => formatter.write_str("Unsigned(<redacted>)"),
+            Self::String(_) => formatter.write_str("String(<redacted>)"),
+            Self::BoolList(values) => formatter.debug_struct("BoolList").field("len", &values.len()).finish(),
+            Self::IntegerList(values) => formatter
+                .debug_struct("IntegerList")
+                .field("len", &values.len())
+                .finish(),
+            Self::UnsignedList(values) => formatter
+                .debug_struct("UnsignedList")
+                .field("len", &values.len())
+                .finish(),
+            Self::StringList(values) => formatter
+                .debug_struct("StringList")
+                .field("len", &values.len())
+                .finish(),
+        }
+    }
+}
+
+/// One named validator parameter borrowing its name and value.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct NamedValidationArgument<'a> {
+    /// Name used by the validator's parameter schema.
+    name: &'a str,
+    /// Typed value supplied for the named parameter.
+    value: ValidationArgument<'a>,
+}
+
+impl<'a> NamedValidationArgument<'a> {
+    /// Creates a named parameter; panics if `name` is empty.
+    #[must_use]
+    pub const fn new(name: &'a str, value: ValidationArgument<'a>) -> Self {
+        assert!(!name.is_empty(), "validator parameter name cannot be empty");
+        Self { name, value }
+    }
+
+    /// Returns the borrowed parameter name.
+    #[must_use]
+    pub const fn name(&self) -> &'a str {
+        self.name
+    }
+
+    /// Returns the typed parameter value.
+    #[must_use]
+    pub const fn value(&self) -> ValidationArgument<'a> {
+        self.value
+    }
+}
+
+impl fmt::Debug for NamedValidationArgument<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("NamedValidationArgument")
+            .field("value", &self.value)
+            .finish()
     }
 }
 

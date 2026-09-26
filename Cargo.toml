@@ -39,7 +39,6 @@ generic = []
 validation = ["dep:qubit-validation-rules", "dep:qubit-validator", "qubit-validation-rules/decimal", "qubit-validation-rules/time"]
 
 [dependencies]
-qubit-validation-vocabulary = { version = "=0.1.0", path = "../rs-validator/rs-validation-vocabulary" }
 qubit-redact = { version = "=0.9.0", path = "../../rust-common/rs-redact", features = ["derive", "serde", "json", "bigdecimal"] }
 bitflags = "^2.10"
 bigdecimal = "^0.4"

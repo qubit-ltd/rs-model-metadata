@@ -23,6 +23,7 @@ use qubit_model_metadata::metadata::FieldReferenceMetadata;
 use qubit_model_metadata::metadata::FieldUniqueMetadata;
 use qubit_model_metadata::metadata::IdentifierAssignment;
 use qubit_model_metadata::metadata::ModelId;
+use qubit_model_metadata::metadata::NamedValidationArgument;
 use qubit_model_metadata::metadata::ObjectPath;
 use qubit_model_metadata::metadata::OnNone;
 use qubit_model_metadata::metadata::PropertyPath;
@@ -33,10 +34,26 @@ use qubit_model_metadata::metadata::Sensitivity;
 use qubit_model_metadata::metadata::SerdeBehaviorSource;
 use qubit_model_metadata::metadata::TargetMode;
 use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::metadata::ValidationArgument;
 use qubit_model_metadata::metadata::ValidatorMetadata;
 use serde_json::from_value;
 use serde_json::json;
 use serde_json::to_value;
+
+#[test]
+fn validator_argument_debug_redacts_names_and_values() {
+    let labels = ["first-secret", "second-secret"];
+    let arguments = [
+        NamedValidationArgument::new("secret-name", ValidationArgument::String("secret-value")),
+        NamedValidationArgument::new("labels", ValidationArgument::StringList(&labels)),
+    ];
+    let output = format!("{arguments:?}");
+    for secret in ["secret-name", "secret-value", "first-secret", "second-secret", "labels"] {
+        assert!(!output.contains(secret), "debug output leaked {secret}");
+    }
+    assert!(output.contains("String(<redacted>)"));
+    assert!(output.contains("len: 2"));
+}
 
 // Flatten belongs to the plain Serde path; redacted output rejects it.
 #[Model(no_redact)]

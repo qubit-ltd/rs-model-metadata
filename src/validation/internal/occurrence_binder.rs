@@ -39,6 +39,7 @@ use crate::resolve::ModelGraph;
 use crate::validation::ValidationBuildError;
 use crate::validation::compiled_property_path::CompiledPropertyPath;
 use crate::validation::standard_constraints;
+use crate::validation::validator_arguments::validator_arguments;
 
 /// Checks actual adapter shape without calling getters or binding registries.
 pub(crate) fn check_access(
@@ -349,8 +350,9 @@ pub(crate) fn bind(
             } else {
                 value.input_type()
             };
+            let arguments = validator_arguments(declaration.params());
             let validator = validators
-                .bind(declaration.declared_id(), input, declaration.params())
+                .bind(declaration.declared_id(), input, &arguments)
                 .map_err(|error| vec![ValidationBuildError::at_occurrence(occurrence, error)])?;
             if occurrence.selector.is_some() && !validator.dependency_specs().is_empty() {
                 return Err(vec![ValidationBuildError::unsupported(occurrence)]);
