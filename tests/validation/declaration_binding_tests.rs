@@ -504,7 +504,7 @@ struct Mixed {
     #[validator(id = "binding.missing")]
     z_missing: String,
     #[time(precision = second)]
-    a_time: Option<chrono::DateTime<chrono::Utc>>,
+    a_date: chrono::NaiveDate,
 }
 #[Model]
 struct Counted {
@@ -558,7 +558,7 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
         errors[0].kind(),
         ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule)
     );
-    assert_eq!(errors[1].path(), Some("a_time"));
+    assert_eq!(errors[1].path(), Some("a_date"));
     assert_eq!(errors[1].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert!(matches!(errors[1].constraint(), Some(ConstraintMetadata::Time(_))));
     assert!(
@@ -572,7 +572,7 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
     let diagnostics: &[ValidationBuildError] = errors.as_ref();
     assert_eq!(diagnostics[0].declared_rule_id(), Some("binding.missing"));
     let paths: Vec<_> = (&errors).into_iter().map(ValidationBuildError::path).collect();
-    assert_eq!(paths, [Some("z_missing"), Some("a_time")]);
+    assert_eq!(paths, [Some("z_missing"), Some("a_date")]);
 }
 
 #[test]

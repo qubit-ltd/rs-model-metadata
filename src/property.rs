@@ -172,6 +172,41 @@ pub enum GetterOutputKind {
 /// A lifetime-preserving local getter adapter.
 pub type GetterAdapter = for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
 
+/// Reads a map length from an exact borrowed property value; `None` means an
+/// optional map field is absent.
+pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>, PropertyAccessError>;
+
+/// Compares two exact borrowed collection elements.
+pub type ItemEqAdapter = for<'a> fn(ReflectedRef<'a>, ReflectedRef<'a>) -> Result<bool, PropertyAccessError>;
+
+/// Safe, read-only operations available for a declared collection field.
+#[derive(Clone, Copy, Debug)]
+pub struct CollectionOps {
+    map_len: Option<MapLenAdapter>,
+    item_eq: Option<ItemEqAdapter>,
+}
+
+impl CollectionOps {
+    /// Creates an operation set. Generated adapters are tied to exact Rust
+    /// types.
+    #[must_use]
+    pub const fn new(map_len: Option<MapLenAdapter>, item_eq: Option<ItemEqAdapter>) -> Self {
+        Self { map_len, item_eq }
+    }
+
+    /// Returns the optional map length adapter.
+    #[must_use]
+    pub const fn map_len(&self) -> Option<MapLenAdapter> {
+        self.map_len
+    }
+
+    /// Returns the optional element equality adapter.
+    #[must_use]
+    pub const fn item_eq(&self) -> Option<ItemEqAdapter> {
+        self.item_eq
+    }
+}
+
 /// A local setter adapter with recoverable pre-execution failure.
 pub type SetterAdapter = fn(ReflectedMut<'_>, ReflectedOwned) -> Result<(), PropertySetFailure>;
 
@@ -207,6 +242,12 @@ impl PropertyAccessError {
     #[must_use = "handle the property access error"]
     pub const fn user(message: &'static str) -> Self {
         Self::User(message)
+    }
+
+    /// Reports that an erased borrowed value has the wrong exact Rust type.
+    #[doc(hidden)]
+    pub fn value_type_mismatch<T: 'static>(actual: &ReflectedRef<'_>) -> Self {
+        Self::ValueTypeMismatch(TypeMismatch::new(TypeId::of::<T>(), reflected_ref_type_id(actual)))
     }
 }
 

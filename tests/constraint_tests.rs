@@ -11,6 +11,7 @@
 mod constraint;
 
 use qubit_model_metadata::metadata::AllowedChars;
+use qubit_model_metadata::metadata::ConstraintMetadata;
 use qubit_model_metadata::metadata::DecimalConstraint;
 use qubit_model_metadata::metadata::DecimalSemantic;
 use qubit_model_metadata::metadata::MapConstraint;
@@ -28,7 +29,7 @@ const VALID_TEXT: TextConstraint = TextConstraint::new(
     Some(16),
     AllowedChars::Ascii,
     true,
-    Some(TextFormat::Email),
+    Some(TextFormat::EmailAscii),
 );
 const VALID_MOBILE_TEXT: TextConstraint = TextConstraint::new(
     None,
@@ -58,7 +59,7 @@ fn test_constraint_constructors_remain_const_compatible() {
     assert_eq!(VALID_TEXT.max_bytes(), Some(16));
     assert_eq!(VALID_TEXT.allowed_chars(), AllowedChars::Ascii);
     assert!(VALID_TEXT.is_non_blank());
-    assert_eq!(VALID_TEXT.format(), Some(TextFormat::Email));
+    assert_eq!(VALID_TEXT.format(), Some(TextFormat::EmailAscii));
     assert_eq!(VALID_MOBILE_TEXT.format(), Some(TextFormat::Mobile));
 
     assert_eq!(VALID_SEQUENCE.min_items(), Some(1));
@@ -89,7 +90,7 @@ fn test_constraint_constructors_execute_runtime_paths() {
         Some(16),
         AllowedChars::Ascii,
         true,
-        Some(TextFormat::Email),
+        Some(TextFormat::EmailAscii),
     );
     let sequence = SequenceConstraint::new(Some(1), Some(8), true);
     let map = MapConstraint::new(Some(1), Some(8));
@@ -113,6 +114,30 @@ fn test_constraint_constructors_execute_runtime_paths() {
     assert!(!decimal.min_inclusive());
     assert!(decimal.max_inclusive());
     assert_eq!(temporal.precision(), TemporalPrecision::Millisecond);
+}
+
+#[test]
+fn test_decimal_constraint_debug_redacts_exact_bounds() {
+    let constraint = DecimalConstraint::new(Some(7), 2, RoundingMode::HalfEven, DecimalSemantic::Number).with_bounds(
+        Some("12345.67"),
+        Some("98765.43"),
+        false,
+        true,
+    );
+
+    for debug in [
+        format!("{constraint:?}"),
+        format!("{:?}", ConstraintMetadata::Decimal(constraint)),
+    ] {
+        assert!(!debug.contains("12345.67"), "lower bound leaked through Debug: {debug}");
+        assert!(!debug.contains("98765.43"), "upper bound leaked through Debug: {debug}");
+        assert!(
+            debug.contains("<redacted>"),
+            "bound presence was lost from Debug: {debug}"
+        );
+    }
+    assert_eq!(constraint.min(), Some("12345.67"));
+    assert_eq!(constraint.max(), Some("98765.43"));
 }
 
 #[test]

@@ -8,6 +8,12 @@
 
 //! Shared access checks and rule binding for every declaration location.
 
+use bigdecimal::BigDecimal;
+use chrono::DateTime;
+use chrono::NaiveDateTime;
+use chrono::NaiveTime;
+use chrono::Utc;
+use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeKind;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
@@ -16,6 +22,7 @@ use qubit_validator::InputType;
 use qubit_validator::ValidatorRegistry;
 
 use super::execution_declaration::ExecutionDeclaration;
+use super::field_rule_binding::FieldExecution;
 use super::field_rule_binding::FieldRuleBinding;
 use super::selector_binding::SelectorBinding;
 use super::validation_occurrence::ValidationOccurrence;
@@ -27,6 +34,7 @@ use crate::metadata::SelectorPosition;
 use crate::metadata::TargetMode;
 use crate::metadata::TypeMetadata;
 use crate::metadata::ValidatorMetadata;
+use crate::property::MapLenAdapter;
 use crate::resolve::ModelGraph;
 use crate::validation::ValidationBuildError;
 use crate::validation::compiled_property_path::CompiledPropertyPath;
@@ -45,11 +53,13 @@ pub(crate) fn check_access(
         ExecutionDeclaration::Constraint(_) if occurrence.selector.is_some() => {
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         }
-        ExecutionDeclaration::Constraint(ConstraintMetadata::Text(_)) => false,
-        ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(value)) if !value.unique_items() => true,
-        ExecutionDeclaration::Constraint(_) => {
-            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
-        }
+        ExecutionDeclaration::Constraint(
+            ConstraintMetadata::Text(_)
+            | ConstraintMetadata::Map(_)
+            | ConstraintMetadata::Decimal(_)
+            | ConstraintMetadata::Time(_),
+        ) => false,
+        ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(_)) => true,
         ExecutionDeclaration::Validator(value) => {
             if let Some(selector) = occurrence.selector {
                 if selector != SelectorPosition::Element
@@ -64,7 +74,39 @@ pub(crate) fn check_access(
             }
         }
     };
-    let target = if requires_slice {
+    let is_map = matches!(
+        occurrence.declaration,
+        ExecutionDeclaration::Constraint(ConstraintMetadata::Map(_))
+    );
+    let optional_map_getter = is_map
+        && occurrence
+            .segments
+            .last()
+            .and_then(|name| {
+                graph
+                    .properties(occurrence.owner)
+                    .and_then(|properties| properties.property(name))
+            })
+            .and_then(|property| property.getter())
+            .is_some_and(|getter| getter.output_kind() == GetterOutputKind::OptionalBorrowed);
+    let direct_optional_scalar = matches!(
+        occurrence.declaration,
+        ExecutionDeclaration::Constraint(ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_))
+    ) && occurrence
+        .segments
+        .last()
+        .and_then(|name| {
+            graph
+                .properties(occurrence.owner)
+                .and_then(|properties| properties.property(name))
+        })
+        .is_some_and(|property| {
+            property.getter().is_none()
+                && property
+                    .descriptor()
+                    .is_some_and(|descriptor| descriptor.as_optional().is_some())
+        });
+    let target = if requires_slice || is_map && !optional_map_getter || direct_optional_scalar {
         TargetMode::Container
     } else {
         match occurrence.declaration {
@@ -80,6 +122,14 @@ pub(crate) fn check_access(
                 ValidationBuildError::at_occurrence(occurrence, error)
             }
         })?;
+    let path = if direct_optional_scalar {
+        match path.unwrap_terminal_optional() {
+            Ok(path) => path,
+            Err(error) => return Err(Box::new(ValidationBuildError::at_occurrence(occurrence, error))),
+        }
+    } else {
+        path
+    };
     let slice = path
         .steps()
         .last()
@@ -88,6 +138,49 @@ pub(crate) fn check_access(
     if slice != requires_slice {
         return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
     }
+    if matches!(occurrence.declaration, ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(sequence)) if sequence.unique_items())
+    {
+        let item_eq = occurrence.field.collection_ops().and_then(|ops| ops.item_eq());
+        let elements_match = occurrence
+            .field
+            .descriptor()
+            .zip(
+                path.steps()
+                    .last()
+                    .and_then(|step| step.property().getter())
+                    .and_then(|getter| getter.output_type().as_resolved()),
+            )
+            .is_some_and(|(declared, output)| sequence_element_matches(declared, output));
+        if item_eq.is_none() || !elements_match {
+            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+        }
+    }
+    if is_map {
+        let Some(property) = path.steps().last().map(|step| step.property()) else {
+            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+        };
+        let map_type = property.descriptor().is_some_and(|descriptor| {
+            matches!(descriptor.kind(), TypeKind::Map)
+                || descriptor
+                    .as_optional()
+                    .and_then(|optional| optional.element_type().as_resolved())
+                    .is_some_and(|inner| matches!(inner.kind(), TypeKind::Map))
+        });
+        let borrowed_output = property.getter().is_none_or(|getter| {
+            matches!(
+                getter.output_kind(),
+                GetterOutputKind::Borrowed | GetterOutputKind::OptionalBorrowed
+            )
+        });
+        let has_adapter = occurrence
+            .field
+            .collection_ops()
+            .and_then(|ops| ops.map_len())
+            .is_some();
+        if !map_type || !borrowed_output || !has_adapter {
+            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+        }
+    }
     if matches!(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(ConstraintMetadata::Text(_))
@@ -95,16 +188,33 @@ pub(crate) fn check_access(
     {
         return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
     }
+    if let ExecutionDeclaration::Constraint(constraint) = occurrence.declaration {
+        let input = path.input_type();
+        let accepted = match constraint {
+            ConstraintMetadata::Decimal(_) => input == InputType::of::<BigDecimal>(),
+            ConstraintMetadata::Time(_) => {
+                input == InputType::of::<DateTime<Utc>>()
+                    || input == InputType::of::<NaiveDateTime>()
+                    || input == InputType::of::<NaiveTime>()
+            }
+            _ => true,
+        };
+        if !accepted {
+            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+        }
+    }
     if let ExecutionDeclaration::Validator(declaration) = occurrence.declaration {
         if occurrence.selector.is_some() {
-            let descriptor = path
+            let Some(descriptor) = path
                 .steps()
                 .last()
                 .and_then(|step| step.property().getter())
                 .and_then(|getter| getter.output_type().as_resolved())
                 .and_then(|descriptor| descriptor.as_slice())
                 .and_then(|slice| slice.element_type().as_resolved())
-                .ok_or_else(|| Box::new(ValidationBuildError::unsupported(occurrence)))?;
+            else {
+                return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+            };
             // Slice access borrows the element itself. It has no adapter to
             // expose an optional value or a pointee with the promised lifetime.
             if declaration.target() == TargetMode::Value
@@ -136,6 +246,21 @@ pub(crate) fn check_access(
     Ok(path)
 }
 
+/// Confirms that a borrowed slice exposes the declared collection element
+/// type, independent of the slice adapter's function pointer.
+fn sequence_element_matches(declared: &TypeDescriptor, output: &TypeDescriptor) -> bool {
+    let declared_element = declared
+        .as_sequence()
+        .map(|sequence| sequence.element_type())
+        .or_else(|| declared.as_array().map(|array| array.element_type()))
+        .or_else(|| declared.as_slice().map(|slice| slice.element_type()))
+        .and_then(|element| element.as_resolved());
+    let output_element = output.as_slice().and_then(|slice| slice.element_type().as_resolved());
+    declared_element
+        .zip(output_element)
+        .is_some_and(|(declared, output)| declared.type_id() == output.type_id())
+}
+
 /// Distinguishes an unsupported access adapter from a malformed declaration.
 fn access_error(occurrence: &ValidationOccurrence, error: BindError) -> ValidationBuildError {
     if error.kind() == BindErrorKind::UnsupportedConstraint {
@@ -154,15 +279,24 @@ pub(crate) fn bind(
     ancestors: &[&'static TypeMetadata],
 ) -> Result<Vec<FieldRuleBinding>, Vec<ValidationBuildError>> {
     let value = check_access(occurrence, graph).map_err(|error| vec![*error])?;
+    let map_len: Option<MapLenAdapter> = if matches!(
+        occurrence.declaration,
+        ExecutionDeclaration::Constraint(ConstraintMetadata::Map(_))
+    ) {
+        occurrence.field.collection_ops().and_then(|ops| ops.map_len())
+    } else {
+        None
+    };
     match occurrence.declaration {
         ExecutionDeclaration::Constraint(constraint) => {
-            let standards = standard_constraints::bind(constraint, validators).map_err(|errors| {
-                errors
-                    .into_iter()
-                    .map(|error| ValidationBuildError::at_occurrence(occurrence, error))
-                    .collect::<Vec<_>>()
-            })?;
-            Ok(standards
+            let standards =
+                standard_constraints::bind(constraint, validators, value.input_type()).map_err(|errors| {
+                    errors
+                        .into_iter()
+                        .map(|error| ValidationBuildError::at_occurrence(occurrence, error))
+                        .collect::<Vec<_>>()
+                })?;
+            let mut bindings: Vec<_> = standards
                 .into_iter()
                 .map(|standard| FieldRuleBinding {
                     context: occurrence.clone(),
@@ -170,23 +304,44 @@ pub(crate) fn bind(
                     rule_id: standard.validator.rule_id(),
                     value: value.clone(),
                     dependencies: Box::new([]),
-                    validator: standard.validator,
+                    execution: FieldExecution::Registry {
+                        validator: standard.validator,
+                        target: Some(standard.target),
+                        map_len,
+                    },
                     on_none: OnNone::Skip,
                     selector: None,
-                    standard_target: Some(standard.target),
                 })
-                .collect())
+                .collect();
+            if matches!(constraint, ConstraintMetadata::Sequence(sequence) if sequence.unique_items()) {
+                let Some(item_eq) = occurrence.field.collection_ops().and_then(|ops| ops.item_eq()) else {
+                    return Err(vec![ValidationBuildError::unsupported(occurrence)]);
+                };
+                bindings.push(FieldRuleBinding {
+                    context: occurrence.clone(),
+                    occurrence: occurrence.ordinal,
+                    rule_id: standard_constraints::SEQUENCE_UNIQUE_ID,
+                    value,
+                    dependencies: Box::new([]),
+                    execution: FieldExecution::SequenceUnique { item_eq },
+                    on_none: OnNone::Skip,
+                    selector: None,
+                });
+            }
+            Ok(bindings)
         }
         ExecutionDeclaration::Validator(declaration) => {
             let input = if occurrence.selector.is_some() {
-                let descriptor = value
+                let Some(descriptor) = value
                     .steps()
                     .last()
                     .and_then(|step| step.property().getter())
                     .and_then(|getter| getter.output_type().as_resolved())
                     .and_then(|descriptor| descriptor.as_slice())
                     .and_then(|slice| slice.element_type().as_resolved())
-                    .ok_or_else(|| vec![ValidationBuildError::unsupported(occurrence)])?;
+                else {
+                    return Err(vec![ValidationBuildError::unsupported(occurrence)]);
+                };
                 if matches!(descriptor.kind(), TypeKind::Text(_)) {
                     InputType::Text
                 } else {
@@ -215,10 +370,13 @@ pub(crate) fn bind(
                 rule_id: validator.rule_id(),
                 value,
                 dependencies,
-                validator,
+                execution: FieldExecution::Registry {
+                    validator,
+                    target: None,
+                    map_len: None,
+                },
                 on_none: declaration.on_none(),
                 selector: occurrence.selector.map(|position| SelectorBinding { position }),
-                standard_target: None,
             }])
         }
         ExecutionDeclaration::Traversal => Err(vec![ValidationBuildError::unsupported(occurrence)]),
@@ -293,5 +451,28 @@ fn bind_dependencies(
         Ok(dependencies.into_boxed_slice())
     } else {
         Err(errors)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use qubit_reflect::TypeDescriptor;
+
+    use super::sequence_element_matches;
+
+    #[test]
+    fn test_unique_element_shape_requires_matching_type_ids() {
+        assert!(sequence_element_matches(
+            TypeDescriptor::of::<Vec<i32>>(),
+            TypeDescriptor::of::<[i32]>(),
+        ));
+        assert!(sequence_element_matches(
+            TypeDescriptor::of::<[i32; 2]>(),
+            TypeDescriptor::of::<[i32]>(),
+        ));
+        assert!(!sequence_element_matches(
+            TypeDescriptor::of::<Vec<i32>>(),
+            TypeDescriptor::of::<[u8]>(),
+        ));
     }
 }

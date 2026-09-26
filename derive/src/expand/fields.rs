@@ -14,8 +14,11 @@ use quote::ToTokens;
 use quote::format_ident;
 use quote::quote;
 use quote::quote_spanned;
+use syn::GenericArgument;
 use syn::Ident;
 use syn::LitStr;
+use syn::PathArguments;
+use syn::Type;
 
 use crate::ir::declaration::CodecIr;
 use crate::ir::declaration::ConstraintIr;
@@ -179,6 +182,7 @@ fn expand_field(
         )
     });
     let constraint_assertions = expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
+    let collection_ops = expand_collection_ops(field, &constraint_irs, runtime, generic_variant_inherited.is_some());
     let requires_sequence = element_ir.is_some()
         || constraint_irs
             .iter()
@@ -374,8 +378,182 @@ fn expand_field(
             #indexed
             let attributes: &'static [#runtime::metadata::FieldAttributeMetadata] =
                 #runtime::__private::v7::leak_slice(attributes);
-            fields.push((#metadata).with_declaration(*field_declaration));
+            #collection_ops
+            let field_metadata = (#metadata).with_declaration(*field_declaration);
+            let field_metadata = match collection_ops {
+                Some(ops) => field_metadata.with_collection_ops(ops),
+                None => field_metadata,
+            };
+            fields.push(field_metadata);
         }
+    }
+}
+
+/// Emits exact-type collection readers for a concrete field declaration.
+fn expand_collection_ops(
+    field: &FieldIr,
+    constraints: &[&ConstraintIr],
+    runtime: &TokenStream,
+    generic_definition: bool,
+) -> TokenStream {
+    let map = constraints
+        .iter()
+        .any(|value| matches!(value, ConstraintIr::Map { .. }));
+    let unique = constraints
+        .iter()
+        .any(|value| matches!(value, ConstraintIr::Sequence { unique: true, .. }));
+    if unique && known_non_vec_unique_shape(&field.ty) {
+        return quote! {
+            compile_error!("unique_items requires Vec<T> or [T; N] with a borrowed slice getter");
+            let collection_ops = None;
+        };
+    }
+    if generic_definition || (!map && !unique) {
+        return quote!(let collection_ops = None;);
+    }
+    let field_type = &field.ty;
+    let optional_map = collection_element_type(field_type)
+        .filter(|_| matches!(field_type, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Option")))
+        .filter(|inner| matches!(collection_name(inner), Some("HashMap" | "BTreeMap")));
+    let map_adapter = if map && matches!(collection_name(field_type), Some("HashMap" | "BTreeMap")) {
+        quote! {
+            fn map_len(value: &#runtime::metadata::PropertyValue<'_>) -> ::core::result::Result<::core::option::Option<usize>, #runtime::metadata::PropertyAccessError> {
+                match value {
+                    #runtime::metadata::PropertyValue::Borrowed(value) => {
+                        let map = value.downcast_ref::<#field_type>().ok_or_else(||
+                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>(value)
+                        )?;
+                        Ok(Some(map.len()))
+                    }
+                    #runtime::metadata::PropertyValue::OptionalBorrowed(value) => {
+                        let Some(value) = value else { return Ok(None); };
+                        let map = value.downcast_ref::<#field_type>().ok_or_else(||
+                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>(value)
+                        )?;
+                        Ok(Some(map.len()))
+                    }
+                    _ => Err(#runtime::metadata::PropertyAccessError::AdapterUnavailable),
+                }
+            }
+        }
+    } else if map && let Some(inner_type) = optional_map {
+        quote! {
+            fn map_len(value: &#runtime::metadata::PropertyValue<'_>) -> ::core::result::Result<::core::option::Option<usize>, #runtime::metadata::PropertyAccessError> {
+                match value {
+                    #runtime::metadata::PropertyValue::Borrowed(value) => {
+                        let map = value.downcast_ref::<#field_type>().ok_or_else(||
+                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>(value)
+                        )?;
+                        Ok(map.as_ref().map(|map| map.len()))
+                    }
+                    #runtime::metadata::PropertyValue::OptionalBorrowed(value) => {
+                        let Some(value) = value else { return Ok(None); };
+                        let map = value.downcast_ref::<#inner_type>().ok_or_else(||
+                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#inner_type>(value)
+                        )?;
+                        Ok(Some(map.len()))
+                    }
+                    _ => Err(#runtime::metadata::PropertyAccessError::AdapterUnavailable),
+                }
+            }
+        }
+    } else {
+        TokenStream::new()
+    };
+    let item_adapter = if unique && (collection_name(field_type) == Some("Vec") || matches!(field_type, Type::Array(_)))
+    {
+        let Some(element_type) = collection_element_type(field_type) else {
+            return quote!(compile_error!("unique_items requires a concrete element type"); let collection_ops = None;);
+        };
+        quote! {
+            fn assert_item_eq<T: ::core::cmp::PartialEq + 'static>() {}
+            assert_item_eq::<#element_type>();
+            fn item_eq(
+                left: #runtime::__private::ReflectedRef<'_>,
+                right: #runtime::__private::ReflectedRef<'_>,
+            ) -> ::core::result::Result<bool, #runtime::metadata::PropertyAccessError> {
+                let left = left.downcast_ref::<#element_type>().ok_or_else(||
+                    #runtime::metadata::PropertyAccessError::value_type_mismatch::<#element_type>(&left)
+                )?;
+                let right = right.downcast_ref::<#element_type>().ok_or_else(||
+                    #runtime::metadata::PropertyAccessError::value_type_mismatch::<#element_type>(&right)
+                )?;
+                Ok(left == right)
+            }
+        }
+    } else {
+        TokenStream::new()
+    };
+    let map_value = if map_adapter.is_empty() {
+        quote!(None)
+    } else {
+        quote!(Some(map_len))
+    };
+    let item_value = if item_adapter.is_empty() {
+        quote!(None)
+    } else {
+        quote!(Some(item_eq))
+    };
+    if map_adapter.is_empty() && item_adapter.is_empty() {
+        return quote!(let collection_ops = None;);
+    }
+    quote! {
+        #map_adapter
+        #item_adapter
+        let collection_ops = Some(#runtime::metadata::CollectionOps::new(#map_value, #item_value));
+    }
+}
+
+/// Returns the standard collection name for supported spelling forms.
+fn collection_name(ty: &Type) -> Option<&str> {
+    let Type::Path(path) = ty else {
+        return None;
+    };
+    if !crate::compiler::type_path::is_collection_path(&path.path) {
+        return None;
+    }
+    let name = &path.path.segments.last()?.ident;
+    if name == "HashMap" {
+        Some("HashMap")
+    } else if name == "BTreeMap" {
+        Some("BTreeMap")
+    } else if name == "Vec" {
+        Some("Vec")
+    } else {
+        None
+    }
+}
+
+/// Returns the first concrete type argument of a collection declaration.
+fn collection_element_type(ty: &Type) -> Option<&Type> {
+    match ty {
+        Type::Array(array) => Some(&array.elem),
+        Type::Path(path) => {
+            let PathArguments::AngleBracketed(args) = &path.path.segments.last()?.arguments else {
+                return None;
+            };
+            args.args.iter().find_map(|arg| match arg {
+                GenericArgument::Type(ty) => Some(ty),
+                _ => None,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Identifies sequence shapes accepted by declaration traits but lacking a
+/// slice adapter.
+fn known_non_vec_unique_shape(ty: &Type) -> bool {
+    match ty {
+        Type::Path(path) => {
+            let Some(name) = path.path.segments.last().map(|segment| &segment.ident) else {
+                return false;
+            };
+            ["VecDeque", "LinkedList", "BinaryHeap", "Option", "Box", "Rc", "Arc"]
+                .iter()
+                .any(|candidate| name == candidate)
+        }
+        _ => false,
     }
 }
 
@@ -410,8 +588,8 @@ fn expand_constraint(
                 || quote!(None),
                 |value| {
                     let value = match value {
-                        "email" => {
-                            quote!(#runtime::metadata::TextFormat::Email)
+                        "email_ascii" => {
+                            quote!(#runtime::metadata::TextFormat::EmailAscii)
                         }
                         "cn_mobile" => {
                             quote!(#runtime::metadata::TextFormat::Mobile)
@@ -851,6 +1029,7 @@ mod tests {
     use syn::parse_quote;
 
     use super::codec_reference_expression;
+    use super::expand_collection_ops;
     use super::expand_constraint;
     use super::expand_redact;
     use super::expand_reference;
@@ -858,9 +1037,11 @@ mod tests {
     use super::expand_strategy_argument;
     use super::expand_validator;
     use super::rounding_tokens;
+    use crate::ir::Located;
     use crate::ir::declaration::CodecIr;
     use crate::ir::declaration::ConstraintIr;
     use crate::ir::declaration::DecimalConstraintIr;
+    use crate::ir::declaration::FieldIr;
     use crate::ir::declaration::RedactIr;
     use crate::ir::declaration::RedactModeIr;
     use crate::ir::declaration::ReferenceIr;
@@ -869,6 +1050,34 @@ mod tests {
     use crate::ir::declaration::StrategyArgumentIr;
     use crate::ir::declaration::TextConstraintIr;
     use crate::ir::declaration::ValidatorIr;
+
+    /// Known unsupported unique sequence shapes fail at derive expansion.
+    #[test]
+    fn test_unique_items_adapter_rejects_known_non_vec_shape() {
+        let runtime = quote!(runtime);
+        let field = FieldIr {
+            variant_index: None,
+            index: Located::new(0, Span::call_site()),
+            ty: parse_quote!(std::collections::VecDeque<String>),
+            occurrences: vec![],
+            keep_serializing: true,
+            named: true,
+        };
+        let constraint = ConstraintIr::Sequence {
+            min: None,
+            max: None,
+            unique: true,
+        };
+        let tokens = expand_collection_ops(&field, &[&constraint], &runtime, false).to_string();
+        assert!(
+            tokens.contains("compile_error"),
+            "expected a derive-time diagnostic: {tokens}"
+        );
+        assert!(
+            tokens.contains("unique_items"),
+            "diagnostic identifies the declaration: {tokens}"
+        );
+    }
 
     /// Exercises all code-generation branches for field metadata primitives.
     #[test]
@@ -886,7 +1095,7 @@ mod tests {
         ] {
             for format in [
                 None,
-                Some("email"),
+                Some("email_ascii"),
                 Some("cn_mobile"),
                 Some("uri"),
                 Some("uuid"),

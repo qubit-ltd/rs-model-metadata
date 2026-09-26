@@ -24,9 +24,10 @@ pub(super) enum StandardRule<'arguments> {
         /// Borrowed argument list; all argument values reference static data.
         args: &'arguments [NamedValidationArgument<'static>],
     },
-    /// A declaration whose erased execution adapter is not implemented.
-    Unsupported {
-        /// Known rule identity, or None when no backend mapping exists.
-        id: Option<ValidatorId>,
+    /// Sequence equality is executed by the metadata adapter, outside the
+    /// registry.
+    SequenceUnique {
+        /// Stable rule identity.
+        id: ValidatorId,
     },
 }

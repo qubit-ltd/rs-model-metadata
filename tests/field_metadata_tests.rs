@@ -116,3 +116,23 @@ fn test_precision_queries_preserve_values_and_absence() {
     assert!(name.decimal_constraint().is_none());
     assert!(name.text_constraint().is_some());
 }
+
+#[test]
+fn test_field_metadata_debug_redacts_decimal_bounds() {
+    let metadata = TypeMetadata::of::<PrecisionFields>();
+    let amount = metadata.field("amount").expect("decimal field");
+
+    let debug = format!("{amount:?}");
+    assert!(
+        !debug.contains("1.25"),
+        "lower bound leaked through field Debug: {debug}"
+    );
+    assert!(
+        !debug.contains("9.75"),
+        "upper bound leaked through field Debug: {debug}"
+    );
+    assert!(
+        debug.contains("<redacted>"),
+        "decimal bound presence was lost from field Debug: {debug}"
+    );
+}

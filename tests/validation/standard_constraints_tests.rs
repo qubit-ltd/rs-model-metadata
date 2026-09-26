@@ -48,7 +48,7 @@ struct CharacterPolicies {
 
 #[Model]
 struct Formats {
-    #[text(format = email)]
+    #[text(format = email_ascii)]
     email: String,
     #[text(format = cn_mobile)]
     mobile: String,

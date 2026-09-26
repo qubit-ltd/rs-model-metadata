@@ -212,6 +212,22 @@ impl CompiledPropertyPath {
     pub(crate) const fn is_optional(&self) -> bool {
         self.optional
     }
+
+    /// Projects a checked, field-backed `Option<T>` onto its reflected `T`.
+    /// This is used only by scalar constraints that can borrow the contained
+    /// value at execution. An absent or unresolved element is unsupported.
+    pub(crate) fn unwrap_terminal_optional(mut self) -> Result<Self, BindError> {
+        let element = self
+            .steps
+            .last()
+            .and_then(|step| step.property().descriptor())
+            .and_then(|descriptor| descriptor.as_optional())
+            .and_then(|optional| optional.element_type().as_resolved())
+            .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+        self.input = InputType::Typed(element.type_id());
+        self.optional = true;
+        Ok(self)
+    }
 }
 
 /// Removes transparent wrappers and records whether an optional was found.

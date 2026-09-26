@@ -14,6 +14,8 @@ use qubit_validator::ValidatorId;
 use super::selector_binding::SelectorBinding;
 use super::validation_occurrence::ValidationOccurrence;
 use crate::metadata::OnNone;
+use crate::property::ItemEqAdapter;
+use crate::property::MapLenAdapter;
 use crate::validation::compiled_property_path::CompiledPropertyPath;
 use crate::validation::standard_constraints::StandardTarget;
 
@@ -30,14 +32,31 @@ pub(crate) struct FieldRuleBinding {
     pub(crate) value: CompiledPropertyPath,
     /// Compiled dependency paths supplied to the validator.
     pub(crate) dependencies: Box<[CompiledPropertyPath]>,
-    /// Prepared validator implementation.
-    pub(crate) validator: BoundValidator,
+    /// Checked execution mechanism for this occurrence.
+    pub(crate) execution: FieldExecution,
     /// Behavior when an optional value is absent.
     pub(crate) on_none: OnNone,
     /// Selector metadata for nested collection validation.
     pub(crate) selector: Option<SelectorBinding>,
-    /// Standard constraint target, when this is a built-in rule.
-    pub(crate) standard_target: Option<StandardTarget>,
+}
+
+/// Registry-backed validation or metadata-owned sequence equality.
+#[derive(Clone, Debug)]
+pub(crate) enum FieldExecution {
+    /// A prepared registered rule and its checked input projection.
+    Registry {
+        /// Prepared rule.
+        validator: BoundValidator,
+        /// Standard target, if this is a built-in constraint.
+        target: Option<StandardTarget>,
+        /// Checked map count adapter, when needed.
+        map_len: Option<MapLenAdapter>,
+    },
+    /// Exact element comparison adapter for one sequence declaration.
+    SequenceUnique {
+        /// Typed equality operation generated for the field.
+        item_eq: ItemEqAdapter,
+    },
 }
 
 impl FieldRuleBinding {
@@ -57,9 +76,9 @@ impl FieldRuleBinding {
     pub(crate) fn dependencies(&self) -> &[CompiledPropertyPath] {
         &self.dependencies
     }
-    /// Returns the prepared validator.
-    pub(crate) const fn validator(&self) -> &BoundValidator {
-        &self.validator
+    /// Returns the checked execution mechanism.
+    pub(crate) const fn execution(&self) -> &FieldExecution {
+        &self.execution
     }
     /// Returns the absent-value policy.
     pub(crate) const fn on_none(&self) -> OnNone {
@@ -68,9 +87,5 @@ impl FieldRuleBinding {
     /// Returns the nested selector binding, if any.
     pub(crate) const fn selector(&self) -> Option<&SelectorBinding> {
         self.selector.as_ref()
-    }
-    /// Returns the standard-constraint target, if any.
-    pub(crate) const fn standard_target(&self) -> Option<StandardTarget> {
-        self.standard_target
     }
 }

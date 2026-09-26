@@ -17,6 +17,7 @@ use qubit_reflect::access::FieldVisibility;
 use qubit_reflect::descriptor::TypeRef;
 
 use crate::metadata::CodecMetadata;
+use crate::metadata::CollectionOps;
 use crate::metadata::ConstraintMetadata;
 use crate::metadata::DecimalConstraint;
 use crate::metadata::DeclarationLocation;
@@ -84,6 +85,8 @@ pub struct FieldMetadata {
     validators: &'static [ValidatorMetadata],
     /// The effective Serde behavior for the field.
     serde: &'static SerdeFieldMetadata,
+    /// Exact-type read-only operations for supported collections.
+    collection_ops: Option<CollectionOps>,
 }
 
 impl FieldMetadata {
@@ -114,6 +117,7 @@ impl FieldMetadata {
             constraints: &[],
             validators: &[],
             serde: &SerdeFieldMetadata::DEFAULT,
+            collection_ops: None,
         }
     }
 
@@ -139,6 +143,7 @@ impl FieldMetadata {
             constraints,
             validators,
             serde,
+            collection_ops: None,
         }
     }
 
@@ -165,6 +170,7 @@ impl FieldMetadata {
             constraints,
             validators,
             serde,
+            collection_ops: None,
         }
     }
 
@@ -173,6 +179,19 @@ impl FieldMetadata {
     pub const fn with_declaration(mut self, declaration: DeclarationLocation) -> Self {
         self.declaration = declaration;
         self
+    }
+
+    /// Associates generated, read-only collection operations.
+    #[must_use]
+    pub const fn with_collection_ops(mut self, collection_ops: CollectionOps) -> Self {
+        self.collection_ops = Some(collection_ops);
+        self
+    }
+
+    /// Returns exact-type collection operations, if generated for this field.
+    #[must_use]
+    pub const fn collection_ops(&self) -> Option<&CollectionOps> {
+        self.collection_ops.as_ref()
     }
 
     /// Returns this concrete field's process-local identity.

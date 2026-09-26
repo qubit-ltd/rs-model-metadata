@@ -52,6 +52,17 @@ impl<'options> ExecutionBudget<'options> {
         Ok(())
     }
 
+    /// Reserves one element comparison without charging another node.
+    #[allow(dead_code)] // T6 consumes this reservation when unique-items execution is wired.
+    pub(crate) fn compare(&mut self, depth: usize) -> Result<(), ExecutionError> {
+        self.check_depth(depth)?;
+        if self.comparisons >= self.options.max_comparisons() {
+            return Err(limit());
+        }
+        self.comparisons += 1;
+        Ok(())
+    }
+
     /// Reserves one rule invocation and, for selectors, one comparison.
     pub(crate) fn invoke(&mut self, depth: usize, selector: bool) -> Result<(), ExecutionError> {
         self.check_depth(depth)?;
@@ -116,5 +127,41 @@ mod tests {
             budget.invoke(0, true).unwrap_err().kind(),
             ExecutionErrorKind::TraversalLimit
         );
+    }
+
+    /// A collection comparison consumes one comparison without a rule node.
+    #[test]
+    fn test_compare_stops_before_second_comparison() {
+        let options = ValidationOptions::builder()
+            .max_comparisons(NonZeroUsize::new(1).expect("positive limit"))
+            .build();
+        let mut budget = ExecutionBudget::new(&options);
+        budget.compare(0).expect("first comparison");
+        assert_eq!(budget.comparisons, 1);
+        assert_eq!(budget.nodes, 1);
+        assert_eq!(
+            budget.compare(0).expect_err("second comparison blocked").kind(),
+            ExecutionErrorKind::TraversalLimit
+        );
+        assert_eq!(budget.comparisons, 1);
+    }
+
+    /// Saturated comparison accounting cannot wrap at the machine limit.
+    #[test]
+    fn test_compare_does_not_wrap_at_usize_max() {
+        let options = ValidationOptions::builder()
+            .max_comparisons(NonZeroUsize::new(usize::MAX).expect("positive limit"))
+            .build();
+        let mut budget = ExecutionBudget {
+            options: &options,
+            nodes: 1,
+            comparisons: usize::MAX - 1,
+        };
+        budget.compare(0).expect("last comparison");
+        assert_eq!(
+            budget.compare(0).expect_err("saturated comparison blocked").kind(),
+            ExecutionErrorKind::TraversalLimit
+        );
+        assert_eq!(budget.comparisons, usize::MAX);
     }
 }

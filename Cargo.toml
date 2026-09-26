@@ -36,7 +36,7 @@ doctest = true
 default = []
 codec = ["dep:qubit-codec"]
 generic = []
-validation = ["dep:qubit-validation-rules", "dep:qubit-validator"]
+validation = ["dep:qubit-validation-rules", "dep:qubit-validator", "qubit-validation-rules/decimal", "qubit-validation-rules/time"]
 
 [dependencies]
 qubit-redact = { version = "=0.9.0", path = "../../rust-common/rs-redact", features = ["derive", "serde", "json", "bigdecimal"] }

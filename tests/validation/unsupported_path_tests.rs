@@ -10,6 +10,7 @@
 
 use std::any::TypeId;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
@@ -68,10 +69,26 @@ struct Containers {
     array: [Child; 2],
 }
 
+type MapAlias = HashMap<String, String>;
+
+#[Model(no_hash)]
+struct MissingCollectionAdapters {
+    #[map(min_entries = 1)]
+    entries: MapAlias,
+    #[sequence(unique_items)]
+    values: Vec<String>,
+}
+
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct UnsupportedTimeType {
+    #[time(precision = second)]
+    date: chrono::NaiveDate,
+}
+
 #[Enum]
 enum MappedConstraints {
     Text {
-        #[text(non_blank, min_chars = 2, max_bytes = 32, allowed_chars = ascii, format = email)]
+        #[text(non_blank, min_chars = 2, max_bytes = 32, allowed_chars = ascii, format = email_ascii)]
         value: String,
     },
     Sequence {
@@ -105,9 +122,10 @@ fn test_unsupported_constraints_retain_complete_rule_mappings() {
         sequence_rules.iter().map(|id| id.as_str()).collect::<Vec<_>>(),
         ["qubit.rules.collection.item_count", "qubit.rules.collection.unique",]
     );
-    assert!(
-        errors[2].constraint_rule_ids().is_empty(),
-        "no map backend mapping exists"
+    let map_rules = errors[2].constraint_rule_ids();
+    assert_eq!(
+        map_rules.iter().map(|id| id.as_str()).collect::<Vec<_>>(),
+        ["qubit.rules.collection.item_count"]
     );
     assert!(errors.iter().all(|error| error.source_error().is_none()));
     assert!(errors.iter().all(|error| error.rule().is_none()), "no rule was bound");
@@ -189,4 +207,36 @@ fn test_container_element_paths_do_not_claim_an_instance_index() {
         errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
         [Some("list[].name"), Some("array[].name")]
     );
+}
+
+#[test]
+fn test_missing_collection_adapters_reject_each_declaration() {
+    let errors = unsupported(TypeMetadata::of::<MissingCollectionAdapters>());
+    assert_eq!(errors.len(), 2);
+    assert_eq!(errors[0].path(), Some("entries"));
+    assert_eq!(
+        errors[0]
+            .constraint_rule_ids()
+            .iter()
+            .map(|id| id.as_str())
+            .collect::<Vec<_>>(),
+        ["qubit.rules.collection.item_count"]
+    );
+    assert_eq!(errors[1].path(), Some("values"));
+    assert_eq!(
+        errors[1]
+            .constraint_rule_ids()
+            .iter()
+            .map(|id| id.as_str())
+            .collect::<Vec<_>>(),
+        ["qubit.rules.collection.unique"]
+    );
+}
+
+#[test]
+fn test_unsupported_time_type_is_rejected_at_its_field() {
+    let errors = unsupported(TypeMetadata::of::<UnsupportedTimeType>());
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].path(), Some("date"));
+    assert_eq!(errors[0].owner_type_id(), TypeId::of::<UnsupportedTimeType>());
 }

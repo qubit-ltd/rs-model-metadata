@@ -24,6 +24,7 @@ use qubit_validator::ValidatorRegistry;
 
 use crate::metadata::AllowedChars;
 use crate::metadata::ConstraintMetadata;
+use crate::metadata::TemporalPrecision;
 use crate::metadata::TextFormat;
 
 mod standard_rule;
@@ -48,6 +49,9 @@ mod tests {
 
 use standard_rule::StandardRule;
 
+/// Stable identity of metadata's typed sequence equality adapter.
+pub(crate) const SEQUENCE_UNIQUE_ID: ValidatorId = ValidatorId::new("qubit.rules.collection.unique");
+
 /// Whether a standard binding validates the field value or its item count.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum StandardTarget {
@@ -55,6 +59,8 @@ pub(crate) enum StandardTarget {
     Value,
     /// Pass the borrowed sequence length as a `usize`.
     SequenceCount,
+    /// Pass the borrowed map length as a `usize`.
+    MapCount,
 }
 
 /// One executable standard constraint occurrence.
@@ -105,27 +111,23 @@ fn build_builtin_registry(registrations: Vec<ValidatorRegistration>) -> Result<V
 
 /// Binds the executable portion of one metadata constraint.
 ///
-/// Constraints which require reflection-specific behavior, such as duplicate
-/// detection for arbitrary erased values, fail explicitly at bind time. They
-/// are never silently accepted and skipped.
+/// Reflection-specific sequence equality is bound separately by the metadata
+/// executor; this registry binding only returns registry-backed rules.
 pub(crate) fn bind(
     constraint: &ConstraintMetadata,
     validators: &ValidatorRegistry,
+    input: InputType,
 ) -> Result<Vec<StandardBinding>, Vec<BindError>> {
     let mut bindings = Vec::new();
     let mut errors = Vec::new();
     visit_rules(constraint, |rule| match rule {
-        StandardRule::Executable { id, target, args } => match validators.bind(id.as_str(), input_type(target), args) {
-            Ok(validator) => bindings.push(StandardBinding { validator, target }),
-            Err(error) => errors.push(error),
-        },
-        StandardRule::Unsupported { id } => {
-            let mut error = BindError::new(BindErrorKind::UnsupportedConstraint);
-            if let Some(id) = id {
-                error = error.with_rule(id);
+        StandardRule::Executable { id, target, args } => {
+            match validators.bind(id.as_str(), input_type(target, input), args) {
+                Ok(validator) => bindings.push(StandardBinding { validator, target }),
+                Err(error) => errors.push(error),
             }
-            errors.push(error);
         }
+        StandardRule::SequenceUnique { .. } => {}
     });
     if errors.is_empty() { Ok(bindings) } else { Err(errors) }
 }
@@ -135,8 +137,7 @@ pub(crate) fn bind(
 pub(crate) fn rule_ids(constraint: &ConstraintMetadata) -> Vec<ValidatorId> {
     let mut ids = Vec::new();
     visit_rules(constraint, |rule| match rule {
-        StandardRule::Executable { id, .. } | StandardRule::Unsupported { id: Some(id) } => ids.push(id),
-        StandardRule::Unsupported { id: None } => {}
+        StandardRule::Executable { id, .. } | StandardRule::SequenceUnique { id } => ids.push(id),
     });
     ids
 }
@@ -166,7 +167,7 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
             }
             if let Some(format) = text.format() {
                 let id = match format {
-                    TextFormat::Email => ids::TEXT_EMAIL_ASCII,
+                    TextFormat::EmailAscii => ids::TEXT_EMAIL_ASCII,
                     TextFormat::Mobile => ids::TEXT_CHINA_MOBILE_STRUCTURE,
                     TextFormat::Uri => ids::TEXT_URI,
                     TextFormat::Uuid => ids::TEXT_UUID,
@@ -185,16 +186,60 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
                 );
             }
             if sequence.unique_items() {
-                visitor(StandardRule::Unsupported {
-                    id: Some(ValidatorId::new("qubit.rules.collection.unique")),
-                });
+                visitor(StandardRule::SequenceUnique { id: SEQUENCE_UNIQUE_ID });
             }
         }
-        ConstraintMetadata::Map(_) => {
-            visitor(StandardRule::Unsupported { id: None });
+        ConstraintMetadata::Map(map) => {
+            if map.min_entries().is_some() || map.max_entries().is_some() {
+                let args = optional_usize_args(map.min_entries(), map.max_entries());
+                visit_rule(
+                    &mut visitor,
+                    ids::COLLECTION_ITEM_COUNT,
+                    &args,
+                    StandardTarget::MapCount,
+                );
+            }
         }
-        ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_) => {
-            visitor(StandardRule::Unsupported { id: None });
+        ConstraintMetadata::Decimal(decimal) => {
+            let mut args = Vec::with_capacity(6);
+            if let Some(precision) = decimal.precision() {
+                args.push(NamedValidationArgument::new(
+                    "precision",
+                    ValidationArgument::Unsigned(u128::from(precision)),
+                ));
+            }
+            args.push(NamedValidationArgument::new(
+                "scale",
+                ValidationArgument::Unsigned(u128::from(decimal.scale())),
+            ));
+            if let Some(min) = decimal.min() {
+                args.push(NamedValidationArgument::new("min", ValidationArgument::String(min)));
+            }
+            if let Some(max) = decimal.max() {
+                args.push(NamedValidationArgument::new("max", ValidationArgument::String(max)));
+            }
+            args.push(NamedValidationArgument::new(
+                "min_inclusive",
+                ValidationArgument::Bool(decimal.min_inclusive()),
+            ));
+            args.push(NamedValidationArgument::new(
+                "max_inclusive",
+                ValidationArgument::Bool(decimal.max_inclusive()),
+            ));
+            visit_rule(&mut visitor, ids::DECIMAL_VALUE, &args, StandardTarget::Value);
+        }
+        ConstraintMetadata::Time(time) => {
+            let precision = match time.precision() {
+                TemporalPrecision::Second => "second",
+                TemporalPrecision::Millisecond => "millisecond",
+                TemporalPrecision::Microsecond => "microsecond",
+                TemporalPrecision::Nanosecond => "nanosecond",
+            };
+            let args = [NamedValidationArgument::new(
+                "precision",
+                ValidationArgument::String(precision),
+            )];
+            visit_rule(&mut visitor, ids::TIME_PRECISION, &args, StandardTarget::Value);
         }
     }
 }
@@ -214,10 +259,10 @@ fn visit_rule(
 }
 
 /// Returns the runtime input type required by a standard target.
-fn input_type(target: StandardTarget) -> InputType {
+fn input_type(target: StandardTarget, value: InputType) -> InputType {
     match target {
-        StandardTarget::Value => InputType::Text,
-        StandardTarget::SequenceCount => InputType::of::<usize>(),
+        StandardTarget::Value => value,
+        StandardTarget::SequenceCount | StandardTarget::MapCount => InputType::of::<usize>(),
     }
 }
 

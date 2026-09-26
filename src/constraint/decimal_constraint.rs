@@ -8,6 +8,8 @@
 
 //! Precision, range, and rounding policies for decimal values.
 
+use core::fmt;
+
 use super::DecimalSemantic;
 use super::RoundingMode;
 
@@ -24,7 +26,7 @@ use super::RoundingMode;
 /// assert_eq!(constraint.scale(), 2);
 /// assert_eq!(constraint.semantic(), DecimalSemantic::Money);
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct DecimalConstraint {
     /// The total significant-digit precision, if constrained.
     precision: Option<u16>,
@@ -42,6 +44,22 @@ pub struct DecimalConstraint {
     min_inclusive: bool,
     /// Whether the upper bound includes equality.
     max_inclusive: bool,
+}
+
+impl fmt::Debug for DecimalConstraint {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DecimalConstraint")
+            .field("precision", &self.precision)
+            .field("scale", &self.scale)
+            .field("rounding", &self.rounding)
+            .field("semantic", &self.semantic)
+            .field("min", &self.min.map(|_| "<redacted>"))
+            .field("max", &self.max.map(|_| "<redacted>"))
+            .field("min_inclusive", &self.min_inclusive)
+            .field("max_inclusive", &self.max_inclusive)
+            .finish()
+    }
 }
 
 impl DecimalConstraint {

@@ -64,6 +64,7 @@ pub use crate::model_id::ModelIdError;
 pub use crate::model_impl_metadata::ModelImplMetadata;
 pub use crate::model_metadata_error::ModelMetadataError;
 pub use crate::property::BorrowedPropertySlice;
+pub use crate::property::CollectionOps;
 pub use crate::property::GetterAdapter;
 pub use crate::property::GetterMetadata;
 pub use crate::property::GetterOutputKind;

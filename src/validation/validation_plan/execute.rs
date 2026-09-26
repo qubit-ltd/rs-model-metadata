@@ -8,6 +8,11 @@
 
 //! Execution APIs sharing one report accumulator and one work budget.
 
+use bigdecimal::BigDecimal;
+use chrono::DateTime;
+use chrono::NaiveDateTime;
+use chrono::NaiveTime;
+use chrono::Utc;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 use qubit_validator::BoundValidationContext;
@@ -21,6 +26,7 @@ use qubit_validator::ValidationReport;
 use qubit_validator::ValidationValue;
 use qubit_validator::Violation;
 use qubit_validator::ViolationCode;
+use qubit_validator::ViolationParam;
 
 use super::ValidationPlan;
 use crate::metadata::OnNone;
@@ -31,6 +37,7 @@ use crate::validation::ModelValidationError;
 use crate::validation::ValidationOptions;
 use crate::validation::internal::execution_budget::ExecutionBudget;
 use crate::validation::internal::execution_failure::ExecutionFailure;
+use crate::validation::internal::field_rule_binding::FieldExecution;
 use crate::validation::internal::field_rule_binding::FieldRuleBinding;
 use crate::validation::internal::path_reader;
 use crate::validation::internal::path_reader::path_for;
@@ -152,7 +159,31 @@ fn execute_field<'value>(
 ) -> Result<(), ExecutionFailure> {
     let path = path_for(binding.value());
     let value = path_reader::read(binding.value(), root.clone(), 0, budget)?;
-    if matches!(value, PropertyValue::OptionalBorrowed(None)) {
+    let direct_optional_scalar = binding.value().steps().last().is_some_and(|step| {
+        let property = step.property();
+        property.getter().is_none()
+            && property
+                .descriptor()
+                .is_some_and(|descriptor| descriptor.as_optional().is_some())
+    }) && matches!(
+        binding.execution(),
+        FieldExecution::Registry {
+            target: Some(StandardTarget::Value),
+            ..
+        }
+    );
+    let projected_scalar = if direct_optional_scalar {
+        let Some(scalar) = optional_scalar_value(&value) else {
+            return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+                .with_path(path.clone())
+                .into());
+        };
+        Some(scalar)
+    } else {
+        None
+    };
+    if matches!(value, PropertyValue::OptionalBorrowed(None)) || projected_scalar.as_ref().is_some_and(Option::is_none)
+    {
         if !binding.value().is_optional() {
             return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
         }
@@ -170,12 +201,33 @@ fn execute_field<'value>(
         report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
         return Ok(());
     }
+    if let FieldExecution::SequenceUnique { item_eq } = binding.execution() {
+        return execute_unique(
+            binding,
+            occurrence,
+            value,
+            &path,
+            *item_eq,
+            budget,
+            report,
+            has_more_work,
+        )
+        .map_err(Into::into);
+    }
     if let Some(selector) = binding.selector() {
         if selector.position() != SelectorPosition::Element {
             return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
         }
         return execute_elements(binding, occurrence, value, &path, budget, report, has_more_work).map_err(Into::into);
     }
+    let FieldExecution::Registry {
+        validator,
+        target,
+        map_len,
+    } = binding.execution()
+    else {
+        return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
+    };
     let (dependencies, paths) = path_reader::dependencies(binding.dependencies(), root, ancestors, graph, budget)?;
     let values: Vec<_> = dependencies.iter().map(property_value).collect();
     // The plan binder matched dependencies by signature name, so this ordered
@@ -185,21 +237,128 @@ fn execute_field<'value>(
         PropertyValue::BorrowedSlice(values) => Some(values.len()),
         _ => None,
     };
-    let input = match (binding.standard_target(), &value) {
+    let map_count = if *target == Some(StandardTarget::MapCount) {
+        let Some(map_len) = map_len else {
+            return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
+        };
+        let count = map_len(&value).map_err(|error| {
+            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                .with_trusted_source(error)
+                .with_path(path.clone())
+        })?;
+        let Some(count) = count else {
+            let declared_optional = binding.value().is_optional()
+                || binding
+                    .value()
+                    .steps()
+                    .last()
+                    .and_then(|step| step.property().descriptor())
+                    .is_some_and(|descriptor| descriptor.as_optional().is_some());
+            if !declared_optional {
+                return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+                    .with_path(path)
+                    .into());
+            }
+            report
+                .accept(
+                    occurrence,
+                    &path,
+                    ValidationOutcome::Skipped {
+                        reason: SkipReason::MissingOptional,
+                        prerequisites: Vec::new(),
+                    },
+                    has_more_work,
+                )
+                .map(|_| ())?;
+            return Ok(());
+        };
+        Some(count)
+    } else {
+        None
+    };
+    let input = match (*target, &value) {
         (Some(StandardTarget::SequenceCount), PropertyValue::BorrowedSlice(_)) => {
             ValidationValue::Typed(count.as_ref().expect("slice count"))
+        }
+        (Some(StandardTarget::MapCount), PropertyValue::Borrowed(_) | PropertyValue::OptionalBorrowed(Some(_))) => {
+            ValidationValue::Typed(map_count.as_ref().expect("map count"))
+        }
+        (Some(StandardTarget::MapCount), _) => {
+            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                .with_path(path)
+                .into());
         }
         (_, PropertyValue::BorrowedSlice(_)) => {
             return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).into());
         }
-        _ => property_value(&value),
+        _ => projected_scalar.flatten().unwrap_or_else(|| property_value(&value)),
     };
     budget.invoke(path.as_segments().len(), false)?;
-    let outcome = binding
-        .validator()
+    let outcome = validator
         .validate(input, &context)
         .map_err(|error| prefix_error(error, &path))?;
     report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
+    Ok(())
+}
+
+/// Compares borrowed elements in deterministic pair order, reserving every
+/// read and comparison before calling the checked adapter.
+#[allow(clippy::too_many_arguments)]
+fn execute_unique(
+    binding: &FieldRuleBinding,
+    occurrence: usize,
+    value: PropertyValue<'_>,
+    path: &ValidationPath,
+    item_eq: crate::property::ItemEqAdapter,
+    budget: &mut ExecutionBudget<'_>,
+    report: &mut ReportAccumulator<'_>,
+    has_more_work: bool,
+) -> Result<(), ExecutionError> {
+    let PropertyValue::BorrowedSlice(values) = value else {
+        return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path.clone()));
+    };
+    budget
+        .invoke(path.as_segments().len(), false)
+        .map_err(|error| error.with_path(path.clone()))?;
+    for second in 1..values.len() {
+        let second_path = path.clone().with_index(second);
+        for first in 0..second {
+            let first_path = path.clone().with_index(first);
+            budget
+                .read(first_path.as_segments().len())
+                .map_err(|error| error.with_path(first_path.clone()))?;
+            let Some(first_value) = values.get(first) else {
+                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(first_path));
+            };
+            budget
+                .read(second_path.as_segments().len())
+                .map_err(|error| error.with_path(second_path.clone()))?;
+            let Some(second_value) = values.get(second) else {
+                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(second_path.clone()));
+            };
+            budget
+                .compare(second_path.as_segments().len())
+                .map_err(|error| error.with_path(second_path.clone()))?;
+            let equal = item_eq(first_value, second_value).map_err(|error| {
+                ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                    .with_trusted_source(error)
+                    .with_path(second_path.clone())
+            })?;
+            if equal {
+                let violation = Violation::new(binding.rule_id(), ViolationCode::new("collection.duplicate_item"))
+                    .with_path(ValidationPath::root().with_index(second))
+                    .with_param("first_index", ViolationParam::Unsigned(first as u128));
+                report.accept(
+                    occurrence,
+                    path,
+                    ValidationOutcome::Invalid(vec![violation]),
+                    has_more_work,
+                )?;
+                return Ok(());
+            }
+        }
+    }
+    report.accept(occurrence, path, ValidationOutcome::Valid, has_more_work)?;
     Ok(())
 }
 
@@ -233,8 +392,10 @@ fn execute_elements(
         budget
             .invoke(depth, true)
             .map_err(|error| error.with_path(element_path.clone()))?;
-        let outcome = binding
-            .validator()
+        let FieldExecution::Registry { validator, .. } = binding.execution() else {
+            return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(element_path));
+        };
+        let outcome = validator
             .validate(reflected_value(&element), &context)
             .map_err(|error| prefix_error(error, &element_path))?;
         report
@@ -287,6 +448,26 @@ fn property_value<'a>(value: &'a PropertyValue<'_>) -> ValidationValue<'a> {
         PropertyValue::Owned(value) => owned_value(value),
         PropertyValue::BorrowedSlice(_) => ValidationValue::Missing,
     }
+}
+
+/// Borrows the contained scalar from a reflected, field-backed `Option<T>`.
+/// The outer `None` indicates an unexpected adapter shape; the inner `None`
+/// means the optional field is absent. No value is cloned or formatted.
+fn optional_scalar_value<'a>(value: &'a PropertyValue<'_>) -> Option<Option<ValidationValue<'a>>> {
+    let PropertyValue::Borrowed(value) = value else {
+        return None;
+    };
+    optional_typed_value::<BigDecimal>(value)
+        .or_else(|| optional_typed_value::<DateTime<Utc>>(value))
+        .or_else(|| optional_typed_value::<NaiveDateTime>(value))
+        .or_else(|| optional_typed_value::<NaiveTime>(value))
+}
+
+/// Adapts one exact reflected optional type without exposing its contents.
+fn optional_typed_value<'a, T: 'static>(value: &'a ReflectedRef<'_>) -> Option<Option<ValidationValue<'a>>> {
+    value
+        .downcast_ref::<Option<T>>()
+        .map(|value| value.as_ref().map(|inner| ValidationValue::Typed(inner)))
 }
 
 /// Converts an owned reflected value into a validator input abstraction.
