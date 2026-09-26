@@ -368,8 +368,10 @@ fn main() {
   深度、节点或比较预算不足返回 `TraversalLimit` 和部分报告，计数溢出不会回绕。
 
 Decimal 先规范化数值表示，再依次检查 scale、可选 precision 和精确区间。因此 `1.2300`
-符合 scale 2，`1.234` 不符合；零算一位有效数字。元数据中的 `rounding`、`semantic`
-供其他消费者理解归一化与领域策略；验证阶段不会舍入或改写输入。Time 检查纳秒部分能否被声明单位
+符合 scale 2，`1.234` 不符合。precision 按 `DECIMAL(p,s)` 总容量解释：scale 为 2、precision
+为 3 时接受 `1.2300`，拒绝 `12`，因为整数最多占 `p-s` 位。这是有意的破坏性变更：旧版
+precision 为 1、scale 为 0 时会接受 `1e3`，新版拒绝。元数据中的 `rounding`、`semantic`
+供其他消费者理解领域策略；验证阶段不会舍入或改写输入。Time 检查纳秒部分能否被声明单位
 整除，不调整日期，也不舍入。旧 `format = email` 和 `TextFormat::Email` 应分别改成
 `format = email_ascii` 和 `TextFormat::EmailAscii`；持久规则 ID `qubit.rules.text.email_ascii` 不变。
 

@@ -428,9 +428,11 @@ execution policy and cannot bypass declaration or binding errors.
 
 Decimal checks normalize numeric representation before checking scale, optional
 precision, then the exact range. Thus `1.2300` fits scale 2 while `1.234` does
-not, and zero uses one significant digit. The metadata `rounding` and `semantic`
-settings describe normalization and domain policy for other consumers; validation
-does not round or rewrite the value. Time precision checks the nanosecond component
+not. Precision follows `DECIMAL(p,s)` capacity: at scale 2, precision 3 accepts
+`1.2300` and rejects `12`, because at most `p-s` integer digits fit. This
+intentionally changes the old behavior that accepted `1e3` with precision 1 and
+scale 0. Metadata `rounding` and `semantic` describe policy for other consumers;
+validation does not round or rewrite the value. Time precision checks the nanosecond component
 for divisibility by the declared unit and does not adjust dates or round.
 `format = email_ascii` and `TextFormat::EmailAscii` replace the old `email` spelling;
 the persisted rule ID `qubit.rules.text.email_ascii` remains unchanged.
