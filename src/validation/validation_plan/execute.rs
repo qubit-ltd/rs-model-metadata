@@ -92,7 +92,7 @@ impl<'a> ValidationPlan<'a> {
                         .bindings()
                         .iter()
                         .any(|field| selected(options.selection(), &path_for(field.value())));
-                report.accept(occurrence, &path, outcome, has_more_work)
+                report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())
             })();
             if let Err(error) = result {
                 return Err(
@@ -123,7 +123,7 @@ impl<'a> ValidationPlan<'a> {
                 &mut report,
                 has_more_work,
             ) {
-                let mut error = failure.error.with_rule(binding.rule_id());
+                let mut error = (*failure.error).with_rule(binding.rule_id());
                 if error.path().as_segments().is_empty() {
                     error = error.with_path(path);
                 }
@@ -167,7 +167,7 @@ fn execute_field<'value>(
                 prerequisites: Vec::new(),
             }
         };
-        report.accept(occurrence, &path, outcome, has_more_work)?;
+        report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
         return Ok(());
     }
     if let Some(selector) = binding.selector() {
@@ -197,7 +197,7 @@ fn execute_field<'value>(
         .validator()
         .validate(input, &context)
         .map_err(|error| prefix_error(error, &path))?;
-    report.accept(occurrence, &path, outcome, has_more_work)?;
+    report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
     Ok(())
 }
 

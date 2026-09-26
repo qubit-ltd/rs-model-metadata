@@ -196,19 +196,8 @@ pub(crate) fn bind(
                 value.input_type()
             };
             let params = validator_arguments(declaration.params());
-            let dependencies = validators
-                .get(declaration.declared_id())
-                .and_then(|registration| {
-                    registration
-                        .descriptor()
-                        .signatures()
-                        .iter()
-                        .find(|signature| signature.input() == input)
-                        .map(|signature| signature.dependencies())
-                })
-                .unwrap_or(&[]);
             let validator = validators
-                .bind(declaration.declared_id(), input, &params, dependencies)
+                .bind(declaration.declared_id(), input, &params)
                 .map_err(|error| vec![ValidationBuildError::at_occurrence(occurrence, error)])?;
             if occurrence.selector.is_some() && !validator.dependency_specs().is_empty() {
                 return Err(vec![ValidationBuildError::unsupported(occurrence)]);

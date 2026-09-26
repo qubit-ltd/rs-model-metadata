@@ -292,3 +292,58 @@ fn repeated_validator_ids_execute_every_occurrence() {
     assert!(report.is_valid());
     assert_eq!(*EXECUTION_ORDER.lock().expect("execution log"), [1, 2]);
 }
+
+#[Model]
+struct MissingDependencyDeclaration {
+    #[validator(id = "test.parent")]
+    value: String,
+}
+
+#[Model]
+struct WrongDependencyType {
+    count: u32,
+    #[validator(id = "test.parent", depends_on(expected(property = count)))]
+    value: String,
+}
+
+fn build_dependency_fixture(root: &'static TypeMetadata) -> qubit_model_metadata::validation::ValidationBuildErrors {
+    let models = ModelRegistry::from_static_metadata(&[]).expect("empty model registry");
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("dependency fixture has a valid structure");
+    let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("parent rule binds");
+    match ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    ) {
+        Ok(_) => panic!("incompatible dependency metadata unexpectedly bound"),
+        Err(errors) => errors,
+    }
+}
+
+#[test]
+fn model_binding_validates_required_dependency_declarations_and_types() {
+    assert!(
+        build_dependency_fixture(TypeMetadata::of::<MissingDependencyDeclaration>())
+            .iter()
+            .any(|error| error.kind()
+                == qubit_model_metadata::validation::ValidationBuildErrorKind::ValidatorBinding(
+                    qubit_validator::BindErrorKind::MissingDependencyDeclaration
+                ))
+    );
+    assert!(
+        build_dependency_fixture(TypeMetadata::of::<WrongDependencyType>())
+            .iter()
+            .any(|error| error.kind()
+                == qubit_model_metadata::validation::ValidationBuildErrorKind::ValidatorBinding(
+                    qubit_validator::BindErrorKind::DependencyTypeMismatch
+                ))
+    );
+}

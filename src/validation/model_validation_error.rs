@@ -30,7 +30,7 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// Inspect [`Self::partial_report`] before discarding the error: earlier rules
 /// may already have reported violations or skips. An infrastructure failure
 /// does not mean the instance passed validation. [`std::error::Error::source`]
-/// returns the original [`ExecutionError`], whose source may retain an adapter
+/// returns the original [`ExecutionError`], which may retain an adapter
 /// or validator failure.
 ///
 /// # Examples
@@ -71,7 +71,8 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// ```
 #[must_use]
 pub struct ModelValidationError {
-    /// Original execution failure, including its typed source chain.
+    /// Original execution failure, with an explicitly accessible trusted
+    /// source; standard Error::source stops at this error.
     error: Box<ExecutionError>,
     /// Report collected before execution stopped.
     partial_report: Box<ValidationReport>,
