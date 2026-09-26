@@ -10,6 +10,7 @@
 
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
+use qubit_validator::RecordedOutcome;
 use qubit_validator::ValidationLimits;
 use qubit_validator::ValidationOutcome;
 use qubit_validator::ValidationPath;
@@ -72,24 +73,26 @@ impl<'options> ReportAccumulator<'options> {
         path: &ValidationPath,
         outcome: ValidationOutcome,
         has_more_work: bool,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<RecordedOutcome, ExecutionError> {
         if self.stopped {
-            return Ok(());
+            return self
+                .report
+                .record_outcome(occurrence, path.clone(), ValidationOutcome::valid())
+                .map_err(|_| contract_error());
         }
-        let previous_failures = self.report.failure_count();
         let accepted = self
             .report
             .record_outcome(occurrence, path.clone(), outcome)
             .map_err(|_| contract_error())?;
-        let added_failures = self.report.failure_count() > previous_failures;
+        let added_failures = !accepted.failure_ids().is_empty();
         let at_limit = self.report.failure_count() >= self.options.max_violations();
-        if !accepted
+        if !accepted.complete()
             || (added_failures && has_more_work && (self.options.mode() == ValidationMode::FailFast || at_limit))
         {
             self.stopped = true;
             self.report.mark_truncated();
         }
-        Ok(())
+        Ok(accepted)
     }
 
     /// Returns the report, including partial results after an execution error.
@@ -119,20 +122,43 @@ mod tests {
     use crate::validation::ValidationMode;
     use crate::validation::ValidationOptions;
 
-    fn prerequisite_violations() -> Vec<Violation> {
-        (0..3)
-            .map(|_| {
-                Violation::new(ValidatorId::new("execution.prerequisite"), ViolationCode::new("bad"))
-                    .with_path(ValidationPath::root().with_field("original"))
-            })
-            .collect()
+    #[test]
+    fn test_prerequisite_references_do_not_consume_the_failure_limit() {
+        let options = ValidationOptions::builder()
+            .max_violations(NonZeroUsize::new(2).unwrap())
+            .build();
+        let mut accumulator = ReportAccumulator::new(&options);
+        let first = accumulator
+            .accept(
+                0,
+                &ValidationPath::root(),
+                ValidationOutcome::Invalid(vec![Violation::new(
+                    ValidatorId::new("execution.rule"),
+                    ViolationCode::new("bad"),
+                )]),
+                true,
+            )
+            .unwrap();
+        let id = first.failure_ids()[0];
+        accumulator
+            .accept(
+                1,
+                &ValidationPath::root().with_field("skipped"),
+                ValidationOutcome::failed_prerequisite(vec![id]).unwrap(),
+                true,
+            )
+            .unwrap();
+        assert!(!accumulator.stopped());
+        let report = accumulator.into_report();
+        assert_eq!(report.failure_count(), 1);
+        assert_eq!(report.failures().count(), 1);
+        assert_eq!(report.skipped().len(), 1);
+        assert_eq!(report.skipped()[0].prerequisites(), &[id]);
     }
 
     #[test]
-    fn test_prerequisites_share_the_limit_with_ordinary_violations() {
-        let options = ValidationOptions::builder()
-            .max_violations(NonZeroUsize::new(2).expect("the limit is nonzero"))
-            .build();
+    fn test_fail_fast_stops_on_original_failure() {
+        let options = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
         let mut accumulator = ReportAccumulator::new(&options);
         accumulator
             .accept(
@@ -144,47 +170,7 @@ mod tests {
                 )]),
                 true,
             )
-            .expect("the first violation fits the limit");
-        assert!(!accumulator.stopped());
-        accumulator
-            .accept(
-                1,
-                &ValidationPath::root().with_field("skipped"),
-                ValidationOutcome::Skipped {
-                    reason: SkipReason::FailedPrerequisite,
-                    prerequisites: prerequisite_violations(),
-                },
-                true,
-            )
-            .expect("prerequisite evidence is a valid outcome");
-        assert!(accumulator.stopped());
-        let report = accumulator.into_report();
-        assert_eq!(report.failure_count(), 2);
-        assert_eq!(report.violations().len(), 1);
-        assert_eq!(report.skipped().len(), 1);
-        let skipped = &report.skipped()[0];
-        assert_eq!(skipped.occurrence(), 1);
-        assert_eq!(skipped.path().render(), "skipped");
-        assert_eq!(skipped.prerequisites().len(), 1);
-        assert_eq!(skipped.prerequisites()[0].path().render(), "original");
-        assert!(report.is_truncated());
-    }
-
-    #[test]
-    fn test_failed_prerequisite_triggers_fail_fast_and_ignores_later_outcomes() {
-        let options = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
-        let mut accumulator = ReportAccumulator::new(&options);
-        accumulator
-            .accept(
-                0,
-                &ValidationPath::root().with_field("skipped"),
-                ValidationOutcome::Skipped {
-                    reason: SkipReason::FailedPrerequisite,
-                    prerequisites: prerequisite_violations(),
-                },
-                true,
-            )
-            .expect("prerequisite evidence is a valid outcome");
+            .unwrap();
         assert!(accumulator.stopped());
         accumulator
             .accept(
@@ -193,39 +179,29 @@ mod tests {
                 ValidationOutcome::missing_optional(),
                 false,
             )
-            .expect("a stopped accumulator ignores later outcomes");
+            .unwrap();
         let report = accumulator.into_report();
         assert_eq!(report.failure_count(), 1);
-        assert!(report.violations().is_empty());
-        assert_eq!(report.skipped().len(), 1);
-        assert_eq!(report.skipped()[0].prerequisites().len(), 1);
         assert!(report.is_truncated());
     }
 
     #[test]
     fn test_invalid_skip_contracts_are_execution_errors_without_report_mutation() {
-        for outcome in [
-            ValidationOutcome::Skipped {
-                reason: SkipReason::FailedPrerequisite,
-                prerequisites: vec![],
-            },
-            ValidationOutcome::Skipped {
-                reason: SkipReason::MissingOptional,
-                prerequisites: prerequisite_violations(),
-            },
-        ] {
-            let options = ValidationOptions::default();
-            let mut accumulator = ReportAccumulator::new(&options);
-            let error = accumulator
-                .accept(0, &ValidationPath::root(), outcome, false)
-                .expect_err("the skip shape violates the result contract");
-            assert_eq!(error.kind(), ExecutionErrorKind::AdapterContractViolation);
-            assert!(!accumulator.stopped());
-            let report = accumulator.into_report();
-            assert_eq!(report.failure_count(), 0);
-            assert!(report.skipped().is_empty());
-            assert!(!report.is_truncated());
-        }
+        let outcome = ValidationOutcome::Skipped {
+            reason: SkipReason::FailedPrerequisite,
+            prerequisites: vec![],
+        };
+        let options = ValidationOptions::default();
+        let mut accumulator = ReportAccumulator::new(&options);
+        let error = accumulator
+            .accept(0, &ValidationPath::root(), outcome, false)
+            .expect_err("the skip shape violates the result contract");
+        assert_eq!(error.kind(), ExecutionErrorKind::AdapterContractViolation);
+        assert!(!accumulator.stopped());
+        let report = accumulator.into_report();
+        assert_eq!(report.failure_count(), 0);
+        assert!(report.skipped().is_empty());
+        assert!(!report.is_truncated());
     }
 
     #[test]

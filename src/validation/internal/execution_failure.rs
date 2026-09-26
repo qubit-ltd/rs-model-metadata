@@ -16,7 +16,7 @@ use crate::metadata::DependencyBindingMetadata;
 /// declaration.
 pub(crate) struct ExecutionFailure {
     /// Original execution error, including any underlying adapter cause.
-    pub(crate) error: ExecutionError,
+    pub(crate) error: Box<ExecutionError>,
     /// Separate object navigation and property selection of a failed
     /// dependency.
     pub(crate) dependency: Option<DependencyBindingMetadata>,
@@ -25,7 +25,7 @@ pub(crate) struct ExecutionFailure {
 impl From<ExecutionError> for ExecutionFailure {
     fn from(error: ExecutionError) -> Self {
         Self {
-            error,
+            error: Box::new(error),
             dependency: None,
         }
     }
