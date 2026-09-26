@@ -567,7 +567,7 @@ mod tests {
             #[unique(respect_to(tenant::id), ignore_case = false)]
             #[reference(entity_id = "example.Owner", property = id, path = "owner/id", existing = false)]
             #[key_part(order = 0)]
-            #[text(min_chars = 1, max_chars = 8, non_blank, allowed_chars = ascii, format = email)]
+            #[text(min_chars = 1, max_chars = 8, non_blank, allowed_chars = ascii, format = email_ascii)]
             #[sequence(min_items = 1, max_items = 3, unique_items)]
             #[element(text(max_chars = 4), validator(id = "example.element"), codec(id = "example.codec"), redact(level = "public"))]
             #[validator(id = "example.field", params(limit = 3))]

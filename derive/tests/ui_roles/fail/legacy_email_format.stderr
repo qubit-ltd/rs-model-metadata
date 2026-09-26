@@ -1,0 +1,5 @@
+error: invalid text format; use email_ascii
+  --> tests/ui_roles/fail/legacy_email_format.rs:13:21
+   |
+13 |     #[text(format = email)]
+   |                     ^^^^^

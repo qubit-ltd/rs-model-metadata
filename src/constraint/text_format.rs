@@ -15,12 +15,13 @@
 /// ```
 /// use qubit_model_metadata::metadata::TextFormat;
 ///
-/// assert_ne!(TextFormat::Email, TextFormat::Uuid);
+/// assert_ne!(TextFormat::EmailAscii, TextFormat::Uuid);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TextFormat {
-    /// An email address.
-    Email,
+    /// An ASCII email address shape; this does not check whether the mailbox
+    /// exists.
+    EmailAscii,
     /// A mainland China mobile telephone number.
     Mobile,
     /// A URI.

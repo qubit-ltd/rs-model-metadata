@@ -27,10 +27,10 @@ use super::TextFormat;
 ///     None,
 ///     AllowedChars::Ascii,
 ///     true,
-///     Some(TextFormat::Email),
+///     Some(TextFormat::EmailAscii),
 /// );
 /// assert_eq!(constraint.max_chars(), Some(320));
-/// assert_eq!(constraint.format(), Some(TextFormat::Email));
+/// assert_eq!(constraint.format(), Some(TextFormat::EmailAscii));
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TextConstraint {

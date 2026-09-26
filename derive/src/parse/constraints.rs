@@ -170,10 +170,13 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
         } else if meta.path.is_ident("format") {
             let expression: Expr = meta.value()?.parse()?;
             let format = parse_ident_value(expression.clone())?;
+            if format == "email" {
+                return Err(Error::new_spanned(expression, "invalid text format; use email_ascii"));
+            }
             validate_closed_value(
                 &expression,
                 &format,
-                &["email", "cn_mobile", "uri", "uuid"],
+                &["email_ascii", "cn_mobile", "uri", "uuid"],
                 "invalid text format",
             )?;
             value.format = Some(format);
