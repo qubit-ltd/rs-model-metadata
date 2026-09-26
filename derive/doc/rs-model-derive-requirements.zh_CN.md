@@ -135,7 +135,7 @@ password_hash 不得出现在安全输出中。各消费者不得自行发明另
 ```rust
 #[Value(transparent, id = "qubit.platform.iam.EmailAddress")]
 pub struct EmailAddress(
-    #[text(format = email)]
+    #[text(format = email_ascii)]
     #[redact(level = "medium")]
     String,
 );
@@ -594,7 +594,7 @@ pub struct Owner {
 )]
 pub username: String,
 
-#[text(format = email)]
+#[text(format = email_ascii)]
 pub email: String,
 ```
 
@@ -602,7 +602,7 @@ pub email: String,
 - **REQ-TXT-002**：必须支持 min_chars/max_chars，并按 Unicode scalar value 数量计算。
 - **REQ-TXT-003**：必须支持 min_bytes/max_bytes，并按 UTF-8 字节长度计算；字符和字节约束必须分别验证。
 - **REQ-TXT-004**：`non_blank` 必须拒绝空串和完全由 Unicode whitespace 组成的字符串。
-- **REQ-TXT-005**：format 必须支持 email、cn_mobile、uri、uuid；不得使用含义不明确的 mobile。
+- **REQ-TXT-005**：format 必须支持 email_ascii、cn_mobile、uri、uuid；不得使用含义不明确的 mobile。`email_ascii` 只检查 ASCII 邮箱轮廓与长度，不确认邮箱存在或可收信。
 - **REQ-TXT-006**：allowed_chars 必须支持 unicode、printable_unicode、ascii、printable_ascii、code，默认 unicode。
 - **REQ-TXT-007**：unicode 表示所有 Unicode scalar value，包括控制字符；ascii 表示 U+0000..U+007F，包括控制字符。
 - **REQ-TXT-008**：printable_ascii 必须限制 U+0020..U+007E；printable_unicode 必须排除控制、格式、私用、未分配、
@@ -713,7 +713,7 @@ pub attributes: HashMap<String, String>,
   Map key/value。
 - **REQ-SEL-008**：opaque 必须截断叶子内部递归，但不得删除外层 Option/容器 shape。
 - **REQ-SEL-009**：类型自身约束与字段或 selector 使用位置的附加约束必须叠加，不能以使用位置声明覆盖或取消类型约束。
-  metadata 必须分别保留约束及其声明来源。例如 EmailAddress 内部的 text(format = email) 与使用字段上的
+  metadata 必须分别保留约束及其声明来源。例如 EmailAddress 内部的 text(format = email_ascii) 与使用字段上的
   text(max_chars = 64) 同时成立。实际执行与不满足约束时的处理由消费者负责；本库不要求求解任意约束组合的可满足性。
 
 ## 6. 自定义策略组件

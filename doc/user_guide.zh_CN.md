@@ -148,8 +148,9 @@ validators: &validators })`，传入自己的 validator registry。
 
 计划只读，不修改对象。ValidationOptions 控制字段选择、快速失败和遍历预算。
 当前支持边界内的直接、Option 嵌套模型 validator 自动纳入计划，opaque 截断遍历。
-元数据能描述的范围大于某个执行后端：当前集合适配器通过借用切片 getter 支持 element validator；
-不支持的 selector 位置或约束适配器会明确返回构建错误。Map 声明仍可供其他消费者使用。
+元数据能描述的范围大于某个执行后端。借用切片 getter 支持显式 element validator；生成的集合适配器
+还可在受支持的具体类型上执行外层 sequence 去重和 map entry 数量约束。selector 内的标准约束及
+MapKey/MapValue 遍历仍会明确返回构建错误。
 选择后端前检查 ValidationCapabilities，不应把“能够声明”理解成“所有后端都能执行”。
 
 启用 codec 后，在结构解析完成后使用 CodecBindInputs 与显式 codec registry 调用 `codec::bind_codecs`。
@@ -311,9 +312,13 @@ fn main() {
 | 具名字段的现有 text 约束、自定义 validator | 绑定并执行 |
 | 直接或 Option 嵌套的具名模型 | 共用 binder；可选中间对象缺失时跳过；要求真实的借用访问能力 |
 | 借用 slice getter 上的显式 element validator，包括嵌套路径 | 绑定并执行，检查准确的元素输入类型 |
-| sequence item count | 需要实际借用切片的长度适配器 |
+| 外层 sequence item count | 需要可读取的借用切片 |
+| 外层 `#[sequence(unique_items)]` | 生成的 `Vec<T>` 或 `[T; N]` 配合借用切片 getter 可用，要求 `T: PartialEq + 'static` 及元素相等性适配器。第一处重复报告在 `field[second_index]`，并附 `first_index`。 |
+| 外层 `#[map(min_entries = ..., max_entries = ...)]` | 通过生成的可读借用 getter 适配器统计 `HashMap<K, V>` 或 `BTreeMap<K, V>`；违规路径是字段本身。 |
+| `#[decimal(...)]` / `#[money(...)]` | 对准确的 `BigDecimal` 值或可选值执行；检查 scale、precision 与精确区间，不舍入。 |
+| `#[time(precision = ...)]` | 对 `DateTime<Utc>`、`NaiveDateTime` 或 `NaiveTime` 及其可选值执行；检查秒、毫秒、微秒或纳秒精度。 |
 | selector 内的标准约束或依赖，MapKey/MapValue | `UnsupportedExecution` |
-| Decimal、Time、Map 约束，以及类型擦除后的唯一性检查 | `UnsupportedExecution` |
+| 缺少 map 长度或 sequence 相等性适配器、未知集合形状、不支持的时间类型、标量输入类型不符 | 构建阶段返回 `UnsupportedExecution` |
 | 含执行声明的 Enum payload、tuple/newtype、容器元素模型 | `UnsupportedExecution` |
 | 有可达执行声明的递归实例路径 | `UnsupportedExecution`，不会无限展开 |
 | unit Enum，以及无可达执行声明的 payload 或循环 | 可作为普通值通过 |
@@ -333,9 +338,8 @@ fn main() {
 也会发现已纳入图中的嵌套模型声明。
 
 真实下游 `rs-platform` 的 testkit 覆盖了生产 `CredentialInfo` 的 Option 包装和两个独立使用位置。
-完整 `PersonInfo` 可以解析结构图，但 `delete_time` 声明了本后端不支持的 Time 约束，因此计划构建失败；
-即使某个实例的字段为 None，也不能跳过这项构建检查。完整 PersonInfo 正向执行仍需要时间适配器，
-删除约束会改变模型契约。
+`PersonInfo.delete_time` 使用受支持的 `DateTime<Utc>` 形状；计划可检查有值情况，并跳过 `None`。
+构建阶段仍会在查看实例前检查声明与具体输入类型。
 
 ## 进阶用法：停止条件与执行预算
 
@@ -345,7 +349,7 @@ fn main() {
 原有的 `with_*` 配置方法已移除。
 
 `ValidationOptions` 默认选择 CollectAll、全部字段，深度上限 64、节点上限 100,000、
-报告违规上限 100、selector 比较上限 1,000,000。预算设置都要求 `NonZeroUsize`。
+报告违规上限 100、比较上限 1,000,000。预算设置都要求 `NonZeroUsize`。
 字段选择匹配完整的已绑定字段路径，忽略集合索引；例如需要指定 `contact.name` 才能选择该嵌套字段，
 只指定 `contact` 不会包含后代。`FieldPath::from_segments` 拥有传入名称，不会再次拆分段内的点号。
 使用 `Fields` 选择模型级规则时，需要加入空段序列；普通字段路径不会选中模型级规则。
@@ -358,8 +362,16 @@ fn main() {
   报告容量不会限制外部 validator 在返回结果时自行分配的内存。
 - 根计一个节点；每次实际属性、依赖、元素读取，以及每次规则调用，各计一个节点。重复读取重复计费。
 - 深度按属性和元素路径段计算，依赖导航的 parent hop 也计入；访问发生前检查预算。
-- comparisons 统计 selector 元素规则调用次数，不测量自定义 validator 内部的比较。
+- comparisons 统计 selector 元素规则调用次数，以及外层 sequence 去重检查的每一对元素；
+  元素读取也消耗节点预算。去重按索引顺序调用 `PartialEq`，最坏需要 O(n²) 次比较，
+  每次比较前先检查预算；不测量自定义 validator 内部的比较。
   深度、节点或比较预算不足返回 `TraversalLimit` 和部分报告，计数溢出不会回绕。
+
+Decimal 先规范化数值表示，再依次检查 scale、可选 precision 和精确区间。因此 `1.2300`
+符合 scale 2，`1.234` 不符合；零算一位有效数字。元数据中的 `rounding`、`semantic`
+供其他消费者理解归一化与领域策略；验证阶段不会舍入或改写输入。Time 检查纳秒部分能否被声明单位
+整除，不调整日期，也不舍入。旧 `format = email` 和 `TextFormat::Email` 应分别改成
+`format = email_ascii` 和 `TextFormat::EmailAscii`；持久规则 ID `qubit.rules.text.email_ascii` 不变。
 
 同时检查 `ModelValidationError::error()` 与 `partial_report()`，结合 root、owner、occurrence、
 字段身份和声明来源定位失败操作。依赖的对象导航与属性选择分别有独立 getter；
@@ -371,6 +383,8 @@ fn main() {
 不要提供替换内置规则 ID 的注册项。此类冲突返回根级 `InvalidDeclaration`，
 可通过 `rule()` 取得冲突 ID。同一次失败构建仍会报告独立的未支持形状和缺失规则；
 应处理所有诊断后重新构建计划。
+`MatchesDependency` 比对文本不等时产生 `text.dependency_mismatch`；依赖缺失或不是文本时属于执行错误，
+不是值违规。
 
 | 现象 | 检查方向 |
 | --- | --- |

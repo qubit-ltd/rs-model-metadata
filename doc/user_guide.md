@@ -180,10 +180,11 @@ A supplied root of the wrong Rust type is rejected even for an empty plan.
 The plan is read-only. ValidationOptions controls selection, fail-fast behavior,
 and traversal budgets. Nested direct and optional model validators are collected
 automatically across supported boundaries; opaque fields stop traversal.
-Execution capability is narrower than metadata expressiveness: the current
-collection adapter supports element validators through borrowed-slice getters;
-unsupported selector positions or constraint adapters return explicit build
-errors. Map metadata remains available to other consumers. Consult
+Execution capability is narrower than metadata expressiveness. Borrowed-slice
+getters support explicit element validators; generated collection adapters also
+support outer sequence uniqueness and map entry counts for supported concrete
+shapes. Standard constraints inside selectors and MapKey/MapValue traversal
+still return explicit build errors. Consult
 ValidationCapabilities before selecting this adapter; metadata declarations do
 not imply that every execution backend supports them.
 
@@ -354,9 +355,13 @@ fn main() {
 | Existing text constraints and custom validators on named fields | Bind and execute |
 | Direct and optional nested named models | Same binder; absent optional intermediates skip; actual borrowed access required |
 | Explicit element validators via a borrowed-slice getter, including nested paths | Bind and execute; validate exact element input type |
-| Sequence item count | Requires an actual borrowed-slice length adapter |
+| Outer sequence item count | Requires a readable borrowed slice |
+| Outer `#[sequence(unique_items)]` | Supported for generated `Vec<T>` or `[T; N]` with a borrowed-slice getter and `T: PartialEq + 'static`; requires an element equality adapter. First repeated element reports `field[second_index]` and `first_index`. |
+| Outer `#[map(min_entries = ..., max_entries = ...)]` | Counts a `HashMap<K, V>` or `BTreeMap<K, V>` through a generated, readable borrowed getter adapter; reports on the field path. |
+| `#[decimal(...)]` / `#[money(...)]` | Executes on an exact `BigDecimal` value or optional value; scale, precision, and exact range are checked without rounding. |
+| `#[time(precision = ...)]` | Executes on `DateTime<Utc>`, `NaiveDateTime`, or `NaiveTime`, including optional values; checks exact second, millisecond, microsecond, or nanosecond resolution. |
 | Standard constraints or dependencies inside a selector; MapKey/MapValue | `UnsupportedExecution` |
-| Decimal, Time, Map constraints; erased uniqueness | `UnsupportedExecution` |
+| Missing map length or sequence equality adapter, unknown collection shape, unsupported temporal type, or mismatched scalar input | `UnsupportedExecution` at build time |
 | Constrained enum payloads, tuples/newtypes, and models inside container elements | `UnsupportedExecution` |
 | Recursive instance paths with reachable execution declarations | `UnsupportedExecution`; no infinite expansion |
 | Unit enums, and payloads or cycles without reachable execution declarations | Accepted as ordinary values |
@@ -380,11 +385,10 @@ retain separate diagnostics. Reflection-only wrappers also expose nested model
 declarations already present in the graph.
 
 The downstream `rs-platform` testkit exercises real `CredentialInfo` under an
-optional wrapper and at two separate paths. Its full `PersonInfo` graph resolves,
-but `delete_time` carries a Time constraint that this backend rejects during plan
-construction—even if a particular instance contains `None`. A complete PersonInfo
-validation service still needs a time adapter; removing the declaration would
-change the model's contract.
+optional wrapper and at two separate paths. Its `PersonInfo.delete_time`
+constraint uses the supported `DateTime<Utc>` shape; a valid plan checks a
+present value and skips `None`. Plan construction still checks the declaration
+and concrete input type before any instance is inspected.
 
 ## Advanced usage: stopping policies and work budgets
 
@@ -395,7 +399,7 @@ owns the configuration and transfers it on completion; the former `with_*`
 configuration methods have been removed.
 
 `ValidationOptions` defaults to CollectAll, all fields, depth 64, 100,000 nodes,
-100 retained violations, and 1,000,000 selector comparisons. All budget setters
+100 retained violations, and 1,000,000 comparisons. All budget setters
 require `NonZeroUsize`. Field selection matches the complete bound field path, ignoring collection indices;
 select `contact.name` for that nested field. Selecting `contact` alone does not select
 its descendants. `FieldPath::from_segments` owns each supplied name without
@@ -415,9 +419,21 @@ execution policy and cannot bypass declaration or binding errors.
   and each rule invocation once. Repeated reads count repeatedly.
 - Depth counts property and element path segments plus parent hops for a dependency.
   Each access is checked before it happens.
-- Comparisons count selector element rule invocations, not comparisons inside a
-  custom validator. Exhaustion of depth, nodes, or comparisons returns
+- Comparisons count selector element rule invocations and each pair checked by
+  outer sequence uniqueness. Element reads also consume nodes. Uniqueness uses
+  `PartialEq` in first-index order and can take O(n²) comparisons; the budget is
+  checked before each comparison. It does not inspect custom validator internals.
+  Exhaustion of depth, nodes, or comparisons returns
   `TraversalLimit` with the partial report. Accounting cannot wrap on overflow.
+
+Decimal checks normalize numeric representation before checking scale, optional
+precision, then the exact range. Thus `1.2300` fits scale 2 while `1.234` does
+not, and zero uses one significant digit. The metadata `rounding` and `semantic`
+settings describe normalization and domain policy for other consumers; validation
+does not round or rewrite the value. Time precision checks the nanosecond component
+for divisibility by the declared unit and does not adjust dates or round.
+`format = email_ascii` and `TextFormat::EmailAscii` replace the old `email` spelling;
+the persisted rule ID `qubit.rules.text.email_ascii` remains unchanged.
 
 Inspect `ModelValidationError::error()` and `partial_report()` together. Its root,
 owner, occurrence, field location, and declaration identify the failed operation;
@@ -433,6 +449,8 @@ Do not include registrations that replace built-in rule IDs. Such a collision
 returns a root-level `InvalidDeclaration` whose `rule()` identifies the ID.
 The same failed build still reports independent unsupported shapes and missing
 rules; resolve all reported causes before rebuilding the plan.
+For `MatchesDependency`, unequal text produces `text.dependency_mismatch`;
+a missing or non-text dependency is an execution error, not a value violation.
 
 | Symptom | Check |
 | --- | --- |

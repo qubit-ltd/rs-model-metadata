@@ -101,8 +101,10 @@ let models = ModelRegistry::from_reflect_registry(&snapshot)?;
 
 显式快照从空集合开始，不会自动包含进程中链接的所有注册信息。不要使用旧的隐藏 testing registry helper。
 
-验证计划会收集受支持的各处嵌套声明，并明确拒绝不支持的执行形状；Enum、Time 等声明结构合法，
-不代表后端能够执行。FailFast 和报告上限会停止整个计划，基础执行错误则保留部分报告。
+具备相应 getter 和适配器时，验证计划可执行外层 sequence 数量与去重、外层 map entry 数量，
+以及支持类型上的 `BigDecimal` 和 chrono 时间约束。可选值缺失时跳过执行；不支持的 selector 遍历、
+Enum payload、缺失的集合适配器或不匹配的值类型会在构建阶段明确失败。
+FailFast 和报告上限会停止整个计划，基础执行错误则保留部分报告。
 具体边界见用户指南的[执行矩阵](doc/user_guide.zh_CN.md#限制执行范围与构建拒绝)与
 [API 迁移说明](doc/user_guide.zh_CN.md#进阶用法字段身份与-api-迁移)。
 

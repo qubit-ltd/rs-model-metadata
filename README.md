@@ -129,10 +129,12 @@ An explicit snapshot starts empty and does not automatically include every
 registration linked into the process. Do not use the old hidden testing
 registry helper.
 
-Validation plans collect each supported nested declaration and reject unsupported
-execution shapes explicitly; a structurally valid enum or time declaration is not
-a promise of backend execution support. FailFast and report caps stop the whole
-plan, and infrastructure errors preserve a partial report. See the user guide's
+Validation plans execute outer sequence counts and uniqueness, outer map entry
+counts, and supported `BigDecimal` and chrono time constraints when the exact
+getter and adapter shapes are available. An optional absent value is skipped;
+unsupported selector traversal, enum payloads, missing collection adapters, or
+incompatible value types fail plan construction. FailFast and report caps stop the
+whole plan, and infrastructure errors preserve a partial report. See the user guide's
 [support matrix](doc/user_guide.md#limitations-execution-support-and-explicit-refusal) and
 [API migration](doc/user_guide.md#advanced-usage-field-identity-and-api-migration).
 
