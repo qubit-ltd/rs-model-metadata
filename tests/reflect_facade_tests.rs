@@ -18,6 +18,7 @@ use qubit_datatype::DataType;
 use qubit_id::Id;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
+use qubit_model_metadata::__private::model_impl_fragment_key;
 use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::__private::v7::register_model_capability;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -104,6 +105,22 @@ fn reflect_facade_supports_enabled_ecosystem_and_qubit_types() {
     for field in ["id", "created_at", "amount", "request_id", "data_type"] {
         assert!(descriptor.field(field).is_some(), "missing reflected field {field}");
     }
+}
+
+#[test]
+fn test_model_impl_fragment_key_rejects_empty_suffix() {
+    assert!(std::panic::catch_unwind(|| model_impl_fragment_key("qubit.model.impl.v1.f")).is_err());
+}
+
+#[test]
+fn test_model_impl_fragment_key_rejects_other_capability() {
+    assert!(std::panic::catch_unwind(|| model_impl_fragment_key("qubit.model.impl.v1.other")).is_err());
+}
+
+#[test]
+fn test_model_impl_fragment_key_preserves_valid_id() {
+    let id = "qubit.model.impl.v1.falpha";
+    assert_eq!(model_impl_fragment_key(id).id().as_str(), id);
 }
 
 fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {

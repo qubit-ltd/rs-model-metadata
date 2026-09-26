@@ -18,6 +18,7 @@ use std::sync::atomic::Ordering;
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::ModelImplProvider;
 use qubit_model_metadata::__private::model_impl_fragment_key;
+use qubit_model_metadata::__private::model_impl_key;
 use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
@@ -36,7 +37,9 @@ use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::capability::CapabilityDescriptor;
+use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::capability::CapabilityOrigin;
+use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
@@ -186,7 +189,7 @@ fn snapshot_with_unrelated_capabilities(first: ModelImplProvider, second: ModelI
         builder.add_type_capabilities(
             TypeMetadata::of::<Record>().descriptor(),
             vec![CapabilityDescriptor::with_adapter(
-                model_impl_fragment_key(key),
+                CapabilityKey::new(CapabilityId::new(key).expect("fixture capability ID")),
                 provider,
             )],
             FragmentIdentity::new("model-impl-test", key, 1, 1, "capability", 1),
@@ -201,7 +204,7 @@ fn snapshot_with_unrelated_capabilities(first: ModelImplProvider, second: ModelI
         builder.add_type_capabilities(
             TypeMetadata::of::<Record>().descriptor(),
             vec![CapabilityDescriptor::with_adapter(
-                model_impl_fragment_key(Box::leak(key.into_boxed_str())),
+                CapabilityKey::new(CapabilityId::new(Box::leak(key.into_boxed_str())).expect("fixture capability ID")),
                 getter_b,
             )],
             FragmentIdentity::new(
@@ -215,6 +218,38 @@ fn snapshot_with_unrelated_capabilities(first: ModelImplProvider, second: ModelI
         );
     }
     builder.build().expect("distinct capability slots")
+}
+
+#[test]
+fn test_model_impl_family_selects_base_and_nonempty_fragment_only() {
+    let owner = TypeMetadata::of::<Record>();
+    let mut builder = RegistrySnapshotBuilder::new();
+    for (id, provider) in [
+        ("qubit.model.impl.v1", getter_a as ModelImplProvider),
+        ("qubit.model.impl.v1.fmerge_a", setter_a),
+        ("qubit.model.impl.v1.f", getter_b),
+        ("qubit.model.impl.v1.other", getter_b),
+        ("qubit.model.impl.v1.ezz", getter_b),
+        ("qubit.model.impl.v1.g00", getter_b),
+    ] {
+        let key = if id == "qubit.model.impl.v1" {
+            model_impl_key()
+        } else {
+            CapabilityKey::new(CapabilityId::new(id).expect("fixture capability ID"))
+        };
+        builder.add_type_capabilities(
+            owner.descriptor(),
+            vec![CapabilityDescriptor::with_adapter(key, provider)],
+            FragmentIdentity::new("model-impl-family-test", id, 1, 1, "capability", 1),
+        );
+    }
+    let registry = builder.build().expect("distinct capability slots");
+    let properties = owner
+        .try_properties_in(&registry)
+        .expect("only base and nonempty fragment selected");
+    let name = properties.property("name").expect("name property");
+    assert_eq!(name.getter().expect("base getter").rust_method_name(), "get_name");
+    assert_eq!(name.setter().expect("fragment setter").rust_method_name(), "set_name");
 }
 
 #[test]

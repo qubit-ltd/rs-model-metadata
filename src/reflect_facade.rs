@@ -24,6 +24,17 @@ use crate::model_impl_metadata::MergedModelImpl;
 const MODEL_IMPL_BASE_ID: &str = "qubit.model.impl.v1";
 const MODEL_IMPL_FRAGMENT_PREFIX: &str = "qubit.model.impl.v1.f";
 
+/// Reports whether an ID belongs to the base or a nonempty fragment slot.
+fn is_model_impl_capability(id: &str) -> bool {
+    id == MODEL_IMPL_BASE_ID || is_model_impl_fragment_capability(id)
+}
+
+/// Reports whether an ID has the required nonempty fragment suffix.
+fn is_model_impl_fragment_capability(id: &str) -> bool {
+    id.strip_prefix(MODEL_IMPL_FRAGMENT_PREFIX)
+        .is_some_and(|suffix| !suffix.is_empty())
+}
+
 /// The typed capability adapter supplied by generated model declarations.
 #[doc(hidden)]
 pub type ModelMetadataProvider = fn() -> &'static TypeMetadata;
@@ -110,7 +121,11 @@ pub(crate) fn model_impl_metadata(
         .iter()
         .take_while(|item| item.id().as_str().starts_with(MODEL_IMPL_FRAGMENT_PREFIX));
     let mut providers = Vec::new();
-    for capability in base.into_iter().chain(fragments) {
+    for capability in base
+        .into_iter()
+        .chain(fragments)
+        .filter(|item| is_model_impl_capability(item.id().as_str()))
+    {
         let id = capability.id();
         if let Some(provider) = registry.capability(descriptor, CapabilityKey::<ModelImplProvider>::new(*id))? {
             let origin = registry
@@ -130,9 +145,17 @@ pub(crate) fn model_impl_metadata(
 }
 
 /// Returns the checked key for an independently registered impl fragment.
+///
+/// # Panics
+///
+/// Panics if `name` is not a ModelImpl fragment ID with a nonempty suffix.
 #[doc(hidden)]
 #[must_use]
 pub fn model_impl_fragment_key(name: &'static str) -> CapabilityKey<ModelImplProvider> {
+    assert!(
+        is_model_impl_fragment_capability(name),
+        "invalid ModelImpl fragment capability ID: {name}",
+    );
     CapabilityKey::new(CapabilityId::new(name).expect("valid generated impl capability ID"))
 }
 use std::sync::Arc;
