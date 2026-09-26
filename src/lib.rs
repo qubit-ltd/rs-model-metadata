@@ -46,6 +46,8 @@ pub mod resolve;
 mod resolved_properties;
 mod resolved_property_fragments;
 mod role;
+#[cfg(test)]
+mod tests;
 mod transparent_descriptor;
 mod type_metadata;
 #[cfg(feature = "validation")]
