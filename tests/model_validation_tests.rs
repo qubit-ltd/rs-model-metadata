@@ -39,6 +39,8 @@ use qubit_model_metadata::validation::ValidationSelection;
 use qubit_reflect::ReflectRegistry;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_validation_rules::collection::UniqueItems;
+use qubit_validation_rules::ids;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
@@ -753,6 +755,56 @@ impl UniqueWrongGetterShape {
     pub fn values(&self) -> &Vec<i32> {
         &self.values
     }
+}
+
+#[test]
+fn unique_typed_and_model_execution_agree_on_first_duplicate() {
+    let plan = map_plan(TypeMetadata::of::<UniqueOnlyFixture>()).expect("unique binding");
+    let cases: &[&[i32]] = &[&[], &[1], &[1, 2, 3], &[1, 1], &[1, 2, 1], &[2, 3, 3, 2], &[1, 2, 3, 1]];
+
+    for values in cases {
+        let expected =
+            UniqueItems::first_duplicate_with_limit(values, usize::MAX).expect("comparison budget covers every pair");
+        let model = UniqueOnlyFixture {
+            values: values.to_vec(),
+        };
+        let report = plan
+            .validate(ReflectedRef::new(&model), &ValidationOptions::default())
+            .expect("model uniqueness execution");
+
+        match expected {
+            None => assert!(report.is_valid(), "{values:?}"),
+            Some((first, second)) => {
+                assert_eq!(report.violations().len(), 1, "{values:?}");
+                let violation = &report.violations()[0];
+                assert_eq!(violation.rule_id().as_str(), ids::COLLECTION_UNIQUE);
+                assert_eq!(violation.code().as_str(), "collection.duplicate_item");
+                assert_eq!(violation.path().render(), format!("values[{second}]"));
+                assert_eq!(
+                    violation.params().get("first_index"),
+                    Some(&ViolationParam::Unsigned(first as u128))
+                );
+            }
+        }
+    }
+
+    let model = UniqueOnlyFixture { values: vec![1, 2, 1] };
+    let one_comparison = ValidationOptions::builder()
+        .max_comparisons(NonZeroUsize::new(1).expect("positive comparison budget"))
+        .build();
+    let error = plan
+        .validate(ReflectedRef::new(&model), &one_comparison)
+        .expect_err("the second pair exceeds the budget");
+    assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
+
+    let two_comparisons = ValidationOptions::builder()
+        .max_comparisons(NonZeroUsize::new(2).expect("positive comparison budget"))
+        .build();
+    let report = plan
+        .validate(ReflectedRef::new(&model), &two_comparisons)
+        .expect("the second pair fits the budget");
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].path().render(), "values[2]");
 }
 
 #[test]
