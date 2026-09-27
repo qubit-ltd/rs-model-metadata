@@ -21,9 +21,12 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::ReflectedRef;
+use qubit_validation_rules::ids;
 use qubit_validation_rules::registrations;
 use qubit_validator::BindErrorKind;
 use qubit_validator::ValidationReport;
+use qubit_validator::ValidatorId;
+use qubit_validator::ValidatorRegistration;
 use qubit_validator::ValidatorRegistry;
 use qubit_validator::ViolationParam;
 
@@ -364,6 +367,42 @@ fn test_custom_registry_cannot_override_a_builtin_rule() {
     assert!(errors[0].source_error().is_some());
 }
 
+/// A caller cannot register an ID reserved for a model-intrinsic rule.
+#[test]
+fn test_custom_registry_cannot_claim_intrinsic_unique_id() {
+    let root = TypeMetadata::of::<TextUnits>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: ModelRegistry::global(),
+        roots: &roots,
+    })
+    .resolve()
+    .expect("structure");
+    let builtin = registrations()[0];
+    let intrinsic = ValidatorRegistration::new(
+        ValidatorId::new(ids::COLLECTION_UNIQUE),
+        builtin.descriptor(),
+        builtin.source(),
+    );
+    let validators = ValidatorRegistry::from_registrations([intrinsic]).expect("valid custom descriptor");
+    let Err(errors) = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    ) else {
+        panic!("model-intrinsic IDs must not be claimed by custom registrations");
+    };
+
+    assert_eq!(errors.len(), 1);
+    assert_eq!(
+        errors[0].kind(),
+        ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::InvalidDeclaration)
+    );
+    assert_eq!(errors[0].rule(), Some(ValidatorId::new(ids::COLLECTION_UNIQUE)));
+}
+
 /// A registry collision must not hide independent structural or binding errors.
 #[test]
 fn test_builtin_collision_retains_independent_declaration_errors() {
@@ -376,7 +415,12 @@ fn test_builtin_collision_retains_independent_declaration_errors() {
     })
     .resolve()
     .expect("valid declaration structure");
-    let builtin = registrations()[0];
+    let descriptor = registrations()[0];
+    let builtin = ValidatorRegistration::new(
+        ValidatorId::new(ids::COLLECTION_UNIQUE),
+        descriptor.descriptor(),
+        descriptor.source(),
+    );
     let validators = ValidatorRegistry::from_registrations([builtin]).expect("one registration");
     let Err(errors) = ValidationPlan::build(
         root,

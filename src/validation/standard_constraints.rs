@@ -180,7 +180,7 @@ mod tests {
 use standard_rule::StandardRule;
 
 /// Stable identity of metadata's typed sequence equality adapter.
-pub(crate) const SEQUENCE_UNIQUE_ID: ValidatorId = ValidatorId::new("qubit.rules.collection.unique");
+pub(crate) const SEQUENCE_UNIQUE_ID: ValidatorId = ValidatorId::new(ids::COLLECTION_UNIQUE);
 
 /// Whether a standard binding validates the field value or its item count.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -221,9 +221,10 @@ fn registry_with_builtins(
     let builtin_count = registrations.len();
     let mut errors = Vec::new();
     for registration in validators.registrations() {
-        if registrations[..builtin_count]
-            .iter()
-            .any(|builtin| builtin.id() == registration.id())
+        if registration.id().as_str() == ids::COLLECTION_UNIQUE
+            || registrations[..builtin_count]
+                .iter()
+                .any(|builtin| builtin.id() == registration.id())
         {
             errors.push(BindError::new(BindErrorKind::InvalidDeclaration).with_rule(registration.id()));
         } else {
