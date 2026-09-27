@@ -365,7 +365,10 @@ fn main() {
 order even when a declaration cannot run. `Registry(id)` is eligible for
 `ValidatorRegistry::bind` only if that registry contains a matching signature
 and arguments. `ModelIntrinsic(id)` is executed by the metadata plan and has
-no registry binding; sequence `unique_items` uses this category. The former
+no registry binding; sequence `unique_items` uses this category under
+`qubit_validation_rules::ids::COLLECTION_UNIQUE`. This ID is reserved: a custom
+registration that claims it makes plan construction return a root-level
+`InvalidDeclaration` identifying the ID. The former
 `constraint_rule_ids()` method has been removed. Existing ID strings remain
 available through `rule.id().as_str()`.
 
@@ -466,7 +469,8 @@ does not include that cause.
 
 ## Errors and troubleshooting
 
-Do not include registrations that replace built-in rule IDs. Such a collision
+Do not include registrations that replace built-in rule IDs or claim
+`qubit_validation_rules::ids::COLLECTION_UNIQUE`. Such a collision
 returns a root-level `InvalidDeclaration` whose `rule()` identifies the ID.
 The same failed build still reports independent unsupported shapes and missing
 rules; resolve all reported causes before rebuilding the plan.

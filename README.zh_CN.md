@@ -82,6 +82,8 @@ fn main() {
   `qubit-validator::ValidatorRegistry`；`ValidationPlan::validate` 执行这些不可变绑定并返回结构化的
   `ValidationReport`。构建诊断以 `ConstraintRuleRef::Registry` 表示经注册表绑定的规则，
   以 `ConstraintRuleRef::ModelIntrinsic` 表示由模型计划直接执行的规则。
+  外层序列唯一性使用保留 ID `qubit_validation_rules::ids::COLLECTION_UNIQUE`；
+  自定义 validator 注册该 ID 会使计划构建返回 `InvalidDeclaration`。
   原 `constraint_rule_ids()` 方法已由 `constraint_rules()` 取代；每个引用仍可通过
   `.id().as_str()` 取得稳定的规则 ID。
 - 结构、codec 和 validation 错误分别由其所属层返回；resolver 不创建任何可执行绑定。

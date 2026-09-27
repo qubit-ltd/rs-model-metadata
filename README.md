@@ -102,6 +102,9 @@ the reflection model.
   structured `ValidationReport`. Build diagnostics expose
   `ConstraintRuleRef::Registry` for registry-backed rules and
   `ConstraintRuleRef::ModelIntrinsic` for rules executed by the model plan.
+  Outer sequence uniqueness reserves the ID
+  `qubit_validation_rules::ids::COLLECTION_UNIQUE`; registering that ID as a
+  custom validator makes plan construction return `InvalidDeclaration`.
   The former `constraint_rule_ids()` method is replaced by `constraint_rules()`;
   each reference retains its stable ID through `.id().as_str()`.
 - Structural, codec, and validation failures are returned independently by the

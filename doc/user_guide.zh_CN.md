@@ -318,7 +318,9 @@ fn main() {
 `ValidationBuildError::constraint_rules()` 即使在声明无法执行时，也会按执行顺序列出
 已知映射。`Registry(id)` 仍须由相应注册表按输入类型和参数完成绑定；
 `ModelIntrinsic(id)` 由模型计划直接执行，不能通过注册表绑定。序列 `unique_items`
-属于后一类。原 `constraint_rule_ids()` 方法已删除；如只需读取旧有 ID 字符串，
+属于后一类，使用 `qubit_validation_rules::ids::COLLECTION_UNIQUE`。该 ID 由模型计划保留；
+自定义注册占用它时，计划构建会返回标明该 ID 的根级 `InvalidDeclaration`。
+原 `constraint_rule_ids()` 方法已删除；如只需读取旧有 ID 字符串，
 可使用 `rule.id().as_str()`。
 
 | 声明或访问形状 | 当前验证后端 |
@@ -396,7 +398,8 @@ precision 为 1、scale 为 0 时会接受 `1e3`，新版拒绝。元数据中�
 
 ## 错误处理与排查
 
-不要提供替换内置规则 ID 的注册项。此类冲突返回根级 `InvalidDeclaration`，
+不要提供替换内置规则 ID 或占用 `qubit_validation_rules::ids::COLLECTION_UNIQUE` 的注册项。
+此类冲突返回根级 `InvalidDeclaration`，
 可通过 `rule()` 取得冲突 ID。同一次失败构建仍会报告独立的未支持形状和缺失规则；
 应处理所有诊断后重新构建计划。
 `MatchesDependency` 比对文本不等时产生 `text.dependency_mismatch`；依赖缺失或不是文本时属于执行错误，
