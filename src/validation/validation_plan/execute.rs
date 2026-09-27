@@ -15,6 +15,7 @@ use chrono::NaiveTime;
 use chrono::Utc;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
+use qubit_validation_rules::collection::UniquePairs;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
@@ -320,42 +321,45 @@ fn execute_unique(
     budget
         .invoke(path.as_segments().len(), false)
         .map_err(|error| error.with_path(path.clone()))?;
-    for second in 1..values.len() {
-        let second_path = path.clone().with_index(second);
-        for first in 0..second {
-            let first_path = path.clone().with_index(first);
-            budget
-                .read(first_path.as_segments().len())
-                .map_err(|error| error.with_path(first_path.clone()))?;
-            let Some(first_value) = values.get(first) else {
-                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(first_path));
-            };
-            budget
-                .read(second_path.as_segments().len())
-                .map_err(|error| error.with_path(second_path.clone()))?;
-            let Some(second_value) = values.get(second) else {
-                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(second_path.clone()));
-            };
-            budget
-                .compare(second_path.as_segments().len())
-                .map_err(|error| error.with_path(second_path.clone()))?;
-            let equal = item_eq(first_value, second_value).map_err(|error| {
-                ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                    .with_trusted_source(error)
-                    .with_path(second_path.clone())
-            })?;
-            if equal {
-                let violation = Violation::new(binding.rule_id(), ViolationCode::new("collection.duplicate_item"))
-                    .with_path(ValidationPath::root().with_index(second))
-                    .with_param("first_index", ViolationParam::Unsigned(first as u128));
-                report.accept(
-                    occurrence,
-                    path,
-                    ValidationOutcome::Invalid(vec![violation]),
-                    has_more_work,
-                )?;
-                return Ok(());
-            }
+    let mut current_second = None;
+    let mut second_path = path.clone();
+    for (first, second) in UniquePairs::new(values.len()) {
+        if current_second != Some(second) {
+            current_second = Some(second);
+            second_path = path.clone().with_index(second);
+        }
+        let first_path = path.clone().with_index(first);
+        budget
+            .read(first_path.as_segments().len())
+            .map_err(|error| error.with_path(first_path.clone()))?;
+        let Some(first_value) = values.get(first) else {
+            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(first_path));
+        };
+        budget
+            .read(second_path.as_segments().len())
+            .map_err(|error| error.with_path(second_path.clone()))?;
+        let Some(second_value) = values.get(second) else {
+            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(second_path.clone()));
+        };
+        budget
+            .compare(second_path.as_segments().len())
+            .map_err(|error| error.with_path(second_path.clone()))?;
+        let equal = item_eq(first_value, second_value).map_err(|error| {
+            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                .with_trusted_source(error)
+                .with_path(second_path.clone())
+        })?;
+        if equal {
+            let violation = Violation::new(binding.rule_id(), ViolationCode::new("collection.duplicate_item"))
+                .with_path(ValidationPath::root().with_index(second))
+                .with_param("first_index", ViolationParam::Unsigned(first as u128));
+            report.accept(
+                occurrence,
+                path,
+                ValidationOutcome::Invalid(vec![violation]),
+                has_more_work,
+            )?;
+            return Ok(());
         }
     }
     report.accept(occurrence, path, ValidationOutcome::Valid, has_more_work)?;
