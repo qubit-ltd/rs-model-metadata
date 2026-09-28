@@ -47,6 +47,69 @@ use crate::validation::standard_constraints::StandardTarget;
 use crate::validation::validation_options::FieldPath;
 use crate::validation::validation_options::ValidationSelection;
 
+enum SelectionMask {
+    All { total: usize },
+    Fields(Vec<SelectionEntry>),
+}
+
+struct SelectionEntry {
+    selected: bool,
+    later_selected: bool,
+    field_path: Option<ValidationPath>,
+}
+
+impl SelectionMask {
+    fn new(selection: &ValidationSelection, model_rule_count: usize, bindings: &[FieldRuleBinding]) -> Self {
+        let total = model_rule_count + bindings.len();
+        if matches!(selection, ValidationSelection::All) {
+            return Self::All { total };
+        }
+        let model_path = ValidationPath::root();
+        let mut entries = Vec::with_capacity(total);
+        entries.extend((0..model_rule_count).map(|_| SelectionEntry {
+            selected: selected(selection, &model_path),
+            later_selected: false,
+            field_path: None,
+        }));
+        for binding in bindings {
+            let path = path_for(binding.value());
+            let is_selected = selected(selection, &path);
+            entries.push(SelectionEntry {
+                selected: is_selected,
+                later_selected: false,
+                field_path: is_selected.then_some(path),
+            });
+        }
+        let mut later = false;
+        for entry in entries.iter_mut().rev() {
+            entry.later_selected = later;
+            later |= entry.selected;
+        }
+        Self::Fields(entries)
+    }
+
+    fn selected(&self, index: usize) -> bool {
+        match self {
+            Self::All { total } => index < *total,
+            Self::Fields(entries) => entries[index].selected,
+        }
+    }
+
+    fn later_selected(&self, index: usize) -> bool {
+        match self {
+            Self::All { total } => index + 1 < *total,
+            Self::Fields(entries) => entries[index].later_selected,
+        }
+    }
+
+    fn take_field_path(&mut self, index: usize) -> Option<ValidationPath> {
+        match self {
+            Self::All { .. } => None,
+            Self::Fields(entries) => entries[index].field_path.take(),
+        }
+    }
+}
+
 impl<'a> ValidationPlan<'a> {
     /// Executes selected occurrences under one stopping policy and work budget.
     ///
@@ -80,12 +143,15 @@ impl<'a> ValidationPlan<'a> {
             .at_model(self.root(), None));
         }
         let mut budget = ExecutionBudget::new(options);
+        let model_rule_count = self.model_rules().len();
+        let model_path = ValidationPath::root();
+        let mut mask = SelectionMask::new(options.selection(), model_rule_count, self.bindings());
         for (occurrence, binding) in self.model_rules().iter().enumerate() {
             if report.stopped() {
                 return Ok(report.into_report());
             }
-            let path = ValidationPath::root();
-            if !selected(options.selection(), &path) {
+            let path = model_path.clone();
+            if !mask.selected(occurrence) {
                 continue;
             }
             let result = (|| {
@@ -93,13 +159,7 @@ impl<'a> ValidationPlan<'a> {
                 let context = BoundValidationContext::new_with_paths(&[], &[])?;
                 budget.invoke(0, false)?;
                 let outcome = binding.validate(input, &context)?;
-                let has_more_work = self.model_rules()[occurrence + 1..]
-                    .iter()
-                    .any(|_| selected(options.selection(), &path))
-                    || self
-                        .bindings()
-                        .iter()
-                        .any(|field| selected(options.selection(), &path_for(field.value())));
+                let has_more_work = mask.later_selected(occurrence);
                 report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())
             })();
             if let Err(error) = result {
@@ -113,14 +173,15 @@ impl<'a> ValidationPlan<'a> {
             if report.stopped() {
                 break;
             }
-            let path = path_for(binding.value());
-            if !selected(options.selection(), &path) {
+            let mask_index = model_rule_count + binding_index;
+            if !mask.selected(mask_index) {
                 continue;
             }
+            let path = mask
+                .take_field_path(mask_index)
+                .unwrap_or_else(|| path_for(binding.value()));
             let occurrence = self.model_rules().len() + binding.occurrence();
-            let has_more_work = self.bindings()[binding_index + 1..]
-                .iter()
-                .any(|field| selected(options.selection(), &path_for(field.value())));
+            let has_more_work = mask.later_selected(mask_index);
             if let Err(failure) = execute_field(
                 binding,
                 occurrence,
@@ -492,13 +553,38 @@ fn selected(selection: &ValidationSelection, path: &ValidationPath) -> bool {
 
 /// Matches the complete field-name sequence, ignoring collection indices.
 fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
-    let fields: Vec<&str> = path
-        .as_segments()
+    field
+        .segments()
         .iter()
-        .filter_map(|segment| match segment {
+        .map(String::as_str)
+        .eq(path.as_segments().iter().filter_map(|segment| match segment {
             PathSegment::Field(name) => Some(*name),
             _ => None,
-        })
-        .collect();
-    field.segments().iter().map(String::as_str).eq(fields)
+        }))
+}
+
+#[cfg(test)]
+mod tests {
+    use qubit_validator::ValidationPath;
+
+    use super::field_matches;
+    use crate::validation::validation_options::FieldPath;
+
+    #[test]
+    fn field_matching_ignores_indices_without_allocating_a_field_list() {
+        assert!(field_matches(
+            &FieldPath::from_segments(["items", "name"]),
+            &ValidationPath::root()
+                .with_field("items")
+                .with_index(2)
+                .with_field("name"),
+        ));
+        assert!(!field_matches(
+            &FieldPath::from_segments(["items", "name"]),
+            &ValidationPath::root()
+                .with_field("items")
+                .with_index(2)
+                .with_field("other"),
+        ));
+    }
 }

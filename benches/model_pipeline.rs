@@ -28,9 +28,11 @@ use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::FieldPath;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_model_metadata::validation::ValidationSelection;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::registry::ReflectRegistry;
 use qubit_validator::ValidatorRegistry;
@@ -159,6 +161,15 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
         assert!(!report.is_truncated());
         execution.bench_function(BenchmarkId::new("fields", size), |bencher| {
             bencher.iter(|| black_box(plan.validate(black_box(value.clone()), black_box(&options))));
+        });
+        let last_selected = ValidationOptions::builder()
+            .selection(ValidationSelection::Fields(vec![FieldPath::new(format!(
+                "field_{}",
+                size - 1
+            ))]))
+            .build();
+        execution.bench_function(BenchmarkId::new("fields_last_selected", size), |bencher| {
+            bencher.iter(|| black_box(plan.validate(black_box(value.clone()), black_box(&last_selected))));
         });
     }
     execution.finish();
