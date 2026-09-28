@@ -47,6 +47,7 @@ pub(crate) struct CompiledPropertyPath {
     /// Property suffix whose owner type is supplied at execution.
     pub(super) deferred: Box<[&'static str]>,
     pub(super) steps: Box<[PropertyStep]>,
+    pub(super) optional_steps: Box<[usize]>,
     pub(super) input: InputType,
     pub(super) optional: bool,
 }
@@ -64,6 +65,7 @@ impl CompiledPropertyPath {
         }
         let mut current = root;
         let mut steps = Vec::with_capacity(path.segments().len());
+        let mut optional_steps = Vec::new();
         let mut path_optional = false;
         let mut input = InputType::of::<()>();
         for (index, segment) in path.segments().iter().enumerate() {
@@ -118,6 +120,9 @@ impl CompiledPropertyPath {
                 return Err(path_error(BindErrorKind::UnsupportedConstraint));
             }
             path_optional |= optional;
+            if optional {
+                optional_steps.push(index);
+            }
             steps.push(PropertyStep { property: *property });
             input = if matches!(actual.kind(), TypeKind::Text(_)) {
                 InputType::Text
@@ -135,6 +140,7 @@ impl CompiledPropertyPath {
             dependency: None,
             deferred: Box::new([]),
             steps: steps.into_boxed_slice(),
+            optional_steps: optional_steps.into_boxed_slice(),
             input,
             optional: path_optional,
         })
@@ -173,6 +179,7 @@ impl CompiledPropertyPath {
                 dependency: Some(*binding),
                 deferred: segments.into_boxed_slice(),
                 steps: Box::new([]),
+                optional_steps: Box::new([]),
                 input: expected,
                 optional: false,
             });
@@ -213,6 +220,30 @@ impl CompiledPropertyPath {
         self.optional
     }
 
+    /// Returns whether every optional dependency read is covered by the same
+    /// optional property prefix on the validation target.
+    pub(crate) fn optionality_covered_by(&self, target: &Self) -> bool {
+        if self.context_depth != 0
+            || target.context_depth != 0
+            || !self.deferred.is_empty()
+            || !target.deferred.is_empty()
+        {
+            return false;
+        }
+        self.optional_steps.iter().all(|&index| {
+            self.steps
+                .get(..=index)
+                .zip(target.steps.get(..=index))
+                .is_some_and(|(left, right)| {
+                    left.iter().zip(right).all(|(a, b)| {
+                        a.property().name() == b.property().name()
+                            && a.property().descriptor().map(|d| d.type_id())
+                                == b.property().descriptor().map(|d| d.type_id())
+                    }) && target.optional_steps.contains(&index)
+                })
+        })
+    }
+
     /// Projects a checked, field-backed `Option<T>` onto its reflected `T`.
     /// This is used only by scalar constraints that can borrow the contained
     /// value at execution. An absent or unresolved element is unsupported.
@@ -226,6 +257,15 @@ impl CompiledPropertyPath {
             .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
         self.input = InputType::Typed(element.type_id());
         self.optional = true;
+        if !self.optional_steps.contains(&(self.steps.len() - 1)) {
+            self.optional_steps = self
+                .optional_steps
+                .iter()
+                .copied()
+                .chain(std::iter::once(self.steps.len() - 1))
+                .collect::<Vec<_>>()
+                .into_boxed_slice();
+        }
         Ok(self)
     }
 }
@@ -262,6 +302,7 @@ mod tests {
             dependency: None,
             deferred: vec!["parent", "value"].into_boxed_slice(),
             steps: Box::new([]),
+            optional_steps: Box::new([]),
             input: InputType::of::<u8>(),
             optional: true,
         };

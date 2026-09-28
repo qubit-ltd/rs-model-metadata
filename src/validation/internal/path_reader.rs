@@ -189,6 +189,7 @@ mod tests {
             dependency: None,
             deferred: Box::new([]),
             steps: Box::new([]),
+            optional_steps: Box::new([]),
             input: InputType::of::<()>(),
             optional: false,
         };

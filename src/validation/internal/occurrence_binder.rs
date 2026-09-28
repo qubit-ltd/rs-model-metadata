@@ -357,8 +357,8 @@ pub(crate) fn bind(
             if occurrence.selector.is_some() && !validator.dependency_specs().is_empty() {
                 return Err(vec![ValidationBuildError::unsupported(occurrence)]);
             }
-            let dependencies =
-                bind_dependencies(occurrence, declaration, &validator, graph, ancestors).map_err(|errors| {
+            let dependencies = bind_dependencies(occurrence, declaration, &validator, &value, graph, ancestors)
+                .map_err(|errors| {
                     errors
                         .into_iter()
                         .map(|error| access_error(occurrence, error))
@@ -388,6 +388,7 @@ fn bind_dependencies(
     occurrence: &ValidationOccurrence,
     declaration: &ValidatorMetadata,
     validator: &BoundValidator,
+    target: &CompiledPropertyPath,
     graph: &ModelGraph<'_>,
     ancestors: &[&'static TypeMetadata],
 ) -> Result<Box<[CompiledPropertyPath]>, Vec<BindError>> {
@@ -442,7 +443,8 @@ fn bind_dependencies(
                 if path.input_type() == spec.input()
                     && path.deferred().is_empty()
                     && path.is_optional()
-                    && !spec.optional() =>
+                    && !spec.optional()
+                    && !path.optionality_covered_by(target) =>
             {
                 errors.push(
                     BindError::new(BindErrorKind::DependencyOptionalityMismatch)
