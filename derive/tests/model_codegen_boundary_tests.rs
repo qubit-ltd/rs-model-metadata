@@ -18,6 +18,7 @@ use model_runtime::registry::ModelRegistry;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_reflect::ReflectRegistry;
+use qubit_reflect::TypeDescriptor;
 
 const GENERIC_DECLARATION_START_LINE: u32 = line!();
 #[Model(id = "test.derive.CodegenBoundaryGeneric")]
@@ -67,6 +68,13 @@ fn test_generic_model_registration_preserves_definition_identity_and_source() {
     assert_eq!(registry.generic_definitions().len(), 1);
     assert!(registry.metadata("test.derive.CodegenBoundaryGeneric").is_none());
     assert_eq!(generic.definition().generics().parameters().len(), 1);
+    let concrete = TypeDescriptor::of::<CodegenBoundaryGeneric<u8>>();
+    assert!(std::ptr::eq(
+        concrete
+            .type_definition()
+            .expect("generic monomorph retains its source definition"),
+        generic.definition(),
+    ));
     assert_eq!(generic.fields().len(), 1);
     assert!(matches!(
         generic.fields()[0].type_ref().as_symbolic(),
