@@ -499,6 +499,13 @@ registered type member. Snapshot projection reports `UnregisteredModelTarget`
 before invoking providers when that membership is missing. `ModelEntry::source()`
 identifies the metadata capability fragment; `declaration_source()` identifies
 the reflected type or generic definition and is absent for static entries.
+This is stricter than ordinary reflection capability lookup: a capability-only
+target remains queryable but is not implicitly projected as a model. Diagnose
+type targets with `capability_only_type_targets("qubit.model.metadata.v1")`;
+when generic metadata is enabled, check definition targets with
+`capability_only_definition_targets("qubit.model.metadata.v1")` as well. Add
+the intended type or definition to the same snapshot, or remove the stale
+metadata registration before projecting it.
 
 The graph borrows its immutable registry. Static metadata never borrows graph
 allocations or instances. Borrowed Property values cannot escape their source

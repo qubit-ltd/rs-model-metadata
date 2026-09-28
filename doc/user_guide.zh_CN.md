@@ -422,6 +422,10 @@ ResolveError 提供 owner Rust 身份、可选稳定 ID、已知声明位置和�
 反射快照中的每个 `qubit.model.metadata.v1` 目标也必须是已注册类型成员；缺少成员时，
 快照投影会在调用 provider 前报告 `UnregisteredModelTarget`。`ModelEntry::source()` 指向元数据能力片段；
 `declaration_source()` 指向反射类型或泛型定义，静态条目没有声明来源。
+这比普通反射能力查询更严格：capability-only 目标仍可查询，但不会自动投影为模型。
+可用 `capability_only_type_targets("qubit.model.metadata.v1")` 诊断类型目标；启用泛型元数据时，
+还应检查 `capability_only_definition_targets("qubit.model.metadata.v1")`。投影前应将预期类型或定义加入同一
+snapshot，或移除已过期的元数据注册。
 
 结构图借用不可变注册表；静态 metadata 不借用 graph 分配或模型实例。
 Property 的借用值不能逃出源实例生命周期，也不强制 Send。新生成代码采用 rs-reflect codegen v3 上的
