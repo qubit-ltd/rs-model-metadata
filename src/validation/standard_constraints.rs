@@ -37,6 +37,7 @@ mod tests {
     use qubit_validation_rules::registrations;
     use qubit_validator::BindErrorKind;
     use qubit_validator::InputType;
+    use qubit_validator::NamedValidationArgument;
     use qubit_validator::ValidationArgument;
     use qubit_validator::ValidatorRegistry;
 
@@ -45,6 +46,9 @@ mod tests {
     use super::visit_rules;
     use crate::metadata::AllowedChars;
     use crate::metadata::ConstraintMetadata;
+    use crate::metadata::DecimalConstraint;
+    use crate::metadata::DecimalSemantic;
+    use crate::metadata::RoundingMode;
     use crate::metadata::TemporalPrecision;
     use crate::metadata::TextConstraint;
     use crate::metadata::TextFormat;
@@ -173,6 +177,48 @@ mod tests {
                     .expect("text format must bind");
             });
             assert_eq!(count, 1);
+        }
+    }
+
+    #[test]
+    fn test_decimal_contract_arguments_bind() {
+        let registry = ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
+        for precision in [None, Some(3)] {
+            for min_closed in [false, true] {
+                for max_closed in [false, true] {
+                    let constraint = ConstraintMetadata::Decimal(
+                        DecimalConstraint::new(precision, 2, RoundingMode::HalfEven, DecimalSemantic::Money)
+                            .with_bounds(Some("1.23"), Some("2.34"), min_closed, max_closed),
+                    );
+                    let mut count = 0;
+                    visit_rules(&constraint, |rule| {
+                        count += 1;
+                        let StandardRule::Executable { id, args, .. } = rule else {
+                            panic!("decimal must use the registry");
+                        };
+                        assert_eq!(id.as_str(), ids::DECIMAL_VALUE);
+                        let mut expected = Vec::new();
+                        if let Some(value) = precision {
+                            expected.push(NamedValidationArgument::new(
+                                "precision",
+                                ValidationArgument::Unsigned(u128::from(value)),
+                            ));
+                        }
+                        expected.extend([
+                            NamedValidationArgument::new("scale", ValidationArgument::Unsigned(2)),
+                            NamedValidationArgument::new("min", ValidationArgument::String("1.23")),
+                            NamedValidationArgument::new("max", ValidationArgument::String("2.34")),
+                            NamedValidationArgument::new("min_inclusive", ValidationArgument::Bool(min_closed)),
+                            NamedValidationArgument::new("max_inclusive", ValidationArgument::Bool(max_closed)),
+                        ]);
+                        assert_eq!(args, expected.as_slice());
+                        registry
+                            .bind(id.as_str(), InputType::of::<bigdecimal::BigDecimal>(), args)
+                            .expect("actual decimal registration");
+                    });
+                    assert_eq!(count, 1);
+                }
+            }
         }
     }
 }

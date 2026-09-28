@@ -62,6 +62,18 @@ struct Formats {
     uuid: String,
 }
 
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct DecimalNarrowWindow {
+    #[decimal(precision = 3, scale = 2, min = "1.23", max = "1.24", min_inclusive = false)]
+    amount: bigdecimal::BigDecimal,
+}
+
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct DecimalImpossibleCapacity {
+    #[decimal(precision = 3, scale = 2, min = "10")]
+    amount: bigdecimal::BigDecimal,
+}
+
 #[Model]
 struct SequenceCount {
     #[sequence(min_items = 1, max_items = 2)]
@@ -155,6 +167,53 @@ fn test_text_character_and_byte_bounds_are_independent() {
             );
         }
     }
+}
+
+#[test]
+fn test_decimal_contract_narrow_window_executes() {
+    let root = TypeMetadata::of::<DecimalNarrowWindow>();
+    for (text, valid) in [("1.23", false), ("1.24", true), ("1.25", false)] {
+        let value = DecimalNarrowWindow {
+            amount: text.parse().unwrap(),
+        };
+        let report = validate(root, ReflectedRef::new(&value));
+        assert_eq!(report.is_valid(), valid);
+        if !valid {
+            assert_eq!(report.violations()[0].rule_id().as_str(), ids::DECIMAL_VALUE);
+            assert_eq!(report.violations()[0].code().as_str(), "decimal.range");
+            assert_eq!(report.violations()[0].path().render(), "amount");
+        }
+    }
+}
+
+#[test]
+fn test_decimal_contract_impossible_capacity_fails_build() {
+    let root = TypeMetadata::of::<DecimalImpossibleCapacity>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: ModelRegistry::global(),
+        roots: &roots,
+    })
+    .resolve()
+    .unwrap();
+    let validators = ValidatorRegistry::empty();
+    let errors = match ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    ) {
+        Ok(_) => panic!("impossible decimal capacity must fail before execution"),
+        Err(errors) => errors,
+    };
+    assert_eq!(errors.len(), 1);
+    assert_eq!(
+        errors[0].kind(),
+        ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::InvalidBounds),
+    );
+    assert_eq!(errors[0].path(), Some("amount"));
+    assert!(errors[0].constraint().is_some());
 }
 
 /// The five policies remain distinct when translated to runtime arguments.
