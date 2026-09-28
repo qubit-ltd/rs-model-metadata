@@ -11,16 +11,12 @@
 
 use std::any::TypeId;
 
-#[cfg(feature = "generic")]
-use qubit_reflect::TypeDefinitionDescriptor;
 use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::capability::CapabilityOrigin;
 use qubit_reflect::error::RegistryError;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::CapabilityTarget;
-#[cfg(feature = "generic")]
-use qubit_reflect::registry::ReflectRegistry;
 
 use crate::metadata::AbiViolation;
 use crate::metadata::ModelId;
@@ -77,74 +73,6 @@ pub struct ModelRegistryError {
 }
 
 impl ModelRegistryError {
-    /// Retains an intrinsic capability conflict and its registration source.
-    pub(crate) fn capability(error: CapabilityAccessError, source: FragmentIdentity, type_id: TypeId) -> Self {
-        Self {
-            kind: ModelRegistryErrorKind::CapabilityResolution,
-            model_id: None,
-            sources: vec![source],
-            origins: vec![CapabilityOrigin::Intrinsic { type_id }],
-            reflection: None,
-            abi: None,
-            capability: Some(error),
-            capability_id: None,
-            capability_target: None,
-            expected_adapter_type: None,
-            actual_adapter_type: None,
-        }
-    }
-
-    /// Converts a reflection capability lookup failure into registry context.
-    #[cfg(feature = "generic")]
-    pub(crate) fn capability_access(
-        error: CapabilityAccessError,
-        reflection: &ReflectRegistry,
-        definition: &TypeDefinitionDescriptor,
-    ) -> Self {
-        let origin = reflection
-            .definition_capability_origin(
-                definition.id(),
-                crate::reflect_facade::generic_model_metadata_key().id().as_str(),
-            )
-            .unwrap_or(CapabilityOrigin::Intrinsic {
-                type_id: definition.id().marker_type_id(),
-            });
-        let source = match &origin {
-            CapabilityOrigin::Registered { source } => Some(source.clone()),
-            CapabilityOrigin::Intrinsic { .. } => reflection.definition_source(definition.id()).cloned(),
-        };
-        let (kind, capability_id, expected_adapter_type, actual_adapter_type) = match &error {
-            CapabilityAccessError::FactOnly { id, adapter_type } => (
-                ModelRegistryErrorKind::FactOnlyCapability,
-                Some(*id),
-                None,
-                Some(*adapter_type),
-            ),
-            CapabilityAccessError::AdapterTypeMismatch { id, expected, actual } => (
-                ModelRegistryErrorKind::AdapterTypeMismatch,
-                Some(*id),
-                Some(*expected),
-                Some(*actual),
-            ),
-            CapabilityAccessError::IntrinsicConflict(_) => {
-                (ModelRegistryErrorKind::CapabilityResolution, None, None, None)
-            }
-        };
-        Self {
-            kind,
-            model_id: None,
-            sources: source.into_iter().collect(),
-            origins: vec![origin],
-            reflection: None,
-            abi: None,
-            capability: Some(error),
-            capability_id,
-            capability_target: None,
-            expected_adapter_type,
-            actual_adapter_type,
-        }
-    }
-
     /// Records a model capability fact without an executable provider.
     pub(crate) fn fact_only_capability(capability_id: CapabilityId, origin: CapabilityOrigin) -> Self {
         Self {
@@ -426,7 +354,6 @@ mod tests {
 
     use qubit_reflect::RegistryError;
     use qubit_reflect::TypeDefinitionId;
-    use qubit_reflect::capability::CapabilityAccessError;
     use qubit_reflect::capability::CapabilityOrigin;
     use qubit_reflect::identity::CapabilityId;
     use qubit_reflect::identity::FragmentIdentity;
@@ -477,26 +404,6 @@ mod tests {
         assert_eq!(mismatch.expected_adapter_type(), Some(TypeId::of::<u8>()));
         assert_eq!(mismatch.actual_adapter_type(), Some(TypeId::of::<u16>()));
         assert!(mismatch.to_string().contains("adapter type mismatch"));
-    }
-
-    #[test]
-    fn intrinsic_capability_conflicts_keep_the_original_cause() {
-        use qubit_reflect::capability::CapabilityDescriptor;
-        use qubit_reflect::capability::CapabilityKey;
-        use qubit_reflect::capability::TypeCapabilities;
-
-        let id = CapabilityId::new("example.conflict").expect("valid capability ID");
-        let first = CapabilityDescriptor::without_adapter(CapabilityKey::<u8>::new(id));
-        let second = CapabilityDescriptor::without_adapter(CapabilityKey::<u8>::new(id));
-        let conflict = TypeCapabilities::try_new(vec![first, second]).expect_err("duplicate capability");
-        let error = ModelRegistryError::capability(
-            CapabilityAccessError::IntrinsicConflict(conflict),
-            FragmentIdentity::new("fixture", "tests", 1, 1, "conflict", 1),
-            TypeId::of::<u8>(),
-        );
-        assert_eq!(error.kind(), ModelRegistryErrorKind::CapabilityResolution);
-        assert!(error.source().is_some());
-        assert!(error.to_string().contains("capability resolution failed"));
     }
 
     #[test]

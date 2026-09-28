@@ -21,7 +21,6 @@ use std::sync::OnceLock;
 #[cfg(feature = "generic")]
 use qubit_reflect::TypeDefinitionId;
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::capability::CapabilityLookup;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::CapabilityTarget;
@@ -134,44 +133,30 @@ impl<'reflection> ModelRegistry<'reflection> {
         let mut entries = Vec::new();
         #[cfg(feature = "generic")]
         let mut generic_inputs = Vec::new();
-        for (descriptor, source) in reflection.types_with_identity() {
-            let provider = match reflection
-                .capability_lookup(descriptor, model_metadata_key())
-                .map_err(|error| {
-                    ModelRegistryError::capability(
-                        CapabilityAccessError::IntrinsicConflict(error),
-                        source.clone(),
-                        descriptor.type_id(),
-                    )
-                })? {
-                CapabilityLookup::Missing => continue,
-                CapabilityLookup::Found(provider) => provider,
+        for member in reflection.type_capability_members(model_metadata_key()) {
+            let descriptor = member.target();
+            let provider = match member.lookup() {
+                CapabilityLookup::Found(provider) => *provider,
                 CapabilityLookup::FactOnly(capability) => {
-                    let origin = reflection
-                        .capability_origin(descriptor, capability.id().as_str())
-                        .expect("capability lookup already resolved the capability set")
-                        .expect("effective capability retains its origin");
-                    return Err(ModelRegistryError::fact_only_capability(*capability.id(), origin));
+                    return Err(ModelRegistryError::fact_only_capability(
+                        *capability.id(),
+                        member.origin().clone(),
+                    ));
                 }
                 CapabilityLookup::AdapterTypeMismatch {
                     descriptor: capability,
                     expected,
                 } => {
-                    let origin = reflection
-                        .capability_origin(descriptor, capability.id().as_str())
-                        .expect("capability lookup already resolved the capability set")
-                        .expect("effective capability retains its origin");
                     return Err(ModelRegistryError::adapter_type_mismatch(
                         *capability.id(),
-                        expected,
+                        *expected,
                         capability.adapter_type(),
-                        origin,
+                        member.origin().clone(),
                     ));
                 }
+                CapabilityLookup::Missing => unreachable!("capability members always contain a fact"),
             };
-            let capability_source = reflection
-                .capability_source(descriptor, model_metadata_key().id().as_str())
-                .expect("effective model capabilities retain their source fragment");
+            let capability_source = member.source();
             let metadata = provider();
             if let Err(cause) = metadata.validate_descriptor(descriptor) {
                 return Err(ModelRegistryError::invalid_abi(
@@ -182,22 +167,44 @@ impl<'reflection> ModelRegistry<'reflection> {
             }
             if metadata.model_id().is_some() {
                 entries.push(
-                    ModelEntry::concrete(metadata, capability_source, Some(source))
-                        .expect("metadata with a model ID creates an entry"),
+                    ModelEntry::concrete(
+                        metadata,
+                        capability_source,
+                        Some(
+                            reflection
+                                .type_source(descriptor.type_id())
+                                .expect("capability member types retain declaration source"),
+                        ),
+                    )
+                    .expect("metadata with a model ID creates an entry"),
                 );
             }
         }
         #[cfg(feature = "generic")]
-        for definition in reflection.definitions() {
-            let Some(provider) = reflection
-                .definition_capability(definition.id(), generic_model_metadata_key())
-                .map_err(|error| ModelRegistryError::capability_access(error, reflection, definition))?
-            else {
-                continue;
+        for member in reflection.definition_capability_members(generic_model_metadata_key()) {
+            let definition = member.target();
+            let provider = match member.lookup() {
+                CapabilityLookup::Found(provider) => *provider,
+                CapabilityLookup::FactOnly(capability) => {
+                    return Err(ModelRegistryError::fact_only_capability(
+                        *capability.id(),
+                        member.origin().clone(),
+                    ));
+                }
+                CapabilityLookup::AdapterTypeMismatch {
+                    descriptor: capability,
+                    expected,
+                } => {
+                    return Err(ModelRegistryError::adapter_type_mismatch(
+                        *capability.id(),
+                        *expected,
+                        capability.adapter_type(),
+                        member.origin().clone(),
+                    ));
+                }
+                CapabilityLookup::Missing => unreachable!("capability members always contain a fact"),
             };
-            let capability_source = reflection
-                .definition_capability_source(definition.id(), generic_model_metadata_key().id().as_str())
-                .expect("effective generic model capabilities retain their source fragment");
+            let capability_source = member.source();
             let metadata = provider();
             if metadata.definition().id() != definition.id() {
                 return Err(ModelRegistryError::conflict(
@@ -205,10 +212,15 @@ impl<'reflection> ModelRegistry<'reflection> {
                     vec![capability_source.clone()],
                 ));
             }
-            let source = reflection
-                .definition_source(definition.id())
-                .expect("registered definitions retain source identity");
-            generic_inputs.push((metadata, capability_source, Some(source)));
+            generic_inputs.push((
+                metadata,
+                capability_source,
+                Some(
+                    reflection
+                        .definition_source(definition.id())
+                        .expect("capability member definitions retain declaration source"),
+                ),
+            ));
         }
         let mut registry = Self::build(
             entries,
