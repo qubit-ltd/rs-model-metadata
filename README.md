@@ -19,11 +19,38 @@ The runtime crate supports Rust 1.94 and edition 2024. This package and its
 derive package are `publish = false`; use checkout paths from an application
 crate beside `rs-model-metadata` in the platform workspace:
 
+The examples use this checkout layout; run the application from `rs-platform/app`.
+Keep direct dependencies on the same checkout paths used by the runtime:
+
+```text
+checkout/
+  rs-platform/
+    app/                 # Cargo.toml and src/main.rs
+    rs-model-metadata/   # runtime and derive/
+    rs-reflect/
+  rust-common/
+    rs-id/
+    rs-validator/
+    rs-validation-rules/
+    rs-redact/
+    rs-datatype/
+```
+
+The `core` installation below serves examples marked `core/...`. Programs marked
+`validation/...` use the separate validation installation in the runtime guide. Copy each complete program
+into `src/main.rs` and run `cargo run`. Fragments marked `rust,ignore` require
+the surrounding API objects or application types described beside them.
+`publish = false` describes these manifests; it does not establish whether any
+crate version has been published. An offline resolution failure is only evidence
+about the current local dependency cache.
+
+<!-- example: core -->
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
+qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 ```
 
 `qubit-id` supplies the exact `Id` type required by `Entity` and `Projection`
@@ -38,6 +65,7 @@ metadata without maintaining a second model-registration pipeline. The derive
 macro supplies the role-aware metadata, while `TypeMetadata` exposes it through
 the same `TypeDescriptor` used by `qubit-reflect`.
 
+<!-- example: core/quick-start -->
 ```rust
 use qubit_model_derive::Entity;
 use qubit_id::Id;
@@ -122,6 +150,9 @@ preserves the reflection error and capability conflict in its source chain. For
 an isolated model view, build a `ReflectRegistry` snapshot from only the desired
 descriptors, then pass that same snapshot to `ModelRegistry::from_reflect_registry`:
 
+The following fragment uses the declared `qubit-reflect` dependency, an
+application-defined `MyModel`, and an enclosing function returning `Result`.
+
 ```rust,ignore
 let mut builder = qubit_reflect::registry::RegistrySnapshotBuilder::new();
 builder.add_type(
@@ -176,11 +207,39 @@ and Deserialize by default. Use `no_*` options for intentional opt-outs; `no_eq`
 also removes default Hash. `copy`, `default`, `partial_ord`, and `ord` are opt-in.
 Named Option and standard collection fields default when missing and omit empty values.
 
-Pass anonymous models in `ResolveInputs { models: &registry, roots: &[metadata] }`.
+With a reflection-backed registry, pass only the root in
+`ResolveInputs { models: &registry, roots: &[metadata] }` to discover reachable anonymous models.
+For metadata-only registries, supply anonymous children explicitly.
 Generic concrete models retain their definition even without a stable ID.
 `QueryMetadata::declarations()` exposes direct indexed declarations, including implicit
 identifier, unique, and reference reasons. Filter generation and matching policy belong
 to consumers. `reference.path` uses `/` and `..`; Property paths retain `.`.
+
+## Current execution capabilities and migration
+
+| Execution declaration | Current contract |
+| --- | --- |
+| Outer Map entry count | Generated readable `HashMap`/`BTreeMap` length adapter; field path reports |
+| Decimal / Money | Exact `BigDecimal`, including Option; scale, `DECIMAL(p,s)` precision and range; no rounding |
+| Time precision | `DateTime<Utc>`, `NaiveDateTime`, `NaiveTime`: second/millisecond/microsecond/nanosecond; `NaiveDate` is rejected |
+| Option | `None` skips inner constraints; `Some` executes; build still checks the concrete type |
+| Selector constraints/dependencies; MapKey/MapValue; container model interiors | `UnsupportedExecution`; outer support does not imply inner traversal |
+| Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
+
+A reflection-backed registry discovers anonymous children reachable from the root,
+even through raw reflection wrappers. Supply only that root in `ResolveInputs.roots`;
+all discovery stays in the supplied snapshot. Metadata-only registries require
+explicit child metadata and do not import reflection capabilities.
+One-field tuple `Value` declarations obey the same value-closure checks as named
+Values; `transparent` controls representation, not execution support.
+Entity role checks also traverse tuple fields: `(InnerEntity,)` without an
+explicit reference is rejected as `InvalidEntityNesting`. Newtype Values cannot
+hide a Model/Entity/Projection, reference, unresolved descriptor, or raw struct
+in their value closure (`InvalidValueClosure`); primitive Value/Enum closures remain legal.
+Unnamed payload fields do not become named Properties. `ModelImpl` providers,
+signatures and accessor adapters share the
+method/impl `cfg` and nested `cfg_attr` presence conditions. Mutually exclusive
+accessors are supported; enabled conflicting pairs are still diagnosed.
 
 ## Learn More
 
@@ -196,10 +255,10 @@ to consumers. `reference.path` uses `/` and `..`; Property paths retain `.`.
 
 ```bash
 # Run tests with the default feature set
-cargo test
+cargo test --workspace --locked
 
 # Run tests with all declared features
-cargo test --all-features
+cargo test --workspace --all-features --locked
 
 # Project CI checks
 ./ci-check.sh

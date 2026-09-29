@@ -20,24 +20,57 @@ TypeMetadata 是不依赖模型实例的静态信息。Entity 必须声明稳定
 以下路径假设应用 crate 与 `rs-model-metadata` 同属 `rs-platform` 工作区。只有构建验证计划时，
 才为运行时 crate 启用 `validation`：
 
+示例统一使用以下检出布局，应用命令在 `rs-platform/app` 中执行。
+直接依赖必须与 runtime 使用同一份检出路径：
+
+```text
+checkout/
+  rs-platform/
+    app/                 # Cargo.toml 与 src/main.rs
+    rs-model-metadata/   # runtime 与 derive/
+    rs-reflect/
+  rust-common/
+    rs-id/
+    rs-validator/
+    rs-validation-rules/
+    rs-redact/
+    rs-datatype/
+```
+
+下面的 `core` 安装方案用于 `core/...` 示例；`validation/...` 程序使用
+运行时指南中的独立 validation 安装方案。每次把一份完整程序复制到 `src/main.rs`，执行 `cargo run`。
+标记为 `rust,ignore` 的片段需要旁边说明的 API 对象或应用自定义类型。
+`publish = false` 仅说明当前清单禁止发布，不能据此断言某版本没有发布到 crates.io；
+离线解析失败也只能说明当前本地依赖缓存不足。
+
+<!-- example: core -->
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
+qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 ```
 
 `ModelRegistry::from_static_metadata` 只读取显式传入的元数据，查询 Property 时仅使用
 `TypeMetadata::local_properties()`，因此看不到独立注册的 `ModelImpl` provider。
-需要参与声明处理的匿名模型（包括嵌套子模型）都应加入显式 roots；也可以改用从指定反射快照构建的注册表。
+仅静态元数据发现需要显式提供匿名子模型元数据；基于指定反射快照的注册表会从根自动发现可达子模型，
+不需要再把每个子模型加入 roots。
 验证器只消费得到的图，不会从进程级注册表补入缺失声明。
 
+<!-- example: core/quick-start -->
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::Entity;
+use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
+
+#[Model]
+struct Child { name: String }
 
 #[Entity(id = "guide.directory.User")]
 struct User {
@@ -45,15 +78,19 @@ struct User {
     id: Id,
     #[indexed]
     nickname: String,
+    child: Child,
 }
 
 fn main() {
     let root = TypeMetadata::of::<User>();
     assert_eq!(root.model_id().expect("Entity ID").as_str(), "guide.directory.User");
-    let models = ModelRegistry::from_static_metadata(&[]).unwrap();
+    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model registry");
     let roots = [root];
     let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
         .resolve().unwrap();
+    assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
+    assert_eq!(graph.models().len(), 2);
     let query = graph.query(root.type_id()).unwrap();
     assert_eq!(query.declarations().len(), 2);
     assert_eq!(query.declarations()[1].path().segments(), &["nickname"]);
@@ -161,20 +198,22 @@ MapKey/MapValue 遍历仍会明确返回构建错误。
 
 ## 核心工作流：从声明到验证报告
 
-给 runtime 依赖启用 `validation`，并为下列**可独立运行的完整程序**添加已发布的执行 API 直接依赖：
+给 runtime 依赖启用 `validation`，并为下列**可独立运行的完整程序**添加与 runtime 同一份检出的执行 API 直接依赖：
 
+<!-- example: validation -->
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-reflect = "0.1.0"
-qubit-validator = "0.1.0"
+qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
 ```
 
 下面的用户资料要求 label 与可选联系人的 name 非空白。先发现元数据、解析结构图，再绑定规则。
 嵌套执行需要读取借用的中间对象，因此示例显式提供 `Option<&Contact>` getter；
 返回 `&Option<Contact>` 的 getter 具有不同的访问形状，不能互相替代。
 
+<!-- example: validation/profile -->
 ```rust
 use std::num::NonZeroUsize;
 use qubit_model_derive::Model;
@@ -267,6 +306,7 @@ fn main() {
 结构图合法不代表当前验证后端可以执行全部声明。下面的 Enum payload 能保留约束及声明来源，
 但构建执行计划时必须明确拒绝，不能返回遗漏了约束的空计划：
 
+<!-- example: validation/refusal -->
 ```rust
 use qubit_model_derive::Enum;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -332,7 +372,7 @@ fn main() {
 | 外层 `#[sequence(unique_items)]` | 生成的 `Vec<T>` 或 `[T; N]` 配合借用切片 getter 可用，要求 `T: PartialEq + 'static` 及元素相等性适配器。第一处重复报告在 `field[second_index]`，并附 `first_index`。 |
 | 外层 `#[map(min_entries = ..., max_entries = ...)]` | 通过生成的可读借用 getter 适配器统计 `HashMap<K, V>` 或 `BTreeMap<K, V>`；违规路径是字段本身。 |
 | `#[decimal(...)]` / `#[money(...)]` | 对准确的 `BigDecimal` 值或可选值执行；检查 scale、precision 与精确区间，不舍入。 |
-| `#[time(precision = ...)]` | 对 `DateTime<Utc>`、`NaiveDateTime` 或 `NaiveTime` 及其可选值执行；检查秒、毫秒、微秒或纳秒精度。 |
+| `#[time(precision = ...)]` | 对 `DateTime<Utc>`、`NaiveDateTime` 或 `NaiveTime` 及其可选值执行；检查秒、毫秒、微秒或纳秒精度；`NaiveDate` 在构建时拒绝。 |
 | selector 内的标准约束或依赖，MapKey/MapValue | `UnsupportedExecution` |
 | 缺少 map 长度或 sequence 相等性适配器、未知集合形状、不支持的时间类型、标量输入类型不符 | 构建阶段返回 `UnsupportedExecution` |
 | 含执行声明的 Enum payload、tuple/newtype、容器元素模型 | `UnsupportedExecution` |
@@ -350,12 +390,104 @@ fn main() {
 
 不支持的结构路径包含变体名和元组序号，例如 `choice.First.name`、`pair.1.0.name`。
 容器内模型路径使用 `[]`、`[key]` 或 `[value]`，例如 `items[].name`；这些标记表示静态声明位置，
-不是某个实例中的元素下标。同一模型出现在不同元组位置时分别保留诊断。仅提供反射的包装类型内部，
-也会发现已纳入图中的嵌套模型声明。
+不是某个实例中的元素下标。同一模型出现在不同元组位置时分别保留诊断。基于反射快照的图可只从根发现 raw wrapper 内的匿名模型；
+发现可达工作后，不支持的使用路径明确拒绝，无工作包装则可以生成有效空计划。
 
 真实下游 `rs-platform` 的 testkit 覆盖了生产 `CredentialInfo` 的 Option 包装和两个独立使用位置。
 `PersonInfo.delete_time` 使用受支持的 `DateTime<Utc>` 形状；计划可检查有值情况，并跳过 `None`。
 构建阶段仍会在查看实例前检查声明与具体输入类型。
+
+### 只传根发现 raw wrapper 内的模型
+
+完整的 `validation/wrappers` 程序沿用上面的 validation 安装方案，向基于新反射快照的
+注册表只传入每个根。带规则的子模型会被发现，但 raw 访问路径在两种检查中都拒绝；
+没有工作时，子模型同样可被发现，计划则可以为空。
+
+<!-- example: validation/wrappers -->
+```rust
+use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildErrorKind;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationCapabilities;
+use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::Reflect;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_validator::ValidatorRegistry;
+
+#[Model]
+struct Child { #[text(non_blank)] name: String }
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct Raw { child: Child }
+
+#[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
+struct Root { raw: Raw }
+
+#[Model]
+struct EmptyChild { name: String }
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct EmptyRaw { child: EmptyChild }
+
+#[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
+struct EmptyRoot { raw: EmptyRaw }
+
+fn main() {
+    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot registry");
+    let validators = ValidatorRegistry::empty();
+    let root = TypeMetadata::of::<Root>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("structurally valid wrapper");
+    assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
+    assert_eq!(graph.models().len(), 2);
+    let errors = ValidationCapabilities::check(root, &graph).expect_err("raw path cannot execute");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(errors[0].path(), Some("raw.child.name"));
+    let errors = match ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators }) {
+        Err(errors) => errors,
+        Ok(_) => panic!("reachable rules cannot silently disappear"),
+    };
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(errors[0].path(), Some("raw.child.name"));
+
+    let root = TypeMetadata::of::<EmptyRoot>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("no-work wrapper");
+    assert!(graph.model(TypeMetadata::of::<EmptyChild>().type_id()).is_some());
+    ValidationCapabilities::check(root, &graph).expect("no execution work");
+    let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators })
+        .expect("valid empty plan");
+    assert_eq!(plan.binding_count(), 0);
+}
+```
+
+### 迁移形状与条件访问器
+
+| 执行声明 | 当前合同 |
+| --- | --- |
+| 外层 Map entry count | 生成的 `HashMap`/`BTreeMap` 可读长度适配器；违规报告在字段路径 |
+| Decimal / Money | 准确的 `BigDecimal` 及 Option；检查 scale、`DECIMAL(p,s)` precision 和区间，不舍入 |
+| Time precision | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 的秒/毫秒/微秒/纳秒精度；拒绝 `NaiveDate` |
+| Option | `None` 跳过内层约束，`Some` 执行；构建时仍检查具体类型 |
+| selector 内约束或依赖、MapKey/MapValue、容器内模型 | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
+| Enum/raw wrapper 与递归路径 | 发现可达工作后，不支持的使用路径在能力检查和计划构建时明确拒绝；无工作包装可以通过 |
+
+基于反射快照的注册表能从根发现可达匿名子模型，包括 raw reflection wrapper 内的模型；
+`ResolveInputs.roots` 只需传入根，发现范围始终受传入快照限制。仅静态元数据注册表需要显式子元数据，
+不会引入反射能力。单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；`transparent` 只控制表示，
+不保证内部约束可执行。Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerEntity,)`
+返回 `InvalidEntityNesting`。newtype Value 不能在值闭包中隐藏 Model/Entity/Projection、引用、
+未解析描述符或 raw struct（`InvalidValueClosure`）；基本值及合法 Value/Enum 闭包仍可通过。
+无名载荷字段不会成为具名 Property。`ModelImpl` 的 provider、签名和访问适配器与方法/impl 的 `cfg` 及嵌套
+`cfg_attr` 同步启用；互斥访问器可用，同时启用的冲突组合仍会诊断。
 
 ## 进阶用法：停止条件与执行预算
 
@@ -409,7 +541,7 @@ precision 为 1、scale 为 0 时会接受 `1e3`，新版拒绝。元数据中�
 | --- | --- |
 | 找不到引用目标 | 稳定 ID、已链接 crate、传入注册表的内容 |
 | 能力或 Property 冲突 | fallible 查询的 cause 与原始声明来源 |
-| 匿名模型不在图中 | 是否把 TypeMetadata 加入 ResolveInputs.roots |
+| 匿名模型不在图中 | 检查传入反射快照；仅静态元数据注册表需要显式子元数据 |
 | 父依赖缺失 | 最近父对象优先的实例上下文与 graph 中的类型信息 |
 | selector 无执行支持 | ValidationCapabilities 或其他消费后端 |
 | codec 缺失或类型不符 | 注册项、显式引用和准确 value type |

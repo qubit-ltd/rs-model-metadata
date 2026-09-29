@@ -15,11 +15,35 @@ without maintaining a parallel schema by hand.
 
 ## Installation
 
-This crate targets Rust 1.94 and edition 2024. It is not currently published
-to crates.io (`publish = false`), so use checkout paths for the derive crate
-and its `qubit-model-metadata` runtime facade. Adjust the paths to match your
-workspace layout:
+This crate targets Rust 1.94 and edition 2024. Its manifests use `publish = false`;
+the examples below use the derive crate and runtime from local checkouts:
 
+The examples use this checkout layout; run the application from `rs-platform/app`.
+Keep direct dependencies on the same checkout paths used by the runtime:
+
+```text
+checkout/
+  rs-platform/
+    app/                 # Cargo.toml and src/main.rs
+    rs-model-metadata/   # runtime and derive/
+    rs-reflect/
+  rust-common/
+    rs-id/
+    rs-validator/
+    rs-validation-rules/
+    rs-redact/
+    rs-datatype/
+```
+
+The `core` installation below serves examples marked `core/...`. Programs marked
+`validation/...` use the separate validation installation in the runtime guide. Copy each complete program
+into `src/main.rs` and run `cargo run`. Fragments marked `rust,ignore` require
+the surrounding API objects or application types described beside them.
+`publish = false` describes these manifests; it does not establish whether any
+crate version has been published. An offline resolution failure is only evidence
+about the current local dependency cache.
+
+<!-- example: core -->
 ```toml
 [dependencies]
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
@@ -28,8 +52,8 @@ qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 Generated code resolves `qubit-model-metadata` with `proc-macro-crate`; a
-renamed runtime dependency is supported. Application crates do not need a
-direct dependency on `qubit-reflect`.
+renamed runtime dependency is supported. Generated declarations alone do not need a direct dependency on `qubit-reflect`;
+programs using its public APIs must declare the same checkout as the runtime.
 
 ## Quick Start
 
@@ -37,6 +61,7 @@ Consider a login service that needs a stable user identity, must avoid exposing
 email addresses in its logs, and wants framework code to discover a writable
 `email` property. Declare the model once:
 
+<!-- example: core/quick-start -->
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
@@ -143,6 +168,32 @@ indexes, execute validators, or turn Rust `type_name()` output into a stable
 model identity. Those responsibilities remain with explicit downstream
 consumers and the resolved model graph.
 
+## Current execution capabilities and migration
+
+| Execution declaration | Current contract |
+| --- | --- |
+| Outer Map entry count | Generated readable `HashMap`/`BTreeMap` length adapter; field path reports |
+| Decimal / Money | Exact `BigDecimal`, including Option; scale, `DECIMAL(p,s)` precision and range; no rounding |
+| Time precision | `DateTime<Utc>`, `NaiveDateTime`, `NaiveTime`: second/millisecond/microsecond/nanosecond; `NaiveDate` is rejected |
+| Option | `None` skips inner constraints; `Some` executes; build still checks the concrete type |
+| Selector constraints/dependencies; MapKey/MapValue; container model interiors | `UnsupportedExecution`; outer support does not imply inner traversal |
+| Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
+
+A reflection-backed registry discovers anonymous children reachable from the root,
+even through raw reflection wrappers. Supply only that root in `ResolveInputs.roots`;
+all discovery stays in the supplied snapshot. Metadata-only registries require
+explicit child metadata and do not import reflection capabilities.
+One-field tuple `Value` declarations obey the same value-closure checks as named
+Values; `transparent` controls representation, not execution support.
+Entity role checks also traverse tuple fields: `(InnerEntity,)` without an
+explicit reference is rejected as `InvalidEntityNesting`. Newtype Values cannot
+hide a Model/Entity/Projection, reference, unresolved descriptor, or raw struct
+in their value closure (`InvalidValueClosure`); primitive Value/Enum closures remain legal.
+Unnamed payload fields do not become named Properties. `ModelImpl` providers,
+signatures and accessor adapters share the
+method/impl `cfg` and nested `cfg_attr` presence conditions. Mutually exclusive
+accessors are supported; enabled conflicting pairs are still diagnosed.
+
 ## Learn More
 
 - [English user guide](doc/user_guide.md)
@@ -158,10 +209,13 @@ not its `derive` subdirectory. The CI, alignment, and coverage scripts live ther
 
 ```bash
 # Run tests with the default feature set
-cargo test
+cargo test --workspace --locked
 
 # Run tests with all declared features
-cargo test --all-features
+cargo test --workspace --all-features --locked
+
+# Test only the derive package
+cargo test -p qubit-model-derive --all-features --locked
 
 # Project CI checks
 ./ci-check.sh

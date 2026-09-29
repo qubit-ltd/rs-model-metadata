@@ -12,9 +12,33 @@
 
 ## 安装
 
-本 crate 使用 Rust 1.94 和 edition 2024，且当前未发布到 crates.io（`publish = false`）。
-请在同时包含宏 crate 和 `qubit-model-metadata` 运行时门面的工作区中使用路径依赖；路径需按实际目录调整：
+本 crate 使用 Rust 1.94 和 edition 2024，清单设置了 `publish = false`。
+下例使用宏 crate 与 `qubit-model-metadata` 运行时的本地检出路径：
 
+示例统一使用以下检出布局，应用命令在 `rs-platform/app` 中执行。
+直接依赖必须与 runtime 使用同一份检出路径：
+
+```text
+checkout/
+  rs-platform/
+    app/                 # Cargo.toml 与 src/main.rs
+    rs-model-metadata/   # runtime 与 derive/
+    rs-reflect/
+  rust-common/
+    rs-id/
+    rs-validator/
+    rs-validation-rules/
+    rs-redact/
+    rs-datatype/
+```
+
+下面的 `core` 安装方案用于 `core/...` 示例；`validation/...` 程序使用
+运行时指南中的独立 validation 安装方案。每次把一份完整程序复制到 `src/main.rs`，执行 `cargo run`。
+标记为 `rust,ignore` 的片段需要旁边说明的 API 对象或应用自定义类型。
+`publish = false` 仅说明当前清单禁止发布，不能据此断言某版本没有发布到 crates.io；
+离线解析失败也只能说明当前本地依赖缓存不足。
+
+<!-- example: core -->
 ```toml
 [dependencies]
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
@@ -23,13 +47,15 @@ qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
 ```
 
 生成代码会通过 `proc-macro-crate` 解析 `qubit-model-metadata` 的实际依赖名，因此支持重命名 runtime
-依赖；业务 crate 不必直接依赖 `qubit-reflect`。
+依赖；只使用生成声明的业务 crate 不必直接依赖 `qubit-reflect`；
+调用其公开 API 时，必须声明与 runtime 相同的检出路径。
 
 ## 快速开始
 
 以登录服务为例：用户必须有稳定身份，邮箱不能在日志中明文输出，框架还需要发现可写的 `email`
 属性。只需声明一次模型：
 
+<!-- example: core/quick-start -->
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
@@ -114,6 +140,26 @@ codec 执行属于独立的可选 adapter：启用 runtime 的 `codec` feature�
 本 crate 只描述模型语义，不定义物理数据库索引，不负责执行 validator，也不会把 Rust `type_name()`
 当作稳定模型身份。相关职责由显式的下游消费者和完成解析的模型图承担。
 
+## 当前执行能力与迁移
+
+| 执行声明 | 当前合同 |
+| --- | --- |
+| 外层 Map entry count | 生成的 `HashMap`/`BTreeMap` 可读长度适配器；违规报告在字段路径 |
+| Decimal / Money | 准确的 `BigDecimal` 及 Option；检查 scale、`DECIMAL(p,s)` precision 和区间，不舍入 |
+| Time precision | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 的秒/毫秒/微秒/纳秒精度；拒绝 `NaiveDate` |
+| Option | `None` 跳过内层约束，`Some` 执行；构建时仍检查具体类型 |
+| selector 内约束或依赖、MapKey/MapValue、容器内模型 | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
+| Enum/raw wrapper 与递归路径 | 发现可达工作后，不支持的使用路径在能力检查和计划构建时明确拒绝；无工作包装可以通过 |
+
+基于反射快照的注册表能从根发现可达匿名子模型，包括 raw reflection wrapper 内的模型；
+`ResolveInputs.roots` 只需传入根，发现范围始终受传入快照限制。仅静态元数据注册表需要显式子元数据，
+不会引入反射能力。单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；`transparent` 只控制表示，
+不保证内部约束可执行。Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerEntity,)`
+返回 `InvalidEntityNesting`。newtype Value 不能在值闭包中隐藏 Model/Entity/Projection、引用、
+未解析描述符或 raw struct（`InvalidValueClosure`）；基本值及合法 Value/Enum 闭包仍可通过。
+无名载荷字段不会成为具名 Property。`ModelImpl` 的 provider、签名和访问适配器与方法/impl 的 `cfg` 及嵌套
+`cfg_attr` 同步启用；互斥访问器可用，同时启用的冲突组合仍会诊断。
+
 ## 延伸阅读
 
 - [English user guide](doc/user_guide.md)
@@ -129,10 +175,13 @@ CI、格式化与覆盖率脚本位于仓库根目录。
 
 ```bash
 # 使用默认 feature 集运行测试
-cargo test
+cargo test --workspace --locked
 
 # 使用项目声明的全部 feature 运行测试
-cargo test --all-features
+cargo test --workspace --all-features --locked
+
+# 只测试 derive package
+cargo test -p qubit-model-derive --all-features --locked
 
 # 运行项目 CI 检查
 ./ci-check.sh

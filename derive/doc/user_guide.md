@@ -4,11 +4,48 @@
 
 This guide covers the 0.1 workspace contract for application authors. Declare a
 model once, inspect its metadata, and let explicit consumers implement validation,
-querying, or persistence. Rust 1.94 and edition 2024 are required. These crates are
-unpublished; use the checkout dependencies shown in the README.
+querying, or persistence. Rust 1.94 and edition 2024 are required. These manifests use
+`publish = false`; use the checkout dependencies below.
+
+## Installation and example context
+
+The examples use this checkout layout; run the application from `rs-platform/app`.
+Keep direct dependencies on the same checkout paths used by the runtime:
+
+```text
+checkout/
+  rs-platform/
+    app/                 # Cargo.toml and src/main.rs
+    rs-model-metadata/   # runtime and derive/
+    rs-reflect/
+  rust-common/
+    rs-id/
+    rs-validator/
+    rs-validation-rules/
+    rs-redact/
+    rs-datatype/
+```
+
+The `core` installation below serves examples marked `core/...`. Programs marked
+`validation/...` use the separate validation installation in the runtime guide. Copy each complete program
+into `src/main.rs` and run `cargo run`. Fragments marked `rust,ignore` require
+the surrounding API objects or application types described beside them.
+`publish = false` describes these manifests; it does not establish whether any
+crate version has been published. An offline resolution failure is only evidence
+about the current local dependency cache.
+
+<!-- example: core -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
+qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
+qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+```
 
 ## A user with safe output and discoverable properties
 
+<!-- example: core/quick-start -->
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
@@ -155,9 +192,8 @@ adapter must traverse an optional child. A `Vec<T>` storage type alone does not
 provide element access: explicit element validators need a borrowed-slice getter.
 
 Constrained enum payloads, tuple/newtype interiors, model declarations inside
-container elements, work-bearing cycles, Decimal/Time/Map constraints, erased
-uniqueness, selector constraints/dependencies, and unsupported unwrap/owned
-intermediate shapes produce `UnsupportedExecution` at plan construction. A unit
+container elements, work-bearing cycles, missing collection adapters, selector
+constraints/dependencies, and unsupported unwrap/owned intermediate shapes produce `UnsupportedExecution` at plan construction. A unit
 enum or cycle with no reachable execution declarations remains a valid ordinary
 value. Reference fields validate only their explicit stored-field rules; opaque
 fields stop internal traversal without deleting outer declarations.
@@ -174,6 +210,108 @@ Generated model code uses checked `__private::v7`; update the runtime and macro
 crate together. There is no v5/v6 compatibility facade. Concrete field identities
 use owner TypeId, variant index, and field index; model IDs remain the stable
 external naming mechanism. `rs-reflect` retains its independent protocol version.
+
+### Current capabilities and migration boundaries
+
+| Execution declaration | Current contract |
+| --- | --- |
+| Outer Map entry count | Generated readable `HashMap`/`BTreeMap` length adapter; field path reports |
+| Decimal / Money | Exact `BigDecimal`, including Option; scale, `DECIMAL(p,s)` precision and range; no rounding |
+| Time precision | `DateTime<Utc>`, `NaiveDateTime`, `NaiveTime`: second/millisecond/microsecond/nanosecond; `NaiveDate` is rejected |
+| Option | `None` skips inner constraints; `Some` executes; build still checks the concrete type |
+| Selector constraints/dependencies; MapKey/MapValue; container model interiors | `UnsupportedExecution`; outer support does not imply inner traversal |
+| Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
+
+A reflection-backed registry discovers anonymous children reachable from the root,
+even through raw reflection wrappers. Supply only that root in `ResolveInputs.roots`;
+all discovery stays in the supplied snapshot. Metadata-only registries require
+explicit child metadata and do not import reflection capabilities.
+One-field tuple `Value` declarations obey the same value-closure checks as named
+Values; `transparent` controls representation, not execution support.
+Entity role checks also traverse tuple fields: `(InnerEntity,)` without an
+explicit reference is rejected as `InvalidEntityNesting`. Newtype Values cannot
+hide a Model/Entity/Projection, reference, unresolved descriptor, or raw struct
+in their value closure (`InvalidValueClosure`); primitive Value/Enum closures remain legal.
+Unnamed payload fields do not become named Properties. `ModelImpl` providers,
+signatures and accessor adapters share the
+method/impl `cfg` and nested `cfg_attr` presence conditions. Mutually exclusive
+accessors are supported; enabled conflicting pairs are still diagnosed.
+
+### Migration exercise: role closure and accessor presence
+
+This complete `core/migration` program uses the core installation. It shows the
+restored structural failures for a Value wrapping a Model and an Entity storing
+another Entity inside a tuple field. Keep the Value payload closed, or declare
+an explicit Entity reference at the owning field instead of hiding the role in
+a wrapper. The cfg example retains only active accessor contributions, so an
+inactive method may mention a type unavailable in this build. Real application
+features can replace these constant cfg predicates.
+
+<!-- example: core/migration -->
+```rust
+use qubit_id::Id;
+use qubit_model_derive::Entity;
+use qubit_model_derive::Model;
+use qubit_model_derive::ModelImpl;
+use qubit_model_derive::Value;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveErrorKind;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
+
+#[Model]
+struct Plain { name: String }
+#[Value]
+struct InvalidValue(Plain);
+#[Value]
+struct LegalValue(u8);
+
+#[Entity(id = "guide.migration.Inner")]
+struct Inner { #[identifier] id: Id }
+#[Entity(id = "guide.migration.Outer")]
+struct Outer { #[identifier] id: Id, inner: (Inner,) }
+
+#[Model]
+struct Configured { value: u32 }
+#[ModelImpl]
+impl Configured {
+    #[cfg(any())]
+    pub fn absent(&self) -> MissingType { unreachable!() }
+    #[cfg_attr(all(), cfg_attr(all(), cfg(any())))]
+    pub fn nested_absent(&self) -> MissingType { unreachable!() }
+    #[cfg(all())]
+    pub fn current(&self) -> u32 { self.value }
+    #[cfg(all())]
+    pub fn set_current(&mut self, value: u32) { self.value = value; }
+}
+
+fn main() {
+    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot registry");
+    for (root, kind, field) in [
+        (TypeMetadata::of::<InvalidValue>(), ResolveErrorKind::InvalidValueClosure, 0),
+        (TypeMetadata::of::<Outer>(), ResolveErrorKind::InvalidEntityNesting, 1),
+    ] {
+        let roots = [root];
+        let errors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+            .resolve().expect_err("wrapping does not erase role constraints");
+        let error = errors.errors().iter().find(|error| error.kind() == kind)
+            .expect("specific role failure");
+        assert_eq!(error.owner_type_id(), Some(root.type_id()));
+        assert_eq!(error.declaration().expect("owning field").field, Some(field));
+    }
+    let roots = [TypeMetadata::of::<LegalValue>()];
+    StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("primitive Value is closed");
+    let metadata = TypeMetadata::of::<Configured>();
+    assert!(metadata.try_property("absent").expect("properties").is_none());
+    assert!(metadata.try_property("nested_absent").expect("properties").is_none());
+    assert!(metadata.try_property("current").expect("properties").expect("active getter")
+        .is_writable());
+}
+```
 
 ## Reflection and diagnostics
 

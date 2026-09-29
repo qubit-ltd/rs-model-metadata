@@ -23,27 +23,60 @@ Both model-metadata packages set `publish = false`, so use local checkouts.
 These paths assume the application crate sits beside `rs-model-metadata` under
 `rs-platform`. Add `validation` only when the application builds plans:
 
+The examples use this checkout layout; run the application from `rs-platform/app`.
+Keep direct dependencies on the same checkout paths used by the runtime:
+
+```text
+checkout/
+  rs-platform/
+    app/                 # Cargo.toml and src/main.rs
+    rs-model-metadata/   # runtime and derive/
+    rs-reflect/
+  rust-common/
+    rs-id/
+    rs-validator/
+    rs-validation-rules/
+    rs-redact/
+    rs-datatype/
+```
+
+The `core` installation below serves examples marked `core/...`. Programs marked
+`validation/...` use the separate validation installation in the runtime guide. Copy each complete program
+into `src/main.rs` and run `cargo run`. Fragments marked `rust,ignore` require
+the surrounding API objects or application types described beside them.
+`publish = false` describes these manifests; it does not establish whether any
+crate version has been published. An offline resolution failure is only evidence
+about the current local dependency cache.
+
+<!-- example: core -->
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
+qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 ```
 
 A static registry made with `ModelRegistry::from_static_metadata` reads only
 the supplied metadata and `TypeMetadata::local_properties()`; it cannot see
-independently registered `ModelImpl` providers. Supply every
-anonymous model whose declarations should participate, including nested models,
-in the explicit roots. Alternatively, use a registry built from the intended
-reflection snapshot. Validation consumes the resulting graph without filling
+independently registered `ModelImpl` providers. For metadata-only discovery, supply anonymous child metadata explicitly.
+A registry built from the intended reflection snapshot discovers reachable
+children from the root, without a second child entry in `roots`. Validation consumes the resulting graph without filling
 missing declarations from the process-wide registry.
 
+<!-- example: core/quick-start -->
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::Entity;
+use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
+
+#[Model]
+struct Child { name: String }
 
 #[Entity(id = "guide.directory.User")]
 struct User {
@@ -51,15 +84,19 @@ struct User {
     id: Id,
     #[indexed]
     nickname: String,
+    child: Child,
 }
 
 fn main() {
     let root = TypeMetadata::of::<User>();
     assert_eq!(root.model_id().expect("Entity ID").as_str(), "guide.directory.User");
-    let models = ModelRegistry::from_static_metadata(&[]).unwrap();
+    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model registry");
     let roots = [root];
     let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
         .resolve().unwrap();
+    assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
+    assert_eq!(graph.models().len(), 2);
     let query = graph.query(root.type_id()).unwrap();
     assert_eq!(query.declarations().len(), 2);
     assert_eq!(query.declarations()[1].path().segments(), &["nickname"]);
@@ -202,14 +239,15 @@ includes exact TypeId, optional stable ModelId, Property path, and source.
 ## Core workflow: validate a profile and keep partial results
 
 Enable `validation` in the runtime dependency. For the following **complete,
-independent programs**, add the execution types as released direct dependencies:
+independent programs**, declare execution API dependencies from the same checkouts as the runtime:
 
+<!-- example: validation -->
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
 qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-reflect = "0.1.0"
-qubit-validator = "0.1.0"
+qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
 ```
 
 The profile's label and optional contact name must be nonblank. Metadata discovery
@@ -217,6 +255,7 @@ and graph resolution happen before validator binding. The explicit `Option<&Cont
 getter supplies the borrowed intermediate object needed for nested execution;
 a getter returning `&Option<Contact>` is a different access shape.
 
+<!-- example: validation/profile -->
 ```rust
 use std::num::NonZeroUsize;
 use qubit_model_derive::Model;
@@ -313,6 +352,7 @@ A structurally valid graph can contain declarations unsupported by this validati
 backend. For example, the following enum retains its payload constraint and source
 location, but plan construction must reject executing it:
 
+<!-- example: validation/refusal -->
 ```rust
 use qubit_model_derive::Enum;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -381,7 +421,7 @@ available through `rule.id().as_str()`.
 | Outer `#[sequence(unique_items)]` | Supported for generated `Vec<T>` or `[T; N]` with a borrowed-slice getter and `T: PartialEq + 'static`; requires an element equality adapter. First repeated element reports `field[second_index]` and `first_index`. |
 | Outer `#[map(min_entries = ..., max_entries = ...)]` | Counts a `HashMap<K, V>` or `BTreeMap<K, V>` through a generated, readable borrowed getter adapter; reports on the field path. |
 | `#[decimal(...)]` / `#[money(...)]` | Executes on an exact `BigDecimal` value or optional value; scale, precision, and exact range are checked without rounding. |
-| `#[time(precision = ...)]` | Executes on `DateTime<Utc>`, `NaiveDateTime`, or `NaiveTime`, including optional values; checks exact second, millisecond, microsecond, or nanosecond resolution. |
+| `#[time(precision = ...)]` | Executes on `DateTime<Utc>`, `NaiveDateTime`, or `NaiveTime`, including optional values; checks exact second, millisecond, microsecond, or nanosecond resolution. `NaiveDate` is rejected at build time. |
 | Standard constraints or dependencies inside a selector; MapKey/MapValue | `UnsupportedExecution` |
 | Missing map length or sequence equality adapter, unknown collection shape, unsupported temporal type, or mismatched scalar input | `UnsupportedExecution` at build time |
 | Constrained enum payloads, tuples/newtypes, and models inside container elements | `UnsupportedExecution` |
@@ -403,14 +443,114 @@ Unsupported structural paths include variant names and tuple positions, such as
 `choice.First.name` and `pair.1.0.name`. Container model paths use `[]`, `[key]`,
 or `[value]`, for example `items[].name`; these denote static declaration positions,
 not an index from an instance. Repeated model types at distinct tuple positions
-retain separate diagnostics. Reflection-only wrappers also expose nested model
-declarations already present in the graph.
+retain separate diagnostics. A reflection-backed graph discovers nested anonymous models through raw wrappers
+from the root alone. Reachable work on an unsupported path is rejected;
+wrappers without execution work can produce an empty valid plan.
 
 The downstream `rs-platform` testkit exercises real `CredentialInfo` under an
 optional wrapper and at two separate paths. Its `PersonInfo.delete_time`
 constraint uses the supported `DateTime<Utc>` shape; a valid plan checks a
 present value and skips `None`. Plan construction still checks the declaration
 and concrete input type before any instance is inspected.
+
+### Root-only discovery through raw wrappers
+
+This complete `validation/wrappers` program uses the validation installation above.
+It supplies only each root to a fresh reflection-backed registry. The constrained
+child is discovered, but its raw access path fails both checks; a no-work child
+remains discoverable and permits an empty plan.
+
+<!-- example: validation/wrappers -->
+```rust
+use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildErrorKind;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationCapabilities;
+use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::Reflect;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_validator::ValidatorRegistry;
+
+#[Model]
+struct Child { #[text(non_blank)] name: String }
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct Raw { child: Child }
+
+#[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
+struct Root { raw: Raw }
+
+#[Model]
+struct EmptyChild { name: String }
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct EmptyRaw { child: EmptyChild }
+
+#[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
+struct EmptyRoot { raw: EmptyRaw }
+
+fn main() {
+    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot registry");
+    let validators = ValidatorRegistry::empty();
+    let root = TypeMetadata::of::<Root>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("structurally valid wrapper");
+    assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
+    assert_eq!(graph.models().len(), 2);
+    let errors = ValidationCapabilities::check(root, &graph).expect_err("raw path cannot execute");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(errors[0].path(), Some("raw.child.name"));
+    let errors = match ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators }) {
+        Err(errors) => errors,
+        Ok(_) => panic!("reachable rules cannot silently disappear"),
+    };
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(errors[0].path(), Some("raw.child.name"));
+
+    let root = TypeMetadata::of::<EmptyRoot>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("no-work wrapper");
+    assert!(graph.model(TypeMetadata::of::<EmptyChild>().type_id()).is_some());
+    ValidationCapabilities::check(root, &graph).expect("no execution work");
+    let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators })
+        .expect("valid empty plan");
+    assert_eq!(plan.binding_count(), 0);
+}
+```
+
+### Migrating shapes and conditional accessors
+
+| Execution declaration | Current contract |
+| --- | --- |
+| Outer Map entry count | Generated readable `HashMap`/`BTreeMap` length adapter; field path reports |
+| Decimal / Money | Exact `BigDecimal`, including Option; scale, `DECIMAL(p,s)` precision and range; no rounding |
+| Time precision | `DateTime<Utc>`, `NaiveDateTime`, `NaiveTime`: second/millisecond/microsecond/nanosecond; `NaiveDate` is rejected |
+| Option | `None` skips inner constraints; `Some` executes; build still checks the concrete type |
+| Selector constraints/dependencies; MapKey/MapValue; container model interiors | `UnsupportedExecution`; outer support does not imply inner traversal |
+| Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
+
+A reflection-backed registry discovers anonymous children reachable from the root,
+even through raw reflection wrappers. Supply only that root in `ResolveInputs.roots`;
+all discovery stays in the supplied snapshot. Metadata-only registries require
+explicit child metadata and do not import reflection capabilities.
+One-field tuple `Value` declarations obey the same value-closure checks as named
+Values; `transparent` controls representation, not execution support.
+Entity role checks also traverse tuple fields: `(InnerEntity,)` without an
+explicit reference is rejected as `InvalidEntityNesting`. Newtype Values cannot
+hide a Model/Entity/Projection, reference, unresolved descriptor, or raw struct
+in their value closure (`InvalidValueClosure`); primitive Value/Enum closures remain legal.
+Unnamed payload fields do not become named Properties. `ModelImpl` providers,
+signatures and accessor adapters share the
+method/impl `cfg` and nested `cfg_attr` presence conditions. Mutually exclusive
+accessors are supported; enabled conflicting pairs are still diagnosed.
 
 ## Advanced usage: stopping policies and work budgets
 
@@ -481,7 +621,7 @@ a missing or non-text dependency is an execution error, not a value violation.
 | --- | --- |
 | Missing model target | The target ID and linked registrations in the supplied registry |
 | Capability or Property conflict | The fallible query's cause and original declaration sources |
-| Anonymous model absent from graph | Include its TypeMetadata in ResolveInputs.roots |
+| Anonymous model absent from graph | Check the supplied reflection snapshot; metadata-only registries need explicit child metadata |
 | Missing parent dependency | Supply nearest-parent-first instance context and graph metadata |
 | Unsupported validation selector | Check ValidationCapabilities or use another consumer |
 | Codec missing/type mismatch | Registration, explicit reference, and exact codec value type |

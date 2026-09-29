@@ -328,7 +328,7 @@ ValidationCapabilities::check(root, &graph) -> Result<(), ValidationBuildErrors>
 binder 对根、嵌套与 selector 共用实际 getter 形状检查。具名 text 约束、自定义 validator，
 直接借用和 Option 嵌套模型可执行。显式 element validator 要求 borrowed slice，sequence item count
 要求实际长度适配器。owned 中间对象、缺少适配器的 Option/指针元素解包、selector 内约束或依赖、
-MapKey/MapValue、Decimal/Time/Map、类型擦除后的唯一性检查、含规则的 Enum/tuple/newtype 内部、
+MapKey/MapValue、缺少集合适配器、含规则的 Enum/tuple/newtype 内部、
 容器元素模型内部工作都明确拒绝。reference 停在存储字段；opaque 截断内部但保留外层规则。
 unit Enum 与没有执行声明的 payload 可作普通值。对外完整边界见[执行矩阵](../../doc/user_guide.zh_CN.md#限制执行范围与构建拒绝)。
 
@@ -353,7 +353,7 @@ FailFast 只保留首条；报告上限约束整个报告。策略停止设置 t
 | Depth | 64 | 属性和元素路径段，依赖的 parent hop 也计入 |
 | Nodes | 100,000 | 根一次；实际属性/依赖/元素读取及规则调用各一次 |
 | Violations | 100 | 所有保留的违规，包括 prerequisites；达到上限正常停止 |
-| Comparisons | 1,000,000 | selector 元素规则调用次数，不统计自定义代码内比较 |
+| Comparisons | 1,000,000 | selector 元素规则调用与外层 sequence 去重的逐对比较；不统计自定义代码内部 |
 
 配置值非零，计数 checked，重复读取重复计费。遍历预算不足返回 TraversalLimit 和部分报告，
 与正常策略截断区分。字段选择匹配完整字段名路径、忽略集合索引，不按父字段前缀展开。
@@ -383,11 +383,12 @@ ModelRegistryError 通过 abi_cause 和 Error::source 保留 typed AbiViolation�
 验证配置通过 `ValidationOptions::builder()` 创建独立的 `ValidationOptionsBuilder`，
 设置方法使用不带 `with_` 的配置项名称，`build(self)` 消耗 builder 并转移完整配置。
 `ValidationOptions::default()` 保留既定默认值，旧配置 setter 移除。
-runtime/derive 保持未发布的 0.1.0，
+runtime/derive 保持 0.1.0，当前清单设置 `publish = false`，
 不引入全局 validator plan 缓存。
 
 真实下游使用生产 CredentialInfo，验证 Option 包装及两个独立位置。完整 PersonInfo 结构图应可解析，
-但 delete_time 的 Time 声明在构建计划时明确拒绝，即使实例值为 None 也一样；
+delete_time 使用受支持的 `DateTime<Utc>` precision 检查，`Some` 执行、`None` 跳过内层约束；
+不支持的 `NaiveDate` 声明仍在执行前拒绝；
 不得删除该约束或增加 opaque 获得绿色测试。
 
 保留 property_output；新增 1/8/32 字段、多独立 impl 的冷组装、热 Property 查询、图构建、绑定与执行基准。
@@ -399,3 +400,28 @@ metadata 和实例准备移出计时路径；冷观测单列。新增缓存必�
 Clippy、Rustdoc、下游验证均纳入验收。`documentation_examples_tests` 提取并运行两 crate 双语
 README/指南的实际 Rust 代码块，不能以近似副本替代。接口规格和声明片段不假装为独立程序。
 全量源码/item/风格审查、最终 CI 仍是独立门禁，由台账记录实际结果。
+
+## 2026-09-29 当前能力与迁移合同
+
+| 执行声明 | 当前合同 |
+| --- | --- |
+| 外层 Map entry count | 生成的 `HashMap`/`BTreeMap` 可读长度适配器；违规报告在字段路径 |
+| Decimal / Money | 准确的 `BigDecimal` 及 Option；检查 scale、`DECIMAL(p,s)` precision 和区间，不舍入 |
+| Time precision | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 的秒/毫秒/微秒/纳秒精度；拒绝 `NaiveDate` |
+| Option | `None` 跳过内层约束，`Some` 执行；构建时仍检查具体类型 |
+| selector 内约束或依赖、MapKey/MapValue、容器内模型 | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
+| Enum/raw wrapper 与递归路径 | 发现可达工作后，不支持的使用路径在能力检查和计划构建时明确拒绝；无工作包装可以通过 |
+
+基于反射快照的注册表能从根发现可达匿名子模型，包括 raw reflection wrapper 内的模型；
+`ResolveInputs.roots` 只需传入根，发现范围始终受传入快照限制。仅静态元数据注册表需要显式子元数据，
+不会引入反射能力。单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；`transparent` 只控制表示，
+不保证内部约束可执行。Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerEntity,)`
+返回 `InvalidEntityNesting`。newtype Value 不能在值闭包中隐藏 Model/Entity/Projection、引用、
+未解析描述符或 raw struct（`InvalidValueClosure`）；基本值及合法 Value/Enum 闭包仍可通过。
+无名载荷字段不会成为具名 Property。`ModelImpl` 的 provider、签名和访问适配器与方法/impl 的 `cfg` 及嵌套
+`cfg_attr` 同步启用；互斥访问器可用，同时启用的冲突组合仍会诊断。
+
+从仓库根运行 `cargo test --workspace --all-features --locked`；仅测宏时使用
+`cargo test -p qubit-model-derive --all-features --locked`。双语安装测试读取实际 TOML 与 Rust 原文，
+按 package ID 核对直接/传递 reflect、validator，并独立验证 core/validation feature；
+文档合同不代表最终 CI 门禁已经通过。

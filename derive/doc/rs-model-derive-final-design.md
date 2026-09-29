@@ -179,7 +179,7 @@ paths. Named text constraints and custom validators execute on directly borrowed
 or optional nested models. Explicit element validators need borrowed-slice access;
 sequence item count needs its actual length adapter. Owned intermediate results,
 implicit Option/pointer element unwrapping without an adapter, selector constraints
-or dependencies, MapKey/MapValue, Decimal/Time/Map constraints, erased uniqueness,
+or dependencies, MapKey/MapValue, missing collection adapters,
 constrained enum/tuple/newtype interiors, and model work inside container elements
 are rejected. Reference traversal stops at the stored field; opaque traversal
 stops internally while retaining explicit outer rules. Unit enums and no-work
@@ -216,7 +216,7 @@ replaced by a later getter failure.
 | Depth | 64 | Property and element path segments, including parent hops for dependencies |
 | Nodes | 100,000 | Root once; each actual property/dependency/element read and rule invocation once |
 | Violations | 100 | Every retained violation, including prerequisites; reaching the cap stops normally |
-| Comparisons | 1,000,000 | Each selector element rule invocation; not comparisons inside custom code |
+| Comparisons | 1,000,000 | Each selector element rule invocation and outer sequence uniqueness pair; not custom code internals |
 
 All configured limits are nonzero. Checked accounting prevents overflow and charges
 repeated reads repeatedly. Traversal exhaustion returns TraversalLimit plus the
@@ -256,12 +256,12 @@ custom registrations; regenerate all metadata with v7. Configure validation with
 methods use setting names without `with_`, and `build(self)` transfers the
 completed options. `ValidationOptions::default()` retains the documented defaults;
 the previous configuration setters are removed. Runtime and derive remain
-unpublished 0.1.0 packages. No global validator-plan cache is introduced.
+0.1.0 packages with `publish = false` in their current manifests. No global validator-plan cache is introduced.
 
 The real downstream boundary is CredentialInfo nested under an optional testkit
 wrapper and at two use sites. The full PersonInfo graph still resolves; its
-`delete_time` Time declaration is rejected at plan construction even for None
-instances. Do not remove that constraint or add opaque to obtain a green test.
+`delete_time` uses supported `DateTime<Utc>` precision checks: `Some` executes and
+`None` skips its inner constraint. Unsupported `NaiveDate` declarations still fail before execution. Do not remove that constraint or add opaque to obtain a green test.
 
 Keep property_output benchmarks and add 1/8/32-field independent-impl cold assembly,
 warm property queries, graph building, plan binding, and execution measurements.
@@ -277,3 +277,35 @@ bilingual README/guide Rust fences through `documentation_examples_tests`, rathe
 than compiling an approximate copy. Formal interface and declaration fragments are
 specifications, not independent runnable programs. Full source/item/style review
 and final CI remain separate acceptance gates recorded in the ledger.
+
+## Current capability and migration contract, 2026-09-29
+
+| Execution declaration | Current contract |
+| --- | --- |
+| Outer Map entry count | Generated readable `HashMap`/`BTreeMap` length adapter; field path reports |
+| Decimal / Money | Exact `BigDecimal`, including Option; scale, `DECIMAL(p,s)` precision and range; no rounding |
+| Time precision | `DateTime<Utc>`, `NaiveDateTime`, `NaiveTime`: second/millisecond/microsecond/nanosecond; `NaiveDate` is rejected |
+| Option | `None` skips inner constraints; `Some` executes; build still checks the concrete type |
+| Selector constraints/dependencies; MapKey/MapValue; container model interiors | `UnsupportedExecution`; outer support does not imply inner traversal |
+| Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
+
+A reflection-backed registry discovers anonymous children reachable from the root,
+even through raw reflection wrappers. Supply only that root in `ResolveInputs.roots`;
+all discovery stays in the supplied snapshot. Metadata-only registries require
+explicit child metadata and do not import reflection capabilities.
+One-field tuple `Value` declarations obey the same value-closure checks as named
+Values; `transparent` controls representation, not execution support.
+Entity role checks also traverse tuple fields: `(InnerEntity,)` without an
+explicit reference is rejected as `InvalidEntityNesting`. Newtype Values cannot
+hide a Model/Entity/Projection, reference, unresolved descriptor, or raw struct
+in their value closure (`InvalidValueClosure`); primitive Value/Enum closures remain legal.
+Unnamed payload fields do not become named Properties. `ModelImpl` providers,
+signatures and accessor adapters share the
+method/impl `cfg` and nested `cfg_attr` presence conditions. Mutually exclusive
+accessors are supported; enabled conflicting pairs are still diagnosed.
+
+From the repository root run `cargo test --workspace --all-features --locked`; for only
+the macro package use `cargo test -p qubit-model-derive --all-features --locked`.
+The bilingual installation test reads actual TOML and Rust source, compares direct/transitive
+reflect and validator package IDs, and verifies independent core/validation features.
+This contract does not certify that final CI gates have passed.

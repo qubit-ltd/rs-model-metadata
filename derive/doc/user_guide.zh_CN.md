@@ -3,11 +3,46 @@
 [English](user_guide.md) · [README](../README.zh_CN.md) · [运行时指南](../../doc/user_guide.zh_CN.md)
 
 本指南面向应用开发者，适用于工作区 0.1 契约。模型只需声明一次，框架便可读取其中的领域信息，
-再由显式消费者完成验证、查询或持久化。项目要求 Rust 1.94、edition 2024，目前未发布，
-请按 README 配置检出路径依赖。
+再由显式消费者完成验证、查询或持久化。项目要求 Rust 1.94、edition 2024，清单设置了 `publish = false`，
+请使用下文的检出路径依赖。
+
+## 安装与示例上下文
+
+示例统一使用以下检出布局，应用命令在 `rs-platform/app` 中执行。
+直接依赖必须与 runtime 使用同一份检出路径：
+
+```text
+checkout/
+  rs-platform/
+    app/                 # Cargo.toml 与 src/main.rs
+    rs-model-metadata/   # runtime 与 derive/
+    rs-reflect/
+  rust-common/
+    rs-id/
+    rs-validator/
+    rs-validation-rules/
+    rs-redact/
+    rs-datatype/
+```
+
+下面的 `core` 安装方案用于 `core/...` 示例；`validation/...` 程序使用
+运行时指南中的独立 validation 安装方案。每次把一份完整程序复制到 `src/main.rs`，执行 `cargo run`。
+标记为 `rust,ignore` 的片段需要旁边说明的 API 对象或应用自定义类型。
+`publish = false` 仅说明当前清单禁止发布，不能据此断言某版本没有发布到 crates.io；
+离线解析失败也只能说明当前本地依赖缓存不足。
+
+<!-- example: core -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
+qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
+qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+```
 
 ## 声明用户模型并读取属性
 
+<!-- example: core/quick-start -->
 ```rust
 use qubit_id::Id;
 use qubit_model_derive::{Entity, ModelImpl};
@@ -131,8 +166,8 @@ codec 声明保留稳定 ID 或 Rust codec 类型，具体实现必须存在于�
 借用 getter，例如 `Option<&Child>`。字段存储类型为 `Vec<T>` 本身不能证明可以读取元素，
 显式 element validator 需要借用 slice getter。
 
-含规则的 Enum payload、tuple/newtype 内部、容器元素模型、有可达执行声明的循环，以及 Decimal、
-Time、Map 约束、类型擦除后的唯一性检查、selector 内约束或依赖，都属于当前明确拒绝的执行形状。
+含规则的 Enum payload、tuple/newtype 内部、容器元素模型、有可达执行声明的循环，以及缺少集合
+适配器、selector 内约束或依赖，都属于当前明确拒绝的执行形状。
 需要但缺少解包适配器，或 owned 中间对象无法继续借用时，也在计划构建阶段返回 `UnsupportedExecution`。
 unit Enum 和没有可达执行声明的循环仍可作为普通值通过。reference 只验证存储字段的显式规则，
 opaque 只截断内部遍历，不删除外层声明。
@@ -146,6 +181,99 @@ opaque 只截断内部遍历，不删除外层声明。
 生成代码使用 checked `__private::v7`，runtime 与宏 crate 必须同步升级，不保留 v5/v6 兼容门面。
 具体字段通过 owner TypeId、variant 序号和字段序号识别；稳定外部命名仍使用 ModelId。
 `rs-reflect` 的协议版本独立维护。
+
+### 当前能力与迁移边界
+
+| 执行声明 | 当前合同 |
+| --- | --- |
+| 外层 Map entry count | 生成的 `HashMap`/`BTreeMap` 可读长度适配器；违规报告在字段路径 |
+| Decimal / Money | 准确的 `BigDecimal` 及 Option；检查 scale、`DECIMAL(p,s)` precision 和区间，不舍入 |
+| Time precision | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 的秒/毫秒/微秒/纳秒精度；拒绝 `NaiveDate` |
+| Option | `None` 跳过内层约束，`Some` 执行；构建时仍检查具体类型 |
+| selector 内约束或依赖、MapKey/MapValue、容器内模型 | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
+| Enum/raw wrapper 与递归路径 | 发现可达工作后，不支持的使用路径在能力检查和计划构建时明确拒绝；无工作包装可以通过 |
+
+基于反射快照的注册表能从根发现可达匿名子模型，包括 raw reflection wrapper 内的模型；
+`ResolveInputs.roots` 只需传入根，发现范围始终受传入快照限制。仅静态元数据注册表需要显式子元数据，
+不会引入反射能力。单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；`transparent` 只控制表示，
+不保证内部约束可执行。Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerEntity,)`
+返回 `InvalidEntityNesting`。newtype Value 不能在值闭包中隐藏 Model/Entity/Projection、引用、
+未解析描述符或 raw struct（`InvalidValueClosure`）；基本值及合法 Value/Enum 闭包仍可通过。
+无名载荷字段不会成为具名 Property。`ModelImpl` 的 provider、签名和访问适配器与方法/impl 的 `cfg` 及嵌套
+`cfg_attr` 同步启用；互斥访问器可用，同时启用的冲突组合仍会诊断。
+
+### 迁移练习：角色闭包与访问器存在条件
+
+完整的 `core/migration` 程序使用 core 安装方案，演示恢复后的结构拒绝：Value 包装 Model，
+以及 Entity 的 tuple 字段直接保存另一 Entity。迁移时保持 Value 载荷闭包合法，或在所属
+Entity 字段上声明显式 reference，不能通过包装隐藏角色。cfg 示例只保留启用的访问器贡献，
+因此未启用方法可以提到当前构建中不存在的类型；应用中可把常量条件换成真实 feature。
+
+<!-- example: core/migration -->
+```rust
+use qubit_id::Id;
+use qubit_model_derive::Entity;
+use qubit_model_derive::Model;
+use qubit_model_derive::ModelImpl;
+use qubit_model_derive::Value;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveErrorKind;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
+
+#[Model]
+struct Plain { name: String }
+#[Value]
+struct InvalidValue(Plain);
+#[Value]
+struct LegalValue(u8);
+
+#[Entity(id = "guide.migration.Inner")]
+struct Inner { #[identifier] id: Id }
+#[Entity(id = "guide.migration.Outer")]
+struct Outer { #[identifier] id: Id, inner: (Inner,) }
+
+#[Model]
+struct Configured { value: u32 }
+#[ModelImpl]
+impl Configured {
+    #[cfg(any())]
+    pub fn absent(&self) -> MissingType { unreachable!() }
+    #[cfg_attr(all(), cfg_attr(all(), cfg(any())))]
+    pub fn nested_absent(&self) -> MissingType { unreachable!() }
+    #[cfg(all())]
+    pub fn current(&self) -> u32 { self.value }
+    #[cfg(all())]
+    pub fn set_current(&mut self, value: u32) { self.value = value; }
+}
+
+fn main() {
+    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot registry");
+    for (root, kind, field) in [
+        (TypeMetadata::of::<InvalidValue>(), ResolveErrorKind::InvalidValueClosure, 0),
+        (TypeMetadata::of::<Outer>(), ResolveErrorKind::InvalidEntityNesting, 1),
+    ] {
+        let roots = [root];
+        let errors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+            .resolve().expect_err("wrapping does not erase role constraints");
+        let error = errors.errors().iter().find(|error| error.kind() == kind)
+            .expect("specific role failure");
+        assert_eq!(error.owner_type_id(), Some(root.type_id()));
+        assert_eq!(error.declaration().expect("owning field").field, Some(field));
+    }
+    let roots = [TypeMetadata::of::<LegalValue>()];
+    StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("primitive Value is closed");
+    let metadata = TypeMetadata::of::<Configured>();
+    assert!(metadata.try_property("absent").expect("properties").is_none());
+    assert!(metadata.try_property("nested_absent").expect("properties").is_none());
+    assert!(metadata.try_property("current").expect("properties").expect("active getter")
+        .is_writable());
+}
+```
 
 ## 方法反射、错误与排查
 
