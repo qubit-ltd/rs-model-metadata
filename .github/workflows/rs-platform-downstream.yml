@@ -28,12 +28,14 @@ jobs:
           repository: qubit-ltd/rs-reflect
           ref: b36be13d2f217ecc1c3afddd042a03ba50cf73a7
           path: platform/rs-reflect
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-platform
           ref: 912bfb45d7e29cf3df71cc4bf26aa8d2d2e6f173
           path: platform/rs-platform
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - name: Check out Rust common path dependencies
         uses: actions/checkout@v6
@@ -41,36 +43,42 @@ jobs:
           repository: qubit-ltd/rs-id
           ref: 7425188a7fdebcc94aac9915bcc79c535b3eb1db
           path: rust-common/rs-id
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-datatype
           ref: 48c4aee096f97c483dd44d6ded00bd166ccb0985
           path: rust-common/rs-datatype
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-redact
           ref: 5b992b879ab1bbff5a34c141693d0c6334604cdc
           path: rust-common/rs-redact
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-redact-derive
           ref: fdb0ad4b73d5a22745d5db1326075eaa852ec483
           path: rust-common/rs-redact-derive
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-codec
           ref: 975501f075de49cfb3c473c5048137daec608b43
           path: rust-common/rs-codec
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validator
           ref: fb64546a16ca7659e10d9296728e1cfdace86de0
           path: rust-common/rs-validator
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - name: Check out validation rule definitions
         uses: actions/checkout@v6
@@ -78,6 +86,7 @@ jobs:
           repository: qubit-ltd/rs-validation-rules
           ref: 815b4bc35f69e8e0b6ae29459497d59dd50a0a4c
           path: rust-common/rs-validation-rules
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - name: Install the platform build toolchain
         run: rustup toolchain install 1.94.0 --profile minimal

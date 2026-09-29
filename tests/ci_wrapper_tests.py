@@ -137,6 +137,51 @@ class CiWrapperTests(unittest.TestCase):
             with self.subTest(repository=repository):
                 self.assertRegex(revision, r"^[0-9a-f]{40}$")
 
+    def test_downstream_cross_repository_checkouts_declare_dependency_token(self):
+        workflow = (PROJECT_ROOT / ".github/workflows/rs-platform-downstream.yml").read_text(
+            encoding="utf-8"
+        )
+        blocks = re.findall(
+            r"^      - (?:name: [^\n]+\n        )?uses: actions/checkout@v6\n"
+            r"        with:\n(?P<with>(?:          .*\n)+)",
+            workflow,
+            re.MULTILINE,
+        )
+        dependency_checkouts = [
+            block for block in blocks if re.search(r"^\s+repository:\s*qubit-ltd/", block)
+        ]
+
+        self.assertEqual(len(dependency_checkouts), 9)
+        for checkout in dependency_checkouts:
+            repository = re.search(r"^\s+repository:\s*([^\s]+)", checkout, re.MULTILINE)
+            with self.subTest(repository=repository.group(1) if repository else "missing"):
+                self.assertIsNotNone(repository)
+                self.assertIn("token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}", checkout)
+
+    def test_cross_platform_cargo_commands_cover_locked_workspace(self):
+        workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        jobs = workflow.split("\n  cross-platform-tests:\n", maxsplit=1)
+        self.assertEqual(len(jobs), 2, "cross-platform-tests job is missing")
+        job = re.split(r"\n  [a-zA-Z0-9_-]+:\n", jobs[1], maxsplit=1)[0]
+        commands = re.findall(r"^\s+- run:\s*(cargo\s+(?:test|clippy)\b.*)$", job, re.MULTILINE)
+
+        self.assertEqual(len(commands), 2, "expected cross-platform test and clippy commands")
+        by_command = {"test": None, "clippy": None}
+        for command in commands:
+            if command.startswith("cargo test "):
+                by_command["test"] = command
+            elif command.startswith("cargo clippy "):
+                by_command["clippy"] = command
+
+        for name, command in by_command.items():
+            with self.subTest(command=name):
+                self.assertIsNotNone(command, f"cross-platform {name} command is missing")
+                if command is None:
+                    continue
+                self.assertIn("--workspace", command)
+                self.assertIn("--locked", command)
+                self.assertIn("--all-features", command)
+
 
 if __name__ == "__main__":
     unittest.main()
