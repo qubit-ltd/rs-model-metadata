@@ -68,17 +68,20 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
         ReflectedRef::new(&thirty_two),
     ];
 
-    let mut properties = criterion.benchmark_group("multi_impl_properties_warm");
+    let mut properties = criterion.benchmark_group("model_properties_merge_warm");
     for &(root, size) in roots {
         properties.bench_with_input(BenchmarkId::new("fields_and_impls", size), &root, |bencher, root| {
-            bencher.iter(|| black_box(models.properties_for(black_box(root))));
+            bencher.iter(|| black_box(root.try_properties_in(black_box(reflection))));
         });
     }
     properties.finish();
 
-    let mut cached = criterion.benchmark_group("model_registry_properties_warm");
-    for &(root, size) in roots {
+    // Prime every registry entry before Criterion starts measuring cached lookup.
+    for &(root, _) in roots {
         models.properties_for(root).expect("warm model properties");
+    }
+    let mut cached = criterion.benchmark_group("model_properties_registry_cached");
+    for &(root, size) in roots {
         cached.bench_with_input(BenchmarkId::new("fields_and_impls", size), &root, |bencher, root| {
             bencher.iter(|| black_box(models.properties_for(black_box(*root))));
         });
