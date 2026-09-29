@@ -25,6 +25,11 @@ use crate::metadata::ResolvedPropertyFragments;
 use crate::metadata::TypeMetadata;
 use crate::reflect_facade::ModelImplProvider;
 
+// Owns snapshot-specific merged property storage.
+mod internal;
+
+pub(crate) use internal::merged_model_impl::MergedModelImpl;
+
 /// Stores raw implementation fragments and their fallible local merge.
 ///
 /// Fragments and the local result emitted by derive are immutable static
@@ -33,11 +38,34 @@ use crate::reflect_facade::ModelImplProvider;
 pub struct ModelImplMetadata {
     /// Field/getter/setter declarations in deterministic source order.
     fragments: &'static [PropertyFragment],
-    /// Cached local merge result.
+    /// The static local assembly result; diagnostics remain borrowed when the
+    /// implementation contains incompatible or conflicting property facts.
     properties: Result<&'static LocalPropertySet, &'static PropertyBuildErrors>,
 }
 
 impl ModelImplMetadata {
+    /// Creates generated implementation metadata.
+    ///
+    /// Retains the supplied static source facts and assembly result without
+    /// allocation, revalidation, or invoking any property adapters.
+    ///
+    /// # Parameters
+    ///
+    /// - `fragments`: original field and accessor declarations in source order.
+    /// - `properties`: local properties or the retained assembly diagnostics.
+    ///
+    /// # Returns
+    ///
+    /// Immutable metadata borrowing the supplied generated storage.
+    #[must_use]
+    #[inline]
+    pub(crate) const fn new(
+        fragments: &'static [PropertyFragment],
+        properties: Result<&'static LocalPropertySet, &'static PropertyBuildErrors>,
+    ) -> Self {
+        Self { fragments, properties }
+    }
+
     /// Merges the providers visible in one immutable reflection snapshot.
     ///
     /// Dynamic results are owned by the returned value and released when its
@@ -49,9 +77,22 @@ impl ModelImplMetadata {
     /// an assembly error. Failed merges retain raw fragments for diagnosis and
     /// remain isolated from other snapshot configurations.
     ///
+    /// # Parameters
+    ///
+    /// - `owner`: model whose field ownership and property types are checked.
+    /// - `providers`: snapshot-selected implementation providers and their
+    ///   origins.
+    ///
+    /// # Returns
+    ///
+    /// An owned merge retaining fragments and either effective properties or
+    /// deterministic assembly diagnostics. No provider output is globally
+    /// cached.
+    ///
     /// # Panics
     ///
     /// Propagates provider panics.
+    #[must_use]
     pub(crate) fn merge(owner: &TypeMetadata, providers: &[(ModelImplProvider, CapabilityOrigin)]) -> MergedModelImpl {
         let overlays: Vec<_> = providers
             .iter()
@@ -145,28 +186,15 @@ impl ModelImplMetadata {
         } else {
             Err(Arc::new(PropertyBuildErrors::new(errors)))
         };
-        MergedModelImpl {
-            fragments: ResolvedPropertyFragments::Merged(Arc::from(fragments)),
-            properties,
-        }
+        MergedModelImpl::new(ResolvedPropertyFragments::Merged(Arc::from(fragments)), properties)
     }
 
-    /// Creates generated implementation metadata.
+    /// Returns this implementation's original declarations in source order.
     ///
-    /// Retains the supplied static source facts and assembly result without
-    /// allocation, revalidation, or invoking any property adapters.
-    #[must_use]
-    #[inline]
-    pub(crate) const fn new(
-        fragments: &'static [PropertyFragment],
-        properties: Result<&'static LocalPropertySet, &'static PropertyBuildErrors>,
-    ) -> Self {
-        Self { fragments, properties }
-    }
-
-    /// Returns ordered source facts retained for this implementation view.
-    /// Combined views coalesce repeated field fragments while retaining
-    /// accessor fragments from the selected overlays.
+    /// # Returns
+    ///
+    /// The generated static declarations, without copying or merging them.
+    /// Snapshot-specific coalescing is performed by the owned merge view.
     #[must_use]
     #[inline]
     pub const fn fragments(&self) -> &'static [PropertyFragment] {
@@ -174,6 +202,10 @@ impl ModelImplMetadata {
     }
 
     /// Returns locally merged properties or deterministic compatibility errors.
+    ///
+    /// # Returns
+    ///
+    /// The retained static local properties when assembly succeeded.
     ///
     /// # Errors
     ///
@@ -184,60 +216,5 @@ impl ModelImplMetadata {
     #[inline]
     pub const fn try_properties(&self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
         self.properties
-    }
-}
-
-/// Owned property merge assembled from multiple snapshot providers.
-#[derive(Clone, Debug)]
-pub(crate) struct MergedModelImpl {
-    fragments: ResolvedPropertyFragments,
-    properties: Result<ResolvedProperties, Arc<PropertyBuildErrors>>,
-}
-
-impl MergedModelImpl {
-    pub(crate) fn fragments(&self) -> ResolvedPropertyFragments {
-        self.fragments.clone()
-    }
-
-    pub(crate) fn try_properties(&self) -> Result<ResolvedProperties, Arc<PropertyBuildErrors>> {
-        self.properties.clone()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::MergedModelImpl;
-    use super::ModelImplMetadata;
-    use crate::metadata::LocalPropertySet;
-    use crate::metadata::ResolvedProperties;
-    use crate::metadata::ResolvedPropertyFragments;
-
-    #[test]
-    fn owned_merge_views_return_their_contents() {
-        let generated = ModelImplMetadata::new(&[], Ok(Box::leak(Box::new(LocalPropertySet::new(&[])))));
-        assert!(generated.fragments().is_empty());
-        assert!(
-            generated
-                .try_properties()
-                .expect("valid empty generated view")
-                .properties()
-                .is_empty()
-        );
-
-        let merged = MergedModelImpl {
-            fragments: ResolvedPropertyFragments::Merged(Arc::from([])),
-            properties: Ok(ResolvedProperties::Merged(Arc::from([]))),
-        };
-
-        assert!(merged.fragments().fragments().is_empty());
-        assert!(
-            merged
-                .try_properties()
-                .expect("an empty overlay set has no assembly errors")
-                .properties()
-                .is_empty()
-        );
     }
 }

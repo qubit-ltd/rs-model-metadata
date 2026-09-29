@@ -19,6 +19,7 @@ use super::graph::ModelGraph;
 use super::graph::ResolvedProjectionProducer;
 use super::graph::ResolvedProjectionSource;
 use super::graph::ResolvedReference;
+use super::internal::ResolutionContext;
 use super::queries::build_query;
 use super::reference_selection_ext::ReferenceSelectionExt;
 use super::relations::declared_target_id;
@@ -36,6 +37,7 @@ use crate::metadata::PropertyResolutionError;
 use crate::metadata::ReferenceSelection;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
+use crate::structure::children;
 
 /// Inputs used for one complete resolution attempt.
 #[derive(Clone, Copy)]
@@ -47,6 +49,58 @@ pub struct ResolveInputs<'a> {
 }
 
 /// Resolves declaration-only metadata against explicit registries.
+///
+/// The registry supplies the snapshot's model capabilities. Explicit roots
+/// include anonymous models without inventing stable IDs, and discovered
+/// children participate in the same structural checks. Resolution borrows the
+/// registry; it does not initialize or consult a process-global registry.
+///
+/// # Examples
+///
+/// Include `qubit-model-derive` to declare models. Structural resolution works
+/// without optional features; execution of validation declarations separately
+/// requires the `validation` feature and a validation plan.
+///
+/// ```
+/// use std::error::Error;
+///
+/// use qubit_model_derive::Model;
+/// use qubit_model_derive::Value;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::ResolveErrorKind;
+/// use qubit_model_metadata::resolve::ResolveInputs;
+/// use qubit_model_metadata::resolve::StructureResolver;
+/// use qubit_reflect::registry::RegistrySnapshotBuilder;
+///
+/// #[Model]
+/// struct Note { title: String }
+///
+/// #[Value]
+/// struct InvalidValue { note: Note }
+///
+/// # fn main() -> Result<(), Box<dyn Error>> {
+/// let reflection = RegistrySnapshotBuilder::new().build()?;
+/// let models = ModelRegistry::from_reflect_registry(&reflection)?;
+/// let root = TypeMetadata::of::<Note>();
+/// let roots = [root];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve()?;
+/// assert!(graph.properties(root).is_some());
+/// assert!(root.model_id().is_none());
+///
+/// // A Value cannot contain a plain Model, even when reached from a root.
+/// let invalid_roots = [TypeMetadata::of::<InvalidValue>()];
+/// match StructureResolver::new(ResolveInputs { models: &models, roots: &invalid_roots })
+///     .resolve()
+/// {
+///     Ok(_) => panic!("invalid value closure must be rejected"),
+///     Err(errors) => assert!(errors.errors().iter()
+///         .any(|error| error.kind() == ResolveErrorKind::InvalidValueClosure)),
+/// }
+/// # Ok(())
+/// # }
+/// ```
 pub struct StructureResolver<'a> {
     /// Explicit registries used by this resolver.
     inputs: ResolveInputs<'a>,
@@ -54,12 +108,27 @@ pub struct StructureResolver<'a> {
 
 impl<'a> StructureResolver<'a> {
     /// Creates a resolver without consulting process globals.
+    ///
+    /// # Parameters
+    ///
+    /// - `inputs`: the borrowed registry and additional concrete roots.
+    ///
+    /// # Returns
+    ///
+    /// A declaration resolver borrowing `inputs` for the resulting graph's
+    /// lifetime.
     #[must_use]
+    #[inline]
     pub const fn new(inputs: ResolveInputs<'a>) -> Self {
         Self { inputs }
     }
 
     /// Resolves model structure and property capabilities.
+    ///
+    /// # Returns
+    ///
+    /// An immutable graph borrowing the configured registry and retaining
+    /// properties and relationships for all discovered concrete models.
     ///
     /// # Errors
     ///
@@ -74,8 +143,18 @@ impl<'a> StructureResolver<'a> {
         self.resolve_internal()
     }
 
-    /// Resolves all registered models and accumulates deterministic failures.
+    /// Resolves registered models, explicit roots, and discovered children.
+    ///
+    /// # Returns
+    ///
+    /// An immutable graph when every structural invariant holds.
+    ///
+    /// # Errors
+    ///
+    /// Accumulates property assembly, capability, relationship, role, closure,
+    /// projection, and query failures in deterministic diagnostic order.
     fn resolve_internal(&self) -> Result<ModelGraph<'a>, ResolveErrors> {
+        let mut context = ResolutionContext::new(self.inputs.models, self.inputs.roots);
         let mut references = HashMap::new();
         let mut dependencies = Vec::new();
         let mut projection_sources = HashMap::new();
@@ -113,49 +192,48 @@ impl<'a> StructureResolver<'a> {
                 .chain(variants)
                 .filter(|field| !field.is_opaque())
             {
-                if let Some(descriptor) = field.descriptor() {
-                    pending.push(descriptor);
+                if field.reference().is_none()
+                    && let Some(descriptor) = field.descriptor()
+                {
+                    pending.push((descriptor, field));
                 }
                 if let Some(reference) = field.reference()
                     && let Some(target) = self.resolve_target(reference.target())
                     && seen.insert(target.type_id())
                 {
+                    context.remember(target);
                     nodes.push((target, None));
                 }
             }
-            while let Some(descriptor) = pending.pop() {
+            pending.reverse();
+            while let Some((descriptor, field)) = pending.pop() {
                 if !descriptors.insert(descriptor.type_id()) {
                     continue;
                 }
-                match self.inputs.models.metadata_for(descriptor) {
+                match context.metadata_for(descriptor) {
                     Ok(Some(nested)) => {
+                        context.remember(nested);
                         if seen.insert(nested.type_id()) {
                             nodes.push((nested, None));
                         }
+                        continue;
                     }
                     Ok(None) => {}
-                    Err(error) => errors.push(ResolveError::resolution(metadata, None, source, error)),
+                    Err(error) => {
+                        errors.push(
+                            ResolveError::resolution(metadata, None, source, error)
+                                .with_declaration(*field.declaration()),
+                        );
+                        continue;
+                    }
                 }
-                let element = descriptor
-                    .as_optional()
-                    .map(|value| value.element_type())
-                    .or_else(|| descriptor.as_sequence().map(|value| value.element_type()))
-                    .or_else(|| descriptor.as_set().map(|value| value.element_type()))
-                    .or_else(|| descriptor.as_array().map(|value| value.element_type()))
-                    .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()));
-                if let Some(element) = element.and_then(|value| value.as_resolved()) {
-                    pending.push(element);
-                }
-                if let Some(map) = descriptor.as_map() {
-                    pending.extend(
-                        [map.key_type(), map.value_type()]
-                            .into_iter()
-                            .filter_map(|value| value.as_resolved()),
-                    );
-                }
-                if let Some(tuple) = descriptor.as_tuple() {
-                    pending.extend(tuple.elements().iter().filter_map(|value| value.as_resolved()));
-                }
+                let first_child = pending.len();
+                children(descriptor, |edge| {
+                    if let Some(child) = edge.target.as_resolved() {
+                        pending.push((child, field));
+                    }
+                });
+                pending[first_child..].reverse();
             }
         }
         for &(metadata, fragment_source) in &nodes {
@@ -201,7 +279,7 @@ impl<'a> StructureResolver<'a> {
                     .chain(selectors.flat_map(|selector| selector.validators()))
                 {
                     for declaration in validator.dependency_bindings() {
-                        let context = if declaration.object_path().requires_parent() {
+                        let requirement = if declaration.object_path().requires_parent() {
                             super::graph::ContextRequirement::ParentObject
                         } else {
                             super::graph::ContextRequirement::None
@@ -209,11 +287,14 @@ impl<'a> StructureResolver<'a> {
                         super::relations::validate_dependency(
                             metadata,
                             declaration,
-                            self.inputs.models,
+                            &context,
                             fragment_source,
                             &mut errors,
                         );
-                        dependencies.push(super::graph::ResolvedDependency { declaration, context });
+                        dependencies.push(super::graph::ResolvedDependency {
+                            declaration,
+                            context: requirement,
+                        });
                     }
                 }
 
@@ -221,7 +302,7 @@ impl<'a> StructureResolver<'a> {
                 let field_path = field_segments.as_ref().map(|segments| PropertyPath::new(segments));
                 if field.is_opaque() {
                     let hidden = match field.type_ref().as_resolved() {
-                        Some(descriptor) => match metadata_for_descriptor(descriptor, self.inputs.models) {
+                        Some(descriptor) => match metadata_for_descriptor(descriptor, &context) {
                             Ok(metadata) => metadata,
                             Err(error) => {
                                 errors.push(
@@ -255,7 +336,7 @@ impl<'a> StructureResolver<'a> {
                     && field.reference().is_none()
                     && let Some(descriptor) = field.descriptor()
                 {
-                    match forbidden_entity_nested_role(descriptor, self.inputs.models) {
+                    match forbidden_entity_nested_role(descriptor, &context) {
                         Ok(Some(role)) => push_field_error(
                             &mut errors,
                             ResolveErrorKind::InvalidEntityNesting,
@@ -271,17 +352,11 @@ impl<'a> StructureResolver<'a> {
                         ),
                     }
                 }
-                super::relations::validate_unique_scope(
-                    metadata,
-                    field,
-                    self.inputs.models,
-                    fragment_source,
-                    &mut errors,
-                );
+                super::relations::validate_unique_scope(metadata, field, &context, fragment_source, &mut errors);
                 if let Some(reference) = field.reference() {
                     let mut local_reference_valid = true;
                     if let Some(navigation) = reference.path() {
-                        match super::relations::resolve_object_binding(metadata, navigation, self.inputs.models) {
+                        match super::relations::resolve_object_binding(metadata, navigation, &context) {
                             Ok((_, true)) => {}
                             Ok((Some(binding), false)) => {
                                 if let Some(target) = self.resolve_target(reference.target())
@@ -333,7 +408,7 @@ impl<'a> StructureResolver<'a> {
                             let property = match reference.selection() {
                                 ReferenceSelection::Entity => None,
                                 ReferenceSelection::Property(path) => {
-                                    match resolve_property_path(target, path, self.inputs.models) {
+                                    match resolve_property_path(target, path, &context) {
                                         Ok(Some(property)) if property.is_readable() => Some(property),
                                         Ok(Some(_)) => {
                                             errors.push(
@@ -483,7 +558,7 @@ impl<'a> StructureResolver<'a> {
 
             if metadata.role() == ModelRole::Value {
                 let mut visited = HashSet::new();
-                validate_value_closure(metadata, self.inputs.models, &mut visited, fragment_source, &mut errors);
+                validate_value_closure(metadata, &context, &mut visited, fragment_source, &mut errors);
             }
 
             for error in &mut errors[first_error..] {
@@ -511,7 +586,7 @@ impl<'a> StructureResolver<'a> {
                     .and_then(|descriptor| {
                         reported_metadata(
                             descriptor,
-                            self.inputs.models,
+                            &context,
                             source,
                             Some(PropertyPath::new(&[property.name()])),
                             fragment_source,
@@ -587,6 +662,16 @@ impl<'a> StructureResolver<'a> {
 
     /// Resolves a declaration-time target through the configured model
     /// registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `target`: a stable model ID or concrete type provider from a
+    ///   declaration.
+    ///
+    /// # Returns
+    ///
+    /// `Some` retains the resolved target metadata; `None` means no target was
+    /// available from the explicit ID lookup or concrete provider.
     fn resolve_target(&self, target: &DeclaredEntityTarget) -> Option<&'static TypeMetadata> {
         super::relations::resolve_declared_target(target, self.inputs.models)
     }

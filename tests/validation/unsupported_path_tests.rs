@@ -10,6 +10,7 @@
 
 use std::any::TypeId;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 
 use qubit_model_derive::Enum;
@@ -21,11 +22,16 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ConstraintRuleRef;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildErrors;
+use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
+use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::Reflect;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
 use qubit_validator::ValidatorId;
+use qubit_validator::ValidatorRegistry;
 
 #[Model]
+#[derive(Ord, PartialOrd)]
 struct Child {
     #[text(non_blank)]
     name: String,
@@ -60,6 +66,66 @@ enum ReflectedChoice {
     Second { child: Child },
 }
 
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct ReflectedWrapper {
+    #[reflect(rename = "lookup_child")]
+    child: Child,
+    sibling: Child,
+}
+
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct ReflectedStructEnvelope {
+    raw: ReflectedWrapper,
+}
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct RawTuple(Child);
+
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct ReflectedTupleEnvelope {
+    wrapper: RawTuple,
+}
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+enum AliasedChoice {
+    #[reflect(rename = "lookup_variant")]
+    Named {
+        #[reflect(rename = "lookup_child")]
+        child: Child,
+    },
+}
+
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct AliasedEnvelope {
+    raw: AliasedChoice,
+}
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct RecursiveWrapper {
+    next: Option<Box<RecursiveWrapper>>,
+    child: Child,
+}
+
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct RecursiveEnvelope {
+    raw: RecursiveWrapper,
+}
+
+#[Model]
+struct EmptyChild {
+    name: String,
+}
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct EmptyWrapper {
+    child: EmptyChild,
+}
+
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct EmptyEnvelope {
+    raw: EmptyWrapper,
+}
+
 #[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
 struct ReflectedEnvelope {
     raw: ReflectedChoice,
@@ -69,6 +135,17 @@ struct ReflectedEnvelope {
 struct Containers {
     list: Vec<Child>,
     array: [Child; 2],
+}
+
+#[Model]
+struct MapUses {
+    entries: BTreeMap<Child, Child>,
+}
+
+#[Model]
+struct SetAndSliceUses {
+    values: BTreeSet<Child>,
+    elements: Box<[Child]>,
 }
 
 type MapAlias = HashMap<String, String>;
@@ -143,8 +220,11 @@ fn test_unsupported_constraints_retain_complete_rule_mappings() {
 /// Checks only the explicit root graph and returns its unsupported
 /// declarations.
 fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-    let roots = [root, TypeMetadata::of::<Child>(), TypeMetadata::of::<Choice>()];
+    let reflection = RegistrySnapshotBuilder::new()
+        .build()
+        .expect("fresh reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("explicit reflection model registry");
+    let roots = [root];
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -158,6 +238,24 @@ fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
             .iter()
             .all(|error| error.kind() == ValidationBuildErrorKind::UnsupportedExecution)
     );
+    let validators = ValidatorRegistry::empty();
+    let plan_errors = match ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    ) {
+        Err(errors) => errors,
+        Ok(_) => panic!("unsupported declarations cannot become a successful zero-binding plan"),
+    };
+    assert_eq!(plan_errors.len(), errors.len());
+    for (capability, plan) in errors.iter().zip(plan_errors.iter()) {
+        assert_eq!(plan.kind(), capability.kind());
+        assert_eq!(plan.path(), capability.path());
+        assert_eq!(plan.owner_type_id(), capability.owner_type_id());
+        assert_eq!(plan.constraint_rules(), capability.constraint_rules());
+    }
     errors
 }
 
@@ -219,6 +317,36 @@ fn test_container_element_paths_do_not_claim_an_instance_index() {
 }
 
 #[test]
+fn test_unsupported_map_preserves_key_before_value_uses() {
+    let errors = unsupported(TypeMetadata::of::<MapUses>());
+    assert_eq!(
+        errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
+        [Some("entries[key].name"), Some("entries[value].name"),]
+    );
+    assert_eq!(errors[0].occurrence(), Some(0));
+    assert_eq!(errors[1].occurrence(), Some(1));
+    assert!(
+        errors
+            .iter()
+            .all(|error| error.owner_type_id() == TypeId::of::<Child>())
+    );
+}
+
+#[test]
+fn test_unsupported_set_and_slice_preserve_element_type_suffixes() {
+    let errors = unsupported(TypeMetadata::of::<SetAndSliceUses>());
+    assert_eq!(
+        errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
+        [Some("values[].name"), Some("elements[].name"),]
+    );
+    assert!(
+        errors
+            .iter()
+            .all(|error| error.owner_type_id() == TypeId::of::<Child>())
+    );
+}
+
+#[test]
 fn test_missing_collection_adapters_reject_each_declaration() {
     let errors = unsupported(TypeMetadata::of::<MissingCollectionAdapters>());
     assert_eq!(errors.len(), 2);
@@ -244,4 +372,166 @@ fn test_unsupported_time_type_is_rejected_at_its_field() {
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].path(), Some("date"));
     assert_eq!(errors[0].owner_type_id(), TypeId::of::<UnsupportedTimeType>());
+}
+
+#[test]
+fn test_unsupported_raw_struct_preserves_sibling_uses_and_query_alias() {
+    let errors = unsupported(TypeMetadata::of::<ReflectedStructEnvelope>());
+    assert_eq!(errors.len(), 2);
+    assert_eq!(
+        errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
+        [Some("raw.lookup_child.name"), Some("raw.sibling.name"),]
+    );
+    for (ordinal, error) in errors.iter().enumerate() {
+        assert_eq!(error.owner_type_id(), TypeId::of::<Child>());
+        assert_eq!(error.occurrence(), Some(ordinal));
+        assert_eq!(
+            error.constraint_rules(),
+            [ConstraintRuleRef::Registry(ValidatorId::new(
+                "qubit.rules.text.non_blank"
+            ))]
+        );
+        assert!(error.source_error().is_none());
+    }
+}
+
+#[test]
+fn test_unsupported_raw_positional_struct_preserves_numeric_suffix() {
+    let root = TypeMetadata::of::<ReflectedTupleEnvelope>();
+    let errors = unsupported(root);
+    assert_eq!(errors.len(), 1);
+    let error = &errors[0];
+    assert_eq!(error.path(), Some("wrapper.0.name"));
+    assert_eq!(error.root_type_id(), root.type_id());
+    assert_eq!(error.owner_type_id(), TypeId::of::<Child>());
+    assert_eq!(
+        error.field_location(),
+        TypeMetadata::of::<Child>().fields()[0].location()
+    );
+    assert_eq!(error.occurrence(), Some(0));
+    assert_eq!(
+        error.constraint_rules(),
+        [ConstraintRuleRef::Registry(ValidatorId::new(
+            "qubit.rules.text.non_blank"
+        ))]
+    );
+}
+
+#[test]
+fn test_unsupported_raw_enum_preserves_variant_source_name_and_field_query_alias() {
+    let errors = unsupported(TypeMetadata::of::<AliasedEnvelope>());
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].path(), Some("raw.Named.lookup_child.name"));
+    assert_eq!(errors[0].owner_type_id(), TypeId::of::<Child>());
+}
+
+#[test]
+fn test_unsupported_recursive_raw_wrapper_terminates_without_losing_work() {
+    let errors = unsupported(TypeMetadata::of::<RecursiveEnvelope>());
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].path(), Some("raw.child.name"));
+    assert_eq!(errors[0].owner_type_id(), TypeId::of::<Child>());
+}
+
+#[test]
+fn test_unsupported_shapes_without_execution_work_remain_acceptable() {
+    let reflection = RegistrySnapshotBuilder::new()
+        .build()
+        .expect("fresh reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("explicit reflection model registry");
+    let root = TypeMetadata::of::<EmptyEnvelope>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("wrapper structure is valid");
+    assert!(
+        graph.model(TypeId::of::<EmptyChild>()).is_some(),
+        "empty Child still has a discoverable capability"
+    );
+    ValidationCapabilities::check(root, &graph).expect("empty declarations require no execution adapter");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("wrapper without work is a valid empty plan");
+    assert_eq!(plan.binding_count(), 0);
+}
+
+#[test]
+fn test_unsupported_metadata_only_graph_does_not_import_reflection_capabilities() {
+    let models = ModelRegistry::from_static_metadata(&[]).expect("metadata-only registry has no reflection snapshot");
+    let root = TypeMetadata::of::<ReflectedStructEnvelope>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("explicit root metadata supplies only its own model facts");
+    assert!(
+        graph.model(TypeId::of::<Child>()).is_none(),
+        "Child capability cannot be imported from another snapshot"
+    );
+    ValidationCapabilities::check(root, &graph).expect("this explicit graph contains no child execution declarations");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("no work is known to this metadata-only graph");
+    assert_eq!(plan.binding_count(), 0);
+
+    let roots = [root, TypeMetadata::of::<Child>()];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("explicit Child metadata is an allowed metadata-only discovery source");
+    let errors = ValidationCapabilities::check(root, &graph)
+        .expect_err("explicitly known Child rules require unsupported wrapper access");
+    assert_eq!(errors.len(), 2);
+    assert!(
+        errors
+            .iter()
+            .all(|error| error.kind() == ValidationBuildErrorKind::UnsupportedExecution)
+    );
+    assert_eq!(
+        errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
+        [Some("raw.lookup_child.name"), Some("raw.sibling.name"),]
+    );
+    let plan_errors = match ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    ) {
+        Err(errors) => errors,
+        Ok(_) => panic!("explicit metadata-only Child rules require unsupported wrapper access"),
+    };
+    assert_eq!(plan_errors.len(), errors.len());
+    for (capability, plan) in errors.iter().zip(plan_errors.iter()) {
+        assert_eq!(plan.kind(), ValidationBuildErrorKind::UnsupportedExecution);
+        assert_eq!(plan.path(), capability.path());
+        assert_eq!(plan.owner_type_id(), TypeId::of::<Child>());
+        assert_eq!(plan.field_location(), capability.field_location());
+        assert_eq!(plan.constraint_rules(), capability.constraint_rules());
+        assert_eq!(
+            plan.constraint_rules(),
+            [ConstraintRuleRef::Registry(ValidatorId::new(
+                "qubit.rules.text.non_blank"
+            ))]
+        );
+    }
 }

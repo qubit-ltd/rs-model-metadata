@@ -6,8 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Crate-private behavior checks.
+//! State retained only during one structural resolution attempt.
 
-mod model_impl_metadata_tests;
-mod structure_children_tests;
-mod transparent_descriptor_tests;
+mod resolution_context;
+
+pub(super) use resolution_context::ResolutionContext;

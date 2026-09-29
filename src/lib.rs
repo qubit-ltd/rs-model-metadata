@@ -46,6 +46,7 @@ pub mod resolve;
 mod resolved_properties;
 mod resolved_property_fragments;
 mod role;
+mod structure;
 #[cfg(test)]
 mod tests;
 mod transparent_descriptor;

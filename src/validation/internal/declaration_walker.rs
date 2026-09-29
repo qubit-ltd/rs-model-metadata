@@ -23,6 +23,8 @@ use crate::metadata::SelectorMetadata;
 use crate::metadata::SelectorPosition;
 use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
+use crate::structure::StructuralEdgeKind;
+use crate::structure::children;
 use crate::validation::ValidationBuildError;
 
 /// Collects supported occurrences and all structural execution failures.
@@ -285,6 +287,46 @@ fn append_segment(path: &mut String, segment: &str) {
     path.push_str(segment);
 }
 
+/// Renders `kind` as a diagnostic suffix from its retained structural facts.
+///
+/// `kind` supplies source positions rather than executable property steps.
+/// Named fields use their retained query names to preserve aliases; enum
+/// variants retain their source Rust names. Unnamed positions remain numeric
+/// diagnostic suffixes. Transparent wrappers return an empty suffix, and
+/// collection elements identify an element type without a runtime index.
+fn structural_suffix(kind: StructuralEdgeKind) -> String {
+    match kind {
+        StructuralEdgeKind::OptionalElement | StructuralEdgeKind::PointerPointee => String::new(),
+        StructuralEdgeKind::SequenceElement
+        | StructuralEdgeKind::SetElement
+        | StructuralEdgeKind::ArrayElement
+        | StructuralEdgeKind::SliceElement => "[]".to_owned(),
+        StructuralEdgeKind::MapKey => "[key]".to_owned(),
+        StructuralEdgeKind::MapValue => "[value]".to_owned(),
+        StructuralEdgeKind::TupleElement { index } => format!(".{index}"),
+        StructuralEdgeKind::StructField {
+            index,
+            name,
+            query_name,
+        } => {
+            let name = query_name.or(name).map_or_else(|| index.to_string(), str::to_owned);
+            format!(".{name}")
+        }
+        StructuralEdgeKind::EnumVariantField {
+            variant_name,
+            field_index,
+            field_name,
+            query_name,
+            ..
+        } => {
+            let name = query_name
+                .or(field_name)
+                .map_or_else(|| field_index.to_string(), str::to_owned);
+            format!(".{variant_name}.{name}")
+        }
+    }
+}
+
 /// Finds every model usage behind structural wrappers without expanding model
 /// bodies. Returned suffixes distinguish static uses of the same target type.
 /// Only active ancestors suppress cycles; siblings are never deduplicated.
@@ -313,52 +355,14 @@ fn nested_models(
             continue;
         }
         pending.push((current, String::new(), false));
-        let element = current
-            .as_optional()
-            .map(|value| (value.element_type(), ""))
-            .or_else(|| current.as_smart_pointer().map(|value| (value.pointee_type(), "")))
-            .or_else(|| current.as_sequence().map(|value| (value.element_type(), "[]")))
-            .or_else(|| current.as_set().map(|value| (value.element_type(), "[]")))
-            .or_else(|| current.as_array().map(|value| (value.element_type(), "[]")))
-            .or_else(|| current.as_slice().map(|value| (value.element_type(), "[]")));
-        if let Some((element, suffix)) = element
-            && let Some(element) = element.as_resolved()
-        {
-            pending.push((element, format!("{path}{suffix}"), true));
-        }
-        if let Some(map) = current.as_map() {
-            if let Some(value) = map.value_type().as_resolved() {
-                pending.push((value, format!("{path}[value]"), true));
+        let first_child = pending.len();
+        children(current, |edge| {
+            if let Some(child) = edge.target.as_resolved() {
+                let suffix = structural_suffix(edge.kind);
+                pending.push((child, format!("{path}{suffix}"), true));
             }
-            if let Some(key) = map.key_type().as_resolved() {
-                pending.push((key, format!("{path}[key]"), true));
-            }
-        }
-        if let Some(tuple) = current.as_tuple() {
-            for (index, element) in tuple.elements().iter().enumerate().rev() {
-                if let Some(element) = element.as_resolved() {
-                    pending.push((element, format!("{path}.{index}"), true));
-                }
-            }
-        }
-        for field in current.fields().iter().rev() {
-            if let Some(descriptor) = field.field_type().as_resolved() {
-                let name = field
-                    .query_name()
-                    .map_or_else(|| field.index().to_string(), str::to_owned);
-                pending.push((descriptor, format!("{path}.{name}"), true));
-            }
-        }
-        for variant in current.variants().iter().rev() {
-            for field in variant.fields().iter().rev() {
-                if let Some(descriptor) = field.field_type().as_resolved() {
-                    let name = field
-                        .query_name()
-                        .map_or_else(|| field.index().to_string(), str::to_owned);
-                    pending.push((descriptor, format!("{path}.{}.{name}", variant.rust_name()), true));
-                }
-            }
-        }
+        });
+        pending[first_child..].reverse();
     }
     targets
 }

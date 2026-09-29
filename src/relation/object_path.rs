@@ -17,13 +17,40 @@ use super::object_path_error::ObjectPathError;
 ///
 /// An empty path selects the current object for validator dependencies. An
 /// omitted reference path separately means that no binding reuse was requested.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::NavigationStep;
+/// use qubit_model_metadata::metadata::ObjectPath;
+///
+/// let path = ObjectPath::new(&[NavigationStep::Parent, NavigationStep::Property("name")])
+///     .expect("valid parent and property steps");
+/// assert!(path.requires_parent());
+/// assert_eq!(path.to_string(), "../name");
+/// assert!(ObjectPath::current().steps().is_empty());
+/// assert!(ObjectPath::new(&[NavigationStep::Property("invalid/name")]).is_err());
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ObjectPath {
+    /// Validated navigation steps borrowed from immutable declaration metadata.
+    /// Their order determines execution; an empty slice selects the current
+    /// object.
     steps: &'static [NavigationStep],
 }
 
 impl ObjectPath {
     /// Checks navigation steps, returning the first invalid property name.
+    ///
+    /// # Parameters
+    ///
+    /// - `steps`: immutable declaration steps, borrowed for the process
+    ///   lifetime.
+    ///
+    /// # Returns
+    ///
+    /// A checked path borrowing `steps`, without allocating or traversing
+    /// objects.
     ///
     /// # Errors
     ///
@@ -40,19 +67,36 @@ impl ObjectPath {
         Ok(Self { steps })
     }
 
-    /// Returns the current-object path without allocating.
+    /// Creates the current-object path without allocating.
+    ///
+    /// # Returns
+    ///
+    /// An empty path that selects the object where execution starts.
     #[must_use]
+    #[inline]
     pub const fn current() -> Self {
         Self { steps: &[] }
     }
 
     /// Returns every property and parent step in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// The immutable declaration slice; an empty slice selects the current
+    /// object.
     #[must_use]
+    #[inline]
     pub const fn steps(&self) -> &'static [NavigationStep] {
         self.steps
     }
 
     /// Returns whether execution requires a containing-object context.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` when a parent step escapes above the path's starting
+    /// object. A parent step balanced by an earlier property step does not
+    /// require an external containing object. This scans metadata only.
     #[must_use]
     pub fn requires_parent(&self) -> bool {
         let mut depth = 0usize;
@@ -80,29 +124,5 @@ impl fmt::Display for ObjectPath {
             }
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::NavigationStep;
-    use super::ObjectPath;
-
-    #[test]
-    fn object_paths_validate_steps_and_track_parent_context() {
-        let current = ObjectPath::current();
-        assert!(current.steps().is_empty());
-        assert!(!current.requires_parent());
-
-        let nested = ObjectPath::new(&[NavigationStep::Property("parent"), NavigationStep::Parent])
-            .expect("balanced parent traversal");
-        assert_eq!(nested.steps().len(), 2);
-        assert!(!nested.requires_parent());
-        assert_eq!(nested.to_string(), "parent/..");
-
-        let external = ObjectPath::new(&[NavigationStep::Parent]).expect("leading parent traversal");
-        assert!(external.requires_parent());
-        assert_eq!(external.to_string(), "..");
-        assert!(ObjectPath::new(&[NavigationStep::Property("invalid/name")]).is_err());
     }
 }

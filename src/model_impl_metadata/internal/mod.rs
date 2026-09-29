@@ -6,8 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Crate-private behavior checks.
+//! Private storage for snapshot-specific implementation merges.
 
-mod model_impl_metadata_tests;
-mod structure_children_tests;
-mod transparent_descriptor_tests;
+pub(crate) mod merged_model_impl;

@@ -24,6 +24,7 @@ use super::ModelResolutionCause;
 use super::ResolveErrorKind;
 use super::ResolveInputs;
 use super::StructureResolver;
+use super::internal::ResolutionContext;
 use super::relations::resolve_property_path;
 use crate::__private::v7;
 use crate::metadata::ModelId;
@@ -78,7 +79,8 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
             .properties()
             .is_empty()
     );
-    let error = resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &models).unwrap_err();
+    let context = ResolutionContext::new(&models, &[metadata]);
+    let error = resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &context).unwrap_err();
     let ModelResolutionCause::Properties(PropertyResolutionError::Assembly(errors)) = error else {
         panic!("expected original property assembly failure");
     };

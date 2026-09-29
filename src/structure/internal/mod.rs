@@ -6,8 +6,10 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Crate-private behavior checks.
+//! Private structural edge facts shared by descriptor consumers.
 
-mod model_impl_metadata_tests;
-mod structure_children_tests;
-mod transparent_descriptor_tests;
+mod structural_edge;
+mod structural_edge_kind;
+
+pub(crate) use structural_edge::StructuralEdge;
+pub(crate) use structural_edge_kind::StructuralEdgeKind;
