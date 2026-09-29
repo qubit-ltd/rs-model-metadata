@@ -182,6 +182,19 @@ class CiWrapperTests(unittest.TestCase):
                 self.assertIn("--locked", command)
                 self.assertIn("--all-features", command)
 
+    def test_cross_platform_toolchain_installs_clippy_component(self):
+        workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        jobs = workflow.split("\n  cross-platform-tests:\n", maxsplit=1)
+        self.assertEqual(len(jobs), 2, "cross-platform-tests job is missing")
+        job = re.split(r"\n  [a-zA-Z0-9_-]+:\n", jobs[1], maxsplit=1)[0]
+        setup = re.search(
+            r"- uses: actions-rust-lang/setup-rust-toolchain@v1\n(?P<with>\s+with:\n(?:\s{10,}.*\n)+)",
+            job,
+        )
+
+        self.assertIsNotNone(setup, "cross-platform Rust toolchain setup is missing")
+        self.assertRegex(setup.group("with"), r"(?m)^\s+components:\s*clippy\s*$")
+
 
 if __name__ == "__main__":
     unittest.main()
