@@ -265,7 +265,7 @@ fn main() {
         assert_eq!(error.declaration().expect("owning field").field, Some(field));
     }
     let roots = [TypeMetadata::of::<LegalValue>()];
-    StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let _ = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("primitive Value is closed");
     let metadata = TypeMetadata::of::<Configured>();
     assert!(metadata.try_property("absent").expect("properties").is_none());
