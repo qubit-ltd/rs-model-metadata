@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Model implementation methods preserve reflection independently of
 //! properties.
 
@@ -16,6 +24,18 @@ struct Person {
 
 #[ModelImpl]
 impl Person {
+    /// Inactive signatures cannot leak into adapters or property metadata.
+    #[cfg(any())]
+    pub fn unavailable(&self) -> MissingGetterType {
+        unreachable!()
+    }
+
+    /// Inactive setter signatures cannot leak into adapters or pair assertions.
+    #[cfg(any())]
+    pub fn set_unavailable(&mut self, _: MissingSetterType) {
+        unreachable!()
+    }
+
     /// Excludes this getter while preserving its same-named stored field.
     #[model_property(skip)]
     pub fn name(&self) -> &str {
@@ -41,6 +61,7 @@ impl Person {
 #[test]
 fn test_exclusion_preserves_computed_and_stored_properties() {
     let meta = TypeMetadata::of::<Person>();
+    assert!(meta.try_property("unavailable").expect("properties").is_none());
     assert!(meta.try_property("diagnostic").expect("properties").is_none());
     assert!(
         meta.try_property("full_name")

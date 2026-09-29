@@ -15,6 +15,7 @@ mod specialization;
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
+use quote::quote_spanned;
 use syn::Error;
 use syn::FnArg;
 use syn::GenericArgument;
@@ -31,6 +32,7 @@ use syn::Visibility;
 
 use self::internal::GetterIr;
 use self::internal::GetterReturn;
+use self::internal::PresenceCondition;
 use self::internal::PropertyMethod;
 use self::internal::SetterIr;
 use crate::compiler::fingerprint::stable_fingerprint;
@@ -56,7 +58,7 @@ fn expand_inner(
     let target = (*item.self_ty).clone();
     let mut getters = Vec::new();
     let mut setters = Vec::new();
-    let mut errors = None;
+    let impl_presence = PresenceCondition::from_attributes(&item.attrs)?.attribute();
     for impl_item in &mut item.items {
         let ImplItem::Fn(method) = impl_item else {
             continue;
@@ -88,10 +90,6 @@ fn expand_inner(
             Err(_) => {}
         }
     }
-    validate_unique_property_methods(&getters, &setters, &mut errors);
-    if let Some(error) = errors {
-        return Err(error);
-    }
     let retained = if retain {
         quote!(#[#runtime::__private::reflect_impl(crate = #runtime, #arguments)] #item)
     } else {
@@ -122,11 +120,13 @@ fn expand_inner(
         .enumerate()
         .map(|(index, setter)| expand_setter_adapter(index, setter, &target, runtime))
         .collect();
+    let duplicate_assertions = expand_duplicate_property_assertions(&getters, &setters);
     let compatibility_assertions = expand_property_compatibility_assertions(&getters, &setters, runtime);
     let getter_metadata: Vec<_> = getters
         .iter()
         .enumerate()
         .map(|(index, getter)| {
+            let presence = getter.presence.attribute();
             let property = &getter.property;
             let method = getter.method.to_string();
             let adapter = format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}");
@@ -134,9 +134,10 @@ fn expand_inner(
                 GetterReturn::Owned(ty) => (quote!(#ty), quote!(#runtime::metadata::GetterOutputKind::Owned)),
                 GetterReturn::Borrowed(ty) => (quote!(#ty), quote!(#runtime::metadata::GetterOutputKind::Borrowed)),
                 GetterReturn::BorrowedStr => (quote!(str), quote!(#runtime::metadata::GetterOutputKind::Borrowed)),
-                GetterReturn::BorrowedSlice(element) => {
-                    (quote!([#element]), quote!(#runtime::metadata::GetterOutputKind::BorrowedSlice))
-                }
+                GetterReturn::BorrowedSlice(element) => (
+                    quote!([#element]),
+                    quote!(#runtime::metadata::GetterOutputKind::BorrowedSlice),
+                ),
                 GetterReturn::OptionalBorrowed(ty) => (
                     quote!(::core::option::Option<#ty>),
                     quote!(#runtime::metadata::GetterOutputKind::OptionalBorrowed),
@@ -147,30 +148,33 @@ fn expand_inner(
                 ),
             };
             quote! {
-                            {
-                                let output_type = #runtime::__private::v7::reflected_type_ref::<#ty>();
-            let getter = #runtime::__private::v7::leak(
-                                    #runtime::metadata::GetterMetadata::new::<#target>(#method, output_type, #kind, #adapter),
-                                );
-                                fragments.push(#runtime::__private::v7::property_fragment(
-                                    #property,
-                                    output_type,
-                                    #runtime::metadata::PropertyFragmentSource::Getter(getter),
-                                ));
-                                entries.push(Entry::getter(#property, output_type, getter));
-                            }
-                        }
+                #presence
+                {
+                    let output_type = #runtime::__private::v7::reflected_type_ref::<#ty>();
+                    let getter = #runtime::__private::v7::leak(
+                        #runtime::metadata::GetterMetadata::new::<#target>(#method, output_type, #kind, #adapter),
+                    );
+                    fragments.push(#runtime::__private::v7::property_fragment(
+                        #property,
+                        output_type,
+                        #runtime::metadata::PropertyFragmentSource::Getter(getter),
+                    ));
+                    entries.push(Entry::getter(#property, output_type, getter));
+                }
+            }
         })
         .collect();
     let setter_metadata: Vec<_> = setters
         .iter()
         .enumerate()
         .map(|(index, setter)| {
+            let presence = setter.presence.attribute();
             let property = &setter.property;
             let method = setter.method.to_string();
             let ty = &setter.input;
             let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}");
             quote! {
+                #presence
                 {
                     let input_type = #runtime::__private::v7::reflected_type_ref::<#ty>();
                     let setter = #runtime::__private::v7::leak(
@@ -190,10 +194,12 @@ fn expand_inner(
     Ok(quote! {
         #retained
 
+        #impl_presence
         const _: () = {
         #(#getter_adapters)*
         #(#setter_adapters)*
         #(#compatibility_assertions)*
+        #(#duplicate_assertions)*
 
         #[doc(hidden)]
         fn #provider() -> &'static #runtime::metadata::ModelImplMetadata {
@@ -283,18 +289,24 @@ fn expand_property_compatibility_assertions(
 ) -> Vec<TokenStream> {
     getters
         .iter()
-        .filter_map(|getter| {
-            let setter = setters.iter().find(|setter| setter.property == getter.property)?;
-            let output = getter_output_type(&getter.output, runtime);
-            let input = &setter.input;
-            Some(quote! {
-                const _: () = {
-                    fn assert_property_types_are_compatible()
-                    where
-                        #output: #runtime::__private::v7::PropertyOutputCompatible<#input>,
-                    {}
-                };
-            })
+        .flat_map(|getter| {
+            setters
+                .iter()
+                .filter(|setter| setter.property == getter.property)
+                .map(|setter| {
+                    let presence = getter.presence.intersection(&setter.presence).attribute();
+                    let output = getter_output_type(&getter.output, runtime);
+                    let input = &setter.input;
+                    quote! {
+                        #presence
+                        const _: () = {
+                            fn assert_property_types_are_compatible()
+                            where
+                                #output: #runtime::__private::v7::PropertyOutputCompatible<#input>,
+                            {}
+                        };
+                    }
+                })
         })
         .collect()
 }
@@ -370,6 +382,7 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
             ));
         }
         return Ok(Some(PropertyMethod::Setter(SetterIr {
+            presence: PresenceCondition::from_attributes(&method.attrs)?,
             property: property.to_owned(),
             method: method.sig.ident.clone(),
             input: (*value.ty).clone(),
@@ -423,6 +436,7 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
         output => GetterReturn::Owned(output.clone()),
     };
     Ok(Some(PropertyMethod::Getter(GetterIr {
+        presence: PresenceCondition::from_attributes(&method.attrs)?,
         property: name,
         method: method.sig.ident.clone(),
         output,
@@ -456,21 +470,32 @@ fn returns_unit(output: &ReturnType) -> bool {
         || matches!(output, ReturnType::Type(_, ty) if matches!(ty.as_ref(), Type::Tuple(tuple) if tuple.elems.is_empty()))
 }
 
-/// Adds diagnostics for duplicate getter or setter property names.
-///
-/// `errors` accumulates all failures so callers can return one combined
-/// compiler diagnostic instead of stopping at the first duplicate.
-fn validate_unique_property_methods(getters: &[GetterIr], setters: &[SetterIr], errors: &mut Option<Error>) {
+/// Emits one guarded diagnostic for each same-kind candidate pair.
+/// The consuming compiler reports only simultaneously enabled duplicates,
+/// anchored at the later method and including the canonical property name.
+fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterIr]) -> Vec<TokenStream> {
+    let mut assertions = Vec::new();
     for (index, getter) in getters.iter().enumerate() {
-        if getters[..index].iter().any(|other| other.property == getter.property) {
-            combine(errors, Error::new_spanned(&getter.method, "duplicate property getter"));
+        for other in getters[..index]
+            .iter()
+            .filter(|other| other.property == getter.property)
+        {
+            let presence = getter.presence.intersection(&other.presence).attribute();
+            let message = format!("duplicate property getter `{}`", getter.property);
+            assertions.push(quote_spanned!(getter.method.span()=> #presence compile_error!(#message);));
         }
     }
     for (index, setter) in setters.iter().enumerate() {
-        if setters[..index].iter().any(|other| other.property == setter.property) {
-            combine(errors, Error::new_spanned(&setter.method, "duplicate property setter"));
+        for other in setters[..index]
+            .iter()
+            .filter(|other| other.property == setter.property)
+        {
+            let presence = setter.presence.intersection(&other.presence).attribute();
+            let message = format!("duplicate property setter `{}`", setter.property);
+            assertions.push(quote_spanned!(setter.method.span()=> #presence compile_error!(#message);));
         }
     }
+    assertions
 }
 
 /// Generates the adapter that exposes one getter through runtime reflection.
@@ -481,6 +506,7 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
     let adapter = format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}",);
     let method = &getter.method;
+    let presence = getter.presence.attribute();
     let value = match &getter.output {
         GetterReturn::Owned(_) => {
             quote!(#runtime::metadata::PropertyValue::Owned(#runtime::__private::ReflectedOwned::new(target.#method())))
@@ -502,6 +528,7 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
         }
     };
     quote! {
+        #presence
         #[doc(hidden)]
         fn #adapter<'a>(target: #runtime::__private::ReflectedRef<'a>) -> ::core::result::Result<#runtime::metadata::PropertyValue<'a>, #runtime::metadata::PropertyAccessError> {
             let target = target.downcast::<#target>().map_err(|_| #runtime::metadata::PropertyAccessError::user("property target was not prevalidated"))?;
@@ -519,7 +546,9 @@ fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime
     let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}",);
     let method = &setter.method;
     let input = &setter.input;
+    let presence = setter.presence.attribute();
     quote! {
+        #presence
         #[doc(hidden)]
         fn #adapter(target: #runtime::__private::ReflectedMut<'_>, value: #runtime::__private::ReflectedOwned) -> ::core::result::Result<(), #runtime::metadata::PropertySetFailure> {
             let target = target.downcast::<#target>().map_err(|_| #runtime::metadata::PropertySetFailure::after_execution(#runtime::metadata::PropertyAccessError::user("property target was not prevalidated")))?;
@@ -527,13 +556,5 @@ fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime
             target.#method(value);
             Ok(())
         }
-    }
-}
-
-/// Appends `error` to the optional combined compiler diagnostic.
-fn combine(errors: &mut Option<Error>, error: Error) {
-    match errors {
-        Some(current) => current.combine(error),
-        None => *errors = Some(error),
     }
 }

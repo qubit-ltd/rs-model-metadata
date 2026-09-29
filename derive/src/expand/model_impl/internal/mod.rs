@@ -10,10 +10,12 @@
 
 mod getter_ir;
 mod getter_return;
+mod presence_condition;
 mod property_method;
 mod setter_ir;
 
 pub(super) use getter_ir::GetterIr;
 pub(super) use getter_return::GetterReturn;
+pub(super) use presence_condition::PresenceCondition;
 pub(super) use property_method::PropertyMethod;
 pub(super) use setter_ir::SetterIr;

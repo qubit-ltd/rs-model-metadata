@@ -104,3 +104,8 @@ reason = "The cfg(test) child module needs private path resolution and invalid a
 rule = "multiple-public-types"
 path = "src/validation/standard_constraints.rs"
 reason = "Standard constraint target and bound validator form one private binding contract"
+
+[[exceptions]]
+rule = "test-file-name"
+path = "derive/tests/runtime-fixtures/cfg-accessors/src/lib.rs"
+reason = "Cargo consumer library fixture entry point requires the filename lib.rs"

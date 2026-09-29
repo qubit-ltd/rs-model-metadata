@@ -1,0 +1,22 @@
+[package]
+name = "model-derive-cfg-accessors-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[features]
+default = []
+accessors = []
+alternate = []
+impl-enabled = []
+duplicate-getter = []
+duplicate-setter = []
+mismatch = []
+
+[dependencies]
+qubit-model-derive = { path = "../../../" }
+model_runtime = { package = "qubit-model-metadata", path = "../../../..", features = ["generic"] }
+qubit-reflect = { path = "../../../../../rs-reflect" }
+serde = { version = "1", features = ["derive"] }

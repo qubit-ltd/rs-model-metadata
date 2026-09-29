@@ -5,15 +5,21 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+
 // qubit-style: allow test-file-name
-// The filename is part of a Cargo or trybuild fixture protocol.
+// Trybuild diagnostic fixture filenames describe the tested contract.
 
 use qubit_model_derive::Model;
-
+use qubit_model_derive::ModelImpl;
 #[Model]
-struct LegacyEmailFormat {
-    #[text(format = email)]
-    address: String,
+struct Conditional { value: u32 }
+#[ModelImpl]
+impl Conditional {
+    #[cfg(all())]
+    pub fn title(&self) -> u32 { self.value }
+    #[cfg(any())]
+    pub fn set_title(&mut self, value: u32) { self.value = value; }
+    #[cfg(all())]
+    pub fn set_title(&mut self, _: bool) {}
 }
-
 fn main() {}

@@ -11,9 +11,12 @@
 use syn::Ident;
 
 use super::GetterReturn;
+use super::presence_condition::PresenceCondition;
 
 /// Records the name, method, and return classification of one getter.
 pub(in crate::expand::model_impl) struct GetterIr {
+    /// Consumer-evaluated condition under which this method exists.
+    pub(in crate::expand::model_impl) presence: PresenceCondition,
     /// Canonical property name.
     pub(in crate::expand::model_impl) property: String,
     /// Source getter method identifier.
