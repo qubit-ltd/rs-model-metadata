@@ -102,7 +102,7 @@ fn test_bilingual_documentation_examples() {
             let metadata: Value = from_slice(&metadata.stdout)
                 .unwrap_or_else(|error| panic!("{context}: invalid Cargo metadata JSON: {error}"));
             check_package_identity(&metadata, installation, &context);
-            let output = cargo(&directory, &["run", "--offline", "--locked", "--quiet"]);
+            let output = cargo(&directory, &["run", "--locked", "--quiet"]);
             assert!(
                 output.status.success(),
                 "{context}: source execution failed:\n{}",
@@ -135,7 +135,7 @@ fn test_installation_rejects_missing_direct_dependency() {
     let fixture = create_fixture();
     let directory = fixture.directory.join("rs-platform/app-missing-reflect");
     prepare_consumer(&directory, root, &incomplete, &program.source);
-    let output = cargo(&directory, &["check", "--offline", "--quiet"]);
+    let output = cargo(&directory, &["check", "--quiet"]);
     assert!(
         !output.status.success(),
         "doc/user_guide.md:{} validation/profile: missing direct reflect dependency must fail",
@@ -166,7 +166,7 @@ fn test_installation_rejects_missing_validation_feature() {
     let fixture = create_fixture();
     let directory = fixture.directory.join("rs-platform/app-missing-feature");
     prepare_consumer(&directory, root, &incomplete, &program.source);
-    let output = cargo(&directory, &["check", "--offline", "--quiet"]);
+    let output = cargo(&directory, &["check", "--quiet"]);
     assert!(
         !output.status.success(),
         "doc/user_guide.md:{} validation/profile: missing validation feature must fail",
@@ -211,10 +211,10 @@ fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str)
     fs::write(directory.join("src/main.rs"), source).expect("verbatim Markdown source");
 }
 
-/// Resolves the consumer's documented manifest offline and returns Cargo's
+/// Resolves the consumer's documented manifest and returns Cargo's
 /// package/feature graph; resolution failure is returned without repairing it.
 fn metadata(directory: &Path) -> Output {
-    cargo(directory, &["metadata", "--offline", "--format-version", "1"])
+    cargo(directory, &["metadata", "--format-version", "1"])
 }
 
 /// Every nested invocation uses a target distinct from the parent cargo test.
