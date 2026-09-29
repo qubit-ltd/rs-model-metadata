@@ -7,28 +7,47 @@ mkdir -p target/llvm-cov/html
 
 coverage_config="$project_root/.infra/ci/coverage.json"
 coverage_scope="default-members"
+exclude_packages='[]'
 if [ -f "$coverage_config" ]; then
     coverage_scope=$(jq -r '.scope // "default-members"' "$coverage_config")
+    exclude_packages=$(jq -c '.exclude_packages // []' "$coverage_config")
 fi
 report_args=()
-case "$coverage_scope" in
-    workspace) report_args+=(--workspace) ;;
-    package)
-        package_name=$(cargo metadata --no-deps --format-version 1 \
-            --manifest-path "$project_root/Cargo.toml" | jq -r \
-            --arg manifest "$project_root/Cargo.toml" \
-            '.packages[] | select(.manifest_path == $manifest) | .name')
-        [ -n "$package_name" ] || { echo "error: unable to resolve coverage package scope" >&2; exit 1; }
-        report_args+=(--package "$package_name")
-        ;;
-    default-members) ;;
-    *) echo "error: unsupported coverage scope '$coverage_scope'" >&2; exit 1 ;;
-esac
-if [ -f "$coverage_config" ]; then
-    while IFS= read -r excluded; do
-        [ -n "$excluded" ] && report_args+=(--exclude "$excluded")
-    done < <(jq -r '.exclude_packages[]? // empty' "$coverage_config")
+metadata=$(cargo metadata --no-deps --format-version 1 \
+    --manifest-path "$project_root/Cargo.toml")
+manifest="$project_root/Cargo.toml"
+selected_packages=$(jq -r \
+    --arg scope "$coverage_scope" \
+    --arg manifest "$manifest" \
+    --argjson excluded "$exclude_packages" \
+    '
+      . as $metadata
+      | (
+          if $scope == "workspace" then
+              $metadata.packages
+          elif $scope == "default-members" then
+              [
+                  $metadata.workspace_default_members[] as $member
+                  | $metadata.packages[]
+                  | select(.id == $member)
+              ]
+          elif $scope == "package" then
+              [$metadata.packages[] | select(.manifest_path == $manifest)]
+          else
+              error("unsupported coverage scope: " + $scope)
+          end
+        )
+      | .[] as $package
+      | select(($excluded | index($package.name)) == null)
+      | $package.name
+    ' <<< "$metadata")
+if [ -z "$selected_packages" ]; then
+    echo "error: the selected coverage scope contains no packages" >&2
+    exit 1
 fi
+while IFS= read -r package; do
+    report_args+=(--package "$package")
+done <<< "$selected_packages"
 cargo llvm-cov report "${report_args[@]}" --json --output-path coverage.json
 cargo llvm-cov report "${report_args[@]}" --lcov --output-path lcov.info
 cargo llvm-cov report "${report_args[@]}" --cobertura --output-path target/llvm-cov/cobertura.xml

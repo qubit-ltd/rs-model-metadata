@@ -195,6 +195,82 @@ class CiWrapperTests(unittest.TestCase):
         self.assertIsNotNone(setup, "cross-platform Rust toolchain setup is missing")
         self.assertRegex(setup.group("with"), r"(?m)^\s+components:\s*clippy\s*$")
 
+    def test_coverage_report_expands_workspace_scope_to_package_arguments(self):
+        with tempfile.TemporaryDirectory(prefix="metadata coverage report ") as directory:
+            root = Path(directory)
+            tools = root / ".infra" / "tools"
+            tools.mkdir(parents=True)
+            config = root / ".infra" / "ci"
+            config.mkdir()
+            (root / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
+            (config / "coverage.json").write_text(
+                json.dumps({"scope": "workspace", "exclude_packages": ["excluded"]}),
+                encoding="utf-8",
+            )
+            metadata = {
+                "workspace_root": str(root),
+                "workspace_default_members": ["pkg-root"],
+                "packages": [
+                    {"id": "pkg-root", "name": "root-package", "manifest_path": str(root / "Cargo.toml")},
+                    {"id": "pkg-member", "name": "member-package", "manifest_path": str(root / "member/Cargo.toml")},
+                    {"id": "pkg-excluded", "name": "excluded", "manifest_path": str(root / "excluded/Cargo.toml")},
+                ],
+            }
+            metadata_path = root / "metadata.json"
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            shutil.copyfile(PROJECT_ROOT / ".infra/tools/coverage-report.sh", tools / "coverage-report.sh")
+
+            cargo_bin = root / "bin"
+            cargo_bin.mkdir()
+            records = root / "cargo-arguments.jsonl"
+            fake_cargo = cargo_bin / "cargo"
+            fake_cargo.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, pathlib, sys\n"
+                "args = sys.argv[1:]\n"
+                "if args[0] == 'metadata':\n"
+                "    print(pathlib.Path(os.environ['CARGO_METADATA_FIXTURE']).read_text())\n"
+                "    raise SystemExit(0)\n"
+                "with open(os.environ['CARGO_ARGUMENTS'], 'a', encoding='utf-8') as output:\n"
+                "    output.write(json.dumps(args) + '\\n')\n"
+                "if '--output-path' in args:\n"
+                "    target = pathlib.Path(args[args.index('--output-path') + 1])\n"
+                "    content = json.dumps({'data':[{'totals':{'functions':{'covered':1,'count':1},'lines':{'covered':1,'count':1},'regions':{'covered':1,'count':1}}}]}) if '--json' in args else 'coverage report\\n'\n"
+                "    target.write_text(content, encoding='utf-8')\n"
+                "if '--output-dir' in args:\n"
+                "    pathlib.Path(args[args.index('--output-dir') + 1]).mkdir(parents=True, exist_ok=True)\n",
+                encoding="utf-8",
+            )
+            fake_cargo.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{cargo_bin}{os.pathsep}{environment['PATH']}",
+                    "CARGO_METADATA_FIXTURE": str(metadata_path),
+                    "CARGO_ARGUMENTS": str(records),
+                }
+            )
+            result = subprocess.run(
+                ["bash", str(tools / "coverage-report.sh")],
+                cwd=root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report_calls = [json.loads(line) for line in records.read_text().splitlines()]
+            self.assertEqual(len(report_calls), 5)
+            for arguments in report_calls:
+                with self.subTest(arguments=arguments):
+                    self.assertNotIn("--workspace", arguments)
+                    self.assertNotIn("--exclude", arguments)
+                    self.assertEqual(
+                        [arguments[index + 1] for index, value in enumerate(arguments[:-1]) if value == "--package"],
+                        ["root-package", "member-package"],
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()
