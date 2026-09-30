@@ -917,7 +917,7 @@ impl fmt::Debug for SetterMetadata {
 /// # mod example {
 /// use qubit_model_derive::Model;
 ///
-/// #[Model(id = "example.Note")]
+/// #[Model(id = "example.PropertyMetadataNote")]
 /// pub struct Note { pub title: String }
 /// # }
 ///

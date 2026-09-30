@@ -25,7 +25,7 @@ use crate::metadata::PropertyFragmentSource;
 /// use qubit_model_metadata::metadata::PropertyFragment;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
-/// #[Model(id = "example.Note")]
+/// #[Model(id = "example.PropertyFragment")]
 /// struct Note {
 ///     title: String,
 /// }

@@ -67,11 +67,14 @@ use crate::transparent_descriptor::transparent_descriptor;
 /// use qubit_model_derive::Model;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
-/// #[Model(id = "example.Note")]
+/// #[Model(id = "qubit_model_metadata.TypeMetadataNote")]
 /// struct Note { #[text(non_blank)] title: String }
 /// # fn main() {
 /// let metadata = TypeMetadata::of::<Note>();
-/// assert_eq!(metadata.model_id().expect("named model").as_str(), "example.Note");
+/// assert_eq!(
+///     metadata.model_id().expect("named model").as_str(),
+///     "qubit_model_metadata.TypeMetadataNote"
+/// );
 /// let title = metadata.field("title").expect("declared field");
 /// assert!(title.text_constraint().expect("text declaration").is_non_blank());
 /// # }
