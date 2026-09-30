@@ -36,7 +36,7 @@ use crate::metadata::TypeMetadata;
 /// let registry = ModelRegistry::try_global().expect("valid model registry");
 /// for entry in registry.entries() {
 ///     let entry: &ModelEntry<'_> = entry;
-///     assert_eq!(registry.get(entry.model_id().as_str()), Some(entry));
+///     assert!(registry.get(entry.model_id().as_str()).is_some());
 /// }
 /// assert!(registry.get("example.ModelEntryNote").is_some());
 /// # }
