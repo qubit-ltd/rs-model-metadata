@@ -9,6 +9,8 @@
 //! Stable FNV-1a fingerprints for generated private identifiers.
 
 /// Computes the stable FNV-1a fingerprint for `value`.
+#[must_use]
+#[inline]
 pub(crate) fn stable_fingerprint(value: &str) -> u64 {
     value.bytes().fold(0xcbf29ce484222325_u64, |hash, byte| {
         (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)

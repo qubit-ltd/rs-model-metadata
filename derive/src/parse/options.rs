@@ -27,6 +27,7 @@ use crate::ir::declaration::DeclarationOptions;
 
 impl DeclarationOptions {
     /// Parses declaration-level options and rejects duplicates or bad values.
+    #[must_use]
     pub(crate) fn parse(options: Punctuated<Meta, Token![,]>) -> Result<Self> {
         let mut result = Self {
             behavior: Default::default(),
@@ -100,6 +101,8 @@ impl DeclarationOptions {
 }
 
 /// Returns whether `path` names a supported capability option.
+#[must_use]
+#[inline]
 fn is_behavior_option(path: &Path) -> bool {
     const OPTIONS: &[&str] = &[
         "no_clone",

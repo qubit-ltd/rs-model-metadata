@@ -12,6 +12,7 @@
 
 use syn::LitStr;
 
+/// Normalized Serde attributes and their interactions for one model field.
 #[derive(Clone, Default)]
 pub(crate) struct SerdeIr {
     /// Explicit serialized field name.

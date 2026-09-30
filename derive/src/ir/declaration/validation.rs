@@ -16,6 +16,7 @@ use super::CodecIr;
 use super::ConstraintIr;
 use super::RedactIr;
 
+/// Normalized selector declaration and metadata applied to selected values.
 #[derive(Clone)]
 pub(crate) struct SelectorIr {
     /// Selected sequence or map position.
@@ -30,6 +31,7 @@ pub(crate) struct SelectorIr {
     pub(crate) redact: Option<RedactIr>,
 }
 
+/// Kind of collection position addressed by a selector declaration.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) enum SelectorPositionIr {
     /// Sequence element position.
@@ -40,6 +42,7 @@ pub(crate) enum SelectorPositionIr {
     MapValue,
 }
 
+/// Literal value shape accepted as a validator strategy argument.
 #[derive(Clone)]
 pub(crate) enum StrategyArgumentIr {
     /// Boolean argument.
@@ -60,6 +63,7 @@ pub(crate) enum StrategyArgumentIr {
     StringList(Vec<LitStr>),
 }
 
+/// Normalized validator declaration and its bound parameters/dependencies.
 #[derive(Clone)]
 pub(crate) struct ValidatorIr {
     /// Validator registry identifier.

@@ -27,6 +27,8 @@ use crate::ir::declaration::DecimalConstraintIr;
 use crate::ir::declaration::TextConstraintIr;
 
 /// Reports whether `attribute` names one of the supported constraints.
+#[must_use]
+#[inline]
 pub(crate) fn is_constraint_attribute(attribute: &Attribute) -> bool {
     attribute.path().is_ident("text")
         || attribute.path().is_ident("decimal")
@@ -37,6 +39,7 @@ pub(crate) fn is_constraint_attribute(attribute: &Attribute) -> bool {
 }
 
 /// Parses one textual, decimal, temporal, sequence, or map constraint.
+#[must_use]
 pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
     if attribute.path().is_ident("text") {
         return parse_text_constraint(attribute).map(ConstraintIr::Text);
@@ -129,6 +132,7 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
 }
 
 /// Parses text length, character-set, blankness, and format options.
+#[must_use]
 fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
     let mut value = TextConstraintIr::default();
     let mut any = false;
@@ -192,6 +196,7 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
 }
 
 /// Parses decimal precision, scale, bounds, and rounding options.
+#[must_use]
 fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<DecimalConstraintIr> {
     let mut precision = None;
     let mut scale = None;
@@ -312,6 +317,7 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
 }
 
 /// Splits a decimal literal into sign, digits, and fractional scale.
+#[must_use]
 fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
     let (negative, unsigned) = value.strip_prefix('-').map_or((false, value), |value| (true, value));
     if unsigned.is_empty() || unsigned.starts_with('+') {
@@ -338,6 +344,7 @@ fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
 }
 
 /// Compares two normalized decimal literal strings without floating point.
+#[must_use]
 fn compare_decimal_literals(left: &str, right: &str) -> Option<Ordering> {
     let (left_negative, mut left_digits, left_scale) = parse_decimal_literal(left)?;
     let (right_negative, mut right_digits, right_scale) = parse_decimal_literal(right)?;

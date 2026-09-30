@@ -12,14 +12,16 @@
 
 use syn::LitStr;
 
+/// Normalized constraint forms retained while compiling a model declaration.
 #[derive(Clone)]
 pub(crate) enum ConstraintIr {
-    /// Text constraints.
+    /// Character, byte-length, blankness, and semantic-format restrictions.
     Text(TextConstraintIr),
-    /// Decimal constraints.
+    /// Precision, scale, rounding, and bound restrictions for decimal values.
     Decimal(DecimalConstraintIr),
-    /// Temporal precision name.
+    /// Name of the temporal precision constraint applied to a field.
     Time(String),
+    /// Minimum, maximum, and uniqueness requirements for a sequence.
     Sequence {
         /// Minimum item count.
         min: Option<usize>,
@@ -28,6 +30,7 @@ pub(crate) enum ConstraintIr {
         /// Whether items must be unique.
         unique: bool,
     },
+    /// Minimum and maximum entry-count requirements for a map.
     Map {
         /// Minimum entry count.
         min: Option<usize>,
@@ -36,6 +39,7 @@ pub(crate) enum ConstraintIr {
     },
 }
 
+/// Normalized text constraint values collected from declaration attributes.
 #[derive(Clone, Default)]
 pub(crate) struct TextConstraintIr {
     /// Minimum character count.
@@ -54,6 +58,8 @@ pub(crate) struct TextConstraintIr {
     pub(crate) format: Option<String>,
 }
 
+/// Normalized decimal constraint values, including lexical bounds and rounding
+/// policy.
 #[derive(Clone)]
 pub(crate) struct DecimalConstraintIr {
     /// Significant-digit precision.

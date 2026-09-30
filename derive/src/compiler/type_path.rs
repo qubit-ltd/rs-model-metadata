@@ -11,6 +11,8 @@
 use syn::Path;
 
 /// Returns whether `path` names the standard `Option` type.
+#[must_use]
+#[inline]
 pub(crate) fn is_option_path(path: &Path) -> bool {
     matches_path(path, &["Option"])
         || matches_path(path, &["std", "option", "Option"])
@@ -26,6 +28,8 @@ pub(crate) fn is_string_path(path: &Path) -> bool {
 }
 
 /// Returns whether `path` names a standard collection with `is_empty`.
+#[must_use]
+#[inline]
 pub(crate) fn is_collection_path(path: &Path) -> bool {
     let Some(name) = path.segments.last().map(|segment| segment.ident.to_string()) else {
         return false;
@@ -47,6 +51,8 @@ pub(crate) fn is_collection_path(path: &Path) -> bool {
 }
 
 /// Compares a Syn path with an exact list of identifier segments.
+#[must_use]
+#[inline]
 fn matches_path(path: &Path, expected: &[&str]) -> bool {
     path.segments.len() == expected.len()
         && path
@@ -57,6 +63,8 @@ fn matches_path(path: &Path, expected: &[&str]) -> bool {
 }
 
 /// Matches `std::collections::Name` or `alloc::collections::Name`.
+#[must_use]
+#[inline]
 fn matches_collection_path(path: &Path, root: &str, name: &str) -> bool {
     matches_path(path, &[root, "collections", name])
 }

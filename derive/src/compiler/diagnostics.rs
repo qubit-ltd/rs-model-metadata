@@ -26,6 +26,8 @@ impl Diagnostics {
     }
 
     /// Returns all accumulated diagnostics, if any.
+    #[must_use]
+    #[inline]
     pub(crate) fn finish(self) -> Result<()> {
         self.0.map_or(Ok(()), Err)
     }

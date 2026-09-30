@@ -25,8 +25,41 @@ use syn::parse_quote;
 use syn::punctuated::Punctuated;
 
 /// Generates Clone, equality and hashing without unnecessary generic bounds.
+///
+/// # Parameters
+/// - `item`: the model item whose structural implementation is generated.
+/// - `name`: the supported structural trait name.
+///
+/// # Returns
+/// Tokens implementing the selected trait with bounds on stored field types.
+///
+/// # Panics
+/// Panics if `name` is not a supported structural trait.
+#[must_use]
 pub(super) fn expand(item: &DeriveInput, name: &str) -> TokenStream {
-    let trait_path = match name {
+    let trait_path = trait_path(name);
+    let shapes = field_shapes(item);
+    let generics = bounded_generics(item, name, &trait_path, &shapes);
+    let arms = trait_arms(item, name, &shapes);
+    let body = trait_body(item, name, &shapes, &arms);
+    let ident = &item.ident;
+    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+    quote!(impl #impl_generics #trait_path for #ident #type_generics #where_clause { #body })
+}
+
+/// Returns the standard trait path selected by its supported name.
+///
+/// # Parameters
+/// - `name`: the supported structural trait name.
+///
+/// # Returns
+/// Tokens naming the corresponding core trait.
+///
+/// # Panics
+/// Panics when `name` is not in the supported trait set.
+#[must_use]
+fn trait_path(name: &str) -> TokenStream {
+    match name {
         "Clone" => quote!(::core::clone::Clone),
         "PartialEq" => quote!(::core::cmp::PartialEq),
         "Eq" => quote!(::core::cmp::Eq),
@@ -37,8 +70,23 @@ pub(super) fn expand(item: &DeriveInput, name: &str) -> TokenStream {
         "Ord" => quote!(::core::cmp::Ord),
         "Debug" => quote!(::core::fmt::Debug),
         _ => unreachable!("supported structural trait"),
-    };
-    let shapes: Vec<_> = match &item.data {
+    }
+}
+
+/// Collects each struct or enum constructor together with its declared fields.
+///
+/// # Parameters
+/// - `item`: the struct or enum syntax tree.
+///
+/// # Returns
+/// Constructor tokens paired with references to fields borrowed from `item`,
+/// in source order.
+///
+/// # Panics
+/// Panics if called with a union after model-shape validation.
+#[must_use]
+fn field_shapes(item: &DeriveInput) -> Vec<(TokenStream, &Fields)> {
+    match &item.data {
         Data::Struct(data) => vec![(quote!(Self), &data.fields)],
         Data::Enum(data) => data
             .variants
@@ -49,7 +97,27 @@ pub(super) fn expand(item: &DeriveInput, name: &str) -> TokenStream {
             })
             .collect(),
         Data::Union(_) => unreachable!("validated model shape"),
-    };
+    }
+}
+
+/// Adds structural-trait bounds for stored field types to cloned generics.
+///
+/// # Parameters
+/// - `item`: the model whose generic parameters are cloned.
+/// - `name`: the selected structural trait name.
+/// - `trait_path`: tokens naming that trait.
+/// - `shapes`: constructors and fields used to derive bounds.
+///
+/// # Returns
+/// The cloned generics with bounds for stored field types and Copy's Clone
+/// requirement when applicable.
+#[must_use]
+fn bounded_generics(
+    item: &DeriveInput,
+    name: &str,
+    trait_path: &TokenStream,
+    shapes: &[(TokenStream, &Fields)],
+) -> syn::Generics {
     let mut generics = item.generics.clone();
     let ident = &item.ident;
     let (_, arguments, _) = item.generics.split_for_impl();
@@ -70,6 +138,20 @@ pub(super) fn expand(item: &DeriveInput, name: &str) -> TokenStream {
             .predicates
             .push(parse_quote!(Self: ::core::clone::Clone));
     }
+    generics
+}
+
+/// Generates match arms implementing the selected structural trait.
+///
+/// # Parameters
+/// - `item`: the struct or enum being implemented.
+/// - `name`: the selected structural trait name.
+/// - `shapes`: constructors paired with their fields.
+///
+/// # Returns
+/// Match-arm token streams in constructor order.
+#[must_use]
+fn trait_arms(item: &DeriveInput, name: &str, shapes: &[(TokenStream, &Fields)]) -> Vec<TokenStream> {
     let arms: Vec<_> = shapes
         .iter()
         .map(|(constructor, fields)| {
@@ -141,6 +223,25 @@ pub(super) fn expand(item: &DeriveInput, name: &str) -> TokenStream {
             }
         })
         .collect();
+    arms
+}
+
+/// Assembles trait methods from generated arms and enum ordering metadata.
+///
+/// # Parameters
+/// - `item`: the model receiving the implementation.
+/// - `name`: the selected structural trait name.
+/// - `shapes`: constructors paired with their fields.
+/// - `arms`: generated match-arm tokens.
+///
+/// # Returns
+/// Tokens for the selected trait's methods.
+///
+/// # Panics
+/// Panics if `name` is unsupported or `Default` is requested for an item with
+/// no constructor shape.
+#[must_use]
+fn trait_body(item: &DeriveInput, name: &str, shapes: &[(TokenStream, &Fields)], arms: &[TokenStream]) -> TokenStream {
     let discriminant = matches!(item.data, Data::Enum(_))
         .then(|| quote!(::core::hash::Hash::hash(&::core::mem::discriminant(self), state);));
     let ordering_prefix = if matches!(name, "PartialOrd" | "Ord") {
@@ -186,18 +287,34 @@ pub(super) fn expand(item: &DeriveInput, name: &str) -> TokenStream {
         "Eq" | "Copy" => TokenStream::new(),
         _ => unreachable!("supported structural trait"),
     };
-    let ident = &item.ident;
-    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
-    quote!(impl #impl_generics #trait_path for #ident #type_generics #where_clause { #body })
+    body
 }
 
 /// Converts binding names to the same shape used by structural constructors.
+///
+/// # Parameters
+/// - `constructor`: tokens naming the struct or enum constructor.
+/// - `fields`: the declared field shape.
+/// - `bindings`: identifiers bound by a generated match arm.
+///
+/// # Returns
+/// Pattern tokens matching the constructor and binding each field.
+#[must_use]
 fn pattern_tokens(constructor: &TokenStream, fields: &Fields, bindings: &[Ident]) -> TokenStream {
     let values: Vec<_> = bindings.iter().map(|binding| quote!(#binding)).collect();
     construct(constructor, fields, &values)
 }
 
 /// Constructs a named, tuple or unit model variant from field expressions.
+///
+/// # Parameters
+/// - `constructor`: tokens naming the struct or enum constructor.
+/// - `fields`: the declared field shape.
+/// - `values`: tokens for each field expression.
+///
+/// # Returns
+/// Tokens constructing the named, tuple, or unit value.
+#[must_use]
 fn construct(constructor: &TokenStream, fields: &Fields, values: &[TokenStream]) -> TokenStream {
     match fields {
         Fields::Named(fields) => {
@@ -210,6 +327,14 @@ fn construct(constructor: &TokenStream, fields: &Fields, values: &[TokenStream])
 }
 
 /// Compares Enum discriminants using their declared integer representation.
+///
+/// # Parameters
+/// - `item`: the model syntax tree.
+/// - `trait_name`: the selected ordering trait name.
+///
+/// # Returns
+/// Tokens that compare enum discriminants, or an empty stream for structs.
+#[must_use]
 fn enum_ordering_prefix(item: &DeriveInput, trait_name: &str) -> TokenStream {
     let Data::Enum(data) = &item.data else {
         return TokenStream::new();
@@ -275,6 +400,19 @@ fn enum_ordering_prefix(item: &DeriveInput, trait_name: &str) -> TokenStream {
 
 /// Removes self-recursive obligations through standard storage wrappers while
 /// retaining bounds on the other stored types.
+///
+/// # Parameters
+/// - `ty`: the field type to inspect.
+/// - `recursive_type`: the rendered recursive model type.
+///
+/// # Type Parameters
+/// - `'a`: the lifetime of `ty` and any returned child types borrowed from it.
+///
+/// # Returns
+/// `Some` with nonrecursive child types borrowed from `ty` when a recursive
+/// occurrence is removed; otherwise `None` when no recursive occurrence is
+/// found.
+#[must_use]
 pub(super) fn recursive_bounds<'a>(ty: &'a Type, recursive_type: &str) -> Option<Vec<&'a Type>> {
     let rendered = ty.to_token_stream().to_string();
     if rendered == recursive_type || rendered == "Self" {

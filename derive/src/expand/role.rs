@@ -22,6 +22,7 @@ use crate::ir::declaration::FieldOccurrence;
 use crate::ir::declaration::VariantIr;
 
 /// Generates role-specific model metadata for a declaration.
+#[must_use]
 pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
     match declaration.kind {
         MacroKind::Entity => {
@@ -96,6 +97,7 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
 }
 
 /// Generates role metadata for all enum variants.
+#[must_use]
 fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
     let variants = variants.iter().enumerate().map(|(variant_index, variant)| {
         let fields = expand_field_vector(
@@ -136,6 +138,8 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
 }
 
 /// Returns the index of the declaration's identifier field.
+#[must_use]
+#[inline]
 fn identifier_index(fields: &[FieldIr]) -> Option<usize> {
     fields.iter().position(|field| {
         field

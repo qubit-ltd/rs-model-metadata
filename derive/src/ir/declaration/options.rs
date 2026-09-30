@@ -15,6 +15,7 @@ use std::collections::BTreeSet;
 use syn::LitStr;
 use syn::Type;
 
+/// Normalized model-level options shared by declaration expansion stages.
 #[derive(Clone)]
 pub(crate) struct DeclarationOptions {
     /// Explicit capability switches, independent of role defaults.

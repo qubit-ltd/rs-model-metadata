@@ -19,6 +19,8 @@ pub(crate) struct Located<T> {
 
 impl<T> Located<T> {
     /// Creates a located value from its parsed representation and source span.
+    #[must_use]
+    #[inline]
     pub(crate) const fn new(value: T, span: Span) -> Self {
         Self { value, span }
     }

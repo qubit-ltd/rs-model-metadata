@@ -8,6 +8,7 @@
 
 //! Parses field attributes, constraints, selectors, and strategies.
 
+use proc_macro2::TokenStream;
 use syn::Attribute;
 use syn::Error;
 use syn::Expr;
@@ -48,105 +49,126 @@ use crate::ir::declaration::SelectorPositionIr;
 use crate::ir::declaration::SerdeIr;
 use crate::ir::declaration::UniqueIr;
 
-impl FieldIr {
-    /// Parses one field's attributes into normalized intermediate metadata.
-    pub(crate) fn parse(index: usize, ty: &Type, attributes: &[Attribute], named: bool) -> Result<Self> {
-        let mut occurrences = Vec::new();
-        let mut keep_serializing = false;
-        let mut identifier = false;
-        let mut indexed = false;
-        let mut opaque = false;
-        let mut diagnostics = Diagnostics::default();
-        for attribute in attributes {
-            let result = if attribute.path().is_ident("identifier") {
-                if identifier {
-                    Err(Error::new_spanned(attribute, "duplicate identifier marker"))
-                } else {
-                    identifier = true;
-                    parse_identifier(attribute).map(|value| occurrences.push(FieldOccurrence::Identifier(value)))
-                }
-            } else if attribute.path().is_ident("indexed") {
-                if !matches!(attribute.meta, Meta::Path(_)) {
-                    Err(Error::new_spanned(attribute, "indexed is a marker without arguments"))
-                } else if indexed {
-                    Err(Error::new_spanned(attribute, "duplicate indexed marker"))
-                } else {
-                    indexed = true;
-                    occurrences.push(FieldOccurrence::Indexed);
-                    Ok(())
-                }
-            } else if attribute.path().is_ident("unique") {
-                parse_unique(attribute).map(|value| occurrences.push(FieldOccurrence::Unique(value)))
-            } else if attribute.path().is_ident("reference") {
-                parse_reference(attribute).map(|value| occurrences.push(FieldOccurrence::Reference(value)))
-            } else if attribute.path().is_ident("key_part") {
-                parse_key_part(attribute).map(|value| occurrences.push(FieldOccurrence::KeyPart(value)))
-            } else if is_constraint_attribute(attribute) {
-                parse_constraint(attribute).map(|value| occurrences.push(FieldOccurrence::Constraint(value)))
-            } else if attribute.path().is_ident("element") {
-                parse_selector(attribute, SelectorPositionIr::Element)
-                    .map(|value| occurrences.push(FieldOccurrence::Selector(value)))
-            } else if attribute.path().is_ident("map_key") {
-                parse_selector(attribute, SelectorPositionIr::MapKey)
-                    .map(|value| occurrences.push(FieldOccurrence::Selector(value)))
-            } else if attribute.path().is_ident("map_value") {
-                parse_selector(attribute, SelectorPositionIr::MapValue)
-                    .map(|value| occurrences.push(FieldOccurrence::Selector(value)))
-            } else if attribute.path().is_ident("validator") {
-                parse_validator(attribute).map(|value| occurrences.push(FieldOccurrence::Validator(value)))
-            } else if attribute.path().is_ident("codec") {
-                parse_codec(attribute).map(|value| occurrences.push(FieldOccurrence::Codec(value)))
-            } else if attribute.path().is_ident("redact") {
-                parse_redact(attribute).map(|value| occurrences.push(FieldOccurrence::Redact(value)))
-            } else if attribute.path().is_ident("serde") {
-                parse_serde(attribute).map(|value| occurrences.push(FieldOccurrence::Serde(value)))
-            } else if attribute.path().is_ident("opaque") {
-                if !matches!(attribute.meta, Meta::Path(_)) {
-                    Err(Error::new_spanned(attribute, "opaque is a marker without arguments"))
-                } else if opaque {
-                    Err(Error::new_spanned(attribute, "duplicate opaque marker"))
-                } else {
-                    opaque = true;
-                    occurrences.push(FieldOccurrence::Opaque);
-                    Ok(())
-                }
-            } else if attribute.path().is_ident("validate_nested") {
+/// Parses one field's attributes into normalized intermediate metadata.
+///
+/// # Parameters
+/// - `index`: zero-based position of the field in its declaration.
+/// - `ty`: declared Rust type, retained with its source span.
+/// - `attributes`: attributes to normalize in source order.
+/// - `named`: whether the field has a name rather than a tuple position.
+///
+/// # Returns
+/// The normalized field metadata, preserving occurrence order.
+///
+/// # Errors
+/// Returns collected diagnostics when an attribute is malformed or duplicated.
+#[must_use]
+pub(crate) fn parse_field(index: usize, ty: &Type, attributes: &[Attribute], named: bool) -> Result<FieldIr> {
+    let mut occurrences = Vec::new();
+    let mut keep_serializing = false;
+    let mut identifier = false;
+    let mut indexed = false;
+    let mut opaque = false;
+    let mut diagnostics = Diagnostics::default();
+    for attribute in attributes {
+        let result = if attribute.path().is_ident("identifier") {
+            if identifier {
+                Err(Error::new_spanned(attribute, "duplicate identifier marker"))
+            } else {
+                identifier = true;
+                parse_identifier(attribute).map(|value| occurrences.push(FieldOccurrence::Identifier(value)))
+            }
+        } else if attribute.path().is_ident("indexed") {
+            if !matches!(attribute.meta, Meta::Path(_)) {
+                Err(Error::new_spanned(attribute, "indexed is a marker without arguments"))
+            } else if indexed {
+                Err(Error::new_spanned(attribute, "duplicate indexed marker"))
+            } else {
+                indexed = true;
+                occurrences.push(FieldOccurrence::Indexed);
+                Ok(())
+            }
+        } else if attribute.path().is_ident("unique") {
+            parse_unique(attribute).map(|value| occurrences.push(FieldOccurrence::Unique(value)))
+        } else if attribute.path().is_ident("reference") {
+            parse_reference(attribute).map(|value| occurrences.push(FieldOccurrence::Reference(value)))
+        } else if attribute.path().is_ident("key_part") {
+            parse_key_part(attribute).map(|value| occurrences.push(FieldOccurrence::KeyPart(value)))
+        } else if is_constraint_attribute(attribute) {
+            parse_constraint(attribute).map(|value| occurrences.push(FieldOccurrence::Constraint(value)))
+        } else if attribute.path().is_ident("element") {
+            parse_selector(attribute, SelectorPositionIr::Element)
+                .map(|value| occurrences.push(FieldOccurrence::Selector(value)))
+        } else if attribute.path().is_ident("map_key") {
+            parse_selector(attribute, SelectorPositionIr::MapKey)
+                .map(|value| occurrences.push(FieldOccurrence::Selector(value)))
+        } else if attribute.path().is_ident("map_value") {
+            parse_selector(attribute, SelectorPositionIr::MapValue)
+                .map(|value| occurrences.push(FieldOccurrence::Selector(value)))
+        } else if attribute.path().is_ident("validator") {
+            parse_validator(attribute).map(|value| occurrences.push(FieldOccurrence::Validator(value)))
+        } else if attribute.path().is_ident("codec") {
+            parse_codec(attribute).map(|value| occurrences.push(FieldOccurrence::Codec(value)))
+        } else if attribute.path().is_ident("redact") {
+            parse_redact(attribute).map(|value| occurrences.push(FieldOccurrence::Redact(value)))
+        } else if attribute.path().is_ident("serde") {
+            parse_serde(attribute).map(|value| occurrences.push(FieldOccurrence::Serde(value)))
+        } else if attribute.path().is_ident("opaque") {
+            if !matches!(attribute.meta, Meta::Path(_)) {
+                Err(Error::new_spanned(attribute, "opaque is a marker without arguments"))
+            } else if opaque {
+                Err(Error::new_spanned(attribute, "duplicate opaque marker"))
+            } else {
+                opaque = true;
+                occurrences.push(FieldOccurrence::Opaque);
+                Ok(())
+            }
+        } else if attribute.path().is_ident("validate_nested") {
+            Err(Error::new_spanned(
+                attribute,
+                "remove validate_nested; consumers traverse nested metadata and honor opaque boundaries",
+            ))
+        } else if attribute.path().is_ident("keep_serializing") {
+            if !matches!(attribute.meta, Meta::Path(_)) {
                 Err(Error::new_spanned(
                     attribute,
-                    "remove validate_nested; consumers traverse nested metadata and honor opaque boundaries",
+                    "keep_serializing is a marker without arguments",
                 ))
-            } else if attribute.path().is_ident("keep_serializing") {
-                if !matches!(attribute.meta, Meta::Path(_)) {
-                    Err(Error::new_spanned(
-                        attribute,
-                        "keep_serializing is a marker without arguments",
-                    ))
-                } else if keep_serializing {
-                    Err(Error::new_spanned(attribute, "duplicate keep_serializing marker"))
-                } else {
-                    keep_serializing = true;
-                    Ok(())
-                }
+            } else if keep_serializing {
+                Err(Error::new_spanned(attribute, "duplicate keep_serializing marker"))
             } else {
+                keep_serializing = true;
                 Ok(())
-            };
-            if let Err(error) = result {
-                diagnostics.push(error);
             }
+        } else {
+            Ok(())
+        };
+        if let Err(error) = result {
+            diagnostics.push(error);
         }
-        diagnostics.finish()?;
-        Ok(Self {
-            index: Located::new(index, ty.span()),
-            ty: ty.clone(),
-            occurrences,
-            variant_index: None,
-            keep_serializing,
-            named,
-        })
     }
+    diagnostics.finish()?;
+    Ok(FieldIr {
+        index: Located::new(index, ty.span()),
+        ty: ty.clone(),
+        occurrences,
+        variant_index: None,
+        keep_serializing,
+        named,
+    })
 }
 
 /// Parses an identifier assignment attribute.
+///
+/// # Parameters
+/// - `attribute`: the identifier marker and optional assignment policy.
+///
+/// # Returns
+/// The selected application- or database-assignment policy.
+///
+/// # Errors
+/// Returns an error for unsupported, duplicate, or missing assignment options.
+#[must_use]
 fn parse_identifier(attribute: &Attribute) -> Result<IdentifierAssignmentIr> {
     if matches!(attribute.meta, Meta::Path(_)) {
         return Ok(IdentifierAssignmentIr::Application);
@@ -173,6 +195,18 @@ fn parse_identifier(attribute: &Attribute) -> Result<IdentifierAssignmentIr> {
 }
 
 /// Sets a string option while rejecting duplicate declarations.
+///
+/// # Parameters
+/// - `slot`: destination for the parsed string, updated only on success.
+/// - `value`: expression that must be a string literal.
+/// - `name`: option name used in diagnostics.
+///
+/// # Returns
+/// `()` after storing the string.
+///
+/// # Errors
+/// Returns an error if the slot is already set or `value` is not a string.
+#[must_use]
 pub(crate) fn set_lit_str(slot: &mut Option<LitStr>, value: Expr, name: &str) -> Result<()> {
     if slot.is_some() {
         return Err(Error::new_spanned(value, format!("duplicate `{name}` option")));
@@ -188,6 +222,16 @@ pub(crate) fn set_lit_str(slot: &mut Option<LitStr>, value: Expr, name: &str) ->
 }
 
 /// Parses a uniqueness declaration and its comparison paths.
+///
+/// # Parameters
+/// - `attribute`: the uniqueness marker and its comparison options.
+///
+/// # Returns
+/// The case policy and ordered comparison paths.
+///
+/// # Errors
+/// Returns diagnostics for malformed or unsupported options.
+#[must_use]
 fn parse_unique(attribute: &Attribute) -> Result<UniqueIr> {
     let mut value = UniqueIr {
         respect_to: Vec::new(),
@@ -222,6 +266,16 @@ fn parse_unique(attribute: &Attribute) -> Result<UniqueIr> {
 }
 
 /// Parses a relationship declaration and target selector.
+///
+/// # Parameters
+/// - `attribute`: the relationship marker and target/options.
+///
+/// # Returns
+/// The target, optional property path, existence policy, and navigation path.
+///
+/// # Errors
+/// Returns diagnostics when the target or any option is invalid or duplicated.
+#[must_use]
 fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
     let mut target = None;
     let mut property = None;
@@ -292,6 +346,16 @@ fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
 }
 
 /// Parses a zero-based composite-key position.
+///
+/// # Parameters
+/// - `attribute`: the key-part marker containing its order.
+///
+/// # Returns
+/// The zero-based key position.
+///
+/// # Errors
+/// Returns an error when the order is missing, duplicated, or invalid.
+#[must_use]
 fn parse_key_part(attribute: &Attribute) -> Result<usize> {
     let mut order = None;
     attribute.parse_nested_meta(|meta| {
@@ -309,6 +373,19 @@ fn parse_key_part(attribute: &Attribute) -> Result<usize> {
 }
 
 /// Parses a selector and its nested constraints, validators, and redaction.
+///
+/// # Parameters
+/// - `attribute`: selector options to parse.
+/// - `position`: whether the selector addresses an element, map key, or map
+///   value.
+///
+/// # Returns
+/// The selector and its supported nested metadata.
+///
+/// # Errors
+/// Returns an error for unsupported declarations or recursively nested
+/// collection selectors.
+#[must_use]
 fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result<SelectorIr> {
     let Meta::List(list) = &attribute.meta else {
         return Err(Error::new_spanned(attribute, "selector requires nested declarations"));
@@ -352,6 +429,16 @@ fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result
 }
 
 /// Converts an identifier expression into its canonical path text.
+///
+/// # Parameters
+/// - `expression`: an expression expected to contain a single identifier.
+///
+/// # Returns
+/// The identifier's text.
+///
+/// # Errors
+/// Returns an error unless the expression is a one-segment path.
+#[must_use]
 pub(crate) fn parse_ident_value(expression: Expr) -> Result<String> {
     match expression {
         Expr::Path(path) if path.path.segments.len() == 1 => Ok(path.path.segments[0].ident.to_string()),
@@ -360,6 +447,16 @@ pub(crate) fn parse_ident_value(expression: Expr) -> Result<String> {
 }
 
 /// Parses a declared codec ID or Rust codec type.
+///
+/// # Parameters
+/// - `attribute`: the codec marker with either a type or declared ID.
+///
+/// # Returns
+/// The codec type or declared ID.
+///
+/// # Errors
+/// Returns an error if no valid codec reference is supplied.
+#[must_use]
 fn parse_codec(attribute: &Attribute) -> Result<CodecIr> {
     if let Ok(ty) = attribute.parse_args::<Type>()
         && !matches!(&ty, Type::Path(path) if path.path.is_ident("id"))
@@ -386,6 +483,16 @@ fn parse_codec(attribute: &Attribute) -> Result<CodecIr> {
 }
 
 /// Parses a field or selector redaction mode.
+///
+/// # Parameters
+/// - `attribute`: the redaction marker and its selected mode.
+///
+/// # Returns
+/// The normalized redaction mode.
+///
+/// # Errors
+/// Returns an error if the mode is missing, duplicated, or unsupported.
+#[must_use]
 fn parse_redact(attribute: &Attribute) -> Result<RedactIr> {
     let mut mode = None;
     attribute.parse_nested_meta(|meta| {
@@ -418,6 +525,16 @@ fn parse_redact(attribute: &Attribute) -> Result<RedactIr> {
 }
 
 /// Parses Serde rename, skip, flatten, default, and custom-handler options.
+///
+/// # Parameters
+/// - `attribute`: the Serde helper attribute to inspect.
+///
+/// # Returns
+/// The stable Serde metadata subset used by this crate.
+///
+/// # Errors
+/// Returns a syntax error for malformed Serde option values.
+#[must_use]
 pub(crate) fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
     let mut serde = SerdeIr::default();
     let mut saw_rename = false;
@@ -479,7 +596,7 @@ pub(crate) fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
             } else if meta.input.peek(Paren) {
                 let nested;
                 parenthesized!(nested in meta.input);
-                let _: proc_macro2::TokenStream = nested.parse()?;
+                let _: TokenStream = nested.parse()?;
             }
             Ok(())
         }
@@ -488,6 +605,16 @@ pub(crate) fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
 }
 
 /// Parses a field path represented as identifiers or string segments.
+///
+/// # Parameters
+/// - `expression`: a named field path, Rust path, or dotted string path.
+///
+/// # Returns
+/// The path's ordered string segments.
+///
+/// # Errors
+/// Returns an error for unsupported expressions or tuple-field segments.
+#[must_use]
 pub(crate) fn parse_path_value(expression: Expr) -> Result<Vec<String>> {
     match expression {
         Expr::Field(field) => {
@@ -508,16 +635,44 @@ pub(crate) fn parse_path_value(expression: Expr) -> Result<Vec<String>> {
 }
 
 /// Converts one path expression into its textual segment.
+///
+/// # Parameters
+/// - `expression`: the path expression to normalize.
+///
+/// # Returns
+/// The path segments joined with `.`.
+///
+/// # Errors
+/// Returns the path parsing error when the expression is invalid.
+#[must_use]
 fn path_text(expression: Expr) -> Result<String> {
     parse_path_value(expression).map(|segments| segments.join("."))
 }
 
 /// Converts a Syn path into owned identifier segments.
+///
+/// # Parameters
+/// - `path`: the syntax-tree path to convert.
+///
+/// # Returns
+/// The identifiers in source order, owned as strings.
+#[must_use]
 pub(crate) fn path_from_syn(path: &Path) -> Vec<String> {
     path.segments.iter().map(|segment| segment.ident.to_string()).collect()
 }
 
 /// Validates that a model or validator ID is non-empty ASCII text.
+///
+/// # Parameters
+/// - `value`: the string literal containing the ID.
+/// - `kind`: the ID category used to format diagnostics.
+///
+/// # Returns
+/// `()` when every dot-separated segment has a valid identifier form.
+///
+/// # Errors
+/// Returns an error when the ID is empty or contains an invalid segment.
+#[must_use]
 pub(crate) fn validate_ascii_id(value: &LitStr, kind: &str) -> Result<()> {
     let text = value.value();
     let valid = !text.is_empty()
@@ -534,6 +689,16 @@ pub(crate) fn validate_ascii_id(value: &LitStr, kind: &str) -> Result<()> {
 }
 
 /// Parses slash-separated object navigation independently of property paths.
+///
+/// # Parameters
+/// - `value`: the slash-separated navigation path.
+///
+/// # Returns
+/// The ordered path segments, including permitted `..` parent steps.
+///
+/// # Errors
+/// Returns an error for empty segments, `.`, dotted names, or whitespace.
+#[must_use]
 pub(crate) fn parse_object_path(value: LitStr) -> Result<Vec<String>> {
     let text = value.value();
     let steps: Vec<String> = text.split('/').map(str::to_owned).collect();
@@ -555,7 +720,15 @@ mod tests {
     use syn::Field;
     use syn::parse_quote;
 
+    use crate::ir::declaration::CodecIr;
+    use crate::ir::declaration::ConstraintIr;
     use crate::ir::declaration::FieldIr;
+    use crate::ir::declaration::FieldOccurrence;
+    use crate::ir::declaration::IdentifierAssignmentIr;
+    use crate::ir::declaration::RedactModeIr;
+    use crate::ir::declaration::ReferenceTargetIr;
+    use crate::ir::declaration::SelectorPositionIr;
+    use crate::ir::declaration::StrategyArgumentIr;
 
     /// Exercises the complete supported field-attribute vocabulary in source
     /// order.
@@ -578,12 +751,112 @@ mod tests {
             #[keep_serializing]
             value: Vec<String>
         };
-        let parsed = FieldIr::parse(3, &field.ty, &field.attrs, true).expect("supported field attributes");
+        let parsed = parse_field(3, &field.ty, &field.attrs, true).expect("supported field attributes");
 
         assert_eq!(*parsed.index.value(), 3);
         assert!(parsed.named);
         assert!(parsed.keep_serializing);
-        assert_eq!(parsed.occurrences.len(), 13);
+        let [
+            FieldOccurrence::Identifier(identifier),
+            FieldOccurrence::Indexed,
+            FieldOccurrence::Unique(unique),
+            FieldOccurrence::Reference(reference),
+            FieldOccurrence::KeyPart(0),
+            FieldOccurrence::Constraint(ConstraintIr::Text(text)),
+            FieldOccurrence::Constraint(ConstraintIr::Sequence {
+                min: Some(1),
+                max: Some(3),
+                unique: true,
+            }),
+            FieldOccurrence::Selector(selector),
+            FieldOccurrence::Validator(field_validator),
+            FieldOccurrence::Codec(CodecIr::RustType(codec_type)),
+            FieldOccurrence::Redact(redact),
+            FieldOccurrence::Serde(serde),
+            FieldOccurrence::Opaque,
+        ] = parsed.occurrences.as_slice()
+        else {
+            panic!("field attributes should produce their exact IR variants and order");
+        };
+
+        assert!(matches!(identifier, IdentifierAssignmentIr::Database));
+        assert_eq!(unique.respect_to, vec![vec!["tenant".to_owned(), "id".to_owned()]]);
+        assert_eq!(unique.ignore_case, Some(false));
+
+        let ReferenceTargetIr::ModelId(entity_id) = &reference.target else {
+            panic!("reference entity_id should produce a model ID target");
+        };
+        assert_eq!(entity_id.value(), "example.Owner");
+        assert_eq!(
+            reference.property.as_ref().expect("property path"),
+            &vec!["id".to_owned()]
+        );
+        assert!(!reference.existing);
+        assert_eq!(
+            reference.same_as.as_ref().expect("object path"),
+            &vec!["owner".to_owned(), "id".to_owned()]
+        );
+
+        assert_eq!(text.min_chars, Some(1));
+        assert_eq!(text.max_chars, Some(8));
+        assert!(text.non_blank);
+        assert_eq!(text.allowed_chars.as_deref(), Some("ascii"));
+        assert_eq!(text.format.as_deref(), Some("email_ascii"));
+
+        assert_eq!(selector.position, SelectorPositionIr::Element);
+        assert!(matches!(
+            selector.constraints.as_slice(),
+            [ConstraintIr::Text(text)] if text.max_chars == Some(4)
+        ));
+        assert_eq!(selector.validators.len(), 1);
+        assert_eq!(selector.validators[0].id.value(), "example.element");
+        assert!(matches!(
+            &selector.codec,
+            Some(CodecIr::DeclaredId(id)) if id.value() == "example.codec"
+        ));
+        assert!(matches!(
+            &selector.redact,
+            Some(redact) if matches!(&redact.mode, RedactModeIr::Level(level) if level == "public")
+        ));
+
+        assert_eq!(field_validator.id.value(), "example.field");
+        assert_eq!(field_validator.params.len(), 1);
+        assert_eq!(field_validator.params[0].0, "limit");
+        assert!(matches!(&field_validator.params[0].1, StrategyArgumentIr::Unsigned(3)));
+
+        let syn::Type::Path(codec_type) = codec_type.as_ref() else {
+            panic!("field codec type should be a Rust path");
+        };
+        assert_eq!(codec_type.path.segments.last().expect("codec path").ident, "Codec");
+        assert!(matches!(&redact.mode, RedactModeIr::KeyedBy(path) if path == "owner.id"));
+
+        assert_eq!(serde.serialize_name.as_ref().expect("serialize name").value(), "out");
+        assert_eq!(serde.deserialize_name.as_ref().expect("deserialize name").value(), "in");
+        assert!(serde.skip_serializing);
+        assert!(!serde.skip_deserializing);
+        assert!(serde.flatten);
+        assert_eq!(serde.with.as_ref().expect("Serde adapter").value(), "helper");
+        assert!(serde.default);
+        assert!(serde.explicit_skip_serializing_if);
+
+        assert!(matches!(
+            parsed.occurrences.as_slice(),
+            [
+                FieldOccurrence::Identifier(_),
+                FieldOccurrence::Indexed,
+                FieldOccurrence::Unique(_),
+                FieldOccurrence::Reference(_),
+                FieldOccurrence::KeyPart(0),
+                FieldOccurrence::Constraint(ConstraintIr::Text(_)),
+                FieldOccurrence::Constraint(ConstraintIr::Sequence(_)),
+                FieldOccurrence::Selector(_),
+                FieldOccurrence::Validator(_),
+                FieldOccurrence::Codec(_),
+                FieldOccurrence::Redact(_),
+                FieldOccurrence::Serde(_),
+                FieldOccurrence::Opaque,
+            ]
+        ));
     }
 
     /// Confirms singleton field markers and redact levels are rejected early.
@@ -599,7 +872,7 @@ mod tests {
             parse_quote!(#[redact(level = "unsupported")] value: String),
         ];
         for field in fields {
-            assert!(FieldIr::parse(0, &field.ty, &field.attrs, true).is_err());
+            assert!(parse_field(0, &field.ty, &field.attrs, true).is_err());
         }
     }
 
@@ -618,7 +891,7 @@ mod tests {
         ];
 
         for field in fields {
-            assert!(FieldIr::parse(0, &field.ty, &field.attrs, true).is_err());
+            assert!(parse_field(0, &field.ty, &field.attrs, true).is_err());
         }
     }
 }

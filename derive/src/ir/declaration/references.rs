@@ -13,6 +13,7 @@
 use syn::LitStr;
 use syn::Type;
 
+/// Normalized uniqueness scope and comparison options for one field.
 #[derive(Clone)]
 pub(crate) struct UniqueIr {
     /// Property paths scoping uniqueness.
@@ -21,6 +22,7 @@ pub(crate) struct UniqueIr {
     pub(crate) ignore_case: Option<bool>,
 }
 
+/// Source form used to identify a referenced model.
 #[derive(Clone)]
 pub(crate) enum ReferenceTargetIr {
     /// Target supplied by a Rust type.
@@ -29,6 +31,7 @@ pub(crate) enum ReferenceTargetIr {
     ModelId(LitStr),
 }
 
+/// Normalized relationship target and property-mapping requirements.
 #[derive(Clone)]
 pub(crate) struct ReferenceIr {
     /// Referenced entity target.

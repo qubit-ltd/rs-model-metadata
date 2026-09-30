@@ -10,12 +10,14 @@
 
 // qubit-style: allow multiple-public-types
 
+/// Redaction policy normalized from one field's declaration attributes.
 #[derive(Clone)]
 pub(crate) struct RedactIr {
     /// Normalized redaction mode.
     pub(crate) mode: RedactModeIr,
 }
 
+/// Redaction operation applied when producing reflected or serialized values.
 #[derive(Clone)]
 pub(crate) enum RedactModeIr {
     /// Sensitivity level name.

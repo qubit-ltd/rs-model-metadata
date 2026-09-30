@@ -14,6 +14,18 @@ use syn::Error;
 use crate::ir::MacroKind;
 
 /// Expands one declaration and converts all failures to compiler diagnostics.
+///
+/// # Parameters
+///
+/// - `kind`: identifies the declaration macro being expanded.
+/// - `args`: contains the macro arguments.
+/// - `input`: contains the declaration tokens.
+///
+/// # Returns
+///
+/// The generated tokens, or tokens that report a compiler diagnostic when
+/// expansion fails.
+#[must_use]
 pub(crate) fn expand(kind: MacroKind, args: TokenStream, input: TokenStream) -> TokenStream {
     crate::expand::pipeline::run(kind, args, input).unwrap_or_else(Error::into_compile_error)
 }

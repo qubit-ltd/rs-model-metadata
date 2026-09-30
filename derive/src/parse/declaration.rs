@@ -21,6 +21,7 @@ use syn::Result;
 use syn::Token;
 use syn::punctuated::Punctuated;
 
+use super::fields::parse_field;
 use super::fields::parse_serde;
 use super::fields::validate_ascii_id;
 use crate::ir::MacroKind;
@@ -32,6 +33,23 @@ use crate::validate::declaration::combine;
 
 /// Parses a declaration for one model role without normalizing or validating
 /// it.
+///
+/// # Parameters
+/// - `kind`: the role macro that owns the declaration.
+/// - `options`: parsed model options.
+/// - `item`: the Rust item supplied to the role macro.
+///
+/// # Returns
+/// The declaration's options, fields, and variants as intermediate metadata.
+///
+/// # Errors
+/// Returns combined diagnostics for invalid options, fields, variants, IDs, or
+/// unsupported union items.
+///
+/// # Panics
+/// Panics if intermediate options, fields, or variants are unavailable without
+/// a corresponding diagnostic.
+#[must_use]
 pub(crate) fn parse_declaration(
     kind: MacroKind,
     options: Punctuated<Meta, Token![,]>,
@@ -88,11 +106,21 @@ pub(crate) fn parse_declaration(
     })
 }
 /// Parses every field and combines independent field diagnostics.
+///
+/// # Parameters
+/// - `fields`: the fields in a struct or enum variant.
+///
+/// # Returns
+/// Parsed field metadata in declaration order.
+///
+/// # Errors
+/// Returns combined diagnostics for invalid field attributes.
+#[must_use]
 pub(crate) fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
     for (index, field) in fields.iter().enumerate() {
-        match FieldIr::parse(index, &field.ty, &field.attrs, field.ident.is_some()) {
+        match parse_field(index, &field.ty, &field.attrs, field.ident.is_some()) {
             Ok(field) => parsed.push(field),
             Err(error) => combine(&mut errors, error),
         }
@@ -104,6 +132,17 @@ pub(crate) fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
 }
 
 /// Parses enum variants, including Serde names and nested field metadata.
+///
+/// # Parameters
+/// - `data`: the enum syntax tree to parse.
+///
+/// # Returns
+/// Parsed variants in declaration order.
+///
+/// # Errors
+/// Returns combined diagnostics for invalid variant names, Serde options, or
+/// nested fields.
+#[must_use]
 pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
@@ -144,6 +183,17 @@ pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
 }
 
 /// Parses an optional stable variant name, defaulting to the Rust name.
+///
+/// # Parameters
+/// - `attributes`: the variant's attributes.
+/// - `default`: the fallback name when no explicit variant name is present.
+///
+/// # Returns
+/// The explicit stable name or the supplied default.
+///
+/// # Errors
+/// Returns an error for invalid IDs, unsupported options, or duplicate names.
+#[must_use]
 fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String> {
     let mut name = None;
     for attribute in attributes
@@ -169,6 +219,18 @@ fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String>
 }
 
 /// Parses variant rename attributes and returns serialized/deserialized names.
+///
+/// # Parameters
+/// - `attributes`: the variant's attributes.
+/// - `canonical`: the fallback name for both directions.
+///
+/// # Returns
+/// Serialized and deserialized names, each defaulting to `canonical` when no
+/// corresponding Serde rename is present.
+///
+/// # Errors
+/// Returns an error when a Serde attribute is malformed.
+#[must_use]
 fn parse_variant_serde_names(attributes: &[Attribute], canonical: &str) -> Result<(String, String)> {
     let mut serialize = canonical.to_owned();
     let mut deserialize = canonical.to_owned();

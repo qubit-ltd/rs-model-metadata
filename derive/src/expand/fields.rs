@@ -36,6 +36,15 @@ use crate::ir::declaration::StrategyArgumentIr;
 use crate::ir::declaration::ValidatorIr;
 
 /// Generates the runtime field vector for a declaration.
+///
+/// # Parameters
+/// - `fields`: normalized fields to expand.
+/// - `descriptor_fields`: tokens naming the reflected descriptors.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens that build the declaration's runtime field vector.
+#[must_use]
 pub(super) fn expand_field_vector(
     fields: &[FieldIr],
     descriptor_fields: TokenStream,
@@ -51,6 +60,16 @@ pub(super) fn expand_field_vector(
 }
 
 /// Generates field overlays for a source-level generic declaration.
+///
+/// # Parameters
+/// - `fields`: normalized fields to expand.
+/// - `descriptor_fields`: tokens naming the reflected descriptors.
+/// - `runtime`: path to the runtime crate.
+/// - `variant_inherited`: whether fields inherit variant-level metadata.
+///
+/// # Returns
+/// Tokens that build the generic declaration's runtime field vector.
+#[must_use]
 pub(super) fn expand_generic_field_vector(
     fields: &[FieldIr],
     descriptor_fields: TokenStream,
@@ -67,6 +86,17 @@ pub(super) fn expand_generic_field_vector(
 }
 
 /// Generates one field descriptor and its normalized attributes.
+///
+/// # Parameters
+/// - `field`: normalized field metadata.
+/// - `descriptor_fields`: tokens naming the reflected descriptors.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_variant_inherited`: generic variant inheritance state, when
+///   expanding a generic declaration.
+///
+/// # Returns
+/// Tokens that construct the field metadata and append it to the field vector.
+#[must_use]
 fn expand_field(
     field: &FieldIr,
     descriptor_fields: &TokenStream,
@@ -390,6 +420,16 @@ fn expand_field(
 }
 
 /// Emits exact-type collection readers for a concrete field declaration.
+///
+/// # Parameters
+/// - `field`: normalized field metadata.
+/// - `constraints`: constraints attached to the field.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_definition`: whether expansion targets a generic definition.
+///
+/// # Returns
+/// Tokens that build collection readers, or no readers when none apply.
+#[must_use]
 fn expand_collection_ops(
     field: &FieldIr,
     constraints: &[&ConstraintIr],
@@ -505,6 +545,13 @@ fn expand_collection_ops(
 }
 
 /// Returns the standard collection name for supported spelling forms.
+///
+/// # Parameters
+/// - `ty`: the declared collection type.
+///
+/// # Returns
+/// `Some` with a supported collection name, or `None` for other types.
+#[must_use]
 fn collection_name(ty: &Type) -> Option<&str> {
     let Type::Path(path) = ty else {
         return None;
@@ -525,6 +572,13 @@ fn collection_name(ty: &Type) -> Option<&str> {
 }
 
 /// Returns the first concrete type argument of a collection declaration.
+///
+/// # Parameters
+/// - `ty`: the declared collection type.
+///
+/// # Returns
+/// The first concrete element or value type argument, when present.
+#[must_use]
 fn collection_element_type(ty: &Type) -> Option<&Type> {
     match ty {
         Type::Array(array) => Some(&array.elem),
@@ -543,6 +597,14 @@ fn collection_element_type(ty: &Type) -> Option<&Type> {
 
 /// Identifies sequence shapes accepted by declaration traits but lacking a
 /// slice adapter.
+///
+/// # Parameters
+/// - `ty`: the declared sequence type.
+///
+/// # Returns
+/// `true` for known unsupported wrappers and sequence containers.
+#[must_use]
+#[inline]
 fn known_non_vec_unique_shape(ty: &Type) -> bool {
     match ty {
         Type::Path(path) => {
@@ -558,6 +620,17 @@ fn known_non_vec_unique_shape(ty: &Type) -> bool {
 }
 
 /// Generates runtime metadata for one normalized constraint.
+///
+/// # Parameters
+/// - `value`: normalized constraint data.
+/// - `has_element`: whether an element selector is present.
+/// - `has_map_key`: whether a map-key selector is present.
+/// - `has_map_value`: whether a map-value selector is present.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens that construct the matching runtime constraint metadata.
+#[must_use]
 fn expand_constraint(
     value: &ConstraintIr,
     has_element: bool,
@@ -671,6 +744,15 @@ fn expand_constraint(
 }
 
 /// Generates compile-time type-capability assertions for constraints.
+///
+/// # Parameters
+/// - `constraints`: normalized constraints to check.
+/// - `target`: tokens naming the asserted Rust type.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens containing the assertions required by those constraints.
+#[must_use]
 fn expand_constraint_assertions(
     constraints: &[&ConstraintIr],
     target: TokenStream,
@@ -718,6 +800,16 @@ fn expand_constraint_assertions(
 }
 
 /// Generates runtime metadata for a collection selector.
+///
+/// # Parameters
+/// - `value`: normalized selector metadata.
+/// - `value_type`: tokens naming the selected Rust type.
+/// - `name`: local identifier for the generated selector binding.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens that construct selector metadata and bind it to `name`.
+#[must_use]
 fn expand_selector_metadata(
     value: &SelectorIr,
     value_type: &TokenStream,
@@ -788,11 +880,28 @@ fn expand_selector_metadata(
 }
 
 /// Converts an optional tokenizable number into runtime option tokens.
+///
+/// # Parameters
+/// - `value`: the optional value to quote.
+///
+/// # Returns
+/// Tokens representing `None` or `Some(value)`.
+#[must_use]
+#[inline]
 fn option_number<T: ToTokens>(value: Option<T>) -> TokenStream {
     value.map_or_else(|| quote!(None), |value| quote!(Some(#value)))
 }
 
 /// Maps a validated rounding name to runtime enum tokens.
+///
+/// # Parameters
+/// - `value`: the normalized rounding mode name.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens naming the corresponding runtime rounding mode.
+#[must_use]
+#[inline]
 fn rounding_tokens(value: &str, runtime: &TokenStream) -> TokenStream {
     match value {
         "down" => quote!(#runtime::metadata::RoundingMode::Down),
@@ -808,6 +917,15 @@ fn rounding_tokens(value: &str, runtime: &TokenStream) -> TokenStream {
 }
 
 /// Generates runtime metadata for one validator declaration.
+///
+/// # Parameters
+/// - `validator`: normalized validator ID, arguments, and dependencies.
+/// - `runtime`: path to the runtime crate.
+/// - `declaration`: tokens naming the source declaration location.
+///
+/// # Returns
+/// Tokens that construct the runtime validator metadata.
+#[must_use]
 fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream, declaration: TokenStream) -> TokenStream {
     let id = &validator.id;
     let params = validator.params.iter().map(|(name, value)| {
@@ -841,6 +959,14 @@ fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream, declaration:
 }
 
 /// Generates runtime tokens for one validator strategy argument.
+///
+/// # Parameters
+/// - `value`: the normalized argument value.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens representing the matching runtime validation argument.
+#[must_use]
 fn expand_strategy_argument(value: &StrategyArgumentIr, runtime: &TokenStream) -> TokenStream {
     match value {
         StrategyArgumentIr::Bool(value) => {
@@ -871,6 +997,14 @@ fn expand_strategy_argument(value: &StrategyArgumentIr, runtime: &TokenStream) -
 }
 
 /// Generates runtime metadata for one relationship declaration.
+///
+/// # Parameters
+/// - `reference`: normalized target, property, and navigation metadata.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens that construct the field reference metadata.
+#[must_use]
 fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStream {
     let target = match &reference.target {
         ReferenceTargetIr::RustType(ty) => {
@@ -905,6 +1039,15 @@ fn expand_reference(reference: &ReferenceIr, runtime: &TokenStream) -> TokenStre
 }
 
 /// Generates runtime metadata for one redaction declaration.
+///
+/// # Parameters
+/// - `redact`: normalized redaction mode.
+/// - `position`: tokens naming the field or selector position.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens that bind the redaction metadata.
+#[must_use]
 fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
     let expression = redact_expression(redact, position, runtime);
     quote! {
@@ -913,6 +1056,15 @@ fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream
 }
 
 /// Generates the redaction expression associated with a redaction mode.
+///
+/// # Parameters
+/// - `redact`: normalized redaction mode.
+/// - `position`: tokens naming the field or selector position.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens constructing the runtime redaction value.
+#[must_use]
 fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
     let (sensitivity, mode) = match &redact.mode {
         RedactModeIr::Level(level) => {
@@ -949,6 +1101,16 @@ fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenSt
 }
 
 /// Generates runtime metadata for a declared value codec.
+///
+/// # Parameters
+/// - `codec`: normalized Rust codec type or declared codec ID.
+/// - `_value_type`: selected Rust type, retained for caller symmetry.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens naming the corresponding runtime codec reference.
+#[must_use]
+#[inline]
 fn codec_reference_expression<T: ToTokens>(codec: &CodecIr, _value_type: &T, runtime: &TokenStream) -> TokenStream {
     match codec {
         CodecIr::DeclaredId(id) => {
@@ -963,6 +1125,14 @@ fn codec_reference_expression<T: ToTokens>(codec: &CodecIr, _value_type: &T, run
 }
 
 /// Generates runtime metadata for one Serde behavior declaration.
+///
+/// # Parameters
+/// - `value`: normalized Serde names and behavior flags.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens that construct the field's Serde metadata.
+#[must_use]
 fn expand_serde(value: &SerdeIr, runtime: &TokenStream) -> TokenStream {
     let serialize_name = option_lit_str(&value.serialize_name);
     let deserialize_name = option_lit_str(&value.deserialize_name);
@@ -996,11 +1166,27 @@ fn expand_serde(value: &SerdeIr, runtime: &TokenStream) -> TokenStream {
 }
 
 /// Converts an owned field path into runtime path tokens.
+///
+/// # Parameters
+/// - `path`: ordered property name segments.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens constructing a runtime property path.
+#[must_use]
 fn expand_field_path(path: &[String], runtime: &TokenStream) -> TokenStream {
     quote!(#runtime::metadata::PropertyPath::new(&[#(#path),*]))
 }
 
 /// Converts an optional string literal into runtime option tokens.
+///
+/// # Parameters
+/// - `value`: optional string literal to quote.
+///
+/// # Returns
+/// Tokens representing `None` or `Some(value)`.
+#[must_use]
+#[inline]
 fn option_lit_str(value: &Option<LitStr>) -> TokenStream {
     value
         .as_ref()
@@ -1008,6 +1194,18 @@ fn option_lit_str(value: &Option<LitStr>) -> TokenStream {
 }
 
 /// Emits checked object navigation with distinct parent steps.
+///
+/// # Parameters
+/// - `steps`: ordered property and parent navigation steps.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens constructing the runtime object path.
+///
+/// # Panics
+/// The generated code panics only if a validated navigation path is rejected
+/// when constructing its runtime representation.
+#[must_use]
 fn expand_object_path(steps: &[String], runtime: &TokenStream) -> TokenStream {
     let steps = steps.iter().map(|step| {
         if step == ".." {
@@ -1050,6 +1248,15 @@ mod tests {
     use crate::ir::declaration::StrategyArgumentIr;
     use crate::ir::declaration::TextConstraintIr;
     use crate::ir::declaration::ValidatorIr;
+
+    fn assert_tokens_contain(tokens: &TokenStream, expected: &str) {
+        let compact = tokens
+            .to_string()
+            .chars()
+            .filter(|value| !value.is_whitespace())
+            .collect::<String>();
+        assert!(compact.contains(expected), "expected `{expected}` in tokens: {tokens}");
+    }
 
     /// Known unsupported unique sequence shapes fail at derive expansion.
     #[test]
@@ -1110,7 +1317,25 @@ mod tests {
                     non_blank: true,
                     format: format.map(str::to_owned),
                 });
-                assert!(!expand_constraint(&value, false, false, false, &runtime).is_empty());
+                let tokens = expand_constraint(&value, false, false, false, &runtime);
+                let expected_allowed = match allowed {
+                    "unicode" => "AllowedChars::Unicode",
+                    "printable_unicode" => "AllowedChars::PrintableUnicode",
+                    "ascii" => "AllowedChars::Ascii",
+                    "printable_ascii" => "AllowedChars::PrintableAscii",
+                    "code" => "AllowedChars::Code",
+                    _ => "compile_error!",
+                };
+                assert_tokens_contain(&tokens, expected_allowed);
+                let expected_format = match format {
+                    None => "None",
+                    Some("email_ascii") => "TextFormat::EmailAscii",
+                    Some("cn_mobile") => "TextFormat::Mobile",
+                    Some("uri") => "TextFormat::Uri",
+                    Some("uuid") => "TextFormat::Uuid",
+                    _ => "compile_error!",
+                };
+                assert_tokens_contain(&tokens, expected_format);
             }
         }
         for rounding in [
@@ -1124,7 +1349,18 @@ mod tests {
             "unnecessary",
             "invalid",
         ] {
-            assert!(!rounding_tokens(rounding, &runtime).is_empty());
+            let expected_rounding = match rounding {
+                "down" => "RoundingMode::Down",
+                "up" => "RoundingMode::Up",
+                "ceiling" => "RoundingMode::Ceiling",
+                "floor" => "RoundingMode::Floor",
+                "half_up" => "RoundingMode::HalfUp",
+                "half_down" => "RoundingMode::HalfDown",
+                "half_even" => "RoundingMode::HalfEven",
+                "unnecessary" => "RoundingMode::Unnecessary",
+                _ => "compile_error!",
+            };
+            assert_tokens_contain(&rounding_tokens(rounding, &runtime), expected_rounding);
             let value = ConstraintIr::Decimal(DecimalConstraintIr {
                 precision: Some(8),
                 scale: 2,
@@ -1135,23 +1371,48 @@ mod tests {
                 min_inclusive: false,
                 max_inclusive: true,
             });
-            assert!(!expand_constraint(&value, false, false, false, &runtime).is_empty());
+            let tokens = expand_constraint(&value, false, false, false, &runtime);
+            assert_tokens_contain(&tokens, expected_rounding);
+            assert_tokens_contain(
+                &tokens,
+                if rounding == "unnecessary" {
+                    "DecimalSemantic::Money"
+                } else {
+                    "DecimalSemantic::Number"
+                },
+            );
         }
         for precision in ["second", "millisecond", "microsecond", "nanosecond", "invalid"] {
             let value = ConstraintIr::Time(precision.to_owned());
-            assert!(!expand_constraint(&value, false, false, false, &runtime).is_empty());
+            let tokens = expand_constraint(&value, false, false, false, &runtime);
+            let expected_precision = match precision {
+                "second" => "TemporalPrecision::Second",
+                "millisecond" => "TemporalPrecision::Millisecond",
+                "microsecond" => "TemporalPrecision::Microsecond",
+                "nanosecond" => "TemporalPrecision::Nanosecond",
+                _ => "compile_error!",
+            };
+            assert_tokens_contain(&tokens, expected_precision);
         }
         let sequence = ConstraintIr::Sequence {
             min: Some(1),
             max: Some(2),
             unique: true,
         };
-        assert!(!expand_constraint(&sequence, true, false, false, &runtime).is_empty());
+        let sequence_tokens = expand_constraint(&sequence, true, false, false, &runtime);
+        assert_tokens_contain(&sequence_tokens, "SequenceConstraint::new");
+        assert_tokens_contain(&sequence_tokens, "Some(1)");
+        assert_tokens_contain(&sequence_tokens, "Some(2)");
+        assert_tokens_contain(&sequence_tokens, "true");
         let map = ConstraintIr::Map {
             min: Some(1),
             max: Some(2),
         };
-        assert!(!expand_constraint(&map, false, true, true, &runtime).is_empty());
+        let map_tokens = expand_constraint(&map, false, true, true, &runtime);
+        assert_tokens_contain(&map_tokens, "MapConstraint::new");
+        assert_tokens_contain(&map_tokens, "with_selectors");
+        assert_tokens_contain(&map_tokens, "Some(map_key_selector)");
+        assert_tokens_contain(&map_tokens, "Some(map_value_selector)");
 
         let strategy_values = [
             StrategyArgumentIr::Bool(true),
@@ -1164,7 +1425,17 @@ mod tests {
             StrategyArgumentIr::StringList(vec![literal("value")]),
         ];
         for value in &strategy_values {
-            assert!(!expand_strategy_argument(value, &runtime).is_empty());
+            let expected = match value {
+                StrategyArgumentIr::Bool(_) => "ValidationArgument::Bool(",
+                StrategyArgumentIr::Integer(_) => "ValidationArgument::Integer(",
+                StrategyArgumentIr::Unsigned(_) => "ValidationArgument::Unsigned(",
+                StrategyArgumentIr::String(_) => "ValidationArgument::String(",
+                StrategyArgumentIr::BoolList(_) => "ValidationArgument::BoolList(",
+                StrategyArgumentIr::IntegerList(_) => "ValidationArgument::IntegerList(",
+                StrategyArgumentIr::UnsignedList(_) => "ValidationArgument::UnsignedList(",
+                StrategyArgumentIr::StringList(_) => "ValidationArgument::StringList(",
+            };
+            assert_tokens_contain(&expand_strategy_argument(value, &runtime), expected);
         }
         let validator = ValidatorIr {
             id: literal("example.rule"),
@@ -1176,14 +1447,16 @@ mod tests {
             depends_on: vec![vec!["owner".to_owned(), "id".to_owned()]],
             dependency_bindings: Vec::new(),
         };
-        assert!(
-            !expand_validator(
-                &validator,
-                &runtime,
-                quote!(&model_runtime::metadata::DeclarationLocation::unknown())
-            )
-            .is_empty()
+        let validator_tokens = expand_validator(
+            &validator,
+            &runtime,
+            quote!(&model_runtime::metadata::DeclarationLocation::unknown()),
         );
+        assert_tokens_contain(&validator_tokens, "example.rule");
+        assert_tokens_contain(&validator_tokens, "NamedValidationArgument::new");
+        assert_tokens_contain(&validator_tokens, "PropertyPath::new");
+        assert_tokens_contain(&validator_tokens, "owner");
+        assert_tokens_contain(&validator_tokens, "id");
 
         let ty: Type = parse_quote!(Codec);
         let references = [
@@ -1201,17 +1474,30 @@ mod tests {
             },
         ];
         for reference in &references {
-            assert!(!expand_reference(reference, &runtime).is_empty());
+            let tokens = expand_reference(reference, &runtime);
+            assert_tokens_contain(
+                &tokens,
+                match &reference.target {
+                    ReferenceTargetIr::RustType(_) => "DeclaredEntityTarget::RustType",
+                    ReferenceTargetIr::ModelId(_) => "DeclaredEntityTarget::ModelId",
+                },
+            );
+            assert_tokens_contain(
+                &tokens,
+                match &reference.property {
+                    Some(_) => "ReferenceSelection::Property",
+                    None => "ReferenceSelection::Entity",
+                },
+            );
         }
-        assert!(!codec_reference_expression(&CodecIr::RustType(Box::new(ty)), &quote!(String), &runtime).is_empty());
-        assert!(
-            !codec_reference_expression(
-                &CodecIr::DeclaredId(literal("example.codec")),
-                &quote!(String),
-                &runtime
-            )
-            .is_empty()
+        let rust_type_codec = codec_reference_expression(&CodecIr::RustType(Box::new(ty)), &quote!(String), &runtime);
+        assert_tokens_contain(&rust_type_codec, "CodecReference::RustType");
+        let declared_id_codec = codec_reference_expression(
+            &CodecIr::DeclaredId(literal("example.codec")),
+            &quote!(String),
+            &runtime,
         );
+        assert_tokens_contain(&declared_id_codec, "CodecReference::DeclaredId");
 
         for mode in [
             RedactModeIr::Level("public".to_owned()),
@@ -1225,7 +1511,16 @@ mod tests {
             RedactModeIr::KeyedBy("owner".to_owned()),
             RedactModeIr::Json,
         ] {
-            assert!(!expand_redact(&RedactIr { mode }, quote!(position), &runtime).is_empty());
+            let expected = match &mode {
+                RedactModeIr::Level(level) if level == "invalid" => "compile_error!",
+                RedactModeIr::Level(_) => "RedactModeMetadata::Level",
+                RedactModeIr::Skip => "RedactModeMetadata::Skip",
+                RedactModeIr::Nested => "RedactModeMetadata::Nested",
+                RedactModeIr::Map => "RedactModeMetadata::Map",
+                RedactModeIr::KeyedBy(_) => "RedactModeMetadata::KeyedBy",
+                RedactModeIr::Json => "RedactModeMetadata::Json",
+            };
+            assert_tokens_contain(&expand_redact(&RedactIr { mode }, quote!(position), &runtime), expected);
         }
 
         let serde_values = [
@@ -1250,8 +1545,17 @@ mod tests {
                 ..SerdeIr::default()
             },
         ];
-        for value in &serde_values {
-            assert!(!expand_serde(value, &runtime).is_empty());
-        }
+        let default_serde = expand_serde(&serde_values[0], &runtime);
+        assert_tokens_contain(&default_serde, "SerdeFieldMetadata::new");
+        let model_default_serde = expand_serde(&serde_values[1], &runtime);
+        assert_tokens_contain(
+            &model_default_serde,
+            "SerdeFieldMetadata::new(\"out\",\"in\",true,true,true,\"helper\",true).with_sources(SerdeBehaviorSource::ModelDefault,SerdeBehaviorSource::ModelDefault)",
+        );
+        let suppressed_serde = expand_serde(&serde_values[2], &runtime);
+        assert_tokens_contain(
+            &suppressed_serde,
+            "SerdeFieldMetadata::new(None,None,false,false,false,None,true).with_sources(SerdeBehaviorSource::Explicit,SerdeBehaviorSource::Suppressed)",
+        );
     }
 }

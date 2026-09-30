@@ -29,6 +29,7 @@ use crate::ir::declaration::FieldIr;
 use crate::ir::declaration::VariantIr;
 
 /// Generates lazy type metadata and registration implementations.
+#[must_use]
 pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let ident = &item.ident;
     let fields = expand_field_vector(&declaration.fields, quote!(descriptor.fields()), runtime);
@@ -144,6 +145,7 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
 
 /// Generates registration metadata for a generic model definition.
 #[allow(clippy::too_many_arguments)]
+#[must_use]
 fn expand_generic_registration(
     ident: &Ident,
     id: Option<&LitStr>,
@@ -212,6 +214,7 @@ fn expand_generic_registration(
 }
 
 /// Generates complete symbolic overlays for generic enum variants.
+#[must_use]
 fn expand_generic_variant_vector(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
     let bodies = variants.iter().enumerate().map(|(variant_index, variant)| {
         let fields = expand_generic_field_vector(
