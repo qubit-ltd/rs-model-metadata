@@ -23,7 +23,7 @@ use crate::__private::TypeMetadataProvider;
 ///
 /// ```
 /// use qubit_model_derive::Model;
-/// use qubit_model_metadata::type_metadata::HasTypeMetadata;
+/// use qubit_model_metadata::metadata::HasTypeMetadata;
 ///
 /// #[Model]
 /// struct User {

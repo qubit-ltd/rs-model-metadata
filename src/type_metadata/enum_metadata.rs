@@ -16,13 +16,14 @@ use crate::metadata::EnumVariantMetadata;
 ///
 /// ```
 /// use qubit_model_derive::Enum;
+/// use qubit_model_metadata::metadata::EnumMetadata;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
 /// #[Enum]
 /// enum Reply { Ready, Done }
 /// # fn main() {
 /// let metadata = TypeMetadata::of::<Reply>();
-/// let variants = metadata.as_enum().expect("enum metadata");
+/// let variants: &EnumMetadata = metadata.as_enum().expect("enum metadata");
 /// assert_eq!(variants.variants().len(), 2);
 /// assert_eq!(variants.variant("READY").map(|item| item.rust_name()), Some("Ready"));
 /// assert_eq!(variants.variant_by_rust_name("Ready").map(|item| item.canonical_name()), Some("READY"));

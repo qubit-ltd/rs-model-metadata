@@ -44,6 +44,7 @@ pub enum ModelRole {
 ///
 /// ```
 /// use qubit_model_derive::Entity;
+/// use qubit_model_metadata::metadata::EntityMetadata;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
 /// #[Entity(id = "example.Customer")]
@@ -52,7 +53,7 @@ pub enum ModelRole {
 ///     id: u64,
 /// }
 ///
-/// let entity = TypeMetadata::of::<Customer>().as_entity().expect("entity metadata");
+/// let entity: &EntityMetadata = TypeMetadata::of::<Customer>().as_entity().expect("entity metadata");
 /// assert_eq!(entity.identifier().name(), "id");
 /// ```
 #[derive(Clone, Copy, Debug)]
@@ -96,6 +97,7 @@ impl EntityMetadata {
 /// ```
 /// use qubit_model_derive::Entity;
 /// use qubit_model_derive::Projection;
+/// use qubit_model_metadata::metadata::ProjectionMetadata;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
 /// #[Entity(id = "example.Source")]
@@ -110,7 +112,7 @@ impl EntityMetadata {
 ///     id: u64,
 /// }
 ///
-/// let projection = TypeMetadata::of::<View>().as_projection().expect("projection metadata");
+/// let projection: &ProjectionMetadata = TypeMetadata::of::<View>().as_projection().expect("projection metadata");
 /// assert!(projection.is_fixed());
 /// ```
 #[derive(Clone, Copy, Debug)]
@@ -209,6 +211,7 @@ pub struct ModelMetadata;
 /// use qubit_model_derive::Value;
 /// use qubit_model_metadata::metadata::RoleMetadata;
 /// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::metadata::ValueMetadata;
 ///
 /// #[Value(transparent)]
 /// struct UserId(u64);
@@ -216,6 +219,7 @@ pub struct ModelMetadata;
 /// let RoleMetadata::Value(value) = TypeMetadata::of::<UserId>().role_metadata() else {
 ///     panic!("derived value metadata");
 /// };
+/// let value: &ValueMetadata = value;
 /// assert!(value.is_transparent());
 /// ```
 #[derive(Clone, Copy, Debug)]

@@ -30,7 +30,7 @@ use crate::metadata::ModelId;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::metadata::ModelRegistryErrorKind;
+/// use qubit_model_metadata::registry::ModelRegistryErrorKind;
 ///
 /// let kind = ModelRegistryErrorKind::DuplicateModelId;
 /// assert_eq!(kind, ModelRegistryErrorKind::DuplicateModelId);
@@ -61,7 +61,7 @@ pub enum ModelRegistryErrorKind {
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::metadata::ModelRegistryError;
+/// use qubit_model_metadata::registry::ModelRegistryError;
 ///
 /// fn describe(error: &ModelRegistryError) -> String {
 ///     error.to_string()

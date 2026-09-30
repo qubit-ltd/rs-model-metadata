@@ -358,9 +358,9 @@ bitflags! {
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::metadata::UniqueMetadata;
+/// use qubit_model_metadata::metadata::FieldUniqueMetadata;
 ///
-/// let unique = UniqueMetadata::for_definition(&[], None);
+/// let unique = FieldUniqueMetadata::for_definition(&[], None);
 /// assert_eq!(unique.effective_ignore_case(), None);
 /// assert!(!unique.is_scoped());
 /// ```
@@ -652,8 +652,8 @@ impl fmt::Debug for DeclaredEntityTarget {
 /// # Examples
 ///
 /// ```
+/// use qubit_model_metadata::metadata::PropertyPath;
 /// use qubit_model_metadata::metadata::ReferenceSelection;
-/// use qubit_model_metadata::relation::PropertyPath;
 ///
 /// let selection = ReferenceSelection::Property(PropertyPath::new(&["owner", "id"]));
 /// assert!(matches!(selection, ReferenceSelection::Property(path) if path.to_string() == "owner.id"));
@@ -671,11 +671,11 @@ pub enum ReferenceSelection {
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::metadata::{DeclaredEntityTarget, ModelId, ReferenceMetadata, ReferenceSelection};
+/// use qubit_model_metadata::metadata::{DeclaredEntityTarget, FieldReferenceMetadata, ModelId, ReferenceSelection};
 ///
 /// static TARGET: DeclaredEntityTarget = DeclaredEntityTarget::ModelId(ModelId::new("example.Customer"));
 /// static SELECTION: ReferenceSelection = ReferenceSelection::Entity;
-/// let reference = ReferenceMetadata::new(&TARGET, &SELECTION, true, None);
+/// let reference = FieldReferenceMetadata::new(&TARGET, &SELECTION, true, None);
 /// assert!(reference.existing());
 /// ```
 #[derive(Clone, Copy, Debug)]
@@ -773,7 +773,7 @@ impl ReferenceMetadata {
 ///
 /// ```
 /// use qubit_model_metadata::metadata::DependencyBindingMetadata;
-/// use qubit_model_metadata::relation::PropertyPath;
+/// use qubit_model_metadata::metadata::PropertyPath;
 ///
 /// let binding = DependencyBindingMetadata::new("owner", PropertyPath::new(&["owner"]));
 /// assert_eq!(binding.name(), "owner");

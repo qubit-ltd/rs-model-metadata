@@ -20,7 +20,7 @@ use crate::metadata::AbiViolation;
 ///
 /// ```
 /// use std::any::TypeId;
-/// use qubit_model_metadata::ModelMetadataError;
+/// use qubit_model_metadata::metadata::ModelMetadataError;
 /// use qubit_reflect::capability::CapabilityAccessError;
 /// use qubit_reflect::identity::CapabilityId;
 ///

@@ -107,7 +107,7 @@ pub enum ModelResolutionCause {
 /// # Examples
 ///
 /// ```
-/// use qubit_model_derive::Value;
+/// use qubit_model_derive::{Model, Value};
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveErrorKind, ResolveInputs, StructureResolver};
@@ -124,6 +124,7 @@ pub enum ModelResolutionCause {
 ///
 /// #[Value]
 /// struct InvalidValue { nested: PlainModel }
+/// #[Model(id = "example.PlainModel")]
 /// struct PlainModel;
 /// # Ok(())
 /// # }
@@ -489,7 +490,7 @@ impl Display for ResolveError {
 /// # Examples
 ///
 /// ```
-/// use qubit_model_derive::Value;
+/// use qubit_model_derive::{Model, Value};
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveErrorKind, ResolveInputs, StructureResolver};
@@ -506,6 +507,7 @@ impl Display for ResolveError {
 ///
 /// #[Value]
 /// struct InvalidValue { nested: PlainModel }
+/// #[Model(id = "example.PlainModel")]
 /// struct PlainModel;
 /// # Ok(())
 /// # }

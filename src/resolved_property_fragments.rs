@@ -17,7 +17,7 @@ use crate::metadata::PropertyFragment;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::resolved_property_fragments::ResolvedPropertyFragments;
+/// use qubit_model_metadata::metadata::ResolvedPropertyFragments;
 ///
 /// let fragments = ResolvedPropertyFragments::Static(&[]);
 /// assert!(fragments.fragments().is_empty());

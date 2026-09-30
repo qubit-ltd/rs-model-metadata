@@ -278,7 +278,6 @@ pub type GetterAdapter = for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::metadata::MapLenAdapter;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_model_metadata::metadata::PropertyValue;
 ///
@@ -286,9 +285,8 @@ pub type GetterAdapter = for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a
 ///     Ok(Some(2))
 /// }
 ///
-/// let adapter: MapLenAdapter = map_len;
 /// let value = PropertyValue::Owned(qubit_reflect::ReflectedOwned::new(()));
-/// assert_eq!(adapter(&value).expect("map length"), Some(2));
+/// assert_eq!(map_len(&value).expect("map length"), Some(2));
 /// ```
 pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>, PropertyAccessError>;
 
@@ -299,7 +297,6 @@ pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>,
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::metadata::ItemEqAdapter;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_reflect::ReflectedRef;
 ///
@@ -307,8 +304,7 @@ pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>,
 ///     Ok(true)
 /// }
 ///
-/// let adapter: ItemEqAdapter = equal;
-/// assert!(adapter(ReflectedRef::new(&1_u32), ReflectedRef::new(&1_u32)).expect("comparison"));
+/// assert!(equal(ReflectedRef::new(&1_u32), ReflectedRef::new(&1_u32)).expect("comparison"));
 /// ```
 pub type ItemEqAdapter = for<'a> fn(ReflectedRef<'a>, ReflectedRef<'a>) -> Result<bool, PropertyAccessError>;
 

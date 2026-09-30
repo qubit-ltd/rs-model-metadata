@@ -15,7 +15,7 @@ use thiserror::Error;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::relation::ObjectPathError;
+/// use qubit_model_metadata::metadata::ObjectPathError;
 ///
 /// let error = ObjectPathError { index: 2, name: "" };
 /// assert_eq!(error.index, 2);

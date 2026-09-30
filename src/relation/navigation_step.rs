@@ -13,7 +13,7 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::relation::NavigationStep;
+/// use qubit_model_metadata::metadata::NavigationStep;
 ///
 /// let property = NavigationStep::Property("author");
 /// assert!(matches!(property, NavigationStep::Property("author")));
