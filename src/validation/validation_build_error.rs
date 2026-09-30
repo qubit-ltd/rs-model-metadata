@@ -163,35 +163,35 @@ impl ValidationBuildError {
     }
 
     /// Returns the original concrete field identity, when this is a field rule.
-    #[must_use]
+    #[must_use = "the optional field location should be checked"]
     #[inline]
     pub const fn field_location(&self) -> Option<FieldLocation> {
         self.field_location
     }
 
     /// Returns source coordinates, including selector and variant information.
-    #[must_use]
+    #[must_use = "the optional declaration location should be checked"]
     #[inline]
     pub const fn declaration(&self) -> Option<DeclarationLocation> {
         self.declaration
     }
 
     /// Returns the source occurrence ordinal within the validation root.
-    #[must_use]
+    #[must_use = "the optional occurrence should be checked"]
     #[inline]
     pub const fn occurrence(&self) -> Option<usize> {
         self.occurrence
     }
 
     /// Returns the original declared user rule ID, including for missing rules.
-    #[must_use]
+    #[must_use = "the optional declared rule identifier should be checked"]
     #[inline]
     pub const fn declared_rule_id(&self) -> Option<&'static str> {
         self.declared_rule_id
     }
 
     /// Returns the original standard constraint, when this was not a user rule.
-    #[must_use]
+    #[must_use = "the optional constraint metadata should be checked"]
     #[inline]
     pub const fn constraint(&self) -> Option<&'static ConstraintMetadata> {
         self.constraint
@@ -200,7 +200,7 @@ impl ValidationBuildError {
     /// Returns the validation root's stable model identifier, or `None` when
     /// the root is anonymous. This is independent of the declaration owner's
     /// identity for a nested failure.
-    #[must_use]
+    #[must_use = "the optional model identifier should be checked"]
     #[inline]
     pub const fn model(&self) -> Option<ModelId> {
         self.model.model_id()
@@ -223,28 +223,28 @@ impl ValidationBuildError {
     }
 
     /// Returns the declaration path, when available.
-    #[must_use]
+    #[must_use = "the optional declaration path should be checked"]
     #[inline]
     pub fn path(&self) -> Option<&str> {
         self.path.as_deref()
     }
 
     /// Returns the selected collection position, when available.
-    #[must_use]
+    #[must_use = "the optional selector position should be checked"]
     #[inline]
     pub const fn selector(&self) -> Option<SelectorPosition> {
         self.selector
     }
 
     /// Returns the shared validator binding error kind.
-    #[must_use]
+    #[must_use = "the validation error category should be handled"]
     #[inline]
     pub const fn kind(&self) -> ValidationBuildErrorKind {
         self.kind
     }
 
     /// Returns the rule identifier, when binding reached a concrete rule.
-    #[must_use]
+    #[must_use = "the optional validator rule should be checked"]
     #[inline]
     pub const fn rule(&self) -> Option<ValidatorId> {
         match &self.source {
@@ -271,7 +271,7 @@ impl ValidationBuildError {
     /// Returns the underlying validator binding error, or `None` for an
     /// unsupported shape or a root missing from the graph. This is the same
     /// error exposed by [`Error::source`].
-    #[must_use]
+    #[must_use = "the optional source error should be inspected"]
     #[inline]
     pub const fn source_error(&self) -> Option<&BindError> {
         self.source.as_ref()

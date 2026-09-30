@@ -110,7 +110,7 @@ impl PropertyBuildError {
     /// # Returns
     ///
     /// The category recorded when the error was assembled.
-    #[must_use]
+    #[must_use = "the failure category should be handled"]
     #[inline]
     pub const fn kind(&self) -> PropertyBuildErrorKind {
         self.kind
