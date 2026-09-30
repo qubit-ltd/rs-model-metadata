@@ -1219,8 +1219,10 @@ fn expand_object_path(steps: &[String], runtime: &TokenStream) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
+    use proc_macro2::Delimiter;
     use proc_macro2::Span;
     use proc_macro2::TokenStream;
+    use proc_macro2::TokenTree;
     use quote::quote;
     use syn::LitStr;
     use syn::Type;
@@ -1250,12 +1252,54 @@ mod tests {
     use crate::ir::declaration::ValidatorIr;
 
     fn assert_tokens_contain(tokens: &TokenStream, expected: &str) {
-        let compact = tokens
-            .to_string()
-            .chars()
-            .filter(|value| !value.is_whitespace())
-            .collect::<String>();
-        assert!(compact.contains(expected), "expected `{expected}` in tokens: {tokens}");
+        fn compact_tokens(tokens: TokenStream) -> String {
+            let mut compact = String::new();
+            for token in tokens {
+                match token {
+                    TokenTree::Group(group) => {
+                        let (open, close) = match group.delimiter() {
+                            Delimiter::Parenthesis => ("(", ")"),
+                            Delimiter::Brace => ("{", "}"),
+                            Delimiter::Bracket => ("[", "]"),
+                            Delimiter::None => ("", ""),
+                        };
+                        compact.push_str(open);
+                        compact.push_str(&compact_tokens(group.stream()));
+                        compact.push_str(close);
+                    }
+                    token => compact.push_str(&token.to_string()),
+                }
+            }
+            compact
+        }
+
+        fn compact_pattern(pattern: &str) -> String {
+            let mut compact = String::with_capacity(pattern.len());
+            let mut in_string = false;
+            let mut escaped = false;
+            for character in pattern.chars() {
+                if in_string {
+                    compact.push(character);
+                    if escaped {
+                        escaped = false;
+                    } else if character == '\\' {
+                        escaped = true;
+                    } else if character == '"' {
+                        in_string = false;
+                    }
+                } else if character == '"' {
+                    in_string = true;
+                    compact.push(character);
+                } else if !character.is_whitespace() {
+                    compact.push(character);
+                }
+            }
+            compact
+        }
+
+        let compact = compact_tokens(tokens.clone());
+        let expected = compact_pattern(expected);
+        assert!(compact.contains(&expected), "expected `{expected}` in tokens: {tokens}");
     }
 
     /// Known unsupported unique sequence shapes fail at derive expansion.
