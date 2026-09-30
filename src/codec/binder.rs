@@ -73,16 +73,19 @@ pub struct CodecBindInputs<'a, 'graph> {
 /// # Examples
 ///
 /// ```
-/// use qubit_model_derive::Model;
 /// use qubit_model_metadata::codec::CodecOccurrenceId;
 /// use qubit_model_metadata::metadata::CodecSource;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
+/// # mod example {
+/// use qubit_model_derive::Model;
+///
 /// #[Model(id = "example.codec.Note")]
-/// struct Note { title: String }
+/// pub struct Note { pub title: String }
+/// # }
 ///
 /// let occurrence = CodecOccurrenceId::new(
-///     TypeMetadata::of::<Note>(),
+///     TypeMetadata::of::<example::Note>(),
 ///     "title",
 ///     CodecSource::Field,
 /// );
