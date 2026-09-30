@@ -123,7 +123,6 @@ impl<'options> ReportAccumulator<'options> {
     /// # Returns
     ///
     /// Returns the accumulated report, consuming this accumulator.
-    #[must_use]
     #[inline]
     pub(crate) fn into_report(self) -> ValidationReport {
         self.report
@@ -135,7 +134,6 @@ impl<'options> ReportAccumulator<'options> {
 /// # Returns
 ///
 /// Returns the standard adapter-contract violation execution error.
-#[must_use]
 #[inline]
 fn contract_error() -> ExecutionError {
     ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)

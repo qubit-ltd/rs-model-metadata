@@ -84,7 +84,6 @@ pub(super) fn push_field_error(
 /// # Errors
 ///
 /// Propagates the model metadata lookup or descriptor compatibility failure.
-#[must_use]
 pub(super) fn metadata_for_descriptor(
     descriptor: &'static TypeDescriptor,
     context: &ResolutionContext,
@@ -109,7 +108,6 @@ pub(super) fn metadata_for_descriptor(
 /// `Some(metadata)` when lookup succeeds with metadata, or `None` when the
 /// descriptor is unknown or lookup failed. Lookup failures are also appended
 /// to `errors`.
-#[must_use]
 pub(super) fn reported_metadata(
     descriptor: &'static TypeDescriptor,
     context: &ResolutionContext,
@@ -138,7 +136,6 @@ pub(super) fn reported_metadata(
 ///
 /// `Some(metadata)` when the provider or registry supplies the target, or
 /// `None` when the stable model ID is not registered.
-#[must_use]
 pub(super) fn resolve_declared_target(
     target: &DeclaredEntityTarget,
     registry: &ModelRegistry,
@@ -170,7 +167,6 @@ pub(super) fn resolve_declared_target(
 /// # Errors
 ///
 /// Propagates metadata lookup or descriptor validation failures.
-#[must_use]
 pub(super) fn forbidden_entity_nested_role(
     descriptor: &'static TypeDescriptor,
     context: &ResolutionContext,
@@ -247,7 +243,9 @@ pub(super) fn validate_value_closure(
     source: Option<&FragmentIdentity>,
     errors: &mut Vec<ResolveError>,
 ) {
-    validate_nested_value(metadata, metadata, &[], context, visited, source, errors);
+    // Root callers consume the diagnostic collection; recursive callers use the
+    // closure result.
+    let _ = validate_nested_value(metadata, metadata, &[], context, visited, source, errors);
 }
 
 /// Validates a value subtree while retaining the originating model and full
@@ -282,6 +280,7 @@ fn validate_nested_value(
         return true;
     }
     let initial = errors.len();
+    let mut closed = true;
     for field in metadata.fields() {
         if field.is_opaque() {
             continue;
@@ -290,10 +289,10 @@ fn validate_nested_value(
         if let Some(name) = field.name() {
             path.push(name);
         }
-        validate_value_field(field, root, &path, context, visited, source, errors);
+        closed &= validate_value_field(field, root, &path, context, visited, source, errors);
     }
     visited.remove(&metadata.type_id());
-    errors.len() == initial
+    closed && errors.len() == initial
 }
 
 /// Checks a field's closure and anchors new failures to its actual declaration.
@@ -525,7 +524,6 @@ fn value_descriptor_is_closed(
 ///
 /// Returns the model resolution cause raised while reading registered
 /// properties or resolving nested metadata.
-#[must_use]
 pub(super) fn resolve_property_path(
     target: &'static TypeMetadata,
     path: &PropertyPath<'_>,
@@ -577,7 +575,6 @@ pub(super) fn resolve_property_path(
 /// # Returns
 ///
 /// `Some(id)` for a textual model-ID target, or `None` for a Rust-type target.
-#[must_use]
 #[inline]
 pub(super) fn declared_target_id(target: &DeclaredEntityTarget) -> Option<&'static str> {
     target.model_id().map(|id| id.as_str())
@@ -684,7 +681,6 @@ pub(super) fn reference_value_matches(expected: &TypeDescriptor, mut actual: &'s
 ///
 /// Returns the cause from registry property lookup or nested metadata
 /// resolution.
-#[must_use]
 pub(super) fn resolve_object_binding(
     root: &'static TypeMetadata,
     path: &ObjectPath,
@@ -712,7 +708,6 @@ pub(super) fn resolve_object_binding(
 /// # Errors
 ///
 /// Returns failures from registry property lookup or descriptor resolution.
-#[must_use]
 fn resolve_object_path(
     root: &'static TypeMetadata,
     path: &ObjectPath,

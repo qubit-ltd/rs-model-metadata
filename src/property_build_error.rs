@@ -134,7 +134,7 @@ impl PropertyBuildError {
     ///
     /// Both accessor methods and origins for a conflict, or `None` when the
     /// error describes a static validation failure.
-    #[must_use]
+    #[must_use = "the optional accessor conflict should be checked"]
     #[inline]
     pub const fn conflict(&self) -> Option<&PropertyAccessorConflict> {
         self.conflict.as_ref()

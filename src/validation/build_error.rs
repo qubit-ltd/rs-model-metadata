@@ -20,7 +20,6 @@ use qubit_validator::BindErrorKind;
 /// # Returns
 ///
 /// A validator error carrying `kind`.
-#[must_use]
 #[inline]
 pub(crate) fn path_error(kind: BindErrorKind) -> BindError {
     BindError::new(kind)

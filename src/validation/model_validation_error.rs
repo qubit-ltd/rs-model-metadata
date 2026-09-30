@@ -104,7 +104,7 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns an error with no model or field context attached.
-    #[must_use]
+    #[must_use = "the validation error must be retained and handled"]
     pub(crate) fn new(error: ExecutionError, partial_report: ValidationReport) -> Self {
         Self {
             error: Box::new(error),
@@ -126,7 +126,7 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns this error with root identity and optional occurrence attached.
-    #[must_use]
+    #[must_use = "the enriched model validation error must be retained"]
     pub(crate) fn at_model(mut self, root: &'static TypeMetadata, occurrence: Option<usize>) -> Self {
         self.root_type_id = Some(root.type_id());
         self.occurrence = occurrence;
@@ -146,7 +146,7 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns this error with root, field, occurrence, and dependency context.
-    #[must_use]
+    #[must_use = "the enriched field validation error must be retained"]
     pub(crate) fn at_field(
         mut self,
         context: &ValidationOccurrence,
@@ -165,7 +165,7 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns the execution error that stopped validation.
-    #[must_use]
+    #[must_use = "the execution failure should be inspected"]
     #[inline]
     pub const fn error(&self) -> &ExecutionError {
         &self.error
@@ -176,7 +176,7 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns the partial report accumulated before execution stopped.
-    #[must_use]
+    #[must_use = "the partial validation report should be inspected"]
     #[inline]
     pub const fn partial_report(&self) -> &ValidationReport {
         &self.partial_report
@@ -188,7 +188,7 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns the root type identity, or `None` if no root was associated.
-    #[must_use]
+    #[must_use = "the optional root type identity should be checked"]
     #[inline]
     pub const fn root_type_id(&self) -> Option<TypeId> {
         self.root_type_id
@@ -200,7 +200,7 @@ impl ModelValidationError {
     ///
     /// Returns the field owner when field context exists, otherwise the root
     /// model identity; returns `None` when neither is available.
-    #[must_use]
+    #[must_use = "the optional owner type identity should be checked"]
     #[inline]
     pub fn owner_type_id(&self) -> Option<TypeId> {
         self.context
@@ -217,7 +217,7 @@ impl ModelValidationError {
     ///
     /// Returns the selected execution occurrence, or `None` when failure
     /// occurred before an occurrence was selected.
-    #[must_use]
+    #[must_use = "the optional execution occurrence should be checked"]
     #[inline]
     pub const fn occurrence(&self) -> Option<usize> {
         self.occurrence
@@ -228,7 +228,7 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns the field coordinates when this failure belongs to a field rule.
-    #[must_use]
+    #[must_use = "the optional field location should be checked"]
     #[inline]
     pub fn field_location(&self) -> Option<FieldLocation> {
         self.context.as_ref().and_then(|context| context.field.location())
@@ -241,7 +241,7 @@ impl ModelValidationError {
     ///
     /// Returns declaration coordinates enriched with selector position when
     /// present, or `None` for a model-level failure.
-    #[must_use]
+    #[must_use = "the optional declaration location should be checked"]
     #[inline]
     pub fn declaration(&self) -> Option<DeclarationLocation> {
         self.context.as_ref().map(|context| match context.selector {
@@ -255,7 +255,7 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns the custom rule identifier, or `None` for non-custom rules.
-    #[must_use]
+    #[must_use = "the optional declared rule identifier should be checked"]
     #[inline]
     pub fn declared_rule_id(&self) -> Option<&'static str> {
         self.context.as_ref().and_then(|context| context.declared_rule_id())
@@ -267,7 +267,7 @@ impl ModelValidationError {
     ///
     /// Returns the dependency's object navigation, or `None` when the failure
     /// is unrelated to a dependency.
-    #[must_use]
+    #[must_use = "the optional dependency object path should be checked"]
     #[inline]
     pub fn dependency_object_path(&self) -> Option<ObjectPath> {
         self.dependency.as_ref().map(|binding| binding.object_path())
@@ -279,7 +279,7 @@ impl ModelValidationError {
     ///
     /// Returns the dependency property path, or `None` when no dependency
     /// context was attached.
-    #[must_use]
+    #[must_use = "the optional dependency property path should be checked"]
     #[inline]
     pub fn dependency_property_path(&self) -> Option<PropertyPath<'static>> {
         self.dependency.as_ref().map(|binding| binding.property())
@@ -291,7 +291,7 @@ impl ModelValidationError {
     ///
     /// Returns the execution error and accumulated report, moving both out of
     /// this wrapper.
-    #[must_use]
+    #[must_use = "the execution error and partial report should be handled"]
     pub fn into_parts(self) -> (ExecutionError, ValidationReport) {
         (*self.error, *self.partial_report)
     }
@@ -338,7 +338,7 @@ impl Display for ModelValidationError {
     ///
     /// Returns the formatter's error if the destination rejects output.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-        self.error.fmt(formatter)
+        Display::fmt(self.error.as_ref(), formatter)
     }
 }
 

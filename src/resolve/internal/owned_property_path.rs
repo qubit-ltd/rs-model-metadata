@@ -12,7 +12,7 @@ use crate::metadata::PropertyPath;
 
 /// An owned runtime path whose segment names originate in static declarations.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct OwnedPropertyPath {
+pub(in crate::resolve) struct OwnedPropertyPath {
     /// Owned static property-name segments in declaration order.
     segments: Box<[&'static str]>,
 }
@@ -27,7 +27,8 @@ impl OwnedPropertyPath {
     /// # Returns
     ///
     /// An owned path retaining the supplied property-name sequence.
-    pub(super) fn from_segments(segments: &[&'static str]) -> Self {
+    #[must_use = "the owned property path must be retained"]
+    pub(in crate::resolve) fn from_segments(segments: &[&'static str]) -> Self {
         Self {
             segments: segments.into(),
         }
@@ -39,8 +40,9 @@ impl OwnedPropertyPath {
     ///
     /// A [`PropertyPath`] borrowing the stored segments for this path's
     /// lifetime.
+    #[must_use = "the borrowed property path must be used"]
     #[inline]
-    pub(super) fn as_path(&self) -> PropertyPath<'_> {
+    pub(in crate::resolve) fn as_path(&self) -> PropertyPath<'_> {
         PropertyPath::new(&self.segments)
     }
 }

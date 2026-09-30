@@ -62,7 +62,6 @@ impl ValidationCapabilities {
     /// # Errors
     /// Returns unsupported declarations and access paths in source order, or
     /// `RootNotInGraph` when the supplied graph does not include the root.
-    #[must_use]
     pub fn check(root: &'static TypeMetadata, graph: &ModelGraph<'_>) -> Result<(), ValidationBuildErrors> {
         let (occurrences, mut errors) = declaration_walker::collect(root, graph);
         for occurrence in occurrences {

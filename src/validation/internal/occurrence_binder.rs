@@ -59,7 +59,6 @@ use crate::validation::validator_arguments::validator_arguments;
 ///
 /// Returns a boxed build error when the declaration cannot be represented by
 /// the available adapters or its path is invalid.
-#[must_use]
 pub(crate) fn check_access(
     occurrence: &ValidationOccurrence,
     graph: &ModelGraph<'_>,
@@ -300,7 +299,6 @@ fn sequence_element_matches(declared: &TypeDescriptor, output: &TypeDescriptor) 
 ///
 /// Returns an unsupported build error for unsupported adapters, or an
 /// occurrence-specific build error for other binding failures.
-#[must_use]
 fn access_error(occurrence: &ValidationOccurrence, error: BindError) -> ValidationBuildError {
     if error.kind() == BindErrorKind::UnsupportedConstraint {
         ValidationBuildError::unsupported(occurrence)
@@ -327,7 +325,6 @@ fn access_error(occurrence: &ValidationOccurrence, error: BindError) -> Validati
 ///
 /// Returns contextual build errors when access, validator lookup, or dependency
 /// binding fails.
-#[must_use]
 pub(crate) fn bind(
     occurrence: &ValidationOccurrence,
     graph: &ModelGraph<'_>,
@@ -458,7 +455,6 @@ pub(crate) fn bind(
 ///
 /// Returns one or more binding errors when a declaration is missing, has an
 /// incompatible input type, or violates optionality requirements.
-#[must_use]
 fn bind_dependencies(
     occurrence: &ValidationOccurrence,
     declaration: &ValidatorMetadata,
