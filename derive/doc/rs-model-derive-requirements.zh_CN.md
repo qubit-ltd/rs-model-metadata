@@ -772,7 +772,7 @@ birthday（path 为 `..`、property 为 birthday）。两项依赖独立定位�
 Value codec 描述领域值与规范文本之间的双向 whole-value 表示。
 
 ```rust
-register_value_codec!(
+register_value_string_codec!(
     id = "qubit.contact.phone",
     codec = PhoneCodec,
     value = Phone,
@@ -787,9 +787,9 @@ pub international_phone: Phone,
 
 - **REQ-CODEC-001**：codec 类型必须实现 `ValueEncoder<T, Output = String>`、
   `ValueDecoder<str, Output = T>` 和 `Default`。
-- **REQ-CODEC-002**：`register_value_codec!` 必须用稳定 ID、codec 类型和值类型提交链接期 registration，并形成
-  可执行 `ValueCodecDescriptor`；注册入口必须在编译期检查 REQ-CODEC-001 的编码、解码和构造能力。
-- **REQ-CODEC-003**：ValueCodecRegistry 必须按 ValueCodecId 查询，保存领域类型身份、文本外部表示和 erased 双向入口。
+- **REQ-CODEC-002**：`register_value_string_codec!` 必须用稳定 ID、codec 类型和值类型提交链接期 registration，并形成
+  可执行 `ValueStringCodecDescriptor`；注册入口必须在编译期检查 REQ-CODEC-001 的编码、解码和构造能力。
+- **REQ-CODEC-003**：`ValueStringCodecRegistry` 必须按 ValueCodecId 查询，保存领域类型身份、文本外部表示和 erased 双向入口。
 - **REQ-CODEC-004**：同一领域类型允许注册多个不同 codec；重复 ID 和类型不匹配必须成为 registry 错误。
 - **REQ-CODEC-005**：Value 可以使用 `codec = RustType` 声明 canonical codec。模型宏只记录声明中的 Rust 类型身份；
   使用 Rust 类型引用也必须提供相应 codec 注册项，由可选 codec adapter 显式绑定并检查 occurrence 的目标值类型。

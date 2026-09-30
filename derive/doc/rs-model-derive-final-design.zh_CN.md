@@ -203,7 +203,7 @@ identifier 沿用仅针对真实 Id 的 sealed IdentifierType 检查，真实别
 
 约束按 DeclarationLocation 和来源（类型/使用位置）保存，标准单项重复在同一声明位置拒绝；跨位置叠加。optional 解包、容器 selector 和 opaque 边界保持完整，getter 不是约束声明位置。
 
-validator/codec 的静态 metadata 不暴露执行 crate 类型；可选 adapter 接受调用者提供的 registry。保留现有 ValueCodecDescriptor 和 validator 注册协议，不另外定义策略执行 trait。注册时检查编码/解码/构造 bound，模型使用位置绑定时核对准确目标类型。
+validator/codec 的静态 metadata 不暴露执行 crate 类型；可选 adapter 接受调用者提供的 registry。保留现有 `ValueStringCodecDescriptor` 和 validator 注册协议，不另外定义策略执行 trait。注册时检查编码/解码/构造 bound，模型使用位置绑定时核对准确目标类型。
 
 ValidationPlan 将根身份改为 TypeId 加 Option<ModelId>，不得 expect 一个必填 ID。上下文依赖路径分为静态编译前缀和运行时导航后缀；绑定只有在已具备目标类型时才核对注册依赖类型，否则保留显式上下文需求供消费端完成。执行时上下文不足返回带 occurrence/依赖路径的结构化错误，不能默认为 None 或静默跳过；调用者可以在执行前提供相应上下文。标准 None 跳过规则和业务父对象缺失是不同事件。
 

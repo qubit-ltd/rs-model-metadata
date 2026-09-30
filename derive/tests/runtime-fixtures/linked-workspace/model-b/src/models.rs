@@ -11,10 +11,10 @@
 
 //! Defines target-side models for linked registration and resolution fixtures.
 
-use qubit_codec::ValueCodecDescriptor;
 use qubit_codec::ValueCodecId;
-use qubit_codec::ValueCodecRegistration;
 use qubit_codec::ValueCodecRegistrationSource;
+use qubit_codec::ValueStringCodecDescriptor;
+use qubit_codec::ValueStringCodecRegistration;
 use qubit_codec::ValueDecoder;
 use qubit_codec::ValueEncoder;
 use qubit_model_derive::Entity;
@@ -67,8 +67,8 @@ impl ValueDecoder<str> for TextCodec {
     }
 }
 
-static CODEC_DESCRIPTOR: ValueCodecDescriptor = ValueCodecDescriptor::of::<TextCodec, String>();
-pub static CODEC: ValueCodecRegistration = ValueCodecRegistration::new(
+static CODEC_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<TextCodec, String>();
+pub static CODEC: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.linked.text"),
     &CODEC_DESCRIPTOR,
     ValueCodecRegistrationSource::new("model-b", "models", file!(), line!()),

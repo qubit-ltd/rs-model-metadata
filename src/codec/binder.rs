@@ -15,9 +15,9 @@ use core::fmt::Formatter;
 use core::fmt::Result as FmtResult;
 use std::collections::BTreeMap;
 
-use qubit_codec::ValueCodecDescriptor;
-use qubit_codec::ValueCodecRegistration;
-use qubit_codec::ValueCodecRegistry;
+use qubit_codec::ValueStringCodecDescriptor;
+use qubit_codec::ValueStringCodecRegistration;
+use qubit_codec::ValueStringCodecRegistry;
 use qubit_reflect::TypeDescriptor;
 
 use super::CodecBindError;
@@ -46,7 +46,7 @@ use crate::transparent_descriptor::transparent_descriptor;
 /// #![cfg(feature = "codec")]
 /// use std::error::Error;
 ///
-/// use qubit_codec::ValueCodecRegistry;
+/// use qubit_codec::ValueStringCodecRegistry;
 /// use qubit_model_metadata::codec::{CodecBindInputs, bind_codecs};
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
@@ -55,7 +55,7 @@ use crate::transparent_descriptor::transparent_descriptor;
 /// let models = ModelRegistry::from_static_metadata(&[])?;
 /// let roots: &[&'static qubit_model_metadata::metadata::TypeMetadata] = &[];
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots }).resolve()?;
-/// let codecs = ValueCodecRegistry::empty();
+/// let codecs = ValueStringCodecRegistry::empty();
 /// let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs })?;
 /// assert_eq!(bindings.bindings().len(), 0);
 /// # Ok(())
@@ -65,7 +65,7 @@ pub struct CodecBindInputs<'a, 'graph> {
     /// Structure graph containing codec declarations.
     pub graph: &'graph ModelGraph<'a>,
     /// Executable codec registry.
-    pub codecs: &'graph ValueCodecRegistry,
+    pub codecs: &'graph ValueStringCodecRegistry,
 }
 
 /// Stable identity of one codec occurrence.
@@ -203,9 +203,9 @@ pub struct CodecBinding<'a> {
     /// Model declaration that selected the codec.
     declaration: &'static CodecMetadata,
     /// Executable codec descriptor used for dispatch.
-    descriptor: &'static ValueCodecDescriptor,
+    descriptor: &'static ValueStringCodecDescriptor,
     /// Registry entry selected after uniqueness and type checks.
-    registration: &'a ValueCodecRegistration,
+    registration: &'a ValueStringCodecRegistration,
 }
 
 impl<'a> CodecBinding<'a> {
@@ -237,7 +237,7 @@ impl<'a> CodecBinding<'a> {
     ///
     /// The descriptor used to dispatch values to the selected codec.
     #[must_use]
-    pub const fn descriptor(&self) -> &'static ValueCodecDescriptor {
+    pub const fn descriptor(&self) -> &'static ValueStringCodecDescriptor {
         self.descriptor
     }
 
@@ -247,7 +247,7 @@ impl<'a> CodecBinding<'a> {
     ///
     /// The registry entry selected after uniqueness and value-type checks.
     #[must_use]
-    pub const fn registration(&self) -> &'a ValueCodecRegistration {
+    pub const fn registration(&self) -> &'a ValueStringCodecRegistration {
         self.registration
     }
 }
@@ -260,7 +260,7 @@ impl<'a> CodecBinding<'a> {
 /// #![cfg(feature = "codec")]
 /// use std::error::Error;
 ///
-/// use qubit_codec::ValueCodecRegistry;
+/// use qubit_codec::ValueStringCodecRegistry;
 /// use qubit_model_metadata::codec::{CodecBindInputs, bind_codecs};
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
@@ -269,7 +269,7 @@ impl<'a> CodecBinding<'a> {
 /// let models = ModelRegistry::from_static_metadata(&[])?;
 /// let roots: &[&'static qubit_model_metadata::metadata::TypeMetadata] = &[];
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots }).resolve()?;
-/// let codecs = ValueCodecRegistry::empty();
+/// let codecs = ValueStringCodecRegistry::empty();
 /// let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs })?;
 /// assert_eq!(bindings.bindings().len(), 0);
 /// # Ok(())
@@ -376,7 +376,7 @@ fn bind_field<'a>(
     model: &'static TypeMetadata,
     field: &'static FieldMetadata,
     models: &[&'static TypeMetadata],
-    codecs: &'a ValueCodecRegistry,
+    codecs: &'a ValueStringCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
 ) {
@@ -397,7 +397,7 @@ fn bind_field_at<'a>(
     path: Box<str>,
     field: &'static FieldMetadata,
     models: &[&'static TypeMetadata],
-    codecs: &'a ValueCodecRegistry,
+    codecs: &'a ValueStringCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
 ) {
@@ -461,7 +461,7 @@ fn bind_one<'a>(
     occurrence: CodecOccurrenceId,
     declaration: &'static CodecMetadata,
     expected_type: TypeId,
-    codecs: &'a ValueCodecRegistry,
+    codecs: &'a ValueStringCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
 ) {

@@ -219,7 +219,7 @@ withdrawn (REQ-ERR-006).
 
 A Rust codec declaration records only a stable Rust type identity. With the
 optional `codec` feature enabled, `bind_codecs` resolves Rust identities and
-stable codec IDs through `ValueCodecRegistry` and checks the registered value
+stable codec IDs through `ValueStringCodecRegistry` and checks the registered value
 type. Registration checks encoder, decoder, and construction trait requirements
 at compile time; field macros only record declarations. Rust-type codec
 references also require matching registrations, and the optional adapter checks

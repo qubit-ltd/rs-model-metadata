@@ -45,7 +45,7 @@ bigdecimal = "^0.4"
 chrono = { version = "^0.4", features = ["std"], default-features = false }
 qubit-id = { version = "=0.6.0", path = "../../rust-common/rs-id", features = ["serde"] }
 qubit-reflect = { version = "=0.1.0", path = "../rs-reflect", default-features = false, features = ["derive", "ecosystem-types", "qubit-types"] }
-qubit-codec = { version = "0.14", features = ["registry"], optional = true }
+qubit-codec = { version = "0.16", path = "../rs-codec", features = ["registry"], optional = true }
 qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator", optional = true }
 qubit-validation-rules = { version = "=0.1.0", path = "../../rust-common/rs-validation-rules", default-features = false, optional = true }
 serde = { version = "^1.0", features = ["derive"] }
@@ -58,7 +58,7 @@ qubit-datatype = { version = "=0.14.0", path = "../../rust-common/rs-datatype" }
 qubit-model-derive = { version = "=0.1.0", path = "derive" }
 trybuild = "^1.0"
 uuid = "^1.26"
-qubit-codec = { version = "0.14", features = ["registry"] }
+qubit-codec = { version = "0.16", path = "../rs-codec", features = ["registry"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

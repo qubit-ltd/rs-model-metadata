@@ -23,7 +23,7 @@ use model_runtime::resolve::ResolveInputs;
 use model_runtime::resolve::StructureResolver;
 use qubit_codec::ValueDecoder;
 use qubit_codec::ValueEncoder;
-use qubit_codec::register_value_codec;
+use qubit_codec::register_value_string_codec;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
@@ -36,8 +36,8 @@ struct EmailCodec;
 #[derive(Default)]
 struct EmailCanonicalCodec;
 
-register_value_codec!(id = "runtime.alias_codec", codec = EmailCodec, value = String);
-register_value_codec!(id = "runtime.email_codec", codec = EmailCanonicalCodec, value = Email);
+register_value_string_codec!(id = "runtime.alias_codec", codec = EmailCodec, value = String);
+register_value_string_codec!(id = "runtime.email_codec", codec = EmailCanonicalCodec, value = Email);
 
 impl ValueEncoder<String> for EmailCodec {
     type Output = String;

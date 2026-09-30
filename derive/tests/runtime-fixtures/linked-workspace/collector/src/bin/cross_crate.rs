@@ -15,7 +15,7 @@ use model_a::TargetView;
 use model_b::CODEC;
 use model_b::RULE;
 use model_b::Target;
-use qubit_codec::ValueCodecRegistry;
+use qubit_codec::ValueStringCodecRegistry;
 use qubit_model_metadata::__private::ReflectedRef;
 use qubit_model_metadata::codec::CodecBindInputs;
 use qubit_model_metadata::codec::bind_codecs;
@@ -75,7 +75,7 @@ fn main() {
         .validate(ReflectedRef::new(&value), &ValidationOptions::default())
         .unwrap();
     assert!(report.is_valid());
-    let codecs = ValueCodecRegistry::from_registrations([&CODEC]).unwrap();
+    let codecs = ValueStringCodecRegistry::from_registrations([&CODEC]).unwrap();
     let bound = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
