@@ -43,19 +43,22 @@ pub enum ModelRole {
 /// # Examples
 ///
 /// ```
-/// use qubit_id::Id;
-/// use qubit_model_derive::Entity;
 /// use qubit_model_metadata::metadata::EntityMetadata;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
-/// #[Entity(id = "example.Customer")]
-/// struct Customer {
-///     #[identifier]
-///     id: Id,
-/// }
+/// # mod example {
+/// use qubit_id::Id;
+/// use qubit_model_derive::Entity;
 ///
-/// let entity: &EntityMetadata = TypeMetadata::of::<Customer>().as_entity().expect("entity metadata");
-/// assert_eq!(entity.identifier().name(), "id");
+/// #[Entity(id = "example.Customer")]
+/// pub struct Customer {
+///     #[identifier]
+///     pub id: Id,
+/// }
+/// # }
+///
+/// let entity: &EntityMetadata = TypeMetadata::of::<example::Customer>().as_entity().expect("entity metadata");
+/// assert_eq!(entity.identifier().name(), Some("id"));
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct EntityMetadata {
@@ -96,25 +99,28 @@ impl EntityMetadata {
 /// # Examples
 ///
 /// ```
-/// use qubit_id::Id;
-/// use qubit_model_derive::Entity;
-/// use qubit_model_derive::Projection;
 /// use qubit_model_metadata::metadata::ProjectionMetadata;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
+/// # mod example {
+/// use qubit_id::Id;
+/// use qubit_model_derive::Entity;
+/// use qubit_model_derive::Projection;
+///
 /// #[Entity(id = "example.Source")]
-/// struct Source {
+/// pub struct Source {
 ///     #[identifier]
-///     id: Id,
+///     pub id: Id,
 /// }
 ///
 /// #[Projection(id = "example.View", source = Source)]
-/// struct View {
+/// pub struct View {
 ///     #[identifier]
-///     id: Id,
+///     pub id: Id,
 /// }
+/// # }
 ///
-/// let projection: &ProjectionMetadata = TypeMetadata::of::<View>().as_projection().expect("projection metadata");
+/// let projection: &ProjectionMetadata = TypeMetadata::of::<example::View>().as_projection().expect("projection metadata");
 /// assert!(projection.is_fixed());
 /// ```
 #[derive(Clone, Copy, Debug)]
@@ -210,15 +216,18 @@ pub struct ModelMetadata;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_derive::Value;
 /// use qubit_model_metadata::metadata::RoleMetadata;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::metadata::ValueMetadata;
 ///
-/// #[Value(transparent)]
-/// struct UserId(u64);
+/// # mod example {
+/// use qubit_model_derive::Value;
 ///
-/// let RoleMetadata::Value(value) = TypeMetadata::of::<UserId>().role_metadata() else {
+/// #[Value(transparent)]
+/// pub struct UserId(pub u64);
+/// # }
+///
+/// let RoleMetadata::Value(value) = TypeMetadata::of::<example::UserId>().role_metadata() else {
 ///     panic!("derived value metadata");
 /// };
 /// let value: &ValueMetadata = value;

@@ -107,26 +107,29 @@ pub enum ModelResolutionCause {
 /// # Examples
 ///
 /// ```
-/// use qubit_model_derive::{Model, Value};
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveError, ResolveErrorKind, ResolveInputs, StructureResolver};
 /// use qubit_reflect::registry::RegistrySnapshotBuilder;
 ///
+/// # mod example {
+/// use qubit_model_derive::{Model, Value};
+///
+/// #[Value]
+/// pub struct InvalidValue { nested: PlainModel }
+/// #[Model(id = "example.PlainModel")]
+/// pub struct PlainModel;
+/// # }
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let reflection = RegistrySnapshotBuilder::new().build()?;
 /// let models = ModelRegistry::from_reflect_registry(&reflection)?;
-/// let roots = [TypeMetadata::of::<InvalidValue>()];
+/// let roots = [TypeMetadata::of::<example::InvalidValue>()];
 /// let errors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
 ///     .resolve()
 ///     .unwrap_err();
 /// let error: &ResolveError = &errors.errors()[0];
 /// assert_eq!(error.kind(), ResolveErrorKind::InvalidValueClosure);
 ///
-/// #[Value]
-/// struct InvalidValue { nested: PlainModel }
-/// #[Model(id = "example.PlainModel")]
-/// struct PlainModel;
 /// # Ok(())
 /// # }
 /// ```
@@ -491,26 +494,29 @@ impl Display for ResolveError {
 /// # Examples
 ///
 /// ```
-/// use qubit_model_derive::{Model, Value};
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveError, ResolveErrorKind, ResolveErrors, ResolveInputs, StructureResolver};
 /// use qubit_reflect::registry::RegistrySnapshotBuilder;
 ///
+/// # mod example {
+/// use qubit_model_derive::{Model, Value};
+///
+/// #[Value]
+/// pub struct InvalidValue { nested: PlainModel }
+/// #[Model(id = "example.PlainModel")]
+/// pub struct PlainModel;
+/// # }
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let reflection = RegistrySnapshotBuilder::new().build()?;
 /// let models = ModelRegistry::from_reflect_registry(&reflection)?;
-/// let roots = [TypeMetadata::of::<InvalidValue>()];
+/// let roots = [TypeMetadata::of::<example::InvalidValue>()];
 /// let errors: ResolveErrors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
 ///     .resolve()
 ///     .unwrap_err();
 /// let first: &ResolveError = &errors.errors()[0];
 /// assert_eq!(first.kind(), ResolveErrorKind::InvalidValueClosure);
 ///
-/// #[Value]
-/// struct InvalidValue { nested: PlainModel }
-/// #[Model(id = "example.PlainModel")]
-/// struct PlainModel;
 /// # Ok(())
 /// # }
 /// ```

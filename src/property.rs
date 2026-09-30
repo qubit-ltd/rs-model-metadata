@@ -587,17 +587,24 @@ impl Error for PropertySetFailure {}
 /// use qubit_reflect::ReflectedRef;
 /// use qubit_reflect::TypeDescriptor;
 ///
-/// #[derive(Reflect)]
-/// struct Item { value: u32 }
+/// # mod example {
+/// use qubit_model_metadata::metadata::PropertyAccessError;
+/// use qubit_model_metadata::metadata::PropertyValue;
+/// use qubit_reflect::Reflect;
+/// use qubit_reflect::ReflectedRef;
 ///
-/// fn get_value<'a>(target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
+/// #[derive(Reflect)]
+/// pub struct Item { pub value: u32 }
+///
+/// pub fn get_value<'a>(target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
 ///     let item = target.downcast::<Item>().ok().expect("validated Item target");
 ///     Ok(PropertyValue::Borrowed(ReflectedRef::new(&item.value)))
 /// }
+/// # }
 ///
-/// let descriptor = TypeDescriptor::of::<Item>();
+/// let descriptor = TypeDescriptor::of::<example::Item>();
 /// let value_type = descriptor.field_at(0).expect("value field").field_type();
-/// let getter = GetterMetadata::new::<Item>("value", value_type, GetterOutputKind::Borrowed, get_value);
+/// let getter = GetterMetadata::new::<example::Item>("value", value_type, GetterOutputKind::Borrowed, example::get_value);
 /// assert_eq!(getter.rust_method_name(), "value");
 /// ```
 #[derive(Clone, Copy)]
@@ -739,18 +746,25 @@ impl fmt::Debug for GetterMetadata {
 /// use qubit_reflect::ReflectedOwned;
 /// use qubit_reflect::TypeDescriptor;
 ///
-/// #[derive(Reflect)]
-/// struct Item { value: u32 }
+/// # mod example {
+/// use qubit_model_metadata::metadata::PropertySetFailure;
+/// use qubit_reflect::Reflect;
+/// use qubit_reflect::ReflectedMut;
+/// use qubit_reflect::ReflectedOwned;
 ///
-/// fn set_value(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), qubit_model_metadata::metadata::PropertySetFailure> {
+/// #[derive(Reflect)]
+/// pub struct Item { pub value: u32 }
+///
+/// pub fn set_value(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
 ///     let mut item = target.downcast::<Item>().ok().expect("validated Item target");
 ///     item.value = value.downcast::<u32>().ok().expect("validated u32 value");
 ///     Ok(())
 /// }
+/// # }
 ///
-/// let descriptor = TypeDescriptor::of::<Item>();
+/// let descriptor = TypeDescriptor::of::<example::Item>();
 /// let value_type = descriptor.field_at(0).expect("value field").field_type();
-/// let setter = SetterMetadata::new::<Item, u32>("set_value", value_type, set_value);
+/// let setter = SetterMetadata::new::<example::Item, u32>("set_value", value_type, example::set_value);
 /// assert_eq!(setter.rust_method_name(), "set_value");
 /// ```
 #[derive(Clone, Copy)]
@@ -900,10 +914,14 @@ impl fmt::Debug for SetterMetadata {
 /// use qubit_model_derive::Model;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
-/// #[Model(id = "example.Note")]
-/// struct Note { title: String }
+/// # mod example {
+/// use qubit_model_derive::Model;
 ///
-/// let metadata = TypeMetadata::of::<Note>();
+/// #[Model(id = "example.Note")]
+/// pub struct Note { pub title: String }
+/// # }
+///
+/// let metadata = TypeMetadata::of::<example::Note>();
 /// let properties = metadata.try_properties().expect("property metadata");
 /// let title = properties.property("title").expect("title property");
 /// assert_eq!(title.name(), "title");
