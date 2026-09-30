@@ -1219,7 +1219,6 @@ fn expand_object_path(steps: &[String], runtime: &TokenStream) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
-    use proc_macro2::Delimiter;
     use proc_macro2::Span;
     use proc_macro2::TokenStream;
     use proc_macro2::TokenTree;
@@ -1252,54 +1251,56 @@ mod tests {
     use crate::ir::declaration::ValidatorIr;
 
     fn assert_tokens_contain(tokens: &TokenStream, expected: &str) {
-        fn compact_tokens(tokens: TokenStream) -> String {
-            let mut compact = String::new();
-            for token in tokens {
-                match token {
-                    TokenTree::Group(group) => {
-                        let (open, close) = match group.delimiter() {
-                            Delimiter::Parenthesis => ("(", ")"),
-                            Delimiter::Brace => ("{", "}"),
-                            Delimiter::Bracket => ("[", "]"),
-                            Delimiter::None => ("", ""),
-                        };
-                        compact.push_str(open);
-                        compact.push_str(&compact_tokens(group.stream()));
-                        compact.push_str(close);
-                    }
-                    token => compact.push_str(&token.to_string()),
+        fn token_matches(left: &TokenTree, right: &TokenTree) -> bool {
+            match (left, right) {
+                (TokenTree::Group(left), TokenTree::Group(right)) => {
+                    left.delimiter() == right.delimiter()
+                        && token_slices_match(
+                            &left.stream().into_iter().collect::<Vec<_>>(),
+                            &right.stream().into_iter().collect::<Vec<_>>(),
+                        )
                 }
+                (TokenTree::Ident(left), TokenTree::Ident(right)) => left.to_string() == right.to_string(),
+                (TokenTree::Punct(left), TokenTree::Punct(right)) => {
+                    left.as_char() == right.as_char() && left.spacing() == right.spacing()
+                }
+                (TokenTree::Literal(left), TokenTree::Literal(right)) => left.to_string() == right.to_string(),
+                _ => false,
             }
-            compact
         }
 
-        fn compact_pattern(pattern: &str) -> String {
-            let mut compact = String::with_capacity(pattern.len());
-            let mut in_string = false;
-            let mut escaped = false;
-            for character in pattern.chars() {
-                if in_string {
-                    compact.push(character);
-                    if escaped {
-                        escaped = false;
-                    } else if character == '\\' {
-                        escaped = true;
-                    } else if character == '"' {
-                        in_string = false;
-                    }
-                } else if character == '"' {
-                    in_string = true;
-                    compact.push(character);
-                } else if !character.is_whitespace() {
-                    compact.push(character);
-                }
-            }
-            compact
+        fn token_slices_match(left: &[TokenTree], right: &[TokenTree]) -> bool {
+            left.len() == right.len() && left.iter().zip(right).all(|(left, right)| token_matches(left, right))
         }
 
-        let compact = compact_tokens(tokens.clone());
-        let expected = compact_pattern(expected);
-        assert!(compact.contains(&expected), "expected `{expected}` in tokens: {tokens}");
+        fn contains_token_sequence(actual: &[TokenTree], expected: &[TokenTree]) -> bool {
+            if expected.is_empty() {
+                return true;
+            }
+            actual.windows(expected.len()).any(|window| {
+                window
+                    .iter()
+                    .zip(expected)
+                    .all(|(actual, expected)| token_matches(actual, expected))
+            }) || actual.iter().any(|token| {
+                let TokenTree::Group(group) = token else {
+                    return false;
+                };
+                let nested: Vec<_> = group.stream().into_iter().collect();
+                contains_token_sequence(&nested, expected)
+            })
+        }
+
+        let expected_tokens: TokenStream = expected
+            .parse()
+            .unwrap_or_else(|error| panic!("invalid expected token pattern `{expected}`: {error}"));
+        let actual: Vec<_> = tokens.clone().into_iter().collect();
+        let expected: Vec<_> = expected_tokens.into_iter().collect();
+        assert!(
+            contains_token_sequence(&actual, &expected),
+            "expected token sequence `{}` in tokens: {tokens}",
+            expected.iter().cloned().collect::<TokenStream>()
+        );
     }
 
     /// Known unsupported unique sequence shapes fail at derive expansion.
@@ -1470,14 +1471,14 @@ mod tests {
         ];
         for value in &strategy_values {
             let expected = match value {
-                StrategyArgumentIr::Bool(_) => "ValidationArgument::Bool(",
-                StrategyArgumentIr::Integer(_) => "ValidationArgument::Integer(",
-                StrategyArgumentIr::Unsigned(_) => "ValidationArgument::Unsigned(",
-                StrategyArgumentIr::String(_) => "ValidationArgument::String(",
-                StrategyArgumentIr::BoolList(_) => "ValidationArgument::BoolList(",
-                StrategyArgumentIr::IntegerList(_) => "ValidationArgument::IntegerList(",
-                StrategyArgumentIr::UnsignedList(_) => "ValidationArgument::UnsignedList(",
-                StrategyArgumentIr::StringList(_) => "ValidationArgument::StringList(",
+                StrategyArgumentIr::Bool(_) => "ValidationArgument::Bool",
+                StrategyArgumentIr::Integer(_) => "ValidationArgument::Integer",
+                StrategyArgumentIr::Unsigned(_) => "ValidationArgument::Unsigned",
+                StrategyArgumentIr::String(_) => "ValidationArgument::String",
+                StrategyArgumentIr::BoolList(_) => "ValidationArgument::BoolList",
+                StrategyArgumentIr::IntegerList(_) => "ValidationArgument::IntegerList",
+                StrategyArgumentIr::UnsignedList(_) => "ValidationArgument::UnsignedList",
+                StrategyArgumentIr::StringList(_) => "ValidationArgument::StringList",
             };
             assert_tokens_contain(&expand_strategy_argument(value, &runtime), expected);
         }
