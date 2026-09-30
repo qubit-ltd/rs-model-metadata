@@ -788,10 +788,7 @@ mod tests {
         assert_eq!(text.allowed_chars.as_deref(), Some("ascii"));
         assert_eq!(text.format.as_deref(), Some("email_ascii"));
 
-        assert!(matches!(
-            &selector.position,
-            SelectorPositionIr::Element
-        ));
+        assert!(matches!(&selector.position, SelectorPositionIr::Element));
         assert!(matches!(
             selector.constraints.as_slice(),
             [ConstraintIr::Text(text)] if text.max_chars == Some(4)
