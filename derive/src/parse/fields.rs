@@ -705,9 +705,9 @@ mod tests {
     use syn::Field;
     use syn::parse_quote;
 
+    use super::parse_field;
     use crate::ir::declaration::CodecIr;
     use crate::ir::declaration::ConstraintIr;
-    use crate::ir::declaration::FieldIr;
     use crate::ir::declaration::FieldOccurrence;
     use crate::ir::declaration::IdentifierAssignmentIr;
     use crate::ir::declaration::RedactModeIr;
@@ -788,7 +788,10 @@ mod tests {
         assert_eq!(text.allowed_chars.as_deref(), Some("ascii"));
         assert_eq!(text.format.as_deref(), Some("email_ascii"));
 
-        assert_eq!(selector.position, SelectorPositionIr::Element);
+        assert!(matches!(
+            &selector.position,
+            SelectorPositionIr::Element
+        ));
         assert!(matches!(
             selector.constraints.as_slice(),
             [ConstraintIr::Text(text)] if text.max_chars == Some(4)
@@ -833,7 +836,7 @@ mod tests {
                 FieldOccurrence::Reference(_),
                 FieldOccurrence::KeyPart(0),
                 FieldOccurrence::Constraint(ConstraintIr::Text(_)),
-                FieldOccurrence::Constraint(ConstraintIr::Sequence(_)),
+                FieldOccurrence::Constraint(ConstraintIr::Sequence { .. }),
                 FieldOccurrence::Selector(_),
                 FieldOccurrence::Validator(_),
                 FieldOccurrence::Codec(_),
