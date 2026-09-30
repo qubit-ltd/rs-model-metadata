@@ -25,79 +25,92 @@ use super::fields::set_lit_str;
 use crate::compiler::diagnostics::Diagnostics;
 use crate::ir::declaration::DeclarationOptions;
 
-impl DeclarationOptions {
-    /// Parses declaration-level options and rejects duplicates or bad values.
-    #[must_use]
-    pub(crate) fn parse(options: Punctuated<Meta, Token![,]>) -> Result<Self> {
-        let mut result = Self {
-            behavior: Default::default(),
-            id: None,
-            source: None,
-            source_id: None,
-            open: false,
-            transparent: false,
-            codec: None,
-        };
-        let mut diagnostics = Diagnostics::default();
-        let mut markers = HashSet::new();
-        for option in options {
-            match option {
-                Meta::NameValue(value) if value.path.is_ident("id") => {
-                    if let Err(error) = set_lit_str(&mut result.id, value.value, "id") {
-                        diagnostics.push(error);
-                    }
-                }
-                Meta::NameValue(value) if value.path.is_ident("source_id") => {
-                    if let Err(error) = set_lit_str(&mut result.source_id, value.value, "source_id") {
-                        diagnostics.push(error);
-                    }
-                }
-                Meta::NameValue(value) if value.path.is_ident("source") => {
-                    if result.source.is_some() {
-                        diagnostics.push(Error::new_spanned(value, "duplicate `source` option"));
-                        continue;
-                    }
-                    let expression = value.value;
-                    match parse2(quote!(#expression)) {
-                        Ok(value) => result.source = Some(value),
-                        Err(error) => diagnostics.push(error),
-                    }
-                }
-                Meta::NameValue(value) if value.path.is_ident("codec") => {
-                    if result.codec.is_some() {
-                        diagnostics.push(Error::new_spanned(value, "duplicate `codec` option"));
-                        continue;
-                    }
-                    let expression = value.value;
-                    match parse2(quote!(#expression)) {
-                        Ok(value) => result.codec = Some(value),
-                        Err(error) => diagnostics.push(error),
-                    }
-                }
-                Meta::Path(path) if path.is_ident("open") => {
-                    set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span())
-                }
-                Meta::Path(path) if path.is_ident("transparent") => set_marker_option(
-                    &mut markers,
-                    &mut diagnostics,
-                    "transparent",
-                    &mut result.transparent,
-                    path.span(),
-                ),
-                Meta::Path(path) if is_behavior_option(&path) => {
-                    let name = path.get_ident().expect("behavior option identifier");
-                    if !result.behavior.insert(name.to_string()) {
-                        diagnostics.push(Error::new_spanned(&path, "duplicate model capability option"));
-                    }
-                }
-                other => {
-                    diagnostics.push(Error::new_spanned(other, "unsupported model option"));
+/// Parses declaration-level options and rejects duplicates or bad values.
+///
+/// # Parameters
+///
+/// * `options` - The comma-separated declaration options parsed from the
+///   macro input.
+///
+/// # Returns
+///
+/// The normalized options used by later declaration stages.
+///
+/// # Errors
+///
+/// Returns combined diagnostics for duplicate, unsupported, or malformed
+/// options.
+pub(crate) fn parse_declaration_options(
+    options: Punctuated<Meta, Token![,]>,
+) -> Result<DeclarationOptions> {
+    let mut result = DeclarationOptions {
+        behavior: Default::default(),
+        id: None,
+        source: None,
+        source_id: None,
+        open: false,
+        transparent: false,
+        codec: None,
+    };
+    let mut diagnostics = Diagnostics::default();
+    let mut markers = HashSet::new();
+    for option in options {
+        match option {
+            Meta::NameValue(value) if value.path.is_ident("id") => {
+                if let Err(error) = set_lit_str(&mut result.id, value.value, "id") {
+                    diagnostics.push(error);
                 }
             }
+            Meta::NameValue(value) if value.path.is_ident("source_id") => {
+                if let Err(error) = set_lit_str(&mut result.source_id, value.value, "source_id") {
+                    diagnostics.push(error);
+                }
+            }
+            Meta::NameValue(value) if value.path.is_ident("source") => {
+                if result.source.is_some() {
+                    diagnostics.push(Error::new_spanned(value, "duplicate `source` option"));
+                    continue;
+                }
+                let expression = value.value;
+                match parse2(quote!(#expression)) {
+                    Ok(value) => result.source = Some(value),
+                    Err(error) => diagnostics.push(error),
+                }
+            }
+            Meta::NameValue(value) if value.path.is_ident("codec") => {
+                if result.codec.is_some() {
+                    diagnostics.push(Error::new_spanned(value, "duplicate `codec` option"));
+                    continue;
+                }
+                let expression = value.value;
+                match parse2(quote!(#expression)) {
+                    Ok(value) => result.codec = Some(value),
+                    Err(error) => diagnostics.push(error),
+                }
+            }
+            Meta::Path(path) if path.is_ident("open") => {
+                set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span())
+            }
+            Meta::Path(path) if path.is_ident("transparent") => set_marker_option(
+                &mut markers,
+                &mut diagnostics,
+                "transparent",
+                &mut result.transparent,
+                path.span(),
+            ),
+            Meta::Path(path) if is_behavior_option(&path) => {
+                let name = path.get_ident().expect("behavior option identifier");
+                if !result.behavior.insert(name.to_string()) {
+                    diagnostics.push(Error::new_spanned(&path, "duplicate model capability option"));
+                }
+            }
+            other => {
+                diagnostics.push(Error::new_spanned(other, "unsupported model option"));
+            }
         }
-        diagnostics.finish()?;
-        Ok(result)
     }
+    diagnostics.finish()?;
+    Ok(result)
 }
 
 /// Returns whether `path` names a supported capability option.
@@ -147,7 +160,7 @@ mod tests {
     use syn::parse::Parser;
     use syn::punctuated::Punctuated;
 
-    use crate::ir::declaration::DeclarationOptions;
+    use super::parse_declaration_options;
 
     /// Covers every supported declaration option and its stored representation.
     #[test]
@@ -163,7 +176,7 @@ mod tests {
                 transparent
             ))
             .expect("option syntax");
-        let parsed = DeclarationOptions::parse(options).expect("supported options");
+        let parsed = parse_declaration_options(options).expect("supported options");
 
         assert_eq!(parsed.id.expect("id").value(), "example.Model");
         assert_eq!(parsed.source_id.expect("source id").value(), "example.Source");
@@ -179,7 +192,7 @@ mod tests {
         for name in ["no_hash", "copy", "default", "partial_ord", "ord"] {
             let option: TokenStream = name.parse().expect("option tokens");
             let options = parser.parse2(option).expect("option syntax");
-            let options = DeclarationOptions::parse(options).expect("supported behavior option");
+            let options = parse_declaration_options(options).expect("supported behavior option");
             assert!(options.behavior.contains(name));
         }
     }
@@ -202,7 +215,7 @@ mod tests {
                 unknown
             ))
             .expect("option syntax");
-        let error = match DeclarationOptions::parse(options) {
+        let error = match parse_declaration_options(options) {
             Ok(_) => panic!("invalid options were accepted"),
             Err(error) => error,
         };

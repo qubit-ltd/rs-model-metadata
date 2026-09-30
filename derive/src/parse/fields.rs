@@ -62,7 +62,6 @@ use crate::ir::declaration::UniqueIr;
 ///
 /// # Errors
 /// Returns collected diagnostics when an attribute is malformed or duplicated.
-#[must_use]
 pub(crate) fn parse_field(index: usize, ty: &Type, attributes: &[Attribute], named: bool) -> Result<FieldIr> {
     let mut occurrences = Vec::new();
     let mut keep_serializing = false;
@@ -168,7 +167,6 @@ pub(crate) fn parse_field(index: usize, ty: &Type, attributes: &[Attribute], nam
 ///
 /// # Errors
 /// Returns an error for unsupported, duplicate, or missing assignment options.
-#[must_use]
 fn parse_identifier(attribute: &Attribute) -> Result<IdentifierAssignmentIr> {
     if matches!(attribute.meta, Meta::Path(_)) {
         return Ok(IdentifierAssignmentIr::Application);
@@ -206,7 +204,6 @@ fn parse_identifier(attribute: &Attribute) -> Result<IdentifierAssignmentIr> {
 ///
 /// # Errors
 /// Returns an error if the slot is already set or `value` is not a string.
-#[must_use]
 pub(crate) fn set_lit_str(slot: &mut Option<LitStr>, value: Expr, name: &str) -> Result<()> {
     if slot.is_some() {
         return Err(Error::new_spanned(value, format!("duplicate `{name}` option")));
@@ -231,7 +228,6 @@ pub(crate) fn set_lit_str(slot: &mut Option<LitStr>, value: Expr, name: &str) ->
 ///
 /// # Errors
 /// Returns diagnostics for malformed or unsupported options.
-#[must_use]
 fn parse_unique(attribute: &Attribute) -> Result<UniqueIr> {
     let mut value = UniqueIr {
         respect_to: Vec::new(),
@@ -275,7 +271,6 @@ fn parse_unique(attribute: &Attribute) -> Result<UniqueIr> {
 ///
 /// # Errors
 /// Returns diagnostics when the target or any option is invalid or duplicated.
-#[must_use]
 fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
     let mut target = None;
     let mut property = None;
@@ -355,7 +350,6 @@ fn parse_reference(attribute: &Attribute) -> Result<ReferenceIr> {
 ///
 /// # Errors
 /// Returns an error when the order is missing, duplicated, or invalid.
-#[must_use]
 fn parse_key_part(attribute: &Attribute) -> Result<usize> {
     let mut order = None;
     attribute.parse_nested_meta(|meta| {
@@ -385,7 +379,6 @@ fn parse_key_part(attribute: &Attribute) -> Result<usize> {
 /// # Errors
 /// Returns an error for unsupported declarations or recursively nested
 /// collection selectors.
-#[must_use]
 fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result<SelectorIr> {
     let Meta::List(list) = &attribute.meta else {
         return Err(Error::new_spanned(attribute, "selector requires nested declarations"));
@@ -438,7 +431,6 @@ fn parse_selector(attribute: &Attribute, position: SelectorPositionIr) -> Result
 ///
 /// # Errors
 /// Returns an error unless the expression is a one-segment path.
-#[must_use]
 pub(crate) fn parse_ident_value(expression: Expr) -> Result<String> {
     match expression {
         Expr::Path(path) if path.path.segments.len() == 1 => Ok(path.path.segments[0].ident.to_string()),
@@ -456,7 +448,6 @@ pub(crate) fn parse_ident_value(expression: Expr) -> Result<String> {
 ///
 /// # Errors
 /// Returns an error if no valid codec reference is supplied.
-#[must_use]
 fn parse_codec(attribute: &Attribute) -> Result<CodecIr> {
     if let Ok(ty) = attribute.parse_args::<Type>()
         && !matches!(&ty, Type::Path(path) if path.path.is_ident("id"))
@@ -492,7 +483,6 @@ fn parse_codec(attribute: &Attribute) -> Result<CodecIr> {
 ///
 /// # Errors
 /// Returns an error if the mode is missing, duplicated, or unsupported.
-#[must_use]
 fn parse_redact(attribute: &Attribute) -> Result<RedactIr> {
     let mut mode = None;
     attribute.parse_nested_meta(|meta| {
@@ -534,7 +524,6 @@ fn parse_redact(attribute: &Attribute) -> Result<RedactIr> {
 ///
 /// # Errors
 /// Returns a syntax error for malformed Serde option values.
-#[must_use]
 pub(crate) fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
     let mut serde = SerdeIr::default();
     let mut saw_rename = false;
@@ -614,7 +603,6 @@ pub(crate) fn parse_serde(attribute: &Attribute) -> Result<SerdeIr> {
 ///
 /// # Errors
 /// Returns an error for unsupported expressions or tuple-field segments.
-#[must_use]
 pub(crate) fn parse_path_value(expression: Expr) -> Result<Vec<String>> {
     match expression {
         Expr::Field(field) => {
@@ -644,7 +632,6 @@ pub(crate) fn parse_path_value(expression: Expr) -> Result<Vec<String>> {
 ///
 /// # Errors
 /// Returns the path parsing error when the expression is invalid.
-#[must_use]
 fn path_text(expression: Expr) -> Result<String> {
     parse_path_value(expression).map(|segments| segments.join("."))
 }
@@ -672,7 +659,6 @@ pub(crate) fn path_from_syn(path: &Path) -> Vec<String> {
 ///
 /// # Errors
 /// Returns an error when the ID is empty or contains an invalid segment.
-#[must_use]
 pub(crate) fn validate_ascii_id(value: &LitStr, kind: &str) -> Result<()> {
     let text = value.value();
     let valid = !text.is_empty()
@@ -698,7 +684,6 @@ pub(crate) fn validate_ascii_id(value: &LitStr, kind: &str) -> Result<()> {
 ///
 /// # Errors
 /// Returns an error for empty segments, `.`, dotted names, or whitespace.
-#[must_use]
 pub(crate) fn parse_object_path(value: LitStr) -> Result<Vec<String>> {
     let text = value.value();
     let steps: Vec<String> = text.split('/').map(str::to_owned).collect();

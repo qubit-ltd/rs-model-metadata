@@ -24,9 +24,9 @@ use syn::punctuated::Punctuated;
 use super::fields::parse_field;
 use super::fields::parse_serde;
 use super::fields::validate_ascii_id;
+use super::options::parse_declaration_options;
 use crate::ir::MacroKind;
 use crate::ir::declaration::DeclarationIr;
-use crate::ir::declaration::DeclarationOptions;
 use crate::ir::declaration::FieldIr;
 use crate::ir::declaration::VariantIr;
 use crate::validate::declaration::combine;
@@ -49,14 +49,13 @@ use crate::validate::declaration::combine;
 /// # Panics
 /// Panics if intermediate options, fields, or variants are unavailable without
 /// a corresponding diagnostic.
-#[must_use]
 pub(crate) fn parse_declaration(
     kind: MacroKind,
     options: Punctuated<Meta, Token![,]>,
     item: &DeriveInput,
 ) -> Result<DeclarationIr> {
     let mut errors = None;
-    let options = match DeclarationOptions::parse(options) {
+    let options = match parse_declaration_options(options) {
         Ok(options) => Some(options),
         Err(error) => {
             combine(&mut errors, error);
@@ -115,7 +114,6 @@ pub(crate) fn parse_declaration(
 ///
 /// # Errors
 /// Returns combined diagnostics for invalid field attributes.
-#[must_use]
 pub(crate) fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
@@ -142,7 +140,6 @@ pub(crate) fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
 /// # Errors
 /// Returns combined diagnostics for invalid variant names, Serde options, or
 /// nested fields.
-#[must_use]
 pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
@@ -193,7 +190,6 @@ pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
 ///
 /// # Errors
 /// Returns an error for invalid IDs, unsupported options, or duplicate names.
-#[must_use]
 fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String> {
     let mut name = None;
     for attribute in attributes
@@ -230,7 +226,6 @@ fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String>
 ///
 /// # Errors
 /// Returns an error when a Serde attribute is malformed.
-#[must_use]
 fn parse_variant_serde_names(attributes: &[Attribute], canonical: &str) -> Result<(String, String)> {
     let mut serialize = canonical.to_owned();
     let mut deserialize = canonical.to_owned();

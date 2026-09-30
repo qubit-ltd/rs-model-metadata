@@ -37,6 +37,9 @@ use crate::ir::declaration::SerdeIr;
 use crate::validate::declaration::combine;
 
 /// Returns whether `ty` supports omission metadata.
+///
+/// Omission metadata is supported for `Option` and standard collection paths
+/// with generic arguments; qualified-self paths are rejected.
 #[must_use]
 #[inline]
 fn supports_omission_metadata(ty: &Type) -> bool {
@@ -91,7 +94,10 @@ pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
 }
 
 /// Validates normalized role, field, capability, and ordering invariants.
-#[must_use]
+///
+/// # Errors
+///
+/// Returns the combined role, field, capability, and ordering violations.
 pub(crate) fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     validate_declaration_options(declaration, item, &mut errors);

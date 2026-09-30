@@ -122,7 +122,7 @@ fn bounded_generics(
     let ident = &item.ident;
     let (_, arguments, _) = item.generics.split_for_impl();
     let recursive_type = quote!(#ident #arguments).to_string();
-    for (_, fields) in &shapes {
+    for (_, fields) in shapes {
         for field in *fields {
             for ty in recursive_bounds(&field.ty, &recursive_type).unwrap_or_else(|| vec![&field.ty]) {
                 generics
