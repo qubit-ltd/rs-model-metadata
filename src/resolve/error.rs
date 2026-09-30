@@ -504,7 +504,7 @@ impl Display for ResolveError {
 ///
 /// #[Value]
 /// pub struct InvalidValue { nested: PlainModel }
-/// #[Model(id = "example.PlainModel")]
+/// #[Model(id = "example.ResolveErrorsPlainModel")]
 /// pub struct PlainModel;
 /// # }
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
