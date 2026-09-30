@@ -110,7 +110,7 @@ pub enum ModelResolutionCause {
 /// use qubit_model_derive::{Model, Value};
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
-/// use qubit_model_metadata::resolve::{ResolveErrorKind, ResolveInputs, StructureResolver};
+/// use qubit_model_metadata::resolve::{ResolveError, ResolveErrorKind, ResolveInputs, StructureResolver};
 /// use qubit_reflect::registry::RegistrySnapshotBuilder;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -120,7 +120,8 @@ pub enum ModelResolutionCause {
 /// let errors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
 ///     .resolve()
 ///     .unwrap_err();
-/// assert!(errors.errors().iter().any(|error| error.kind() == ResolveErrorKind::InvalidValueClosure));
+/// let error: &ResolveError = &errors.errors()[0];
+/// assert_eq!(error.kind(), ResolveErrorKind::InvalidValueClosure);
 ///
 /// #[Value]
 /// struct InvalidValue { nested: PlainModel }
@@ -493,17 +494,18 @@ impl Display for ResolveError {
 /// use qubit_model_derive::{Model, Value};
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
-/// use qubit_model_metadata::resolve::{ResolveErrorKind, ResolveInputs, StructureResolver};
+/// use qubit_model_metadata::resolve::{ResolveError, ResolveErrorKind, ResolveErrors, ResolveInputs, StructureResolver};
 /// use qubit_reflect::registry::RegistrySnapshotBuilder;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let reflection = RegistrySnapshotBuilder::new().build()?;
 /// let models = ModelRegistry::from_reflect_registry(&reflection)?;
 /// let roots = [TypeMetadata::of::<InvalidValue>()];
-/// let errors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let errors: ResolveErrors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
 ///     .resolve()
 ///     .unwrap_err();
-/// assert_eq!(errors.errors()[0].kind(), ResolveErrorKind::InvalidValueClosure);
+/// let first: &ResolveError = &errors.errors()[0];
+/// assert_eq!(first.kind(), ResolveErrorKind::InvalidValueClosure);
 ///
 /// #[Value]
 /// struct InvalidValue { nested: PlainModel }

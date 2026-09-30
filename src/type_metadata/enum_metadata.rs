@@ -27,7 +27,7 @@ use crate::metadata::EnumVariantMetadata;
 /// assert_eq!(variants.variants().len(), 2);
 /// assert_eq!(variants.variant("READY").map(|item| item.rust_name()), Some("Ready"));
 /// assert_eq!(variants.variant_by_rust_name("Ready").map(|item| item.canonical_name()), Some("READY"));
-/// assert_eq!(variants.variant_by_serialized_name("Ready").map(|item| item.rust_name()), Some("Ready"));
+/// assert_eq!(variants.variant_by_serialized_name("READY").map(|item| item.rust_name()), Some("Ready"));
 /// assert!(variants.variant("UNKNOWN").is_none());
 /// # }
 /// ```

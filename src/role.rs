@@ -43,6 +43,7 @@ pub enum ModelRole {
 /// # Examples
 ///
 /// ```
+/// use qubit_id::Id;
 /// use qubit_model_derive::Entity;
 /// use qubit_model_metadata::metadata::EntityMetadata;
 /// use qubit_model_metadata::metadata::TypeMetadata;
@@ -50,7 +51,7 @@ pub enum ModelRole {
 /// #[Entity(id = "example.Customer")]
 /// struct Customer {
 ///     #[identifier]
-///     id: u64,
+///     id: Id,
 /// }
 ///
 /// let entity: &EntityMetadata = TypeMetadata::of::<Customer>().as_entity().expect("entity metadata");
@@ -95,6 +96,7 @@ impl EntityMetadata {
 /// # Examples
 ///
 /// ```
+/// use qubit_id::Id;
 /// use qubit_model_derive::Entity;
 /// use qubit_model_derive::Projection;
 /// use qubit_model_metadata::metadata::ProjectionMetadata;
@@ -103,13 +105,13 @@ impl EntityMetadata {
 /// #[Entity(id = "example.Source")]
 /// struct Source {
 ///     #[identifier]
-///     id: u64,
+///     id: Id,
 /// }
 ///
 /// #[Projection(id = "example.View", source = Source)]
 /// struct View {
 ///     #[identifier]
-///     id: u64,
+///     id: Id,
 /// }
 ///
 /// let projection: &ProjectionMetadata = TypeMetadata::of::<View>().as_projection().expect("projection metadata");

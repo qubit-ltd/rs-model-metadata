@@ -591,7 +591,7 @@ impl Error for PropertySetFailure {}
 /// struct Item { value: u32 }
 ///
 /// fn get_value<'a>(target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
-///     let item = target.downcast::<Item>().expect("validated Item target");
+///     let item = target.downcast::<Item>().ok().expect("validated Item target");
 ///     Ok(PropertyValue::Borrowed(ReflectedRef::new(&item.value)))
 /// }
 ///
@@ -743,8 +743,8 @@ impl fmt::Debug for GetterMetadata {
 /// struct Item { value: u32 }
 ///
 /// fn set_value(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), qubit_model_metadata::metadata::PropertySetFailure> {
-///     let mut item = target.downcast::<Item>().expect("validated Item target");
-///     item.value = value.downcast::<u32>().expect("validated u32 value");
+///     let mut item = target.downcast::<Item>().ok().expect("validated Item target");
+///     item.value = value.downcast::<u32>().ok().expect("validated u32 value");
 ///     Ok(())
 /// }
 ///

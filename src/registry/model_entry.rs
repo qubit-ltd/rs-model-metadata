@@ -24,14 +24,18 @@ use crate::metadata::TypeMetadata;
 /// # Examples
 ///
 /// ```
+/// use qubit_model_derive::Model;
 /// use qubit_model_metadata::registry::{ModelEntry, ModelRegistry};
 ///
+/// #[Model(id = "example.ModelEntryNote")]
+/// struct Note { title: String }
 /// # fn main() {
 /// let registry = ModelRegistry::try_global().expect("valid model registry");
 /// for entry in registry.entries() {
 ///     let entry: &ModelEntry<'_> = entry;
 ///     assert_eq!(registry.get(entry.model_id().as_str()), Some(entry));
 /// }
+/// assert!(registry.get("example.ModelEntryNote").is_some());
 /// # }
 /// ```
 #[derive(Clone, Copy, Debug)]
