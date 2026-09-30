@@ -1260,7 +1260,7 @@ mod tests {
                             &right.stream().into_iter().collect::<Vec<_>>(),
                         )
                 }
-                (TokenTree::Ident(left), TokenTree::Ident(right)) => left.to_string() == right.to_string(),
+                (TokenTree::Ident(left), TokenTree::Ident(right)) => left == right,
                 (TokenTree::Punct(left), TokenTree::Punct(right)) => {
                     left.as_char() == right.as_char() && left.spacing() == right.spacing()
                 }
@@ -1497,11 +1497,11 @@ mod tests {
             &runtime,
             quote!(&model_runtime::metadata::DeclarationLocation::unknown()),
         );
-        assert_tokens_contain(&validator_tokens, "example.rule");
+        assert_tokens_contain(&validator_tokens, "\"example.rule\"");
         assert_tokens_contain(&validator_tokens, "NamedValidationArgument::new");
         assert_tokens_contain(&validator_tokens, "PropertyPath::new");
-        assert_tokens_contain(&validator_tokens, "owner");
-        assert_tokens_contain(&validator_tokens, "id");
+        assert_tokens_contain(&validator_tokens, "\"owner\"");
+        assert_tokens_contain(&validator_tokens, "\"id\"");
 
         let ty: Type = parse_quote!(Codec);
         let references = [
@@ -1595,12 +1595,12 @@ mod tests {
         let model_default_serde = expand_serde(&serde_values[1], &runtime);
         assert_tokens_contain(
             &model_default_serde,
-            "SerdeFieldMetadata::new(Some(\"out\"),Some(\"in\"),true,true,true,Some(\"helper\"),true).with_sources(SerdeBehaviorSource::ModelDefault,SerdeBehaviorSource::ModelDefault)",
+            "SerdeFieldMetadata::new(Some(\"out\"),Some(\"in\"),true,true,true,Some(\"helper\"),true).with_sources(runtime::metadata::SerdeBehaviorSource::ModelDefault,runtime::metadata::SerdeBehaviorSource::ModelDefault)",
         );
         let suppressed_serde = expand_serde(&serde_values[2], &runtime);
         assert_tokens_contain(
             &suppressed_serde,
-            "SerdeFieldMetadata::new(None,None,false,false,false,None,true).with_sources(SerdeBehaviorSource::Explicit,SerdeBehaviorSource::Suppressed)",
+            "SerdeFieldMetadata::new(None,None,false,false,false,None,true).with_sources(runtime::metadata::SerdeBehaviorSource::Explicit,runtime::metadata::SerdeBehaviorSource::Suppressed)",
         );
     }
 }

@@ -1,17 +1,17 @@
 error: decimal min cannot exceed max
-  --> tests/ui_roles/fail/decimal_bounds.rs:15:5
+  --> tests/ui_roles/fail/decimal_bounds.rs:16:5
    |
-15 |     #[decimal(min = "10.0", max = "2.0")]
+16 |     #[decimal(min = "10.0", max = "2.0")]
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: equal decimal bounds cannot both be exclusive
-  --> tests/ui_roles/fail/decimal_bounds.rs:17:5
+  --> tests/ui_roles/fail/decimal_bounds.rs:18:5
    |
-17 |     #[decimal(min = "1", max = "1", min_inclusive = false, max_inclusive = false)]
+18 |     #[decimal(min = "1", max = "1", min_inclusive = false, max_inclusive = false)]
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: decimal bounds require canonical decimal strings
-  --> tests/ui_roles/fail/decimal_bounds.rs:19:21
+  --> tests/ui_roles/fail/decimal_bounds.rs:20:21
    |
-19 |     #[decimal(min = "not-a-number")]
+20 |     #[decimal(min = "not-a-number")]
    |                     ^^^^^^^^^^^^^^

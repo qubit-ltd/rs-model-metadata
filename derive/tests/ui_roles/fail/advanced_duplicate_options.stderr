@@ -1,29 +1,37 @@
 error: duplicate sequence `min_items` option
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:17:31
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:19:31
    |
-17 |     #[sequence(min_items = 1, min_items = 2)]
+19 |     #[sequence(min_items = 1, min_items = 2)]
    |                               ^^^^^^^^^
 
 error: duplicate map `min_entries` option
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:19:28
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:21:28
    |
-19 |     #[map(min_entries = 1, min_entries = 2)]
+21 |     #[map(min_entries = 1, min_entries = 2)]
    |                            ^^^^^^^^^^^
 
 error: duplicate time `precision` option
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:21:32
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:23:32
    |
-21 |     #[time(precision = second, precision = millisecond)]
+23 |     #[time(precision = second, precision = millisecond)]
    |                                ^^^^^^^^^^^^^^^^^^^^^^^
 
 error: duplicate validator `limit` parameter
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:23:58
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:25:58
    |
-23 |     #[validator(id = "trybuild.value", params(limit = 1, limit = 2))]
+25 |     #[validator(id = "trybuild.value", params(limit = 1, limit = 2))]
    |                                                          ^^^^^
 
 error: duplicate validator dependency slot
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:25:63
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:27:63
    |
-25 |     #[validator(id = "trybuild.dependency", depends_on(value, value))]
+27 |     #[validator(id = "trybuild.dependency", depends_on(value, value))]
    |                                                               ^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:13:5
+   |
+13 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

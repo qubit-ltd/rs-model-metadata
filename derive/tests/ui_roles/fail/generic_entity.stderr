@@ -1,5 +1,5 @@
 error: Entity and Projection declarations cannot be generic
-  --> tests/ui_roles/fail/generic_entity.rs:14:21
+  --> tests/ui_roles/fail/generic_entity.rs:15:21
    |
-14 | struct GenericEntity<T> {
+15 | struct GenericEntity<T> {
    |                     ^^^
