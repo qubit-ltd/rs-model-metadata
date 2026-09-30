@@ -1550,7 +1550,7 @@ mod tests {
         let model_default_serde = expand_serde(&serde_values[1], &runtime);
         assert_tokens_contain(
             &model_default_serde,
-            "SerdeFieldMetadata::new(\"out\",\"in\",true,true,true,\"helper\",true).with_sources(SerdeBehaviorSource::ModelDefault,SerdeBehaviorSource::ModelDefault)",
+            "SerdeFieldMetadata::new(Some(\"out\"),Some(\"in\"),true,true,true,Some(\"helper\"),true).with_sources(SerdeBehaviorSource::ModelDefault,SerdeBehaviorSource::ModelDefault)",
         );
         let suppressed_serde = expand_serde(&serde_values[2], &runtime);
         assert_tokens_contain(
