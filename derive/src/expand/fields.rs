@@ -1401,8 +1401,8 @@ mod tests {
         };
         let sequence_tokens = expand_constraint(&sequence, true, false, false, &runtime);
         assert_tokens_contain(&sequence_tokens, "SequenceConstraint::new");
-        assert_tokens_contain(&sequence_tokens, "Some(1)");
-        assert_tokens_contain(&sequence_tokens, "Some(2)");
+        assert_tokens_contain(&sequence_tokens, "Some(1usize)");
+        assert_tokens_contain(&sequence_tokens, "Some(2usize)");
         assert_tokens_contain(&sequence_tokens, "true");
         let map = ConstraintIr::Map {
             min: Some(1),
