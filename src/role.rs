@@ -15,6 +15,15 @@ use crate::metadata::EnumMetadata;
 use crate::metadata::FieldMetadata;
 
 /// The semantic role assigned by a model macro.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::ModelRole;
+///
+/// let role = ModelRole::Entity;
+/// assert_eq!(role, ModelRole::Entity);
+/// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ModelRole {
     /// Persisted entity with an identifier.
@@ -30,6 +39,22 @@ pub enum ModelRole {
 }
 
 /// Entity-specific metadata.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Entity;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+///
+/// #[Entity(id = "example.Customer")]
+/// struct Customer {
+///     #[identifier]
+///     id: u64,
+/// }
+///
+/// let entity = TypeMetadata::of::<Customer>().as_entity().expect("entity metadata");
+/// assert_eq!(entity.identifier().name(), "id");
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct EntityMetadata {
     /// The field that supplies the entity identifier.
@@ -38,12 +63,25 @@ pub struct EntityMetadata {
 
 impl EntityMetadata {
     /// Creates entity metadata.
+    ///
+    /// # Parameters
+    ///
+    /// - `identifier`: the reflected field that supplies the entity identity.
+    ///
+    /// # Returns
+    ///
+    /// Entity metadata retaining the process-lifetime identifier field.
     #[must_use]
+    #[inline]
     pub(crate) const fn new(identifier: &'static FieldMetadata) -> Self {
         Self { identifier }
     }
 
     /// Returns the entity identifier field.
+    ///
+    /// # Returns
+    ///
+    /// The process-lifetime field metadata used as this entity's identifier.
     #[must_use]
     #[inline]
     pub const fn identifier(&self) -> &'static FieldMetadata {
@@ -52,6 +90,29 @@ impl EntityMetadata {
 }
 
 /// Projection-specific metadata.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Entity;
+/// use qubit_model_derive::Projection;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+///
+/// #[Entity(id = "example.Source")]
+/// struct Source {
+///     #[identifier]
+///     id: u64,
+/// }
+///
+/// #[Projection(id = "example.View", source = Source)]
+/// struct View {
+///     #[identifier]
+///     id: u64,
+/// }
+///
+/// let projection = TypeMetadata::of::<View>().as_projection().expect("projection metadata");
+/// assert!(projection.is_fixed());
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct ProjectionMetadata {
     /// The field that supplies the projection identifier.
@@ -62,12 +123,28 @@ pub struct ProjectionMetadata {
 
 impl ProjectionMetadata {
     /// Creates projection metadata.
+    ///
+    /// # Parameters
+    ///
+    /// - `identifier`: the reflected field that supplies the projection
+    ///   identity.
+    /// - `source`: the optional declared entity source for the projection.
+    ///
+    /// # Returns
+    ///
+    /// Projection metadata retaining its identifier and source declaration.
     #[must_use]
+    #[inline]
     pub(crate) const fn new(identifier: &'static FieldMetadata, source: Option<&'static DeclaredEntityTarget>) -> Self {
         Self { identifier, source }
     }
 
     /// Returns the projection identifier field.
+    ///
+    /// # Returns
+    ///
+    /// The process-lifetime field metadata used as this projection's
+    /// identifier.
     #[must_use]
     #[inline]
     pub const fn identifier(&self) -> &'static FieldMetadata {
@@ -75,6 +152,11 @@ impl ProjectionMetadata {
     }
 
     /// Returns the optional declared source without consulting a registry.
+    ///
+    /// # Returns
+    ///
+    /// The declared entity target when one was configured, or `None` for an
+    /// open projection.
     #[must_use]
     #[inline]
     pub const fn source(&self) -> Option<&'static DeclaredEntityTarget> {
@@ -82,6 +164,10 @@ impl ProjectionMetadata {
     }
 
     /// Returns whether undeclared source fields are accepted.
+    ///
+    /// # Returns
+    ///
+    /// `true` when this projection has no declared source.
     #[must_use]
     #[inline]
     pub const fn is_open(&self) -> bool {
@@ -89,6 +175,10 @@ impl ProjectionMetadata {
     }
 
     /// Returns whether the projection field set is fixed.
+    ///
+    /// # Returns
+    ///
+    /// `true` when this projection declares a source entity.
     #[must_use]
     #[inline]
     pub const fn is_fixed(&self) -> bool {
@@ -97,10 +187,37 @@ impl ProjectionMetadata {
 }
 
 /// Model-specific metadata, intentionally empty in the first version.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::ModelMetadata;
+/// use qubit_model_metadata::metadata::ModelRole;
+/// use qubit_model_metadata::metadata::RoleMetadata;
+///
+/// let model = ModelMetadata;
+/// assert_eq!(RoleMetadata::Model(model).role(), ModelRole::Model);
+/// ```
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ModelMetadata;
 
 /// Value-specific metadata.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Value;
+/// use qubit_model_metadata::metadata::RoleMetadata;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+///
+/// #[Value(transparent)]
+/// struct UserId(u64);
+///
+/// let RoleMetadata::Value(value) = TypeMetadata::of::<UserId>().role_metadata() else {
+///     panic!("derived value metadata");
+/// };
+/// assert!(value.is_transparent());
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct ValueMetadata {
     /// The sole wrapped field when the value is transparent.
@@ -111,7 +228,20 @@ pub struct ValueMetadata {
 
 impl ValueMetadata {
     /// Creates value metadata.
+    ///
+    /// # Parameters
+    ///
+    /// - `transparent_field`: the sole wrapped field when the value is
+    ///   transparent.
+    /// - `canonical_codec`: the codec that represents the complete value, if
+    ///   configured.
+    ///
+    /// # Returns
+    ///
+    /// Value metadata retaining the configured transparent-field and codec
+    /// semantics.
     #[must_use]
+    #[inline]
     pub(crate) const fn new(
         transparent_field: Option<&'static FieldMetadata>,
         canonical_codec: Option<&'static CodecMetadata>,
@@ -123,6 +253,10 @@ impl ValueMetadata {
     }
 
     /// Returns whether this value transparently wraps one field.
+    ///
+    /// # Returns
+    ///
+    /// `true` when a transparent field is configured.
     #[must_use]
     #[inline]
     pub const fn is_transparent(&self) -> bool {
@@ -130,6 +264,10 @@ impl ValueMetadata {
     }
 
     /// Returns the transparent field, if configured.
+    ///
+    /// # Returns
+    ///
+    /// The sole wrapped field for a transparent value, or `None` otherwise.
     #[must_use]
     #[inline]
     pub const fn transparent_field(&self) -> Option<&'static FieldMetadata> {
@@ -137,6 +275,11 @@ impl ValueMetadata {
     }
 
     /// Returns the canonical value codec, if configured.
+    ///
+    /// # Returns
+    ///
+    /// The codec representing the whole value, or `None` when no canonical
+    /// codec was configured.
     #[must_use]
     #[inline]
     pub const fn canonical_codec(&self) -> Option<&'static CodecMetadata> {
@@ -145,6 +288,17 @@ impl ValueMetadata {
 }
 
 /// Role-specific metadata payload.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::ModelMetadata;
+/// use qubit_model_metadata::metadata::ModelRole;
+/// use qubit_model_metadata::metadata::RoleMetadata;
+///
+/// let payload = RoleMetadata::Model(ModelMetadata);
+/// assert_eq!(payload.role(), ModelRole::Model);
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub enum RoleMetadata {
     /// Entity-specific payload.
@@ -161,6 +315,10 @@ pub enum RoleMetadata {
 
 impl RoleMetadata {
     /// Returns this payload's role discriminator.
+    ///
+    /// # Returns
+    ///
+    /// The role corresponding to the active payload variant.
     #[must_use]
     #[inline]
     pub const fn role(&self) -> ModelRole {

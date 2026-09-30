@@ -30,6 +30,16 @@ impl<'a> ResolutionContext<'a> {
     ///
     /// `registry` supplies capabilities; `roots` supply additional concrete
     /// facts. The returned context owns no global or permanent cache.
+    ///
+    /// # Parameters
+    ///
+    /// - `registry`: Registry queried before resolution-local metadata.
+    /// - `roots`: Additional metadata available only during this attempt.
+    ///
+    /// # Returns
+    ///
+    /// A context seeded with the registry's concrete models and the explicit
+    /// roots, without modifying the registry.
     pub(in crate::resolve) fn new(registry: &'a ModelRegistry<'a>, roots: &[&'static TypeMetadata]) -> Self {
         let mut context = Self {
             registry,
@@ -45,6 +55,10 @@ impl<'a> ResolutionContext<'a> {
     }
 
     /// Returns the borrowed registry for property and stable target-ID queries.
+    ///
+    /// # Returns
+    ///
+    /// The registry supplied when this resolution context was created.
     #[must_use]
     #[inline]
     pub(in crate::resolve) const fn registry(&self) -> &'a ModelRegistry<'a> {
@@ -57,6 +71,25 @@ impl<'a> ResolutionContext<'a> {
     /// neither source knows the model. Capability errors propagate unchanged;
     /// incompatible local facts return the same typed ABI cause as registry
     /// metadata. Selected registry providers may panic.
+    ///
+    /// # Parameters
+    ///
+    /// - `descriptor`: Static runtime descriptor whose metadata is requested.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some(metadata))` when the registry or local facts provide
+    /// descriptor-checked metadata, `Ok(None)` when neither source knows the
+    /// type, or an error when lookup or compatibility validation fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns the registry's capability error unchanged, or a typed ABI
+    /// error when local metadata is incompatible with the descriptor.
+    ///
+    /// # Panics
+    ///
+    /// May panic if the selected registry metadata provider panics.
     #[must_use = "handle descriptor metadata failures"]
     pub(in crate::resolve) fn metadata_for(
         &self,
@@ -80,7 +113,10 @@ impl<'a> ResolutionContext<'a> {
 
     /// Records a supplied or discovered model for this attempt, retaining the
     /// first concrete fact for an already known type.
-    #[inline]
+    ///
+    /// # Parameters
+    ///
+    /// - `metadata`: Static model metadata to retain if its type is not known.
     pub(in crate::resolve) fn remember(&mut self, metadata: &'static TypeMetadata) {
         self.known.entry(metadata.type_id()).or_insert(metadata);
     }

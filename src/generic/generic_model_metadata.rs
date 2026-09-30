@@ -36,11 +36,12 @@ use crate::metadata::ModelRole;
 /// use qubit_model_metadata::resolve::ResolveInputs;
 /// use qubit_model_metadata::resolve::StructureResolver;
 /// use qubit_reflect::identity::FragmentIdentity;
+/// use std::error::Error;
 ///
 /// #[Model(id = "example.GenericEnvelope")]
 /// struct Envelope<T> { value: T }
 ///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # fn main() -> Result<(), Box<dyn Error>> {
 /// let root = TypeMetadata::of::<Envelope<String>>();
 /// let template: &GenericModelMetadata = root.generic_definition()
 ///     .expect("the Model macro emits a generic definition");

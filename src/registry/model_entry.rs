@@ -17,6 +17,22 @@ use crate::metadata::ModelId;
 use crate::metadata::TypeMetadata;
 
 /// An immutable projection of one model and its registration provenance.
+///
+/// Entries expose the stable model identifier and the metadata and sources
+/// associated with that registry view.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::registry::ModelRegistry;
+///
+/// # fn main() {
+/// let registry = ModelRegistry::try_global().expect("valid model registry");
+/// for entry in registry.entries() {
+///     assert_eq!(registry.get(entry.model_id().as_str()), Some(entry));
+/// }
+/// # }
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct ModelEntry<'reflection> {
     /// Stable ID used to index this entry.
@@ -35,6 +51,17 @@ impl<'reflection> ModelEntry<'reflection> {
     ///
     /// Returns `None` for an anonymous model; `Some` retains its declared ID
     /// without initializing reflection or copying either borrowed input.
+    ///
+    /// # Parameters
+    ///
+    /// - `metadata`: static metadata containing the model's stable ID.
+    /// - `source`: registration fragment retained by this entry.
+    /// - `declaration_source`: optional fragment that declared the metadata
+    ///   target.
+    ///
+    /// # Returns
+    ///
+    /// `Some` when `metadata` has a model ID; otherwise `None`.
     #[must_use]
     #[inline]
     pub(super) fn concrete(
@@ -54,6 +81,17 @@ impl<'reflection> ModelEntry<'reflection> {
     ///
     /// Returns `None` for an anonymous definition; `Some` retains the template
     /// rather than pretending it has a concrete instance type identity.
+    ///
+    /// # Parameters
+    ///
+    /// - `metadata`: generic definition metadata containing its stable model
+    ///   ID.
+    /// - `source`: registration fragment retained by this entry.
+    /// - `declaration_source`: optional fragment that declared the definition.
+    ///
+    /// # Returns
+    ///
+    /// `Some` when `metadata` has a model ID; otherwise `None`.
     #[must_use]
     #[inline]
     #[cfg(feature = "generic")]
@@ -71,6 +109,10 @@ impl<'reflection> ModelEntry<'reflection> {
     }
 
     /// Returns the stable model ID shared by concrete and generic entries.
+    ///
+    /// # Returns
+    ///
+    /// The immutable ID used to index the model registry entry.
     #[must_use = "inspect the model identity"]
     #[inline]
     pub const fn model_id(&self) -> ModelId {
@@ -79,6 +121,10 @@ impl<'reflection> ModelEntry<'reflection> {
 
     /// Returns the metadata capability fragment for snapshot projections, or
     /// the source supplied to a static registry constructor.
+    ///
+    /// # Returns
+    ///
+    /// The registration fragment borrowed for this entry's lifetime.
     #[must_use]
     #[inline]
     pub const fn source(&self) -> &'reflection FragmentIdentity {
@@ -87,6 +133,11 @@ impl<'reflection> ModelEntry<'reflection> {
 
     /// Returns the reflected type or generic definition source for snapshot
     /// projections, or `None` for entries built from static metadata.
+    ///
+    /// # Returns
+    ///
+    /// The declaring fragment for a snapshot entry, or `None` for a static
+    /// entry.
     #[must_use]
     #[inline]
     pub const fn declaration_source(&self) -> Option<&'reflection FragmentIdentity> {
@@ -94,6 +145,10 @@ impl<'reflection> ModelEntry<'reflection> {
     }
 
     /// Returns concrete metadata, or `None` for a generic declaration.
+    ///
+    /// # Returns
+    ///
+    /// The concrete type metadata, or `None` when this entry is generic.
     #[must_use]
     #[inline]
     pub const fn metadata(self) -> Option<&'static TypeMetadata> {
@@ -105,6 +160,10 @@ impl<'reflection> ModelEntry<'reflection> {
     }
 
     /// Returns generic metadata, or `None` for a concrete entry.
+    ///
+    /// # Returns
+    ///
+    /// The generic definition metadata, or `None` when this entry is concrete.
     #[must_use]
     #[inline]
     #[cfg(feature = "generic")]

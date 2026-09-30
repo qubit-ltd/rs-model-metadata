@@ -13,7 +13,11 @@ use qubit_reflect::Reflect;
 use qubit_reflect::descriptor::TypeRef;
 
 /// Returns reflection's resolved root reference for `T`.
+///
+/// # Returns
+/// The shared root type reference resolved by reflection for `T`.
 #[doc(hidden)]
+#[inline]
 #[must_use]
 pub fn reflected_type_ref<T: Reflect + ?Sized>() -> &'static TypeRef {
     lazy_type_ref::<T>().get()

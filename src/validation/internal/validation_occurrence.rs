@@ -38,6 +38,12 @@ pub(crate) struct ValidationOccurrence {
 
 impl ValidationOccurrence {
     /// Returns the declared user rule ID even when no registration exists.
+    ///
+    /// # Returns
+    /// The declared ID for validator occurrences, or `None` for constraints
+    /// and traversal-only occurrences.
+    #[inline]
+    #[must_use]
     pub(crate) const fn declared_rule_id(&self) -> Option<&'static str> {
         match self.declaration {
             ExecutionDeclaration::Validator(value) => Some(value.declared_id()),

@@ -30,16 +30,21 @@ mod internal;
 
 pub(crate) use internal::merged_model_impl::MergedModelImpl;
 
-/// Stores raw implementation fragments and their fallible local merge.
+/// Stores the declarations emitted for one model-aware implementation block.
 ///
-/// Fragments and the local result emitted by derive are immutable static
-/// metadata. Dynamic merges use `MergedModelImpl` and own their storage.
+/// `fragments` preserves the block's source declarations, including facts that
+/// may not appear in the local property set. `properties` retains either the
+/// successful local assembly or its diagnostics, so snapshot resolution can
+/// combine providers without rerunning this block's assembly. Both values are
+/// immutable static metadata; dynamic snapshot merges use `MergedModelImpl`
+/// and own their storage.
 #[derive(Clone, Copy, Debug)]
 pub struct ModelImplMetadata {
-    /// Field/getter/setter declarations in deterministic source order.
+    /// Original field, getter, and setter declarations in deterministic source
+    /// order, including declarations omitted from the local merged properties.
     fragments: &'static [PropertyFragment],
-    /// The static local assembly result; diagnostics remain borrowed when the
-    /// implementation contains incompatible or conflicting property facts.
+    /// The result of assembling this block alone; on failure, retains borrowed
+    /// diagnostics for incompatible or conflicting property facts.
     properties: Result<&'static LocalPropertySet, &'static PropertyBuildErrors>,
 }
 

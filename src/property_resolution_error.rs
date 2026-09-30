@@ -8,13 +8,31 @@
 
 //! Failures when resolving effective model properties.
 
+use std::sync::Arc;
+
 use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::error::RegistryError;
+use thiserror::Error;
 
 use crate::metadata::PropertyBuildErrors;
 
 /// Distinguishes unavailable reflection from invalid property declarations.
-#[derive(Clone, Debug, thiserror::Error)]
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::PropertyResolutionError;
+///
+/// fn category(error: &PropertyResolutionError) -> &'static str {
+///     match error {
+///         PropertyResolutionError::Capability(_) => "capability",
+///         PropertyResolutionError::Reflection(_) => "reflection",
+///         PropertyResolutionError::Assembly(_) => "assembly",
+///     }
+/// }
+/// ```
+#[must_use]
+#[derive(Clone, Debug, Error)]
 pub enum PropertyResolutionError {
     /// Intrinsic capabilities cannot form a valid set for the property owner.
     #[error("property capability resolution failed: {0}")]
@@ -26,4 +44,3 @@ pub enum PropertyResolutionError {
     #[error("property assembly error: {0}")]
     Assembly(#[from] Arc<PropertyBuildErrors>),
 }
-use std::sync::Arc;

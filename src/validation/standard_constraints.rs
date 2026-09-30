@@ -21,6 +21,7 @@ use qubit_validator::ValidationArgument;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
 use qubit_validator::ValidatorRegistry;
+use standard_rule::StandardRule;
 
 use crate::metadata::AllowedChars;
 use crate::metadata::ConstraintMetadata;
@@ -222,8 +223,6 @@ mod tests {
         }
     }
 }
-
-use standard_rule::StandardRule;
 
 /// Stable identity of metadata's typed sequence equality adapter.
 pub(crate) const SEQUENCE_UNIQUE_ID: ValidatorId = ValidatorId::new(ids::COLLECTION_UNIQUE);

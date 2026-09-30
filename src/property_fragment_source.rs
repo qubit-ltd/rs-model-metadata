@@ -13,6 +13,19 @@ use crate::metadata::GetterMetadata;
 use crate::metadata::SetterMetadata;
 
 /// Identifies the field or method that declared a property fragment.
+///
+/// Generated metadata exposes this value so callers can distinguish storage
+/// declarations from getter and setter declarations.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::PropertyFragmentSource;
+///
+/// fn is_storage_field(source: &PropertyFragmentSource) -> bool {
+///     matches!(source, PropertyFragmentSource::Field(_))
+/// }
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub enum PropertyFragmentSource {
     /// A reflected storage field declared the property.

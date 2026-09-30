@@ -99,6 +99,17 @@ impl DecimalConstraint {
     }
 
     /// Attaches exact declaration-time bounds.
+    ///
+    /// # Parameters
+    ///
+    /// * `min` - The optional inclusive or exclusive lower-bound value.
+    /// * `max` - The optional inclusive or exclusive upper-bound value.
+    /// * `min_inclusive` - Whether equality satisfies a supplied lower bound.
+    /// * `max_inclusive` - Whether equality satisfies a supplied upper bound.
+    ///
+    /// # Returns
+    ///
+    /// The updated constraints with the supplied bounds and inclusivity rules.
     #[must_use]
     pub const fn with_bounds(
         mut self,

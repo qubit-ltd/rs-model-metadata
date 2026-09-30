@@ -6,11 +6,41 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Successfully merged local property metadata.
+//! Locally assembled property metadata.
 
 use crate::metadata::PropertyMetadata;
 
 /// A model type's locally validated field/getter/setter properties.
+///
+/// Each set contains properties assembled from one local metadata source. A
+/// static set can be returned by
+/// [`crate::metadata::TypeMetadata::try_properties`]; registry snapshot merges
+/// that combine multiple providers are represented separately by
+/// [`crate::metadata::ResolvedProperties::Merged`].
+///
+/// # Examples
+///
+/// ```
+/// use std::error::Error;
+///
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::LocalPropertySet;
+/// use qubit_model_metadata::metadata::ResolvedProperties;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+///
+/// #[Model]
+/// struct Account { name: String }
+/// # fn main() -> Result<(), Box<dyn Error>> {
+/// let metadata = TypeMetadata::of::<Account>();
+/// let resolved = metadata.try_properties()?;
+/// let ResolvedProperties::Static(properties) = resolved else {
+///     panic!("a model without snapshot adapters uses static properties");
+/// };
+/// let properties: &LocalPropertySet = properties;
+/// assert_eq!(properties.property("name").map(|property| property.name()), Some("name"));
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct LocalPropertySet {
     /// Properties ordered by their first declaration fragment.
@@ -19,48 +49,45 @@ pub struct LocalPropertySet {
 
 impl LocalPropertySet {
     /// Creates a locally validated property collection.
+    ///
+    /// # Parameters
+    ///
+    /// * `properties` - The property metadata in first-declaration order.
+    ///
+    /// # Returns
+    ///
+    /// A set that retains the supplied process-lifetime property slice.
     #[must_use]
+    #[inline]
     pub(crate) const fn new(properties: &'static [PropertyMetadata]) -> Self {
         Self { properties }
     }
 
-    /// Returns merged properties in deterministic declaration order.
+    /// Returns locally assembled properties in deterministic declaration
+    /// order.
+    ///
+    /// # Returns
+    ///
+    /// The static property slice ordered by each property's first declaration
+    /// fragment.
     #[must_use]
     #[inline]
     pub const fn properties(&self) -> &'static [PropertyMetadata] {
         self.properties
     }
 
-    /// Finds a merged property by its canonical public name.
+    /// Finds a locally assembled property by its canonical public name.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The canonical property name to look up.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the matching property, or `None` when no property has that
+    /// name.
     #[must_use]
     pub fn property(&self, name: &str) -> Option<&'static PropertyMetadata> {
         self.properties.iter().find(|property| property.name() == name)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use qubit_reflect::TypeDescriptor;
-    use qubit_reflect::descriptor::TypeRef;
-
-    use super::LocalPropertySet;
-    use crate::metadata::PropertyMetadata;
-
-    #[test]
-    fn empty_set_exposes_empty_slice_and_misses_every_name() {
-        let set = LocalPropertySet::new(&[]);
-
-        assert!(set.properties().is_empty());
-        assert!(set.property("missing").is_none());
-    }
-
-    #[test]
-    fn property_lookup_matches_the_canonical_name() {
-        let type_ref = Box::leak(Box::new(TypeRef::Resolved(TypeDescriptor::of::<u32>())));
-        let properties = Box::leak(vec![PropertyMetadata::new("value", type_ref, None, None, None)].into_boxed_slice());
-        let set = LocalPropertySet::new(properties);
-
-        assert_eq!(set.property("value").map(PropertyMetadata::name), Some("value"));
-        assert!(set.property("other").is_none());
     }
 }

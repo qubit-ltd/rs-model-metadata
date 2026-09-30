@@ -9,6 +9,16 @@
 //! Stable categories for local property assembly failures.
 
 /// Classifies one invalid field/getter/setter property combination.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::PropertyBuildErrorKind;
+///
+/// let kind = PropertyBuildErrorKind::MissingSource;
+/// assert_eq!(kind, PropertyBuildErrorKind::MissingSource);
+/// ```
+#[must_use]
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum PropertyBuildErrorKind {
     /// A property name is empty or declared more than once after merging.

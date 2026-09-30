@@ -11,6 +11,16 @@
 use qubit_validator::BindErrorKind;
 
 /// Machine-readable validation plan construction failure.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::validation::ValidationBuildErrorKind;
+///
+/// let error = ValidationBuildErrorKind::UnsupportedExecution;
+/// assert_eq!(error, ValidationBuildErrorKind::UnsupportedExecution);
+/// ```
+#[must_use]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValidationBuildErrorKind {
     /// An executable validator could not be bound.

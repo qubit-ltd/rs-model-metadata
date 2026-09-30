@@ -15,6 +15,7 @@ use qubit_validator::ValidationPath;
 
 use super::execution_budget::ExecutionBudget;
 use super::execution_failure::ExecutionFailure;
+use crate::metadata::PropertyAccessError;
 use crate::metadata::PropertyPath;
 use crate::metadata::PropertyValue;
 use crate::metadata::TargetMode;
@@ -22,6 +23,24 @@ use crate::resolve::ModelGraph;
 use crate::validation::compiled_property_path::CompiledPropertyPath;
 
 /// Reads every actual property step after reserving its node and depth budget.
+///
+/// # Parameters
+///
+/// * `path` - The compiled property steps to read.
+/// * `root` - The reflected value at which path traversal starts.
+/// * `parent_depth` - The depth already consumed by the enclosing traversal.
+/// * `budget` - The shared execution budget charged for each property read.
+///
+/// # Returns
+///
+/// Returns the final property value while preserving its borrow from `root`.
+/// An absent optional intermediate value is returned as
+/// `OptionalBorrowed(None)`.
+///
+/// # Errors
+///
+/// Returns an execution error when the budget is exhausted or a property step
+/// cannot be read.
 pub(crate) fn read<'value>(
     path: &CompiledPropertyPath,
     root: ReflectedRef<'value>,
@@ -57,7 +76,18 @@ pub(crate) fn read<'value>(
 
 /// Retains an owned property adapter failure behind the trusted diagnostic
 /// accessor while keeping ordinary execution output safe.
-fn property_read_error(error: crate::metadata::PropertyAccessError, path: ValidationPath) -> ExecutionError {
+///
+/// # Parameters
+///
+/// * `error` - The original property adapter failure retained for trusted
+///   diagnostics.
+/// * `path` - The structured property path associated with the failure.
+///
+/// # Returns
+///
+/// Returns a safe `PropertyReadFailed` execution error that retains `error`
+/// only through its trusted-source accessor.
+fn property_read_error(error: PropertyAccessError, path: ValidationPath) -> ExecutionError {
     ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
         .with_trusted_source(error)
         .with_path(path)
@@ -65,6 +95,23 @@ fn property_read_error(error: crate::metadata::PropertyAccessError, path: Valida
 
 /// Reads dependency slots under the same budget as the value and validator
 /// calls.
+///
+/// # Parameters
+///
+/// * `paths` - Compiled dependency paths in validator slot order.
+/// * `root` - The reflected value owning the current occurrence.
+/// * `ancestors` - Reflected enclosing values for external dependency paths.
+/// * `graph` - The resolved graph used for deferred property lookup.
+/// * `budget` - The shared budget charged for all dependency reads.
+///
+/// # Returns
+///
+/// Returns dependency values and their report paths in the same slot order.
+/// Values borrow from `root` and the supplied ancestors.
+///
+/// # Errors
+///
+/// Returns the first dependency execution failure with its slot context.
 pub(crate) fn dependencies<'value>(
     paths: &[CompiledPropertyPath],
     root: ReflectedRef<'value>,
@@ -91,6 +138,23 @@ pub(crate) fn dependencies<'value>(
 }
 
 /// Resolves optional external type context and reads one dependency slot.
+///
+/// # Parameters
+///
+/// * `path` - The compiled dependency path and its required context depth.
+/// * `root` - The reflected value at the current occurrence.
+/// * `ancestors` - Reflected enclosing values available for external context.
+/// * `graph` - The resolved graph used to compile deferred path segments.
+/// * `budget` - The shared execution budget for depth and property reads.
+///
+/// # Returns
+///
+/// Returns the dependency value borrowing from the selected reflected value.
+///
+/// # Errors
+///
+/// Returns an execution error for missing context, failed deferred lookup,
+/// mismatched dependency type, or an exhausted traversal budget.
 fn read_dependency<'value>(
     path: &CompiledPropertyPath,
     root: ReflectedRef<'value>,
@@ -128,6 +192,15 @@ fn read_dependency<'value>(
 }
 
 /// Converts a compiled property suffix into its structured report path.
+///
+/// # Parameters
+///
+/// * `path` - The compiled path whose resolved or deferred fields are reported.
+///
+/// # Returns
+///
+/// Returns deferred field segments when present; otherwise returns the names
+/// of the resolved property steps.
 pub(crate) fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
     if !path.deferred().is_empty() {
         return path
@@ -160,7 +233,7 @@ mod tests {
     use crate::validation::ValidationOptions;
 
     #[test]
-    fn property_getter_cause_is_available_only_through_trusted_diagnostics() {
+    fn test_property_getter_cause_is_available_only_through_trusted_diagnostics() {
         let error = property_read_error(
             PropertyAccessError::user("sensitive"),
             ValidationPath::root().with_field("name"),
@@ -174,7 +247,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_external_context_is_reported_before_graph_lookup() {
+    fn test_missing_external_context_is_reported_before_graph_lookup() {
         let models = ModelRegistry::from_static_metadata(&[]).unwrap();
         let graph = StructureResolver::new(ResolveInputs {
             models: &models,

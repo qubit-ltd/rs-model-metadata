@@ -17,14 +17,19 @@ use qubit_validator::BindErrorKind;
 use qubit_validator::InputType;
 
 use super::build_error::path_error;
+use crate::metadata::DependencyBindingMetadata;
 use crate::metadata::GetterOutputKind;
+use crate::metadata::NavigationStep;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyPath;
 use crate::metadata::TargetMode;
 use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
 
-/// One property access step retained for a later executor.
+/// One validated property access retained for a later executor.
+///
+/// The metadata is copied from the resolved property set; constructing or
+/// inspecting a step never invokes the property's user-defined getter.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PropertyStep {
     property: PropertyMetadata,
@@ -32,28 +37,71 @@ pub(crate) struct PropertyStep {
 
 impl PropertyStep {
     /// Returns the metadata for this path segment.
+    ///
+    /// The returned metadata is a small copy of the validated descriptor and
+    /// can be inspected without executing user code.
+    ///
+    /// # Returns
+    ///
+    /// The copy of the property metadata retained for this path segment.
+    #[must_use]
+    #[inline]
     pub(crate) const fn property(self) -> PropertyMetadata {
         self.property
     }
 }
 
-/// A fully checked path; no user getter is called while constructing it.
+/// A structurally validated property path ready for validation execution.
+///
+/// Compilation resolves property ownership, access shape, and final input
+/// type without invoking user getters. A path may retain a prefix for runtime
+/// owner resolution when its complete owner chain is not available at compile
+/// time. At execution, the stored steps guide reads, while optional-step
+/// indexes preserve the absence checks required along the path.
 #[derive(Clone, Debug)]
 pub(crate) struct CompiledPropertyPath {
-    /// Number of external containing objects needed to read this path.
+    /// Number of external containing objects to traverse before this path.
     pub(super) context_depth: usize,
-    /// Original named dependency navigation, when this path supplies a slot.
-    pub(super) dependency: Option<crate::metadata::DependencyBindingMetadata>,
-    /// Property suffix whose owner type is supplied at execution.
+    /// Original dependency binding when this path was compiled for a rule slot.
+    pub(super) dependency: Option<DependencyBindingMetadata>,
+    /// Uncompiled property suffix deferred until the runtime owner is known.
     pub(super) deferred: Box<[&'static str]>,
+    /// Resolved property metadata in the order the executor must traverse it.
     pub(super) steps: Box<[PropertyStep]>,
+    /// Indexes in `steps` whose reads may produce no value.
     pub(super) optional_steps: Box<[usize]>,
+    /// Validator input representation of the final path value.
     pub(super) input: InputType,
+    /// Whether any read on the complete path may be absent.
     pub(super) optional: bool,
 }
 
 impl CompiledPropertyPath {
     /// Checks and compiles a declaration path without invoking user adapters.
+    ///
+    /// Resolves every named property from `root`, validates its getter output
+    /// against `target`, and records optional reads and the validator input
+    /// type. No model instance is read and no user getter is called.
+    ///
+    /// # Parameters
+    ///
+    /// - `root`: metadata for the model that owns the first path segment.
+    /// - `path`: non-empty property names in traversal order.
+    /// - `graph`: resolved model/property graph used to find each segment.
+    /// - `target`: whether the final descriptor is matched as a value or as a
+    ///   target projection.
+    ///
+    /// # Returns
+    ///
+    /// A compiled path containing the validated steps, input type, and
+    /// optionality information.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnreadablePath` for an empty path, a missing root/property, or
+    /// an unreadable property. Returns `UnsupportedInput` for unresolved
+    /// descriptors, and `UnsupportedConstraint` for unsupported getter shapes
+    /// or incompatible target types.
     pub(crate) fn compile(
         root: &'static TypeMetadata,
         path: &PropertyPath<'_>,
@@ -148,10 +196,33 @@ impl CompiledPropertyPath {
 
     /// Compiles navigation relative to the owning object, then property
     /// selection.
+    ///
+    /// Resolves parent/property navigation against `root` and `ancestors`.
+    /// When the owner is outside the available ancestor chain, it preserves
+    /// the remaining names as `deferred` for runtime resolution.
+    ///
+    /// # Parameters
+    ///
+    /// - `root`: metadata for the current owner model.
+    /// - `prefix`: property names already traversed within that owner.
+    /// - `binding`: dependency navigation and selected property declaration.
+    /// - `graph`: resolved model/property graph for paths whose owner is known.
+    /// - `ancestors`: containing models available for parent navigation.
+    /// - `expected`: validator input type expected by the dependent rule.
+    ///
+    /// # Returns
+    ///
+    /// A checked path when the owner is available, or a deferred path carrying
+    /// the context depth and unresolved suffix otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Returns the path compilation error when a known owner path is invalid
+    /// or its property types are unsupported.
     pub(crate) fn compile_dependency(
         root: &'static TypeMetadata,
         prefix: &[&'static str],
-        binding: &crate::metadata::DependencyBindingMetadata,
+        binding: &DependencyBindingMetadata,
         graph: &ModelGraph<'_>,
         ancestors: &[&'static TypeMetadata],
         expected: InputType,
@@ -160,8 +231,8 @@ impl CompiledPropertyPath {
         let mut depth = 0usize;
         for step in binding.object_path().steps() {
             match step {
-                crate::metadata::NavigationStep::Property(name) => segments.push(*name),
-                crate::metadata::NavigationStep::Parent => {
+                NavigationStep::Property(name) => segments.push(*name),
+                NavigationStep::Parent => {
                     if segments.pop().is_none() {
                         depth += 1;
                     }
@@ -190,38 +261,95 @@ impl CompiledPropertyPath {
         Ok(path)
     }
 
-    /// Returns the original named dependency declaration, if present.
-    pub(crate) const fn dependency(&self) -> Option<crate::metadata::DependencyBindingMetadata> {
+    /// Returns the original rule dependency binding, if this path came from a
+    /// dependency declaration.
+    ///
+    /// # Returns
+    ///
+    /// The copied dependency binding, or `None` for a path compiled directly
+    /// from a property declaration.
+    #[must_use]
+    #[inline]
+    pub(crate) const fn dependency(&self) -> Option<DependencyBindingMetadata> {
         self.dependency
     }
 
-    /// Returns a suffix requiring a runtime containing-object type.
+    /// Returns property names that could not be compiled before runtime owner
+    /// metadata becomes available.
+    ///
+    /// # Returns
+    ///
+    /// The deferred property-name suffix, empty when every segment was
+    /// resolved during compilation.
+    #[must_use]
+    #[inline]
     pub(crate) fn deferred(&self) -> &[&'static str] {
         &self.deferred
     }
 
-    /// Returns how many external parent objects precede the selected property.
+    /// Returns how many parent objects must be resolved outside the compiled
+    /// root before traversing this path.
+    ///
+    /// # Returns
+    ///
+    /// The number of containing objects required before the first stored or
+    /// deferred segment.
+    #[must_use]
+    #[inline]
     pub(crate) const fn context_depth(&self) -> usize {
         self.context_depth
     }
 
-    /// Returns the checked path steps in traversal order.
+    /// Returns resolved property descriptors in executor traversal order.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed slice of resolved property steps, in traversal order.
+    #[must_use]
+    #[inline]
     pub(crate) fn steps(&self) -> &[PropertyStep] {
         &self.steps
     }
 
-    /// Returns the validator input type for the final path value.
+    /// Returns the input representation inferred from the final property's
+    /// descriptor or getter output.
+    ///
+    /// # Returns
+    ///
+    /// The validator input type associated with the path's final value.
+    #[must_use]
+    #[inline]
     pub(crate) const fn input_type(&self) -> InputType {
         self.input
     }
 
-    /// Returns whether any path segment can be absent.
+    /// Returns whether reading any segment can yield no value, including a
+    /// terminal optional value.
+    ///
+    /// # Returns
+    ///
+    /// `true` if any path segment may be absent; otherwise `false`.
+    #[must_use]
+    #[inline]
     pub(crate) const fn is_optional(&self) -> bool {
         self.optional
     }
 
     /// Returns whether every optional dependency read is covered by the same
     /// optional property prefix on the validation target.
+    ///
+    /// Coverage requires both paths to be fully compiled and to agree on each
+    /// property name and reflected type through every optional segment.
+    ///
+    /// # Parameters
+    ///
+    /// - `target`: path whose optional prefix must cover this dependency.
+    ///
+    /// # Returns
+    ///
+    /// `true` when every optional dependency read has a matching optional
+    /// prefix on `target`; otherwise `false`.
+    #[must_use]
     pub(crate) fn optionality_covered_by(&self, target: &Self) -> bool {
         if self.context_depth != 0
             || target.context_depth != 0
@@ -247,6 +375,16 @@ impl CompiledPropertyPath {
     /// Projects a checked, field-backed `Option<T>` onto its reflected `T`.
     /// This is used only by scalar constraints that can borrow the contained
     /// value at execution. An absent or unresolved element is unsupported.
+    ///
+    /// # Returns
+    ///
+    /// The updated path with the inner type as its validator input and the
+    /// terminal step recorded as optional.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnsupportedConstraint` if the final field is not a resolved
+    /// `Option<T>` descriptor.
     pub(crate) fn unwrap_terminal_optional(mut self) -> Result<Self, BindError> {
         let element = self
             .steps
@@ -271,6 +409,16 @@ impl CompiledPropertyPath {
 }
 
 /// Removes transparent wrappers and records whether an optional was found.
+///
+/// # Parameters
+///
+/// - `descriptor`: reflected property type to inspect.
+///
+/// # Returns
+///
+/// The innermost resolved descriptor and whether an optional wrapper was
+/// encountered. If a wrapper cannot be resolved, returns the current
+/// descriptor and the optionality observed so far.
 fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDescriptor, bool) {
     let mut optional = false;
     loop {
@@ -296,7 +444,7 @@ mod tests {
     use super::CompiledPropertyPath;
 
     #[test]
-    fn compiled_path_accessors_expose_structural_state() {
+    fn test_compiled_path_accessors_expose_structural_state() {
         let path = CompiledPropertyPath {
             context_depth: 2,
             dependency: None,
@@ -315,8 +463,3 @@ mod tests {
         assert!(path.is_optional());
     }
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-// =============================================================================

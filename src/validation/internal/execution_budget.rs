@@ -25,6 +25,15 @@ pub(crate) struct ExecutionBudget<'options> {
 
 impl<'options> ExecutionBudget<'options> {
     /// Starts accounting with the root node already visited.
+    ///
+    /// # Parameters
+    ///
+    /// - `options`: immutable depth, node, and comparison limits for this
+    ///   validation run.
+    ///
+    /// # Returns
+    ///
+    /// A budget initialized with one consumed root node and no comparisons.
     pub(crate) const fn new(options: &'options ValidationOptions) -> Self {
         Self {
             options,
@@ -34,6 +43,18 @@ impl<'options> ExecutionBudget<'options> {
     }
 
     /// Checks depth without charging a read that has not occurred.
+    ///
+    /// # Parameters
+    ///
+    /// - `depth`: zero-based depth of the operation being checked.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when `depth` is within the configured limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TraversalLimit` when `depth` exceeds the configured maximum.
     pub(crate) fn check_depth(&self, depth: usize) -> Result<(), ExecutionError> {
         if depth > self.options.max_depth() {
             Err(limit())
@@ -43,6 +64,19 @@ impl<'options> ExecutionBudget<'options> {
     }
 
     /// Reserves one actual property or collection-element read.
+    ///
+    /// # Parameters
+    ///
+    /// - `depth`: zero-based depth of the property or element being read.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after charging one node when both depth and node budgets allow
+    /// the read.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TraversalLimit` when the depth or node budget is exhausted.
     pub(crate) fn read(&mut self, depth: usize) -> Result<(), ExecutionError> {
         self.check_depth(depth)?;
         if self.nodes >= self.options.max_nodes() {
@@ -53,6 +87,20 @@ impl<'options> ExecutionBudget<'options> {
     }
 
     /// Reserves one element comparison without charging another node.
+    ///
+    /// # Parameters
+    ///
+    /// - `depth`: zero-based depth of the comparison operation.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after charging one comparison when depth and comparison
+    /// budgets allow it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TraversalLimit` when the depth or comparison budget is
+    /// exhausted.
     #[allow(dead_code)] // T6 consumes this reservation when unique-items execution is wired.
     pub(crate) fn compare(&mut self, depth: usize) -> Result<(), ExecutionError> {
         self.check_depth(depth)?;
@@ -64,6 +112,22 @@ impl<'options> ExecutionBudget<'options> {
     }
 
     /// Reserves one rule invocation and, for selectors, one comparison.
+    ///
+    /// # Parameters
+    ///
+    /// - `depth`: zero-based depth of the rule invocation.
+    /// - `selector`: whether the invocation also performs a selector
+    ///   comparison.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after charging one node and, when `selector` is true, one
+    /// comparison.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TraversalLimit` when the depth, node, or required comparison
+    /// budget is exhausted.
     pub(crate) fn invoke(&mut self, depth: usize, selector: bool) -> Result<(), ExecutionError> {
         self.check_depth(depth)?;
         if self.nodes >= self.options.max_nodes() || selector && self.comparisons >= self.options.max_comparisons() {
@@ -78,6 +142,10 @@ impl<'options> ExecutionBudget<'options> {
 }
 
 /// Creates the common budget-exhaustion error.
+///
+/// # Returns
+///
+/// An execution error classified as `TraversalLimit`.
 fn limit() -> ExecutionError {
     ExecutionError::new(ExecutionErrorKind::TraversalLimit)
 }

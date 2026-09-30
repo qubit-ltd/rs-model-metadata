@@ -14,6 +14,16 @@ use super::relations::path_from_segments;
 use crate::metadata::TypeMetadata;
 
 /// Collects direct indexed members without expanding nested query policies.
+///
+/// # Parameters
+///
+/// - `metadata`: Model metadata whose directly declared indexed fields are
+///   collected.
+///
+/// # Returns
+///
+/// Query metadata containing the indexed declarations in source field order.
+#[must_use]
 pub(super) fn build_query(metadata: &'static TypeMetadata) -> QueryMetadata {
     let declarations = metadata
         .fields()

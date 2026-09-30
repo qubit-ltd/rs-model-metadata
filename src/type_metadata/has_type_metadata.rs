@@ -10,12 +10,32 @@
 
 use qubit_reflect::Reflect;
 
+use crate::__private::ModelTypeSeal;
+use crate::__private::TypeMetadataProvider;
+
 /// Marks a reflected Rust type that has generated model metadata.
 ///
 /// Generated code supplies the hidden provider and seal. Public generic APIs
 /// can use this trait as a capability bound without exposing an unchecked
 /// metadata-construction hook.
-pub trait HasTypeMetadata: Reflect + crate::__private::ModelTypeSeal + crate::__private::TypeMetadataProvider {}
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::type_metadata::HasTypeMetadata;
+///
+/// #[Model]
+/// struct User {
+///     name: String,
+/// }
+///
+/// fn accepts_metadata_type<T: HasTypeMetadata>() {}
+///
+/// # fn main() {
+/// accepts_metadata_type::<User>();
+/// # }
+/// ```
+pub trait HasTypeMetadata: Reflect + ModelTypeSeal + TypeMetadataProvider {}
 
-impl<T> HasTypeMetadata for T where T: Reflect + crate::__private::ModelTypeSeal + crate::__private::TypeMetadataProvider
-{}
+impl<T> HasTypeMetadata for T where T: Reflect + ModelTypeSeal + TypeMetadataProvider {}

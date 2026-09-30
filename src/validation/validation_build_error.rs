@@ -150,42 +150,49 @@ impl ValidationBuildError {
 
     /// Returns the concrete validation root identity.
     #[must_use]
+    #[inline]
     pub fn root_type_id(&self) -> TypeId {
         self.model.type_id()
     }
 
     /// Returns the concrete type declaring the failed occurrence.
     #[must_use]
+    #[inline]
     pub fn owner_type_id(&self) -> TypeId {
         self.owner.type_id()
     }
 
     /// Returns the original concrete field identity, when this is a field rule.
     #[must_use]
+    #[inline]
     pub const fn field_location(&self) -> Option<FieldLocation> {
         self.field_location
     }
 
     /// Returns source coordinates, including selector and variant information.
     #[must_use]
+    #[inline]
     pub const fn declaration(&self) -> Option<DeclarationLocation> {
         self.declaration
     }
 
     /// Returns the source occurrence ordinal within the validation root.
     #[must_use]
+    #[inline]
     pub const fn occurrence(&self) -> Option<usize> {
         self.occurrence
     }
 
     /// Returns the original declared user rule ID, including for missing rules.
     #[must_use]
+    #[inline]
     pub const fn declared_rule_id(&self) -> Option<&'static str> {
         self.declared_rule_id
     }
 
     /// Returns the original standard constraint, when this was not a user rule.
     #[must_use]
+    #[inline]
     pub const fn constraint(&self) -> Option<&'static ConstraintMetadata> {
         self.constraint
     }
@@ -194,12 +201,14 @@ impl ValidationBuildError {
     /// the root is anonymous. This is independent of the declaration owner's
     /// identity for a nested failure.
     #[must_use]
+    #[inline]
     pub const fn model(&self) -> Option<ModelId> {
         self.model.model_id()
     }
 
     /// Returns the exact Rust identity even for an anonymous root.
     #[must_use]
+    #[inline]
     pub fn type_id(&self) -> TypeId {
         self.model.type_id()
     }
@@ -208,30 +217,35 @@ impl ValidationBuildError {
     /// registration. For a nested declaration, use [`Self::owner_type_id`]
     /// to distinguish its owner from this root.
     #[must_use]
+    #[inline]
     pub fn type_name(&self) -> &'static str {
         self.model.type_name()
     }
 
     /// Returns the declaration path, when available.
     #[must_use]
+    #[inline]
     pub fn path(&self) -> Option<&str> {
         self.path.as_deref()
     }
 
     /// Returns the selected collection position, when available.
     #[must_use]
+    #[inline]
     pub const fn selector(&self) -> Option<SelectorPosition> {
         self.selector
     }
 
     /// Returns the shared validator binding error kind.
     #[must_use]
+    #[inline]
     pub const fn kind(&self) -> ValidationBuildErrorKind {
         self.kind
     }
 
     /// Returns the rule identifier, when binding reached a concrete rule.
     #[must_use]
+    #[inline]
     pub const fn rule(&self) -> Option<ValidatorId> {
         match &self.source {
             Some(source) => source.rule_id(),
@@ -258,6 +272,7 @@ impl ValidationBuildError {
     /// unsupported shape or a root missing from the graph. This is the same
     /// error exposed by [`Error::source`].
     #[must_use]
+    #[inline]
     pub const fn source_error(&self) -> Option<&BindError> {
         self.source.as_ref()
     }

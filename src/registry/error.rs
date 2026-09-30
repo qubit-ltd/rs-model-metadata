@@ -9,7 +9,11 @@
 //! Deterministic model-registry construction errors.
 // qubit-style: allow multiple-public-types
 
+use core::fmt::Display;
+use core::fmt::Formatter;
+use core::fmt::Result;
 use std::any::TypeId;
+use std::error::Error;
 
 use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::capability::CapabilityOrigin;
@@ -22,6 +26,15 @@ use crate::metadata::AbiViolation;
 use crate::metadata::ModelId;
 
 /// Machine-readable registry failure class.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::ModelRegistryErrorKind;
+///
+/// let kind = ModelRegistryErrorKind::DuplicateModelId;
+/// assert_eq!(kind, ModelRegistryErrorKind::DuplicateModelId);
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ModelRegistryErrorKind {
     /// A concrete descriptor's intrinsic capabilities could not be resolved.
@@ -44,6 +57,16 @@ pub enum ModelRegistryErrorKind {
 }
 
 /// A shareable model-registry construction error.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::ModelRegistryError;
+///
+/// fn describe(error: &ModelRegistryError) -> String {
+///     error.to_string()
+/// }
+/// ```
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct ModelRegistryError {
@@ -74,6 +97,15 @@ pub struct ModelRegistryError {
 
 impl ModelRegistryError {
     /// Records a model capability fact without an executable provider.
+    ///
+    /// # Parameters
+    ///
+    /// - `capability_id`: stable identity of the fact-only capability.
+    /// - `origin`: registration source retained for diagnostics.
+    ///
+    /// # Returns
+    ///
+    /// An error retaining the capability ID and origin.
     pub(crate) fn fact_only_capability(capability_id: CapabilityId, origin: CapabilityOrigin) -> Self {
         Self {
             kind: ModelRegistryErrorKind::FactOnlyCapability,
@@ -94,6 +126,17 @@ impl ModelRegistryError {
     }
 
     /// Records a model capability whose adapter contract has the wrong type.
+    ///
+    /// # Parameters
+    ///
+    /// - `capability_id`: stable identity of the capability.
+    /// - `expected`: adapter type required by the model contract.
+    /// - `actual`: adapter type stored in the descriptor.
+    /// - `origin`: registration source retained for diagnostics.
+    ///
+    /// # Returns
+    ///
+    /// An error retaining both adapter types and the capability origin.
     pub(crate) fn adapter_type_mismatch(
         capability_id: CapabilityId,
         expected: TypeId,
@@ -119,6 +162,15 @@ impl ModelRegistryError {
     }
 
     /// Wraps a failure from reflection registry initialization.
+    ///
+    /// # Parameters
+    ///
+    /// - `error`: reflection failure whose target and fragment context are
+    ///   copied.
+    ///
+    /// # Returns
+    ///
+    /// A registry error retaining the reflection error as its source.
     pub(crate) fn reflection(error: RegistryError) -> Self {
         let capability_target = error.capability_target();
         let sources = error.conflicting_fragments().map_or_else(
@@ -146,6 +198,15 @@ impl ModelRegistryError {
     }
 
     /// Records registrations that reuse the same stable model ID.
+    ///
+    /// # Parameters
+    ///
+    /// - `model_id`: duplicated stable model identifier.
+    /// - `sources`: registrations that declared the identifier.
+    ///
+    /// # Returns
+    ///
+    /// An error retaining the model ID, sources, and their registered origins.
     pub(crate) fn duplicate(model_id: ModelId, sources: Vec<FragmentIdentity>) -> Self {
         let origins = sources
             .iter()
@@ -168,6 +229,15 @@ impl ModelRegistryError {
     }
 
     /// Records a registration whose metadata conflicts with its target.
+    ///
+    /// # Parameters
+    ///
+    /// - `model_id`: stable identifier when one is available.
+    /// - `sources`: registration fragments that conflict.
+    ///
+    /// # Returns
+    ///
+    /// An error retaining the optional identifier and conflicting sources.
     pub(crate) fn conflict(model_id: Option<ModelId>, sources: Vec<FragmentIdentity>) -> Self {
         let origins = sources
             .iter()
@@ -189,6 +259,20 @@ impl ModelRegistryError {
         }
     }
 
+    /// Records a capability targeting a type outside the registered model set.
+    ///
+    /// The target, capability ID, and originating fragment are retained so
+    /// callers can identify which registration failed the projection audit.
+    ///
+    /// # Parameters
+    ///
+    /// - `target`: reflected type or definition omitted from the model set.
+    /// - `capability_id`: stable identity of the rejected capability.
+    /// - `source`: registration fragment that supplied the capability.
+    ///
+    /// # Returns
+    ///
+    /// An error retaining the target and complete registration context.
     pub(crate) fn unregistered_model_target(
         target: CapabilityTarget,
         capability_id: CapabilityId,
@@ -210,6 +294,16 @@ impl ModelRegistryError {
     }
 
     /// Retains checked metadata failure together with its registration context.
+    ///
+    /// # Parameters
+    ///
+    /// - `model_id`: stable model identifier when known.
+    /// - `sources`: registration fragments associated with the failure.
+    /// - `cause`: checked metadata ABI violation.
+    ///
+    /// # Returns
+    ///
+    /// A registration conflict that also retains `cause` as its ABI detail.
     pub(crate) fn invalid_abi(model_id: Option<ModelId>, sources: Vec<FragmentIdentity>, cause: AbiViolation) -> Self {
         let mut error = Self::conflict(model_id, sources);
         error.abi = Some(cause);
@@ -217,6 +311,10 @@ impl ModelRegistryError {
     }
 
     /// Returns the original checked ABI failure, when metadata was malformed.
+    ///
+    /// # Returns
+    ///
+    /// The retained ABI violation, or `None` when the error has no ABI cause.
     #[must_use]
     #[inline]
     pub const fn abi_cause(&self) -> Option<&AbiViolation> {
@@ -224,6 +322,10 @@ impl ModelRegistryError {
     }
 
     /// Returns the machine-readable error class.
+    ///
+    /// # Returns
+    ///
+    /// The registry failure category used for structured handling.
     #[must_use]
     #[inline]
     pub const fn kind(&self) -> ModelRegistryErrorKind {
@@ -231,36 +333,62 @@ impl ModelRegistryError {
     }
     /// Returns the conflicting model ID, or `None` when the failure is not
     /// associated with a model.
+    ///
+    /// # Returns
+    ///
+    /// The stable model ID, or `None` when no single model is identified.
     #[must_use]
     #[inline]
     pub const fn model_id(&self) -> Option<ModelId> {
         self.model_id
     }
     /// Returns the capability ID involved in a provider contract failure.
+    ///
+    /// # Returns
+    ///
+    /// The capability ID, or `None` when the failure has no capability
+    /// identity.
     #[must_use]
     #[inline]
     pub const fn capability_id(&self) -> Option<CapabilityId> {
         self.capability_id
     }
     /// Returns the unregistered target involved in a model projection error.
+    ///
+    /// # Returns
+    ///
+    /// The rejected target, or `None` for other registry error categories.
     #[must_use]
     #[inline]
     pub const fn capability_target(&self) -> Option<CapabilityTarget> {
         self.capability_target
     }
     /// Returns the expected adapter type for a provider type mismatch.
+    ///
+    /// # Returns
+    ///
+    /// The required adapter `TypeId`, or `None` when no adapter mismatch
+    /// occurred.
     #[must_use]
     #[inline]
     pub const fn expected_adapter_type(&self) -> Option<TypeId> {
         self.expected_adapter_type
     }
     /// Returns the actual adapter type for a provider type mismatch.
+    ///
+    /// # Returns
+    ///
+    /// The descriptor's adapter `TypeId`, or `None` when no mismatch occurred.
     #[must_use]
     #[inline]
     pub const fn actual_adapter_type(&self) -> Option<TypeId> {
         self.actual_adapter_type
     }
     /// Returns the registration sources involved in the error.
+    ///
+    /// # Returns
+    ///
+    /// A slice borrowing the fragment identities retained by this error.
     #[must_use]
     #[inline]
     pub fn sources(&self) -> &[FragmentIdentity] {
@@ -268,14 +396,19 @@ impl ModelRegistryError {
     }
 
     /// Returns capability origins involved in the error.
+    ///
+    /// # Returns
+    ///
+    /// A slice borrowing the origins associated with the failed registrations.
     #[must_use]
+    #[inline]
     pub fn origins(&self) -> &[CapabilityOrigin] {
         &self.origins
     }
 }
 
-impl core::fmt::Display for ModelRegistryError {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Display for ModelRegistryError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
         match self.kind {
             ModelRegistryErrorKind::CapabilityResolution => write!(
                 formatter,
@@ -329,21 +462,13 @@ impl core::fmt::Display for ModelRegistryError {
     }
 }
 
-impl std::error::Error for ModelRegistryError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl Error for ModelRegistryError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.abi
             .as_ref()
-            .map(|error| error as &(dyn std::error::Error + 'static))
-            .or_else(|| {
-                self.reflection
-                    .as_ref()
-                    .map(|error| error as &(dyn std::error::Error + 'static))
-            })
-            .or_else(|| {
-                self.capability
-                    .as_ref()
-                    .map(|error| error as &(dyn std::error::Error + 'static))
-            })
+            .map(|error| error as &(dyn Error + 'static))
+            .or_else(|| self.reflection.as_ref().map(|error| error as &(dyn Error + 'static)))
+            .or_else(|| self.capability.as_ref().map(|error| error as &(dyn Error + 'static)))
     }
 }
 
@@ -363,7 +488,7 @@ mod tests {
     use super::ModelRegistryErrorKind;
 
     #[test]
-    fn unregistered_model_targets_retain_target_and_capability_source() {
+    fn test_unregistered_model_targets_retain_target_and_capability_source() {
         let id = CapabilityId::new("qubit.model.metadata.v1").expect("valid capability ID");
         let source = FragmentIdentity::new("fixture", "tests", 9, 1, "capability", 9);
         for target in [
@@ -387,7 +512,7 @@ mod tests {
     }
 
     #[test]
-    fn provider_contract_errors_retain_machine_readable_context() {
+    fn test_provider_contract_errors_retain_machine_readable_context() {
         let id = CapabilityId::new("example.capability").expect("valid capability ID");
         let origin = CapabilityOrigin::Intrinsic {
             type_id: TypeId::of::<u8>(),
@@ -407,7 +532,7 @@ mod tests {
     }
 
     #[test]
-    fn reflection_failures_keep_registry_context() {
+    fn test_reflection_failures_keep_registry_context() {
         let cause = RegistryError::unsupported_platform();
         let error = ModelRegistryError::reflection(cause);
         assert_eq!(error.kind(), ModelRegistryErrorKind::ReflectionRegistry);

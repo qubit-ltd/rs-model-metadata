@@ -10,6 +10,9 @@
 // qubit-style: allow multiple-public-types
 
 use core::any::TypeId;
+use core::fmt::Display;
+use core::fmt::Formatter;
+use core::fmt::Result as FmtResult;
 use std::collections::BTreeMap;
 
 use qubit_codec::ValueCodecDescriptor;
@@ -31,6 +34,33 @@ use crate::resolve::ModelGraph;
 use crate::transparent_descriptor::transparent_descriptor;
 
 /// Inputs for one codec binding pass.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the model registry borrowed by the graph.
+/// * `'graph` - Lifetime of the graph and codec registry borrows.
+///
+/// # Examples
+///
+/// ```
+/// #![cfg(feature = "codec")]
+/// use std::error::Error;
+///
+/// use qubit_codec::ValueCodecRegistry;
+/// use qubit_model_metadata::codec::{CodecBindInputs, bind_codecs};
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
+///
+/// # fn main() -> Result<(), Box<dyn Error>> {
+/// let models = ModelRegistry::from_static_metadata(&[])?;
+/// let roots: &[&'static qubit_model_metadata::metadata::TypeMetadata] = &[];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots }).resolve()?;
+/// let codecs = ValueCodecRegistry::empty();
+/// let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs })?;
+/// assert_eq!(bindings.bindings().len(), 0);
+/// # Ok(())
+/// # }
+/// ```
 pub struct CodecBindInputs<'a, 'graph> {
     /// Structure graph containing codec declarations.
     pub graph: &'graph ModelGraph<'a>,
@@ -39,6 +69,26 @@ pub struct CodecBindInputs<'a, 'graph> {
 }
 
 /// Stable identity of one codec occurrence.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::codec::CodecOccurrenceId;
+/// use qubit_model_metadata::metadata::CodecSource;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+///
+/// #[Model(id = "example.codec.Note")]
+/// struct Note { title: String }
+///
+/// let occurrence = CodecOccurrenceId::new(
+///     TypeMetadata::of::<Note>(),
+///     "title",
+///     CodecSource::Field,
+/// );
+/// assert_eq!(occurrence.property(), "title");
+/// assert_eq!(occurrence.source(), CodecSource::Field);
+/// ```
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CodecOccurrenceId {
     model: Option<ModelIdBuf>,
@@ -50,6 +100,18 @@ pub struct CodecOccurrenceId {
 
 impl CodecOccurrenceId {
     /// Creates a stable occurrence identity.
+    ///
+    /// # Parameters
+    ///
+    /// * `model` - Static metadata for the owning model.
+    /// * `property` - Normalized property path, or an empty string for a
+    ///   canonical codec.
+    /// * `source` - Declaration location within the model metadata.
+    ///
+    /// # Returns
+    ///
+    /// An identity containing the model type, property path, and declaration
+    /// source.
     #[must_use]
     pub fn new(model: &'static TypeMetadata, property: impl Into<Box<str>>, source: CodecSource) -> Self {
         Self {
@@ -62,32 +124,51 @@ impl CodecOccurrenceId {
     }
 
     /// Returns the owning model ID.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the stable ID when the model has one, or `None` for an
+    /// anonymous model.
     #[must_use]
     pub const fn model(&self) -> Option<&ModelIdBuf> {
         self.model.as_ref()
     }
 
     /// Returns the exact owner identity, including anonymous types.
+    ///
+    /// # Returns
+    ///
+    /// The concrete Rust type identity used for exact registration matching.
     #[must_use]
     pub const fn type_id(&self) -> TypeId {
         self.type_id
     }
 
     /// Returns the normalized property path, empty for canonical value codecs.
+    ///
+    /// # Returns
+    ///
+    /// The normalized path, or an empty string for a model's canonical value
+    /// codec.
     #[must_use]
     pub const fn property(&self) -> &str {
         &self.property
     }
 
     /// Returns the declaration source.
+    ///
+    /// # Returns
+    ///
+    /// The model field, canonical value, or nested selector that supplied the
+    /// codec.
     #[must_use]
     pub const fn source(&self) -> CodecSource {
         self.source
     }
 }
 
-impl core::fmt::Display for CodecOccurrenceId {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Display for CodecOccurrenceId {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         if self.property.is_empty() {
             write!(formatter, "{}::<canonical>", self.type_name)
         } else {
@@ -97,34 +178,71 @@ impl core::fmt::Display for CodecOccurrenceId {
 }
 
 /// One codec declaration bound to an executable descriptor.
+///
+/// # Examples
+///
+/// ```
+/// #![cfg(feature = "codec")]
+/// use qubit_model_metadata::codec::CodecBinding;
+///
+/// fn inspect(binding: &CodecBinding<'_>) {
+///     let _ = binding.occurrence();
+///     let _ = binding.declaration();
+///     let _ = binding.descriptor();
+///     let _ = binding.registration();
+/// }
+/// # let _ = inspect;
+/// ```
 #[derive(Debug)]
 pub struct CodecBinding<'a> {
+    /// Stable identity used to locate this binding in the resolved graph.
     occurrence: CodecOccurrenceId,
+    /// Model declaration that selected the codec.
     declaration: &'static CodecMetadata,
+    /// Executable codec descriptor used for dispatch.
     descriptor: &'static ValueCodecDescriptor,
+    /// Registry entry selected after uniqueness and type checks.
     registration: &'a ValueCodecRegistration,
 }
 
 impl<'a> CodecBinding<'a> {
     /// Returns the occurrence identity.
+    ///
+    /// # Returns
+    ///
+    /// The stable identity of the model declaration represented by this
+    /// binding.
     #[must_use]
     pub const fn occurrence(&self) -> &CodecOccurrenceId {
         &self.occurrence
     }
 
     /// Returns the declaration metadata.
+    ///
+    /// # Returns
+    ///
+    /// Static metadata for the codec declaration that selected this
+    /// registration.
     #[must_use]
     pub const fn declaration(&self) -> &'static CodecMetadata {
         self.declaration
     }
 
     /// Returns the executable descriptor.
+    ///
+    /// # Returns
+    ///
+    /// The descriptor used to dispatch values to the selected codec.
     #[must_use]
     pub const fn descriptor(&self) -> &'static ValueCodecDescriptor {
         self.descriptor
     }
 
     /// Returns the selected registration.
+    ///
+    /// # Returns
+    ///
+    /// The registry entry selected after uniqueness and value-type checks.
     #[must_use]
     pub const fn registration(&self) -> &'a ValueCodecRegistration {
         self.registration
@@ -132,17 +250,54 @@ impl<'a> CodecBinding<'a> {
 }
 
 /// Immutable successful codec bindings keyed by stable occurrence identity.
+///
+/// # Examples
+///
+/// ```
+/// #![cfg(feature = "codec")]
+/// use std::error::Error;
+///
+/// use qubit_codec::ValueCodecRegistry;
+/// use qubit_model_metadata::codec::{CodecBindInputs, bind_codecs};
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
+///
+/// # fn main() -> Result<(), Box<dyn Error>> {
+/// let models = ModelRegistry::from_static_metadata(&[])?;
+/// let roots: &[&'static qubit_model_metadata::metadata::TypeMetadata] = &[];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots }).resolve()?;
+/// let codecs = ValueCodecRegistry::empty();
+/// let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs })?;
+/// assert_eq!(bindings.bindings().len(), 0);
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug)]
-pub struct CodecBindings<'a>(BTreeMap<CodecOccurrenceId, CodecBinding<'a>>);
+pub struct CodecBindings<'a>(
+    /// Bindings indexed by stable occurrence identity.
+    BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
+);
 
 impl<'a> CodecBindings<'a> {
     /// Returns a binding by stable occurrence identity.
+    ///
+    /// # Parameters
+    ///
+    /// * `occurrence` - Stable identity of the declaration to look up.
+    ///
+    /// # Returns
+    ///
+    /// The matching binding, or `None` when the identity is not present.
     #[must_use]
     pub fn get(&self, occurrence: &CodecOccurrenceId) -> Option<&CodecBinding<'a>> {
         self.0.get(occurrence)
     }
 
     /// Iterates over bindings in stable identity order.
+    ///
+    /// # Returns
+    ///
+    /// An exact-size iterator over bindings, ordered by occurrence identity.
     #[must_use]
     pub fn bindings(&self) -> impl ExactSizeIterator<Item = &CodecBinding<'a>> {
         self.0.values()
@@ -154,6 +309,14 @@ impl<'a> CodecBindings<'a> {
 /// # Errors
 ///
 /// Returns all missing, ambiguous, and value-type mismatched occurrences.
+///
+/// # Parameters
+///
+/// * `inputs` - The resolved model graph and executable codec registry.
+///
+/// # Returns
+///
+/// All successful bindings, keyed by stable codec occurrence identity.
 pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<CodecBindings<'graph>, CodecBindErrors> {
     let mut bindings = BTreeMap::new();
     let mut errors = Vec::new();

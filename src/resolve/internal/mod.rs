@@ -8,6 +8,8 @@
 
 //! State retained only during one structural resolution attempt.
 
+mod owned_property_path;
 mod resolution_context;
 
+pub(super) use owned_property_path::OwnedPropertyPath;
 pub(super) use resolution_context::ResolutionContext;

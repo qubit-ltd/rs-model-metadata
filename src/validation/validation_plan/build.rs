@@ -24,6 +24,16 @@ impl<'a> ValidationPlan<'a> {
     /// plan root come from the supplied graph's canonical metadata for that
     /// TypeId, even when the caller holds another overlay of the same type.
     ///
+    /// # Parameters
+    ///
+    /// * `root` - Static metadata identifying the concrete type to plan for.
+    /// * `inputs` - Borrowed graph and validator registry used for binding.
+    ///
+    /// # Returns
+    ///
+    /// A plan rooted at the graph's canonical metadata, or the collected
+    /// declaration and binding errors.
+    ///
     /// # Errors
     /// Returns declaration-scoped diagnostics for unsupported access shapes or
     /// failed rule and dependency binding. No getter is invoked.
@@ -35,6 +45,18 @@ impl<'a> ValidationPlan<'a> {
     }
 
     /// Binds with nearest-parent-first type context for external dependencies.
+    ///
+    /// # Parameters
+    ///
+    /// * `root` - Static metadata identifying the concrete type to plan for.
+    /// * `inputs` - Borrowed graph and validator registry used for binding.
+    /// * `ancestors` - Parent types ordered nearest first, used to resolve
+    ///   external validator dependencies.
+    ///
+    /// # Returns
+    ///
+    /// A plan rooted at the graph's canonical metadata, or the collected
+    /// declaration and binding errors.
     ///
     /// # Errors
     /// Returns all independent declaration and binding errors in source order.

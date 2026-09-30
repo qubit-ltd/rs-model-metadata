@@ -17,6 +17,17 @@ mod validation_options_builder;
 pub use validation_options_builder::ValidationOptionsBuilder;
 
 /// Selects whether validation stops at the first failure.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::validation::{ValidationMode, ValidationOptions};
+///
+/// let options = ValidationOptions::builder()
+///     .mode(ValidationMode::FailFast)
+///     .build();
+/// assert_ne!(options, ValidationOptions::default());
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValidationMode {
     /// Execute every selected occurrence until a budget is reached.
@@ -138,6 +149,17 @@ pub struct ValidationOptions {
 /// Selection applies during execution, after all declarations have been
 /// checked and bound. It cannot bypass a plan construction error. Model-level
 /// rules are selected by `All` or an explicitly included empty field path.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::validation::{FieldPath, ValidationOptions, ValidationSelection};
+///
+/// let options = ValidationOptions::builder()
+///     .selection(ValidationSelection::Fields(vec![FieldPath::new("address.city")]))
+///     .build();
+/// assert_ne!(options, ValidationOptions::default());
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ValidationSelection {
     /// Validate every bound occurrence.

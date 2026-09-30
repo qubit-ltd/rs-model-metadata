@@ -35,13 +35,23 @@ use crate::metadata::ModelMetadataError;
 use crate::metadata::PropertyResolutionError;
 use crate::metadata::ResolvedProperties;
 use crate::metadata::TypeMetadata;
-
-type PropertyCacheKey = (TypeId, usize);
-type PropertyCacheCell = Arc<OnceLock<Result<ResolvedProperties, PropertyResolutionError>>>;
-type PropertyCache = Mutex<HashMap<PropertyCacheKey, PropertyCacheCell>>;
 #[cfg(feature = "generic")]
 use crate::reflect_facade::generic_model_metadata_key;
 use crate::reflect_facade::model_metadata_key;
+
+/// Identifies cached properties by exact Rust type and metadata allocation.
+///
+/// The pointer component distinguishes multiple static metadata values that
+/// share one Rust type identity.
+type PropertyCacheKey = (TypeId, usize);
+
+/// Shares one lazy property-resolution result among concurrent lookups.
+///
+/// The cell retains either the resolved properties or their original error.
+type PropertyCacheCell = Arc<OnceLock<Result<ResolvedProperties, PropertyResolutionError>>>;
+
+/// Protects the per-registry map of lazily initialized property results.
+type PropertyCache = Mutex<HashMap<PropertyCacheKey, PropertyCacheCell>>;
 
 /// An immutable registry sorted by stable model ID and fragment identity.
 ///
@@ -50,6 +60,11 @@ use crate::reflect_facade::model_metadata_key;
 /// [`Self::try_global`] initializes and caches the linked reflection registry,
 /// including failures. Anonymous roots are supplied directly to the structural
 /// resolver instead of being indexed under an invented stable ID.
+///
+/// # Type Parameters
+///
+/// - `'reflection`: Lifetime of the borrowed reflection provenance retained by
+///   this registry.
 ///
 /// # Examples
 ///
@@ -95,6 +110,15 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// registration provenance. Anonymous declarations are not indexed by
     /// stable ID. The returned registry uses this snapshot for later capability
     /// and property queries; it does not consult the global registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `reflection`: Frozen registry whose declarations and capabilities are
+    ///   projected into this model registry.
+    ///
+    /// # Returns
+    ///
+    /// The immutable projection, borrowing provenance from `reflection`.
     ///
     /// # Errors
     ///
@@ -240,11 +264,24 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// properties and does not read independently registered `ModelImpl`
     /// capabilities.
     ///
+    /// # Type Parameters
+    ///
+    /// - `'a`: Lifetime of each borrowed declaration source retained by the
+    ///   returned registry.
+    ///
     /// # Errors
     ///
     /// Returns [`ModelRegistryError`] for an anonymous concrete registration,
     /// a repeated stable model ID, or conflicting registrations of one concrete
     /// Rust type.
+    ///
+    /// # Parameters
+    ///
+    /// - `concrete`: Static metadata and declaration provenance to index.
+    ///
+    /// # Returns
+    ///
+    /// The isolated registry borrowing the supplied provenance.
     #[must_use = "handle invalid model registrations"]
     pub fn from_static_metadata<'a>(
         concrete: &[(&'static TypeMetadata, &'a FragmentIdentity)],
@@ -276,6 +313,20 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Returns [`ModelRegistryError`] for an anonymous concrete registration,
     /// duplicate stable IDs or generic definition identities across
     /// declarations, or conflicting registrations of one concrete Rust type.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `'a`: Lifetime of the borrowed declaration provenance retained by the
+    ///   returned registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `concrete`: Static concrete metadata and provenance to index.
+    /// - `generic`: Static generic metadata and provenance to index.
+    ///
+    /// # Returns
+    ///
+    /// The isolated registry borrowing the supplied provenance.
     #[must_use = "handle invalid model registrations"]
     #[cfg(feature = "generic")]
     pub fn from_static_metadata_with_generics<'a>(
@@ -307,6 +358,11 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// registration validation fails. Both successful and failed results are
     /// cached for the process; subsequent failures return clones of the error.
     ///
+    /// # Returns
+    ///
+    /// A reference to the process-wide registry after successful
+    /// initialization.
+    ///
     /// # Panics
     ///
     /// Propagates a panic from an initializing metadata provider. A panic does
@@ -331,6 +387,10 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// Panics when global registry initialization returns an error, or when an
     /// initializing metadata provider panics.
+    ///
+    /// # Returns
+    ///
+    /// The process-wide validated registry.
     #[must_use]
     pub fn global() -> &'static ModelRegistry<'static> {
         Self::try_global().unwrap_or_else(|error| panic!("invalid global model registry: {error}"))
@@ -342,6 +402,17 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// Returns [`ModelRegistryError`] for duplicate model IDs or generic
     /// definition identities, or inconsistent concrete registration metadata.
+    ///
+    /// # Parameters
+    ///
+    /// - `entries`: Concrete and generic model entries to validate and index.
+    /// - `generic_inputs`: Generic definitions and their declaration provenance
+    ///   when generic metadata is enabled.
+    ///
+    /// # Returns
+    ///
+    /// The registry with owned indexes, an empty property cache, and no
+    /// reflection snapshot associated yet.
     fn build(
         mut entries: Vec<ModelEntry<'reflection>>,
         #[cfg(feature = "generic")] mut generic_inputs: Vec<(
@@ -427,6 +498,14 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Finds one immutable model entry by stable ID.
     /// Returns `None` for invalid IDs and IDs absent from this registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: Stable model ID to look up.
+    ///
+    /// # Returns
+    ///
+    /// The indexed entry, or `None` when the ID is invalid or absent.
     #[must_use]
     #[inline]
     pub fn get(&self, id: &str) -> Option<&ModelEntry<'reflection>> {
@@ -437,6 +516,10 @@ impl<'reflection> ModelRegistry<'reflection> {
     }
 
     /// Enumerates concrete and generic models in stable model-ID order.
+    ///
+    /// # Returns
+    ///
+    /// All entries in deterministic model-ID and fragment-identity order.
     #[must_use]
     #[inline]
     pub fn entries(&self) -> &[ModelEntry<'reflection>] {
@@ -445,14 +528,34 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Returns concrete metadata for a stable ID, or `None` for an invalid,
     /// absent, or generic-definition-only ID.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: Stable model ID to resolve.
+    ///
+    /// # Returns
+    ///
+    /// Concrete metadata for a registered concrete model; `None` for an
+    /// invalid ID, an absent ID, or a generic-definition-only registration.
     #[must_use]
+    #[inline]
     pub fn metadata(&self, id: &str) -> Option<&'static TypeMetadata> {
         self.get(id).and_then(|entry| entry.metadata())
     }
 
     /// Returns generic-definition metadata for a stable ID, or `None` for an
     /// invalid, absent, or concrete-only ID.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: Stable model ID to resolve.
+    ///
+    /// # Returns
+    ///
+    /// Generic metadata for a registered definition; `None` for an invalid ID,
+    /// an absent ID, or a concrete-only registration.
     #[must_use]
+    #[inline]
     #[cfg(feature = "generic")]
     pub fn generic(&self, id: &str) -> Option<&'static GenericModelMetadata> {
         self.get(id).and_then(|entry| entry.generic_metadata())
@@ -460,7 +563,16 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Returns registered concrete metadata by exact Rust identity, or `None`
     /// when that concrete type is absent from this registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `type_id`: Exact Rust type identity to look up.
+    ///
+    /// # Returns
+    ///
+    /// Registered concrete metadata, or `None` when that type is absent.
     #[must_use]
+    #[inline]
     pub fn by_type_id(&self, type_id: TypeId) -> Option<&'static TypeMetadata> {
         self.entries
             .get(*self.type_indices.get(&type_id)?)
@@ -472,6 +584,10 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// With a reflection snapshot, invokes its effective metadata provider on
     /// each call before falling back to explicit registrations. No global
     /// registry is consulted. Metadata-only registries use only their index.
+    ///
+    /// # Parameters
+    ///
+    /// - `descriptor`: Exact static type descriptor whose metadata is queried.
     ///
     /// # Returns
     ///
@@ -530,6 +646,15 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Returns [`PropertyResolutionError`] for capability or property assembly
     /// failures, retaining the original diagnostics.
     ///
+    /// # Parameters
+    ///
+    /// - `metadata`: Static model metadata whose local and reflected properties
+    ///   are resolved.
+    ///
+    /// # Returns
+    ///
+    /// The merged or static resolved properties on success.
+    ///
     /// # Panics
     ///
     /// Propagates a panic from an implementation provider or a poisoned cache
@@ -553,7 +678,16 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Returns registered generic metadata for one definition identity, or
     /// `None` when no indexed definition matches. This does not instantiate a
     /// concrete model or consult the global registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `definition_id`: Process-local identity of the generic definition.
+    ///
+    /// # Returns
+    ///
+    /// The indexed generic metadata, or `None` when no definition matches.
     #[must_use]
+    #[inline]
     #[cfg(feature = "generic")]
     pub fn generic_metadata_for(&self, definition_id: TypeDefinitionId) -> Option<&'static GenericModelMetadata> {
         self.generic_definition_indices.get(&definition_id).copied()
@@ -562,13 +696,27 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Returns the metadata capability source for snapshot projections or the
     /// explicit input source for static metadata, or `None` for an invalid or
     /// absent ID.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: Stable model ID whose registration source is requested.
+    ///
+    /// # Returns
+    ///
+    /// The borrowed capability or explicit-input source, or `None` when the ID
+    /// is invalid or absent.
     #[must_use]
+    #[inline]
     pub fn source(&self, id: &str) -> Option<&'reflection FragmentIdentity> {
         Some(self.get(id)?.source)
     }
 
     /// Returns registered generic definitions ordered by fragment identity and
     /// then Rust path, including definitions without stable model IDs.
+    ///
+    /// # Returns
+    ///
+    /// All registered generic definitions in deterministic order.
     #[must_use]
     #[cfg(feature = "generic")]
     #[inline]
@@ -577,7 +725,12 @@ impl<'reflection> ModelRegistry<'reflection> {
     }
 
     /// Iterates over concrete registrations in stable registry order.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over each concrete metadata value and its borrowed source.
     #[must_use = "consume the concrete registration iterator"]
+    #[inline]
     pub(crate) fn concrete_entries(
         &self,
     ) -> impl Iterator<Item = (&'static TypeMetadata, &'reflection FragmentIdentity)> + '_ {
@@ -588,6 +741,16 @@ impl<'reflection> ModelRegistry<'reflection> {
 }
 
 /// Compares registrations by stable model ID and then fragment identity.
+///
+/// # Parameters
+///
+/// - `left`: First registration to compare.
+/// - `right`: Second registration to compare.
+///
+/// # Returns
+///
+/// Their deterministic order: model ID first, then fragment identity.
+#[inline]
 fn compare_entries(left: &ModelEntry, right: &ModelEntry) -> Ordering {
     left.model_id
         .cmp(&right.model_id)
@@ -603,7 +766,7 @@ mod tests {
     use super::ModelRegistry;
 
     #[test]
-    fn empty_metadata_registry_exposes_empty_indexes() {
+    fn test_empty_metadata_registry_exposes_empty_indexes() {
         let registry = ModelRegistry::build(
             Vec::new(),
             #[cfg(feature = "generic")]

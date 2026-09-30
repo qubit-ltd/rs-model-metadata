@@ -11,7 +11,6 @@
 mod error;
 mod graph;
 mod internal;
-mod owned_property_path;
 mod queries;
 mod reference_selection_ext;
 mod relations;

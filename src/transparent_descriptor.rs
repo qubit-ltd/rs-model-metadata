@@ -12,8 +12,17 @@ use qubit_reflect::TypeDescriptor;
 
 /// Returns the first descriptor outside optional and smart-pointer layers.
 ///
-/// Returns `None` when a traversed relation is opaque or symbolic. Semantic
-/// containers such as sequences and maps remain intact.
+/// # Parameters
+///
+/// - `descriptor`: the descriptor to inspect, including any optional or
+///   smart-pointer wrapper layers.
+///
+/// # Returns
+///
+/// Returns the first resolved descriptor outside those wrappers. Returns
+/// `None` when a traversed layer is opaque or symbolic. Semantic containers
+/// such as sequences and maps remain intact.
+#[must_use]
 pub(crate) fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
     loop {
         let element = descriptor

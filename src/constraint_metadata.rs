@@ -37,13 +37,28 @@ use crate::constraint::TimeConstraint;
 #[derive(Clone, Copy, Debug)]
 pub enum ConstraintMetadata {
     /// Text constraints.
-    Text(TextConstraint),
+    Text(
+        /// Length, format, and allowed-character policies for text values.
+        TextConstraint,
+    ),
     /// Decimal or money constraints.
-    Decimal(DecimalConstraint),
+    Decimal(
+        /// Precision, range, and rounding policies for decimal values.
+        DecimalConstraint,
+    ),
     /// Time constraints.
-    Time(TimeConstraint),
+    Time(
+        /// Precision and range policies for temporal values.
+        TimeConstraint,
+    ),
     /// Sequence constraints.
-    Sequence(SequenceConstraint),
+    Sequence(
+        /// Length, uniqueness, and element policies for sequences.
+        SequenceConstraint,
+    ),
     /// Map constraints.
-    Map(MapConstraint),
+    Map(
+        /// Entry-count and key/value policies for maps.
+        MapConstraint,
+    ),
 }

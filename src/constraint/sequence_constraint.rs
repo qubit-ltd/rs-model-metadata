@@ -65,6 +65,14 @@ impl SequenceConstraint {
     }
 
     /// Attaches non-recursive element semantics.
+    ///
+    /// # Parameters
+    ///
+    /// * `element` - The selector metadata describing the sequence element.
+    ///
+    /// # Returns
+    ///
+    /// The updated constraints, with the supplied element semantics attached.
     #[must_use]
     pub const fn with_element(mut self, element: &'static crate::metadata::SelectorMetadata) -> Self {
         self.element = Some(element);

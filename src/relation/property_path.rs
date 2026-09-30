@@ -9,7 +9,16 @@
 //! Static sequences of field-name segments.
 // qubit-style: allow type-file-name
 
+use core::fmt::Display;
+use core::fmt::Formatter;
+use core::fmt::Result;
+
 /// A statically declared sequence of field-name segments.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed segment slice. Each segment name has a
+///   `'static` lifetime.
 ///
 /// # Examples
 ///
@@ -26,9 +35,18 @@ pub struct PropertyPath<'a> {
     segments: &'a [&'static str],
 }
 
-impl core::fmt::Display for PropertyPath<'_> {
+impl Display for PropertyPath<'_> {
     /// Formats this path with dot-separated field-name segments.
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination that receives the formatted path.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after all segments are written, or the formatter's error if a
+    /// write fails.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
         let mut segments = self.segments.iter();
         if let Some(first) = segments.next() {
             write!(formatter, "{first}")?;

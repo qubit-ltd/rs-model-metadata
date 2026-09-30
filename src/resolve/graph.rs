@@ -15,8 +15,9 @@ use std::collections::HashMap;
 use qubit_id::Id;
 use qubit_reflect::FieldAccessError;
 use qubit_reflect::ReflectedRef;
+use thiserror::Error;
 
-use super::owned_property_path::OwnedPropertyPath;
+use super::internal::OwnedPropertyPath;
 use crate::metadata::DependencyBindingMetadata;
 use crate::metadata::FieldLocation;
 use crate::metadata::FieldMetadata;
@@ -32,6 +33,15 @@ use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
 
 /// Instance context that cannot be obtained from a structural registry.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::resolve::ContextRequirement;
+///
+/// let requirement = ContextRequirement::ParentObject;
+/// assert_eq!(requirement, ContextRequirement::ParentObject);
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ContextRequirement {
     /// All object navigation is local to the declared root.
@@ -41,6 +51,29 @@ pub enum ContextRequirement {
 }
 
 /// A dependency occurrence with its independently retained context requirement.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::ResolveInputs;
+/// use qubit_model_metadata::resolve::ResolvedDependency;
+/// use qubit_model_metadata::resolve::StructureResolver;
+///
+/// #[Model]
+/// struct Draft { title: String }
+/// # fn main() {
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let root = TypeMetadata::of::<Draft>();
+/// let roots = [root];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve().expect("valid structure");
+/// let dependencies: &[ResolvedDependency] = graph.dependencies();
+/// assert!(dependencies.is_empty());
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct ResolvedDependency {
     /// The exact dependency declaration retained from its validator occurrence.
@@ -51,6 +84,10 @@ pub struct ResolvedDependency {
 
 impl ResolvedDependency {
     /// Returns the original occurrence, including source and separate paths.
+    ///
+    /// # Returns
+    ///
+    /// The static declaration retained for this dependency occurrence.
     #[must_use]
     #[inline]
     pub const fn declaration(&self) -> &'static DependencyBindingMetadata {
@@ -58,6 +95,11 @@ impl ResolvedDependency {
     }
 
     /// Reports whether the consumer must supply a containing object.
+    ///
+    /// # Returns
+    ///
+    /// [`ContextRequirement::ParentObject`] when path resolution needs a
+    /// caller-provided parent, or [`ContextRequirement::None`] otherwise.
     #[must_use]
     #[inline]
     pub const fn context_requirement(&self) -> ContextRequirement {
@@ -66,6 +108,30 @@ impl ResolvedDependency {
 }
 
 /// A successfully resolved direct reference.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::ResolveInputs;
+/// use qubit_model_metadata::resolve::ResolvedReference;
+/// use qubit_model_metadata::resolve::StructureResolver;
+///
+/// #[Model]
+/// struct Draft { title: String }
+/// # fn main() {
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let root = TypeMetadata::of::<Draft>();
+/// let roots = [root];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve().expect("valid structure");
+/// let location = root.fields()[0].location().expect("reflected field");
+/// let reference: Option<&ResolvedReference> = graph.reference(location);
+/// assert!(reference.is_none());
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct ResolvedReference {
     /// The original field-reference declaration.
@@ -78,7 +144,13 @@ pub struct ResolvedReference {
 
 impl ResolvedReference {
     /// Reports whether the reference binding path needs a containing object.
+    ///
+    /// # Returns
+    ///
+    /// [`ContextRequirement::ParentObject`] when the binding path needs a
+    /// caller-provided parent, or [`ContextRequirement::None`] otherwise.
     #[must_use]
+    #[inline]
     pub fn context_requirement(&self) -> ContextRequirement {
         if self.declaration.path().is_some_and(|path| path.requires_parent()) {
             ContextRequirement::ParentObject
@@ -88,6 +160,10 @@ impl ResolvedReference {
     }
 
     /// Returns the original field-reference declaration.
+    ///
+    /// # Returns
+    ///
+    /// The static field-reference declaration used to resolve this edge.
     #[must_use]
     #[inline]
     pub const fn declaration(&self) -> &'static FieldReferenceMetadata {
@@ -95,6 +171,10 @@ impl ResolvedReference {
     }
 
     /// Returns the resolved target model metadata.
+    ///
+    /// # Returns
+    ///
+    /// The static metadata for the resolved target model.
     #[must_use]
     #[inline]
     pub const fn target(&self) -> &'static TypeMetadata {
@@ -102,6 +182,11 @@ impl ResolvedReference {
     }
 
     /// Returns the selected target property, or `None` for an entity reference.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the selected property for a property reference, or `None`
+    /// when the reference targets the entity as a whole.
     #[must_use]
     #[inline]
     pub const fn property(&self) -> Option<&PropertyMetadata> {
@@ -110,6 +195,29 @@ impl ResolvedReference {
 }
 
 /// A successfully resolved Projection source.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::ResolveInputs;
+/// use qubit_model_metadata::resolve::ResolvedProjectionSource;
+/// use qubit_model_metadata::resolve::StructureResolver;
+///
+/// #[Model]
+/// struct Draft { title: String }
+/// # fn main() {
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let root = TypeMetadata::of::<Draft>();
+/// let roots = [root];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve().expect("valid structure");
+/// let source: Option<&ResolvedProjectionSource> = graph.projection_source(root.type_id());
+/// assert!(source.is_none());
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct ResolvedProjectionSource {
     /// The resolved entity model supplying the projection.
@@ -117,6 +225,29 @@ pub struct ResolvedProjectionSource {
 }
 
 /// One resolved readable property that produces a Projection from an Entity.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::ResolveInputs;
+/// use qubit_model_metadata::resolve::ResolvedProjectionProducer;
+/// use qubit_model_metadata::resolve::StructureResolver;
+///
+/// #[Model]
+/// struct Draft { title: String }
+/// # fn main() {
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let root = TypeMetadata::of::<Draft>();
+/// let roots = [root];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve().expect("valid structure");
+/// let producers: &[ResolvedProjectionProducer] = graph.projection_producers();
+/// assert!(producers.is_empty());
+/// # }
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct ResolvedProjectionProducer {
     /// Entity declaring the readable property.
@@ -131,6 +262,10 @@ pub struct ResolvedProjectionProducer {
 
 impl ResolvedProjectionProducer {
     /// Returns the producing Entity metadata.
+    ///
+    /// # Returns
+    ///
+    /// Static metadata for the Entity that declares the readable property.
     #[must_use]
     #[inline]
     pub const fn source(&self) -> &'static TypeMetadata {
@@ -138,6 +273,10 @@ impl ResolvedProjectionProducer {
     }
 
     /// Returns the produced Projection metadata.
+    ///
+    /// # Returns
+    ///
+    /// Static metadata for the Projection returned by the property getter.
     #[must_use]
     #[inline]
     pub const fn projection(&self) -> &'static TypeMetadata {
@@ -145,6 +284,10 @@ impl ResolvedProjectionProducer {
     }
 
     /// Returns the property that declares this edge.
+    ///
+    /// # Returns
+    ///
+    /// The merged local property that declares the producer edge.
     #[must_use]
     #[inline]
     pub const fn property(&self) -> &PropertyMetadata {
@@ -153,6 +296,11 @@ impl ResolvedProjectionProducer {
 
     /// Returns the executable getter used as projector. The current resolver
     /// only creates producer edges for properties with a registered getter.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the registered getter adapter, or `None` when this edge
+    /// cannot be executed automatically.
     #[must_use]
     #[inline]
     pub const fn projector(&self) -> Option<&'static GetterMetadata> {
@@ -174,6 +322,16 @@ impl ResolvedProjectionProducer {
     ///
     /// Panics if resolved producer metadata refers to an identifier that is
     /// not a concrete reflected field. The resolver guarantees this invariant.
+    ///
+    /// # Parameters
+    ///
+    /// - `source`: The concrete Entity instance passed to the registered
+    ///   getter.
+    ///
+    /// # Returns
+    ///
+    /// The getter result when it is a borrowed or owned Projection with the
+    /// same identifier as the source Entity.
     #[must_use = "handle projection execution failure"]
     pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
         let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
@@ -204,10 +362,23 @@ impl ResolvedProjectionProducer {
 
     /// Reads and validates the identifier from a projected target.
     ///
+    /// # Returns
+    ///
+    /// The projected target identifier as a copied [`Id`].
+    ///
     /// # Errors
     ///
     /// Returns [`ProjectionExecutionError`] when the target is not a valid
     /// Projection or its identifier field cannot be read as `qubit_id::Id`.
+    ///
+    /// # Parameters
+    ///
+    /// - `target`: The projected instance whose identifier is read.
+    ///
+    /// # Panics
+    ///
+    /// Panics if resolved projection metadata refers to an identifier that is
+    /// not a concrete reflected field. The resolver guarantees this invariant.
     fn projection_identifier(&self, target: ReflectedRef<'_>) -> Result<Id, ProjectionExecutionError> {
         self.projection
             .as_projection()
@@ -223,8 +394,17 @@ impl ResolvedProjectionProducer {
 }
 
 /// Failure while executing an automatic Projection producer.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::resolve::ProjectionExecutionError;
+///
+/// let error = ProjectionExecutionError::MissingProjector;
+/// assert!(matches!(error, ProjectionExecutionError::MissingProjector));
+/// ```
 #[must_use]
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum ProjectionExecutionError {
     /// No executable adapter is registered for this producer.
     #[error("projection producer has no executable projector")]
@@ -248,6 +428,10 @@ pub enum ProjectionExecutionError {
 
 impl ResolvedProjectionSource {
     /// Returns the resolved entity model supplying the projection.
+    ///
+    /// # Returns
+    ///
+    /// Static metadata for the Entity that supplies the Projection.
     #[must_use]
     #[inline]
     pub const fn target(&self) -> &'static TypeMetadata {
@@ -309,6 +493,10 @@ pub struct ModelGraph<'a> {
 
 impl<'a> ModelGraph<'a> {
     /// Returns every dependency occurrence, including deferred parent paths.
+    ///
+    /// # Returns
+    ///
+    /// Dependency occurrences in model and source declaration order.
     #[must_use]
     #[inline]
     pub fn dependencies(&self) -> &[ResolvedDependency] {
@@ -316,6 +504,10 @@ impl<'a> ModelGraph<'a> {
     }
 
     /// Returns registered and explicitly reachable concrete nodes.
+    ///
+    /// # Returns
+    ///
+    /// Static metadata for each concrete node accepted by this graph.
     #[must_use]
     #[inline]
     pub fn models(&self) -> &[&'static TypeMetadata] {
@@ -327,18 +519,36 @@ impl<'a> ModelGraph<'a> {
     ///
     /// The lookup uses the supplied metadata's type identity; it does not
     /// reassemble its properties or consult the global registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `model`: Metadata whose concrete type identity selects the properties.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with locally merged properties when the model is in this graph,
+    /// or `None` when its concrete type was not included.
     #[must_use]
+    #[inline]
     pub fn properties(&self, model: &TypeMetadata) -> Option<&ResolvedProperties> {
         self.properties.get(&model.type_id())
     }
 
     /// Returns all resolved Entity-to-Projection producer edges.
+    ///
+    /// # Returns
+    ///
+    /// Producer edges in resolver order.
     #[must_use]
     #[inline]
     pub fn projection_producers(&self) -> &[ResolvedProjectionProducer] {
         &self.projection_producers
     }
     /// Returns the registry used for this resolution pass.
+    ///
+    /// # Returns
+    ///
+    /// The registry borrowed by this graph during resolution.
     #[must_use]
     #[inline]
     pub const fn registry(&self) -> &'a ModelRegistry<'a> {
@@ -348,31 +558,94 @@ impl<'a> ModelGraph<'a> {
     /// Returns a concrete node included in this graph, including anonymous
     /// roots, or `None` for a type outside this graph. This lookup does not
     /// register types or consult a global registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: Concrete Rust type identity to look up.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the graph node for an included type, or `None` when the
+    /// identity is outside this graph.
     #[must_use]
+    #[inline]
     pub fn model(&self, id: TypeId) -> Option<&'static TypeMetadata> {
         self.model_index.get(&id).copied()
     }
 
     /// Returns the reference at this declaration, or `None` if absent.
+    ///
+    /// # Parameters
+    ///
+    /// - `location`: Source field declaration identity for the reference.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the resolved edge at this location, or `None` when no
+    /// reference was resolved for it.
     #[must_use]
+    #[inline]
     pub fn reference(&self, location: FieldLocation) -> Option<&ResolvedReference> {
         self.references.get(&location)
     }
 
     /// Returns the source of this projection type, or `None` if absent.
+    ///
+    /// # Parameters
+    ///
+    /// - `projection`: Concrete type identity of the Projection to look up.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the source Entity metadata, or `None` when the graph has no
+    /// source edge for this type.
     #[must_use]
+    #[inline]
     pub fn projection_source(&self, projection: TypeId) -> Option<&ResolvedProjectionSource> {
         self.projection_sources.get(&projection)
     }
 
     /// Returns query metadata for this entity type, or `None` if absent.
+    ///
+    /// # Parameters
+    ///
+    /// - `entity`: Concrete type identity of the Entity to look up.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the indexed declarations for this Entity, or `None` when
+    /// it has no query metadata in this graph.
     #[must_use]
+    #[inline]
     pub fn query(&self, entity: TypeId) -> Option<&QueryMetadata> {
         self.queries.get(&entity)
     }
 }
 
 /// Direct indexed declarations available to downstream query generators.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::QueryMetadata;
+/// use qubit_model_metadata::resolve::ResolveInputs;
+/// use qubit_model_metadata::resolve::StructureResolver;
+///
+/// #[Model]
+/// struct Draft { title: String }
+/// # fn main() {
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let root = TypeMetadata::of::<Draft>();
+/// let roots = [root];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve().expect("valid structure");
+/// let query: Option<&QueryMetadata> = graph.query(root.type_id());
+/// assert!(query.is_none());
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct QueryMetadata {
     /// Direct declarations in source field order.
@@ -382,6 +655,11 @@ pub struct QueryMetadata {
 impl QueryMetadata {
     /// Returns declarations without choosing filter operators or external
     /// names.
+    ///
+    /// # Returns
+    ///
+    /// Indexed declarations in source field order. No operators or external
+    /// query names are inferred.
     #[must_use]
     #[inline]
     pub fn declarations(&self) -> &[QueryDeclaration] {
@@ -390,6 +668,33 @@ impl QueryMetadata {
 }
 
 /// One declared indexed member and the facts making it indexed.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::QueryDeclaration;
+/// use qubit_model_metadata::resolve::QueryMetadata;
+/// use qubit_model_metadata::resolve::ResolveInputs;
+/// use qubit_model_metadata::resolve::StructureResolver;
+///
+/// #[Model]
+/// struct Draft { title: String }
+/// # fn main() {
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let root = TypeMetadata::of::<Draft>();
+/// let roots = [root];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve().expect("valid structure");
+/// let declarations: &[QueryDeclaration] = graph
+///     .query(root.type_id())
+///     .map(QueryMetadata::declarations)
+///     .unwrap_or(&[]);
+/// assert!(declarations.is_empty());
+/// # }
+/// ```
 #[derive(Clone, Debug)]
 pub struct QueryDeclaration {
     /// Original field carrying type, uniqueness and reference metadata.
@@ -400,6 +705,10 @@ pub struct QueryDeclaration {
 
 impl QueryDeclaration {
     /// Returns the original declaration for further metadata navigation.
+    ///
+    /// # Returns
+    ///
+    /// Static field metadata carrying this indexed member's declaration facts.
     #[must_use]
     #[inline]
     pub const fn field(&self) -> &'static FieldMetadata {
@@ -407,13 +716,23 @@ impl QueryDeclaration {
     }
 
     /// Returns the direct property path in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// The owned path viewed as borrowed segments in declaration order.
     #[must_use]
+    #[inline]
     pub fn path(&self) -> PropertyPath<'_> {
         self.path.as_path()
     }
 
     /// Returns all explicit and implicit indexing reasons.
+    ///
+    /// # Returns
+    ///
+    /// The reasons that caused this field to be included in query metadata.
     #[must_use]
+    #[inline]
     pub fn reasons(&self) -> IndexingReasons {
         self.field.indexing_reasons()
     }

@@ -25,6 +25,49 @@ use qubit_validator::ValidatorId;
 /// Cloning shares the supplied prepared validator through its `Arc`; it does
 /// not prepare a new rule. Debug output contains the rule identity without
 /// inspecting the validator, which need not implement `Debug`.
+///
+/// # Examples
+///
+/// ```
+/// use std::sync::Arc;
+///
+/// use qubit_model_metadata::validation::ModelRuleBinding;
+/// use qubit_validator::BoundValidationContext;
+/// use qubit_validator::DependencySpec;
+/// use qubit_validator::ExecutionError;
+/// use qubit_validator::InputType;
+/// use qubit_validator::PreparedOutcome;
+/// use qubit_validator::PreparedValidator;
+/// use qubit_validator::ValidationValue;
+/// use qubit_validator::ValidatorId;
+///
+/// struct AcceptNumber;
+///
+/// impl PreparedValidator for AcceptNumber {
+///     fn input_type(&self) -> InputType {
+///         InputType::of::<u8>()
+///     }
+///
+///     fn dependency_specs(&self) -> &'static [DependencySpec] {
+///         &[]
+///     }
+///
+///     fn validate(
+///         &self,
+///         _value: ValidationValue<'_>,
+///         _context: &BoundValidationContext<'_>,
+///     ) -> Result<PreparedOutcome, ExecutionError> {
+///         Ok(PreparedOutcome::Valid)
+///     }
+/// }
+///
+/// let binding = ModelRuleBinding::from_prepared::<u8>(
+///     ValidatorId::new("example.number.accept"),
+///     Arc::new(AcceptNumber),
+/// )
+/// .expect("prepared validator accepts u8 without dependencies");
+/// assert!(format!("{binding:?}").contains("example.number.accept"));
+/// ```
 #[derive(Clone)]
 pub struct ModelRuleBinding {
     /// Prepared implementation with checked input and dependency metadata.
@@ -79,6 +122,10 @@ impl ModelRuleBinding {
         })
     }
     /// Returns the bound rule identifier.
+    ///
+    /// # Returns
+    ///
+    /// The stable identifier retained for execution and diagnostics.
     #[must_use]
     #[inline]
     pub(crate) const fn rule_id(&self) -> ValidatorId {
@@ -87,10 +134,20 @@ impl ModelRuleBinding {
 
     /// Validates one model value through the common bound-validator checks.
     ///
+    /// # Parameters
+    ///
+    /// - `value`: model value being validated against this prepared rule.
+    /// - `context`: bound context containing the plan's resolved inputs.
+    ///
+    /// # Returns
+    ///
+    /// The validator's outcome, including any accumulated violations.
+    ///
     /// # Errors
     ///
     /// Returns an input, context, adapter, or rule execution error associated
     /// with this binding's rule ID.
+    #[must_use]
     #[inline]
     pub(crate) fn validate(
         &self,

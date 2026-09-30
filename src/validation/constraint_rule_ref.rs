@@ -15,6 +15,22 @@ use qubit_validator::ValidatorId;
 /// A registry rule can be bound only when a matching registration, input type,
 /// and argument list are available. A model-intrinsic rule is executed by the
 /// metadata validation plan and has no registry binding.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::validation::ConstraintRuleRef;
+/// use qubit_validator::ValidatorId;
+///
+/// let id = ValidatorId::new("qubit.rules.text.non_blank");
+/// let registry_rule = ConstraintRuleRef::Registry(id);
+/// assert_eq!(registry_rule.id(), id);
+/// assert_eq!(registry_rule.registry_id(), Some(id));
+///
+/// let intrinsic = ConstraintRuleRef::ModelIntrinsic(id);
+/// assert_eq!(intrinsic.id(), id);
+/// assert_eq!(intrinsic.registry_id(), None);
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConstraintRuleRef {
     /// A rule selected through a validator registry.
@@ -26,6 +42,7 @@ pub enum ConstraintRuleRef {
 impl ConstraintRuleRef {
     /// Returns the stable rule ID for diagnostics and violations.
     #[must_use]
+    #[inline]
     pub const fn id(self) -> ValidatorId {
         match self {
             Self::Registry(id) | Self::ModelIntrinsic(id) => id,
@@ -35,6 +52,7 @@ impl ConstraintRuleRef {
     /// Returns an ID eligible for registry binding, or `None` for an intrinsic
     /// rule. A returned ID alone does not guarantee that binding succeeds.
     #[must_use]
+    #[inline]
     pub const fn registry_id(self) -> Option<ValidatorId> {
         match self {
             Self::Registry(id) => Some(id),

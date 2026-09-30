@@ -61,30 +61,44 @@ pub(crate) enum FieldExecution {
 
 impl FieldRuleBinding {
     /// Returns the occurrence index in the plan.
+    #[must_use]
+    #[inline]
     pub(crate) const fn occurrence(&self) -> usize {
         self.occurrence
     }
     /// Returns the validator identifier.
+    #[must_use]
+    #[inline]
     pub(crate) const fn rule_id(&self) -> ValidatorId {
         self.rule_id
     }
     /// Returns the compiled value path.
+    #[must_use]
+    #[inline]
     pub(crate) const fn value(&self) -> &CompiledPropertyPath {
         &self.value
     }
     /// Returns compiled dependency paths in declaration order.
+    #[must_use]
+    #[inline]
     pub(crate) fn dependencies(&self) -> &[CompiledPropertyPath] {
         &self.dependencies
     }
     /// Returns the checked execution mechanism.
+    #[must_use]
+    #[inline]
     pub(crate) const fn execution(&self) -> &FieldExecution {
         &self.execution
     }
     /// Returns the absent-value policy.
+    #[must_use]
+    #[inline]
     pub(crate) const fn on_none(&self) -> OnNone {
         self.on_none
     }
     /// Returns the nested selector binding, if any.
+    #[must_use]
+    #[inline]
     pub(crate) const fn selector(&self) -> Option<&SelectorBinding> {
         self.selector.as_ref()
     }

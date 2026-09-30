@@ -9,6 +9,16 @@
 //! One step through an explicitly supplied object graph.
 
 /// One relative object-navigation step, distinct from property selection.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::relation::NavigationStep;
+///
+/// let property = NavigationStep::Property("author");
+/// assert!(matches!(property, NavigationStep::Property("author")));
+/// assert_eq!(NavigationStep::Parent, NavigationStep::Parent);
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NavigationStep {
     /// Reads the named object property.

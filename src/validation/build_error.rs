@@ -10,7 +10,18 @@
 
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
+
 /// Creates a validator binding error for a path that cannot be read.
+///
+/// # Parameters
+///
+/// - `kind`: the binding error category associated with the unreadable path.
+///
+/// # Returns
+///
+/// A validator error carrying `kind`.
+#[must_use]
+#[inline]
 pub(crate) fn path_error(kind: BindErrorKind) -> BindError {
     BindError::new(kind)
 }

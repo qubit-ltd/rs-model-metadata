@@ -35,6 +35,8 @@ pub(super) enum StandardRule<'arguments> {
 
 impl StandardRule<'_> {
     /// Returns the execution category and stable ID for diagnostics.
+    #[must_use]
+    #[inline]
     pub(super) const fn diagnostic_ref(&self) -> ConstraintRuleRef {
         match self {
             Self::Executable { id, .. } => ConstraintRuleRef::Registry(*id),

@@ -46,11 +46,27 @@ pub struct FieldLocation {
 
 impl FieldLocation {
     /// Creates the identity supplied by the generated concrete field overlay.
+    ///
+    /// # Parameters
+    ///
+    /// * `owner` - Concrete Rust type identity, including generic arguments.
+    /// * `variant` - Enum variant index, or `None` for a struct field.
+    /// * `index` - Field index within the struct or variant.
+    ///
+    /// # Returns
+    ///
+    /// The process-local identity of the specified concrete field.
+    #[must_use]
+    #[inline]
     pub(crate) const fn new(owner: TypeId, variant: Option<usize>, index: usize) -> Self {
         Self { owner, variant, index }
     }
 
     /// Returns the concrete owner type identity.
+    ///
+    /// # Returns
+    ///
+    /// The [`TypeId`] of the concrete owner, including generic arguments.
     #[must_use]
     #[inline]
     pub const fn owner(&self) -> TypeId {
@@ -58,6 +74,10 @@ impl FieldLocation {
     }
 
     /// Returns the variant index, or `None` for a struct field.
+    ///
+    /// # Returns
+    ///
+    /// `Some(index)` for an enum variant or `None` for a struct field.
     #[must_use]
     #[inline]
     pub const fn variant(&self) -> Option<usize> {
@@ -65,6 +85,10 @@ impl FieldLocation {
     }
 
     /// Returns the source field index within the struct or variant.
+    ///
+    /// # Returns
+    ///
+    /// The zero-based field index in the containing struct or variant.
     #[must_use]
     #[inline]
     pub const fn index(&self) -> usize {
@@ -79,7 +103,7 @@ mod tests {
     use super::FieldLocation;
 
     #[test]
-    fn location_preserves_owner_variant_and_field_index() {
+    fn test_location_preserves_owner_variant_and_field_index() {
         let location = FieldLocation::new(TypeId::of::<String>(), Some(2), 4);
 
         assert_eq!(location.owner(), TypeId::of::<String>());

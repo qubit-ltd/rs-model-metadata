@@ -11,6 +11,23 @@
 use crate::metadata::SelectorPosition;
 
 /// Identifies an occurrence without requiring a registered model ID.
+///
+/// A location can retain generator-provided file coordinates, owner identity,
+/// and field or variant position. [`Self::unknown`] represents metadata with no
+/// source coordinates; [`Self::with_selector`] adds a selected container
+/// position without changing the field coordinates.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::DeclarationLocation;
+/// use qubit_model_metadata::metadata::SelectorPosition;
+///
+/// let location = DeclarationLocation::unknown()
+///     .with_selector(SelectorPosition::Element);
+/// assert_eq!(location.file, None);
+/// assert_eq!(location.selector, Some(SelectorPosition::Element));
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DeclarationLocation {
     /// Source file containing the declaration, if supplied by a generator.
@@ -32,6 +49,10 @@ pub struct DeclarationLocation {
 impl DeclarationLocation {
     /// Represents hand-constructed metadata without fabricated source
     /// coordinates.
+    ///
+    /// # Returns
+    ///
+    /// A location with all source coordinates and declaration indices absent.
     #[must_use]
     #[inline]
     pub const fn unknown() -> Self {
@@ -47,24 +68,18 @@ impl DeclarationLocation {
     }
 
     /// Selects a container position while preserving the field source.
+    ///
+    /// # Parameters
+    ///
+    /// * `selector` - Position within the selected container.
+    ///
+    /// # Returns
+    ///
+    /// The location with `selector` set and all other coordinates preserved.
     #[must_use]
     #[inline]
     pub const fn with_selector(mut self, selector: SelectorPosition) -> Self {
         self.selector = Some(selector);
         self
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::DeclarationLocation;
-    use crate::metadata::SelectorPosition;
-
-    #[test]
-    fn unknown_location_can_retain_a_selector_position() {
-        let location = DeclarationLocation::unknown().with_selector(SelectorPosition::Element);
-
-        assert_eq!(location.file, None);
-        assert_eq!(location.selector, Some(SelectorPosition::Element));
     }
 }

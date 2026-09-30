@@ -15,6 +15,26 @@ use qubit_reflect::capability::CapabilityAccessError;
 use crate::metadata::AbiViolation;
 
 /// A capability or ABI failure with the exact queried Rust type identity.
+///
+/// # Examples
+///
+/// ```
+/// use std::any::TypeId;
+/// use qubit_model_metadata::ModelMetadataError;
+/// use qubit_reflect::capability::CapabilityAccessError;
+/// use qubit_reflect::identity::CapabilityId;
+///
+/// let error = ModelMetadataError::Capability {
+///     type_id: TypeId::of::<u32>(),
+///     type_name: "u32",
+///     source: CapabilityAccessError::FactOnly {
+///         id: CapabilityId::new("example.fact").expect("valid capability ID"),
+///         adapter_type: TypeId::of::<u32>(),
+///     },
+/// };
+/// assert!(error.to_string().contains("capability resolution failed"));
+/// ```
+#[must_use]
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ModelMetadataError {
     /// Intrinsic capability declarations conflict before a provider can run.

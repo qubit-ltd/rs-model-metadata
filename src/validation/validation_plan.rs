@@ -82,6 +82,11 @@ pub struct ValidationPlan<'a> {
 
 impl<'a> ValidationPlan<'a> {
     /// Returns the number of bound validator occurrences.
+    ///
+    /// # Returns
+    ///
+    /// The sum of field-level and model-level validator occurrences bound
+    /// into this plan.
     #[must_use]
     #[inline]
     pub const fn binding_count(&self) -> usize {
@@ -89,6 +94,10 @@ impl<'a> ValidationPlan<'a> {
     }
 
     /// Returns the canonical graph metadata this plan was built for.
+    ///
+    /// # Returns
+    ///
+    /// The static metadata root used to resolve this plan.
     #[must_use]
     #[inline]
     pub const fn root(&self) -> &'static TypeMetadata {
@@ -96,6 +105,11 @@ impl<'a> ValidationPlan<'a> {
     }
 
     /// Returns the borrowed graph used for both binding and execution.
+    ///
+    /// # Returns
+    ///
+    /// The graph retained by this plan; its lifetime is bounded by the plan's
+    /// registry snapshot.
     #[must_use = "inspect the graph retained by this plan"]
     #[inline]
     pub const fn graph(&self) -> &'a ModelGraph<'a> {
@@ -103,6 +117,15 @@ impl<'a> ValidationPlan<'a> {
     }
 
     /// Adds a typed model-level prepared validator to this plan.
+    ///
+    /// # Parameters
+    ///
+    /// * `binding` - Prepared model-level validator occurrence to append.
+    ///
+    /// # Returns
+    ///
+    /// This plan with the supplied model-level rule appended after existing
+    /// model rules.
     #[must_use = "use the returned plan containing the added model rule"]
     pub fn with_model_rule(mut self, binding: ModelRuleBinding) -> Self {
         self.model_rules = self.model_rules.into_iter().chain(iter::once(binding)).collect();

@@ -28,6 +28,17 @@ use crate::structure::children;
 use crate::validation::ValidationBuildError;
 
 /// Collects supported occurrences and all structural execution failures.
+///
+/// # Parameters
+///
+/// * `root` - Metadata for the requested root model.
+/// * `graph` - The resolved model graph used to find reachable declarations.
+///
+/// # Returns
+///
+/// Returns supported validation occurrences in traversal order together with
+/// structural build errors. If the root is absent from `graph`, the occurrence
+/// list is empty and the error list contains a missing-root error.
 pub(crate) fn collect(
     root: &'static TypeMetadata,
     graph: &ModelGraph<'_>,

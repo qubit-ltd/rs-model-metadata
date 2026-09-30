@@ -69,6 +69,10 @@ impl ValidationBuildErrors {
     }
 
     /// Returns the total number of independently retained diagnostics.
+    ///
+    /// # Returns
+    ///
+    /// The number of retained root and declaration diagnostics.
     #[must_use]
     #[inline]
     pub fn len(&self) -> usize {
@@ -76,6 +80,10 @@ impl ValidationBuildErrors {
     }
 
     /// Returns whether the collection contains no diagnostics.
+    ///
+    /// # Returns
+    ///
+    /// `true` when no diagnostics were retained.
     #[must_use]
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -83,6 +91,11 @@ impl ValidationBuildErrors {
     }
 
     /// Returns failures in deterministic declaration order.
+    ///
+    /// # Returns
+    ///
+    /// A slice containing every diagnostic in stable root-before-occurrence
+    /// order.
     #[must_use = "inspect the declaration diagnostics"]
     #[inline]
     pub fn as_slice(&self) -> &[ValidationBuildError] {
@@ -90,6 +103,10 @@ impl ValidationBuildErrors {
     }
 
     /// Iterates over failures in declaration order.
+    ///
+    /// # Returns
+    ///
+    /// An iterator borrowing each retained diagnostic in order.
     #[must_use = "inspect the declaration diagnostics"]
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = &ValidationBuildError> {

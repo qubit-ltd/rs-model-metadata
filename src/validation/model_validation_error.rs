@@ -9,6 +9,11 @@
 //! Execution failures with declaration context and a partial report.
 
 use std::any::TypeId;
+use std::error::Error;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 
 use qubit_validator::ExecutionError;
 use qubit_validator::ValidationReport;
@@ -90,6 +95,16 @@ pub struct ModelValidationError {
 
 impl ModelValidationError {
     /// Retains an execution failure and all results collected before it.
+    ///
+    /// # Parameters
+    ///
+    /// * `error` - The infrastructure failure that stopped validation.
+    /// * `partial_report` - Results recorded before execution stopped.
+    ///
+    /// # Returns
+    ///
+    /// Returns an error with no model or field context attached.
+    #[must_use]
     pub(crate) fn new(error: ExecutionError, partial_report: ValidationReport) -> Self {
         Self {
             error: Box::new(error),
@@ -102,6 +117,16 @@ impl ModelValidationError {
     }
 
     /// Associates a model-level or pre-execution failure with its root.
+    ///
+    /// # Parameters
+    ///
+    /// * `root` - The model whose validation was being performed.
+    /// * `occurrence` - The selected model-rule occurrence, if one exists.
+    ///
+    /// # Returns
+    ///
+    /// Returns this error with root identity and optional occurrence attached.
+    #[must_use]
     pub(crate) fn at_model(mut self, root: &'static TypeMetadata, occurrence: Option<usize>) -> Self {
         self.root_type_id = Some(root.type_id());
         self.occurrence = occurrence;
@@ -110,6 +135,18 @@ impl ModelValidationError {
 
     /// Associates a field failure with its source and optional dependency
     /// paths.
+    ///
+    /// # Parameters
+    ///
+    /// * `context` - The declaration occurrence that failed.
+    /// * `occurrence` - The concrete runtime occurrence number.
+    /// * `dependency` - The declared dependency involved in the failure, if
+    ///   any.
+    ///
+    /// # Returns
+    ///
+    /// Returns this error with root, field, occurrence, and dependency context.
+    #[must_use]
     pub(crate) fn at_field(
         mut self,
         context: &ValidationOccurrence,
@@ -124,24 +161,47 @@ impl ModelValidationError {
     }
 
     /// Returns the original execution failure.
+    ///
+    /// # Returns
+    ///
+    /// Returns the execution error that stopped validation.
+    #[must_use]
+    #[inline]
     pub const fn error(&self) -> &ExecutionError {
         &self.error
     }
 
     /// Returns the report collected before the failure.
+    ///
+    /// # Returns
+    ///
+    /// Returns the partial report accumulated before execution stopped.
+    #[must_use]
+    #[inline]
     pub const fn partial_report(&self) -> &ValidationReport {
         &self.partial_report
     }
 
     /// Returns the associated validation root identity, including anonymous
     /// models; `None` means no root context was attached.
+    ///
+    /// # Returns
+    ///
+    /// Returns the root type identity, or `None` if no root was associated.
     #[must_use]
+    #[inline]
     pub const fn root_type_id(&self) -> Option<TypeId> {
         self.root_type_id
     }
 
     /// Returns the concrete owner of the failed field or model rule.
+    ///
+    /// # Returns
+    ///
+    /// Returns the field owner when field context exists, otherwise the root
+    /// model identity; returns `None` when neither is available.
     #[must_use]
+    #[inline]
     pub fn owner_type_id(&self) -> Option<TypeId> {
         self.context
             .as_ref()
@@ -152,20 +212,37 @@ impl ModelValidationError {
     /// Returns the unique execution occurrence, including model rules.
     /// Returns `None` when execution failed before selecting an occurrence,
     /// such as a root input type mismatch.
+    ///
+    /// # Returns
+    ///
+    /// Returns the selected execution occurrence, or `None` when failure
+    /// occurred before an occurrence was selected.
     #[must_use]
+    #[inline]
     pub const fn occurrence(&self) -> Option<usize> {
         self.occurrence
     }
 
     /// Returns the original field identity, absent for model-level rules.
+    ///
+    /// # Returns
+    ///
+    /// Returns the field coordinates when this failure belongs to a field rule.
     #[must_use]
+    #[inline]
     pub fn field_location(&self) -> Option<FieldLocation> {
         self.context.as_ref().and_then(|context| context.field.location())
     }
 
     /// Returns source coordinates for the field and selected collection
     /// position.
+    ///
+    /// # Returns
+    ///
+    /// Returns declaration coordinates enriched with selector position when
+    /// present, or `None` for a model-level failure.
     #[must_use]
+    #[inline]
     pub fn declaration(&self) -> Option<DeclarationLocation> {
         self.context.as_ref().map(|context| match context.selector {
             Some(selector) => context.field.declaration().with_selector(selector),
@@ -174,31 +251,67 @@ impl ModelValidationError {
     }
 
     /// Returns the declared custom rule ID, if the failure came from one.
+    ///
+    /// # Returns
+    ///
+    /// Returns the custom rule identifier, or `None` for non-custom rules.
     #[must_use]
+    #[inline]
     pub fn declared_rule_id(&self) -> Option<&'static str> {
         self.context.as_ref().and_then(|context| context.declared_rule_id())
     }
 
     /// Returns dependency object navigation separately from property selection.
+    ///
+    /// # Returns
+    ///
+    /// Returns the dependency's object navigation, or `None` when the failure
+    /// is unrelated to a dependency.
     #[must_use]
+    #[inline]
     pub fn dependency_object_path(&self) -> Option<ObjectPath> {
         self.dependency.as_ref().map(|binding| binding.object_path())
     }
 
     /// Returns the property selected after dependency object navigation.
+    ///
+    /// # Returns
+    ///
+    /// Returns the dependency property path, or `None` when no dependency
+    /// context was attached.
     #[must_use]
+    #[inline]
     pub fn dependency_property_path(&self) -> Option<PropertyPath<'static>> {
         self.dependency.as_ref().map(|binding| binding.property())
     }
 
     /// Consumes the error and returns the original failure and partial report.
+    ///
+    /// # Returns
+    ///
+    /// Returns the execution error and accumulated report, moving both out of
+    /// this wrapper.
+    #[must_use]
     pub fn into_parts(self) -> (ExecutionError, ValidationReport) {
         (*self.error, *self.partial_report)
     }
 }
 
-impl std::fmt::Debug for ModelValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for ModelValidationError {
+    /// Formats the error's structured context for debugging.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The destination formatter.
+    ///
+    /// # Returns
+    ///
+    /// Returns the formatter result after writing the debug representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the destination rejects output.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         formatter
             .debug_struct("ModelValidationError")
             .field("error", &self.error)
@@ -210,14 +323,33 @@ impl std::fmt::Debug for ModelValidationError {
     }
 }
 
-impl std::fmt::Display for ModelValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ModelValidationError {
+    /// Formats the underlying execution error for ordinary display.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The destination formatter.
+    ///
+    /// # Returns
+    ///
+    /// Returns the result from formatting the underlying execution error.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the destination rejects output.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         self.error.fmt(formatter)
     }
 }
 
-impl std::error::Error for ModelValidationError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl Error for ModelValidationError {
+    /// Exposes the execution failure as the standard error source.
+    ///
+    /// # Returns
+    ///
+    /// Returns the wrapped execution error; ordinary source traversal stops at
+    /// that error, while trusted diagnostics may inspect its retained cause.
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         Some(self.error.as_ref())
     }
 }

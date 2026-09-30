@@ -80,23 +80,11 @@ impl ModelId {
         }
     }
 
-    /// Validates a model-ID string without allocating.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: The candidate model-ID string.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
-    /// protocol.
-    #[must_use = "handle invalid model IDs"]
-    #[inline]
-    pub const fn validate(value: &str) -> Result<(), ModelIdError> {
-        validate_model_id(value)
-    }
-
     /// Returns the complete stable model ID.
+    ///
+    /// # Returns
+    ///
+    /// The validated ID string borrowed for the process lifetime.
     #[must_use]
     #[inline]
     pub const fn as_str(self) -> &'static str {
@@ -105,6 +93,10 @@ impl ModelId {
     }
 
     /// Returns the final type-name segment of this model ID.
+    ///
+    /// # Returns
+    ///
+    /// The final dot-separated segment, or the full ID when it has no dot.
     #[must_use]
     pub const fn type_name(self) -> &'static str {
         let Self(value) = self;
@@ -119,10 +111,31 @@ impl ModelId {
         }
         value
     }
+
+    /// Validates a model-ID string without allocating.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The candidate model-ID string.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when `value` follows the stable-ID protocol.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
+    /// protocol.
+    #[must_use = "handle invalid model IDs"]
+    #[inline]
+    pub const fn validate(value: &str) -> Result<(), ModelIdError> {
+        validate_model_id(value)
+    }
 }
 
 impl Borrow<str> for ModelId {
     /// Borrows the stable model ID as a string slice.
+    #[inline]
     fn borrow(&self) -> &str {
         let Self(value) = self;
         value

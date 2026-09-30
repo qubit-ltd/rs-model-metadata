@@ -8,6 +8,8 @@
 
 //! Shared access checks and rule binding for every declaration location.
 
+use std::collections::HashMap;
+
 use bigdecimal::BigDecimal;
 use chrono::DateTime;
 use chrono::NaiveDateTime;
@@ -27,6 +29,7 @@ use super::field_rule_binding::FieldRuleBinding;
 use super::selector_binding::SelectorBinding;
 use super::validation_occurrence::ValidationOccurrence;
 use crate::metadata::ConstraintMetadata;
+use crate::metadata::DependencyBindingMetadata;
 use crate::metadata::GetterOutputKind;
 use crate::metadata::OnNone;
 use crate::metadata::PropertyPath;
@@ -42,6 +45,21 @@ use crate::validation::standard_constraints;
 use crate::validation::validator_arguments::validator_arguments;
 
 /// Checks actual adapter shape without calling getters or binding registries.
+///
+/// # Parameters
+///
+/// * `occurrence` - The declaration occurrence and its resolved field metadata.
+/// * `graph` - The model graph used to resolve getters and property paths.
+///
+/// # Returns
+///
+/// Returns the compiled value path when its adapter shape is supported.
+///
+/// # Errors
+///
+/// Returns a boxed build error when the declaration cannot be represented by
+/// the available adapters or its path is invalid.
+#[must_use]
 pub(crate) fn check_access(
     occurrence: &ValidationOccurrence,
     graph: &ModelGraph<'_>,
@@ -248,6 +266,16 @@ pub(crate) fn check_access(
 
 /// Confirms that a borrowed slice exposes the declared collection element
 /// type, independent of the slice adapter's function pointer.
+///
+/// # Parameters
+///
+/// * `declared` - The field's declared sequence, array, or slice descriptor.
+/// * `output` - The resolved descriptor exposed by the borrowed slice.
+///
+/// # Returns
+///
+/// Returns `true` only when both descriptors resolve to the same element type.
+#[must_use]
 fn sequence_element_matches(declared: &TypeDescriptor, output: &TypeDescriptor) -> bool {
     let declared_element = declared
         .as_sequence()
@@ -262,6 +290,17 @@ fn sequence_element_matches(declared: &TypeDescriptor, output: &TypeDescriptor) 
 }
 
 /// Distinguishes an unsupported access adapter from a malformed declaration.
+///
+/// # Parameters
+///
+/// * `occurrence` - The declaration whose path access failed.
+/// * `error` - The low-level property binding error to contextualize.
+///
+/// # Returns
+///
+/// Returns an unsupported build error for unsupported adapters, or an
+/// occurrence-specific build error for other binding failures.
+#[must_use]
 fn access_error(occurrence: &ValidationOccurrence, error: BindError) -> ValidationBuildError {
     if error.kind() == BindErrorKind::UnsupportedConstraint {
         ValidationBuildError::unsupported(occurrence)
@@ -272,6 +311,23 @@ fn access_error(occurrence: &ValidationOccurrence, error: BindError) -> Validati
 
 /// Binds one occurrence using the same path and dependency rules at every
 /// depth.
+///
+/// # Parameters
+///
+/// * `occurrence` - The declaration occurrence to bind.
+/// * `graph` - The resolved model graph containing its property paths.
+/// * `validators` - The registry used to resolve declared validators.
+/// * `ancestors` - The owning model chain used for dependency navigation.
+///
+/// # Returns
+///
+/// Returns all runtime bindings produced by the declaration.
+///
+/// # Errors
+///
+/// Returns contextual build errors when access, validator lookup, or dependency
+/// binding fails.
+#[must_use]
 pub(crate) fn bind(
     occurrence: &ValidationOccurrence,
     graph: &ModelGraph<'_>,
@@ -384,6 +440,25 @@ pub(crate) fn bind(
 }
 
 /// Compiles dependencies relative to the declaring object's usage path.
+///
+/// # Parameters
+///
+/// * `occurrence` - The field occurrence that owns the validator.
+/// * `declaration` - The validator's declared dependency names and paths.
+/// * `validator` - The bound validator's ordered dependency specifications.
+/// * `target` - The compiled value path used to check optionality coverage.
+/// * `graph` - The model graph used to resolve dependency properties.
+/// * `ancestors` - The owning model chain available during object navigation.
+///
+/// # Returns
+///
+/// Returns compiled dependency paths in validator specification order.
+///
+/// # Errors
+///
+/// Returns one or more binding errors when a declaration is missing, has an
+/// incompatible input type, or violates optionality requirements.
+#[must_use]
 fn bind_dependencies(
     occurrence: &ValidationOccurrence,
     declaration: &ValidatorMetadata,
@@ -412,6 +487,7 @@ fn bind_dependencies(
         ]);
     }
     let prefix = &occurrence.segments[..occurrence.segments.len() - 1];
+    let declared_by_name = (!declared.is_empty()).then(|| index_declared_bindings(declared));
     let mut dependencies = Vec::new();
     let mut errors = Vec::new();
     for (slot, spec) in specs.iter().enumerate() {
@@ -428,7 +504,11 @@ fn bind_dependencies(
             let segments: Vec<_> = prefix.iter().chain(dependency.segments()).copied().collect();
             CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&segments), graph, TargetMode::Value)
         } else {
-            let Some(binding) = declared.iter().find(|binding| binding.name() == spec.name()) else {
+            let Some(binding) = declared_by_name
+                .as_ref()
+                .and_then(|bindings| bindings.get(spec.name()))
+                .copied()
+            else {
                 errors.push(
                     BindError::new(BindErrorKind::UnknownDependencyDeclaration)
                         .with_rule(rule_id)
@@ -468,11 +548,46 @@ fn bind_dependencies(
     }
 }
 
+/// Indexes dependency declarations by validator slot while retaining the first
+/// declaration for each name.
+///
+/// # Parameters
+///
+/// * `declared` - Dependency declarations in their source order.
+///
+/// # Returns
+///
+/// Returns a name-to-declaration index; duplicate names retain their first
+/// declaration to match a source-order search.
+#[must_use]
+fn index_declared_bindings(declared: &[DependencyBindingMetadata]) -> HashMap<&str, &DependencyBindingMetadata> {
+    let mut indexed = HashMap::with_capacity(declared.len());
+    for binding in declared {
+        indexed.entry(binding.name()).or_insert(binding);
+    }
+    indexed
+}
+
 #[cfg(test)]
 mod tests {
     use qubit_reflect::TypeDescriptor;
 
+    use super::index_declared_bindings;
     use super::sequence_element_matches;
+    use crate::metadata::DependencyBindingMetadata;
+    use crate::metadata::PropertyPath;
+
+    #[test]
+    fn test_dependency_binding_index_preserves_first_duplicate() {
+        static BINDINGS: [DependencyBindingMetadata; 2] = [
+            DependencyBindingMetadata::new("owner", PropertyPath::new(&["first"])),
+            DependencyBindingMetadata::new("owner", PropertyPath::new(&["second"])),
+        ];
+
+        let indexed = index_declared_bindings(&BINDINGS);
+
+        assert!(std::ptr::eq(*indexed.get("owner").expect("indexed slot"), &BINDINGS[0]));
+    }
 
     #[test]
     fn test_unique_element_shape_requires_matching_type_ids() {

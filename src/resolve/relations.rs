@@ -18,18 +18,31 @@ use qubit_reflect::identity::FragmentIdentity;
 use super::error::ModelResolutionCause;
 use super::error::ResolveError;
 use super::error::ResolveErrorKind;
+use super::internal::OwnedPropertyPath;
 use super::internal::ResolutionContext;
-use super::owned_property_path::OwnedPropertyPath;
 use crate::metadata::DeclaredEntityTarget;
+use crate::metadata::DependencyBindingMetadata;
 use crate::metadata::FieldMetadata;
 use crate::metadata::ModelMetadataError;
 use crate::metadata::ModelRole;
+use crate::metadata::NavigationStep;
+use crate::metadata::ObjectPath;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyPath;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
 use crate::structure::children;
+
 /// Records an error anchored to one direct field path.
+///
+/// # Parameters
+///
+/// - `errors`: Collection that receives the constructed diagnostic.
+/// - `kind`: Resolution failure category to attach to the diagnostic.
+/// - `metadata`: Model that owns the field declaration.
+/// - `field`: Field whose declaration and optional name anchor the error.
+/// - `actual_role`: Observed role, when metadata resolution found one.
+/// - `source`: Originating metadata fragment, when available.
 pub(super) fn push_field_error(
     errors: &mut Vec<ResolveError>,
     kind: ResolveErrorKind,
@@ -57,6 +70,21 @@ pub(super) fn push_field_error(
 }
 
 /// Finds model metadata attached to or registered for a descriptor.
+///
+/// # Parameters
+///
+/// - `descriptor`: Static runtime descriptor to resolve.
+/// - `context`: Resolution-local metadata and registry lookup context.
+///
+/// # Returns
+///
+/// `Ok(Some(metadata))` when metadata is known, `Ok(None)` when neither source
+/// knows the model, or an error from metadata lookup/descriptor validation.
+///
+/// # Errors
+///
+/// Propagates the model metadata lookup or descriptor compatibility failure.
+#[must_use]
 pub(super) fn metadata_for_descriptor(
     descriptor: &'static TypeDescriptor,
     context: &ResolutionContext,
@@ -66,6 +94,22 @@ pub(super) fn metadata_for_descriptor(
 
 /// Records a metadata failure with its traversal context before returning no
 /// metadata.
+///
+/// # Parameters
+///
+/// - `descriptor`: Runtime descriptor whose metadata is requested.
+/// - `context`: Resolution-local and registry lookup context.
+/// - `root`: Original model owning the traversal.
+/// - `path`: Traversal property path, when available.
+/// - `source`: Originating metadata fragment, when available.
+/// - `errors`: Collection receiving a resolution diagnostic on lookup failure.
+///
+/// # Returns
+///
+/// `Some(metadata)` when lookup succeeds with metadata, or `None` when the
+/// descriptor is unknown or lookup failed. Lookup failures are also appended
+/// to `errors`.
+#[must_use]
 pub(super) fn reported_metadata(
     descriptor: &'static TypeDescriptor,
     context: &ResolutionContext,
@@ -84,6 +128,17 @@ pub(super) fn reported_metadata(
 }
 
 /// Resolves a declared target using either its provider or stable model ID.
+///
+/// # Parameters
+///
+/// - `target`: Declared Rust-type provider or stable model ID.
+/// - `registry`: Registry used to resolve stable model IDs.
+///
+/// # Returns
+///
+/// `Some(metadata)` when the provider or registry supplies the target, or
+/// `None` when the stable model ID is not registered.
+#[must_use]
 pub(super) fn resolve_declared_target(
     target: &DeclaredEntityTarget,
     registry: &ModelRegistry,
@@ -101,6 +156,21 @@ pub(super) fn resolve_declared_target(
 /// reference boundaries; raw descriptors use shared structural children.
 /// Returns the first forbidden role in declaration order, or `None` when no
 /// visible child has that role. Metadata lookup failures preserve their cause.
+///
+/// # Parameters
+///
+/// - `descriptor`: Root runtime descriptor whose visible children are walked.
+/// - `context`: Resolution context for metadata attached to discovered types.
+///
+/// # Returns
+///
+/// `Ok(Some(role))` for the first nested Entity or Projection, `Ok(None)` when
+/// no forbidden role is visible, or an error when metadata lookup fails.
+///
+/// # Errors
+///
+/// Propagates metadata lookup or descriptor validation failures.
+#[must_use]
 pub(super) fn forbidden_entity_nested_role(
     descriptor: &'static TypeDescriptor,
     context: &ResolutionContext,
@@ -147,11 +217,29 @@ pub(super) fn forbidden_entity_nested_role(
 }
 
 /// Copies static segments into an owned runtime path.
+///
+/// # Parameters
+///
+/// - `segments`: Static field names in traversal order.
+///
+/// # Returns
+///
+/// An owned path retaining the supplied segment sequence.
+#[must_use]
 pub(super) fn path_from_segments(segments: &[&'static str]) -> OwnedPropertyPath {
     OwnedPropertyPath::from_segments(segments)
 }
 
 /// Verifies that a value model contains only closed value types.
+///
+/// # Parameters
+///
+/// - `metadata`: Value model whose nested field types are checked.
+/// - `context`: Resolution context for nested descriptors.
+/// - `visited`: Active type identities used to terminate recursive cycles.
+/// - `source`: Originating metadata fragment, when available.
+/// - `errors`: Collection receiving diagnostics for violations or lookup
+///   failures.
 pub(super) fn validate_value_closure(
     metadata: &'static TypeMetadata,
     context: &ResolutionContext,
@@ -164,7 +252,23 @@ pub(super) fn validate_value_closure(
 
 /// Validates a value subtree while retaining the originating model and full
 /// path.
+///
+/// # Parameters
+///
+/// - `metadata`: Current value model being traversed.
+/// - `root`: Original value model owning the closure check.
+/// - `prefix`: Property path accumulated before this subtree.
+/// - `context`: Resolution context for nested descriptors.
+/// - `visited`: Active type identities used to terminate recursive cycles.
+/// - `source`: Originating metadata fragment, when available.
+/// - `errors`: Collection receiving diagnostics for invalid fields.
+///
+/// # Returns
+///
+/// `true` when every visible field in this subtree is closed, or `false` when
+/// at least one field is invalid or cannot be resolved.
 #[allow(clippy::too_many_arguments)]
+#[must_use]
 fn validate_nested_value(
     metadata: &'static TypeMetadata,
     root: &'static TypeMetadata,
@@ -198,7 +302,23 @@ fn validate_nested_value(
 /// fields. Existing nested declarations take precedence over the outer field;
 /// `root` retains the original closure owner's concrete identity. Returns
 /// whether the type is closed and preserves metadata lookup failures in errors.
+///
+/// # Parameters
+///
+/// - `field`: Field whose type closure and declaration are checked.
+/// - `root`: Original value model owning the closure check.
+/// - `path`: Property names from the root to this field.
+/// - `context`: Resolution context for nested descriptors.
+/// - `visited`: Active type identities used to terminate recursive cycles.
+/// - `source`: Originating metadata fragment, when available.
+/// - `errors`: Collection receiving path-anchored diagnostics.
+///
+/// # Returns
+///
+/// `true` when the field type is closed, or `false` when it violates the
+/// value-role closure or a nested type cannot be resolved.
 #[allow(clippy::too_many_arguments)]
+#[must_use]
 fn validate_value_field(
     field: &'static FieldMetadata,
     root: &'static TypeMetadata,
@@ -237,7 +357,23 @@ fn validate_value_field(
 }
 
 /// Checks one nested reference while preserving diagnostic context.
+///
+/// # Parameters
+///
+/// - `type_ref`: Reflected type reference to check.
+/// - `context`: Resolution context for nested descriptors.
+/// - `visited`: Active type identities used to terminate recursive cycles.
+/// - `root`: Original value model owning the closure check.
+/// - `source`: Originating metadata fragment, when available.
+/// - `errors`: Collection receiving diagnostics for invalid nested types.
+/// - `path`: Property path to the nested reference.
+///
+/// # Returns
+///
+/// `true` when the resolved nested type is closed, or `false` when it is
+/// unresolved, invalid, or introduces a forbidden model role.
 #[allow(clippy::too_many_arguments)]
+#[must_use]
 fn value_type_ref_is_closed(
     type_ref: &'static TypeRef,
     context: &ResolutionContext,
@@ -253,7 +389,23 @@ fn value_type_ref_is_closed(
 }
 
 /// Checks a descriptor without turning lookup failures into role violations.
+///
+/// # Parameters
+///
+/// - `descriptor`: Runtime type descriptor whose value closure is checked.
+/// - `context`: Resolution context for metadata lookup.
+/// - `visited`: Active type identities used to terminate recursive cycles.
+/// - `root`: Original value model owning the closure check.
+/// - `source`: Originating metadata fragment, when available.
+/// - `errors`: Collection receiving metadata and closure diagnostics.
+/// - `path`: Property path to this descriptor.
+///
+/// # Returns
+///
+/// `true` when the descriptor and all visible nested types are closed, or
+/// `false` when a role violation or metadata lookup failure is found.
 #[allow(clippy::too_many_arguments)]
+#[must_use]
 fn value_descriptor_is_closed(
     descriptor: &'static TypeDescriptor,
     context: &ResolutionContext,
@@ -357,6 +509,23 @@ fn value_descriptor_is_closed(
 }
 
 /// Resolves a nested property path against a registered target model.
+///
+/// # Parameters
+///
+/// - `target`: Model metadata at which traversal begins.
+/// - `path`: Ordered property names to resolve.
+/// - `context`: Registry and metadata context used while traversing.
+///
+/// # Returns
+///
+/// `Ok(Some(property))` for the last property reached, `Ok(None)` when a path
+/// segment or nested model cannot be resolved, or an error on metadata access.
+///
+/// # Errors
+///
+/// Returns the model resolution cause raised while reading registered
+/// properties or resolving nested metadata.
+#[must_use]
 pub(super) fn resolve_property_path(
     target: &'static TypeMetadata,
     path: &PropertyPath<'_>,
@@ -400,11 +569,29 @@ pub(super) fn resolve_property_path(
     Ok(result)
 }
 /// Returns a stable target ID for textual target declarations.
+///
+/// # Parameters
+///
+/// - `target`: Declared target whose optional model ID is requested.
+///
+/// # Returns
+///
+/// `Some(id)` for a textual model-ID target, or `None` for a Rust-type target.
+#[must_use]
+#[inline]
 pub(super) fn declared_target_id(target: &DeclaredEntityTarget) -> Option<&'static str> {
     target.model_id().map(|id| id.as_str())
 }
 
 /// Checks scoped uniqueness structurally without prescribing query products.
+///
+/// # Parameters
+///
+/// - `metadata`: Model declaring the unique field.
+/// - `field`: Field whose configured uniqueness scopes are checked.
+/// - `context`: Registry and resolution context used for property lookups.
+/// - `source`: Originating metadata fragment, when available.
+/// - `errors`: Collection receiving diagnostics for invalid scopes.
 pub(super) fn validate_unique_scope(
     metadata: &'static TypeMetadata,
     field: &'static FieldMetadata,
@@ -443,6 +630,18 @@ pub(super) fn validate_unique_scope(
 }
 
 /// Matches the selected value through allowed reference-container shapes.
+///
+/// # Parameters
+///
+/// - `expected`: Descriptor of the referenced target type.
+/// - `actual`: Descriptor of the field value, possibly wrapped in allowed
+///   optional, collection, array, or smart-pointer containers.
+///
+/// # Returns
+///
+/// `true` when unwrapping allowed containers reaches the expected type, or
+/// `false` for mismatches, maps, unresolved wrappers, or cycles.
+#[must_use]
 pub(super) fn reference_value_matches(expected: &TypeDescriptor, mut actual: &'static TypeDescriptor) -> bool {
     let mut visited = HashSet::new();
     while visited.insert(actual.type_id()) {
@@ -469,33 +668,68 @@ pub(super) fn reference_value_matches(expected: &TypeDescriptor, mut actual: &'s
 
 /// Resolves object bindings rather than the IDs or projections stored in
 /// fields.
+///
+/// # Parameters
+///
+/// - `root`: Model metadata where object-path traversal starts.
+/// - `path`: Declared sequence of parent and property navigation steps.
+/// - `context`: Registry and resolution-local metadata context.
+///
+/// # Returns
+///
+/// `Ok((Some(model), false))` for a resolved object, `(None, false)` for an
+/// unresolved path, or `(None, true)` when traversal ascends above its root.
+///
+/// # Errors
+///
+/// Returns the cause from registry property lookup or nested metadata
+/// resolution.
+#[must_use]
 pub(super) fn resolve_object_binding(
     root: &'static TypeMetadata,
-    path: &crate::metadata::ObjectPath,
+    path: &ObjectPath,
     context: &ResolutionContext,
-) -> Result<(Option<&'static TypeMetadata>, bool), super::error::ModelResolutionCause> {
+) -> Result<(Option<&'static TypeMetadata>, bool), ModelResolutionCause> {
     resolve_object_path(root, path, context, true)
 }
 
 /// Selects stored objects for validators or full Entity bindings for
 /// references.
+///
+/// # Parameters
+///
+/// - `root`: Model metadata where traversal starts.
+/// - `path`: Ordered parent/property navigation steps.
+/// - `context`: Registry and resolution-local metadata context.
+/// - `follow_entity_bindings`: Whether reference steps select their Entity
+///   target.
+///
+/// # Returns
+///
+/// `Ok((Some(model), false))` for a resolved object, `(None, false)` for an
+/// unresolved path, or `(None, true)` when traversal ascends above its root.
+///
+/// # Errors
+///
+/// Returns failures from registry property lookup or descriptor resolution.
+#[must_use]
 fn resolve_object_path(
     root: &'static TypeMetadata,
-    path: &crate::metadata::ObjectPath,
+    path: &ObjectPath,
     context: &ResolutionContext,
     follow_entity_bindings: bool,
-) -> Result<(Option<&'static TypeMetadata>, bool), super::error::ModelResolutionCause> {
+) -> Result<(Option<&'static TypeMetadata>, bool), ModelResolutionCause> {
     let mut current = root;
     let mut parents = Vec::new();
     for step in path.steps() {
         match step {
-            crate::metadata::NavigationStep::Parent => {
+            NavigationStep::Parent => {
                 let Some(parent) = parents.pop() else {
                     return Ok((None, true));
                 };
                 current = parent;
             }
-            crate::metadata::NavigationStep::Property(name) => {
+            NavigationStep::Property(name) => {
                 let properties = context.registry().properties_for(current)?;
                 let Some(property) = properties.property(name).filter(|property| property.is_readable()) else {
                     return Ok((None, false));
@@ -535,9 +769,17 @@ fn resolve_object_path(
 
 /// Checks statically known dependency targets independently from validator
 /// binding.
+///
+/// # Parameters
+///
+/// - `owner`: Model whose dependency declaration is being checked.
+/// - `dependency`: Declared object path and property dependency.
+/// - `context`: Registry and resolution-local metadata context.
+/// - `source`: Originating metadata fragment, when available.
+/// - `errors`: Collection receiving a diagnostic for an unresolved target.
 pub(super) fn validate_dependency(
     owner: &'static TypeMetadata,
-    dependency: &crate::metadata::DependencyBindingMetadata,
+    dependency: &DependencyBindingMetadata,
     context: &ResolutionContext,
     source: Option<&FragmentIdentity>,
     errors: &mut Vec<ResolveError>,

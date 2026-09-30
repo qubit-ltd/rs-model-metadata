@@ -113,6 +113,17 @@ impl SelectionMask {
 impl<'a> ValidationPlan<'a> {
     /// Executes selected occurrences under one stopping policy and work budget.
     ///
+    /// # Parameters
+    ///
+    /// * `value` - Borrowed root instance whose type must match this plan.
+    /// * `options` - Selection, stopping policy and execution budgets for this
+    ///   validation call.
+    ///
+    /// # Returns
+    ///
+    /// A report containing the selected rule outcomes, or the infrastructure
+    /// error together with the partial report.
+    ///
     /// # Errors
     /// Returns the original infrastructure failure and the partial report.
     pub fn validate(
@@ -124,6 +135,19 @@ impl<'a> ValidationPlan<'a> {
     }
 
     /// Executes with nearest-parent-first containing-object borrows.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Borrowed root instance whose type must match this plan.
+    /// * `ancestors` - Containing objects ordered from nearest parent outward,
+    ///   available to dependency readers.
+    /// * `options` - Selection, stopping policy and execution budgets for this
+    ///   validation call.
+    ///
+    /// # Returns
+    ///
+    /// A report containing the selected rule outcomes, or the infrastructure
+    /// error together with the partial report.
     ///
     /// # Errors
     /// Returns typed source context for failed reads or rule invocations, or a
@@ -571,7 +595,7 @@ mod tests {
     use crate::validation::validation_options::FieldPath;
 
     #[test]
-    fn field_matching_ignores_indices_without_allocating_a_field_list() {
+    fn test_field_matching_ignores_indices_without_allocating_a_field_list() {
         assert!(field_matches(
             &FieldPath::from_segments(["items", "name"]),
             &ValidationPath::root()

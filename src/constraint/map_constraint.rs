@@ -63,6 +63,15 @@ impl MapConstraint {
     }
 
     /// Attaches non-recursive key and value semantics.
+    ///
+    /// # Parameters
+    ///
+    /// * `key` - Optional selector metadata for the map key.
+    /// * `value` - Optional selector metadata for the map value.
+    ///
+    /// # Returns
+    ///
+    /// The updated constraints with the supplied key and value semantics.
     #[must_use]
     pub const fn with_selectors(
         mut self,

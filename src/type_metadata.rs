@@ -99,6 +99,7 @@ impl TypeMetadata {
     /// Creates generated role-aware metadata over an existing descriptor root.
     #[doc(hidden)]
     #[must_use]
+    #[inline]
     pub(crate) const fn new(
         descriptor: &'static TypeDescriptor,
         model_id: Option<ModelId>,
@@ -120,6 +121,7 @@ impl TypeMetadata {
     /// Adds generated property metadata to this immutable overlay.
     #[doc(hidden)]
     #[must_use]
+    #[inline]
     pub(crate) const fn with_properties(mut self, properties: &'static [PropertyMetadata]) -> Self {
         self.properties = LocalPropertySet::new(properties);
         self
@@ -128,6 +130,7 @@ impl TypeMetadata {
     /// Adds generated field property fragments to this immutable overlay.
     #[doc(hidden)]
     #[must_use]
+    #[inline]
     pub(crate) const fn with_property_fragments(mut self, fragments: &'static [PropertyFragment]) -> Self {
         self.property_fragments = fragments;
         self
@@ -136,6 +139,7 @@ impl TypeMetadata {
     /// Records the generic definition that produced this concrete instance.
     #[doc(hidden)]
     #[must_use]
+    #[inline]
     #[cfg(feature = "generic")]
     pub(crate) const fn with_generic_definition(mut self, definition: &'static GenericModelMetadata) -> Self {
         self.generic_definition = Some(definition);
@@ -143,6 +147,14 @@ impl TypeMetadata {
     }
 
     /// Returns the static metadata generated for `T`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: The reflected Rust type whose generated metadata is returned.
+    ///
+    /// # Returns
+    ///
+    /// The process-lifetime metadata generated for `T`.
     ///
     /// # Panics
     ///
@@ -153,6 +165,14 @@ impl TypeMetadata {
     }
 
     /// Returns the static metadata generated for `T` after ABI validation.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: The reflected Rust type whose generated metadata is validated.
+    ///
+    /// # Returns
+    ///
+    /// `Ok` with the process-lifetime metadata when its descriptor matches `T`.
     ///
     /// # Errors
     ///
@@ -166,6 +186,10 @@ impl TypeMetadata {
     }
 
     /// Returns the unique reflection descriptor root.
+    ///
+    /// # Returns
+    ///
+    /// The process-lifetime descriptor that owns this metadata.
     #[must_use]
     #[inline]
     pub const fn descriptor(&self) -> &'static TypeDescriptor {
@@ -173,18 +197,32 @@ impl TypeMetadata {
     }
 
     /// Returns the concrete Rust type identity.
+    ///
+    /// # Returns
+    ///
+    /// The `TypeId` of the reflected concrete Rust type.
     #[must_use]
+    #[inline]
     pub fn type_id(&self) -> TypeId {
         self.descriptor.type_id()
     }
 
     /// Returns the diagnostic Rust type name.
+    ///
+    /// # Returns
+    ///
+    /// The static diagnostic name reported by the reflection descriptor.
     #[must_use]
+    #[inline]
     pub fn type_name(&self) -> &'static str {
         self.descriptor.type_name()
     }
 
     /// Returns the declared model ID, when registered.
+    ///
+    /// # Returns
+    ///
+    /// `Some` when the concrete type declares an ID, or `None` otherwise.
     #[must_use]
     #[inline]
     pub const fn model_id(&self) -> Option<ModelId> {
@@ -192,12 +230,21 @@ impl TypeMetadata {
     }
 
     /// Returns whether this concrete type declares a model ID.
+    ///
+    /// # Returns
+    ///
+    /// `true` when a model ID is declared, and `false` otherwise.
     #[must_use]
+    #[inline]
     pub const fn is_registered(&self) -> bool {
         self.model_id.is_some()
     }
 
     /// Returns structural field overlays in reflection order.
+    ///
+    /// # Returns
+    ///
+    /// The process-lifetime field overlays in source order.
     #[must_use]
     #[inline]
     pub const fn fields(&self) -> &'static [FieldMetadata] {
@@ -205,19 +252,41 @@ impl TypeMetadata {
     }
 
     /// Finds a field by its query name.
+    ///
+    /// # Parameters
+    ///
+    /// - `name`: The exact field query name to find.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the matching field, or `None` when no field has that name.
     #[must_use]
     pub fn field(&self, name: &str) -> Option<&'static FieldMetadata> {
         self.fields.iter().find(|field| field.name() == Some(name))
     }
 
     /// Finds a field by its source index.
+    ///
+    /// # Parameters
+    ///
+    /// - `index`: The zero-based source-order field index.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the field at that index, or `None` when it is out of range.
     #[must_use]
+    #[inline]
     pub fn field_at(&self, index: usize) -> Option<&'static FieldMetadata> {
         self.fields.get(index)
     }
 
     /// Returns effective field/getter/setter declarations from the global
     /// registry.
+    ///
+    /// # Returns
+    ///
+    /// The effective declaration fragments, borrowing static metadata or
+    /// owning dynamically merged fragments.
     ///
     /// # Errors
     ///
@@ -229,6 +298,15 @@ impl TypeMetadata {
     /// Returns declarations from `registry`, falling back to local fields when
     /// no implementation overlay is present. Never accesses the global
     /// registry. Dynamic fragments are owned by the returned view.
+    ///
+    /// # Parameters
+    ///
+    /// - `registry`: The initialized reflection snapshot used for resolution.
+    ///
+    /// # Returns
+    ///
+    /// The effective declaration fragments, borrowing static metadata or
+    /// owning dynamically merged fragments.
     ///
     /// # Errors
     ///
@@ -249,6 +327,11 @@ impl TypeMetadata {
     /// Returns effective properties from the process-wide reflection snapshot.
     /// Dynamic properties are owned by the returned view.
     ///
+    /// # Returns
+    ///
+    /// The effective properties, borrowing static metadata or owning dynamic
+    /// results.
+    ///
     /// # Errors
     ///
     /// Returns [`PropertyResolutionError::Reflection`] for initialization
@@ -263,6 +346,15 @@ impl TypeMetadata {
     /// state. Dynamic results are owned by the returned view and are not cached
     /// by this method; use [`crate::registry::ModelRegistry::properties_for`]
     /// to reuse merges within a registry's lifetime.
+    ///
+    /// # Parameters
+    ///
+    /// - `registry`: The initialized reflection snapshot used for resolution.
+    ///
+    /// # Returns
+    ///
+    /// The effective properties, borrowing static metadata or owning dynamic
+    /// results.
     ///
     /// # Errors
     ///
@@ -288,6 +380,8 @@ impl TypeMetadata {
 
     /// Returns declaration-local field properties without consulting any
     /// registry.
+    #[must_use]
+    #[inline]
     pub(crate) const fn local_properties(&'static self) -> &'static LocalPropertySet {
         &self.properties
     }
@@ -296,6 +390,16 @@ impl TypeMetadata {
     ///
     /// Returns `None` for an absent name and propagates initialization or
     /// capability or assembly errors.
+    ///
+    /// # Parameters
+    ///
+    /// - `name`: The exact effective property name to find.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some(property))` when found, `Ok(None)` when absent, or an error
+    /// when reflection initialization, capability resolution, or assembly
+    /// fails.
     ///
     /// # Errors
     ///
@@ -309,10 +413,19 @@ impl TypeMetadata {
     /// Finds an effective property in `registry` without accessing global
     /// state.
     ///
+    /// # Parameters
+    ///
+    /// - `registry`: The initialized reflection snapshot used for resolution.
+    /// - `name`: The exact effective property name to find.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some(property))` when found, `Ok(None)` when absent, or an error
+    /// when capability resolution or assembly fails.
+    ///
     /// # Errors
     ///
-    /// Returns `Ok(None)` for an absent name and propagates capability or
-    /// property assembly errors.
+    /// Returns capability or property assembly errors.
     pub fn try_property_in(
         &'static self,
         registry: &ReflectRegistry,
@@ -323,6 +436,11 @@ impl TypeMetadata {
     }
 
     /// Returns the generic model template that produced this metadata.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the generic definition for a concrete generic model, or
+    /// `None` when this metadata has no generic definition.
     #[must_use]
     #[inline]
     #[cfg(feature = "generic")]
@@ -331,6 +449,11 @@ impl TypeMetadata {
     }
 
     /// Returns concrete reflection substitutions for a generic instance.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the concrete substitutions when this is a generic instance,
+    /// or `None` otherwise.
     #[must_use]
     #[inline]
     #[cfg(feature = "generic")]
@@ -339,6 +462,10 @@ impl TypeMetadata {
     }
 
     /// Returns the model role tag.
+    ///
+    /// # Returns
+    ///
+    /// The role declared for this reflected type.
     #[must_use]
     #[inline]
     pub const fn role(&self) -> ModelRole {
@@ -346,6 +473,10 @@ impl TypeMetadata {
     }
 
     /// Returns the role-specific metadata payload.
+    ///
+    /// # Returns
+    ///
+    /// The process-lifetime metadata for this type's role.
     #[must_use]
     #[inline]
     pub const fn role_metadata(&self) -> &'static RoleMetadata {
@@ -353,6 +484,10 @@ impl TypeMetadata {
     }
 
     /// Returns Entity metadata when this is an Entity.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with entity metadata for an Entity, or `None` for other roles.
     #[must_use]
     #[inline]
     pub const fn as_entity(&self) -> Option<&'static EntityMetadata> {
@@ -363,6 +498,11 @@ impl TypeMetadata {
     }
 
     /// Returns Projection metadata when this is a Projection.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with projection metadata for a Projection, or `None` for other
+    /// roles.
     #[must_use]
     #[inline]
     pub const fn as_projection(&self) -> Option<&'static ProjectionMetadata> {
@@ -373,6 +513,10 @@ impl TypeMetadata {
     }
 
     /// Returns Model metadata when this is a Model.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with model metadata for a Model, or `None` for other roles.
     #[must_use]
     #[inline]
     pub const fn as_model(&self) -> Option<&'static ModelMetadata> {
@@ -383,6 +527,10 @@ impl TypeMetadata {
     }
 
     /// Returns Enum metadata when this is an Enum.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with enum metadata for an Enum, or `None` for other roles.
     #[must_use]
     #[inline]
     pub const fn as_enum(&self) -> Option<&'static EnumMetadata> {
@@ -393,6 +541,10 @@ impl TypeMetadata {
     }
 
     /// Returns Value metadata when this is a Value.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with value metadata for a Value, or `None` for other roles.
     #[must_use]
     #[inline]
     pub const fn as_value(&self) -> Option<&'static ValueMetadata> {
@@ -404,12 +556,33 @@ impl TypeMetadata {
 
     /// Verifies that generated metadata is anchored to `T` and internally
     /// consistent before it crosses the public ABI boundary.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: The Rust type to which this metadata must be anchored.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the descriptor or generated metadata violates the ABI.
     #[doc(hidden)]
     pub fn assert_valid_for<T: 'static>(&self) {
         self.validate_for::<T>().unwrap_or_else(|error| panic!("{error}"));
     }
 
     /// Checks that generated metadata is anchored to `T`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: The Rust type to which this metadata must be anchored.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when the metadata is valid for `T`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an ABI violation when the descriptor or generated metadata does
+    /// not match `T` or fails internal consistency checks.
     #[doc(hidden)]
     #[must_use = "handle generated metadata ABI violations"]
     pub fn validate_for<T: 'static>(&self) -> Result<(), AbiViolation> {
@@ -461,6 +634,14 @@ impl TypeMetadata {
     }
 
     /// Verifies a property overlay supplied by a generated capability.
+    ///
+    /// # Parameters
+    ///
+    /// - `properties`: The generated properties to validate against this type.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when every property agrees with the fields and descriptor.
     ///
     /// # Errors
     ///
@@ -928,31 +1109,4 @@ fn getter_type_compatible(property: &TypeRef, output: &TypeRef) -> bool {
 /// Creates a stable ABI diagnostic for invalid generated metadata.
 const fn abi_violation(code: &'static str, message: &'static str) -> AbiViolation {
     AbiViolation::new(code, message)
-}
-
-#[cfg(test)]
-mod tests {
-    use qubit_reflect::TypeDescriptor;
-    use qubit_reflect::registry::RegistrySnapshotBuilder;
-
-    use crate::__private::v7;
-
-    #[test]
-    fn missing_property_lookup_returns_none_for_static_metadata() {
-        let metadata = Box::leak(Box::new(
-            v7::GeneratedTypeMetadataBuilder::new(
-                TypeDescriptor::of::<String>(),
-                None,
-                &[],
-                v7::leak(v7::model_role()),
-            )
-            .finish::<String>(),
-        ));
-
-        assert!(metadata.try_property("missing").unwrap().is_none());
-        let registry = RegistrySnapshotBuilder::new()
-            .build()
-            .expect("empty reflection snapshot");
-        assert!(metadata.try_property_in(&registry, "missing").unwrap().is_none());
-    }
 }

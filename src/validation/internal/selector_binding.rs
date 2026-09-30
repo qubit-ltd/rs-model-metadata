@@ -19,6 +19,11 @@ pub(crate) struct SelectorBinding {
 
 impl SelectorBinding {
     /// Returns the selected collection position.
+    ///
+    /// # Returns
+    /// The sequence or map position validated by this binding.
+    #[inline]
+    #[must_use]
     pub(crate) const fn position(&self) -> SelectorPosition {
         self.position
     }

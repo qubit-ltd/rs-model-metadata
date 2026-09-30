@@ -40,6 +40,19 @@ use crate::registry::ModelRegistry;
 use crate::structure::children;
 
 /// Inputs used for one complete resolution attempt.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::ResolveInputs;
+///
+/// let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
+/// let roots: &[&'static TypeMetadata] = &[];
+/// let inputs = ResolveInputs { models: &models, roots };
+/// assert!(inputs.roots.is_empty());
+/// ```
 #[derive(Clone, Copy)]
 pub struct ResolveInputs<'a> {
     /// Registry containing concrete and generic model registrations.
@@ -665,13 +678,15 @@ impl<'a> StructureResolver<'a> {
     ///
     /// # Parameters
     ///
-    /// - `target`: a stable model ID or concrete type provider from a
-    ///   declaration.
+    /// - `target`: the stable model ID or concrete type provider declared by
+    ///   the reference.
     ///
     /// # Returns
     ///
-    /// `Some` retains the resolved target metadata; `None` means no target was
-    /// available from the explicit ID lookup or concrete provider.
+    /// Returns the target metadata when it is available from the configured
+    /// registry; otherwise returns `None`.
+    #[must_use]
+    #[inline]
     fn resolve_target(&self, target: &DeclaredEntityTarget) -> Option<&'static TypeMetadata> {
         super::relations::resolve_declared_target(target, self.inputs.models)
     }

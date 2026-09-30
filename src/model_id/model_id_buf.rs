@@ -53,6 +53,10 @@ impl ModelIdBuf {
     }
 
     /// Returns the complete stable model ID.
+    ///
+    /// # Returns
+    ///
+    /// The validated ID borrowed from this owned buffer.
     #[must_use]
     #[inline]
     pub fn as_str(&self) -> &str {
@@ -66,6 +70,18 @@ impl TryFrom<String> for ModelIdBuf {
     type Error = ModelIdError;
 
     /// Validates and takes ownership of a dynamic model-ID string.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The string to validate and store.
+    ///
+    /// # Returns
+    ///
+    /// An owned model ID containing the validated string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelIdError`] when `value` violates the stable-ID protocol.
     fn try_from(value: String) -> Result<Self, Self::Error> {
         ModelId::validate(&value)?;
         Ok(Self(value.into_boxed_str()))
@@ -77,6 +93,18 @@ impl TryFrom<&str> for ModelIdBuf {
     type Error = ModelIdError;
 
     /// Validates and copies a dynamic model-ID string.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The string to validate and copy.
+    ///
+    /// # Returns
+    ///
+    /// An owned model ID containing a copy of the validated string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelIdError`] when `value` violates the stable-ID protocol.
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::parse(value)
     }
@@ -84,6 +112,14 @@ impl TryFrom<&str> for ModelIdBuf {
 
 impl From<ModelId> for ModelIdBuf {
     /// Copies a validated static model ID into an owned value.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The validated static ID to copy.
+    ///
+    /// # Returns
+    ///
+    /// An owned copy of the supplied ID.
     fn from(value: ModelId) -> Self {
         Self(value.as_str().into())
     }
@@ -91,6 +127,11 @@ impl From<ModelId> for ModelIdBuf {
 
 impl Borrow<str> for ModelIdBuf {
     /// Borrows the stable model ID as a string slice.
+    ///
+    /// # Returns
+    ///
+    /// The ID borrowed from this owned buffer.
+    #[inline]
     fn borrow(&self) -> &str {
         self.as_str()
     }
@@ -98,6 +139,11 @@ impl Borrow<str> for ModelIdBuf {
 
 impl AsRef<str> for ModelIdBuf {
     /// Returns the stable model ID as a string slice.
+    ///
+    /// # Returns
+    ///
+    /// The ID borrowed from this owned buffer.
+    #[inline]
     fn as_ref(&self) -> &str {
         self.as_str()
     }
@@ -105,6 +151,18 @@ impl AsRef<str> for ModelIdBuf {
 
 impl fmt::Display for ModelIdBuf {
     /// Formats the stable model ID.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: The output formatter receiving the ID text.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after successfully writing the ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns `fmt::Error` when the formatter rejects the write.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
     }
