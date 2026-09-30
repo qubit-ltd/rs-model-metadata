@@ -251,7 +251,7 @@ fn trait_body(item: &DeriveInput, name: &str, shapes: &[(TokenStream, &Fields)],
     };
     let ordering_fallback = matches!(&item.data, Data::Enum(data) if data.variants.len() > 1)
         .then(|| quote!(_ => unreachable!("distinct variants have distinct discriminants"),));
-    let body = match name {
+    match name {
         "Clone" => {
             quote!(fn clone(&self) -> Self { match self { #(#arms),* } })
         }
@@ -286,8 +286,7 @@ fn trait_body(item: &DeriveInput, name: &str, shapes: &[(TokenStream, &Fields)],
         }
         "Eq" | "Copy" => TokenStream::new(),
         _ => unreachable!("supported structural trait"),
-    };
-    body
+    }
 }
 
 /// Converts binding names to the same shape used by structural constructors.

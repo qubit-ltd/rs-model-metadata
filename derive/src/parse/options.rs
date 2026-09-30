@@ -29,8 +29,8 @@ use crate::ir::declaration::DeclarationOptions;
 ///
 /// # Parameters
 ///
-/// * `options` - The comma-separated declaration options parsed from the
-///   macro input.
+/// * `options` - The comma-separated declaration options parsed from the macro
+///   input.
 ///
 /// # Returns
 ///
@@ -40,9 +40,7 @@ use crate::ir::declaration::DeclarationOptions;
 ///
 /// Returns combined diagnostics for duplicate, unsupported, or malformed
 /// options.
-pub(crate) fn parse_declaration_options(
-    options: Punctuated<Meta, Token![,]>,
-) -> Result<DeclarationOptions> {
+pub(crate) fn parse_declaration_options(options: Punctuated<Meta, Token![,]>) -> Result<DeclarationOptions> {
     let mut result = DeclarationOptions {
         behavior: Default::default(),
         id: None,

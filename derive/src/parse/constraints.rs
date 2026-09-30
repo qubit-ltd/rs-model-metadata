@@ -55,6 +55,7 @@ pub(crate) fn is_constraint_attribute(attribute: &Attribute) -> bool {
 /// # Errors
 /// Returns an error for an unsupported attribute or option, malformed value,
 /// duplicate option, or missing required option.
+#[must_use = "the parsed constraint must be validated"]
 pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
     if attribute.path().is_ident("text") {
         return parse_text_constraint(attribute).map(ConstraintIr::Text);
@@ -157,6 +158,7 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
 /// # Errors
 /// Returns an error for malformed or duplicate options, unsupported values, or
 /// an attribute with no options.
+#[must_use = "the parsed text constraint must be validated"]
 fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
     let mut value = TextConstraintIr::default();
     let mut any = false;
@@ -232,6 +234,7 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
 /// # Errors
 /// Returns an error for malformed, duplicate, or unsupported options, invalid
 /// precision or bounds, or missing required options.
+#[must_use = "the parsed decimal constraint must be validated"]
 fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<DecimalConstraintIr> {
     let mut precision = None;
     let mut scale = None;
@@ -393,8 +396,9 @@ fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
 /// - `right`: The second decimal spelling.
 ///
 /// # Returns
-/// `Some(Ordering)` when both values can be parsed, or `None` if either spelling
-/// is malformed.
+/// `Some(Ordering)` when both values can be parsed, or `None` if either
+/// spelling is malformed.
+#[must_use = "the comparison result determines whether decimal bounds are valid"]
 fn compare_decimal_literals(left: &str, right: &str) -> Option<Ordering> {
     let (left_negative, mut left_digits, left_scale) = parse_decimal_literal(left)?;
     let (right_negative, mut right_digits, right_scale) = parse_decimal_literal(right)?;
