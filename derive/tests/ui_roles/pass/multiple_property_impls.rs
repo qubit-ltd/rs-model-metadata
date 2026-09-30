@@ -8,6 +8,8 @@
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
+//! Verifies that one model accepts multiple property implementation blocks.
+
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 

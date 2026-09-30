@@ -67,7 +67,7 @@ impl TypeMetadataProvider for Impostor {
 register_model_capability!(Account, Account::__type_metadata);
 
 #[test]
-fn model_metadata_reuses_the_reflect_descriptor_root() {
+fn test_model_metadata_reuses_the_reflect_descriptor_root() {
     let metadata = TypeMetadata::of::<Account>();
     let descriptor = TypeDescriptor::of::<Account>();
 
@@ -85,7 +85,7 @@ fn model_metadata_reuses_the_reflect_descriptor_root() {
 }
 
 #[test]
-fn public_metadata_entry_points_reject_cross_type_providers() {
+fn test_public_metadata_entry_points_reject_cross_type_providers() {
     let direct = std::panic::catch_unwind(TypeMetadata::of::<Impostor>).expect_err("cross-type provider must fail");
     assert!(panic_message(direct).starts_with("QMM-ABI-001:"));
 
@@ -99,7 +99,7 @@ fn public_metadata_entry_points_reject_cross_type_providers() {
 }
 
 #[test]
-fn reflect_facade_supports_enabled_ecosystem_and_qubit_types() {
+fn test_reflect_facade_supports_enabled_ecosystem_and_qubit_types() {
     let descriptor = TypeDescriptor::of::<ExternalTypeFixture>();
 
     for field in ["id", "created_at", "amount", "request_id", "data_type"] {

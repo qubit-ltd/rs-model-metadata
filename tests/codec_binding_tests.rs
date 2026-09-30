@@ -10,10 +10,12 @@
 
 #![cfg(feature = "codec")]
 
+use core::convert::Infallible;
 use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::error::Error;
+use std::num::ParseIntError;
 
 use qubit_codec::ValueCodecDescriptor;
 use qubit_codec::ValueCodecId;
@@ -43,7 +45,7 @@ struct StringCodec;
 
 impl ValueEncoder<String> for StringCodec {
     type Output = String;
-    type Error = core::convert::Infallible;
+    type Error = Infallible;
 
     fn encode(&mut self, input: &String) -> Result<Self::Output, Self::Error> {
         Ok(input.clone())
@@ -52,7 +54,7 @@ impl ValueEncoder<String> for StringCodec {
 
 impl ValueDecoder<str> for StringCodec {
     type Output = String;
-    type Error = core::convert::Infallible;
+    type Error = Infallible;
 
     fn decode(&mut self, input: &str) -> Result<Self::Output, Self::Error> {
         Ok(input.to_owned())
@@ -64,7 +66,7 @@ struct U64Codec;
 
 impl ValueEncoder<u64> for U64Codec {
     type Output = String;
-    type Error = core::convert::Infallible;
+    type Error = Infallible;
 
     fn encode(&mut self, input: &u64) -> Result<Self::Output, Self::Error> {
         Ok(input.to_string())
@@ -73,7 +75,7 @@ impl ValueEncoder<u64> for U64Codec {
 
 impl ValueDecoder<str> for U64Codec {
     type Output = u64;
-    type Error = std::num::ParseIntError;
+    type Error = ParseIntError;
 
     fn decode(&mut self, input: &str) -> Result<Self::Output, Self::Error> {
         input.parse()
@@ -130,7 +132,7 @@ struct AnonymousCodec {
 
 /// Codec occurrence identity remains exact for anonymous graph roots.
 #[test]
-fn binds_anonymous_root_codecs() {
+fn test_binds_anonymous_root_codecs() {
     let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
     let metadata = TypeMetadata::of::<AnonymousCodec>();
     let roots = [metadata];
@@ -162,7 +164,7 @@ fn graph<'a>(metadata: &'static TypeMetadata, source: &'a FragmentIdentity) -> M
 }
 
 #[test]
-fn binds_declared_and_rust_type_references() {
+fn test_binds_declared_and_rust_type_references() {
     let source = source();
     let declared_graph = graph(TypeMetadata::of::<Success>(), &source);
     let rust_graph = graph(TypeMetadata::of::<RustType>(), &source);
@@ -191,7 +193,7 @@ fn binds_declared_and_rust_type_references() {
 }
 
 #[test]
-fn reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
+fn test_reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
     let source = source();
     let missing_graph = graph(TypeMetadata::of::<Missing>(), &source);
     let mismatch_graph = graph(TypeMetadata::of::<Mismatch>(), &source);
@@ -236,7 +238,7 @@ struct Name(String);
 
 impl ValueEncoder<Name> for NameCodec {
     type Output = String;
-    type Error = core::convert::Infallible;
+    type Error = Infallible;
     fn encode(&mut self, input: &Name) -> Result<String, Self::Error> {
         Ok(input.0.clone())
     }
@@ -244,7 +246,7 @@ impl ValueEncoder<Name> for NameCodec {
 
 impl ValueDecoder<str> for NameCodec {
     type Output = Name;
-    type Error = core::convert::Infallible;
+    type Error = Infallible;
     fn decode(&mut self, input: &str) -> Result<Name, Self::Error> {
         Ok(Name(input.to_owned()))
     }
@@ -259,7 +261,7 @@ struct CanonicalOwner {
 
 /// Explicit equality with canonical is legal and unannotated uses inherit it.
 #[test]
-fn canonical_fallback_preserves_occurrence_sources() {
+fn test_canonical_fallback_preserves_occurrence_sources() {
     static DESCRIPTOR: ValueCodecDescriptor = ValueCodecDescriptor::of::<NameCodec, Name>();
     static REGISTRATION: ValueCodecRegistration = ValueCodecRegistration::new(
         ValueCodecId::new("test.name"),
@@ -314,7 +316,7 @@ enum TupleCodecs {
 
 /// Tuple payload occurrences cannot overwrite each other under an unnamed key.
 #[test]
-fn tuple_payload_codecs_have_distinct_occurrences() {
+fn test_tuple_payload_codecs_have_distinct_occurrences() {
     let roots = [TypeMetadata::of::<TupleCodecs>()];
     let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
     let graph = StructureResolver::new(ResolveInputs {

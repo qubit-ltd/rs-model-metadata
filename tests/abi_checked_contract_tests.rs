@@ -79,7 +79,7 @@ fn unavailable_getter(_: ReflectedRef<'_>) -> Result<PropertyValue<'_>, Property
 }
 
 #[test]
-fn finish_rejects_descriptor_and_field_overlay_mismatches() {
+fn test_finish_rejects_descriptor_and_field_overlay_mismatches() {
     let role = v7::leak(v7::model_role());
     let descriptor = TypeDescriptor::of::<OneField>();
 
@@ -95,13 +95,13 @@ fn finish_rejects_descriptor_and_field_overlay_mismatches() {
 }
 
 #[test]
-fn try_of_returns_structured_abi_violation_without_panicking() {
+fn test_try_of_returns_structured_abi_violation_without_panicking() {
     let error = TypeMetadata::try_of::<WrongTarget>().expect_err("wrong descriptor must fail");
     assert_eq!(error.code(), "QMM-ABI-001");
 }
 
 #[test]
-fn finish_rejects_duplicate_properties_and_wrong_getter_targets() {
+fn test_finish_rejects_duplicate_properties_and_wrong_getter_targets() {
     let descriptor = TypeDescriptor::of::<OneField>();
     let fields = v7::leak_slice(vec![FieldMetadata::from_reflect(
         descriptor.fields()[0].declaring_type().type_id(),
@@ -139,7 +139,7 @@ fn finish_rejects_duplicate_properties_and_wrong_getter_targets() {
 }
 
 #[test]
-fn finish_rejects_invalid_role_payloads() {
+fn test_finish_rejects_invalid_role_payloads() {
     let one_descriptor = TypeDescriptor::of::<OneField>();
     let one_fields = v7::leak_slice(vec![FieldMetadata::from_reflect(
         one_descriptor.fields()[0].declaring_type().type_id(),
@@ -176,7 +176,7 @@ fn finish_rejects_invalid_role_payloads() {
 }
 
 #[test]
-fn finish_rejects_selector_on_incompatible_field_shape() {
+fn test_finish_rejects_selector_on_incompatible_field_shape() {
     let descriptor = TypeDescriptor::of::<OneField>();
     let selector = v7::leak(SelectorMetadata::new(SelectorPosition::Element, &[], &[], None, None));
     let constraints = v7::leak_slice(vec![ConstraintMetadata::Sequence(

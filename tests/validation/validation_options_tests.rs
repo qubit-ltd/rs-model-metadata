@@ -41,7 +41,7 @@ struct SelectedEnvelope {
 }
 
 #[test]
-fn object_path_contract_covers_current_parent_and_rendering() {
+fn test_object_path_contract_covers_current_parent_and_rendering() {
     let current = ObjectPath::current();
     assert!(current.steps().is_empty());
     assert!(!current.requires_parent());

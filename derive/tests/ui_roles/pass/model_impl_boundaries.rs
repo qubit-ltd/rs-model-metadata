@@ -11,8 +11,8 @@
 //! Describes reflected trait and generic implementation blocks.
 
 use qubit_model_derive::Model;
-use qubit_reflect::reflect;
 use qubit_model_derive::ModelImpl;
+use qubit_reflect::reflect;
 
 #[Model]
 struct Account;

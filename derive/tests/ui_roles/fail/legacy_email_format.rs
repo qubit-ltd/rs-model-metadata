@@ -7,6 +7,7 @@
 // =============================================================================
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
+//! Rejects the legacy unquoted email text format in model metadata.
 
 use qubit_model_derive::Model;
 

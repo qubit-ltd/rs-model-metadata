@@ -5,8 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+//! UI failure input for incompatible, contradictory, or misapplied constraints.
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
+
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 use qubit_model_derive::Model;
 
@@ -19,9 +23,9 @@ struct InvalidConstraints {
     #[sequence(min_items = 2, max_items = 1)]
     sequence: Vec<u64>,
     #[sequence(unique_items)]
-    set: std::collections::HashSet<u64>,
+    set: HashSet<u64>,
     #[map(min_entries = 2, max_entries = 1)]
-    map: std::collections::HashMap<String, String>,
+    map: HashMap<String, String>,
     #[element(text(max_chars = 4))]
     scalar: String,
 }

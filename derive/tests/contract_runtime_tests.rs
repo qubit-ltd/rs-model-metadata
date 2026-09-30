@@ -8,9 +8,9 @@
 
 //! Characterization coverage for the derive crate's public macro contract.
 
-use model_runtime::__private::qubit_id::Id;
 use model_runtime::metadata::ModelRole;
 use model_runtime::metadata::TypeMetadata;
+use qubit_id::Id;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
@@ -80,5 +80,7 @@ fn test_model_impl_contributes_property_metadata() {
         .try_properties()
         .expect("ModelImpl properties must merge with fields");
 
-    assert!(properties.property("name").is_some());
+    let name = properties.property("name").expect("ModelImpl name property");
+    assert_eq!(name.getter().expect("name getter").rust_method_name(), "name");
+    assert_eq!(name.setter().expect("name setter").rust_method_name(), "set_name");
 }

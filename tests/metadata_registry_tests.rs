@@ -130,7 +130,7 @@ fn local_provenance_metadata() -> &'static TypeMetadata {
 }
 
 #[test]
-fn explicit_registry_borrows_non_static_provenance() {
+fn test_explicit_registry_borrows_non_static_provenance() {
     let source = FragmentIdentity::new("fixture", "tests", line!(), 1, "model", 991);
     let registry =
         ModelRegistry::from_static_metadata(&[(local_provenance_metadata(), &source)]).expect("valid registry");
@@ -223,7 +223,7 @@ fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
 
 #[test]
 #[cfg(feature = "generic")]
-fn anonymous_generic_definition_is_queryable_but_not_an_id_entry() {
+fn test_anonymous_generic_definition_is_queryable_but_not_an_id_entry() {
     let definition = TypeDescriptor::of::<GenericFixture<u8>>()
         .type_definition()
         .expect("generic definition");
@@ -246,7 +246,7 @@ fn anonymous_generic_definition_is_queryable_but_not_an_id_entry() {
 
 #[test]
 #[cfg(feature = "generic")]
-fn anonymous_generic_definition_survives_reflection_projection() {
+fn test_anonymous_generic_definition_survives_reflection_projection() {
     let definition = TypeMetadata::of::<AnonymousGenericFixture<u8>>()
         .generic_definition()
         .expect("derived generic definition");
@@ -274,7 +274,7 @@ fn anonymous_generic_definition_survives_reflection_projection() {
 
 #[test]
 #[cfg(feature = "generic")]
-fn generic_definitions_order_by_fragment_identity() {
+fn test_generic_definitions_order_by_fragment_identity() {
     let first_definition = TypeDescriptor::of::<GenericFixture<u8>>()
         .type_definition()
         .expect("first generic definition");
@@ -308,7 +308,7 @@ fn generic_definitions_order_by_fragment_identity() {
 
 #[test]
 #[cfg(feature = "generic")]
-fn duplicate_anonymous_generic_definition_reports_both_sources() {
+fn test_duplicate_anonymous_generic_definition_reports_both_sources() {
     let definition = TypeDescriptor::of::<GenericFixture<u8>>()
         .type_definition()
         .expect("generic definition");

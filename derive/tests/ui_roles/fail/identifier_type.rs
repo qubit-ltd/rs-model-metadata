@@ -7,6 +7,7 @@
 // =============================================================================
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
+//! Compile-fail fixture ensuring identifier fields use supported types.
 
 use qubit_model_derive::Entity;
 

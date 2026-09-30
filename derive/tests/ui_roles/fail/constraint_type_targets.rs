@@ -8,6 +8,10 @@
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
+//! Rejects constraints applied to incompatible Rust field types.
+
+use std::collections::HashSet;
+
 use qubit_model_derive::Model;
 
 #[Model(no_eq)]
@@ -19,7 +23,7 @@ struct InvalidConstraintTargets {
     #[sequence(unique_items)]
     scalar: String,
     #[sequence(unique_items)]
-    set: std::collections::HashSet<u64>,
+    set: HashSet<u64>,
     #[map(min_entries = 1)]
     not_a_map: Vec<u64>,
 }

@@ -30,7 +30,7 @@ enum VariantFixture<T> {
 /// Symbolic payloads preserve lookup coordinates without claiming an instance
 /// identity.
 #[test]
-fn generic_enum_payloads_separate_definition_and_concrete_field_identity() {
+fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() {
     let concrete = TypeMetadata::of::<VariantFixture<String>>();
     let other = TypeMetadata::of::<VariantFixture<u64>>();
     let definition = concrete.generic_definition().expect("generic definition");
@@ -96,7 +96,7 @@ fn generic_enum_payloads_separate_definition_and_concrete_field_identity() {
 }
 
 #[test]
-fn specialization_cache_is_stable_per_concrete_type() {
+fn test_specialization_cache_is_stable_per_concrete_type() {
     let first = TypeMetadata::of::<CacheFixture<u32>>();
     let second = TypeMetadata::of::<CacheFixture<u32>>();
     let different = TypeMetadata::of::<CacheFixture<u64>>();
@@ -118,7 +118,7 @@ fn specialization_cache_is_stable_per_concrete_type() {
 
 /// Concurrent queries share one metadata allocation for each concrete type.
 #[test]
-fn concurrent_specializations_share_metadata() {
+fn test_concurrent_specializations_share_metadata() {
     std::thread::scope(|scope| {
         let handles: Vec<_> = (0..16)
             .map(|_| scope.spawn(TypeMetadata::of::<CacheFixture<String>>))

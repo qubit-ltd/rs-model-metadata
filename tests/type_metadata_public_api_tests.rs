@@ -8,34 +8,27 @@
 
 //! Integration tests for role-aware type metadata.
 
-use qubit_model_metadata::__private::v7;
-use qubit_model_metadata::metadata::FieldMetadata;
+use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::ModelRole;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
 
-#[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
+#[Model]
 struct NamedFixture {
+    value: String,
+}
+
+#[Model]
+struct MissingPropertyFixture {
     value: String,
 }
 
 #[test]
 fn test_type_metadata_delegates_structure_to_reflection() {
     let descriptor = TypeDescriptor::of::<NamedFixture>();
-    let fields = Box::leak(
-        descriptor
-            .fields()
-            .iter()
-            .map(|field| FieldMetadata::from_reflect(field.declaring_type().type_id(), field))
-            .collect::<Vec<_>>()
-            .into_boxed_slice(),
-    );
-    let role = v7::leak(v7::model_role());
-    let metadata: &'static TypeMetadata =
-        v7::leak(v7::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role).finish::<NamedFixture>());
+    let metadata = TypeMetadata::of::<NamedFixture>();
 
     assert!(std::ptr::eq(metadata.descriptor(), descriptor));
     assert_eq!(metadata.role(), ModelRole::Model);
@@ -58,7 +51,17 @@ fn test_type_metadata_delegates_structure_to_reflection() {
         descriptor.field_at(0).expect("reflected field"),
     ));
     assert!(metadata.try_properties().is_ok());
+}
+
+#[test]
+fn test_missing_property_lookup_returns_none_for_static_metadata() {
+    let metadata = TypeMetadata::of::<MissingPropertyFixture>();
+
     assert!(metadata.try_property("missing").unwrap().is_none());
+    let registry = RegistrySnapshotBuilder::new()
+        .build()
+        .expect("empty reflection snapshot");
+    assert!(metadata.try_property_in(&registry, "missing").unwrap().is_none());
 }
 
 #[test]

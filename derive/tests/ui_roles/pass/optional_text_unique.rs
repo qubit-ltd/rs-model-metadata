@@ -8,6 +8,8 @@
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
+//! Verifies that optional text values support the unique constraint.
+
 use qubit_model_derive::Model;
 
 #[Model]

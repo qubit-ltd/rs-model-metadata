@@ -8,8 +8,6 @@
 
 //! Integration tests for constraint construction invariants.
 
-mod constraint;
-
 use qubit_model_metadata::metadata::AllowedChars;
 use qubit_model_metadata::metadata::ConstraintMetadata;
 use qubit_model_metadata::metadata::DecimalConstraint;

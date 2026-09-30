@@ -6,7 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 // qubit-style: allow test-file-name
-// The filename is part of a Cargo or trybuild fixture protocol.
+//! Trybuild compile-fail fixture: rejects validator integer values outside signed 128-bit bounds, both scalar and list entries.
 
 use qubit_model_derive::Model;
 

@@ -32,6 +32,7 @@ use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::ResolvedProperties;
 use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::ReflectRegistry;
 use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
@@ -410,11 +411,10 @@ fn test_repeated_identity_is_not_a_distinct_accessor_conflict() {
 }
 
 #[test]
-fn registry_cache_owns_dynamic_results_and_releases_them_with_the_registry() {
+fn test_registry_cache_owns_dynamic_results_and_releases_them_with_the_registry() {
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(getter_a, setter_a);
-    let registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection)
-        .expect("snapshot model registry");
+    let registry = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model registry");
     let first = registry.properties_for(owner).expect("first merge");
     let second = registry.properties_for(owner).expect("cached merge");
     let weak = match (&first, &second) {
@@ -431,7 +431,7 @@ fn registry_cache_owns_dynamic_results_and_releases_them_with_the_registry() {
 }
 
 #[test]
-fn direct_snapshot_queries_own_independent_merges() {
+fn test_direct_snapshot_queries_own_independent_merges() {
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(getter_a, setter_a);
     let first = owner.try_properties_in(&reflection).expect("first merge");
@@ -443,14 +443,12 @@ fn direct_snapshot_queries_own_independent_merges() {
 }
 
 #[test]
-fn distinct_model_registries_do_not_share_their_property_cache() {
+fn test_distinct_model_registries_do_not_share_their_property_cache() {
     let owner = TypeMetadata::of::<Record>();
     let first_reflection = snapshot(getter_a, setter_a);
     let second_reflection = snapshot(getter_a, setter_a);
-    let first_registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&first_reflection)
-        .expect("first model registry");
-    let second_registry = qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&second_reflection)
-        .expect("second model registry");
+    let first_registry = ModelRegistry::from_reflect_registry(&first_reflection).expect("first model registry");
+    let second_registry = ModelRegistry::from_reflect_registry(&second_reflection).expect("second model registry");
     let first = first_registry.properties_for(owner).expect("first merge");
     let second = second_registry.properties_for(owner).expect("second merge");
     let (ResolvedProperties::Merged(first), ResolvedProperties::Merged(second)) = (&first, &second) else {
@@ -460,12 +458,11 @@ fn distinct_model_registries_do_not_share_their_property_cache() {
 }
 
 #[test]
-fn registry_cache_initializes_once_for_concurrent_queries() {
+fn test_registry_cache_initializes_once_for_concurrent_queries() {
     PROVIDER_CALLS.store(0, Ordering::SeqCst);
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(counting_getter, setter_a);
-    let registry =
-        qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let registry = ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
     std::thread::scope(|scope| {
         for _ in 0..8 {
             scope.spawn(|| {
@@ -483,7 +480,7 @@ fn registry_cache_initializes_once_for_concurrent_queries() {
 }
 
 #[test]
-fn capability_range_ignores_unrelated_ids_and_preserves_conflict_errors() {
+fn test_capability_range_ignores_unrelated_ids_and_preserves_conflict_errors() {
     let owner = TypeMetadata::of::<Record>();
     let registry = snapshot_with_unrelated_capabilities(getter_a, setter_a);
     let properties = owner
@@ -506,23 +503,21 @@ fn capability_range_ignores_unrelated_ids_and_preserves_conflict_errors() {
 }
 
 #[test]
-fn provider_panic_does_not_poison_registry_cache() {
+fn test_provider_panic_does_not_poison_registry_cache() {
     PANIC_ONCE.store(true, Ordering::SeqCst);
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(panic_once_getter, setter_a);
-    let registry =
-        qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let registry = ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
     let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| registry.properties_for(owner)));
     assert!(panic.is_err());
     assert!(registry.properties_for(owner).is_ok());
 }
 
 #[test]
-fn registry_cache_releases_failed_assembly_diagnostics_on_drop() {
+fn test_registry_cache_releases_failed_assembly_diagnostics_on_drop() {
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(getter_a, getter_b);
-    let registry =
-        qubit_model_metadata::registry::ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let registry = ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
     let first = registry.properties_for(owner).expect_err("conflicting getters");
     let second = registry.properties_for(owner).expect_err("cached diagnostic");
     let (PropertyResolutionError::Assembly(first), PropertyResolutionError::Assembly(second)) = (first, second) else {

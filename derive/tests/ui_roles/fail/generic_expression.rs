@@ -7,6 +7,7 @@
 // =============================================================================
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
+//! Compile-fail fixture ensuring oversized generic array lengths are rejected.
 
 use qubit_model_derive::Model;
 

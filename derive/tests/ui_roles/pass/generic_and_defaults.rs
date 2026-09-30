@@ -8,12 +8,15 @@
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
+//! Verifies successful role derives, const-generic models, and explicit serde derives.
+
 use model_runtime::__private::qubit_id::Id;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
+use serde::Serialize;
 
 #[Entity(id = "trybuild.Source")]
 struct Source {
@@ -42,7 +45,7 @@ enum Status {
 }
 
 #[Model]
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 struct ExistingSafeSerialize {
     value: String,
 }

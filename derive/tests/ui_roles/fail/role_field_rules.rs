@@ -6,7 +6,9 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 // qubit-style: allow test-file-name
-// The filename is part of a Cargo or trybuild fixture protocol.
+//! Trybuild compile-fail fixture: model identifiers and references are restricted to supported field roles; this file covers rejected placements.
+
+use std::collections::HashMap;
 
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
@@ -28,7 +30,7 @@ struct InvalidValueReference {
 enum InvalidEnumReference {
     Data {
         #[reference(entity_id = "example.Entity")]
-        entity: std::collections::HashMap<String, u64>,
+        entity: HashMap<String, u64>,
     },
 }
 

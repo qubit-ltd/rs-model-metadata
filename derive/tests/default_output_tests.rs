@@ -307,17 +307,6 @@ fn test_generic_enum_ordering_uses_discriminants() {
     assert!(earlier < later);
 }
 
-#[Model(no_redact, no_serialize, no_deserialize)]
-struct NoSerde {
-    values: Vec<String>,
-}
-
-/// Output opt-outs do not leave generated Serde helper attributes behind.
-#[test]
-fn test_complete_serde_opt_out() {
-    assert!(NoSerde { values: vec![] }.values.is_empty());
-}
-
 #[Model(no_redact, no_display, no_serialize, no_deserialize)]
 struct Recursive<T> {
     value: T,

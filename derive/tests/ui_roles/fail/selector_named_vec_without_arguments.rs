@@ -6,10 +6,12 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 // qubit-style: allow test-file-name
-// The filename is part of a Cargo or trybuild fixture protocol.
+//! Trybuild compile-fail fixture: a named `Vec` selector must supply the required type arguments.
 
 use qubit_model_derive::Model;
 use qubit_reflect::Reflect;
+use serde::Deserialize;
+use serde::Serialize;
 
 #[derive(
     Clone,
@@ -19,8 +21,8 @@ use qubit_reflect::Reflect;
     Hash,
     PartialEq,
     Reflect,
-    serde::Deserialize,
-    serde::Serialize,
+    Deserialize,
+    Serialize,
 )]
 #[reflect(crate = qubit_reflect)]
 struct Vec;

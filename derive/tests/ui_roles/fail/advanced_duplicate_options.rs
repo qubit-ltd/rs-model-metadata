@@ -10,6 +10,8 @@
 
 //! Rejects repeated constraint and validator options at their second span.
 
+use std::collections::HashMap;
+
 use qubit_model_derive::Model;
 
 #[Model]
@@ -17,7 +19,7 @@ struct AdvancedDuplicateOptions {
     #[sequence(min_items = 1, min_items = 2)]
     values: Vec<String>,
     #[map(min_entries = 1, min_entries = 2)]
-    labels: std::collections::HashMap<String, String>,
+    labels: HashMap<String, String>,
     #[time(precision = second, precision = millisecond)]
     timestamp: String,
     #[validator(id = "trybuild.value", params(limit = 1, limit = 2))]

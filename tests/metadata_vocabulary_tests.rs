@@ -41,7 +41,7 @@ use serde_json::json;
 use serde_json::to_value;
 
 #[test]
-fn validator_argument_debug_redacts_names_and_values() {
+fn test_validator_argument_debug_redacts_names_and_values() {
     let labels = ["first-secret", "second-secret"];
     let arguments = [
         NamedValidationArgument::new("secret-name", ValidationArgument::String("secret-value")),

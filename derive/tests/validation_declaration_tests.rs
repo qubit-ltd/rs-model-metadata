@@ -29,7 +29,7 @@ struct LegacyDependencyExample {
 }
 
 #[test]
-fn named_dependency_metadata_preserves_slot_and_path() {
+fn test_named_dependency_metadata_preserves_slot_and_path() {
     let field = TypeMetadata::of::<NamedDependencyExample>()
         .field("number")
         .expect("number field");
@@ -44,7 +44,7 @@ fn named_dependency_metadata_preserves_slot_and_path() {
 }
 
 #[test]
-fn bare_dependency_metadata_remains_available_for_legacy_declarations() {
+fn test_bare_dependency_metadata_remains_available_for_legacy_declarations() {
     let field = TypeMetadata::of::<LegacyDependencyExample>()
         .field("value")
         .expect("value field");
@@ -54,8 +54,3 @@ fn bare_dependency_metadata_remains_available_for_legacy_declarations() {
     assert_eq!(validator.target(), TargetMode::Value);
     assert_eq!(validator.on_none(), OnNone::Skip);
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-// =============================================================================

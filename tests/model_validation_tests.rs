@@ -178,7 +178,7 @@ fn source() -> &'static FragmentIdentity {
 }
 
 #[test]
-fn executes_bound_rule_and_prefixes_field_path() {
+fn test_executes_bound_rule_and_prefixes_field_path() {
     let metadata = TypeMetadata::of::<TestModel>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
@@ -210,7 +210,7 @@ fn executes_bound_rule_and_prefixes_field_path() {
 }
 
 #[test]
-fn executes_typed_model_rule_binding() {
+fn test_executes_typed_model_rule_binding() {
     let metadata = TypeMetadata::of::<TestModel>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
@@ -261,7 +261,7 @@ fn executes_typed_model_rule_binding() {
 }
 
 #[test]
-fn model_rule_execution_errors_keep_the_bound_rule_id() {
+fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
     let metadata = TypeMetadata::of::<TestModel>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
@@ -306,7 +306,7 @@ fn model_rule_execution_errors_keep_the_bound_rule_id() {
 }
 
 #[test]
-fn executes_element_selector_for_borrowed_slice() {
+fn test_executes_element_selector_for_borrowed_slice() {
     let metadata = TypeMetadata::of::<SelectorFixture>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
@@ -350,7 +350,7 @@ fn executes_element_selector_for_borrowed_slice() {
 }
 
 #[test]
-fn executes_validators_declared_by_an_optional_nested_model() {
+fn test_executes_validators_declared_by_an_optional_nested_model() {
     let metadata = TypeMetadata::of::<NestedRoot>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
@@ -393,7 +393,7 @@ fn executes_validators_declared_by_an_optional_nested_model() {
 }
 
 #[test]
-fn traversal_budgets_are_enforced_before_execution() {
+fn test_traversal_budgets_are_enforced_before_execution() {
     let metadata = TypeMetadata::of::<TestModel>();
     let models = ModelRegistry::from_static_metadata(&[(metadata, source())]).expect("model registry");
     let graph = StructureResolver::new(ResolveInputs {
@@ -499,7 +499,7 @@ fn map_plan(
 }
 
 #[test]
-fn map_count_validates_hash_and_tree_bounds_on_field_paths() {
+fn test_map_count_validates_hash_and_tree_bounds_on_field_paths() {
     let plan = map_plan(TypeMetadata::of::<MapCountFixture>()).expect("map count binding");
     assert_eq!(plan.binding_count(), 2);
     for count in 0..=3 {
@@ -539,7 +539,7 @@ fn map_count_validates_hash_and_tree_bounds_on_field_paths() {
 }
 
 #[test]
-fn map_optional_absence_skips_count_validation() {
+fn test_map_optional_absence_skips_count_validation() {
     let plan = map_plan(TypeMetadata::of::<MapOptionalFixture>()).expect("optional map binding");
     let model = MapOptionalFixture { child: None };
     let report = plan
@@ -550,7 +550,7 @@ fn map_optional_absence_skips_count_validation() {
 }
 
 #[test]
-fn map_direct_optional_some_and_none_follow_count_bounds() {
+fn test_map_direct_optional_some_and_none_follow_count_bounds() {
     let plan = map_plan(TypeMetadata::of::<DirectOptionalMaps>()).expect("direct optional map binding");
     for count in [None, Some(0), Some(1), Some(2), Some(3)] {
         let model = DirectOptionalMaps {
@@ -577,7 +577,7 @@ fn map_direct_optional_some_and_none_follow_count_bounds() {
 }
 
 #[test]
-fn map_optional_borrowed_getters_validate_some_and_skip_none() {
+fn test_map_optional_borrowed_getters_validate_some_and_skip_none() {
     let plan = map_plan(TypeMetadata::of::<OptionalGetterMaps>()).expect("optional getter map binding");
     for count in [None, Some(0), Some(1), Some(2), Some(3)] {
         let model = OptionalGetterMaps {
@@ -597,7 +597,7 @@ fn map_optional_borrowed_getters_validate_some_and_skip_none() {
 }
 
 #[test]
-fn map_missing_count_adapter_is_rejected_at_build() {
+fn test_map_missing_count_adapter_is_rejected_at_build() {
     let errors = match map_plan(TypeMetadata::of::<MapUnsupportedFixture>()) {
         Ok(_) => panic!("unsupported map shape must fail"),
         Err(errors) => errors,
@@ -606,12 +606,6 @@ fn map_missing_count_adapter_is_rejected_at_build() {
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("entries"));
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-// =============================================================================
-
 #[Model]
 struct ConstrainedChild {
     #[text(min_chars = 3)]
@@ -634,7 +628,7 @@ impl ConstrainedRoot {
 /// Automatic nested traversal retains standard constraints and optional
 /// absence.
 #[test]
-fn nested_standard_constraints_are_executed() {
+fn test_nested_standard_constraints_are_executed() {
     let metadata = TypeMetadata::of::<ConstrainedRoot>();
     let roots = [metadata];
     let graph = StructureResolver::new(ResolveInputs {
@@ -758,7 +752,7 @@ impl UniqueWrongGetterShape {
 }
 
 #[test]
-fn unique_typed_and_model_execution_agree_on_first_duplicate() {
+fn test_unique_typed_and_model_execution_agree_on_first_duplicate() {
     let plan = map_plan(TypeMetadata::of::<UniqueOnlyFixture>()).expect("unique binding");
     let cases: &[&[i32]] = &[&[], &[1], &[1, 2, 3], &[1, 1], &[1, 2, 1], &[2, 3, 3, 2], &[1, 2, 3, 1]];
 
@@ -808,7 +802,7 @@ fn unique_typed_and_model_execution_agree_on_first_duplicate() {
 }
 
 #[test]
-fn unique_first_duplicate_has_indexed_path_and_safe_parameter() {
+fn test_unique_first_duplicate_has_indexed_path_and_safe_parameter() {
     let plan = map_plan(TypeMetadata::of::<UniqueOnlyFixture>()).expect("unique binding");
     let model = UniqueOnlyFixture {
         values: vec![2, 3, 3, 2],
@@ -836,7 +830,7 @@ fn unique_first_duplicate_has_indexed_path_and_safe_parameter() {
 }
 
 #[test]
-fn unique_report_does_not_expose_repeated_element() {
+fn test_unique_report_does_not_expose_repeated_element() {
     let plan = map_plan(TypeMetadata::of::<UniqueTextFixture>()).expect("text equality binding");
     let model = UniqueTextFixture {
         values: vec!["sensitive-duplicate".to_owned(), "sensitive-duplicate".to_owned()],
@@ -849,7 +843,7 @@ fn unique_report_does_not_expose_repeated_element() {
 }
 
 #[test]
-fn unique_count_and_unique_have_separate_occurrences_and_partial_report() {
+fn test_unique_count_and_unique_have_separate_occurrences_and_partial_report() {
     let plan = map_plan(TypeMetadata::of::<UniqueFixture>()).expect("count and unique binding");
     assert_eq!(plan.binding_count(), 3);
     let model = UniqueFixture {
@@ -881,7 +875,7 @@ fn unique_count_and_unique_have_separate_occurrences_and_partial_report() {
 }
 
 #[test]
-fn unique_fail_fast_stops_before_later_field() {
+fn test_unique_fail_fast_stops_before_later_field() {
     let plan = map_plan(TypeMetadata::of::<UniqueFixture>()).expect("unique binding");
     let model = UniqueFixture {
         values: vec![1, 2, 1, 3],
@@ -895,7 +889,7 @@ fn unique_fail_fast_stops_before_later_field() {
 }
 
 #[test]
-fn unique_node_budget_stops_before_unfunded_element_read() {
+fn test_unique_node_budget_stops_before_unfunded_element_read() {
     let plan = map_plan(TypeMetadata::of::<UniqueOnlyFixture>()).expect("unique binding");
     let model = UniqueOnlyFixture { values: vec![1, 2] };
     let options = ValidationOptions::builder()
@@ -909,7 +903,7 @@ fn unique_node_budget_stops_before_unfunded_element_read() {
 }
 
 #[test]
-fn unique_array_slice_getter_executes_and_unreadable_array_fails_build() {
+fn test_unique_array_slice_getter_executes_and_unreadable_array_fails_build() {
     let plan = map_plan(TypeMetadata::of::<UniqueArrayFixture>()).expect("array slice getter");
     let model = UniqueArrayFixture { values: [1, 2, 1] };
     let report = plan
@@ -980,7 +974,7 @@ struct ScalarUnsupportedTimeFixture {
 }
 
 #[test]
-fn scalar_decimal_normalizes_scale_and_checks_precision_and_exact_range() {
+fn test_scalar_decimal_normalizes_scale_and_checks_precision_and_exact_range() {
     let plan = map_plan(TypeMetadata::of::<ScalarDecimalFixture>()).expect("decimal binding");
     for (literal, expected) in [
         ("1.2500", Some("decimal.range")),
@@ -1007,7 +1001,7 @@ fn scalar_decimal_normalizes_scale_and_checks_precision_and_exact_range() {
 }
 
 #[test]
-fn scalar_decimal_precision_is_total_capacity_at_declared_scale() {
+fn test_scalar_decimal_precision_is_total_capacity_at_declared_scale() {
     let plan = map_plan(TypeMetadata::of::<DecimalCapacityFixture>()).expect("decimal capacity binding");
     for (literal, expected) in [
         ("1.2300", None),
@@ -1033,7 +1027,7 @@ fn scalar_decimal_precision_is_total_capacity_at_declared_scale() {
 }
 
 #[test]
-fn scalar_time_resolutions_apply_to_utc_and_naive_getters() {
+fn test_scalar_time_resolutions_apply_to_utc_and_naive_getters() {
     let plan = map_plan(TypeMetadata::of::<ScalarTimeFixture>()).expect("time binding");
     let model = ScalarTimeFixture {
         instant: DateTime::parse_from_rfc3339("2026-09-26T08:00:00.001Z")
@@ -1061,7 +1055,7 @@ fn scalar_time_resolutions_apply_to_utc_and_naive_getters() {
 }
 
 #[test]
-fn scalar_optional_none_skips_both_rules() {
+fn test_scalar_optional_none_skips_both_rules() {
     let plan = map_plan(TypeMetadata::of::<ScalarOptionalFixture>()).expect("optional scalar binding");
     let model = ScalarOptionalFixture {
         amount: None,
@@ -1089,7 +1083,7 @@ fn scalar_optional_none_skips_both_rules() {
 }
 
 #[test]
-fn scalar_declaration_reports_before_unrelated_field_failure() {
+fn test_scalar_declaration_reports_before_unrelated_field_failure() {
     let plan = map_plan(TypeMetadata::of::<ScalarOrderFixture>()).expect("ordered scalar binding");
     let model = ScalarOrderFixture {
         amount: "1.234".parse().expect("decimal literal"),
@@ -1105,7 +1099,7 @@ fn scalar_declaration_reports_before_unrelated_field_failure() {
 }
 
 #[test]
-fn scalar_unsupported_temporal_type_is_rejected_at_build() {
+fn test_scalar_unsupported_temporal_type_is_rejected_at_build() {
     let errors = match map_plan(TypeMetadata::of::<ScalarUnsupportedTimeFixture>()) {
         Ok(_) => panic!("date-only time rule must fail at build"),
         Err(errors) => errors,
@@ -1115,7 +1109,7 @@ fn scalar_unsupported_temporal_type_is_rejected_at_build() {
 }
 
 #[test]
-fn unique_mismatched_getter_element_type_fails_at_build() {
+fn test_unique_mismatched_getter_element_type_fails_at_build() {
     let root = TypeMetadata::of::<UniqueWrongElementType>();
     let roots = [root];
     let errors = StructureResolver::new(ResolveInputs {

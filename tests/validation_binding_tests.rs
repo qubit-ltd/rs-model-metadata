@@ -99,7 +99,7 @@ fn inputs<'a>(models: &'a ModelRegistry<'a>) -> ResolveInputs<'a> {
 }
 
 #[test]
-fn structure_resolution_and_binding_are_separate() {
+fn test_structure_resolution_and_binding_are_separate() {
     let owner = TypeMetadata::of::<Owner>();
     let fixture = TypeMetadata::of::<BindingFixture>();
     let models = ModelRegistry::from_static_metadata(&[(owner, source()), (fixture, source())])
@@ -171,7 +171,7 @@ static PARENT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
 
 /// Parent dependencies require explicit type and instance contexts.
 #[test]
-fn parent_dependency_uses_explicit_context() {
+fn test_parent_dependency_uses_explicit_context() {
     let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
     let child = TypeMetadata::of::<Child>();
     let parent = TypeMetadata::of::<Parent>();
@@ -278,7 +278,7 @@ static SAME_TYPE_REGISTRATION: ValidatorRegistration = ValidatorRegistration::ne
 
 /// Reversed declarations are reordered by their names before ordered execution.
 #[test]
-fn same_type_dependencies_follow_signature_order() {
+fn test_same_type_dependencies_follow_signature_order() {
     let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
     let model = TypeMetadata::of::<NamedDependencies>();
     let roots = [model];
@@ -308,12 +308,6 @@ fn same_type_dependencies_follow_signature_order() {
             .is_valid()
     );
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-// =============================================================================
-
 #[Model]
 struct RepeatedRules {
     #[validator(id = "test.repeat", params(order = 1))]
@@ -352,7 +346,7 @@ fn prepare_order(arguments: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn Pr
 /// Equal strategy IDs retain distinct parameters and declaration-order
 /// execution.
 #[test]
-fn repeated_validator_ids_execute_every_occurrence() {
+fn test_repeated_validator_ids_execute_every_occurrence() {
     static DESCRIPTOR: ValidatorDescriptor =
         ValidatorDescriptor::new(&[ValidatorSignature::new(InputType::Text, &[], prepare_order)]);
     let registration = ValidatorRegistration::new(
@@ -427,7 +421,7 @@ fn build_dependency_fixture(root: &'static TypeMetadata) -> qubit_model_metadata
 }
 
 #[test]
-fn model_binding_validates_required_dependency_declarations_and_types() {
+fn test_model_binding_validates_required_dependency_declarations_and_types() {
     assert!(
         build_dependency_fixture(TypeMetadata::of::<MissingDependencyDeclaration>())
             .iter()

@@ -6,7 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 // qubit-style: allow test-file-name
-// The filename is part of a Cargo or trybuild fixture protocol.
+//! Trybuild compile-fail fixture: derived models reject borrowed field lifetimes; this filename is part of the fixture protocol.
 
 use qubit_model_derive::Model;
 

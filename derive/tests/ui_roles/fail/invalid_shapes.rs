@@ -7,6 +7,7 @@
 // =============================================================================
 // qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
+//! Compile-fail fixtures verifying that derives reject unsupported item shapes.
 
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
