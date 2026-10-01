@@ -92,25 +92,18 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     let mut graphs = criterion.benchmark_group("model_graph_build");
     for &(root, size) in roots {
         let root_set = [root];
-        let graph = StructureResolver::new(ResolveInputs {
+        let graph = StructureResolver::for_roots(ResolveInputs {
             models: &models,
             roots: &root_set,
         })
         .resolve()
         .expect("valid benchmark graph");
-        // The 32 static model-count fixtures are visible in the complete
-        // reflection snapshot, while this anonymous field fixture is an
-        // additional explicit root.
-        assert_eq!(graph.models().len(), models.entries().len() + 1);
-        assert!(graph.models().iter().any(|model| model.type_id() == root.type_id()));
-        assert!(models.entries().iter().all(|entry| {
-            let metadata = entry.metadata().expect("concrete registry entry");
-            graph.models().iter().any(|model| model.type_id() == metadata.type_id())
-        }));
+        assert_eq!(graph.models().len(), 1);
+        assert_eq!(graph.models()[0].type_id(), root.type_id());
         graphs.bench_with_input(BenchmarkId::new("fields", size), &root_set, |bencher, roots| {
             bencher.iter(|| {
                 black_box(
-                    StructureResolver::new(ResolveInputs {
+                    StructureResolver::for_roots(ResolveInputs {
                         models: &models,
                         roots: black_box(roots),
                     })
@@ -124,7 +117,7 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     let mut plans = criterion.benchmark_group("validation_plan_build");
     for &(root, size) in roots {
         let root_set = [root];
-        let graph = StructureResolver::new(ResolveInputs {
+        let graph = StructureResolver::for_roots(ResolveInputs {
             models: &models,
             roots: &root_set,
         })
@@ -153,7 +146,7 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     let mut execution = criterion.benchmark_group("validation_plan_execute");
     for (&(root, size), value) in roots.iter().zip(values) {
         let root_set = [root];
-        let graph = StructureResolver::new(ResolveInputs {
+        let graph = StructureResolver::for_roots(ResolveInputs {
             models: &models,
             roots: &root_set,
         })
