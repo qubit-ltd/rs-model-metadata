@@ -48,6 +48,15 @@ qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 ```
 
+<!-- example: validation -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
+qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+```
+
 `qubit-id` 提供 `Entity` 和 `Projection` 标识字段必须使用的 `Id` 类型。默认 feature 集为空；
 按需启用 `codec` 或 `validation` 执行适配器，以及提供泛型定义元数据的 `generic`。
 
@@ -172,6 +181,7 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 但可达模型仍从该快照读取 capability 和 `ModelImpl` Property provider。下面的局部验证示例需要启用
 `validation` feature，并直接依赖 `qubit-validator`；依赖配置见用户指南。
 
+<!-- example: validation/root-scoped -->
 ```rust
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;

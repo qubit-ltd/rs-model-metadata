@@ -109,6 +109,7 @@ workflow below does. It skips structural initialization for unrelated models
 while reading reachable capabilities and property providers from the same
 registry snapshot.
 
+<!-- example: core/audit -->
 ```rust
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;

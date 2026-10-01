@@ -101,6 +101,7 @@ fn main() {
 `for_roots`，下方的验证流程就是这种用法。它会跳过无关模型的结构初始化，同时从同一注册表快照
 读取可达模型的 capability 和 Property provider。
 
+<!-- example: core/audit -->
 ```rust
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;

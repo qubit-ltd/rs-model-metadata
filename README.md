@@ -53,6 +53,15 @@ qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 ```
 
+<!-- example: validation -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
+qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
+qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+```
+
 `qubit-id` supplies the exact `Id` type required by `Entity` and `Projection`
 identifiers. Enable `codec` or `validation` for the corresponding execution
 adapters, and `generic` for generic-definition metadata. The default feature
@@ -215,6 +224,7 @@ while still reading reachable capabilities and `ModelImpl` property providers
 from that snapshot. The local validation example requires the `validation`
 feature and the direct `qubit-validator` dependency shown in the user guide.
 
+<!-- example: validation/root-scoped -->
 ```rust
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
