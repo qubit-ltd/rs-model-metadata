@@ -273,7 +273,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// Returns [`ModelRegistryError`] for an anonymous concrete registration,
     /// a repeated stable model ID, or conflicting registrations of one concrete
-    /// Rust type.
+    /// Rust type. Concrete metadata whose ABI does not match its reflected
+    /// descriptor is rejected with its ABI cause.
     ///
     /// # Parameters
     ///
@@ -288,6 +289,13 @@ impl<'reflection> ModelRegistry<'reflection> {
     ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
         let mut entries = Vec::with_capacity(concrete.len());
         for &(metadata, source) in concrete {
+            if let Err(cause) = metadata.validate_descriptor(metadata.descriptor()) {
+                return Err(ModelRegistryError::invalid_abi(
+                    metadata.model_id(),
+                    vec![source.clone()],
+                    cause,
+                ));
+            }
             let Some(entry) = ModelEntry::concrete(metadata, source, None) else {
                 return Err(ModelRegistryError::conflict(None, vec![source.clone()]));
             };
@@ -312,7 +320,9 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// Returns [`ModelRegistryError`] for an anonymous concrete registration,
     /// duplicate stable IDs or generic definition identities across
-    /// declarations, or conflicting registrations of one concrete Rust type.
+    /// declarations, conflicting registrations of one concrete Rust type, or
+    /// concrete metadata whose ABI does not match its reflected descriptor.
+    /// ABI errors retain their cause.
     ///
     /// # Type Parameters
     ///
@@ -335,6 +345,13 @@ impl<'reflection> ModelRegistry<'reflection> {
     ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
         let mut entries = Vec::with_capacity(concrete.len() + generic.len());
         for &(metadata, source) in concrete {
+            if let Err(cause) = metadata.validate_descriptor(metadata.descriptor()) {
+                return Err(ModelRegistryError::invalid_abi(
+                    metadata.model_id(),
+                    vec![source.clone()],
+                    cause,
+                ));
+            }
             let Some(entry) = ModelEntry::concrete(metadata, source, None) else {
                 return Err(ModelRegistryError::conflict(None, vec![source.clone()]));
             };
