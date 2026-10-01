@@ -228,26 +228,21 @@ fn test_static_registry_constructors_reject_invalid_concrete_abi() {
         .expect_err("static registry must reject missing field overlays");
     assert_eq!(error.kind(), ModelRegistryErrorKind::RegistrationConflict);
     assert_eq!(error.abi_cause().expect("ABI cause").code(), "QMM-ABI-003");
-    assert_eq!(error.sources(), &[first_source.clone()]);
+    assert_eq!(error.sources(), std::slice::from_ref(&first_source));
 
     #[cfg(feature = "generic")]
     {
-        let error = ModelRegistry::from_static_metadata_with_generics(
-            &[(invalid_with_generics, &second_source)],
-            &[],
-        )
-        .expect_err("static registry with generics must reject missing field overlays");
+        let error = ModelRegistry::from_static_metadata_with_generics(&[(invalid_with_generics, &second_source)], &[])
+            .expect_err("static registry with generics must reject missing field overlays");
         assert_eq!(error.kind(), ModelRegistryErrorKind::RegistrationConflict);
         assert_eq!(error.abi_cause().expect("ABI cause").code(), "QMM-ABI-003");
-        assert_eq!(error.sources(), &[second_source.clone()]);
+        assert_eq!(error.sources(), std::slice::from_ref(&second_source));
     }
 
     let valid = TypeMetadata::of::<StaticRegistryAbiValidFixture>();
-    assert!(ModelRegistry::from_static_metadata(&[(&valid, &first_source)]).is_ok());
+    assert!(ModelRegistry::from_static_metadata(&[(valid, &first_source)]).is_ok());
     #[cfg(feature = "generic")]
-    assert!(
-        ModelRegistry::from_static_metadata_with_generics(&[(&valid, &second_source)], &[]).is_ok()
-    );
+    assert!(ModelRegistry::from_static_metadata_with_generics(&[(valid, &second_source)], &[]).is_ok());
 }
 
 #[test]

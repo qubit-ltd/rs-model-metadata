@@ -12,8 +12,8 @@ use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::metadata::TypeMetadata;
 
-
-/// One registration entry per concrete fixture model, with stable benchmark IDs.
+/// One registration entry per concrete fixture model, with stable benchmark
+/// IDs.
 macro_rules! fixture_models {
     ($($model:ident => $id:literal),+ $(,)?) => {
         $(

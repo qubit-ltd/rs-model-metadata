@@ -145,10 +145,14 @@ impl<'a> StructureResolver<'a> {
     #[must_use]
     #[inline]
     pub const fn new(inputs: ResolveInputs<'a>) -> Self {
-        Self { inputs, scope: ResolveScope::AllRegistered }
+        Self {
+            inputs,
+            scope: ResolveScope::AllRegistered,
+        }
     }
 
-    /// Creates a resolver that starts from explicit roots and their reachable models.
+    /// Creates a resolver that starts from explicit roots and their reachable
+    /// models.
     ///
     /// The registry remains available for resolving reachable references and
     /// supplying the canonical metadata and properties for each model.
@@ -164,7 +168,10 @@ impl<'a> StructureResolver<'a> {
     #[must_use]
     #[inline]
     pub const fn for_roots(inputs: ResolveInputs<'a>) -> Self {
-        Self { inputs, scope: ResolveScope::ReachableFromRoots }
+        Self {
+            inputs,
+            scope: ResolveScope::ReachableFromRoots,
+        }
     }
 
     /// Resolves model structure and property capabilities.

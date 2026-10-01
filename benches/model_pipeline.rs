@@ -206,7 +206,11 @@ fn model_count_pipeline(criterion: &mut Criterion) {
         criterion.bench_function(
             &format!("model_registry_construction_models/{model_count}/static_entries"),
             |bencher| {
-                bencher.iter(|| black_box(ModelRegistry::from_static_metadata(black_box(entries))))
+                bencher.iter(|| {
+                    black_box(
+                        ModelRegistry::from_static_metadata(black_box(entries)).expect("valid static registrations"),
+                    )
+                })
             },
         );
 
