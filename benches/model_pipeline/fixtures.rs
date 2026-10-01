@@ -10,6 +10,46 @@
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
+use qubit_model_metadata::metadata::TypeMetadata;
+
+
+/// One registration entry per concrete fixture model, with stable benchmark IDs.
+macro_rules! fixture_models {
+    ($($model:ident => $id:literal),+ $(,)?) => {
+        $(
+            #[Model(id = $id)]
+            #[allow(dead_code)]
+            pub(super) struct $model {
+                #[text(non_blank)]
+                description: String,
+            }
+        )+
+
+        /// Returns metadata for every concrete fixture type in stable order.
+        pub(super) fn all_metadata() -> Vec<&'static TypeMetadata> {
+            vec![$(TypeMetadata::of::<$model>()),+]
+        }
+    };
+}
+
+fixture_models! {
+    Model01 => "benchmark.Model01", Model02 => "benchmark.Model02",
+    Model03 => "benchmark.Model03", Model04 => "benchmark.Model04",
+    Model05 => "benchmark.Model05", Model06 => "benchmark.Model06",
+    Model07 => "benchmark.Model07", Model08 => "benchmark.Model08",
+    Model09 => "benchmark.Model09", Model10 => "benchmark.Model10",
+    Model11 => "benchmark.Model11", Model12 => "benchmark.Model12",
+    Model13 => "benchmark.Model13", Model14 => "benchmark.Model14",
+    Model15 => "benchmark.Model15", Model16 => "benchmark.Model16",
+    Model17 => "benchmark.Model17", Model18 => "benchmark.Model18",
+    Model19 => "benchmark.Model19", Model20 => "benchmark.Model20",
+    Model21 => "benchmark.Model21", Model22 => "benchmark.Model22",
+    Model23 => "benchmark.Model23", Model24 => "benchmark.Model24",
+    Model25 => "benchmark.Model25", Model26 => "benchmark.Model26",
+    Model27 => "benchmark.Model27", Model28 => "benchmark.Model28",
+    Model29 => "benchmark.Model29", Model30 => "benchmark.Model30",
+    Model31 => "benchmark.Model31", Model32 => "benchmark.Model32",
+}
 
 /// 1 text declarations and 1 independently registered getter fragments.
 #[Model]
