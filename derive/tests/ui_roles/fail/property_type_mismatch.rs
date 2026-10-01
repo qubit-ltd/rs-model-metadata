@@ -5,7 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow test-file-name
 //! Trybuild compile-fail fixture: `ModelImpl` rejects a setter whose parameter type differs from the property type; this filename is part of the fixture protocol.
 
 use qubit_model_derive::Model;

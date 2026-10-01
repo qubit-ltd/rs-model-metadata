@@ -8,8 +8,6 @@
 
 //! Serde overlay IR.
 
-// qubit-style: allow public-type-layout
-
 use syn::LitStr;
 
 /// Normalized Serde attributes and their interactions for one model field.

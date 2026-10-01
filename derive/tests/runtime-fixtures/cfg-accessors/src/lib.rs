@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-// qubit-style: allow test-file-name
 // Cargo's fixture entry point intentionally uses lib.rs.
 
 //! Consumer feature matrix for property and reflection presence.

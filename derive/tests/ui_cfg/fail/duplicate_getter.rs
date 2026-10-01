@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-// qubit-style: allow test-file-name
 // Trybuild diagnostic fixture filenames describe the tested contract.
 
 use qubit_model_derive::Model;

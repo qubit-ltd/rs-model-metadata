@@ -5,7 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow test-file-name
 //! Trybuild compile-fail fixture: rejects duplicate explicit names on enum variants.
 
 use qubit_model_derive::Enum;

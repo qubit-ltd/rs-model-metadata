@@ -7,7 +7,6 @@
 // =============================================================================
 
 //! Immutable structure graph and resolved structural views.
-// qubit-style: allow multiple-public-types
 
 use std::any::TypeId;
 use std::collections::HashMap;

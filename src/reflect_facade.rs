@@ -7,7 +7,6 @@
 // =============================================================================
 
 //! Model-specific access to the shared reflection descriptor root.
-// qubit-style: allow type-file-name
 
 use std::sync::Arc;
 

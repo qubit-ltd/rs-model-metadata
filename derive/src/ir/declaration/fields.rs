@@ -8,8 +8,6 @@
 
 //! Field and enum-variant IR.
 
-// qubit-style: allow multiple-public-types
-
 use syn::Type;
 
 use super::super::Located;

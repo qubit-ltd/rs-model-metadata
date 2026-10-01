@@ -5,7 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow test-file-name
 //! Trybuild pass fixture: accepts the `email_ascii` text format and verifies its metadata representation.
 
 use model_runtime::metadata::TextFormat;

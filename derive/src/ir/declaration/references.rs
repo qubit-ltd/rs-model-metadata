@@ -8,8 +8,6 @@
 
 //! Relationship and uniqueness IR.
 
-// qubit-style: allow multiple-public-types
-
 use syn::LitStr;
 use syn::Type;
 

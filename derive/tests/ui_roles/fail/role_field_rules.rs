@@ -5,7 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow test-file-name
 //! Trybuild compile-fail fixture: model identifiers and references are restricted to supported field roles; this file covers rejected placements.
 
 use std::collections::HashMap;

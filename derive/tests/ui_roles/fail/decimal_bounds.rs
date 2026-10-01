@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! UI failure input for reversed, empty, and malformed decimal bounds.
-// qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 
 use qubit_model_derive::Model;

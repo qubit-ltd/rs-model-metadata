@@ -8,8 +8,6 @@
 
 //! Declaration-level options.
 
-// qubit-style: allow public-type-layout
-
 use std::collections::BTreeSet;
 
 use syn::LitStr;

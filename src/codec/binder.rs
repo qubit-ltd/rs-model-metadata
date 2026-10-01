@@ -7,7 +7,6 @@
 // =============================================================================
 
 //! Explicit codec binding over an immutable model graph.
-// qubit-style: allow multiple-public-types
 
 use core::any::TypeId;
 use core::fmt::Display;

@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-// qubit-style: allow multiple-public-types
 //! Explicit cross-model resolution and immutable resolved views.
 
 use std::collections::HashMap;

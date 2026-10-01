@@ -8,8 +8,6 @@
 
 //! Parsed codec declarations retained in declaration IR.
 
-// qubit-style: allow public-type-layout
-
 use syn::LitStr;
 use syn::Type;
 

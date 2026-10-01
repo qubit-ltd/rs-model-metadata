@@ -7,8 +7,6 @@
 // =============================================================================
 
 //! Hidden, versioned ABI consumed by generated model code.
-// qubit-style: allow multiple-public-types
-// qubit-style: allow type-file-name
 
 pub use qubit_id;
 pub use qubit_redact as redact;

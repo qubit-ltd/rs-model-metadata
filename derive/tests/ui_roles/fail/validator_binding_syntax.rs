@@ -5,7 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow test-file-name
 //! Trybuild compile-fail fixture: rejects invalid qualified keys in validator `depends_on` and `params` declarations.
 
 use qubit_model_derive::Model;

@@ -8,8 +8,6 @@
 
 //! Redaction IR.
 
-// qubit-style: allow multiple-public-types
-
 /// Redaction policy normalized from one field's declaration attributes.
 #[derive(Clone)]
 pub(crate) struct RedactIr {

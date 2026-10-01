@@ -5,7 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow test-file-name
 // The filename is part of a Cargo or trybuild fixture protocol.
 //! Compile-fail cases for duplicate field markers and invalid key-part ordering.
 

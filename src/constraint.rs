@@ -7,7 +7,6 @@
 // =============================================================================
 
 //! Strongly typed value objects for field constraints.
-// qubit-style: allow type-file-name
 
 mod allowed_chars;
 mod decimal_constraint;

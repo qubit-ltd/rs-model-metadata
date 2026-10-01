@@ -8,9 +8,6 @@
 
 //! The compiler's declaration vocabulary, organized by semantic concern.
 
-// qubit-style: allow public-type-layout
-// qubit-style: allow multiple-public-types
-
 mod codec;
 mod constraints;
 mod fields;

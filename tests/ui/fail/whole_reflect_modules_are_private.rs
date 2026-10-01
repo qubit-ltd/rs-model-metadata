@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-// qubit-style: allow test-file-name
 use qubit_model_metadata::capability::clone_key;
 use qubit_model_metadata::registry::ReflectRegistry;
 

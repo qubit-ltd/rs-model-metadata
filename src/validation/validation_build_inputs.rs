@@ -8,8 +8,6 @@
 
 //! Inputs for constructing an isolated validation plan.
 
-// qubit-style: allow type-file-name
-
 use qubit_validator::ValidatorRegistry;
 
 use crate::resolve::ModelGraph;

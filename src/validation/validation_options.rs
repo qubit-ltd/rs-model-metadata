@@ -8,8 +8,6 @@
 
 //! Runtime controls for model validation.
 
-// qubit-style: allow multiple-public-types
-
 use std::num::NonZeroUsize;
 
 mod validation_options_builder;

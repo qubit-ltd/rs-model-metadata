@@ -7,7 +7,6 @@
 // =============================================================================
 
 //! Static sequences of field-name segments.
-// qubit-style: allow type-file-name
 
 use core::fmt::Display;
 use core::fmt::Formatter;

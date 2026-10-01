@@ -8,8 +8,6 @@
 
 //! Selector and validator IR.
 
-// qubit-style: allow multiple-public-types
-
 use syn::LitStr;
 
 use super::CodecIr;

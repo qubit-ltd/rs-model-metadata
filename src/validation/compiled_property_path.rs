@@ -8,8 +8,6 @@
 
 //! Structural, getter-free compilation of property paths.
 
-// qubit-style: allow multiple-public-types
-
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeKind;
 use qubit_validator::BindError;

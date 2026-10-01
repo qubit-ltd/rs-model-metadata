@@ -7,7 +7,6 @@
 // =============================================================================
 
 //! Codec binding diagnostics.
-// qubit-style: allow multiple-public-types
 
 use core::any::TypeId;
 use core::fmt::Display;

@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-// qubit-style: allow explicit-imports
 //! Field overlays preserve resolved, opaque, and symbolic reflection facts.
 
 use std::sync::LazyLock;

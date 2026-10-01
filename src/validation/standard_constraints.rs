@@ -8,8 +8,6 @@
 
 //! Binding of metadata constraints to the shared standard rule set.
 
-// qubit-style: allow multiple-public-types
-
 use qubit_validation_rules::ids;
 use qubit_validation_rules::registrations;
 use qubit_validator::BindError;

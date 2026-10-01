@@ -5,7 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow test-file-name
 //! Trybuild compile-fail fixture: a named `Vec` selector must supply the required type arguments.
 
 use qubit_model_derive::Model;

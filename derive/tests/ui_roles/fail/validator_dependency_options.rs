@@ -5,7 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow test-file-name
 //! Trybuild compile-fail fixture: rejects repeated dependency paths/properties, unknown options, and duplicate dependency targets.
 
 use qubit_model_derive::Model;

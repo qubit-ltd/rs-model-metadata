@@ -7,7 +7,6 @@
 // =============================================================================
 
 //! Deterministic model-registry construction errors.
-// qubit-style: allow multiple-public-types
 
 use core::fmt::Display;
 use core::fmt::Formatter;
