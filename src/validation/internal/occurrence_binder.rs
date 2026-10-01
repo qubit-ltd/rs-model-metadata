@@ -106,7 +106,7 @@ pub(crate) fn check_access(
             })
             .and_then(|property| property.getter())
             .is_some_and(|getter| getter.output_kind() == GetterOutputKind::OptionalBorrowed);
-    let direct_optional_scalar = matches!(
+    let optional_scalar_candidate = matches!(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_))
     ) && occurrence
@@ -123,6 +123,21 @@ pub(crate) fn check_access(
                     .descriptor()
                     .is_some_and(|descriptor| descriptor.as_optional().is_some())
         });
+    let optional_projection_available = occurrence
+        .segments
+        .last()
+        .and_then(|name| {
+            graph
+                .properties(occurrence.owner)
+                .and_then(|properties| properties.property(name))
+        })
+        .and_then(|property| property.descriptor())
+        .and_then(|descriptor| descriptor.as_optional())
+        .is_some_and(|optional| optional.has_ref_projection());
+    if optional_scalar_candidate && !optional_projection_available {
+        return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+    }
+    let direct_optional_scalar = optional_scalar_candidate;
     let target = if requires_slice || is_map && !optional_map_getter || direct_optional_scalar {
         TargetMode::Container
     } else {

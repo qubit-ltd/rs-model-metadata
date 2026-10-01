@@ -8,11 +8,6 @@
 
 //! Execution APIs sharing one report accumulator and one work budget.
 
-use bigdecimal::BigDecimal;
-use chrono::DateTime;
-use chrono::NaiveDateTime;
-use chrono::NaiveTime;
-use chrono::Utc;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 use qubit_validation_rules::collection::UniquePairs;
@@ -259,12 +254,17 @@ fn execute_field<'value>(
         }
     );
     let projected_scalar = if direct_optional_scalar {
-        let Some(scalar) = optional_scalar_value(&value) else {
-            return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+        let descriptor = binding
+            .value()
+            .steps()
+            .last()
+            .and_then(|step| step.property().descriptor())
+            .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone()))?;
+        Some(optional_scalar_value(&value, descriptor).map_err(|error| {
+            ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+                .with_trusted_source(error)
                 .with_path(path.clone())
-                .into());
-        };
-        Some(scalar)
+        })?)
     } else {
         None
     };
@@ -377,7 +377,11 @@ fn execute_field<'value>(
         (_, PropertyValue::BorrowedSlice(_)) => {
             return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).into());
         }
-        _ => projected_scalar.flatten().unwrap_or_else(|| property_value(&value)),
+        _ => projected_scalar
+            .as_ref()
+            .and_then(Option::as_ref)
+            .map(reflected_value)
+            .unwrap_or_else(|| property_value(&value)),
     };
     budget.invoke(path.as_segments().len(), false)?;
     let outcome = validator
@@ -542,21 +546,17 @@ fn property_value<'a>(value: &'a PropertyValue<'_>) -> ValidationValue<'a> {
 /// Borrows the contained scalar from a reflected, field-backed `Option<T>`.
 /// The outer `None` indicates an unexpected adapter shape; the inner `None`
 /// means the optional field is absent. No value is cloned or formatted.
-fn optional_scalar_value<'a>(value: &'a PropertyValue<'_>) -> Option<Option<ValidationValue<'a>>> {
+fn optional_scalar_value<'a>(
+    value: &PropertyValue<'a>,
+    descriptor: &'static qubit_reflect::TypeDescriptor,
+) -> Result<Option<ReflectedRef<'a>>, qubit_reflect::OptionalProjectionError> {
     let PropertyValue::Borrowed(value) = value else {
-        return None;
+        return Err(qubit_reflect::OptionalProjectionError::Unavailable);
     };
-    optional_typed_value::<BigDecimal>(value)
-        .or_else(|| optional_typed_value::<DateTime<Utc>>(value))
-        .or_else(|| optional_typed_value::<NaiveDateTime>(value))
-        .or_else(|| optional_typed_value::<NaiveTime>(value))
-}
-
-/// Adapts one exact reflected optional type without exposing its contents.
-fn optional_typed_value<'a, T: 'static>(value: &'a ReflectedRef<'_>) -> Option<Option<ValidationValue<'a>>> {
-    value
-        .downcast_ref::<Option<T>>()
-        .map(|value| value.as_ref().map(|inner| ValidationValue::Typed(inner)))
+    descriptor
+        .as_optional()
+        .ok_or(qubit_reflect::OptionalProjectionError::Unavailable)?
+        .project_ref(value.clone())
 }
 
 /// Converts an owned reflected value into a validator input abstraction.
