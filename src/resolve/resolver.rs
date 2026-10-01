@@ -30,6 +30,7 @@ use super::relations::reported_metadata;
 use super::relations::resolve_property_path;
 use super::relations::validate_value_closure;
 use crate::metadata::DeclaredEntityTarget;
+use crate::metadata::ModelMetadataError;
 use crate::metadata::ModelRole;
 use crate::metadata::ProjectionMetadata;
 use crate::metadata::PropertyPath;
@@ -67,6 +68,9 @@ pub struct ResolveInputs<'a> {
 /// include anonymous models without inventing stable IDs, and discovered
 /// children participate in the same structural checks. Resolution borrows the
 /// registry; it does not initialize or consult a process-global registry.
+/// Use [`StructureResolver::new`] to audit every concrete registration, or
+/// [`StructureResolver::for_roots`] to resolve only the subgraph reachable
+/// from explicit roots.
 ///
 /// # Examples
 ///
@@ -117,10 +121,18 @@ pub struct ResolveInputs<'a> {
 pub struct StructureResolver<'a> {
     /// Explicit registries used by this resolver.
     inputs: ResolveInputs<'a>,
+    /// Initial node set used by the resolution attempt.
+    scope: ResolveScope,
+}
+
+#[derive(Clone, Copy)]
+enum ResolveScope {
+    AllRegistered,
+    ReachableFromRoots,
 }
 
 impl<'a> StructureResolver<'a> {
-    /// Creates a resolver without consulting process globals.
+    /// Creates a resolver that audits all concrete registrations and roots.
     ///
     /// # Parameters
     ///
@@ -133,7 +145,26 @@ impl<'a> StructureResolver<'a> {
     #[must_use]
     #[inline]
     pub const fn new(inputs: ResolveInputs<'a>) -> Self {
-        Self { inputs }
+        Self { inputs, scope: ResolveScope::AllRegistered }
+    }
+
+    /// Creates a resolver that starts from explicit roots and their reachable models.
+    ///
+    /// The registry remains available for resolving reachable references and
+    /// supplying the canonical metadata and properties for each model.
+    ///
+    /// # Parameters
+    ///
+    /// - `inputs`: the borrowed registry and additional concrete roots.
+    ///
+    /// # Returns
+    ///
+    /// A declaration resolver borrowing `inputs` for the resulting graph's
+    /// lifetime and limited to the roots' reachable model subgraph.
+    #[must_use]
+    #[inline]
+    pub const fn for_roots(inputs: ResolveInputs<'a>) -> Self {
+        Self { inputs, scope: ResolveScope::ReachableFromRoots }
     }
 
     /// Resolves model structure and property capabilities.
@@ -176,16 +207,46 @@ impl<'a> StructureResolver<'a> {
         let mut projection_producers = Vec::new();
         let mut errors = Vec::new();
 
-        let mut nodes: Vec<_> = self
-            .inputs
-            .models
-            .concrete_entries()
-            .map(|(metadata, source)| (metadata, Some(source)))
-            .collect();
+        let mut nodes: Vec<_> = match self.scope {
+            ResolveScope::AllRegistered => self
+                .inputs
+                .models
+                .concrete_entries()
+                .map(|(metadata, source)| (metadata, Some(source)))
+                .collect(),
+            ResolveScope::ReachableFromRoots => Vec::new(),
+        };
         let mut seen: HashSet<_> = nodes.iter().map(|(metadata, _)| metadata.type_id()).collect();
         for &root in self.inputs.roots {
-            if seen.insert(root.type_id()) {
-                nodes.push((root, None));
+            if let Err(source) = root.validate_descriptor(root.descriptor()) {
+                errors.push(ResolveError::resolution(
+                    root,
+                    None,
+                    None,
+                    ModelMetadataError::Abi {
+                        type_id: root.type_id(),
+                        type_name: root.type_name(),
+                        source,
+                    },
+                ));
+                continue;
+            }
+            let metadata = match context.metadata_for(root.descriptor()) {
+                Ok(Some(metadata)) => metadata,
+                Ok(None) => root,
+                Err(error) => {
+                    errors.push(ResolveError::resolution(root, None, None, error));
+                    continue;
+                }
+            };
+            if seen.insert(metadata.type_id()) {
+                let source = self
+                    .inputs
+                    .models
+                    .concrete_entries()
+                    .find(|(registered, _)| registered.type_id() == metadata.type_id())
+                    .map(|(_, source)| source);
+                nodes.push((metadata, source));
             }
         }
         let mut cursor = 0;

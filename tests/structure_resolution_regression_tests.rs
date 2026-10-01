@@ -832,30 +832,165 @@ fn test_explicit_roots_fallback_validates_descriptor_abi() {
         )
         .finish_unchecked(),
     );
-    let root = TypeMetadata::of::<PrimitiveRawValue>();
-    let roots = [root, malformed];
+    let roots = [TypeMetadata::of::<PrimitiveRawValue>(), malformed];
     let models = ModelRegistry::from_static_metadata(&[]).expect("empty metadata-only registry");
-    let errors = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect_err("known fallback metadata must satisfy descriptor ABI");
-    let error = root_error(&errors, root, ResolveErrorKind::MetadataResolution, 0);
-    let Some(ModelResolutionCause::Metadata(ModelMetadataError::Abi { type_id, source, .. })) = error.cause() else {
-        panic!("fallback must retain its typed ABI failure");
-    };
-    assert_eq!(*type_id, malformed.type_id());
-    assert_eq!(source.code(), "QMM-ABI-003");
-    assert!(error.path().is_none());
+    for resolver in [StructureResolver::new, StructureResolver::for_roots] {
+        let errors = resolver(ResolveInputs { models: &models, roots: &roots })
+            .resolve()
+            .expect_err("malformed explicit metadata must satisfy descriptor ABI");
+        let error = errors.errors().iter()
+            .find(|error| error.kind() == ResolveErrorKind::MetadataResolution
+                && error.owner_type_id() == Some(malformed.type_id()))
+            .expect("ABI failure identifies the malformed explicit root");
+        let Some(ModelResolutionCause::Metadata(ModelMetadataError::Abi { type_id, source, .. })) = error.cause() else {
+            panic!("explicit root must retain its typed ABI failure");
+        };
+        assert_eq!(*type_id, malformed.type_id());
+        assert_eq!(source.code(), "QMM-ABI-003");
+        assert!(error.path().is_none());
+        assert!(
+            !errors
+                .errors()
+                .iter()
+                .any(|error| error.kind() == ResolveErrorKind::InvalidValueClosure)
+        );
+    }
+}
+
+#[test]
+fn test_for_roots_resolves_only_the_reachable_registered_subgraph() {
+    let source = FragmentIdentity::new("structure", "local-roots", 1, 1, "model", 0);
+    let models = ModelRegistry::from_static_metadata(&[
+        (TypeMetadata::of::<Inner>(), &source),
+        (TypeMetadata::of::<DirectEntity>(), &source),
+    ])
+    .expect("valid and unrelated concrete registrations");
+    let root = TypeMetadata::of::<ExplicitReferenceWrapper>();
+    let roots = [root];
+    let inputs = ResolveInputs { models: &models, roots: &roots };
+
+    let full_errors = StructureResolver::new(inputs)
+        .resolve()
+        .expect_err("complete audit sees the unrelated invalid entity nesting");
+    assert!(full_errors.errors().iter().any(|error|
+        error.kind() == ResolveErrorKind::InvalidEntityNesting
+            && error.owner_type_id() == Some(TypeMetadata::of::<DirectEntity>().type_id())));
+
+    let graph = StructureResolver::for_roots(inputs)
+        .resolve()
+        .expect("local resolution skips unrelated invalid registrations");
+    assert!(graph.model(root.type_id()).is_some());
+    assert!(graph.model(TypeMetadata::of::<Inner>().type_id()).is_some());
+    assert!(graph.model(TypeMetadata::of::<DirectEntity>().type_id()).is_none());
+    assert_eq!(graph.models().len(), 2);
+    assert!(graph.properties(TypeMetadata::of::<DirectEntity>()).is_none());
+}
+
+#[test]
+fn test_for_roots_empty_roots_produce_an_empty_graph() {
+    let source = FragmentIdentity::new("structure", "empty-roots", 1, 1, "model", 0);
+    let models = ModelRegistry::from_static_metadata(&[(TypeMetadata::of::<Inner>(), &source)])
+        .expect("registered concrete model");
+    let roots: [&'static TypeMetadata; 0] = [];
+    let inputs = ResolveInputs { models: &models, roots: &roots };
+
+    let local = StructureResolver::for_roots(inputs)
+        .resolve()
+        .expect("empty local root set");
+    assert!(local.models().is_empty());
+
+    let complete = StructureResolver::new(inputs)
+        .resolve()
+        .expect("empty-root complete audit");
+    assert_eq!(complete.models().len(), 1);
+    assert!(complete.model(TypeMetadata::of::<Inner>().type_id()).is_some());
+}
+
+#[test]
+fn test_for_roots_rejects_malformed_overlay_even_when_registry_has_canonical_metadata() {
+    let source = FragmentIdentity::new("structure", "canonical-root", 1, 1, "model", 0);
+    let registered = TypeMetadata::of::<Plain>();
+    let models = ModelRegistry::from_static_metadata(&[(registered, &source)])
+        .expect("valid canonical model metadata");
+    let malformed = v7::leak(
+        v7::GeneratedTypeMetadataBuilder::new(
+            TypeDescriptor::of::<Plain>(),
+            None,
+            &[],
+            v7::leak(v7::model_role()),
+        )
+        .finish_unchecked(),
+    );
+    let roots = [malformed];
+    let inputs = ResolveInputs { models: &models, roots: &roots };
+
+    for resolver in [StructureResolver::new, StructureResolver::for_roots] {
+        let errors = resolver(inputs)
+            .resolve()
+            .expect_err("malformed explicit overlay must not be replaced silently");
+        assert!(errors.errors().iter().any(|error| {
+            error.kind() == ResolveErrorKind::MetadataResolution
+                && error.owner_type_id() == Some(malformed.type_id())
+                && matches!(
+                    error.cause(),
+                    Some(ModelResolutionCause::Metadata(ModelMetadataError::Abi { source, .. }))
+                        if source.code() == "QMM-ABI-003"
+                )
+        }));
+    }
+}
+
+#[test]
+fn test_for_roots_deduplicates_repeated_roots() {
+    let metadata = TypeMetadata::of::<Plain>();
+    let roots = [metadata, metadata];
+    let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve()
+        .expect("duplicate valid root");
+
+    assert_eq!(graph.models().len(), 1);
+    assert_eq!(graph.models()[0].type_id(), metadata.type_id());
+}
+
+#[test]
+fn test_for_roots_reports_all_malformed_roots_in_deterministic_order() {
+    let malformed_primitive = v7::leak(
+        v7::GeneratedTypeMetadataBuilder::new(
+            TypeDescriptor::of::<PrimitiveRaw>(),
+            None,
+            &[],
+            v7::leak(v7::model_role()),
+        )
+        .finish_unchecked(),
+    );
+    let malformed_plain = v7::leak(
+        v7::GeneratedTypeMetadataBuilder::new(
+            TypeDescriptor::of::<Plain>(),
+            None,
+            &[],
+            v7::leak(v7::model_role()),
+        )
+        .finish_unchecked(),
+    );
+    let roots = [malformed_primitive, malformed_plain];
+    let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
+    let errors = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve()
+        .expect_err("both malformed roots must be reported");
+
+    assert_eq!(errors.errors().len(), 2);
     assert_eq!(
-        error.declaration().expect("owning unnamed declaration").owner,
-        Some(root.type_name())
+        errors.errors()[0].owner_type_name(),
+        Some("structure_resolution_regression_tests::Plain")
     );
-    assert!(
-        !errors
-            .errors()
-            .iter()
-            .any(|error| error.kind() == ResolveErrorKind::InvalidValueClosure)
+    assert_eq!(
+        errors.errors()[1].owner_type_name(),
+        Some("structure_resolution_regression_tests::PrimitiveRaw")
     );
+    assert!(errors.errors().iter().all(|error| matches!(
+        error.cause(),
+        Some(ModelResolutionCause::Metadata(ModelMetadataError::Abi { source, .. }))
+            if source.code() == "QMM-ABI-003"
+    )));
 }
