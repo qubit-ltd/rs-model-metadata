@@ -93,13 +93,32 @@ fn main() {
     let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
     let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model registry");
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().unwrap();
     assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
     assert_eq!(graph.models().len(), 2);
     let query = graph.query(root.type_id()).unwrap();
     assert_eq!(query.declarations().len(), 2);
     assert_eq!(query.declarations()[1].path().segments(), &["nickname"]);
+}
+```
+
+For a startup or release audit, resolve every registered model with `new` and
+an empty root list. A request path can instead use `for_roots`, as the validation
+workflow below does. It skips structural initialization for unrelated models
+while reading reachable capabilities and property providers from the same
+registry snapshot.
+
+```rust
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+
+fn main() {
+    let models = ModelRegistry::try_global().expect("linked model registry");
+    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &[] })
+        .resolve().expect("all linked model structures are valid");
+    println!("audited {} linked models", graph.models().len());
 }
 ```
 
@@ -295,7 +314,7 @@ fn main() {
     let root = TypeMetadata::of::<Profile>();
     let roots = [root];
     let models = ModelRegistry::try_global().expect("linked metadata and accessors");
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("valid structure");
     ValidationCapabilities::check(root, &graph).expect("supported access shapes");
     let validators = ValidatorRegistry::empty();
@@ -374,7 +393,7 @@ fn main() {
     let root = TypeMetadata::of::<ContactMethod>();
     let roots = [root];
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("enum declarations are structurally supported");
     let validators = ValidatorRegistry::empty();
     let errors = match ValidationPlan::build(root, ValidationBuildInputs {
@@ -499,7 +518,7 @@ fn main() {
     let validators = ValidatorRegistry::empty();
     let root = TypeMetadata::of::<Root>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("structurally valid wrapper");
     assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
     assert_eq!(graph.models().len(), 2);
@@ -516,7 +535,7 @@ fn main() {
 
     let root = TypeMetadata::of::<EmptyRoot>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("no-work wrapper");
     assert!(graph.model(TypeMetadata::of::<EmptyChild>().type_id()).is_some());
     ValidationCapabilities::check(root, &graph).expect("no execution work");
@@ -538,9 +557,13 @@ fn main() {
 | Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
 
 A reflection-backed registry discovers anonymous children reachable from the root,
-even through raw reflection wrappers. Supply only that root in `ResolveInputs.roots`;
-all discovery stays in the supplied snapshot. Metadata-only registries require
-explicit child metadata and do not import reflection capabilities.
+even through raw reflection wrappers. `for_roots` skips unrelated registered
+models but resolves reachable capabilities and properties from the same snapshot.
+Metadata-only registries require explicit metadata for every reachable child and
+do not import reflection capabilities. Use `TypeMetadata::try_of::<T>()` to
+handle generated metadata ABI violations as `AbiViolation`; `TypeMetadata::of::<T>()`
+panics when that validation fails. Invalid explicit roots are reported during
+resolution, while invalid static registry entries fail registry construction.
 One-field tuple `Value` declarations obey the same value-closure checks as named
 Values; `transparent` controls representation, not execution support.
 Entity role checks also traverse tuple fields: `(InnerEntity,)` without an

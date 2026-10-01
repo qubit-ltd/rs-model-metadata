@@ -207,9 +207,62 @@ and Deserialize by default. Use `no_*` options for intentional opt-outs; `no_eq`
 also removes default Hash. `copy`, `default`, `partial_ord`, and `ord` are opt-in.
 Named Option and standard collection fields default when missing and omit empty values.
 
-With a reflection-backed registry, pass only the root in
-`ResolveInputs { models: &registry, roots: &[metadata] }` to discover reachable anonymous models.
-For metadata-only registries, supply anonymous children explicitly.
+Use `new` when an application must audit every model in a linked registry. Use
+`for_roots` when a request or business workflow needs a plan for only its root
+and reachable models. Both calls borrow the same `ModelRegistry` snapshot:
+root-scoped resolution skips structural initialization of unrelated models,
+while still reading reachable capabilities and `ModelImpl` property providers
+from that snapshot. The local validation example requires the `validation`
+feature and the direct `qubit-validator` dependency shown in the user guide.
+
+```rust
+use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationOptions;
+use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::ReflectedRef;
+use qubit_validator::ValidatorRegistry;
+
+#[Model]
+struct Request {
+    #[text(non_blank)]
+    input: String,
+}
+
+fn main() {
+    let models = ModelRegistry::try_global().expect("linked registry");
+    let _complete = StructureResolver::new(ResolveInputs { models: &models, roots: &[] })
+        .resolve().expect("audit every linked model");
+
+    let root = TypeMetadata::of::<Request>();
+    let roots = [root];
+    let local = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("resolve the request workflow");
+    assert!(local.model(root.type_id()).is_some());
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(root, ValidationBuildInputs {
+        graph: &local,
+        validators: &validators,
+    }).expect("build the request validation plan");
+    let report = plan.validate(
+        ReflectedRef::new(&Request { input: String::new() }),
+        &ValidationOptions::default(),
+    ).expect("validate the request");
+    assert!(!report.is_valid());
+}
+```
+
+With a reflection-backed registry, `for_roots` discovers reachable anonymous
+models through the same snapshot. A metadata-only registry built with
+`ModelRegistry::from_static_metadata` has no reflection discovery: include the
+metadata for every reachable child explicitly. Use `TypeMetadata::try_of::<T>()`
+when generated metadata ABI violations must be handled as an `AbiViolation`;
+`TypeMetadata::of::<T>()` panics if that ABI validation fails. Invalid explicit
+roots and registry entries are reported during resolution/registry construction.
 Generic concrete models retain their definition even without a stable ID.
 `QueryMetadata::declarations()` exposes direct indexed declarations, including implicit
 identifier, unique, and reference reasons. Filter generation and matching policy belong
