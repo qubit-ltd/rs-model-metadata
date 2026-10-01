@@ -167,8 +167,57 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 有意关闭某项能力时使用 `no_*`；`no_eq` 同时关闭默认 Hash。Copy、Default 和排序能力通过
 `copy`、`default`、`partial_ord`、`ord` 启用。具名 Option 与标准集合字段支持缺失默认值和空值省略。
 
-使用基于反射快照的注册表时，`ResolveInputs { models: &registry, roots: &[metadata] }`
-只需传入根即可发现可达匿名子模型；仅静态元数据注册表需要显式提供子模型。
+需要审计链接注册表中的全部模型时使用 `new`；业务请求只需要根模型及其可达模型时使用
+`for_roots`。两种调用都借用同一个 `ModelRegistry` 快照：按根解析会跳过无关模型的结构初始化，
+但可达模型仍从该快照读取 capability 和 `ModelImpl` Property provider。下面的局部验证示例需要启用
+`validation` feature，并直接依赖 `qubit-validator`；依赖配置见用户指南。
+
+```rust
+use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationOptions;
+use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::ReflectedRef;
+use qubit_validator::ValidatorRegistry;
+
+#[Model]
+struct Request {
+    #[text(non_blank)]
+    input: String,
+}
+
+fn main() {
+    let models = ModelRegistry::try_global().expect("链接注册表有效");
+    let _complete = StructureResolver::new(ResolveInputs { models: &models, roots: &[] })
+        .resolve().expect("审计所有已链接模型");
+
+    let root = TypeMetadata::of::<Request>();
+    let roots = [root];
+    let local = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("解析请求所需的模型结构");
+    assert!(local.model(root.type_id()).is_some());
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(root, ValidationBuildInputs {
+        graph: &local,
+        validators: &validators,
+    }).expect("构建请求验证计划");
+    let report = plan.validate(
+        ReflectedRef::new(&Request { input: String::new() }),
+        &ValidationOptions::default(),
+    ).expect("执行请求验证");
+    assert!(!report.is_valid());
+}
+```
+
+基于反射快照的注册表会通过同一快照发现根可达的匿名模型。通过
+`ModelRegistry::from_static_metadata` 构造的静态元数据注册表没有反射发现能力，必须显式提供
+所有可达子模型的元数据。需要处理生成元数据 ABI 错误时，可调用
+`TypeMetadata::try_of::<T>()` 并接收 `AbiViolation`；若 ABI 校验失败，`TypeMetadata::of::<T>()`
+会 panic。无效显式根和注册项会在解析或注册表构造期间报告。
 泛型具体类型即使没有稳定 ID，也保留泛型定义关联。`QueryMetadata::declarations()` 返回直接 indexed
 声明及 identifier、unique、reference 等隐含原因。filter 生成和匹配规则由消费者设计。
 `reference.path` 使用 `/` 和 `..`；普通 Property 路径仍使用 `.`。

@@ -87,13 +87,30 @@ fn main() {
     let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
     let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model registry");
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().unwrap();
     assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
     assert_eq!(graph.models().len(), 2);
     let query = graph.query(root.type_id()).unwrap();
     assert_eq!(query.declarations().len(), 2);
     assert_eq!(query.declarations()[1].path().segments(), &["nickname"]);
+}
+```
+
+启动或发布前审计时，可以用 `new` 和空根列表解析所有注册模型。处理单个请求时则使用
+`for_roots`，下方的验证流程就是这种用法。它会跳过无关模型的结构初始化，同时从同一注册表快照
+读取可达模型的 capability 和 Property provider。
+
+```rust
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+
+fn main() {
+    let models = ModelRegistry::try_global().expect("链接模型注册表有效");
+    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &[] })
+        .resolve().expect("所有已链接模型结构均有效");
+    println!("已审计 {} 个已链接模型", graph.models().len());
 }
 ```
 
@@ -253,7 +270,7 @@ fn main() {
     let root = TypeMetadata::of::<Profile>();
     let roots = [root];
     let models = ModelRegistry::try_global().expect("linked metadata and accessors");
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("valid structure");
     ValidationCapabilities::check(root, &graph).expect("supported access shapes");
     let validators = ValidatorRegistry::empty();
@@ -328,7 +345,7 @@ fn main() {
     let root = TypeMetadata::of::<ContactMethod>();
     let roots = [root];
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("enum declarations are structurally supported");
     let validators = ValidatorRegistry::empty();
     let errors = match ValidationPlan::build(root, ValidationBuildInputs {
@@ -442,7 +459,7 @@ fn main() {
     let validators = ValidatorRegistry::empty();
     let root = TypeMetadata::of::<Root>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("structurally valid wrapper");
     assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
     assert_eq!(graph.models().len(), 2);
@@ -459,7 +476,7 @@ fn main() {
 
     let root = TypeMetadata::of::<EmptyRoot>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("no-work wrapper");
     assert!(graph.model(TypeMetadata::of::<EmptyChild>().type_id()).is_some());
     ValidationCapabilities::check(root, &graph).expect("no execution work");
@@ -480,9 +497,12 @@ fn main() {
 | selector 内约束或依赖、MapKey/MapValue、容器内模型 | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
 | Enum/raw wrapper 与递归路径 | 发现可达工作后，不支持的使用路径在能力检查和计划构建时明确拒绝；无工作包装可以通过 |
 
-基于反射快照的注册表能从根发现可达匿名子模型，包括 raw reflection wrapper 内的模型；
-`ResolveInputs.roots` 只需传入根，发现范围始终受传入快照限制。仅静态元数据注册表需要显式子元数据，
-不会引入反射能力。单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；`transparent` 只控制表示，
+基于反射快照的注册表能从根发现可达匿名子模型，包括 raw reflection wrapper 内的模型。`for_roots`
+会跳过无关注册模型的结构初始化，但仍从同一快照解析可达 capability 和 Property。静态元数据注册表
+必须显式提供每个可达子模型的元数据，也不会引入反射能力。使用 `TypeMetadata::try_of::<T>()`
+可将生成元数据 ABI 错误作为 `AbiViolation` 处理；校验失败时 `TypeMetadata::of::<T>()` 会 panic。
+无效显式根会在解析时报告，静态注册表中的无效条目会在注册表构造时失败。
+单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；`transparent` 只控制表示，
 不保证内部约束可执行。Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerEntity,)`
 返回 `InvalidEntityNesting`。newtype Value 不能在值闭包中隐藏 Model/Entity/Projection、引用、
 未解析描述符或 raw struct（`InvalidValueClosure`）；基本值及合法 Value/Enum 闭包仍可通过。
