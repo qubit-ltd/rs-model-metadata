@@ -19,11 +19,11 @@ use std::num::ParseIntError;
 
 use qubit_codec::ValueCodecId;
 use qubit_codec::ValueCodecRegistrationSource;
+use qubit_codec::ValueDecoder;
+use qubit_codec::ValueEncoder;
 use qubit_codec::ValueStringCodecDescriptor;
 use qubit_codec::ValueStringCodecRegistration;
 use qubit_codec::ValueStringCodecRegistry;
-use qubit_codec::ValueDecoder;
-use qubit_codec::ValueEncoder;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Value;
@@ -198,9 +198,12 @@ fn test_reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
     let missing_graph = graph(TypeMetadata::of::<Missing>(), &source);
     let mismatch_graph = graph(TypeMetadata::of::<Mismatch>(), &source);
     let rust_graph = graph(TypeMetadata::of::<RustType>(), &source);
-    let codecs =
-        ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION, &STRING_ALIAS_REGISTRATION, &U64_REGISTRATION])
-            .expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([
+        &STRING_REGISTRATION,
+        &STRING_ALIAS_REGISTRATION,
+        &U64_REGISTRATION,
+    ])
+    .expect("codec registry");
 
     let missing = bind_codecs(CodecBindInputs {
         graph: &missing_graph,
@@ -483,9 +486,12 @@ fn test_codec_errors_expose_recoverable_declaration_context() {
     })
     .resolve()
     .expect("valid declarations");
-    let codecs =
-        ValueStringCodecRegistry::from_registrations([&STRING_ALIAS_REGISTRATION, &U64_REGISTRATION, &STRING_REGISTRATION])
-            .expect("independent codec IDs");
+    let codecs = ValueStringCodecRegistry::from_registrations([
+        &STRING_ALIAS_REGISTRATION,
+        &U64_REGISTRATION,
+        &STRING_REGISTRATION,
+    ])
+    .expect("independent codec IDs");
     let errors = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,

@@ -957,6 +957,8 @@ struct ScalarOptionalFixture {
     amount: Option<BigDecimal>,
     #[time(precision = second)]
     instant: Option<DateTime<Utc>>,
+    #[time(precision = second)]
+    local: Option<NaiveTime>,
 }
 
 #[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
@@ -1060,6 +1062,7 @@ fn test_scalar_optional_none_skips_both_rules() {
     let model = ScalarOptionalFixture {
         amount: None,
         instant: None,
+        local: None,
     };
     let report = plan
         .validate(ReflectedRef::new(&model), &ValidationOptions::default())
@@ -1074,12 +1077,13 @@ fn test_scalar_optional_none_skips_both_rules() {
                 .expect("instant")
                 .with_timezone(&Utc),
         ),
+        local: Some(NaiveTime::from_hms_milli_opt(8, 0, 0, 1).expect("local time")),
     };
     let report = plan
         .validate(ReflectedRef::new(&present), &ValidationOptions::default())
         .expect("present scalar execution");
     let codes: Vec<_> = report.violations().iter().map(|v| v.code().as_str()).collect();
-    assert_eq!(codes, ["decimal.scale", "time.precision"]);
+    assert_eq!(codes, ["decimal.scale", "time.precision", "time.precision"]);
 }
 
 #[test]
