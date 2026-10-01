@@ -1,37 +1,37 @@
 error: duplicate sequence `min_items` option
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:19:31
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:18:31
    |
-19 |     #[sequence(min_items = 1, min_items = 2)]
+18 |     #[sequence(min_items = 1, min_items = 2)]
    |                               ^^^^^^^^^
 
 error: duplicate map `min_entries` option
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:21:28
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:20:28
    |
-21 |     #[map(min_entries = 1, min_entries = 2)]
+20 |     #[map(min_entries = 1, min_entries = 2)]
    |                            ^^^^^^^^^^^
 
 error: duplicate time `precision` option
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:23:32
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:22:32
    |
-23 |     #[time(precision = second, precision = millisecond)]
+22 |     #[time(precision = second, precision = millisecond)]
    |                                ^^^^^^^^^^^^^^^^^^^^^^^
 
 error: duplicate validator `limit` parameter
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:25:58
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:24:58
    |
-25 |     #[validator(id = "trybuild.value", params(limit = 1, limit = 2))]
+24 |     #[validator(id = "trybuild.value", params(limit = 1, limit = 2))]
    |                                                          ^^^^^
 
 error: duplicate validator dependency slot
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:27:63
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:26:63
    |
-27 |     #[validator(id = "trybuild.dependency", depends_on(value, value))]
+26 |     #[validator(id = "trybuild.dependency", depends_on(value, value))]
    |                                                               ^^^^^
 
 warning: unused import: `std::collections::HashMap`
-  --> tests/ui_roles/fail/advanced_duplicate_options.rs:13:5
+  --> tests/ui_roles/fail/advanced_duplicate_options.rs:12:5
    |
-13 | use std::collections::HashMap;
+12 | use std::collections::HashMap;
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

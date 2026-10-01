@@ -1,23 +1,23 @@
 error: conflicting model capability options
-  --> tests/ui_roles/fail/capability_conflicts.rs:16:8
+  --> tests/ui_roles/fail/capability_conflicts.rs:15:8
    |
-16 | struct CopyWithoutClone;
+15 | struct CopyWithoutClone;
    |        ^^^^^^^^^^^^^^^^
 
 error: no_copy is only supported by Enum
-  --> tests/ui_roles/fail/capability_conflicts.rs:19:8
+  --> tests/ui_roles/fail/capability_conflicts.rs:18:8
    |
-19 | struct CopyConflict;
+18 | struct CopyConflict;
    |        ^^^^^^^^^^^^
 
 error: conflicting model capability options
-  --> tests/ui_roles/fail/capability_conflicts.rs:22:8
+  --> tests/ui_roles/fail/capability_conflicts.rs:21:8
    |
-22 | struct PartialOrderConflict;
+21 | struct PartialOrderConflict;
    |        ^^^^^^^^^^^^^^^^^^^^
 
 error: conflicting model capability options
-  --> tests/ui_roles/fail/capability_conflicts.rs:25:8
+  --> tests/ui_roles/fail/capability_conflicts.rs:24:8
    |
-25 | struct OrderConflict;
+24 | struct OrderConflict;
    |        ^^^^^^^^^^^^^

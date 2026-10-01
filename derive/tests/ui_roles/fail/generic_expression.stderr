@@ -1,23 +1,23 @@
 error: unsupported const expression in #[reflect] trait: 340282366920938463463374607431768211456
-  --> tests/ui_roles/fail/generic_expression.rs:14:1
+  --> tests/ui_roles/fail/generic_expression.rs:13:1
    |
-14 | #[Model(id = "trybuild.GenericExpression")]
+13 | #[Model(id = "trybuild.GenericExpression")]
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: this error originates in the derive macro `::model_runtime::__private::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error: integer literal is too large
-  --> tests/ui_roles/fail/generic_expression.rs:16:16
+  --> tests/ui_roles/fail/generic_expression.rs:15:16
    |
-16 |     value: [T; 340282366920938463463374607431768211456],
+15 |     value: [T; 340282366920938463463374607431768211456],
    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: value exceeds limit of `340282366920938463463374607431768211455`
 
 error: integer literal is too large
-  --> tests/ui_roles/fail/generic_expression.rs:16:12
+  --> tests/ui_roles/fail/generic_expression.rs:15:12
    |
-16 |     value: [T; 340282366920938463463374607431768211456],
+15 |     value: [T; 340282366920938463463374607431768211456],
    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: value exceeds limit of `340282366920938463463374607431768211455`

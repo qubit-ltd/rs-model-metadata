@@ -1,29 +1,29 @@
 error: invalid allowed_chars value
-  --> tests/ui_roles/fail/invalid_closed_values.rs:17:28
+  --> tests/ui_roles/fail/invalid_closed_values.rs:16:28
    |
-17 |     #[text(allowed_chars = unsupported)]
+16 |     #[text(allowed_chars = unsupported)]
    |                            ^^^^^^^^^^^
 
 error: invalid text format
-  --> tests/ui_roles/fail/invalid_closed_values.rs:19:21
+  --> tests/ui_roles/fail/invalid_closed_values.rs:18:21
    |
-19 |     #[text(format = unsupported)]
+18 |     #[text(format = unsupported)]
    |                     ^^^^^^^^^^^
 
 error: invalid rounding mode
-  --> tests/ui_roles/fail/invalid_closed_values.rs:21:26
+  --> tests/ui_roles/fail/invalid_closed_values.rs:20:26
    |
-21 |     #[decimal(rounding = unsupported)]
+20 |     #[decimal(rounding = unsupported)]
    |                          ^^^^^^^^^^^
 
 error: invalid time precision
-  --> tests/ui_roles/fail/invalid_closed_values.rs:23:24
+  --> tests/ui_roles/fail/invalid_closed_values.rs:22:24
    |
-23 |     #[time(precision = unsupported)]
+22 |     #[time(precision = unsupported)]
    |                        ^^^^^^^^^^^
 
 error: redact level must be public, personal, confidential, or secret
-  --> tests/ui_roles/fail/invalid_closed_values.rs:25:22
+  --> tests/ui_roles/fail/invalid_closed_values.rs:24:22
    |
-25 |     #[redact(level = "unsupported")]
+24 |     #[redact(level = "unsupported")]
    |                      ^^^^^^^^^^^^^

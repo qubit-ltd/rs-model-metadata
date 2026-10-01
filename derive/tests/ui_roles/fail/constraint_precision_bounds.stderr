@@ -1,11 +1,11 @@
 error: time requires precision
-  --> tests/ui_roles/fail/constraint_precision_bounds.rs:18:5
+  --> tests/ui_roles/fail/constraint_precision_bounds.rs:17:5
    |
-18 |     #[time()]
+17 |     #[time()]
    |     ^^^^^^^^^
 
 error: decimal scale cannot exceed precision
-  --> tests/ui_roles/fail/constraint_precision_bounds.rs:24:5
+  --> tests/ui_roles/fail/constraint_precision_bounds.rs:23:5
    |
-24 |     #[decimal(precision = 2, scale = 3)]
+23 |     #[decimal(precision = 2, scale = 3)]
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

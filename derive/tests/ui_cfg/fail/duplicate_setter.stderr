@@ -1,23 +1,23 @@
 error: method query name `set_title` for Rust member `set_title` conflicts with Rust member `set_title`
-  --> tests/ui_cfg/fail/duplicate_setter.rs:21:12
+  --> tests/ui_cfg/fail/duplicate_setter.rs:20:12
    |
-21 |     pub fn set_title(&mut self, value: u32) { self.value = value; }
+20 |     pub fn set_title(&mut self, value: u32) { self.value = value; }
    |            ^^^^^^^^^
 
 error: duplicate property setter `title`
-  --> tests/ui_cfg/fail/duplicate_setter.rs:21:12
+  --> tests/ui_cfg/fail/duplicate_setter.rs:20:12
    |
-21 |     pub fn set_title(&mut self, value: u32) { self.value = value; }
+20 |     pub fn set_title(&mut self, value: u32) { self.value = value; }
    |            ^^^^^^^^^
 
 error[E0599]: no method named `set_title` found for mutable reference `&mut Conditional` in the current scope
-  --> tests/ui_cfg/fail/duplicate_setter.rs:19:12
+  --> tests/ui_cfg/fail/duplicate_setter.rs:18:12
    |
-19 |     pub fn set_title(&mut self, value: u32) { self.value = value; }
+18 |     pub fn set_title(&mut self, value: u32) { self.value = value; }
    |            ^^^^^^^^^ method not found in `&mut Conditional`
 
 error[E0599]: no method named `set_title` found for mutable reference `&mut Conditional` in the current scope
-  --> tests/ui_cfg/fail/duplicate_setter.rs:21:12
+  --> tests/ui_cfg/fail/duplicate_setter.rs:20:12
    |
-21 |     pub fn set_title(&mut self, value: u32) { self.value = value; }
+20 |     pub fn set_title(&mut self, value: u32) { self.value = value; }
    |            ^^^^^^^^^ method not found in `&mut Conditional`

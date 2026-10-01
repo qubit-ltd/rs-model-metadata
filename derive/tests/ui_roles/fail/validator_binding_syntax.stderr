@@ -1,17 +1,17 @@
 error: dependency slot must be an identifier
-  --> tests/ui_roles/fail/validator_binding_syntax.rs:15:52
+  --> tests/ui_roles/fail/validator_binding_syntax.rs:14:52
    |
-15 |     #[validator(id = "example.binding", depends_on(owner::name))]
+14 |     #[validator(id = "example.binding", depends_on(owner::name))]
    |                                                    ^^^^^^^^^^^
 
 error: structured dependency requires property
-  --> tests/ui_roles/fail/validator_binding_syntax.rs:21:52
+  --> tests/ui_roles/fail/validator_binding_syntax.rs:20:52
    |
-21 |     #[validator(id = "example.binding", depends_on(owner(path = "..")))]
+20 |     #[validator(id = "example.binding", depends_on(owner(path = "..")))]
    |                                                    ^^^^^^^^^^^^^^^^^^
 
 error: validator parameter name must be an identifier
-  --> tests/ui_roles/fail/validator_binding_syntax.rs:27:48
+  --> tests/ui_roles/fail/validator_binding_syntax.rs:26:48
    |
-27 |     #[validator(id = "example.binding", params(options::limit = 1))]
+26 |     #[validator(id = "example.binding", params(options::limit = 1))]
    |                                                ^^^^^^^^^^^^^^

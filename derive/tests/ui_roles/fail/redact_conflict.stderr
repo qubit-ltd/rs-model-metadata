@@ -1,5 +1,5 @@
 error: no_redact conflicts with field or selector redaction
-  --> tests/ui_roles/fail/redact_conflict.rs:14:8
+  --> tests/ui_roles/fail/redact_conflict.rs:13:8
    |
-14 | struct Secret {
+13 | struct Secret {
    |        ^^^^^^

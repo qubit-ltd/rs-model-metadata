@@ -1,49 +1,49 @@
 error: database-assigned identifiers are only valid for Entity
-  --> tests/ui_roles/fail/semantic_boundaries.rs:27:9
+  --> tests/ui_roles/fail/semantic_boundaries.rs:26:9
    |
-27 |     id: Id,
+26 |     id: Id,
    |         ^^
 
 error: key_part is only valid on named Model or Value fields
-  --> tests/ui_roles/fail/semantic_boundaries.rs:29:12
+  --> tests/ui_roles/fail/semantic_boundaries.rs:28:12
    |
-29 |     value: String,
+28 |     value: String,
    |            ^^^^^^
 
 error: key_part is only valid on named Model or Value fields
-  --> tests/ui_roles/fail/semantic_boundaries.rs:37:12
+  --> tests/ui_roles/fail/semantic_boundaries.rs:36:12
    |
-37 |     value: String,
+36 |     value: String,
    |            ^^^^^^
 
 error: key_part is only valid on named Model or Value fields
-  --> tests/ui_roles/fail/semantic_boundaries.rs:44:16
+  --> tests/ui_roles/fail/semantic_boundaries.rs:43:16
    |
-44 |         value: String,
+43 |         value: String,
    |                ^^^^^^
 
 error: key_part is only valid on named Model or Value fields
-  --> tests/ui_roles/fail/semantic_boundaries.rs:49:47
+  --> tests/ui_roles/fail/semantic_boundaries.rs:48:47
    |
-49 | struct PositionalValue(#[key_part(order = 0)] String);
+48 | struct PositionalValue(#[key_part(order = 0)] String);
    |                                               ^^^^^^
 
 error: text min_chars cannot exceed max_chars
-  --> tests/ui_roles/fail/semantic_boundaries.rs:60:12
+  --> tests/ui_roles/fail/semantic_boundaries.rs:59:12
    |
-60 |     value: String,
+59 |     value: String,
    |            ^^^^^^
 
 error: text min_bytes cannot exceed max_bytes
-  --> tests/ui_roles/fail/semantic_boundaries.rs:60:12
+  --> tests/ui_roles/fail/semantic_boundaries.rs:59:12
    |
-60 |     value: String,
+59 |     value: String,
    |            ^^^^^^
 
 error[E0277]: the trait bound `u64: TextConstraintTarget` is not satisfied
-  --> tests/ui_roles/fail/semantic_boundaries.rs:54:12
+  --> tests/ui_roles/fail/semantic_boundaries.rs:53:12
    |
-54 |     value: u64,
+53 |     value: u64,
    |            ^^^ the trait `TextConstraintTarget` is not implemented for `u64`
    |
    = help: the following other types implement trait `TextConstraintTarget`:
@@ -54,8 +54,8 @@ error[E0277]: the trait bound `u64: TextConstraintTarget` is not satisfied
              std::string::String
              str
 note: required by a bound in `assert_text_unique`
-  --> tests/ui_roles/fail/semantic_boundaries.rs:51:1
+  --> tests/ui_roles/fail/semantic_boundaries.rs:50:1
    |
-51 | #[Model]
+50 | #[Model]
    | ^^^^^^^^ required by this bound in `assert_text_unique`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)

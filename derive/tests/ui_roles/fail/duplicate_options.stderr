@@ -1,35 +1,35 @@
 error: duplicate model capability option
-  --> tests/ui_roles/fail/duplicate_options.rs:23:18
+  --> tests/ui_roles/fail/duplicate_options.rs:22:18
    |
-23 | #[Model(no_hash, no_hash)]
+22 | #[Model(no_hash, no_hash)]
    |                  ^^^^^^^
 
 error: duplicate unique `ignore_case` option
-  --> tests/ui_roles/fail/duplicate_options.rs:25:34
+  --> tests/ui_roles/fail/duplicate_options.rs:24:34
    |
-25 |     #[unique(ignore_case = true, ignore_case = false)]
+24 |     #[unique(ignore_case = true, ignore_case = false)]
    |                                  ^^^^^^^^^^^^^^^^^^^
 
 error: duplicate text `min_chars` option
-  --> tests/ui_roles/fail/duplicate_options.rs:26:27
+  --> tests/ui_roles/fail/duplicate_options.rs:25:27
    |
-26 |     #[text(min_chars = 1, min_chars = 2)]
+25 |     #[text(min_chars = 1, min_chars = 2)]
    |                           ^^^^^^^^^
 
 error: duplicate decimal `precision` option
-  --> tests/ui_roles/fail/duplicate_options.rs:28:30
+  --> tests/ui_roles/fail/duplicate_options.rs:27:30
    |
-28 |     #[decimal(precision = 8, precision = 9)]
+27 |     #[decimal(precision = 8, precision = 9)]
    |                              ^^^^^^^^^
 
 error: duplicate reference `existing` option
-  --> tests/ui_roles/fail/duplicate_options.rs:30:71
+  --> tests/ui_roles/fail/duplicate_options.rs:29:71
    |
-30 |     #[reference(entity = "trybuild.DuplicateTarget", existing = true, existing = false)]
+29 |     #[reference(entity = "trybuild.DuplicateTarget", existing = true, existing = false)]
    |                                                                       ^^^^^^^^^^^^^^^^
 
 error: duplicate serde `rename` option
-  --> tests/ui_roles/fail/duplicate_options.rs:32:31
+  --> tests/ui_roles/fail/duplicate_options.rs:31:31
    |
-32 |     #[serde(rename = "first", rename = "second")]
+31 |     #[serde(rename = "first", rename = "second")]
    |                               ^^^^^^^^^^^^^^^^^

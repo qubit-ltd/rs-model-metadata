@@ -1,17 +1,17 @@
 error: unknown reflection helper `unexpected`
-  --> tests/ui_roles/fail/model_impl_options.rs:19:13
+  --> tests/ui_roles/fail/model_impl_options.rs:18:13
    |
-19 | #[ModelImpl(unexpected)]
+18 | #[ModelImpl(unexpected)]
    |             ^^^^^^^^^^
 
 error[E0277]: the trait bound `Account: TypeMetadataProvider` is not satisfied
-  --> tests/ui_roles/fail/model_impl_options.rs:20:6
+  --> tests/ui_roles/fail/model_impl_options.rs:19:6
    |
-20 | impl Account {}
+19 | impl Account {}
    |      ^^^^^^^ unsatisfied trait bound
    |
 help: the trait `TypeMetadataProvider` is not implemented for `Account`
-  --> tests/ui_roles/fail/model_impl_options.rs:17:1
+  --> tests/ui_roles/fail/model_impl_options.rs:16:1
    |
-17 | struct Account;
+16 | struct Account;
    | ^^^^^^^^^^^^^^

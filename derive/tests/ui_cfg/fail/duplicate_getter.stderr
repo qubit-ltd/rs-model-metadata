@@ -1,23 +1,23 @@
 error: method query name `title` for Rust member `title` conflicts with Rust member `title`
-  --> tests/ui_cfg/fail/duplicate_getter.rs:21:12
+  --> tests/ui_cfg/fail/duplicate_getter.rs:20:12
    |
-21 |     pub fn title(&self) -> u32 { self.value }
+20 |     pub fn title(&self) -> u32 { self.value }
    |            ^^^^^
 
 error: duplicate property getter `title`
-  --> tests/ui_cfg/fail/duplicate_getter.rs:21:12
+  --> tests/ui_cfg/fail/duplicate_getter.rs:20:12
    |
-21 |     pub fn title(&self) -> u32 { self.value }
+20 |     pub fn title(&self) -> u32 { self.value }
    |            ^^^^^
 
 error[E0599]: no method named `title` found for reference `&Conditional` in the current scope
-  --> tests/ui_cfg/fail/duplicate_getter.rs:19:12
+  --> tests/ui_cfg/fail/duplicate_getter.rs:18:12
    |
-19 |     pub fn title(&self) -> u32 { self.value }
+18 |     pub fn title(&self) -> u32 { self.value }
    |            ^^^^^ method not found in `&Conditional`
 
 error[E0599]: no method named `title` found for reference `&Conditional` in the current scope
-  --> tests/ui_cfg/fail/duplicate_getter.rs:21:12
+  --> tests/ui_cfg/fail/duplicate_getter.rs:20:12
    |
-21 |     pub fn title(&self) -> u32 { self.value }
+20 |     pub fn title(&self) -> u32 { self.value }
    |            ^^^^^ method not found in `&Conditional`
