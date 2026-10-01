@@ -202,7 +202,7 @@ fn anonymous_generic_has_definition() {
 - [x] 执行下列命令并保留退出码/结果。只在此任务运行全量检查；若某项失败，修复后重跑受影响面及必要集成。
 
 ```sh
-cargo +nightly-2026-06-05 fmt --all -- --config-path .rs-ci/rustfmt.toml --check
+cargo +nightly-2026-06-05 fmt --all -- --config-path .infra/style/rustfmt.toml --check
 cargo test --locked --workspace --all-features
 cargo test --locked --workspace --no-default-features
 cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
@@ -233,5 +233,5 @@ cargo check --manifest-path ../rs-platform/Cargo.toml --workspace --all-features
 - T6 补验 canonical fallback 与 Enum tuple codec occurrence、重复 validator 的实际执行顺序、父实例上下文和嵌套标准约束。
 - T7 复采模型数仍为 131，ModelImpl 从 2 增至 20；真实平台完整关系图和完整 CI 已通过。
 - T8 真实多 crate fixture 现覆盖 ID/source/reference 与跨 crate validator/codec 策略绑定，保留缺失/重复 ID 和 runtime 重命名/缺失诊断。
-- 格式检查使用仓库 `align-ci.sh` 指定的 nightly 和 `.rs-ci/rustfmt.toml`，避免默认 rustfmt 配置与 CI 不一致。
+- 格式检查使用仓库 `align-ci.sh` 指定的 nightly 和 `.infra/style/rustfmt.toml`，避免默认 rustfmt 配置与 CI 不一致。
 - 四个仓库的 align-ci/ci-check 均以 0 退出；本节六项最终命令均以 0 退出。338 条逐项证据与下游边界见验收台账。

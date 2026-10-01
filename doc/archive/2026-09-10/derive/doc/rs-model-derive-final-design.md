@@ -128,7 +128,7 @@ The verification pyramid consists of:
 3. runtime tests for metadata, properties, resolution, Serde, and redaction;
 4. linked and renamed dependency fixtures for registration and facade lookup;
 5. a compiling crate-level doctest and bilingual scenario documentation;
-6. coverage thresholds enforced by the shared remote `.rs-ci` submodule;
+6. coverage thresholds enforced by the shared remote `.rs-infra-ci` submodule;
 7. downstream `rs-platform` CI over real declarations.
 
 Release acceptance requires the style checker, full crate CI, coverage gates,

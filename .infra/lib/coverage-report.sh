@@ -2,52 +2,49 @@
 set -euo pipefail
 
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+source "$project_root/.infra/lib/cleanup-build-artifacts.sh"
 cd "$project_root"
 mkdir -p target/llvm-cov/html
 
 coverage_config="$project_root/.infra/ci/coverage.json"
 coverage_scope="default-members"
-exclude_packages='[]'
 if [ -f "$coverage_config" ]; then
     coverage_scope=$(jq -r '.scope // "default-members"' "$coverage_config")
-    exclude_packages=$(jq -c '.exclude_packages // []' "$coverage_config")
 fi
 report_args=()
 metadata=$(cargo metadata --no-deps --format-version 1 \
     --manifest-path "$project_root/Cargo.toml")
-manifest="$project_root/Cargo.toml"
-selected_packages=$(jq -r \
-    --arg scope "$coverage_scope" \
-    --arg manifest "$manifest" \
-    --argjson excluded "$exclude_packages" \
-    '
-      . as $metadata
-      | (
-          if $scope == "workspace" then
-              $metadata.packages
-          elif $scope == "default-members" then
-              [
-                  $metadata.workspace_default_members[] as $member
-                  | $metadata.packages[]
-                  | select(.id == $member)
-              ]
-          elif $scope == "package" then
-              [$metadata.packages[] | select(.manifest_path == $manifest)]
-          else
-              error("unsupported coverage scope: " + $scope)
-          end
-        )
-      | .[] as $package
-      | select(($excluded | index($package.name)) == null)
-      | $package.name
-    ' <<< "$metadata")
-if [ -z "$selected_packages" ]; then
-    echo "error: the selected coverage scope contains no packages" >&2
-    exit 1
-fi
-while IFS= read -r package; do
-    report_args+=(--package "$package")
-done <<< "$selected_packages"
+excluded_packages=$(jq -c '.exclude_packages // []' "$coverage_config" 2>/dev/null || printf '[]')
+case "$coverage_scope" in
+    workspace)
+        mapfile -t package_names < <(jq -r \
+            --argjson excluded "$excluded_packages" \
+            '. as $metadata
+             | $metadata.packages[]
+             | select(.id as $id | $metadata.workspace_members | index($id))
+             | select(.name as $name | $excluded | index($name) | not)
+             | .name' <<<"$metadata")
+        ;;
+    package)
+        mapfile -t package_names < <(jq -r \
+            --arg manifest "$project_root/Cargo.toml" \
+            '.packages[] | select(.manifest_path == $manifest) | .name')
+        ;;
+    default-members)
+        mapfile -t package_names < <(jq -r \
+            --argjson excluded "$excluded_packages" \
+            '. as $metadata
+             | $metadata.packages[]
+             | select(.id as $id | $metadata.workspace_default_members | index($id))
+             | select(.name as $name | $excluded | index($name) | not)
+             | .name' <<<"$metadata")
+        ;;
+    *) echo "error: unsupported coverage scope '$coverage_scope'" >&2; exit 1 ;;
+esac
+for package_name in "${package_names[@]}"; do
+    report_args+=(--package "$package_name")
+done
+[ "${#package_names[@]}" -gt 0 ] || { echo "error: coverage scope selected no packages" >&2; exit 1; }
 cargo llvm-cov report "${report_args[@]}" --json --output-path coverage.json
 cargo llvm-cov report "${report_args[@]}" --lcov --output-path lcov.info
 cargo llvm-cov report "${report_args[@]}" --cobertura --output-path target/llvm-cov/cobertura.xml

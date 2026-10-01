@@ -374,7 +374,7 @@ D/R 条目只验收声明出口或文档归属，不宣称外部产品算法已�
 | --- | --- | ---: |
 | V1 | `cargo +1.94.0 test --locked --workspace --all-features` | 0 |
 | V2 | `cargo +1.94.0 test --locked --workspace --no-default-features` | 0 |
-| V3 | `cargo +nightly-2026-06-05 fmt --all -- --config-path .rs-ci/rustfmt.toml --check` | 0 |
+| V3 | `cargo +nightly-2026-06-05 fmt --all -- --config-path .infra/style/rustfmt.toml --check` | 0 |
 | V4 | `cargo +nightly-2026-06-05 clippy --locked --workspace --all-targets --all-features -- -D warnings` | 0 |
 | V5 | `cargo +1.94.0 doc --locked --workspace --all-features --no-deps` | 0 |
 | V6 | `cargo +1.94.0 check --locked --manifest-path <rs-platform-worktree>/Cargo.toml --workspace --all-features` | 0 |
@@ -418,7 +418,7 @@ CI 使用 `RS_CI_CARGO_HOME_MODE=shared` 与 `RS_CI_ARTIFACT_CLEANUP_MODE=never`
 | 双语 README/指南的实际代码块 | `tests/documentation_examples_tests.rs` | 8 份文档、12 个独立程序编译并运行；完整文档/item 审查未结束 |
 | 对齐与严格 Clippy | `./align-ci.sh` | 当前代码与文档测试对齐通过 |
 | 配置构造与实际执行 | `tests/validation/validation_options_tests.rs`、预算回归 | 独立 ValidationOptionsBuilder 已替换旧配置 setter；42 项 validation 回归通过 |
-| 覆盖率与独立 feature 轴 | `.rs-ci-coverage.json`、`.rs-ci-cargo-matrix.json` | 31 个 runtime 与 2 个 derive 豁免均已移除；codec-only/generic-only 已加入；完整覆盖率未通过 |
+| 覆盖率与独立 feature 轴 | `.rs-infra-ci-coverage.json`、`.rs-infra-ci-cargo-matrix.json` | 31 个 runtime 与 2 个 derive 豁免均已移除；codec-only/generic-only 已加入；完整覆盖率未通过 |
 | 1/8/32 字段性能观测 | `benches/model_pipeline.rs`、`benches/property_output.rs` | 三轮基线/实现配对比较及 72 组保留基准完成；最终源码版本仍需复测 |
 
 最近完成的 `./ci-check.sh`（标准约束规则 ID 列表修订前）在 coverage 门禁退出 1：
@@ -449,4 +449,4 @@ CI 使用 `RS_CI_CARGO_HOME_MODE=shared` 与 `RS_CI_ARTIFACT_CLEANUP_MODE=never`
 
 ### 覆盖率门槛补齐结果（2026-09-25）
 
-根据完整 coverage JSON 报告补充空集合访问器、元数据查找失败路径、关系位置/路径边界及重复内建 validator 声明失败路径的行为测试。未调整 `.rs-ci-coverage.json` 中的阈值或豁免。最终完整 `./align-ci.sh && ./ci-check.sh` 通过，coverage 汇总为：函数 1332/1399（95.21%）、行 9562/10444（91.55%）、region 13984/15599（89.65%），分别满足函数 ≥ 95%、行 > 90%、region > 85%。覆盖率报告由 `ci-check.sh` 的 coverage 门禁生成；该结果为本次最后一次完整运行。
+根据完整 coverage JSON 报告补充空集合访问器、元数据查找失败路径、关系位置/路径边界及重复内建 validator 声明失败路径的行为测试。未调整 `.rs-infra-ci-coverage.json` 中的阈值或豁免。最终完整 `./align-ci.sh && ./ci-check.sh` 通过，coverage 汇总为：函数 1332/1399（95.21%）、行 9562/10444（91.55%）、region 13984/15599（89.65%），分别满足函数 ≥ 95%、行 > 90%、region > 85%。覆盖率报告由 `ci-check.sh` 的 coverage 门禁生成；该结果为本次最后一次完整运行。
