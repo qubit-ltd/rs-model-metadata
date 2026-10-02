@@ -49,6 +49,11 @@ struct ReadOnlyRoot {
     middle: AccessMiddle,
 }
 
+#[Model(id = "access.SmartPointerRoot")]
+struct SmartPointerRoot {
+    middle: Box<AccessMiddle>,
+}
+
 #[Model(id = "access.OwnedParent")]
 struct OwnedParent {
     child_value: String,
@@ -87,6 +92,7 @@ fn test_registry() -> ModelRegistry<'static> {
     static ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static OPTIONAL_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static READ_ONLY_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
+    static SMART_POINTER_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static SETTER_ONLY_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     let leaf_source = LEAF_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 1, 1, "leaf", 1));
     let middle_source =
@@ -96,6 +102,8 @@ fn test_registry() -> ModelRegistry<'static> {
         OPTIONAL_ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 4, 1, "optional-root", 4));
     let read_only_root_source = READ_ONLY_ROOT_SOURCE
         .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 5, 1, "read-only-root", 5));
+    let smart_pointer_root_source = SMART_POINTER_ROOT_SOURCE
+        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "smart-pointer-root", 6));
     let setter_only_source =
         SETTER_ONLY_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "setter-only", 6));
     ModelRegistry::from_static_metadata(&[
@@ -104,6 +112,7 @@ fn test_registry() -> ModelRegistry<'static> {
         (TypeMetadata::of::<AccessRoot>(), root_source),
         (TypeMetadata::of::<OptionalRoot>(), optional_root_source),
         (TypeMetadata::of::<ReadOnlyRoot>(), read_only_root_source),
+        (TypeMetadata::of::<SmartPointerRoot>(), smart_pointer_root_source),
         (TypeMetadata::of::<SetterOnly>(), setter_only_source),
     ])
     .expect("isolated model registry")
@@ -170,6 +179,23 @@ fn test_compile_rejects_owned_intermediate_getter() {
         Err(PropertyAccessPathError::UnsupportedIntermediate { index: 0, .. })
     ));
     assert_eq!(OWNED_GETTER_CALLS.load(Ordering::Relaxed), 0);
+}
+
+/// Rejects smart-pointer intermediates rather than treating the pointer as its
+/// target.
+#[test]
+fn test_compile_rejects_smart_pointer_intermediate() {
+    let registry = test_registry();
+    let result = qubit_model_metadata::PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<SmartPointerRoot>(),
+        &["middle", "leaf", "value"],
+    );
+
+    assert!(matches!(
+        result,
+        Err(PropertyAccessPathError::UnsupportedIntermediate { index: 0, .. })
+    ));
 }
 
 /// Reports a reflection read-only policy at runtime and retains the input.
