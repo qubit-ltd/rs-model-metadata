@@ -10,7 +10,8 @@
 
 use std::error::Error;
 
-use qubit_model_id::{ModelIdBuf, ModelIdError};
+use qubit_model_id::ModelIdBuf;
+use qubit_model_id::ModelIdError;
 
 /// Actual input failures retain a useful standalone diagnostic and no false
 /// cause.

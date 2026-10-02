@@ -28,7 +28,6 @@ use qubit_model_metadata::validation::ValidationOptionsBuilder;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::validation::ValidationSelection;
 use qubit_reflect::ReflectedRef;
-use qubit_validator::ValidatorRegistry;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
@@ -37,6 +36,7 @@ use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorId;
+use qubit_validator::ValidatorRegistry;
 
 thread_local! {
     static SELECTION_GETTER_CALLS: Cell<usize> = const { Cell::new(0) };
@@ -151,9 +151,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
     let explicitly_all = plan
         .validate(
             ReflectedRef::new(&value),
-            &ValidationOptions::builder()
-                .selection(ValidationSelection::All)
-                .build(),
+            &ValidationOptions::builder().selection(ValidationSelection::All).build(),
         )
         .expect("All selection validates every bound occurrence");
     assert_eq!(explicitly_all.violations().len(), 2);
@@ -180,7 +178,10 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         let error = plan
             .validate(ReflectedRef::new(&value), &options)
             .expect_err("non-matching path must be rejected");
-        assert_eq!(error.error().kind(), qubit_validator::ExecutionErrorKind::InvalidSelection);
+        assert_eq!(
+            error.error().kind(),
+            qubit_validator::ExecutionErrorKind::InvalidSelection
+        );
         let retained_path = error
             .error()
             .trusted_source()

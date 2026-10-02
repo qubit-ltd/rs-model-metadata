@@ -160,19 +160,14 @@ impl<'a> ValidationPlan<'a> {
             )
             .at_model(self.root(), None));
         }
-        if let Some(path) = unmatched_selection(
-            options.selection(),
-            self.model_rules().len(),
-            self.bindings(),
-        ) {
+        if let Some(path) = unmatched_selection(options.selection(), self.model_rules().len(), self.bindings()) {
             let error = ExecutionError::new(ExecutionErrorKind::InvalidSelection)
                 .with_path(ValidationPath::root())
                 .with_trusted_source(path);
-            return Err(ModelValidationError::new(
-                error,
-                ReportAccumulator::new(options).into_report(),
-            )
-            .at_model(self.root(), None));
+            return Err(
+                ModelValidationError::new(error, ReportAccumulator::new(options).into_report())
+                    .at_model(self.root(), None),
+            );
         }
         let mut report = ReportAccumulator::new(options);
         let mut budget = ExecutionBudget::new(options);
@@ -256,13 +251,16 @@ fn unmatched_selection(
     if fields.is_empty() {
         return Some(FieldPath::from_segments(std::iter::empty::<String>()));
     }
-    fields.iter().find(|field| {
-        let matches_model = model_rule_count > 0 && field.segments().is_empty();
-        !matches_model
-            && !bindings
-                .iter()
-                .any(|binding| field_matches(field, &path_for(binding.value())))
-    }).cloned()
+    fields
+        .iter()
+        .find(|field| {
+            let matches_model = model_rule_count > 0 && field.segments().is_empty();
+            !matches_model
+                && !bindings
+                    .iter()
+                    .any(|binding| field_matches(field, &path_for(binding.value())))
+        })
+        .cloned()
 }
 
 /// Reads a value before its dependencies and executes one compiled field rule.
