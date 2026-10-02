@@ -15,8 +15,8 @@ creating a second reflection system.
 
 ## Installation
 
-The runtime crate supports Rust 1.94 and edition 2024. This package and its
-derive package are `publish = false`; use checkout paths from an application
+The runtime crate supports Rust 1.94 and edition 2024. The metadata, model ID,
+and derive packages are `publish = false`; use checkout paths from an application
 crate beside `rs-model-metadata` in the platform workspace:
 
 The examples use this checkout layout; run the application from `rs-platform/app`.
@@ -26,7 +26,7 @@ Keep direct dependencies on the same checkout paths used by the runtime:
 checkout/
   rs-platform/
     app/                 # Cargo.toml and src/main.rs
-    rs-model-metadata/   # runtime and derive/
+    rs-model-metadata/   # runtime, model-id/, and derive/
     rs-reflect/
   rust-common/
     rs-id/
@@ -52,6 +52,18 @@ qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 ```
+
+A library that only passes or stores stable model identities can depend directly
+on the small `qubit-model-id` crate, without the full metadata runtime:
+
+```toml
+[dependencies]
+qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
+```
+
+Use `qubit_model_id::{ModelId, ModelIdBuf, ModelIdError}` for that protocol.
+Model declarations and registry access still require `qubit-model-metadata`.
+Its `metadata` module re-exports these same ID types.
 
 <!-- example: validation -->
 ```toml

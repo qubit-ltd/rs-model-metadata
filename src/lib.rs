@@ -25,7 +25,6 @@ mod local_property_set;
 /// Declaration-side metadata types grouped under one stable namespace.
 pub mod metadata;
 mod metadata_vocabulary;
-mod model_id;
 mod model_impl_metadata;
 mod model_metadata_error;
 pub mod prelude;

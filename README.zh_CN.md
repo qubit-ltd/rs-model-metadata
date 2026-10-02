@@ -13,7 +13,7 @@
 
 ## 安装
 
-运行时 crate 需要 Rust 1.94，使用 edition 2024。本仓库和 derive crate 均设置了
+运行时 crate 需要 Rust 1.94，使用 edition 2024。metadata、model-id 和 derive crate 均设置了
 `publish = false`，因此应从应用 crate 使用 platform 工作区中的本地检出：
 
 示例统一使用以下检出布局，应用命令在 `rs-platform/app` 中执行。
@@ -23,7 +23,7 @@
 checkout/
   rs-platform/
     app/                 # Cargo.toml 与 src/main.rs
-    rs-model-metadata/   # runtime 与 derive/
+    rs-model-metadata/   # runtime、model-id/ 与 derive/
     rs-reflect/
   rust-common/
     rs-id/
@@ -47,6 +47,16 @@ qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 ```
+
+仅传递或保存稳定模型身份的库，可以直接依赖轻量的 `qubit-model-id`，无需完整 metadata 运行时：
+
+```toml
+[dependencies]
+qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
+```
+
+身份协议类型为 `qubit_model_id::{ModelId, ModelIdBuf, ModelIdError}`。
+模型声明和注册表访问仍依赖 `qubit-model-metadata`；其 `metadata` 模块重导出相同的 ID 类型。
 
 <!-- example: validation -->
 ```toml

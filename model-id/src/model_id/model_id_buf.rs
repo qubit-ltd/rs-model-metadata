@@ -19,8 +19,7 @@ use super::ModelIdError;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::metadata::ModelId;
-/// use qubit_model_metadata::metadata::ModelIdBuf;
+/// use qubit_model_id::{ModelId, ModelIdBuf};
 ///
 /// let owned = ModelIdBuf::try_from("example.Account").expect("valid model ID");
 /// assert_eq!(owned.as_str(), ModelId::new("example.Account").as_str());

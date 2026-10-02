@@ -8,23 +8,12 @@
 
 //! Integration tests for stable model identifiers.
 
-use qubit_model_metadata::metadata::ModelId;
-use qubit_model_metadata::metadata::ModelIdBuf;
-use qubit_model_metadata::metadata::ModelIdError;
+use qubit_model_id::{ModelId, ModelIdBuf, ModelIdError};
 
 mod model_id;
 
 const STATIC_MODEL_ID: ModelId = ModelId::new("qubit.platform.iam.User");
 const CONST_CHECKED: Result<ModelId, ModelIdError> = ModelId::try_new("Single_segment");
-
-#[test]
-fn test_metadata_reexports_standalone_model_id_type() {
-    let standalone: qubit_model_id::ModelId = STATIC_MODEL_ID;
-    let owned: qubit_model_id::ModelIdBuf = ModelIdBuf::from(standalone);
-    let error: qubit_model_id::ModelIdError = ModelId::validate("").expect_err("empty ID");
-    assert_eq!(owned.as_str(), "qubit.platform.iam.User");
-    assert_eq!(error, ModelIdError::Empty);
-}
 
 #[test]
 fn test_model_id_uses_one_shared_ascii_segment_grammar() {
@@ -49,7 +38,10 @@ fn test_model_id_uses_one_shared_ascii_segment_grammar() {
 #[test]
 fn test_static_model_id_borrowed_registry_lookup() {
     let entries = std::collections::HashMap::from([(STATIC_MODEL_ID, "user metadata")]);
-    assert_eq!(entries.get("qubit.platform.iam.User"), Some(&"user metadata"));
+    assert_eq!(
+        entries.get("qubit.platform.iam.User"),
+        Some(&"user metadata")
+    );
     assert_eq!(entries.get("qubit.platform.iam.user"), None);
 }
 
@@ -75,4 +67,23 @@ fn test_model_id_rejects_invalid_segments_consistently() {
         assert_eq!(ModelId::validate(value), Err(expected), "{value}");
         assert_eq!(ModelIdBuf::parse(value), Err(expected), "{value}");
     }
+}
+
+#[test]
+fn test_static_and_dynamic_ids_sort_and_hash_by_text() {
+    use std::collections::{BTreeSet, HashSet};
+
+    let static_ids = BTreeSet::from([
+        ModelId::new("example.Zebra"),
+        ModelId::new("example.Account"),
+    ]);
+    let sorted: Vec<_> = static_ids.into_iter().map(ModelId::as_str).collect();
+    assert_eq!(sorted, ["example.Account", "example.Zebra"]);
+
+    let dynamic_ids = HashSet::from([
+        ModelIdBuf::parse("example.Account").expect("valid ID"),
+        ModelIdBuf::from(ModelId::new("example.Account")),
+    ]);
+    assert_eq!(dynamic_ids.len(), 1);
+    assert!(dynamic_ids.contains("example.Account"));
 }

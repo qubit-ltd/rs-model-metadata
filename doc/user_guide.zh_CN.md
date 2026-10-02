@@ -16,7 +16,7 @@ TypeMetadata 是不依赖模型实例的静态信息。Entity 必须声明稳定
 
 ## 实战场景与最小配置
 
-两个 model-metadata package 都设置了 `publish = false`，需要使用本地检出。
+metadata、model-id 和 derive package 都设置了 `publish = false`，需要使用本地检出。
 以下路径假设应用 crate 与 `rs-model-metadata` 同属 `rs-platform` 工作区。只有构建验证计划时，
 才为运行时 crate 启用 `validation`：
 
@@ -27,7 +27,7 @@ TypeMetadata 是不依赖模型实例的静态信息。Entity 必须声明稳定
 checkout/
   rs-platform/
     app/                 # Cargo.toml 与 src/main.rs
-    rs-model-metadata/   # runtime 与 derive/
+    rs-model-metadata/   # runtime、model-id/ 与 derive/
     rs-reflect/
   rust-common/
     rs-id/
@@ -51,6 +51,17 @@ qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 ```
+
+如果库只需要稳定身份值，可以直接安装独立的 ID 协议 crate：
+
+```toml
+[dependencies]
+qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
+```
+
+该库可使用 `qubit_model_id::{ModelId, ModelIdBuf, ModelIdError}`。
+模型声明、注册表和结构解析仍依赖 `qubit-model-metadata`；
+`qubit_model_metadata::metadata` 重导出完全相同的 ID 类型。
 
 `ModelRegistry::from_static_metadata` 只读取显式传入的元数据，查询 Property 时仅使用
 `TypeMetadata::local_properties()`，因此看不到独立注册的 `ModelImpl` provider。

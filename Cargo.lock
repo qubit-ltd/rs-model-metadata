@@ -587,6 +587,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "qubit-model-id"
+version = "0.1.0"
+
+[[package]]
 name = "qubit-model-metadata"
 version = "0.1.0"
 dependencies = [
@@ -598,6 +602,7 @@ dependencies = [
  "qubit-datatype",
  "qubit-id",
  "qubit-model-derive",
+ "qubit-model-id",
  "qubit-redact",
  "qubit-reflect",
  "qubit-validation-rules",

@@ -19,7 +19,7 @@ exact TypeId identity and can be supplied as roots.
 
 ## Scenario and minimal configuration
 
-Both model-metadata packages set `publish = false`, so use local checkouts.
+The metadata, model ID, and derive packages set `publish = false`, so use local checkouts.
 These paths assume the application crate sits beside `rs-model-metadata` under
 `rs-platform`. Add `validation` only when the application builds plans:
 
@@ -30,7 +30,7 @@ Keep direct dependencies on the same checkout paths used by the runtime:
 checkout/
   rs-platform/
     app/                 # Cargo.toml and src/main.rs
-    rs-model-metadata/   # runtime and derive/
+    rs-model-metadata/   # runtime, model-id/, and derive/
     rs-reflect/
   rust-common/
     rs-id/
@@ -56,6 +56,18 @@ qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
 qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
 qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 ```
+
+For a library that only needs stable identity values, install the standalone
+ID protocol directly:
+
+```toml
+[dependencies]
+qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
+```
+
+Use `qubit_model_id::{ModelId, ModelIdBuf, ModelIdError}` in that library.
+Keep `qubit-model-metadata` for model declarations, registries, and resolution;
+`qubit_model_metadata::metadata` re-exports the exact same ID types.
 
 A static registry made with `ModelRegistry::from_static_metadata` reads only
 the supplied metadata and `TypeMetadata::local_properties()`; it cannot see
