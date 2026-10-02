@@ -181,9 +181,16 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
             .validate(ReflectedRef::new(&value), &options)
             .expect_err("non-matching path must be rejected");
         assert_eq!(error.error().kind(), qubit_validator::ExecutionErrorKind::InvalidSelection);
+        let retained_path = error
+            .error()
+            .trusted_source()
+            .and_then(|source| source.downcast_ref::<FieldPath>())
+            .expect("the rejected field path is retained as the trusted source");
+        assert_eq!(retained_path, &unmatched);
         assert_eq!(
-            error.error().trusted_source().and_then(|source| source.downcast_ref::<FieldPath>()),
-            Some(&unmatched)
+            retained_path.segments(),
+            unmatched.segments(),
+            "trusted callers can inspect the original segment sequence"
         );
     }
 }
@@ -251,13 +258,16 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
             qubit_validator::ExecutionErrorKind::InvalidSelection
         );
         assert!(error.error().path().as_segments().is_empty());
+        let retained_path = error
+            .error()
+            .trusted_source()
+            .and_then(|source| source.downcast_ref::<FieldPath>())
+            .expect("the first unmatched owned field path must be retained");
+        assert_eq!(retained_path, &expected_path);
         assert_eq!(
-            error
-                .error()
-                .trusted_source()
-                .and_then(|source| source.downcast_ref::<FieldPath>()),
-            Some(&expected_path),
-            "the first unmatched owned field path must be retained"
+            retained_path.segments(),
+            expected_path.segments(),
+            "trusted callers can inspect the exact unmatched segments"
         );
         assert!(error.partial_report().violations().is_empty());
         assert!(error.partial_report().skipped().is_empty());

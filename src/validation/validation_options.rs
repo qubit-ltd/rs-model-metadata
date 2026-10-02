@@ -117,10 +117,18 @@ impl FieldPath {
         }
     }
 
-    /// Returns the owned path segments used for matching.
+    /// Returns the retained path segments in their original order.
+    ///
+    /// This can expose caller-supplied field names. Callers must decide
+    /// whether those names are trusted before displaying or logging them.
+    ///
+    /// # Returns
+    ///
+    /// Returns the path segments in order, without joining or normalizing
+    /// them.
     #[must_use]
     #[inline]
-    pub(crate) fn segments(&self) -> &[String] {
+    pub fn segments(&self) -> &[String] {
         &self.segments
     }
 }
