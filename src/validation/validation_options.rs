@@ -37,10 +37,11 @@ pub enum ValidationMode {
 /// An owned field path used to select model validation occurrences.
 ///
 /// Matching uses complete field-name paths, ignoring collection indices. A
-/// parent path does not select its descendants. Construction does not check
-/// the path against a model graph; a path without a matching occurrence selects
-/// no field rules. Model-level rules have the empty field-name path: include
-/// an empty segment sequence to select them explicitly.
+/// parent path does not select its descendants. The path constructor does not
+/// validate names; at execution time, every selected path must match a bound
+/// rule or the complete selection returns `InvalidSelection` before any getter
+/// runs. Model-level rules have the empty field-name path: include an empty
+/// segment sequence to select them explicitly when the plan has a model rule.
 ///
 /// # Examples
 ///
@@ -56,11 +57,28 @@ pub enum ValidationMode {
 ///     .selection(ValidationSelection::Fields(vec![path]))
 ///     .build();
 /// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct FieldPath {
     /// Complete field-name path; collection indices are not included.
     segments: Vec<String>,
 }
+
+impl std::fmt::Debug for FieldPath {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("FieldPath")
+            .field("segments", &"<redacted>")
+            .finish()
+    }
+}
+
+impl std::fmt::Display for FieldPath {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("field path did not match validation rules")
+    }
+}
+
+impl std::error::Error for FieldPath {}
 
 impl FieldPath {
     /// Creates a path from dot-separated field names.
@@ -145,8 +163,10 @@ pub struct ValidationOptions {
 /// The selected model fields to validate.
 ///
 /// Selection applies during execution, after all declarations have been
-/// checked and bound. It cannot bypass a plan construction error. Model-level
-/// rules are selected by `All` or an explicitly included empty field path.
+/// checked and bound. `Fields` rejects an empty list or any path without an
+/// exact bound-rule match before a getter runs. It cannot bypass a plan
+/// construction error. Model-level rules are selected by `All` or an
+/// explicitly included empty field path when a model rule exists.
 ///
 /// # Examples
 ///
@@ -164,7 +184,8 @@ pub enum ValidationSelection {
     All,
     /// Validate occurrences whose complete field-name path is selected.
     /// Collection indices are ignored; selecting a parent is not a prefix
-    /// match.
+    /// match. Every supplied path must match a bound rule, and this variant
+    /// must contain at least one path.
     Fields(Vec<FieldPath>),
 }
 

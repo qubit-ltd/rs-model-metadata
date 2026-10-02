@@ -8,9 +8,12 @@
 
 //! Options construction preserves defaults and exact field selection.
 
+use std::cell::Cell;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 use qubit_model_derive::Model;
+use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::metadata::NavigationStep;
 use qubit_model_metadata::metadata::ObjectPath;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -26,6 +29,18 @@ use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::validation::ValidationSelection;
 use qubit_reflect::ReflectedRef;
 use qubit_validator::ValidatorRegistry;
+use qubit_validator::BoundValidationContext;
+use qubit_validator::DependencySpec;
+use qubit_validator::ExecutionError;
+use qubit_validator::InputType;
+use qubit_validator::PreparedOutcome;
+use qubit_validator::PreparedValidator;
+use qubit_validator::ValidationValue;
+use qubit_validator::ValidatorId;
+
+thread_local! {
+    static SELECTION_GETTER_CALLS: Cell<usize> = const { Cell::new(0) };
+}
 
 #[Model]
 struct SelectedFields {
@@ -33,11 +48,40 @@ struct SelectedFields {
     first: String,
     #[text(non_blank)]
     second: String,
+    plain: String,
+}
+
+#[ModelImpl]
+impl SelectedFields {
+    pub fn first(&self) -> &str {
+        SELECTION_GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
+        &self.first
+    }
 }
 
 #[Model]
 struct SelectedEnvelope {
     fields: SelectedFields,
+}
+
+struct AlwaysValid;
+
+impl PreparedValidator for AlwaysValid {
+    fn input_type(&self) -> InputType {
+        InputType::of::<SelectedFields>()
+    }
+
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        &[]
+    }
+
+    fn validate(
+        &self,
+        _: ValidationValue<'_>,
+        _: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
+        Ok(PreparedOutcome::Valid)
+    }
 }
 
 #[test]
@@ -91,6 +135,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         fields: SelectedFields {
             first: String::new(),
             second: String::new(),
+            plain: String::new(),
         },
     };
     let all = plan
@@ -103,23 +148,43 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
             .collect::<Vec<_>>(),
         ["fields.first", "fields.second"]
     );
-    for (path, expected) in [
-        (selected, vec!["fields.second"]),
-        (FieldPath::from_segments(["fields"]), vec![]),
-        (FieldPath::from_segments(["fields.second"]), vec![]),
+    let explicitly_all = plan
+        .validate(
+            ReflectedRef::new(&value),
+            &ValidationOptions::builder()
+                .selection(ValidationSelection::All)
+                .build(),
+        )
+        .expect("All selection validates every bound occurrence");
+    assert_eq!(explicitly_all.violations().len(), 2);
+    let options = ValidationOptions::builder()
+        .selection(ValidationSelection::Fields(vec![selected.clone(), selected]))
+        .build();
+    let report = plan
+        .validate(ReflectedRef::new(&value), &options)
+        .expect("repeated selection executes one matching occurrence");
+    let actual: Vec<_> = report
+        .violations()
+        .iter()
+        .map(|violation| violation.path().render())
+        .collect();
+    assert_eq!(actual, ["fields.second"]);
+
+    for unmatched in [
+        FieldPath::from_segments(["fields"]),
+        FieldPath::from_segments(["fields.second"]),
     ] {
         let options = ValidationOptions::builder()
-            .selection(ValidationSelection::Fields(vec![path]))
+            .selection(ValidationSelection::Fields(vec![unmatched.clone()]))
             .build();
-        let report = plan
+        let error = plan
             .validate(ReflectedRef::new(&value), &options)
-            .expect("selected execution");
-        let actual: Vec<_> = report
-            .violations()
-            .iter()
-            .map(|violation| violation.path().render())
-            .collect();
-        assert_eq!(actual, expected);
+            .expect_err("non-matching path must be rejected");
+        assert_eq!(error.error().kind(), qubit_validator::ExecutionErrorKind::InvalidSelection);
+        assert_eq!(
+            error.error().trusted_source().and_then(|source| source.downcast_ref::<FieldPath>()),
+            Some(&unmatched)
+        );
     }
 }
 
@@ -131,6 +196,124 @@ fn test_builder_preserves_default_options() {
         ValidationOptionsBuilder::default().build(),
         ValidationOptions::default()
     );
+}
+
+/// Every requested field must correspond to a bound rule before validation
+/// starts; rejected selections must not invoke any getter.
+#[test]
+fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
+    let root = TypeMetadata::of::<SelectedFields>();
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("field structure");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("standard constraints");
+    let value = SelectedFields {
+        first: String::new(),
+        second: String::new(),
+        plain: String::new(),
+    };
+
+    for (selection, expected_path) in [
+        (vec![FieldPath::new("typo")], FieldPath::new("typo")),
+        (
+            vec![FieldPath::new("first"), FieldPath::new("typo")],
+            FieldPath::new("typo"),
+        ),
+        (vec![FieldPath::new("plain")], FieldPath::new("plain")),
+        (vec![], FieldPath::from_segments(std::iter::empty::<String>())),
+        (
+            vec![FieldPath::from_segments(std::iter::empty::<String>())],
+            FieldPath::from_segments(std::iter::empty::<String>()),
+        ),
+    ] {
+        SELECTION_GETTER_CALLS.with(|calls| calls.set(0));
+        let options = ValidationOptions::builder()
+            .selection(ValidationSelection::Fields(selection))
+            .build();
+        let error = plan
+            .validate(ReflectedRef::new(&value), &options)
+            .expect_err("unmatched selection must be rejected");
+        assert_eq!(
+            error.error().kind(),
+            qubit_validator::ExecutionErrorKind::InvalidSelection
+        );
+        assert!(error.error().path().as_segments().is_empty());
+        assert_eq!(
+            error
+                .error()
+                .trusted_source()
+                .and_then(|source| source.downcast_ref::<FieldPath>()),
+            Some(&expected_path),
+            "the first unmatched owned field path must be retained"
+        );
+        assert!(error.partial_report().violations().is_empty());
+        assert!(error.partial_report().skipped().is_empty());
+        assert!(!error.partial_report().is_truncated());
+        assert_eq!(error.root_type_id(), Some(root.type_id()));
+        assert_eq!(
+            SELECTION_GETTER_CALLS.with(Cell::get),
+            0,
+            "selection preflight must run before getters"
+        );
+    }
+}
+
+#[test]
+fn test_explicit_empty_path_selects_model_level_rule() {
+    let root = TypeMetadata::of::<SelectedFields>();
+    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("field structure");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("standard constraints")
+    .with_model_rule(
+        qubit_model_metadata::validation::ModelRuleBinding::from_prepared::<SelectedFields>(
+            ValidatorId::new("selection.always_valid"),
+            Arc::new(AlwaysValid),
+        )
+        .expect("prepared model rule shape"),
+    );
+    let options = ValidationOptions::builder()
+        .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
+            std::iter::empty::<String>(),
+        )]))
+        .build();
+    let report = plan
+        .validate(
+            ReflectedRef::new(&SelectedFields {
+                first: String::new(),
+                second: String::new(),
+                plain: String::new(),
+            }),
+            &options,
+        )
+        .expect("explicit empty path selects the model-level occurrence");
+    assert!(report.violations().is_empty());
 }
 
 /// A completed builder selects the requested field before spending its budget.
@@ -167,6 +350,7 @@ fn test_builder_field_selection_and_budget_execute_together() {
             ReflectedRef::new(&SelectedFields {
                 first: String::new(),
                 second: String::new(),
+                plain: String::new(),
             }),
             &options,
         )

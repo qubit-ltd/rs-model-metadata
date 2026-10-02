@@ -153,14 +153,28 @@ impl<'a> ValidationPlan<'a> {
         ancestors: &[ReflectedRef<'value>],
         options: &ValidationOptions,
     ) -> Result<ValidationReport, ModelValidationError> {
-        let mut report = ReportAccumulator::new(options);
         if value.value_type_id() != self.root().type_id() {
             return Err(ModelValidationError::new(
                 ExecutionError::new(ExecutionErrorKind::InputTypeMismatch),
-                report.into_report(),
+                ReportAccumulator::new(options).into_report(),
             )
             .at_model(self.root(), None));
         }
+        if let Some(path) = unmatched_selection(
+            options.selection(),
+            self.model_rules().len(),
+            self.bindings(),
+        ) {
+            let error = ExecutionError::new(ExecutionErrorKind::InvalidSelection)
+                .with_path(ValidationPath::root())
+                .with_trusted_source(path);
+            return Err(ModelValidationError::new(
+                error,
+                ReportAccumulator::new(options).into_report(),
+            )
+            .at_model(self.root(), None));
+        }
+        let mut report = ReportAccumulator::new(options);
         let mut budget = ExecutionBudget::new(options);
         let model_rule_count = self.model_rules().len();
         let model_path = ValidationPath::root();
@@ -224,6 +238,31 @@ impl<'a> ValidationPlan<'a> {
         }
         Ok(report.into_report())
     }
+}
+
+/// Returns the first requested path that has no corresponding bound rule.
+///
+/// Model-level occurrences match the empty path. A field selection must not
+/// silently succeed when it is empty or names an existing field without a
+/// validation rule.
+fn unmatched_selection(
+    selection: &ValidationSelection,
+    model_rule_count: usize,
+    bindings: &[FieldRuleBinding],
+) -> Option<FieldPath> {
+    let ValidationSelection::Fields(fields) = selection else {
+        return None;
+    };
+    if fields.is_empty() {
+        return Some(FieldPath::from_segments(std::iter::empty::<String>()));
+    }
+    fields.iter().find(|field| {
+        let matches_model = model_rule_count > 0 && field.segments().is_empty();
+        !matches_model
+            && !bindings
+                .iter()
+                .any(|binding| field_matches(field, &path_for(binding.value())))
+    }).cloned()
 }
 
 /// Reads a value before its dependencies and executes one compiled field rule.
