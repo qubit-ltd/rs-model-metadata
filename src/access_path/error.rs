@@ -43,6 +43,9 @@ pub enum PropertyAccessPathError {
     /// An intermediate property cannot be projected mutably.
     #[error("property `{name}` at path segment {index} is not a mutable field")]
     UnwritableIntermediate { index: usize, name: String },
+    /// Field metadata has no concrete reflection access descriptor.
+    #[error("property `{name}` at path segment {index} has no reflection access adapter")]
+    AdapterUnavailable { index: usize, name: String },
     /// The leaf property has no setter or mutable field.
     #[error("property `{name}` at path segment {index} is not writable")]
     NotWritable { index: usize, name: String },

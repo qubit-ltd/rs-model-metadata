@@ -96,6 +96,15 @@ impl PropertyAccessPath {
                     name: segment.to_owned(),
                 });
             }
+            if property
+                .field()
+                .is_some_and(|field| field.reflect().is_none())
+            {
+                return Err(PropertyAccessPathError::AdapterUnavailable {
+                    index,
+                    name: segment.to_owned(),
+                });
+            }
             let is_last = index + 1 == segments.len();
             let declaring_type = owner;
             let mut optional = false;
