@@ -3,78 +3,18 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Structured errors returned by compiled property access paths.
+//! Errors returned while writing through compiled property access paths.
 
-use std::any::TypeId;
 use std::error::Error;
 use std::fmt;
 
-use crate::metadata::ModelMetadataError;
-use crate::metadata::PropertyAccessError;
-use crate::metadata::PropertyResolutionError;
-use crate::metadata::PropertySetFailure;
 use qubit_reflect::ReflectedOwned;
 
-/// A failure to compile or execute a dynamic property path.
-#[derive(Debug, thiserror::Error)]
-pub enum PropertyAccessPathError {
-    /// No property segments were supplied.
-    #[error("property access path is empty")]
-    EmptyPath,
-    /// A supplied property name is empty.
-    #[error("property access path segment {index} is empty")]
-    EmptySegment { index: usize },
-    /// A property name is absent from the current model.
-    #[error("unknown property `{name}` at path segment {index}")]
-    UnknownProperty { index: usize, name: String },
-    /// A property has no readable field or getter.
-    #[error("property `{name}` at path segment {index} is not readable")]
-    UnreadableIntermediate { index: usize, name: String },
-    /// An intermediate representation cannot safely produce a child borrow.
-    #[error("property `{name}` at path segment {index} has an unsupported intermediate type")]
-    UnsupportedIntermediate { index: usize, name: String },
-    /// An optional intermediate property contains no value.
-    #[error("optional property `{name}` at path segment {index} is absent")]
-    MissingIntermediate { index: usize, name: String },
-    /// An intermediate property cannot be projected mutably.
-    #[error("property `{name}` at path segment {index} is not a mutable field")]
-    UnwritableIntermediate { index: usize, name: String },
-    /// Field metadata has no concrete reflection access descriptor.
-    #[error("property `{name}` at path segment {index} has no reflection access adapter")]
-    AdapterUnavailable { index: usize, name: String },
-    /// The leaf property has no setter or mutable field.
-    #[error("property `{name}` at path segment {index} is not writable")]
-    NotWritable { index: usize, name: String },
-    /// The supplied reflected root value has a different concrete type.
-    #[error("property path root type mismatch: expected {expected:?}, got {actual:?}")]
-    RootTypeMismatch { expected: TypeId, actual: TypeId },
-    /// Resolving the owner's property set failed.
-    #[error("property resolution failed at path segment {index}: {source}")]
-    PropertyResolution {
-        index: usize,
-        #[source]
-        source: PropertyResolutionError,
-    },
-    /// Looking up metadata for a child descriptor failed.
-    #[error("model metadata lookup failed at path segment {index}: {source}")]
-    MetadataLookup {
-        index: usize,
-        #[source]
-        source: ModelMetadataError,
-    },
-    /// Reading or mutably projecting a property failed at runtime.
-    #[error("property access failed for `{name}` at path segment {index}: {source}")]
-    AccessFailure {
-        index: usize,
-        name: String,
-        #[source]
-        source: PropertyAccessError,
-    },
-}
+use super::property_access_path_error::PropertyAccessPathError;
+use crate::metadata::PropertySetFailure;
 
 /// A path write failure that preserves any replacement still owned by caller.
 #[must_use]

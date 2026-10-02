@@ -3,25 +3,25 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 //! Public contracts for compiled dynamic property access paths.
 
+use std::sync::OnceLock;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
-use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::PropertyAccessPathError;
+use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
-use std::sync::OnceLock;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 
 #[Model(id = "access.Leaf")]
 struct AccessLeaf {
@@ -54,6 +54,18 @@ struct OwnedParent {
     child_value: String,
 }
 
+#[Model(id = "access.SetterOnly")]
+struct SetterOnly {}
+
+static SETTER_ONLY_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+#[ModelImpl]
+impl SetterOnly {
+    pub fn set_value(&mut self, _value: String) {
+        SETTER_ONLY_CALLS.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
 static OWNED_GETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 #[ModelImpl]
@@ -67,29 +79,57 @@ impl OwnedParent {
     }
 }
 
-/// A static isolated registry keeps property compilation independent of globals.
+/// A static isolated registry keeps property compilation independent of
+/// globals.
 fn test_registry() -> ModelRegistry<'static> {
     static LEAF_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static MIDDLE_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static OPTIONAL_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static READ_ONLY_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
+    static SETTER_ONLY_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     let leaf_source = LEAF_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 1, 1, "leaf", 1));
     let middle_source =
         MIDDLE_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 2, 1, "middle", 2));
     let root_source = ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 3, 1, "root", 3));
-    let optional_root_source = OPTIONAL_ROOT_SOURCE
-        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 4, 1, "optional-root", 4));
+    let optional_root_source =
+        OPTIONAL_ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 4, 1, "optional-root", 4));
     let read_only_root_source = READ_ONLY_ROOT_SOURCE
         .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 5, 1, "read-only-root", 5));
+    let setter_only_source =
+        SETTER_ONLY_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "setter-only", 6));
     ModelRegistry::from_static_metadata(&[
         (TypeMetadata::of::<AccessLeaf>(), leaf_source),
         (TypeMetadata::of::<AccessMiddle>(), middle_source),
         (TypeMetadata::of::<AccessRoot>(), root_source),
         (TypeMetadata::of::<OptionalRoot>(), optional_root_source),
         (TypeMetadata::of::<ReadOnlyRoot>(), read_only_root_source),
+        (TypeMetadata::of::<SetterOnly>(), setter_only_source),
     ])
     .expect("isolated model registry")
+}
+
+/// Compiles and writes a setter-only leaf without requiring a getter.
+#[test]
+fn test_compile_for_write_accepts_setter_only_leaf() {
+    let registry = ModelRegistry::try_global().expect("linked setter-only model registration");
+    let path = qubit_model_metadata::PropertyAccessPath::compile_for_write(
+        registry,
+        TypeMetadata::of::<SetterOnly>(),
+        &["value"],
+    )
+    .expect("setter-only leaf compiles for writing");
+    assert!(path.check_writable().is_ok());
+    let mut root = SetterOnly {};
+    SETTER_ONLY_CALLS.store(0, Ordering::Relaxed);
+
+    path.write(ReflectedMut::new(&mut root), ReflectedOwned::new("after".to_owned()))
+        .expect("setter-only leaf accepts replacement");
+    assert_eq!(SETTER_ONLY_CALLS.load(Ordering::Relaxed), 1);
+    assert!(matches!(
+        qubit_model_metadata::PropertyAccessPath::compile(registry, TypeMetadata::of::<SetterOnly>(), &["value"],),
+        Err(PropertyAccessPathError::UnreadableIntermediate { index: 0, .. })
+    ));
 }
 
 /// Reports an absent optional intermediate separately from an unknown property.
@@ -152,7 +192,10 @@ fn test_write_read_only_intermediate_reports_access_failure() {
     };
 
     let failure = path
-        .write(ReflectedMut::new(&mut root), ReflectedOwned::new("replacement".to_owned()))
+        .write(
+            ReflectedMut::new(&mut root),
+            ReflectedOwned::new("replacement".to_owned()),
+        )
         .expect_err("reflection policy blocks mutable projection");
     assert!(matches!(
         failure.path_error(),
@@ -225,19 +268,11 @@ fn test_write_nested_property_through_root_instance() {
 fn test_compile_and_read_report_structured_path_errors() {
     let registry = test_registry();
     assert!(matches!(
-        qubit_model_metadata::PropertyAccessPath::compile(
-            &registry,
-            TypeMetadata::of::<AccessRoot>(),
-            &[],
-        ),
+        qubit_model_metadata::PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &[],),
         Err(PropertyAccessPathError::EmptyPath)
     ));
     assert!(matches!(
-        qubit_model_metadata::PropertyAccessPath::compile(
-            &registry,
-            TypeMetadata::of::<AccessRoot>(),
-            &[""],
-        ),
+        qubit_model_metadata::PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &[""],),
         Err(PropertyAccessPathError::EmptySegment { index: 0 })
     ));
     assert!(matches!(
@@ -276,7 +311,10 @@ fn test_write_root_mismatch_preserves_replacement() {
         value: "unchanged".to_owned(),
     };
     let failure = path
-        .write(ReflectedMut::new(&mut wrong_root), ReflectedOwned::new("replacement".to_owned()))
+        .write(
+            ReflectedMut::new(&mut wrong_root),
+            ReflectedOwned::new("replacement".to_owned()),
+        )
         .expect_err("root type must match");
 
     assert!(matches!(
@@ -315,9 +353,7 @@ fn test_write_leaf_failure_preserves_replacement() {
 
     assert!(failure.property_failure().is_some());
     assert_eq!(
-        failure
-            .replacement()
-            .and_then(|value| value.downcast_ref::<u32>()),
+        failure.replacement().and_then(|value| value.downcast_ref::<u32>()),
         Some(&17)
     );
     assert_eq!(root.middle.leaf.value, "unchanged");
