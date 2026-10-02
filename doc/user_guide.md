@@ -60,6 +60,7 @@ qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 For a library that only needs stable identity values, install the standalone
 ID protocol directly:
 
+<!-- example: core/model-id -->
 ```toml
 [dependencies]
 qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }

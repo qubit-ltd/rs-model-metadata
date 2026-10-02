@@ -50,6 +50,7 @@ qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 
 仅传递或保存稳定模型身份的库，可以直接依赖轻量的 `qubit-model-id`，无需完整 metadata 运行时：
 
+<!-- example: core/model-id -->
 ```toml
 [dependencies]
 qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }

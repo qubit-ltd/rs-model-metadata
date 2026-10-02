@@ -56,6 +56,7 @@ qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 A library that only passes or stores stable model identities can depend directly
 on the small `qubit-model-id` crate, without the full metadata runtime:
 
+<!-- example: core/model-id -->
 ```toml
 [dependencies]
 qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }

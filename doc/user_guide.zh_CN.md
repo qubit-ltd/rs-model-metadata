@@ -54,6 +54,7 @@ qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
 
 如果库只需要稳定身份值，可以直接安装独立的 ID 协议 crate：
 
+<!-- example: core/model-id -->
 ```toml
 [dependencies]
 qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
