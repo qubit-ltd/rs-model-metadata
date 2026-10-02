@@ -211,6 +211,17 @@ initialize the global registry. `ResolveError::cause()` retains the underlying f
 model, property path, and provenance. Independent failures are aggregated; underlying failures
 do not become missing-property diagnostics.
 
+### Dynamic property paths
+
+Compile untrusted or request-provided property segments with
+`PropertyAccessPath::compile(&registry, root, segments)`, then call `read` or
+`write` on instances. Reads traverse only borrowed properties and projectable
+optional intermediates; an absent `Option` returns `MissingIntermediate`.
+Writes require ordinary field-backed intermediate steps. Call
+`check_writable()` before converting input, and use `leaf_property()` to inspect
+the final property's declared type. See the [user guide](doc/user_guide.md#compiled-dynamic-property-access-paths)
+for the supported shapes and error behavior.
+
 Every `qubit.model.metadata.v1` capability target must also be a member of the reflected snapshot;
 `ModelRegistry::from_reflect_registry` reports `UnregisteredModelTarget` before invoking any model
 provider when that membership is missing. `ModelEntry::source()` and `ModelRegistry::source()`

@@ -14,6 +14,11 @@ pub use crate as qubit_model_metadata;
 #[doc(hidden)]
 pub mod __private;
 mod abi_violation;
+/// Compiled dynamic property access paths.
+pub mod access_path;
+pub use access_path::PropertyAccessPath;
+pub use access_path::PropertyAccessPathError;
+pub use access_path::PropertyAccessWriteFailure;
 #[cfg(feature = "codec")]
 pub mod codec;
 mod constraint;

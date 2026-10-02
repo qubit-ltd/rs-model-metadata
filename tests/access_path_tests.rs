@@ -1,0 +1,324 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+// =============================================================================
+
+//! Public contracts for compiled dynamic property access paths.
+
+use qubit_model_derive::Model;
+use qubit_model_derive::ModelImpl;
+use qubit_model_metadata::metadata::PropertyValue;
+use qubit_model_metadata::PropertyAccessPathError;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_reflect::ReflectedMut;
+use qubit_reflect::ReflectedOwned;
+use qubit_reflect::ReflectedRef;
+use qubit_reflect::identity::FragmentIdentity;
+use std::sync::OnceLock;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+
+#[Model(id = "access.Leaf")]
+struct AccessLeaf {
+    value: String,
+}
+
+#[Model(id = "access.Middle")]
+struct AccessMiddle {
+    leaf: AccessLeaf,
+}
+
+#[Model(id = "access.Root")]
+struct AccessRoot {
+    middle: AccessMiddle,
+}
+
+#[Model(id = "access.OptionalRoot")]
+struct OptionalRoot {
+    middle: Option<AccessMiddle>,
+}
+
+#[Model(id = "access.ReadOnlyRoot")]
+struct ReadOnlyRoot {
+    #[reflect(read_only)]
+    middle: AccessMiddle,
+}
+
+#[Model(id = "access.OwnedParent")]
+struct OwnedParent {
+    child_value: String,
+}
+
+static OWNED_GETTER_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+#[ModelImpl]
+impl OwnedParent {
+    /// Returns an owned child to verify access-path compile-time rejection.
+    pub fn owned_child(&self) -> AccessLeaf {
+        OWNED_GETTER_CALLS.fetch_add(1, Ordering::Relaxed);
+        AccessLeaf {
+            value: self.child_value.clone(),
+        }
+    }
+}
+
+/// A static isolated registry keeps property compilation independent of globals.
+fn test_registry() -> ModelRegistry<'static> {
+    static LEAF_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
+    static MIDDLE_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
+    static ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
+    static OPTIONAL_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
+    static READ_ONLY_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
+    let leaf_source = LEAF_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 1, 1, "leaf", 1));
+    let middle_source =
+        MIDDLE_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 2, 1, "middle", 2));
+    let root_source = ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 3, 1, "root", 3));
+    let optional_root_source = OPTIONAL_ROOT_SOURCE
+        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 4, 1, "optional-root", 4));
+    let read_only_root_source = READ_ONLY_ROOT_SOURCE
+        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 5, 1, "read-only-root", 5));
+    ModelRegistry::from_static_metadata(&[
+        (TypeMetadata::of::<AccessLeaf>(), leaf_source),
+        (TypeMetadata::of::<AccessMiddle>(), middle_source),
+        (TypeMetadata::of::<AccessRoot>(), root_source),
+        (TypeMetadata::of::<OptionalRoot>(), optional_root_source),
+        (TypeMetadata::of::<ReadOnlyRoot>(), read_only_root_source),
+    ])
+    .expect("isolated model registry")
+}
+
+/// Reports an absent optional intermediate separately from an unknown property.
+#[test]
+fn test_read_optional_intermediate_reports_missing_value() {
+    let registry = test_registry();
+    let path = qubit_model_metadata::PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<OptionalRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("optional model path compiles");
+    let root = OptionalRoot { middle: None };
+
+    assert!(matches!(
+        path.read(ReflectedRef::new(&root)),
+        Err(PropertyAccessPathError::MissingIntermediate { index: 0, .. })
+    ));
+    assert!(matches!(
+        path.check_writable(),
+        Err(PropertyAccessPathError::UnwritableIntermediate { index: 0, .. })
+    ));
+}
+
+/// Rejects a getter that returns ownership before any getter invocation.
+#[test]
+fn test_compile_rejects_owned_intermediate_getter() {
+    let registry = ModelRegistry::try_global().expect("linked model registrations");
+    OWNED_GETTER_CALLS.store(0, Ordering::Relaxed);
+    let result = qubit_model_metadata::PropertyAccessPath::compile(
+        registry,
+        TypeMetadata::of::<OwnedParent>(),
+        &["owned_child", "value"],
+    );
+
+    assert!(matches!(
+        result,
+        Err(PropertyAccessPathError::UnsupportedIntermediate { index: 0, .. })
+    ));
+    assert_eq!(OWNED_GETTER_CALLS.load(Ordering::Relaxed), 0);
+}
+
+/// Reports a reflection read-only policy at runtime and retains the input.
+#[test]
+fn test_write_read_only_intermediate_reports_access_failure() {
+    let registry = test_registry();
+    let path = qubit_model_metadata::PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<ReadOnlyRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("read-only field remains a valid path shape");
+    assert!(path.check_writable().is_ok());
+    let mut root = ReadOnlyRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf {
+                value: "unchanged".to_owned(),
+            },
+        },
+    };
+
+    let failure = path
+        .write(ReflectedMut::new(&mut root), ReflectedOwned::new("replacement".to_owned()))
+        .expect_err("reflection policy blocks mutable projection");
+    assert!(matches!(
+        failure.path_error(),
+        Some(PropertyAccessPathError::AccessFailure { .. })
+    ));
+    assert_eq!(
+        failure
+            .replacement()
+            .and_then(|value| value.downcast_ref::<String>())
+            .map(String::as_str),
+        Some("replacement")
+    );
+    assert_eq!(root.middle.leaf.value, "unchanged");
+}
+
+/// Reads a leaf property by traversing each real intermediate object.
+#[test]
+fn test_read_nested_property_from_root_instance() {
+    let registry = test_registry();
+    let path = qubit_model_metadata::PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<AccessRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("valid three-level property path");
+    let root = AccessRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf {
+                value: "nested".to_owned(),
+            },
+        },
+    };
+
+    let value = path
+        .read(ReflectedRef::new(&root))
+        .expect("nested property is readable");
+    let PropertyValue::Borrowed(value) = value else {
+        panic!("string field should be returned as a borrow");
+    };
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("nested"));
+    assert_eq!(path.leaf_property().name(), "value");
+}
+
+/// Writes a leaf value through mutable field projections from the actual root.
+#[test]
+fn test_write_nested_property_through_root_instance() {
+    let registry = test_registry();
+    let path = qubit_model_metadata::PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<AccessRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("valid three-level property path");
+    assert!(path.check_writable().is_ok());
+    let mut root = AccessRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf {
+                value: "before".to_owned(),
+            },
+        },
+    };
+
+    path.write(ReflectedMut::new(&mut root), ReflectedOwned::new("after".to_owned()))
+        .expect("nested property is writable");
+    assert_eq!(root.middle.leaf.value, "after");
+}
+
+/// Rejects empty, unknown, and root-mismatched path inputs structurally.
+#[test]
+fn test_compile_and_read_report_structured_path_errors() {
+    let registry = test_registry();
+    assert!(matches!(
+        qubit_model_metadata::PropertyAccessPath::compile(
+            &registry,
+            TypeMetadata::of::<AccessRoot>(),
+            &[],
+        ),
+        Err(PropertyAccessPathError::EmptyPath)
+    ));
+    assert!(matches!(
+        qubit_model_metadata::PropertyAccessPath::compile(
+            &registry,
+            TypeMetadata::of::<AccessRoot>(),
+            &[""],
+        ),
+        Err(PropertyAccessPathError::EmptySegment { index: 0 })
+    ));
+    assert!(matches!(
+        qubit_model_metadata::PropertyAccessPath::compile(
+            &registry,
+            TypeMetadata::of::<AccessRoot>(),
+            &["middle", "missing"],
+        ),
+        Err(PropertyAccessPathError::UnknownProperty { index: 1, .. })
+    ));
+    let path = qubit_model_metadata::PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<AccessRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("valid property path");
+    assert!(matches!(
+        path.read(ReflectedRef::new(&AccessLeaf {
+            value: "wrong root".to_owned(),
+        })),
+        Err(PropertyAccessPathError::RootTypeMismatch { .. })
+    ));
+}
+
+/// Keeps a replacement recoverable when root validation fails before traversal.
+#[test]
+fn test_write_root_mismatch_preserves_replacement() {
+    let registry = test_registry();
+    let path = qubit_model_metadata::PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<AccessRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("valid property path");
+    let mut wrong_root = AccessLeaf {
+        value: "unchanged".to_owned(),
+    };
+    let failure = path
+        .write(ReflectedMut::new(&mut wrong_root), ReflectedOwned::new("replacement".to_owned()))
+        .expect_err("root type must match");
+
+    assert!(matches!(
+        failure.path_error(),
+        Some(PropertyAccessPathError::RootTypeMismatch { .. })
+    ));
+    assert_eq!(
+        failure
+            .replacement()
+            .and_then(|value| value.downcast_ref::<String>())
+            .map(String::as_str),
+        Some("replacement")
+    );
+}
+
+/// Preserves the leaf setter's replacement recovery on a value type mismatch.
+#[test]
+fn test_write_leaf_failure_preserves_replacement() {
+    let registry = test_registry();
+    let path = qubit_model_metadata::PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<AccessRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("valid property path");
+    let mut root = AccessRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf {
+                value: "unchanged".to_owned(),
+            },
+        },
+    };
+    let failure = path
+        .write(ReflectedMut::new(&mut root), ReflectedOwned::new(17_u32))
+        .expect_err("leaf value type must match");
+
+    assert!(failure.property_failure().is_some());
+    assert_eq!(
+        failure
+            .replacement()
+            .and_then(|value| value.downcast_ref::<u32>()),
+        Some(&17)
+    );
+    assert_eq!(root.middle.leaf.value, "unchanged");
+}

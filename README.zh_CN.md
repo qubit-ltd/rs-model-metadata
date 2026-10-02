@@ -172,6 +172,14 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 解析器通过 `ResolveError::cause()` 保留原始错误，并附加模型、属性路径和来源。
 独立错误继续聚合，基础失败不会被改写成属性缺失。
 
+### 动态属性路径
+
+使用 `PropertyAccessPath::compile(&registry, root, segments)` 编译请求提供的属性段，
+再通过 `read` 或 `write` 访问实例。读取只穿过可借用属性，并支持可投影的 Option 中间节点；
+缺失值返回 `MissingIntermediate`。写入要求中间段都是普通字段。转换输入前先调用
+`check_writable()`，并可通过 `leaf_property()` 查看末端属性声明类型。支持的路径形状和错误语义见
+[用户指南](doc/user_guide.zh_CN.md#编译动态属性访问路径)。
+
 每个 `qubit.model.metadata.v1` 能力目标也必须是反射快照的成员；缺少成员声明时，
 `ModelRegistry::from_reflect_registry` 会在调用任何模型 provider 前返回 `UnregisteredModelTarget`。
 快照投影的 `ModelEntry::source()` 和 `ModelRegistry::source()` 指向元数据能力片段；
