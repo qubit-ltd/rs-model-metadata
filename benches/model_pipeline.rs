@@ -17,6 +17,7 @@
 mod fixtures;
 
 use std::hint::black_box;
+use std::sync::Arc;
 use std::time::Instant;
 
 use criterion::BenchmarkId;
@@ -29,6 +30,7 @@ use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::FieldPath;
+use qubit_model_metadata::validation::ModelRuleBinding;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
@@ -36,7 +38,111 @@ use qubit_model_metadata::validation::ValidationSelection;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::ReflectRegistry;
+use qubit_validator::BoundValidationContext;
+use qubit_validator::DependencySpec;
+use qubit_validator::ExecutionError;
+use qubit_validator::InputType;
+use qubit_validator::PreparedOutcome;
+use qubit_validator::PreparedValidator;
+use qubit_validator::ValidationValue;
+use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistry;
+
+struct AcceptModel;
+
+impl PreparedValidator for AcceptModel {
+    fn input_type(&self) -> InputType {
+        InputType::of::<Pipeline1>()
+    }
+
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        &[]
+    }
+
+    fn validate(
+        &self,
+        _: ValidationValue<'_>,
+        _: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
+        Ok(PreparedOutcome::Valid)
+    }
+}
+
+/// Measures plan construction plus model-rule attachment at fixed sample counts.
+fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistry) {
+    const SAMPLES: usize = 30;
+    println!(
+        "model_rule_batch_build: samples={SAMPLES}, profile={}",
+        if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        }
+    );
+    let models =
+        ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
+    let root = TypeMetadata::of::<Pipeline1>();
+    let roots = [root];
+    let graph = StructureResolver::for_roots(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("benchmark graph");
+    let validators = ValidatorRegistry::empty();
+    let prepared: Arc<dyn PreparedValidator> = Arc::new(AcceptModel);
+    let mut group = criterion.benchmark_group("model_rule_batch_build");
+    group.sample_size(SAMPLES);
+    for count in [1, 8, 32, 128] {
+        let bindings: Vec<_> = (0..count)
+            .map(|_| {
+                ModelRuleBinding::from_prepared::<Pipeline1>(
+                    ValidatorId::new("benchmark.model.accept"),
+                    Arc::clone(&prepared),
+                )
+                .expect("prepared model shape")
+            })
+            .collect();
+        group.bench_with_input(
+            BenchmarkId::new("repeated_append_baseline", count),
+            &bindings,
+            |bencher, bindings| {
+                bencher.iter(|| {
+                    let plan = ValidationPlan::build(
+                        root,
+                        ValidationBuildInputs {
+                            graph: &graph,
+                            validators: &validators,
+                        },
+                    )
+                    .expect("benchmark plan");
+                    let plan = black_box(bindings.iter().cloned())
+                        .fold(plan, |plan, binding| plan.with_model_rules([binding]));
+                    let _ = black_box(plan);
+                });
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("batch_api", count),
+            &bindings,
+            |bencher, bindings| {
+                bencher.iter(|| {
+                    let plan = ValidationPlan::build(
+                        root,
+                        ValidationBuildInputs {
+                            graph: &graph,
+                            validators: &validators,
+                        },
+                    )
+                    .expect("benchmark plan")
+                    .with_model_rules(black_box(bindings.iter().cloned()));
+                    let _ = black_box(plan);
+                });
+            },
+        );
+    }
+    group.finish();
+}
 
 /// Records the first property-provider initialization and assembly separately
 /// from both reflection startup and the later statistical warm benchmarks.
@@ -309,5 +415,6 @@ fn main() {
     let mut criterion = Criterion::default().configure_from_args();
     pipeline(&mut criterion, reflection, &roots);
     model_count_pipeline(&mut criterion);
+    model_rule_batch_build(&mut criterion, reflection);
     criterion.final_summary();
 }

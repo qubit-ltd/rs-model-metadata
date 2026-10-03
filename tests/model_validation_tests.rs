@@ -252,7 +252,7 @@ fn test_executes_typed_model_rule_binding() {
         },
     )
     .expect("binding")
-    .with_model_rule(binding);
+    .with_model_rules([binding]);
     let report = plan
         .validate(
             ReflectedRef::new(&TestModel { name: "bad".to_owned() }),
@@ -297,7 +297,7 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
         },
     )
     .expect("binding")
-    .with_model_rule(binding);
+    .with_model_rules([binding]);
 
     let error = plan
         .validate(
