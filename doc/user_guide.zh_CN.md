@@ -186,31 +186,6 @@ let title = resolved.property("title");
 缓存归所属 registry 管理，registry 丢弃后即可释放。`ModelGraph` 会在自身生命周期内保留属性视图，
 从 `graph.properties()` 借出的引用也不能超过 graph。
 
-### 编译动态属性访问路径
-
-当属性名来自请求或其他动态输入时，使用 `PropertyAccessPath`。用调用方
-指定的 `ModelRegistry` 快照编译一次，然后复用路径访问实例：
-
-```rust,ignore
-let path = PropertyAccessPath::compile(
-    &registry,
-    TypeMetadata::of::<Order>(),
-    &["customer", "name"],
-)?;
-let value = path.read(ReflectedRef::new(&order))?;
-path.check_writable()?;
-let leaf = path.leaf_property();
-path.write(ReflectedMut::new(&mut order), json_to_owned(leaf, input)?)?;
-```
-
-编译会解析每个属性，但不会调用用户 getter。读取支持借用的普通字段链；当反射提供借用投影时，
-也能穿过 `Option<T>`。Option 缺值返回 `PropertyAccessPathError::MissingIntermediate`。
-拥有所有权的 getter 结果、借用切片、无法解析的子类型和不支持的包装类型会被明确拒绝，
-不会被当作子对象使用。写入只支持由普通字段组成的中间链；先调用 `check_writable()`，
-可在转换输入前拒绝不支持的路径。运行时反射访问失败会携带路径段信息；叶子 setter 尚未消费
-替换值时，`PropertyAccessWriteFailure` 会保留该值供调用方恢复。编译后的路径绑定到编译时使用的
-元数据快照，不会查询全局注册表。
-
 旧的 `FieldMetadata::validate_nested()` 方法和 `FieldAttributeMetadata::ValidateNested` 标记已移除；
 它们不控制执行。计划构建器负责发现受支持的嵌套声明，遍历边界按文档中的 reference 和 opaque 语义处理，
 不再使用递归开关。
@@ -556,12 +531,10 @@ fn main() {
 
 `ValidationOptions` 默认选择 CollectAll、全部字段，深度上限 64、节点上限 100,000、
 报告违规上限 100、比较上限 1,000,000。预算设置都要求 `NonZeroUsize`。
-`Fields` 至少需要一个路径，而且每个路径都必须精确匹配已绑定的规则。拼写错误、存在但没有验证规则的字段，
-以及自身没有规则的父路径都会在调用 getter 前返回 `InvalidSelection`。匹配时忽略集合索引，但字段名和段边界必须一致：
-选择嵌套字段需要指定 `contact.name`；只指定 `contact` 不会包含后代。
-`FieldPath::from_segments(["contact.name"])` 会把整个字符串视为一个段，而不是两个段。重复路径不会重复执行规则。
-空路径仅在计划中存在模型级规则时才会选中它；否则视为无效。被选中的模型级规则先于被选中的字段规则执行。
-选择只验证请求的规则，因此选中部分的报告成功不代表整个模型均已验证；选择也不能绕过声明或绑定错误。
+字段选择匹配完整的已绑定字段路径，忽略集合索引；例如需要指定 `contact.name` 才能选择该嵌套字段，
+只指定 `contact` 不会包含后代。`FieldPath::from_segments` 拥有传入名称，不会再次拆分段内的点号。
+使用 `Fields` 选择模型级规则时，需要加入空段序列；普通字段路径不会选中模型级规则。
+被选中的模型级规则先于被选中的字段规则执行。选择只影响执行，不能绕过声明或绑定错误。
 
 - FailFast 只保留首条违规，包括失败前置条件产生的违规。单次返回多条违规也不能突破限制。
 - 违规数量是整个报告的硬上限，前置失败同样计入。达到上限后，不再调用后续 getter、规则，

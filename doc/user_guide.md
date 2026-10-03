@@ -213,36 +213,6 @@ That cache belongs to the registry and is released when the registry is dropped.
 `ModelGraph` retains property views for its own lifetime, and references obtained
 from `graph.properties()` must not outlive the graph.
 
-### Compiled dynamic property access paths
-
-Use `PropertyAccessPath` when property names come from a request or another
-dynamic source. Compile against the same explicit `ModelRegistry` snapshot used
-by the caller, then reuse the path to read or write instances:
-
-```rust,ignore
-let path = PropertyAccessPath::compile(
-    &registry,
-    TypeMetadata::of::<Order>(),
-    &["customer", "name"],
-)?;
-let value = path.read(ReflectedRef::new(&order))?;
-path.check_writable()?;
-let leaf = path.leaf_property();
-path.write(ReflectedMut::new(&mut order), json_to_owned(leaf, input)?)?;
-```
-
-Compilation resolves each property without calling user getters. Reads can
-traverse borrowed ordinary fields and `Option<T>` values when reflection has a
-borrow projection. An absent optional value returns
-`PropertyAccessPathError::MissingIntermediate`. Owned getter results, borrowed
-slices, unresolved child types, and unsupported wrappers are rejected instead
-of being treated as child objects. Writes allow only ordinary field-backed
-intermediate steps; call `check_writable()` before converting input so an
-unsupported path fails before conversion. A runtime reflection access failure
-is reported with its path segment, and `PropertyAccessWriteFailure` retains the
-replacement whenever the leaf setter did not consume it. The path is tied to
-the metadata snapshot used at compilation and does not consult global state.
-
 The obsolete `FieldMetadata::validate_nested()` method and
 `FieldAttributeMetadata::ValidateNested` marker are removed. Neither controls
 execution. Supported nested declarations are discovered by the plan builder;
@@ -629,18 +599,13 @@ configuration methods have been removed.
 
 `ValidationOptions` defaults to CollectAll, all fields, depth 64, 100,000 nodes,
 100 retained violations, and 1,000,000 comparisons. All budget setters
-require `NonZeroUsize`. `Fields` requires at least one path, and every path must
-exactly match a bound rule. A typo, an existing field without a validation rule,
-or a parent path without its own rule returns `InvalidSelection` before any
-getter runs. Collection indices are ignored, but field names and segment
-boundaries must match: select `contact.name` for that nested field; `contact`
-does not select its descendants. `FieldPath::from_segments(["contact.name"])`
-treats that string as one segment rather than two. Repeated paths do not execute a rule more than
-once. An empty path selects model-level rules only when the plan has such a rule;
-otherwise it is invalid. Selected model rules run before selected field rules.
-Selection validates only the requested occurrences, so a successful selected
-report does not mean the entire model was validated. Selection cannot bypass
-declaration or binding errors.
+require `NonZeroUsize`. Field selection matches the complete bound field path, ignoring collection indices;
+select `contact.name` for that nested field. Selecting `contact` alone does not select
+its descendants. `FieldPath::from_segments` owns each supplied name without
+splitting dots inside a segment. To select model-level rules with `Fields`,
+include an empty segment sequence; ordinary field paths do not select those
+rules. Selected model rules run before selected field rules. Selection is an
+execution policy and cannot bypass declaration or binding errors.
 
 - FailFast retains exactly the first violation, including one returned as a failed
   prerequisite. A rule returning several violations cannot bypass this policy.
