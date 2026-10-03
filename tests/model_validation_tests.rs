@@ -458,7 +458,7 @@ fn optional_nested_model_executes_at_each_usage_path() {
         .iter()
         .map(|violation| violation.code().as_str())
         .collect();
-    assert_eq!(codes, ["text.blank", "text.char_length", "text.blank", "text.char_length"]);
+    assert_eq!(codes, ["text.blank", "text.too_short", "text.blank", "text.too_short"]);
 }
 
 #[test]
