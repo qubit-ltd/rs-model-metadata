@@ -80,7 +80,7 @@ jobs:
           path: rust-common/rs-validation-rules
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
-      - run: ./.infra/tools/prepare-local-path-dependencies.sh
+      - run: ./.infra/bin/prepare-local-path-dependencies.sh
       - run: ./.infra/bin/dependency-update.sh --check
 
 
