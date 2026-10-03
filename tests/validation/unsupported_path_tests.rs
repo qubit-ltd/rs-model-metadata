@@ -9,6 +9,7 @@
 //! Unsupported paths retain each structural use, including tuple positions.
 
 use std::any::TypeId;
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
@@ -33,6 +34,10 @@ use qubit_reflect::registry::RegistrySnapshotBuilder;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistry;
 
+thread_local! {
+    static OPTIONAL_TEXT_GETTER_CALLS: Cell<usize> = const { Cell::new(0) };
+}
+
 #[Model]
 #[derive(Ord, PartialOrd)]
 struct Child {
@@ -44,6 +49,20 @@ struct Child {
 struct OptionalText {
     #[text(non_blank)]
     value: Option<String>,
+}
+
+#[Model]
+struct OptionalTextGetter {
+    #[text(non_blank)]
+    value: Option<String>,
+}
+
+#[ModelImpl]
+impl OptionalTextGetter {
+    pub fn value(&self) -> Option<&str> {
+        OPTIONAL_TEXT_GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
+        self.value.as_deref()
+    }
 }
 
 #[Model]
@@ -332,6 +351,36 @@ fn optional_text_value_executes_or_skips() {
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "value");
     assert_eq!(report.violations()[0].code().as_str(), "text.blank");
+}
+
+#[test]
+fn optional_text_borrowed_getter_is_lazy_and_reads_once() {
+    OPTIONAL_TEXT_GETTER_CALLS.with(|calls| calls.set(0));
+    let root = TypeMetadata::of::<OptionalTextGetter>();
+    let models = ModelRegistry::global();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+        .resolve()
+        .expect("optional getter structure");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators })
+        .expect("optional text getter constraint binds");
+    OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 0));
+
+    let missing = OptionalTextGetter { value: None };
+    let report = plan
+        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .expect("missing optional getter value");
+    assert!(report.violations().is_empty());
+    OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+
+    let invalid = OptionalTextGetter { value: Some(String::new()) };
+    let report = plan
+        .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+        .expect("present optional getter value");
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].code().as_str(), "text.blank");
+    OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 2));
 }
 
 #[test]

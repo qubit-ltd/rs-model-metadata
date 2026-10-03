@@ -9,6 +9,8 @@
 //! Borrow-preserving property and dependency reads under one execution budget.
 
 use qubit_reflect::ReflectedRef;
+use qubit_reflect::TypeMismatch;
+use qubit_reflect::OptionalProjectionError;
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
 use qubit_validator::ValidationPath;
@@ -62,6 +64,40 @@ pub(crate) fn read<'value>(
             return Ok(output);
         }
         receiver = match output {
+            PropertyValue::Borrowed(value) if step.optional_element().is_some() => {
+                let descriptor = step
+                    .property()
+                    .descriptor()
+                    .and_then(|descriptor| descriptor.as_optional())
+                    .ok_or_else(|| {
+                        ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
+                    })?;
+                match descriptor.project_ref(value).map_err(|error| {
+                    let error = match error {
+                        OptionalProjectionError::Unavailable => PropertyAccessError::AdapterUnavailable,
+                        OptionalProjectionError::TypeMismatch(error) => {
+                            PropertyAccessError::ValueTypeMismatch(error)
+                        }
+                    };
+                    property_read_error(error, path_for(path))
+                })? {
+                    Some(value) if Some(value.value_type_id()) == step.optional_element() => value,
+                    Some(value) => {
+                        let expected = step.optional_element().ok_or_else(|| {
+                            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                                .with_path(path_for(path))
+                        })?;
+                        return Err(property_read_error(
+                            PropertyAccessError::ValueTypeMismatch(TypeMismatch::new(
+                                expected,
+                                value.value_type_id(),
+                            )),
+                            path_for(path),
+                        ));
+                    }
+                    None => return Ok(PropertyValue::OptionalBorrowed(None)),
+                }
+            }
             PropertyValue::Borrowed(value) | PropertyValue::OptionalBorrowed(Some(value)) => value,
             PropertyValue::OptionalBorrowed(None) => {
                 return Ok(PropertyValue::OptionalBorrowed(None));

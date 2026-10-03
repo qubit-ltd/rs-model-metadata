@@ -31,6 +31,8 @@ use crate::resolve::ModelGraph;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PropertyStep {
     property: PropertyMetadata,
+    /// Exact element type expected after projecting a borrowed `Option<T>`.
+    optional_element: Option<std::any::TypeId>,
 }
 
 impl PropertyStep {
@@ -46,6 +48,11 @@ impl PropertyStep {
     #[inline]
     pub(crate) const fn property(self) -> PropertyMetadata {
         self.property
+    }
+
+    /// Returns the optional element type to project for intermediate traversal.
+    pub(crate) const fn optional_element(self) -> Option<std::any::TypeId> {
+        self.optional_element
     }
 }
 
@@ -127,12 +134,12 @@ impl CompiledPropertyPath {
                 .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
             let last = index + 1 == path.segments().len();
             let value_target = !last || matches!(target, TargetMode::Value);
-            let expected = if value_target {
-                value_descriptor(descriptor).0
+            let (expected, declared_optional) = if value_target {
+                value_descriptor(descriptor)
             } else {
-                descriptor
+                (descriptor, false)
             };
-            let (actual, optional) = if let Some(getter) = property.getter() {
+            let (actual, optional, project_borrowed_optional) = if let Some(getter) = property.getter() {
                 let output = getter
                     .output_type()
                     .as_resolved()
@@ -150,12 +157,41 @@ impl CompiledPropertyPath {
                         .as_optional()
                         .and_then(|value| value.element_type().as_resolved())
                         .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
-                    (inner, true)
+                    (inner, true, false)
+                } else if !last && declared_optional {
+                    if getter.output_kind() != GetterOutputKind::Borrowed {
+                        return Err(path_error(BindErrorKind::UnsupportedConstraint));
+                    }
+                    let declared_optional = descriptor
+                        .as_optional()
+                        .filter(|optional| optional.has_ref_projection())
+                        .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+                    let actual_optional = output
+                        .as_optional()
+                        .and_then(|value| value.element_type().as_resolved())
+                        .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+                    if declared_optional
+                        .element_type()
+                        .as_resolved()
+                        .is_none_or(|value| value.type_id() != expected.type_id())
+                        || actual_optional.type_id() != expected.type_id()
+                    {
+                        return Err(path_error(BindErrorKind::UnsupportedConstraint));
+                    }
+                    (actual_optional, true, true)
                 } else {
-                    (output, false)
+                    (output, false, false)
                 }
+            } else if !last && declared_optional {
+                let optional = descriptor
+                    .as_optional()
+                    .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+                if !optional.has_ref_projection() {
+                    return Err(path_error(BindErrorKind::UnsupportedConstraint));
+                }
+                (expected, true, true)
             } else {
-                (descriptor, false)
+                (descriptor, false, false)
             };
             let slice = property
                 .getter()
@@ -165,11 +201,14 @@ impl CompiledPropertyPath {
             if expected.type_id() != actual.type_id() && !compatible_text && !(last && slice && !value_target) {
                 return Err(path_error(BindErrorKind::UnsupportedConstraint));
             }
-            path_optional |= optional;
+            path_optional |= optional || declared_optional && !last;
             if optional {
                 optional_steps.push(index);
             }
-            steps.push(PropertyStep { property: *property });
+            steps.push(PropertyStep {
+                property: *property,
+                optional_element: project_borrowed_optional.then_some(expected.type_id()),
+            });
             input = if matches!(actual.kind(), TypeKind::Text(_)) {
                 InputType::Text
             } else {
@@ -391,7 +430,11 @@ impl CompiledPropertyPath {
             .and_then(|descriptor| descriptor.as_optional())
             .and_then(|optional| optional.element_type().as_resolved())
             .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
-        self.input = InputType::Typed(element.type_id());
+        self.input = if matches!(element.kind(), TypeKind::Text(_)) {
+            InputType::Text
+        } else {
+            InputType::Typed(element.type_id())
+        };
         self.optional = true;
         if !self.optional_steps.contains(&(self.steps.len() - 1)) {
             self.optional_steps = self

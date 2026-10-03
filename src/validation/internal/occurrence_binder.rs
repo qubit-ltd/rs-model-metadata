@@ -108,7 +108,9 @@ pub(crate) fn check_access(
             .is_some_and(|getter| getter.output_kind() == GetterOutputKind::OptionalBorrowed);
     let optional_scalar_candidate = matches!(
         occurrence.declaration,
-        ExecutionDeclaration::Constraint(ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_))
+        ExecutionDeclaration::Constraint(
+            ConstraintMetadata::Text(_) | ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_)
+        )
     ) && occurrence
         .segments
         .last()
