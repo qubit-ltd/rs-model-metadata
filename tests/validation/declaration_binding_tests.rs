@@ -556,8 +556,14 @@ fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
         .resolve()
         .unwrap();
     let validators = ValidatorRegistry::empty();
-    let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators })
-        .expect("borrowed Option getter has an exact inner type and is executable");
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("borrowed Option getter has an exact inner type and is executable");
     OPTIONAL_PARENT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 0));
 
     let report = plan

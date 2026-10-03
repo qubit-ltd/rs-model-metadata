@@ -359,12 +359,18 @@ fn optional_text_borrowed_getter_is_lazy_and_reads_once() {
     let root = TypeMetadata::of::<OptionalTextGetter>();
     let models = ModelRegistry::global();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
         .resolve()
         .expect("optional getter structure");
     let validators = ValidatorRegistry::empty();
-    let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators })
-        .expect("optional text getter constraint binds");
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("optional text getter constraint binds");
     OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 0));
 
     let missing = OptionalTextGetter { value: None };
@@ -374,7 +380,9 @@ fn optional_text_borrowed_getter_is_lazy_and_reads_once() {
     assert!(report.violations().is_empty());
     OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
 
-    let invalid = OptionalTextGetter { value: Some(String::new()) };
+    let invalid = OptionalTextGetter {
+        value: Some(String::new()),
+    };
     let report = plan
         .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
         .expect("present optional getter value");
@@ -411,8 +419,8 @@ fn test_unadapted_paths_still_fail_during_plan_construction() {
     })
     .resolve()
     .expect("owned child structure");
-    let errors = ValidationCapabilities::check(root, &graph)
-        .expect_err("owned intermediate getter must be rejected at build");
+    let errors =
+        ValidationCapabilities::check(root, &graph).expect_err("owned intermediate getter must be rejected at build");
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("child.name"));

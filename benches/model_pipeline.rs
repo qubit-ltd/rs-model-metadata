@@ -68,19 +68,15 @@ impl PreparedValidator for AcceptModel {
     }
 }
 
-/// Measures plan construction plus model-rule attachment at fixed sample counts.
+/// Measures plan construction plus model-rule attachment at fixed sample
+/// counts.
 fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistry) {
     const SAMPLES: usize = 30;
     println!(
         "model_rule_batch_build: samples={SAMPLES}, profile={}",
-        if cfg!(debug_assertions) {
-            "debug"
-        } else {
-            "release"
-        }
+        if cfg!(debug_assertions) { "debug" } else { "release" }
     );
-    let models =
-        ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
     let root = TypeMetadata::of::<Pipeline1>();
     let roots = [root];
     let graph = StructureResolver::for_roots(ResolveInputs {
@@ -122,24 +118,20 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistr
                 });
             },
         );
-        group.bench_with_input(
-            BenchmarkId::new("batch_api", count),
-            &bindings,
-            |bencher, bindings| {
-                bencher.iter(|| {
-                    let plan = ValidationPlan::build(
-                        root,
-                        ValidationBuildInputs {
-                            graph: &graph,
-                            validators: &validators,
-                        },
-                    )
-                    .expect("benchmark plan")
-                    .with_model_rules(black_box(bindings.iter().cloned()));
-                    let _ = black_box(plan);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("batch_api", count), &bindings, |bencher, bindings| {
+            bencher.iter(|| {
+                let plan = ValidationPlan::build(
+                    root,
+                    ValidationBuildInputs {
+                        graph: &graph,
+                        validators: &validators,
+                    },
+                )
+                .expect("benchmark plan")
+                .with_model_rules(black_box(bindings.iter().cloned()));
+                let _ = black_box(plan);
+            });
+        });
     }
     group.finish();
 }

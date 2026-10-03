@@ -57,9 +57,9 @@ impl PreparedValidator for RejectModel {
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
         assert!(value.typed::<BatchModel>().is_some());
-        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(
-            ViolationCode::new("model.invalid"),
-        )]))
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+            "model.invalid",
+        ))]))
     }
 }
 
