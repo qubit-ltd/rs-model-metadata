@@ -132,6 +132,9 @@ fn main() {
   自定义 validator 注册该 ID 会使计划构建返回 `InvalidDeclaration`。
   原 `constraint_rule_ids()` 方法已由 `constraint_rules()` 取代；每个引用仍可通过
   `.id().as_str()` 取得稳定的规则 ID。
+  借用的可选模型路径遇到缺失值会跳过，并保留完整 Property 路径；受支持的终端
+  `Option<String>` text 规则会跳过 `None`、校验 `Some`。准备好的模型级规则可以通过一次有序的
+  `with_model_rules` 调用追加。
 - 结构、codec 和 validation 错误分别由其所属层返回；resolver 不创建任何可执行绑定。
 
 本 crate 不会取代 `qubit-reflect`，静态元数据查询也不会隐式注册模型或解析跨模型关系。生成的
@@ -178,8 +181,8 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 使用 `PropertyAccessPath::compile(&registry, root, segments)` 编译请求提供的属性段，
 再通过 `read` 或 `write` 访问实例。读取只穿过可借用属性，并支持可投影的 Option 中间节点；
 缺失值返回 `MissingIntermediate`。写入要求中间段都是普通字段。转换输入前先调用
-`check_writable()`，并可通过 `leaf_property()` 查看末端属性声明类型。支持的路径形状和错误语义见
-[用户指南](doc/user_guide.zh_CN.md#编译动态属性访问路径)。
+`check_writable()`，并可通过 `leaf_property()` 查看末端属性声明类型。关于对象路径与来源信息，参阅
+[用户指南对应章节](doc/user_guide.zh_CN.md#进阶用法对象路径引用与声明位置)。
 
 每个 `qubit.model.metadata.v1` 能力目标也必须是反射快照的成员；缺少成员声明时，
 `ModelRegistry::from_reflect_registry` 会在调用任何模型 provider 前返回 `UnregisteredModelTarget`。
@@ -258,8 +261,8 @@ fn main() {
 | 外层 Map entry count | 生成的 `HashMap`/`BTreeMap` 可读长度适配器；违规报告在字段路径 |
 | Decimal / Money | 准确的 `BigDecimal` 及 Option；检查 scale、`DECIMAL(p,s)` precision 和区间，不舍入 |
 | Time precision | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 的秒/毫秒/微秒/纳秒精度；拒绝 `NaiveDate` |
-| Option | `None` 跳过内层约束，`Some` 执行；构建时仍检查具体类型 |
-| selector 内约束或依赖、MapKey/MapValue、容器内模型 | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
+| Option | 借用的 `Option<T>` 中间对象遇到 `None` 会跳过，遇到 `Some` 会继续访问；终端 `Option<String>` text 规则跳过 `None`、校验 `Some`；构建时仍检查具体类型 |
+| selector 内约束或依赖、MapKey/MapValue、tuple 路径、含约束的 Enum payload、容器内模型、返回 owned 中间对象且还需继续遍历的 getter | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
 | Enum/raw wrapper 与递归路径 | 发现可达工作后，不支持的使用路径在能力检查和计划构建时明确拒绝；无工作包装可以通过 |
 
 基于反射快照的注册表能从根发现可达匿名子模型，包括 raw reflection wrapper 内的模型；

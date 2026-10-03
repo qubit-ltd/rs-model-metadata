@@ -157,6 +157,10 @@ the reflection model.
   custom validator makes plan construction return `InvalidDeclaration`.
   The former `constraint_rule_ids()` method is replaced by `constraint_rules()`;
   each reference retains its stable ID through `.id().as_str()`.
+  Borrowed optional model paths skip absent values and retain the complete
+  property path; supported terminal `Option<String>` text rules skip `None` and
+  validate `Some`. Prepared model-level rules can be appended in one ordered
+  `with_model_rules` call.
 - Structural, codec, and validation failures are returned independently by the
   layer that owns them; no resolver pass creates executable bindings.
 
@@ -220,8 +224,8 @@ Compile untrusted or request-provided property segments with
 optional intermediates; an absent `Option` returns `MissingIntermediate`.
 Writes require ordinary field-backed intermediate steps. Call
 `check_writable()` before converting input, and use `leaf_property()` to inspect
-the final property's declared type. See the [user guide](doc/user_guide.md#compiled-dynamic-property-access-paths)
-for the supported shapes and error behavior.
+the final property's declared type. See the user guide's [path and source-location
+discussion](doc/user_guide.md#advanced-usage-paths-references-and-source-locations).
 
 Every `qubit.model.metadata.v1` capability target must also be a member of the reflected snapshot;
 `ModelRegistry::from_reflect_registry` reports `UnregisteredModelTarget` before invoking any model
@@ -309,8 +313,8 @@ to consumers. `reference.path` uses `/` and `..`; Property paths retain `.`.
 | Outer Map entry count | Generated readable `HashMap`/`BTreeMap` length adapter; field path reports |
 | Decimal / Money | Exact `BigDecimal`, including Option; scale, `DECIMAL(p,s)` precision and range; no rounding |
 | Time precision | `DateTime<Utc>`, `NaiveDateTime`, `NaiveTime`: second/millisecond/microsecond/nanosecond; `NaiveDate` is rejected |
-| Option | `None` skips inner constraints; `Some` executes; build still checks the concrete type |
-| Selector constraints/dependencies; MapKey/MapValue; container model interiors | `UnsupportedExecution`; outer support does not imply inner traversal |
+| Option | Borrowed `Option<T>` intermediates skip `None` and continue through `Some`; terminal `Option<String>` text rules skip `None` and validate `Some`; build still checks the concrete type |
+| Selector constraints/dependencies; MapKey/MapValue; tuple paths; constrained enum payloads; container model interiors; owned intermediate getters requiring further traversal | `UnsupportedExecution`; outer support does not imply inner traversal |
 | Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
 
 A reflection-backed registry discovers anonymous children reachable from the root,

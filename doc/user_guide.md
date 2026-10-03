@@ -255,13 +255,39 @@ A supplied root of the wrong Rust type is rejected even for an empty plan.
 The plan is read-only. ValidationOptions controls selection, fail-fast behavior,
 and traversal budgets. Nested direct and optional model validators are collected
 automatically across supported boundaries; opaque fields stop traversal.
-Execution capability is narrower than metadata expressiveness. Borrowed-slice
-getters support explicit element validators; generated collection adapters also
-support outer sequence uniqueness and map entry counts for supported concrete
-shapes. Standard constraints inside selectors and MapKey/MapValue traversal
-still return explicit build errors. Consult
+Execution capability is narrower than metadata expressiveness. A borrowed
+optional intermediate can be traversed through a field-backed `Option<T>` or a
+getter that exposes `&Option<T>`; `None` skips that branch and `Some` continues
+the same compiled path. A terminal `Option<String>` text field is also supported:
+`None` skips its text rules, while `Some(value)` is checked as text. Occurrences
+keep their complete property path (for example, `mobile.country_area`). These
+contracts require borrowed access; a getter that returns an owned intermediate
+object cannot be followed. Borrowed-slice getters support explicit element
+validators; generated collection adapters also support outer sequence uniqueness
+and map entry counts for supported concrete shapes. Standard constraints inside
+selectors and MapKey/MapValue traversal still return explicit build errors. Consult
 ValidationCapabilities before selecting this adapter; metadata declarations do
 not imply that every execution backend supports them.
+
+### Appending prepared model-level rules
+
+Use `ModelRuleBinding` when an application validator applies to the model as a
+whole rather than to one declared field. After building the plan, pass all
+prepared bindings to `with_model_rules` in one call:
+
+```rust,ignore
+let plan = plan.with_model_rules(prepared_model_rules);
+```
+
+Here `prepared_model_rules` is any `IntoIterator<Item = ModelRuleBinding>` (for
+example, a `Vec<ModelRuleBinding>`). The returned plan owns the appended rules;
+the iterator is consumed. Rules retain iterator order and are appended after
+rules already on the plan. An empty iterator leaves existing model rules alone.
+Entries are not deduplicated, so repeated rule IDs remain separate occurrences.
+The API accepts incremental updates, but repeated calls rebuild the owned rule
+array each time; usually collect rules for a plan update and call this method
+once. Selected model-level rules execute before field rules; see
+[stopping policies and work budgets](#advanced-usage-stopping-policies-and-work-budgets).
 
 With `codec`, call `codec::bind_codecs` using CodecBindInputs and an explicit
 codec registry after graph resolution. Selection order is explicit field codec,
@@ -285,8 +311,8 @@ qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
 
 The profile's label and optional contact name must be nonblank. Metadata discovery
 and graph resolution happen before validator binding. The explicit `Option<&Contact>`
-getter supplies the borrowed intermediate object needed for nested execution;
-a getter returning `&Option<Contact>` is a different access shape.
+getter supplies a borrowed intermediate object. Field-backed `Option<Contact>`
+and a getter returning `&Option<Contact>` are also supported borrowed access shapes.
 
 <!-- example: validation/profile -->
 ```rust
