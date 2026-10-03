@@ -41,9 +41,9 @@ checkout/
 <!-- example: core -->
 ```toml
 [dependencies]
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
-qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata" }
+qubit-id = "0.7"
 ```
 
 生成代码会通过 `proc-macro-crate` 解析 `qubit-model-metadata` 的实际依赖名，因此支持重命名 runtime

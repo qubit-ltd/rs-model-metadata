@@ -46,9 +46,9 @@ about the current local dependency cache.
 <!-- example: core -->
 ```toml
 [dependencies]
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata" }
-qubit-id = { version = "0.6", path = "../../rust-common/rs-id" }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata" }
+qubit-id = "0.7"
 ```
 
 Generated code resolves `qubit-model-metadata` with `proc-macro-crate`; a

@@ -1,6 +1,6 @@
 [package]
 name = "qubit-model-derive"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -38,8 +38,8 @@ bigdecimal = "0.4"
 chrono = { version = "0.4", features = ["std"], default-features = false }
 model_runtime = { package = "qubit-model-metadata", path = "..", features = ["generic"] }
 qubit-codec = { version = "0.16", path = "../../rs-codec", features = ["registry"] }
-qubit-id = { version = "0.6", path = "../../../rust-common/rs-id" }
-qubit-reflect = { version = "=0.1.0", path = "../../rs-reflect" }
+qubit-id = { version = "0.7" }
+qubit-reflect = { version = "=0.2.0", path = "../../rs-reflect" }
 qubit-validator = { version = "=0.1.0", path = "../../../rust-common/rs-validator" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

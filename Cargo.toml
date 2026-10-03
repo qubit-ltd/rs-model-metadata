@@ -1,6 +1,6 @@
 [package]
 name = "qubit-model-metadata"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -44,8 +44,8 @@ qubit-redact = { version = "=0.9.0", path = "../../rust-common/rs-redact", featu
 bitflags = "^2.10"
 bigdecimal = "^0.4"
 chrono = { version = "^0.4", features = ["std"], default-features = false }
-qubit-id = { version = "=0.6.0", path = "../../rust-common/rs-id", features = ["serde"] }
-qubit-reflect = { version = "=0.1.0", path = "../rs-reflect", default-features = false, features = ["derive", "ecosystem-types", "qubit-types"] }
+qubit-id = { version = "0.7", features = ["serde"] }
+qubit-reflect = { version = "=0.2.0", path = "../rs-reflect", default-features = false, features = ["derive", "ecosystem-types", "qubit-types"] }
 qubit-codec = { version = "0.16", path = "../rs-codec", features = ["registry"], optional = true }
 qubit-validator = { version = "=0.1.0", path = "../../rust-common/rs-validator", optional = true }
 qubit-validation-rules = { version = "=0.1.0", path = "../../rust-common/rs-validation-rules", default-features = false, optional = true }
@@ -56,7 +56,7 @@ thiserror = "^2.0"
 criterion = "^0.8"
 serde_json = "^1.0"
 qubit-datatype = { version = "=0.14.0", path = "../../rust-common/rs-datatype" }
-qubit-model-derive = { version = "=0.1.0", path = "derive" }
+qubit-model-derive = { version = "=0.2.0", path = "derive" }
 trybuild = "^1.0"
 uuid = "^1.26"
 qubit-codec = { version = "0.16", path = "../rs-codec", features = ["registry"] }

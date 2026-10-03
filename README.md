@@ -47,10 +47,10 @@ about the current local dependency cache.
 <!-- example: core -->
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
-qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-id = "0.7"
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 ```
 
 A library that only passes or stores stable model identities can depend directly
@@ -69,9 +69,9 @@ Its `metadata` module re-exports these same ID types.
 <!-- example: validation -->
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
 ```
 

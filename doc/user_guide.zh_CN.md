@@ -46,10 +46,10 @@ checkout/
 <!-- example: core -->
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
-qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-id = "0.7"
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 ```
 
 如果库只需要稳定身份值，可以直接安装独立的 ID 协议 crate：
@@ -233,9 +233,9 @@ MapKey/MapValue 遍历仍会明确返回构建错误。
 <!-- example: validation -->
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", features = ["validation"] }
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
 ```
 

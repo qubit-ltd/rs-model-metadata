@@ -34,10 +34,10 @@ checkout/
 <!-- example: core -->
 ```toml
 [dependencies]
-qubit-model-metadata = { version = "0.1", path = "../rs-model-metadata", default-features = false }
-qubit-model-derive = { version = "0.1", path = "../rs-model-metadata/derive" }
-qubit-id = { version = "0.6.0", path = "../../rust-common/rs-id" }
-qubit-reflect = { version = "0.1.0", path = "../rs-reflect" }
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-id = "0.7"
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 ```
 
 ## 声明用户模型并读取属性
