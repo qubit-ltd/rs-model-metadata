@@ -84,6 +84,20 @@ struct NestedRoot {
     child: Option<NestedModel>,
 }
 
+#[Model]
+struct OptionalPathChild {
+    #[text(non_blank)]
+    first: String,
+    #[text(min_chars = 3)]
+    second: String,
+}
+
+#[Model]
+struct OptionalPathRoot {
+    left: Option<OptionalPathChild>,
+    right: Option<OptionalPathChild>,
+}
+
 #[ModelImpl]
 impl NestedRoot {
     pub fn child(&self) -> Option<&NestedModel> {
@@ -390,6 +404,61 @@ fn test_executes_validators_declared_by_an_optional_nested_model() {
         )
         .expect("missing optional nested value");
     assert!(report.is_valid());
+}
+
+#[test]
+fn optional_nested_model_executes_at_each_usage_path() {
+    let root = TypeMetadata::of::<OptionalPathRoot>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: ModelRegistry::global(),
+        roots: &roots,
+    })
+    .resolve()
+    .expect("optional child structure");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("both optional child paths bind");
+    assert_eq!(plan.binding_count(), 4);
+
+    let missing = OptionalPathRoot {
+        left: None,
+        right: None,
+    };
+    let report = plan
+        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .expect("missing children skip descendants");
+    assert!(report.violations().is_empty());
+
+    let invalid_child = || OptionalPathChild {
+        first: String::new(),
+        second: "x".to_owned(),
+    };
+    let present = OptionalPathRoot {
+        left: Some(invalid_child()),
+        right: Some(invalid_child()),
+    };
+    let report = plan
+        .validate(ReflectedRef::new(&present), &ValidationOptions::default())
+        .expect("both child uses execute");
+    let paths: Vec<_> = report
+        .violations()
+        .iter()
+        .map(|violation| violation.path().render())
+        .collect();
+    assert_eq!(paths, ["left.first", "left.second", "right.first", "right.second"]);
+    let codes: Vec<_> = report
+        .violations()
+        .iter()
+        .map(|violation| violation.code().as_str())
+        .collect();
+    assert_eq!(codes, ["text.blank", "text.char_length", "text.blank", "text.char_length"]);
 }
 
 #[test]
