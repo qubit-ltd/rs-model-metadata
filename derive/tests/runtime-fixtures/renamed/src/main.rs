@@ -8,6 +8,7 @@
 // The filename is part of a Cargo or trybuild fixture protocol.
 
 use ::model_runtime::metadata::TypeMetadata;
+use ::model_runtime::metadata::HasModelId;
 use ::model_runtime::registry::ModelRegistry;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
@@ -56,6 +57,7 @@ impl RenamedProperties {
 
 fn main() {
     assert_eq!(TypeMetadata::of::<Renamed>().fields().len(), 1);
+    assert_eq!(Renamed::MODEL_ID.as_str(), "test.derive.Renamed");
     let registry = ModelRegistry::try_global().expect("renamed runtime registrations");
     assert!(registry.generic("test.derive.RenamedGeneric").is_some());
     assert!(registry.metadata("test.derive.RenamedGeneric").is_none());

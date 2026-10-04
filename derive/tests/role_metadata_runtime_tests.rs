@@ -14,6 +14,7 @@ use model_runtime::__private::TypeDescriptor;
 use model_runtime::__private::TypeExpression;
 use model_runtime::__private::qubit_id::Id;
 use model_runtime::metadata::CodecReference;
+use model_runtime::metadata::HasModelId;
 use model_runtime::metadata::IndexingReasons;
 use model_runtime::metadata::ModelRole;
 use model_runtime::metadata::SerdeBehaviorSource;
@@ -195,6 +196,13 @@ fn test_role_macros_generate_metadata_capability_and_registration() {
             metadata
         ));
     }
+
+    assert_eq!(Account::MODEL_ID.as_str(), "runtime.Account");
+    assert_eq!(AccountView::MODEL_ID.as_str(), "runtime.AccountView");
+    assert_eq!(Payload::MODEL_ID.as_str(), "runtime.Payload");
+    assert_eq!(Status::MODEL_ID.as_str(), "runtime.Status");
+    assert_eq!(Email::MODEL_ID.as_str(), "runtime.Email");
+    assert_eq!(Account::MODEL_ID, TypeMetadata::of::<Account>().model_id().unwrap());
 }
 
 #[test]

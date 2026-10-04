@@ -94,7 +94,7 @@ fn main() {
 Entity 必须声明稳定模型 `id`，其他角色可以省略；ID 控制注册，不决定匿名模型的 metadata 是否存在。泛型定义与具体类型需要启用运行时
 `generic` feature，不支持 lifetime 参数。
 
-角色默认实现 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize、Deserialize；
+角色默认实现 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize、Deserialize； 后续新增 trait 默认保持关闭，须先增加显式宏选项才能启用。
 全部为 unit variant 的 Enum 还默认实现 Copy。`no_*` 关闭自动实现；`no_eq` 同时移除默认 Hash，
 `no_partial_eq` 同时关闭相等、Hash 与排序能力。额外能力使用 `copy`、`default`、`partial_ord`、`ord`。
 Enum 的 `default` 要求恰有一个标准 `#[default]` unit variant。可构造默认值不等于满足领域约束。

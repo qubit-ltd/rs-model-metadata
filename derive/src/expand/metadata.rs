@@ -67,6 +67,13 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
     } else {
         declared_model_id.clone()
     };
+    let has_model_id = declaration.options.id.as_ref().filter(|_| !has_generics).map(|id| {
+        quote! {
+            impl #runtime::metadata::HasModelId for #ident {
+                const MODEL_ID: #runtime::metadata::ModelId = #runtime::metadata::ModelId::new(#id);
+            }
+        }
+    });
     let generic_definition = if has_generics {
         quote! { let metadata = metadata.generic_definition(#generic_metadata()); }
     } else {
@@ -138,6 +145,8 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
                 #metadata_body
             }
         }
+
+        #has_model_id
 
         #registration
     }

@@ -112,7 +112,7 @@ fn main() {
 - `#[Value]`：声明值对象；`transparent` 支持单字段包装类型。
 - `#[ModelImpl]`：把公开固有方法中的 getter/setter 与字段合并为安全的属性元数据。
 
-五种角色默认生成 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize 与 Deserialize；
+五种角色默认生成 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize 与 Deserialize； 后续新增 trait 默认保持关闭，须先增加显式宏选项才能启用。
 全部 variant 为 unit 的 Enum 还默认生成 Copy。`no_*` 关闭自动能力，`no_eq` 同时移除默认 Hash；
 `copy`、`default`、`partial_ord`、`ord` 启用额外能力。角色属性应放在显式 derive 之前，以便识别并去重；
 手写实现通过对应的关闭开关避免冲突。

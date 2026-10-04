@@ -132,7 +132,7 @@ pipeline:
 The five roles default to Clone, Debug, Display, PartialEq, Eq, Hash, Redact,
 Serialize, and Deserialize. All-unit Enum also defaults to Copy. Use `no_*`
 to suppress a generated capability; `no_eq` removes default Hash as well.
-`copy`, `default`, `partial_ord`, and `ord` opt into additional capabilities.
+`copy`, `default`, `partial_ord`, and `ord` opt into additional capabilities. Future traits must remain opt-in until an explicit role option is added.
 Place the role attribute before explicit derives so duplicate derives are visible.
 Handwritten implementations require the corresponding opt-out.
 

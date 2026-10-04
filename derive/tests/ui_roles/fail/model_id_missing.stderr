@@ -1,0 +1,33 @@
+error[E0277]: the trait bound `Anonymous: HasModelId` is not satisfied
+  --> tests/ui_roles/fail/model_id_missing.rs:17:25
+   |
+17 |     requires_model_id::<Anonymous>();
+   |                         ^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `HasModelId` is not implemented for `Anonymous`
+  --> tests/ui_roles/fail/model_id_missing.rs:5:1
+   |
+ 5 | struct Anonymous {
+   | ^^^^^^^^^^^^^^^^
+note: required by a bound in `requires_model_id`
+  --> tests/ui_roles/fail/model_id_missing.rs:14:25
+   |
+14 | fn requires_model_id<T: HasModelId>() {}
+   |                         ^^^^^^^^^^ required by this bound in `requires_model_id`
+
+error[E0277]: the trait bound `Generic<u8>: HasModelId` is not satisfied
+  --> tests/ui_roles/fail/model_id_missing.rs:18:25
+   |
+18 |     requires_model_id::<Generic<u8>>();
+   |                         ^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `HasModelId` is not implemented for `Generic<u8>`
+  --> tests/ui_roles/fail/model_id_missing.rs:10:1
+   |
+10 | struct Generic<T> {
+   | ^^^^^^^^^^^^^^^^^
+note: required by a bound in `requires_model_id`
+  --> tests/ui_roles/fail/model_id_missing.rs:14:25
+   |
+14 | fn requires_model_id<T: HasModelId>() {}
+   |                         ^^^^^^^^^^ required by this bound in `requires_model_id`

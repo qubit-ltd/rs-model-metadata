@@ -20,6 +20,7 @@ pub use codec::RustTypeReference;
 pub use qubit_model_id::ModelId;
 pub use qubit_model_id::ModelIdBuf;
 pub use qubit_model_id::ModelIdError;
+pub use qubit_model_id::HasModelId;
 pub use redaction::RedactMetadata;
 pub use redaction::RedactModeMetadata;
 pub use redaction::RedactPosition;
