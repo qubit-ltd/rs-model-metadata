@@ -217,10 +217,29 @@ metadata 保存借用的声明参数，并在绑定每条规则时将其转换�
 
 计划只读，不修改对象。ValidationOptions 控制字段选择、快速失败和遍历预算。
 当前支持边界内的直接、Option 嵌套模型 validator 自动纳入计划，opaque 截断遍历。
-元数据能描述的范围大于某个执行后端。借用切片 getter 支持显式 element validator；生成的集合适配器
+元数据能描述的范围大于某个执行后端。借用的可选中间对象既可以来自字段 `Option<T>`，也可以来自返回
+`&Option<T>` 的 getter；遇到 `None` 时跳过该分支，遇到 `Some` 则沿编译好的路径继续访问。
+终端字段若为 `Option<String>`，也能执行 text 规则：`None` 不执行规则，`Some(value)` 按文本校验。
+违规 occurrence 保留完整 Property 路径，例如 `mobile.country_area`。这些路径要求借用访问；返回
+owned 中间对象的 getter 无法继续遍历。借用切片 getter 支持显式 element validator；生成的集合适配器
 还可在受支持的具体类型上执行外层 sequence 去重和 map entry 数量约束。selector 内的标准约束及
-MapKey/MapValue 遍历仍会明确返回构建错误。
-选择后端前检查 ValidationCapabilities，不应把“能够声明”理解成“所有后端都能执行”。
+MapKey/MapValue 遍历仍会明确返回构建错误。选择后端前检查 ValidationCapabilities，不应把“能够声明”
+理解成“所有后端都能执行”。
+
+### 批量追加模型级规则
+
+当 validator 针对整个模型而非某个声明字段时，使用 `ModelRuleBinding`。计划构建完成后，把准备好的
+绑定一次性交给 `with_model_rules`：
+
+```rust,ignore
+let plan = plan.with_model_rules(prepared_model_rules);
+```
+
+`prepared_model_rules` 可以是任意 `IntoIterator<Item = ModelRuleBinding>`，例如
+`Vec<ModelRuleBinding>`。方法会消费迭代器，并返回拥有这些新增规则的计划。新规则按输入顺序追加在已有模型规则之后；
+传入空迭代器不会改变现有规则。同一规则 ID 不会去重，重复项仍是独立 occurrence。
+API 允许分批追加，但每次调用都会重新构造拥有型规则数组；通常应先收集本次要追加的规则，再调用一次。
+被选中的模型级规则先于字段规则执行，详见[停止条件与执行预算](#进阶用法停止条件与执行预算)。
 
 启用 codec 后，在结构解析完成后使用 CodecBindInputs 与显式 codec registry 调用 `codec::bind_codecs`。
 选择顺序为字段显式 codec、Value canonical codec、无 codec。Rust 类型形式也要求相应注册项存在；
@@ -240,8 +259,8 @@ qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
 ```
 
 下面的用户资料要求 label 与可选联系人的 name 非空白。先发现元数据、解析结构图，再绑定规则。
-嵌套执行需要读取借用的中间对象，因此示例显式提供 `Option<&Contact>` getter；
-返回 `&Option<Contact>` 的 getter 具有不同的访问形状，不能互相替代。
+嵌套执行需要读取借用的中间对象；本例使用返回 `Option<&Contact>` 的 getter。字段 `Option<Contact>`
+和返回 `&Option<Contact>` 的 getter 也支持借用式可选路径，适用于不同的访问接口。
 
 <!-- example: validation/profile -->
 ```rust

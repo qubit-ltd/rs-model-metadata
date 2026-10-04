@@ -9,6 +9,7 @@
 //! Every executable declaration must be bound or explicitly rejected.
 
 use std::any::TypeId;
+use std::cell::Cell;
 use std::error::Error;
 use std::ptr::eq;
 use std::sync::Arc;
@@ -47,6 +48,10 @@ use qubit_validator::ValidatorSignature;
 use qubit_validator::ViolationCode;
 use qubit_validator::ViolationDraft;
 use qubit_validator::prepare_text_with_context;
+
+thread_local! {
+    static OPTIONAL_PARENT_GETTER_CALLS: Cell<usize> = const { Cell::new(0) };
+}
 
 #[Model(id = "binding.Child")]
 struct Child {
@@ -482,13 +487,19 @@ impl OwnedParent {
     }
 }
 #[Model]
+struct OptionalChild {
+    #[text(non_blank)]
+    value: String,
+}
+#[Model]
 struct BorrowedOption {
-    child: Option<Child>,
+    child: Option<OptionalChild>,
 }
 #[ModelImpl]
 impl BorrowedOption {
-    pub fn child(&self) -> &Option<Child> {
-        panic!("capability checks must not invoke getters")
+    pub fn child(&self) -> &Option<OptionalChild> {
+        OPTIONAL_PARENT_GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
+        &self.child
     }
 }
 #[Model]
@@ -518,7 +529,6 @@ fn test_unsupported_recursive_container_and_adapter_paths_fail_before_execution(
         TypeMetadata::of::<Container>(),
         TypeMetadata::of::<WithoutSlice>(),
         TypeMetadata::of::<OwnedParent>(),
-        TypeMetadata::of::<BorrowedOption>(),
     ] {
         let roots = [root];
         let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
@@ -534,6 +544,49 @@ fn test_unsupported_recursive_container_and_adapter_paths_fail_before_execution(
         );
         assert!(errors.iter().all(|error| error.field_location().is_some()));
     }
+}
+
+#[test]
+fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
+    OPTIONAL_PARENT_GETTER_CALLS.with(|calls| calls.set(0));
+    let root = TypeMetadata::of::<BorrowedOption>();
+    let models = ModelRegistry::try_global().unwrap();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
+        .resolve()
+        .unwrap();
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("borrowed Option getter has an exact inner type and is executable");
+    OPTIONAL_PARENT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 0));
+
+    let report = plan
+        .validate(
+            ReflectedRef::new(&BorrowedOption { child: None }),
+            &ValidationOptions::default(),
+        )
+        .expect("None should skip nested validation");
+    assert!(report.violations().is_empty());
+    OPTIONAL_PARENT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+
+    let report = plan
+        .validate(
+            ReflectedRef::new(&BorrowedOption {
+                child: Some(OptionalChild { value: String::new() }),
+            }),
+            &ValidationOptions::default(),
+        )
+        .expect("Some should execute nested validation");
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].path().render(), "child.value");
+    assert_eq!(report.violations()[0].code().as_str(), "text.blank");
+    OPTIONAL_PARENT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 2));
 }
 
 #[test]

@@ -84,6 +84,31 @@ struct NestedRoot {
     child: Option<NestedModel>,
 }
 
+#[Model]
+struct OptionalPathChild {
+    #[text(non_blank)]
+    first: String,
+    #[text(min_chars = 3)]
+    second: String,
+}
+
+#[Model]
+struct OptionalPathRoot {
+    left: Option<OptionalPathChild>,
+    right: Option<OptionalPathChild>,
+}
+
+#[Model]
+struct OptionalScalarLeaf {
+    #[text(non_blank)]
+    value: Option<String>,
+}
+
+#[Model]
+struct OptionalScalarRoot {
+    child: Option<OptionalScalarLeaf>,
+}
+
 #[ModelImpl]
 impl NestedRoot {
     pub fn child(&self) -> Option<&NestedModel> {
@@ -238,7 +263,7 @@ fn test_executes_typed_model_rule_binding() {
         },
     )
     .expect("binding")
-    .with_model_rule(binding);
+    .with_model_rules([binding]);
     let report = plan
         .validate(
             ReflectedRef::new(&TestModel { name: "bad".to_owned() }),
@@ -283,7 +308,7 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
         },
     )
     .expect("binding")
-    .with_model_rule(binding);
+    .with_model_rules([binding]);
 
     let error = plan
         .validate(
@@ -390,6 +415,120 @@ fn test_executes_validators_declared_by_an_optional_nested_model() {
         )
         .expect("missing optional nested value");
     assert!(report.is_valid());
+}
+
+#[test]
+fn optional_nested_model_executes_at_each_usage_path() {
+    let root = TypeMetadata::of::<OptionalPathRoot>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: ModelRegistry::global(),
+        roots: &roots,
+    })
+    .resolve()
+    .expect("optional child structure");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("both optional child paths bind");
+    assert_eq!(plan.binding_count(), 4);
+
+    let missing = OptionalPathRoot {
+        left: None,
+        right: None,
+    };
+    let report = plan
+        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .expect("missing children skip descendants");
+    assert!(report.violations().is_empty());
+
+    let invalid_child = || OptionalPathChild {
+        first: String::new(),
+        second: "x".to_owned(),
+    };
+    let present = OptionalPathRoot {
+        left: Some(invalid_child()),
+        right: Some(invalid_child()),
+    };
+    let report = plan
+        .validate(ReflectedRef::new(&present), &ValidationOptions::default())
+        .expect("both child uses execute");
+    let paths: Vec<_> = report
+        .violations()
+        .iter()
+        .map(|violation| violation.path().render())
+        .collect();
+    assert_eq!(paths, ["left.first", "left.second", "right.first", "right.second"]);
+    let codes: Vec<_> = report
+        .violations()
+        .iter()
+        .map(|violation| violation.code().as_str())
+        .collect();
+    assert_eq!(codes, ["text.blank", "text.too_short", "text.blank", "text.too_short"]);
+}
+
+#[test]
+fn test_optional_intermediate_none_skips_terminal_optional_text() {
+    let root = TypeMetadata::of::<OptionalScalarRoot>();
+    let reflection = ReflectRegistry::initialize().expect("reflection registry");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("optional scalar structure");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("terminal optional text constraint binds");
+
+    let missing_parent = plan
+        .validate(
+            ReflectedRef::new(&OptionalScalarRoot { child: None }),
+            &ValidationOptions::default(),
+        )
+        .expect("missing intermediate optional should skip");
+    assert!(missing_parent.violations().is_empty());
+    assert_eq!(missing_parent.skipped().len(), 1);
+    assert_eq!(missing_parent.skipped()[0].path().render(), "child.value");
+
+    let missing_terminal = plan
+        .validate(
+            ReflectedRef::new(&OptionalScalarRoot {
+                child: Some(OptionalScalarLeaf { value: None }),
+            }),
+            &ValidationOptions::default(),
+        )
+        .expect("missing terminal optional should skip");
+    assert!(missing_terminal.violations().is_empty());
+    assert_eq!(missing_terminal.skipped().len(), 1);
+    assert_eq!(missing_terminal.skipped()[0].path().render(), "child.value");
+
+    let present_terminal = plan
+        .validate(
+            ReflectedRef::new(&OptionalScalarRoot {
+                child: Some(OptionalScalarLeaf {
+                    value: Some(String::new()),
+                }),
+            }),
+            &ValidationOptions::default(),
+        )
+        .expect("present terminal optional should execute text validation");
+    assert_eq!(present_terminal.violations().len(), 1);
+    assert_eq!(present_terminal.violations()[0].path().render(), "child.value");
+    assert_eq!(present_terminal.violations()[0].code().as_str(), "text.blank");
 }
 
 #[test]

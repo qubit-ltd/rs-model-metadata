@@ -105,10 +105,11 @@ fn assert_stopped(options: ValidationOptions, expected: usize) {
         },
     )
     .unwrap()
-    .with_model_rule(
-        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.many"), Arc::new(Many))
-            .expect("prepared model shape"),
-    );
+    .with_model_rules([ModelRuleBinding::from_prepared::<Root>(
+        ValidatorId::new("execution.many"),
+        Arc::new(Many),
+    )
+    .expect("prepared model shape")]);
     let report = plan
         .validate(ReflectedRef::new(&Root { value: String::new() }), &options)
         .unwrap();
@@ -162,10 +163,11 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
         },
     )
     .unwrap()
-    .with_model_rule(
-        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.many"), Arc::new(Many))
-            .expect("prepared model shape"),
-    );
+    .with_model_rules([ModelRuleBinding::from_prepared::<Root>(
+        ValidatorId::new("execution.many"),
+        Arc::new(Many),
+    )
+    .expect("prepared model shape")]);
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
             std::iter::empty::<String>(),
@@ -213,10 +215,11 @@ fn test_model_empty_invalid_outcome_is_an_execution_error() {
         },
     )
     .unwrap()
-    .with_model_rule(
-        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.empty"), Arc::new(EmptyInvalid))
-            .expect("prepared model shape"),
-    );
+    .with_model_rules([ModelRuleBinding::from_prepared::<Root>(
+        ValidatorId::new("execution.empty"),
+        Arc::new(EmptyInvalid),
+    )
+    .expect("prepared model shape")]);
     let error = plan
         .validate(
             ReflectedRef::new(&Root { value: "ok".into() }),

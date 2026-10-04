@@ -9,12 +9,14 @@
 //! Unsupported paths retain each structural use, including tuple positions.
 
 use std::any::TypeId;
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
+use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
@@ -24,17 +26,68 @@ use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildErrors;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
+use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::Reflect;
+use qubit_reflect::ReflectedRef;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistry;
+
+thread_local! {
+    static OPTIONAL_TEXT_GETTER_CALLS: Cell<usize> = const { Cell::new(0) };
+}
 
 #[Model]
 #[derive(Ord, PartialOrd)]
 struct Child {
     #[text(non_blank)]
     name: String,
+}
+
+#[Model]
+struct OptionalText {
+    #[text(non_blank)]
+    value: Option<String>,
+}
+
+#[Model]
+struct OptionalTextGetter {
+    #[text(non_blank)]
+    value: Option<String>,
+}
+
+#[ModelImpl]
+impl OptionalTextGetter {
+    pub fn value(&self) -> Option<&str> {
+        OPTIONAL_TEXT_GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
+        self.value.as_deref()
+    }
+}
+
+#[Model]
+struct OwnedChild {
+    child: Child,
+}
+
+#[ModelImpl]
+impl OwnedChild {
+    pub fn child(&self) -> Child {
+        panic!("plan construction must not call an owned getter")
+    }
+}
+
+#[Model]
+struct SelectorPayload {
+    #[element(text(non_blank))]
+    values: Vec<Option<String>>,
+}
+
+#[ModelImpl]
+impl SelectorPayload {
+    pub fn values(&self) -> &[Option<String>] {
+        &self.values
+    }
 }
 
 #[Model]
@@ -257,6 +310,134 @@ fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
         assert_eq!(plan.constraint_rules(), capability.constraint_rules());
     }
     errors
+}
+
+#[test]
+fn optional_text_value_executes_or_skips() {
+    let root = TypeMetadata::of::<OptionalText>();
+    let reflection = RegistrySnapshotBuilder::new()
+        .build()
+        .expect("fresh reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("optional text structure");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("optional text constraint binds");
+
+    let missing = OptionalText { value: None };
+    let report = plan
+        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .expect("missing optional text");
+    assert!(report.violations().is_empty());
+
+    let invalid = OptionalText {
+        value: Some(String::new()),
+    };
+    let report = plan
+        .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+        .expect("present optional text");
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].path().render(), "value");
+    assert_eq!(report.violations()[0].code().as_str(), "text.blank");
+}
+
+#[test]
+fn optional_text_borrowed_getter_is_lazy_and_reads_once() {
+    OPTIONAL_TEXT_GETTER_CALLS.with(|calls| calls.set(0));
+    let root = TypeMetadata::of::<OptionalTextGetter>();
+    let models = ModelRegistry::global();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
+        .resolve()
+        .expect("optional getter structure");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    )
+    .expect("optional text getter constraint binds");
+    OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 0));
+
+    let missing = OptionalTextGetter { value: None };
+    let report = plan
+        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .expect("missing optional getter value");
+    assert!(report.violations().is_empty());
+    OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+
+    let invalid = OptionalTextGetter {
+        value: Some(String::new()),
+    };
+    let report = plan
+        .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+        .expect("present optional getter value");
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].code().as_str(), "text.blank");
+    OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 2));
+}
+
+#[test]
+fn test_unadapted_paths_still_fail_during_plan_construction() {
+    for (root, paths) in [
+        (
+            TypeMetadata::of::<TupleUses>(),
+            vec!["pair.0.name", "pair.1.0.name", "pair.1.1.name"],
+        ),
+        (
+            TypeMetadata::of::<Envelope>(),
+            vec!["choice.First.name", "choice.Second.name", "choice.Tuple.0"],
+        ),
+        (TypeMetadata::of::<SelectorPayload>(), vec!["values"]),
+    ] {
+        let errors = unsupported(root);
+        assert_eq!(
+            errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
+            paths.into_iter().map(Some).collect::<Vec<_>>()
+        );
+    }
+
+    let root = TypeMetadata::of::<OwnedChild>();
+    let roots = [root];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: ModelRegistry::global(),
+        roots: &roots,
+    })
+    .resolve()
+    .expect("owned child structure");
+    let errors =
+        ValidationCapabilities::check(root, &graph).expect_err("owned intermediate getter must be rejected at build");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(errors[0].path(), Some("child.name"));
+    let validators = ValidatorRegistry::empty();
+    let plan_errors = match ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: &graph,
+            validators: &validators,
+        },
+    ) {
+        Err(errors) => errors,
+        Ok(_) => panic!("owned intermediate getter must not produce a plan"),
+    };
+    assert_eq!(plan_errors.len(), 1);
+    assert_eq!(plan_errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(plan_errors[0].path(), Some("child.name"));
 }
 
 #[test]

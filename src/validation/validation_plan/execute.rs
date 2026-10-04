@@ -277,6 +277,7 @@ fn execute_field<'value>(
 ) -> Result<(), ExecutionFailure> {
     let path = path_for(binding.value());
     let value = path_reader::read(binding.value(), root.clone(), 0, budget)?;
+    let missing_optional_path = matches!(&value, PropertyValue::OptionalBorrowed(None));
     let direct_optional_scalar = binding.value().steps().last().is_some_and(|step| {
         let property = step.property();
         property.getter().is_none()
@@ -290,7 +291,7 @@ fn execute_field<'value>(
             ..
         }
     );
-    let projected_scalar = if direct_optional_scalar {
+    let projected_scalar = if direct_optional_scalar && !missing_optional_path {
         let descriptor = binding
             .value()
             .steps()
@@ -305,8 +306,7 @@ fn execute_field<'value>(
     } else {
         None
     };
-    if matches!(value, PropertyValue::OptionalBorrowed(None)) || projected_scalar.as_ref().is_some_and(Option::is_none)
-    {
+    if missing_optional_path || projected_scalar.as_ref().is_some_and(Option::is_none) {
         if !binding.value().is_optional() {
             return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
         }

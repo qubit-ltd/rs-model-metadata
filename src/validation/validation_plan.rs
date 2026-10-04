@@ -16,8 +16,6 @@ mod build;
 // Defines instance borrowing, rule execution and bounded report collection.
 mod execute;
 
-use std::iter;
-
 use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
 use crate::validation::internal::field_rule_binding::FieldRuleBinding;
@@ -116,19 +114,23 @@ impl<'a> ValidationPlan<'a> {
         self.graph
     }
 
-    /// Adds a typed model-level prepared validator to this plan.
+    /// Adds prepared model-level validators to this plan in iteration order.
     ///
     /// # Parameters
     ///
-    /// * `binding` - Prepared model-level validator occurrence to append.
+    /// * `bindings` - Prepared model-level validator occurrences to append.
     ///
     /// # Returns
     ///
-    /// This plan with the supplied model-level rule appended after existing
-    /// model rules.
-    #[must_use = "use the returned plan containing the added model rule"]
-    pub fn with_model_rule(mut self, binding: ModelRuleBinding) -> Self {
-        self.model_rules = self.model_rules.into_iter().chain(iter::once(binding)).collect();
+    /// This plan with the supplied model-level rules appended after existing
+    /// model rules. An empty iterator leaves the existing rules unchanged.
+    #[must_use = "use the returned plan containing the added model rules"]
+    pub fn with_model_rules(mut self, bindings: impl IntoIterator<Item = ModelRuleBinding>) -> Self {
+        let bindings = bindings.into_iter();
+        let mut all = Vec::with_capacity(self.model_rules.len() + bindings.size_hint().0);
+        all.extend(self.model_rules);
+        all.extend(bindings);
+        self.model_rules = all.into_boxed_slice();
         self
     }
 

@@ -302,13 +302,13 @@ fn test_explicit_empty_path_selects_model_level_rule() {
         },
     )
     .expect("standard constraints")
-    .with_model_rule(
+    .with_model_rules([
         qubit_model_metadata::validation::ModelRuleBinding::from_prepared::<SelectedFields>(
             ValidatorId::new("selection.always_valid"),
             Arc::new(AlwaysValid),
         )
         .expect("prepared model rule shape"),
-    );
+    ]);
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
             std::iter::empty::<String>(),
