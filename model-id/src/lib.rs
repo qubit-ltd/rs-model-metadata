@@ -1,7 +1,7 @@
 //! Stable, portable model identifiers shared by model-aware crates.
 
-mod model_id;
 mod has_model_id;
+mod model_id;
 
 pub use has_model_id::HasModelId;
 pub use model_id::ModelId;

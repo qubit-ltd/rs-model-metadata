@@ -103,7 +103,8 @@ Roles default to Clone, Debug, Display, PartialEq, Eq, Hash, Redact, Serialize,
 and Deserialize. An all-unit Enum also defaults to Copy. `no_*` options suppress
 generated implementations; `no_eq` also removes default Hash, and
 `no_partial_eq` removes equality, hashing, and ordering. `copy`, `default`,
-`partial_ord`, and `ord` are opt-in. Enum `default` requires exactly one standard
+`partial_ord`, and `ord` are opt-in. Future traits must remain opt-in until an
+explicit role option is added. Enum `default` requires exactly one standard
 `#[default]` unit variant. Default values need not satisfy domain constraints.
 
 Place the role attribute above explicit derives. Visible explicit derives are

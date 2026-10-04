@@ -58,6 +58,8 @@ qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
 
 身份协议类型为 `qubit_model_id::{ModelId, ModelIdBuf, ModelIdError}`。
 模型声明和注册表访问仍依赖 `qubit-model-metadata`；其 `metadata` 模块重导出相同的 ID 类型。
+具名、非泛型角色声明显式提供 `id` 时，派生宏还会实现
+`qubit_model_id::HasModelId`；泛型定义和匿名模型没有具体模型 ID。
 
 <!-- example: validation -->
 ```toml

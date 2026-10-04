@@ -65,6 +65,9 @@ qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
 Use `qubit_model_id::{ModelId, ModelIdBuf, ModelIdError}` for that protocol.
 Model declarations and registry access still require `qubit-model-metadata`.
 Its `metadata` module re-exports these same ID types.
+For a named, non-generic role declaration with an explicit `id`, the derive
+macros also implement `qubit_model_id::HasModelId`; generic definitions and
+anonymous models deliberately have no concrete model ID.
 
 <!-- example: validation -->
 ```toml
