@@ -382,7 +382,7 @@ D/R 条目只验收声明出口或文档归属，不宣称外部产品算法已�
 V1～V5 在模型库 worktree 执行；V6 指向本轮平台 worktree。Cargo target 使用各原仓库的 target 目录复用缓存，
 CI 使用 `RS_CI_CARGO_HOME_MODE=shared` 与 `RS_CI_ARTIFACT_CLEANUP_MODE=never` 保存检查证据。
 
-| 仓库 | `align-ci.sh` | `ci-check.sh` | 补充验收 |
+| 仓库 | `align-ci.sh` | `.infra/bin/ci-check.sh` | 补充验收 |
 | --- | ---: | ---: | --- |
 | rs-model-metadata（含 derive） | 0 | 0 | 完整 feature matrix、UI/runtime fixtures、Rustdoc/Markdown、coverage、安全审计；V1～V6 全部通过 |
 | rs-reflect | 0 | 0 | 共享 CI、critical coverage 和真实 metadata → platform 下游检查全部通过；符号链接入口使用 canonical manifest 路径 |
@@ -416,12 +416,12 @@ CI 使用 `RS_CI_CARGO_HOME_MODE=shared` 与 `RS_CI_ARTIFACT_CLEANUP_MODE=never`
 | 真实 CredentialInfo 与 PersonInfo Time 拒绝 | rs-platform testkit `validation_pipeline_tests`、`model_graph_tests` | 4 项管线和 1 项完整图测试通过；平台完整 CI 另行验收 |
 | 宏 runtime 路径与 Rustdoc | `runtime_fixtures_tests`、runtime doctests | 25 项 Rustdoc 与普通/重命名/多 crate fixture 通过 |
 | 双语 README/指南的实际代码块 | `tests/documentation_examples_tests.rs` | 8 份文档、12 个独立程序编译并运行；完整文档/item 审查未结束 |
-| 对齐与严格 Clippy | `./align-ci.sh` | 当前代码与文档测试对齐通过 |
+| 对齐与严格 Clippy | `./.infra/bin/align-ci.sh` | 当前代码与文档测试对齐通过 |
 | 配置构造与实际执行 | `tests/validation/validation_options_tests.rs`、预算回归 | 独立 ValidationOptionsBuilder 已替换旧配置 setter；42 项 validation 回归通过 |
 | 覆盖率与独立 feature 轴 | `.rs-infra-ci-coverage.json`、`.rs-infra-ci-cargo-matrix.json` | 31 个 runtime 与 2 个 derive 豁免均已移除；codec-only/generic-only 已加入；完整覆盖率未通过 |
 | 1/8/32 字段性能观测 | `benches/model_pipeline.rs`、`benches/property_output.rs` | 三轮基线/实现配对比较及 72 组保留基准完成；最终源码版本仍需复测 |
 
-最近完成的 `./ci-check.sh`（标准约束规则 ID 列表修订前）在 coverage 门禁退出 1：
+最近完成的 `./.infra/bin/ci-check.sh`（标准约束规则 ID 列表修订前）在 coverage 门禁退出 1：
 函数 1194/1368、行 8802/10176、region 12855/15099。
 要求仍为函数 ≥ 95%、行 > 90%、region > 85%；未降低阈值。公共宏回归已证明两个 derive
 解析文件的分支可以被插桩观察，因此撤销豁免；两文件现已达到原阈值：constraints 为
@@ -444,9 +444,9 @@ CI 使用 `RS_CI_CARGO_HOME_MODE=shared` 与 `RS_CI_ARTIFACT_CLEANUP_MODE=never`
 | 双语安装说明、用户指南、设计说明 | 根 README、`doc/user_guide*`、双语 final-design | 已更新；文档示例测试验证本地路径依赖及 `publish = false` |
 | `inline(always)` 逐项审计 | [双语逐项清单](../../doc/inline-always-audit.md)：224 项中 190 个 const 访问器/构造函数、24 个转发/切片访问器降为 `inline`；其余 10 项移除。快跑 Criterion 未显示整体回归，单字段 registry 查询对紧邻基线有小幅显著改善，其余主要阶段无显著变化 | 已完成；单项提示收益未被隔离验证 |
 | 下游 CI 输入固定到不可变提交 | [rs-platform-downstream.yml](../../.github/workflows/rs-platform-downstream.yml) 与 [`ci_wrapper_tests.py`](../../tests/ci_wrapper_tests.py) | 已加入 40 位 SHA 检查；rs-platform 固定到本轮集成提交 |
-| 对齐脚本和仓库 CI | rs-validator、rs-platform、rs-model-metadata 的 `align-ci.sh` / `ci-check.sh` | 最终结果见本轮结束记录 |
+| 对齐脚本和仓库 CI | rs-validator、rs-platform、rs-model-metadata 的 `align-ci.sh` / `.infra/bin/ci-check.sh` | 最终结果见本轮结束记录 |
 | 1/8/32 字段管线性能复测 | `benches/model_pipeline.rs`，与旧的直接查询基线比较 | 复测结果及噪声限制见本轮结束记录 |
 
 ### 覆盖率门槛补齐结果（2026-09-25）
 
-根据完整 coverage JSON 报告补充空集合访问器、元数据查找失败路径、关系位置/路径边界及重复内建 validator 声明失败路径的行为测试。未调整 `.rs-infra-ci-coverage.json` 中的阈值或豁免。最终完整 `./align-ci.sh && ./ci-check.sh` 通过，coverage 汇总为：函数 1332/1399（95.21%）、行 9562/10444（91.55%）、region 13984/15599（89.65%），分别满足函数 ≥ 95%、行 > 90%、region > 85%。覆盖率报告由 `ci-check.sh` 的 coverage 门禁生成；该结果为本次最后一次完整运行。
+根据完整 coverage JSON 报告补充空集合访问器、元数据查找失败路径、关系位置/路径边界及重复内建 validator 声明失败路径的行为测试。未调整 `.rs-infra-ci-coverage.json` 中的阈值或豁免。最终完整 `./.infra/bin/align-ci.sh && ./.infra/bin/ci-check.sh` 通过，coverage 汇总为：函数 1332/1399（95.21%）、行 9562/10444（91.55%）、region 13984/15599（89.65%），分别满足函数 ≥ 95%、行 > 90%、region > 85%。覆盖率报告由 `.infra/bin/ci-check.sh` 的 coverage 门禁生成；该结果为本次最后一次完整运行。

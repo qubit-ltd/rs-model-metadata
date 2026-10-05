@@ -13,7 +13,7 @@
 | Value | 2 |
 | 合计 | 131 |
 
-已验证 `cargo check --offline --workspace --all-features --all-targets`、完整关系图解析和一轮完整 `ci-check.sh`。
+已验证 `cargo check --offline --workspace --all-features --all-targets`、完整关系图解析和一轮完整 `.infra/bin/ci-check.sh`。
 最终 CI 与完整关系图结果见需求验收台账，编译结果不代替执行语义验收。
 迁移后另有 20 个 ModelImpl 和 4 个 validator 声明；没有 codec、key_part、money、map_key 或 map_value
 的真实声明。高级能力仍由模型库的 runtime、resolver、trybuild 测试独立覆盖。

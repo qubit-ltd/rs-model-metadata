@@ -2,7 +2,7 @@
 
 [English](coverage_measurement.md)
 
-本项目保留既有覆盖率门槛，不设置逐文件豁免。`ci-check.sh` 和 `coverage.sh`
+本项目保留既有覆盖率门槛，不设置逐文件豁免。`.infra/bin/ci-check.sh` 和 `.infra/bin/coverage.sh`
 额外使用 `-C link-dead-code=yes`，使固定的 Rust 1.94.0 与
 cargo-llvm-cov 0.8.6 能保留不同测试可执行文件中的覆盖率映射。
 
@@ -41,7 +41,7 @@ RUSTFLAGS='-C link-dead-code=yes' cargo +1.94.0 llvm-cov --manifest-path tests/f
 两个入口共同加载 `scripts/coverage-rustflags.sh`，保留 Cargo 编码标志的优先级
 和参数边界，也保留普通编译标志。由于 vendor CI runner 直接调用自己的 coverage
 脚本，本地 CI 会把该选项传给所有子构建。GitHub 覆盖率任务调用项目的
-`coverage.sh`，因此使用相同选项。普通 Cargo 命令和 release benchmark 不加载
+`.infra/bin/coverage.sh`，因此使用相同选项。普通 Cargo 命令和 release benchmark 不加载
 该 helper；CI 二进制文件可能因此变大。
 
 `project-ci-check.sh` 对两个入口执行进程边界测试，包括参数透传与 vendor

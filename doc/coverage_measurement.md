@@ -3,7 +3,7 @@
 [简体中文](coverage_measurement.zh_CN.md)
 
 The project keeps its existing coverage gates and has no per-file exemptions.
-The `ci-check.sh` and `coverage.sh` entry points additionally use
+The `.infra/bin/ci-check.sh` and `.infra/bin/coverage.sh` entry points additionally use
 `-C link-dead-code=yes` to preserve coverage mappings across test executables
 with the pinned Rust 1.94.0 and cargo-llvm-cov 0.8.6 tools.
 
@@ -47,7 +47,7 @@ Both entry points source `scripts/coverage-rustflags.sh`. Encoded Cargo flags
 retain precedence and argument boundaries; plain flags are preserved. Local CI
 passes the option to all of its child builds because the vendor CI runner
 invokes its own coverage script. The GitHub coverage job calls the project's
-`coverage.sh` and receives the same option. Ordinary Cargo commands and release
+`.infra/bin/coverage.sh` and receives the same option. Ordinary Cargo commands and release
 benchmarks do not load this helper. CI binaries may be larger as a result.
 
 `project-ci-check.sh` runs process-boundary tests for both wrappers, including

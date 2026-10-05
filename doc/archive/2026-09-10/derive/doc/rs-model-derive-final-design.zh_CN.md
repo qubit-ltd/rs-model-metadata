@@ -1048,7 +1048,7 @@ cargo doc --manifest-path rs-model-metadata/Cargo.toml --all-features --no-deps
 cargo doc --manifest-path rs-model-derive/Cargo.toml --all-features --no-deps
 ```
 
-具体实施时再按各仓库脚本补充 `style-check.sh`、`ci-check.sh` 和 Miri 命令。
+具体实施时再按各仓库脚本补充 `style-check.sh`、`.infra/bin/ci-check.sh` 和 Miri 命令。
 
 ## 关键不变量
 
