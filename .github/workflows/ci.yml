@@ -40,6 +40,13 @@ jobs:
           submodules: false
       - uses: actions/checkout@v6
         with:
+          repository: qubit-ltd/rs-codec
+          ref: main
+          path: rust-platform/rs-codec
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
           repository: qubit-ltd/rs-reflect
           ref: main
           path: rust-platform/rs-reflect
@@ -113,6 +120,13 @@ jobs:
       - uses: actions/checkout@v6
         with:
           path: rust-platform/rs-model-metadata
+          submodules: false
+      - uses: actions/checkout@v6
+        with:
+          repository: qubit-ltd/rs-codec
+          ref: main
+          path: rust-platform/rs-codec
+          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
       - uses: actions/checkout@v6
         with:
