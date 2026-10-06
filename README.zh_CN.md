@@ -127,7 +127,8 @@ fn main() {
 - `resolve::StructureResolver` 只解析结构关系并生成不可变的 `resolve::ModelGraph`。
 - 启用 `codec` 后，`codec::bind_codecs` 在图构建后绑定 codec occurrence，并确定性地汇总错误。
 - 启用 `validation` feature 后，`ValidationPlan::build` 编译 Property 路径，并绑定调用方提供的
-  `qubit-validator::ValidatorRegistry`；`ValidationPlan::validate` 执行这些不可变绑定并返回结构化的
+  `qubit-validator::ValidatorRegistry`。计划接收 `Arc<ModelGraph>` 并持有结构图；构建完成后，调用方
+  可以释放自己的 graph 句柄。`ValidationPlan::validate` 执行这些不可变绑定并返回结构化的
   `ValidationReport`。构建诊断以 `ConstraintRuleRef::Registry` 表示经注册表绑定的规则，
   以 `ConstraintRuleRef::ModelIntrinsic` 表示由模型计划直接执行的规则。
   外层序列唯一性使用保留 ID `qubit_validation_rules::ids::COLLECTION_UNIQUE`；
@@ -202,7 +203,8 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 
 需要审计链接注册表中的全部模型时使用 `new`；业务请求只需要根模型及其可达模型时使用
 `for_roots`。两种调用都借用同一个 `ModelRegistry` 快照：按根解析会跳过无关模型的结构初始化，
-但可达模型仍从该快照读取 capability 和 `ModelImpl` Property provider。下面的局部验证示例需要启用
+但可达模型仍从该快照读取 capability 和 `ModelImpl` Property provider。局部计划构建成功不代表无关的
+已链接模型也通过检查；启动或发布审计应解析完整结构图。下面的局部验证示例需要启用
 `validation` feature，并直接依赖 `qubit-validator`；依赖配置见用户指南。
 
 <!-- example: validation/root-scoped -->

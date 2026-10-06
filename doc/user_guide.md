@@ -213,6 +213,16 @@ That cache belongs to the registry and is released when the registry is dropped.
 `ModelGraph` retains property views for its own lifetime, and references obtained
 from `graph.properties()` must not outlive the graph.
 
+For repeated property access, `ModelRegistry::compile_read_path_cached` and
+`compile_write_path_cached` return shared compiled paths. Each registry snapshot
+retains at most 256 successful paths across read and write modes; inserting a
+new success evicts the oldest inserted success when full. Failed compilations
+are returned to the caller and retried on later calls. The key includes the
+exact root metadata, path segments, and access mode. Separate registries, including registries made
+from different reflection snapshots or overlays, have separate caches; a path
+from one snapshot cannot silently resolve against another. Compilation on a
+cache miss happens outside the lock, so concurrent misses may compile twice.
+
 The obsolete `FieldMetadata::validate_nested()` method and
 `FieldAttributeMetadata::ValidateNested` marker are removed. Neither controls
 execution. Supported nested declarations are discovered by the plan builder;
@@ -236,8 +246,12 @@ variant/field indices, and selector position, including unnamed Enum payloads.
 
 With `validation`, construct `ValidationPlan::build(root, ValidationBuildInputs
 { graph: Arc::clone(&graph), validators: &validators })`. The validator registry is supplied
-by the caller. Binding checks the declared stable IDs, parameters, readable
-Property paths, and available input/dependency types. Metadata stores borrowed
+by the caller. The plan owns this `Arc<ModelGraph>`, so it remains usable after
+the caller drops its own graph handle. Build a root-scoped graph for ordinary
+validation and a full graph when auditing every linked model; a successful
+root-scoped build does not inspect unrelated structures. Binding checks the
+declared stable IDs, parameters, readable Property paths, and available
+input/dependency types. Metadata stores borrowed
 declaration parameters and converts them to `qubit-validator` arguments when binding
 each rule. Binding compares each prepared validator shape with its signature.
 A statically known optional getter

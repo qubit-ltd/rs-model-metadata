@@ -151,6 +151,8 @@ the reflection model.
   occurrences after graph construction and reports deterministic errors.
 - With the `validation` feature, `ValidationPlan::build` compiles declared
   property paths and binds them to the supplied `qubit-validator::ValidatorRegistry`.
+  The plan takes an `Arc<ModelGraph>` and keeps the resolved graph alive for
+  later validation; callers can drop their own graph handle after building it.
   `ValidationPlan::validate` executes those immutable bindings and returns a
   structured `ValidationReport`. Build diagnostics expose
   `ConstraintRuleRef::Registry` for registry-backed rules and
@@ -252,7 +254,9 @@ Use `new` when an application must audit every model in a linked registry. Use
 and reachable models. Both calls borrow the same `ModelRegistry` snapshot:
 root-scoped resolution skips structural initialization of unrelated models,
 while still reading reachable capabilities and `ModelImpl` property providers
-from that snapshot. The local validation example requires the `validation`
+from that snapshot. A successful root-scoped plan therefore does not certify
+unrelated linked models; run the full graph resolution for startup or release
+audits. The local validation example requires the `validation`
 feature and the direct `qubit-validator` dependency shown in the user guide.
 
 <!-- example: validation/root-scoped -->
