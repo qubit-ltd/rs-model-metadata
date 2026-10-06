@@ -690,7 +690,13 @@ a missing or non-text dependency is an execution error, not a value violation.
 | Codec missing/type mismatch | Registration, explicit reference, and exact codec value type |
 
 `ModelRegistry::metadata_for` returns Result<Option<_>>: Ok(None) means absent;
-errors retain capability or ABI failures. `try_properties_in`, `try_property_in`,
+errors retain capability or ABI failures. Each registry caches the validated
+result, including absence and structured errors, for the exact descriptor
+allocation. Metadata projected during construction is prefilled, so its
+provider is not called again by `metadata_for`; other providers' returned
+results are cached for that descriptor and registry. The cache is released with
+the registry. A provider panic does not initialize its cell, so a later lookup
+can retry it. `try_properties_in`, `try_property_in`,
 and `property_fragments_in` preserve assembly errors. ResolveErrors aggregates
 independent failures. A bad reachable descriptor may be reported both during
 closure discovery and at a specific relationship path. ResolveError exposes the

@@ -9,6 +9,8 @@
 //! Integration tests for frozen model registration indexes.
 
 use std::sync::OnceLock;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
@@ -109,6 +111,87 @@ impl TypeMetadataProvider for ProjectedFixture {
 }
 
 register_model_capability!(ProjectedFixture, ProjectedFixture::__type_metadata);
+
+static COUNTED_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+struct CountedProviderFixture;
+
+impl ModelTypeSeal for CountedProviderFixture {}
+
+impl TypeMetadataProvider for CountedProviderFixture {
+    fn __type_metadata() -> &'static TypeMetadata {
+        COUNTED_PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst);
+        static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
+        METADATA.get_or_init(|| {
+            v7::GeneratedTypeMetadataBuilder::new(
+                TypeDescriptor::of::<CountedProviderFixture>(),
+                None,
+                &[],
+                v7::leak(v7::model_role()),
+            )
+            .finish::<CountedProviderFixture>()
+        })
+    }
+}
+
+register_model_capability!(CountedProviderFixture, CountedProviderFixture::__type_metadata);
+
+static NAMED_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+struct CountedNamedProviderFixture;
+
+impl ModelTypeSeal for CountedNamedProviderFixture {}
+
+impl TypeMetadataProvider for CountedNamedProviderFixture {
+    fn __type_metadata() -> &'static TypeMetadata {
+        NAMED_PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst);
+        static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
+        METADATA.get_or_init(|| {
+            v7::GeneratedTypeMetadataBuilder::new(
+                TypeDescriptor::of::<CountedNamedProviderFixture>(),
+                Some(ModelId::new("example.CountedNamedProvider")),
+                &[],
+                v7::leak(v7::model_role()),
+            )
+            .finish::<CountedNamedProviderFixture>()
+        })
+    }
+}
+
+register_model_capability!(CountedNamedProviderFixture, CountedNamedProviderFixture::__type_metadata);
+
+#[derive(Reflect)]
+#[reflect(crate = qubit_model_metadata)]
+struct SnapshotIsolatedFixture;
+
+impl ModelTypeSeal for SnapshotIsolatedFixture {}
+
+fn isolated_metadata(id: &'static str) -> &'static TypeMetadata {
+    static FIRST: OnceLock<TypeMetadata> = OnceLock::new();
+    static SECOND: OnceLock<TypeMetadata> = OnceLock::new();
+    let cell = if id == "example.SnapshotFirst" { &FIRST } else { &SECOND };
+    cell.get_or_init(|| {
+        v7::GeneratedTypeMetadataBuilder::new(
+            TypeDescriptor::of::<SnapshotIsolatedFixture>(),
+            Some(ModelId::new(id)),
+            &[],
+            v7::leak(v7::model_role()),
+        )
+        .finish::<SnapshotIsolatedFixture>()
+    })
+}
+
+fn first_snapshot_metadata() -> &'static TypeMetadata {
+    isolated_metadata("example.SnapshotFirst")
+}
+
+fn second_snapshot_metadata() -> &'static TypeMetadata {
+    isolated_metadata("example.SnapshotSecond")
+}
 
 fn entry(id: &'static str, fingerprint: u64) -> (&'static TypeMetadata, &'static FragmentIdentity) {
     let role = v7::leak(v7::model_role());
@@ -445,6 +528,103 @@ fn test_combined_reflection_registration_projects_concrete_metadata() {
 
     assert!(std::ptr::eq(by_id, by_type));
     assert!(std::ptr::eq(by_id, ProjectedFixture::__type_metadata()));
+}
+
+#[test]
+fn test_metadata_for_caches_projected_and_anonymous_metadata_by_registry() {
+    COUNTED_PROVIDER_CALLS.store(0, Ordering::SeqCst);
+    let descriptor = TypeDescriptor::of::<CountedProviderFixture>();
+    let mut builder = RegistrySnapshotBuilder::new();
+    builder.add_type_with_capabilities(
+        descriptor,
+        vec![CapabilityDescriptor::with_adapter(
+            model_metadata_key(),
+            CountedProviderFixture::__type_metadata as ModelMetadataProvider,
+        )],
+        FragmentIdentity::new("fixture", "counted", 1, 1, "type", 1),
+        FragmentIdentity::new("fixture", "counted", 2, 1, "model", 2),
+    );
+    let reflection = builder.build().expect("counted snapshot");
+    let registry = ModelRegistry::from_reflect_registry(&reflection).expect("projected registry");
+    let projected_calls = COUNTED_PROVIDER_CALLS.load(Ordering::SeqCst);
+    let first = registry.metadata_for(descriptor).expect("first lookup").expect("metadata");
+    let after_first = COUNTED_PROVIDER_CALLS.load(Ordering::SeqCst);
+    let second = registry.metadata_for(descriptor).expect("second lookup").expect("metadata");
+    let after_second = COUNTED_PROVIDER_CALLS.load(Ordering::SeqCst);
+
+    assert!(std::ptr::eq(first, second));
+    assert_eq!(after_first, projected_calls);
+    assert_eq!(after_second, after_first);
+    assert!(first.model_id().is_none(), "anonymous metadata is still cached");
+
+    NAMED_PROVIDER_CALLS.store(0, Ordering::SeqCst);
+    let named_descriptor = TypeDescriptor::of::<CountedNamedProviderFixture>();
+    let mut named_builder = RegistrySnapshotBuilder::new();
+    named_builder.add_type_with_capabilities(
+        named_descriptor,
+        vec![CapabilityDescriptor::with_adapter(
+            model_metadata_key(),
+            CountedNamedProviderFixture::__type_metadata as ModelMetadataProvider,
+        )],
+        FragmentIdentity::new("fixture", "counted-named", 3, 1, "type", 3),
+        FragmentIdentity::new("fixture", "counted-named", 4, 1, "model", 4),
+    );
+    let named_reflection = named_builder.build().expect("named counted snapshot");
+    let named_registry = ModelRegistry::from_reflect_registry(&named_reflection).expect("named registry");
+    let named_calls = NAMED_PROVIDER_CALLS.load(Ordering::SeqCst);
+    let named_first = named_registry
+        .metadata_for(named_descriptor)
+        .expect("named first lookup")
+        .expect("named metadata");
+    let named_second = named_registry
+        .metadata_for(named_descriptor)
+        .expect("named second lookup")
+        .expect("named metadata");
+    assert!(std::ptr::eq(named_first, named_second));
+    assert_eq!(NAMED_PROVIDER_CALLS.load(Ordering::SeqCst), named_calls);
+    assert_eq!(named_first.model_id().map(ModelId::as_str), Some("example.CountedNamedProvider"));
+}
+
+#[test]
+fn test_metadata_cache_isolated_between_reflection_snapshots() {
+    let descriptor = TypeDescriptor::of::<SnapshotIsolatedFixture>();
+    let mut first_builder = RegistrySnapshotBuilder::new();
+    first_builder.add_type_with_capabilities(
+        descriptor,
+        vec![CapabilityDescriptor::with_adapter(
+            model_metadata_key(),
+            first_snapshot_metadata,
+        )],
+        FragmentIdentity::new("fixture", "snapshot", 10, 1, "type", 10),
+        FragmentIdentity::new("fixture", "snapshot", 11, 1, "model", 11),
+    );
+    let first_reflection = first_builder.build().expect("first snapshot");
+    let first = ModelRegistry::from_reflect_registry(&first_reflection).expect("first registry");
+    assert!(std::ptr::eq(
+        first.metadata_for(descriptor).unwrap().unwrap(),
+        first_snapshot_metadata(),
+    ));
+
+    let mut second_builder = RegistrySnapshotBuilder::new();
+    second_builder.add_type_with_capabilities(
+        descriptor,
+        vec![CapabilityDescriptor::with_adapter(
+            model_metadata_key(),
+            second_snapshot_metadata,
+        )],
+        FragmentIdentity::new("fixture", "snapshot", 20, 1, "type", 20),
+        FragmentIdentity::new("fixture", "snapshot", 21, 1, "model", 21),
+    );
+    let second_reflection = second_builder.build().expect("second snapshot");
+    let second = ModelRegistry::from_reflect_registry(&second_reflection).expect("second registry");
+    assert!(std::ptr::eq(
+        second.metadata_for(descriptor).unwrap().unwrap(),
+        second_snapshot_metadata(),
+    ));
+    assert_ne!(
+        first.metadata_for(descriptor).unwrap().unwrap().model_id(),
+        second.metadata_for(descriptor).unwrap().unwrap().model_id(),
+    );
 }
 
 /// Consumers can enumerate immutable model metadata and registration

@@ -599,6 +599,10 @@ precision 为 1、scale 为 0 时会接受 `1e3`，新版拒绝。元数据中�
 | codec 缺失或类型不符 | 注册项、显式引用和准确 value type |
 
 `ModelRegistry::metadata_for` 返回 Result<Option<_>>，Ok(None) 只表示不存在；能力和 ABI 失败保持错误。
+每个注册表按 descriptor 的精确分配地址缓存已校验结果，包括缺失和结构化错误。
+构建投影时已读取的元数据会预填缓存，因此 `metadata_for` 不会再次调用对应 provider；
+其他 provider 的返回结果会按注册表和 descriptor 缓存。注册表销毁时缓存一并释放。
+provider panic 不会初始化缓存 cell，后续查询可以重试。
 `try_properties_in`、`try_property_in`、`property_fragments_in` 保留组装错误。
 ResolveErrors 聚合独立问题；同一错误 descriptor 可能分别在可达闭包检查和具体引用路径处报告。
 ResolveError 提供 owner Rust 身份、可选稳定 ID、已知声明位置和底层 cause，不应把失败转换成空 metadata。

@@ -53,6 +53,18 @@ type PropertyCacheCell = Arc<OnceLock<Result<ResolvedProperties, PropertyResolut
 /// Protects the per-registry map of lazily initialized property results.
 type PropertyCache = Mutex<HashMap<PropertyCacheKey, PropertyCacheCell>>;
 
+/// Identifies metadata lookups by exact Rust type and descriptor allocation.
+type MetadataCacheKey = (TypeId, usize);
+
+/// Retains successful, missing, and failed metadata lookup results.
+type MetadataCacheValue = Result<Option<&'static TypeMetadata>, ModelMetadataError>;
+
+/// Shares one lazy metadata lookup among concurrent callers.
+type MetadataCacheCell = Arc<OnceLock<MetadataCacheValue>>;
+
+/// Protects the per-registry map of metadata lookup cells.
+type MetadataCache = Mutex<HashMap<MetadataCacheKey, MetadataCacheCell>>;
+
 /// An immutable registry sorted by stable model ID and fragment identity.
 ///
 /// The lifetime retains borrowed reflection provenance. Metadata itself lives
@@ -100,6 +112,8 @@ pub struct ModelRegistry<'reflection> {
     reflection: Option<&'reflection ReflectRegistry>,
     /// Per-registry cache for snapshot-specific property resolutions.
     property_cache: PropertyCache,
+    /// Per-registry cache for validated metadata lookups.
+    metadata_cache: MetadataCache,
 }
 
 impl<'reflection> ModelRegistry<'reflection> {
@@ -155,6 +169,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             ));
         }
         let mut entries = Vec::new();
+        let mut metadata_inputs = Vec::new();
         #[cfg(feature = "generic")]
         let mut generic_inputs = Vec::new();
         for member in reflection.type_capability_members(model_metadata_key()) {
@@ -189,6 +204,7 @@ impl<'reflection> ModelRegistry<'reflection> {
                     cause,
                 ));
             }
+            metadata_inputs.push(metadata);
             if metadata.model_id().is_some() {
                 entries.push(
                     ModelEntry::concrete(
@@ -250,6 +266,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             entries,
             #[cfg(feature = "generic")]
             generic_inputs,
+            metadata_inputs,
         )?;
         registry.reflection = Some(reflection);
         Ok(registry)
@@ -305,6 +322,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             entries,
             #[cfg(feature = "generic")]
             Vec::new(),
+            concrete.iter().map(|(metadata, _)| *metadata).collect(),
         )
     }
 
@@ -363,6 +381,7 @@ impl<'reflection> ModelRegistry<'reflection> {
                 .iter()
                 .map(|&(metadata, source)| (metadata, source, None))
                 .collect(),
+            concrete.iter().map(|(metadata, _)| *metadata).collect(),
         )
     }
 
@@ -425,6 +444,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// - `entries`: Concrete and generic model entries to validate and index.
     /// - `generic_inputs`: Generic definitions and their declaration provenance
     ///   when generic metadata is enabled.
+    /// - `metadata_inputs`: Concrete metadata validated before registry build,
+    ///   including anonymous metadata that is not indexed by stable ID.
     ///
     /// # Returns
     ///
@@ -437,6 +458,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             &'reflection FragmentIdentity,
             Option<&'reflection FragmentIdentity>,
         )>,
+        metadata_inputs: Vec<&'static TypeMetadata>,
     ) -> Result<Self, ModelRegistryError> {
         #[cfg(feature = "generic")]
         {
@@ -500,6 +522,23 @@ impl<'reflection> ModelRegistry<'reflection> {
             }
         }
 
+        let mut metadata_cache: HashMap<MetadataCacheKey, MetadataCacheCell> =
+            HashMap::with_capacity(metadata_inputs.len());
+        for metadata in metadata_inputs {
+            let descriptor = metadata.descriptor();
+            let key = (descriptor.type_id(), descriptor as *const TypeDescriptor as usize);
+            if let Some(cell) = metadata_cache.get(&key) {
+                let cached = cell.get().expect("prefilled metadata cell").as_ref();
+                if !matches!(cached, Ok(Some(existing)) if std::ptr::eq(*existing, metadata)) {
+                    return Err(ModelRegistryError::conflict(metadata.model_id(), Vec::new()));
+                }
+                continue;
+            }
+            let cell = Arc::new(OnceLock::new());
+            cell.set(Ok(Some(metadata))).expect("new metadata cache cell");
+            metadata_cache.insert(key, cell);
+        }
+
         Ok(Self {
             entries: entries.into_boxed_slice(),
             indices,
@@ -510,6 +549,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             generic_definition_indices,
             reflection: None,
             property_cache: Mutex::default(),
+            metadata_cache: Mutex::new(metadata_cache),
         })
     }
 
@@ -598,9 +638,12 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Returns model metadata resolved for one exact concrete descriptor.
     ///
-    /// With a reflection snapshot, invokes its effective metadata provider on
-    /// each call before falling back to explicit registrations. No global
-    /// registry is consulted. Metadata-only registries use only their index.
+    /// Reuses the validated result for this exact descriptor within this
+    /// registry. Snapshot projections prefill metadata supplied during
+    /// construction, including anonymous metadata. Other lookups cache their
+    /// provider result, absence, or structured error after the first call. A
+    /// provider panic leaves the cache cell uninitialized and can be retried.
+    /// No global registry is consulted.
     ///
     /// # Parameters
     ///
@@ -624,28 +667,36 @@ impl<'reflection> ModelRegistry<'reflection> {
         &self,
         descriptor: &'static TypeDescriptor,
     ) -> Result<Option<&'static TypeMetadata>, ModelMetadataError> {
-        let provided = match self.reflection {
-            Some(reflection) => reflection
-                .capability(descriptor, model_metadata_key())
-                .map_err(|source| ModelMetadataError::Capability {
-                    type_id: descriptor.type_id(),
-                    type_name: descriptor.type_name(),
-                    source,
-                })?
-                .map(|provider| provider()),
-            None => None,
+        let key = (descriptor.type_id(), descriptor as *const TypeDescriptor as usize);
+        let cell = {
+            let mut cache = self.metadata_cache.lock().expect("metadata cache lock");
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceLock::new())))
         };
-        let metadata = provided.or_else(|| self.by_type_id(descriptor.type_id()));
-        if let Some(metadata) = metadata {
-            metadata
-                .validate_descriptor(descriptor)
-                .map_err(|source| ModelMetadataError::Abi {
-                    type_id: descriptor.type_id(),
-                    type_name: descriptor.type_name(),
-                    source,
-                })?;
-        }
-        Ok(metadata)
+        cell.get_or_init(|| {
+            let provided = match self.reflection {
+                Some(reflection) => reflection
+                    .capability(descriptor, model_metadata_key())
+                    .map_err(|source| ModelMetadataError::Capability {
+                        type_id: descriptor.type_id(),
+                        type_name: descriptor.type_name(),
+                        source,
+                    })?
+                    .map(|provider| provider()),
+                None => None,
+            };
+            let metadata = provided.or_else(|| self.by_type_id(descriptor.type_id()));
+            if let Some(metadata) = metadata {
+                metadata
+                    .validate_descriptor(descriptor)
+                    .map_err(|source| ModelMetadataError::Abi {
+                        type_id: descriptor.type_id(),
+                        type_name: descriptor.type_name(),
+                        source,
+                    })?;
+            }
+            Ok(metadata)
+        })
+        .clone()
     }
 
     /// Resolves properties using this model registry's reflection snapshot.
