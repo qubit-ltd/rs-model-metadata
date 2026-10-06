@@ -111,17 +111,19 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
     let root = TypeMetadata::of::<SelectedEnvelope>();
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let roots = [root, TypeMetadata::of::<SelectedFields>()];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("nested structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("nested structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -215,17 +217,19 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
     let root = TypeMetadata::of::<SelectedFields>();
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("field structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("field structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -289,17 +293,19 @@ fn test_explicit_empty_path_selects_model_level_rule() {
     let root = TypeMetadata::of::<SelectedFields>();
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("field structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("field structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -335,17 +341,19 @@ fn test_builder_field_selection_and_budget_execute_together() {
     let root = TypeMetadata::of::<SelectedFields>();
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("field structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("field structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )

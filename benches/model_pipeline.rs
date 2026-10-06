@@ -79,12 +79,14 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistr
     let models = ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
     let root = TypeMetadata::of::<Pipeline1>();
     let roots = [root];
-    let graph = StructureResolver::for_roots(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("benchmark graph");
+    let graph = Arc::new(
+        StructureResolver::for_roots(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("benchmark graph"),
+    );
     let validators = ValidatorRegistry::empty();
     let prepared: Arc<dyn PreparedValidator> = Arc::new(AcceptModel);
     let mut group = criterion.benchmark_group("model_rule_batch_build");
@@ -107,7 +109,7 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistr
                     let plan = ValidationPlan::build(
                         root,
                         ValidationBuildInputs {
-                            graph: &graph,
+                            graph: Arc::clone(&graph),
                             validators: &validators,
                         },
                     )
@@ -123,7 +125,7 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistr
                 let plan = ValidationPlan::build(
                     root,
                     ValidationBuildInputs {
-                        graph: &graph,
+                        graph: Arc::clone(&graph),
                         validators: &validators,
                     },
                 )
@@ -215,14 +217,16 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     let mut plans = criterion.benchmark_group("validation_plan_build");
     for &(root, size) in roots {
         let root_set = [root];
-        let graph = StructureResolver::for_roots(ResolveInputs {
-            models: &models,
-            roots: &root_set,
-        })
-        .resolve()
-        .expect("graph outside plan timing");
+        let graph = Arc::new(
+            StructureResolver::for_roots(ResolveInputs {
+                models: &models,
+                roots: &root_set,
+            })
+            .resolve()
+            .expect("graph outside plan timing"),
+        );
         let inputs = ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         };
         let plan = ValidationPlan::build(root, inputs).expect("all text declarations bind");
@@ -232,7 +236,7 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
                 black_box(ValidationPlan::build(
                     black_box(root),
                     ValidationBuildInputs {
-                        graph: &graph,
+                        graph: Arc::clone(&graph),
                         validators: &validators,
                     },
                 ))
@@ -244,16 +248,18 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     let mut execution = criterion.benchmark_group("validation_plan_execute");
     for (&(root, size), value) in roots.iter().zip(values) {
         let root_set = [root];
-        let graph = StructureResolver::for_roots(ResolveInputs {
-            models: &models,
-            roots: &root_set,
-        })
-        .resolve()
-        .expect("graph outside execution timing");
+        let graph = Arc::new(
+            StructureResolver::for_roots(ResolveInputs {
+                models: &models,
+                roots: &root_set,
+            })
+            .resolve()
+            .expect("graph outside execution timing"),
+        );
         let plan = ValidationPlan::build(
             root,
             ValidationBuildInputs {
-                graph: &graph,
+                graph: Arc::clone(&graph),
                 validators: &validators,
             },
         )
@@ -328,12 +334,14 @@ fn model_count_pipeline(criterion: &mut Criterion) {
         );
         let root = roots[0];
         let root_set = [root];
-        let reachable = StructureResolver::for_roots(ResolveInputs {
-            models: &models,
-            roots: &root_set,
-        })
-        .resolve()
-        .expect("single-root fixture graph");
+        let reachable = Arc::new(
+            StructureResolver::for_roots(ResolveInputs {
+                models: &models,
+                roots: &root_set,
+            })
+            .resolve()
+            .expect("single-root fixture graph"),
+        );
         assert_eq!(reachable.models().len(), 1);
 
         criterion.bench_function(
@@ -369,7 +377,7 @@ fn model_count_pipeline(criterion: &mut Criterion) {
         let plan = ValidationPlan::build(
             root,
             ValidationBuildInputs {
-                graph: &reachable,
+                graph: Arc::clone(&reachable),
                 validators: &validators,
             },
         )
@@ -382,7 +390,7 @@ fn model_count_pipeline(criterion: &mut Criterion) {
                     black_box(ValidationPlan::build(
                         black_box(root),
                         ValidationBuildInputs {
-                            graph: black_box(&reachable),
+                            graph: black_box(Arc::clone(&reachable)),
                             validators: black_box(&validators),
                         },
                     ))

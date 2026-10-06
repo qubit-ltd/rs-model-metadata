@@ -9,6 +9,7 @@
 //! Standard declaration adapters preserve text units, policies and rule
 //! identity.
 
+use std::sync::Arc;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
@@ -120,17 +121,19 @@ impl HugeSequenceMinimum {
 /// Builds through the same explicit graph/registry API used by consumers.
 fn validate(root: &'static TypeMetadata, value: ReflectedRef<'_>) -> ValidationReport {
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
-        roots: &roots,
-    })
-    .resolve()
-    .expect("standard constraint structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .expect("standard constraint structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -190,17 +193,19 @@ fn test_decimal_contract_narrow_window_executes() {
 fn test_decimal_contract_impossible_capacity_fails_build() {
     let root = TypeMetadata::of::<DecimalImpossibleCapacity>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
-        roots: &roots,
-    })
-    .resolve()
-    .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
+    );
     let validators = ValidatorRegistry::empty();
     let errors = match ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) {
@@ -368,17 +373,19 @@ fn test_sequence_minimum_above_u32_max_binds_and_reports_empty_values() {
     let value = HugeSequenceMinimum { values: Vec::new() };
     let root = TypeMetadata::of::<HugeSequenceMinimum>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
-        roots: &roots,
-    })
-    .resolve()
-    .expect("large sequence minimum structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .expect("large sequence minimum structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -400,18 +407,20 @@ fn test_sequence_minimum_above_u32_max_binds_and_reports_empty_values() {
 fn test_custom_registry_cannot_override_a_builtin_rule() {
     let root = TypeMetadata::of::<TextUnits>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
-        roots: &roots,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let builtin = registrations()[0];
     let validators = ValidatorRegistry::from_registrations([builtin]).expect("one valid registration");
     let Err(errors) = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) else {
@@ -431,12 +440,14 @@ fn test_custom_registry_cannot_override_a_builtin_rule() {
 fn test_custom_registry_cannot_claim_intrinsic_unique_id() {
     let root = TypeMetadata::of::<TextUnits>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
-        roots: &roots,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let builtin = registrations()[0];
     let intrinsic = ValidatorRegistration::new(
         ValidatorId::new(ids::COLLECTION_UNIQUE),
@@ -447,7 +458,7 @@ fn test_custom_registry_cannot_claim_intrinsic_unique_id() {
     let Err(errors) = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) else {
@@ -468,12 +479,14 @@ fn test_builtin_collision_retains_independent_declaration_errors() {
     let root = TypeMetadata::of::<IndependentFailures>();
     let roots = [root, TypeMetadata::of::<UnsupportedChoice>()];
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("valid declaration structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("valid declaration structure"),
+    );
     let descriptor = registrations()[0];
     let builtin = ValidatorRegistration::new(
         ValidatorId::new(ids::COLLECTION_UNIQUE),
@@ -484,7 +497,7 @@ fn test_builtin_collision_retains_independent_declaration_errors() {
     let Err(errors) = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) else {

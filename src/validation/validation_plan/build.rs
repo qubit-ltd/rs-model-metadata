@@ -17,7 +17,7 @@ use crate::validation::internal::declaration_walker;
 use crate::validation::internal::occurrence_binder;
 use crate::validation::standard_constraints;
 
-impl<'a> ValidationPlan<'a> {
+impl<'registry> ValidationPlan<'registry> {
     /// Binds every executable declaration reachable through the root.
     ///
     /// The argument selects a concrete type. Declarations and the resulting
@@ -27,7 +27,7 @@ impl<'a> ValidationPlan<'a> {
     /// # Parameters
     ///
     /// * `root` - Static metadata identifying the concrete type to plan for.
-    /// * `inputs` - Borrowed graph and validator registry used for binding.
+    /// * `inputs` - Shared graph and borrowed validator registry used for binding.
     ///
     /// # Returns
     ///
@@ -39,7 +39,7 @@ impl<'a> ValidationPlan<'a> {
     /// failed rule and dependency binding. No getter is invoked.
     pub fn build(
         root: &'static TypeMetadata,
-        inputs: ValidationBuildInputs<'a>,
+        inputs: ValidationBuildInputs<'registry, '_>,
     ) -> Result<Self, ValidationBuildErrors> {
         Self::build_with_context(root, inputs, &[])
     }
@@ -49,7 +49,7 @@ impl<'a> ValidationPlan<'a> {
     /// # Parameters
     ///
     /// * `root` - Static metadata identifying the concrete type to plan for.
-    /// * `inputs` - Borrowed graph and validator registry used for binding.
+    /// * `inputs` - Shared graph and borrowed validator registry used for binding.
     /// * `ancestors` - Parent types ordered nearest first, used to resolve
     ///   external validator dependencies.
     ///
@@ -62,7 +62,7 @@ impl<'a> ValidationPlan<'a> {
     /// Returns all independent declaration and binding errors in source order.
     pub fn build_with_context(
         root: &'static TypeMetadata,
-        inputs: ValidationBuildInputs<'a>,
+        inputs: ValidationBuildInputs<'registry, '_>,
         ancestors: &[&'static TypeMetadata],
     ) -> Result<Self, ValidationBuildErrors> {
         let Some(root) = inputs.graph.model(root.type_id()) else {
@@ -70,7 +70,7 @@ impl<'a> ValidationPlan<'a> {
                 ValidationBuildError::missing_root(root),
             ]));
         };
-        let (occurrences, mut errors) = declaration_walker::collect(root, inputs.graph);
+        let (occurrences, mut errors) = declaration_walker::collect(root, inputs.graph.as_ref());
         let (validators, registry_errors) = match standard_constraints::registry(inputs.validators) {
             Ok(result) => result,
             Err(error) => {
@@ -85,7 +85,12 @@ impl<'a> ValidationPlan<'a> {
         );
         let mut bindings = Vec::new();
         for occurrence in occurrences {
-            match occurrence_binder::bind(&occurrence, inputs.graph, &validators, ancestors) {
+            match occurrence_binder::bind(
+                &occurrence,
+                inputs.graph.as_ref(),
+                &validators,
+                ancestors,
+            ) {
                 Ok(mut compiled) => bindings.append(&mut compiled),
                 Err(mut failures) => errors.append(&mut failures),
             }

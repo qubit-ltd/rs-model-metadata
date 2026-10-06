@@ -257,6 +257,7 @@ feature and the direct `qubit-validator` dependency shown in the user guide.
 
 <!-- example: validation/root-scoped -->
 ```rust
+use std::sync::Arc;
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -281,12 +282,12 @@ fn main() {
 
     let root = TypeMetadata::of::<Request>();
     let roots = [root];
-    let local = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
-        .resolve().expect("resolve the request workflow");
+    let local = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("resolve the request workflow"));
     assert!(local.model(root.type_id()).is_some());
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(root, ValidationBuildInputs {
-        graph: &local,
+        graph: Arc::clone(&local),
         validators: &validators,
     }).expect("build the request validation plan");
     let report = plan.validate(

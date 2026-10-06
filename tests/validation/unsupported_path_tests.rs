@@ -9,6 +9,7 @@
 //! Unsupported paths retain each structural use, including tuple positions.
 
 use std::any::TypeId;
+use std::sync::Arc;
 use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -278,13 +279,15 @@ fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
         .expect("fresh reflection snapshot");
     let models = ModelRegistry::from_reflect_registry(&reflection).expect("explicit reflection model registry");
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("all fixtures are structurally valid");
-    let errors = ValidationCapabilities::check(root, &graph)
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("all fixtures are structurally valid"),
+    );
+    let errors = ValidationCapabilities::check(root, graph.as_ref())
         .expect_err("each fixture contains unsupported execution declarations");
     assert!(
         errors
@@ -295,7 +298,7 @@ fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
     let plan_errors = match ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) {
@@ -320,17 +323,19 @@ fn optional_text_value_executes_or_skips() {
         .expect("fresh reflection snapshot");
     let models = ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("optional text structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("optional text structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -359,14 +364,16 @@ fn optional_text_borrowed_getter_is_lazy_and_reads_once() {
     let root = TypeMetadata::of::<OptionalTextGetter>();
     let models = ModelRegistry::global();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .expect("optional getter structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .expect("optional getter structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -413,14 +420,16 @@ fn test_unadapted_paths_still_fail_during_plan_construction() {
 
     let root = TypeMetadata::of::<OwnedChild>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
-        roots: &roots,
-    })
-    .resolve()
-    .expect("owned child structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .expect("owned child structure"),
+    );
     let errors =
-        ValidationCapabilities::check(root, &graph).expect_err("owned intermediate getter must be rejected at build");
+        ValidationCapabilities::check(root, graph.as_ref()).expect_err("owned intermediate getter must be rejected at build");
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("child.name"));
@@ -428,7 +437,7 @@ fn test_unadapted_paths_still_fail_during_plan_construction() {
     let plan_errors = match ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) {
@@ -622,22 +631,24 @@ fn test_unsupported_shapes_without_execution_work_remain_acceptable() {
     let models = ModelRegistry::from_reflect_registry(&reflection).expect("explicit reflection model registry");
     let root = TypeMetadata::of::<EmptyEnvelope>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("wrapper structure is valid");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("wrapper structure is valid"),
+    );
     assert!(
         graph.model(TypeId::of::<EmptyChild>()).is_some(),
         "empty Child still has a discoverable capability"
     );
-    ValidationCapabilities::check(root, &graph).expect("empty declarations require no execution adapter");
+    ValidationCapabilities::check(root, graph.as_ref()).expect("empty declarations require no execution adapter");
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -650,22 +661,24 @@ fn test_unsupported_metadata_only_graph_does_not_import_reflection_capabilities(
     let models = ModelRegistry::from_static_metadata(&[]).expect("metadata-only registry has no reflection snapshot");
     let root = TypeMetadata::of::<ReflectedStructEnvelope>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("explicit root metadata supplies only its own model facts");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("explicit root metadata supplies only its own model facts"),
+    );
     assert!(
         graph.model(TypeId::of::<Child>()).is_none(),
         "Child capability cannot be imported from another snapshot"
     );
-    ValidationCapabilities::check(root, &graph).expect("this explicit graph contains no child execution declarations");
+    ValidationCapabilities::check(root, graph.as_ref()).expect("this explicit graph contains no child execution declarations");
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -673,13 +686,15 @@ fn test_unsupported_metadata_only_graph_does_not_import_reflection_capabilities(
     assert_eq!(plan.binding_count(), 0);
 
     let roots = [root, TypeMetadata::of::<Child>()];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("explicit Child metadata is an allowed metadata-only discovery source");
-    let errors = ValidationCapabilities::check(root, &graph)
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("explicit Child metadata is an allowed metadata-only discovery source"),
+    );
+    let errors = ValidationCapabilities::check(root, graph.as_ref())
         .expect_err("explicitly known Child rules require unsupported wrapper access");
     assert_eq!(errors.len(), 2);
     assert!(
@@ -694,7 +709,7 @@ fn test_unsupported_metadata_only_graph_does_not_import_reflection_capabilities(
     let plan_errors = match ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) {

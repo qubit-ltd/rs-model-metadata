@@ -82,14 +82,16 @@ enum Choice {
 /// Checks the same missing rule from an arbitrary concrete root.
 fn assert_missing_rule(root: &'static TypeMetadata) {
     let models = ModelRegistry::try_global().expect("valid registrations");
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .expect("valid structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &[] })
+            .resolve()
+            .expect("valid structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let Err(errors) = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) else {
@@ -153,14 +155,16 @@ fn test_nested_selector_requires_registered_rule() {
 #[test]
 fn test_enum_payload_constraint_is_not_silently_omitted() {
     let models = ModelRegistry::try_global().expect("valid registrations");
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .expect("valid structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &[] })
+            .resolve()
+            .expect("valid structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let result = ValidationPlan::build(
         TypeMetadata::of::<Choice>(),
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     );
@@ -290,14 +294,16 @@ struct Pair {
 #[test]
 fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() {
     let models = ModelRegistry::try_global().unwrap();
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &[] })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).unwrap();
     let plan = ValidationPlan::build(
         TypeMetadata::of::<Pair>(),
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -324,7 +330,7 @@ fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() 
     let plan = ValidationPlan::build(
         TypeMetadata::of::<OptionalParent>(),
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -552,14 +558,16 @@ fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
     let root = TypeMetadata::of::<BorrowedOption>();
     let models = ModelRegistry::try_global().unwrap();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -594,14 +602,16 @@ fn test_duplicate_rule_ids_remain_distinct_occurrences() {
     let models = ModelRegistry::try_global().unwrap();
     let root = TypeMetadata::of::<Repeated>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::empty();
     let Err(errors) = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) else {
@@ -614,7 +624,7 @@ fn test_duplicate_rule_ids_remain_distinct_occurrences() {
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -669,14 +679,16 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
     let models = ModelRegistry::try_global().unwrap();
     let root = TypeMetadata::of::<Mixed>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::empty();
     let Err(errors) = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) else {
@@ -724,15 +736,17 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_exp
     }
     let root = TypeMetadata::of::<Counted>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
-    ValidationCapabilities::check(root, &graph).unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .unwrap(),
+    );
+    ValidationCapabilities::check(root, graph.as_ref()).unwrap();
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -750,16 +764,18 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_exp
 #[test]
 fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
     let models = ModelRegistry::try_global().expect("valid registrations");
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .expect("valid structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &[] })
+            .resolve()
+            .expect("valid structure"),
+    );
     let validators =
         ValidatorRegistry::from_registrations(OPTIONAL_VALIDATORS.iter().copied()).expect("rules register");
     let root = TypeMetadata::of::<OptionalDependency>();
     let Err(errors) = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) else {
@@ -783,7 +799,7 @@ fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
     let _plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -791,7 +807,7 @@ fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
     let plan = ValidationPlan::build(
         TypeMetadata::of::<OptionalAllowedDependency>(),
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )

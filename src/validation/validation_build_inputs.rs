@@ -8,19 +8,21 @@
 
 //! Inputs for constructing an isolated validation plan.
 
+use std::sync::Arc;
+
 use qubit_validator::ValidatorRegistry;
 
 use crate::resolve::ModelGraph;
 
-/// Immutable registries borrowed for one validation-plan build.
+/// Shared graph and validator registry used for one validation-plan build.
 ///
-/// Both references share `'a`, so the graph and validator registry must remain
-/// available for the same lifetime as these inputs. This value borrows them and
-/// does not take ownership or clone either registry.
+/// The plan takes ownership of the graph handle. The validator registry is
+/// borrowed only while binding rules and need not outlive the plan.
 ///
 /// # Type Parameters
 ///
-/// * `'a` — lifetime shared by the borrowed graph and validator registry.
+/// * `'registry` — lifetime of the model registry referenced by the graph.
+/// * `'validators` — lifetime of the validator registry used during binding.
 ///
 /// # Examples
 ///
@@ -32,6 +34,7 @@ use crate::resolve::ModelGraph;
 /// use qubit_model_metadata::resolve::StructureResolver;
 /// use qubit_model_metadata::validation::ValidationBuildInputs;
 /// use qubit_validator::ValidatorRegistry;
+/// use std::sync::Arc;
 ///
 /// #[Model]
 /// struct Profile;
@@ -39,18 +42,17 @@ use crate::resolve::ModelGraph;
 /// let root = TypeMetadata::of::<Profile>();
 /// let roots = [root];
 /// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
-///     .resolve().expect("valid structure");
+/// let graph = Arc::new(StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve().expect("valid structure"));
 /// let validators = ValidatorRegistry::empty();
-/// let inputs = ValidationBuildInputs { graph: &graph, validators: &validators };
-/// assert!(std::ptr::eq(inputs.graph, &graph));
+/// let inputs = ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators };
+/// assert!(Arc::ptr_eq(&inputs.graph, &graph));
 /// assert!(std::ptr::eq(inputs.validators, &validators));
 /// # }
 /// ```
-pub struct ValidationBuildInputs<'a> {
-    /// The structure-only model graph to which declarations belong, borrowed
-    /// for `'a`.
-    pub graph: &'a ModelGraph<'a>,
-    /// The local executable validator registry, borrowed for `'a`.
-    pub validators: &'a ValidatorRegistry,
+pub struct ValidationBuildInputs<'registry, 'validators> {
+    /// The structure-only model graph to which declarations belong.
+    pub graph: Arc<ModelGraph<'registry>>,
+    /// The local executable validator registry, borrowed during binding.
+    pub validators: &'validators ValidatorRegistry,
 }

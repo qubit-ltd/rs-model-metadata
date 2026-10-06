@@ -44,6 +44,7 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 ///
 /// ```
 /// use std::error::Error;
+/// use std::sync::Arc;
 /// use qubit_model_derive::Model;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
@@ -63,10 +64,10 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// let root = TypeMetadata::of::<Profile>();
 /// let roots = [root];
 /// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
-///     .resolve().expect("valid structure");
+/// let graph = Arc::new(StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve().expect("valid structure"));
 /// let validators = ValidatorRegistry::empty();
-/// let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators })
+/// let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators })
 ///     .expect("empty model plan");
 /// let error = plan.validate(ReflectedRef::new(&42_u32), &ValidationOptions::default())
 ///     .expect_err("the instance has the wrong root type");

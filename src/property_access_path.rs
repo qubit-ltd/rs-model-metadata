@@ -70,6 +70,8 @@ impl PropertyAccessPath {
     /// unknown or unreadable property, unresolved intermediate type, or an
     /// intermediate representation that cannot be projected as a borrow.
     /// Compilation does not invoke property getters.
+    /// This direct constructor does not cache its result; use
+    /// [`ModelRegistry::compile_read_path_cached`] for snapshot-local reuse.
     pub fn compile(
         registry: &ModelRegistry<'_>,
         root: &'static TypeMetadata,
@@ -83,6 +85,8 @@ impl PropertyAccessPath {
     /// Every intermediate property must still be readable so it can be
     /// traversed. The leaf is checked for writability by
     /// [`Self::check_writable`] and [`Self::write`].
+    /// This direct constructor does not cache its result; use
+    /// [`ModelRegistry::compile_write_path_cached`] for snapshot-local reuse.
     pub fn compile_for_write(
         registry: &ModelRegistry<'_>,
         root: &'static TypeMetadata,

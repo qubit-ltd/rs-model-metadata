@@ -8,6 +8,7 @@
 
 //! Graph snapshots, rather than caller overlays, own validation declarations.
 
+use std::sync::Arc;
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::metadata::FieldMetadata;
@@ -59,12 +60,14 @@ fn test_plan_uses_the_graphs_canonical_root_declarations() {
     let stripped = unconstrained::<Record>();
     let roots = [declared];
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("declared graph");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("declared graph"),
+    );
     assert!(std::ptr::eq(
         graph.model(declared.type_id()).expect("graph root"),
         declared
@@ -73,7 +76,7 @@ fn test_plan_uses_the_graphs_canonical_root_declarations() {
     let plan = ValidationPlan::build(
         stripped,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -97,12 +100,14 @@ fn test_plan_does_not_import_constraints_from_another_overlay() {
     let stripped = unconstrained::<Record>();
     let roots = [stripped];
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("explicit unconstrained graph");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("explicit unconstrained graph"),
+    );
     assert!(std::ptr::eq(
         graph.model(declared.type_id()).expect("graph root"),
         stripped
@@ -111,7 +116,7 @@ fn test_plan_does_not_import_constraints_from_another_overlay() {
     let plan = ValidationPlan::build(
         declared,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )

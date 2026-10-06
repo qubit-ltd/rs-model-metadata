@@ -74,17 +74,19 @@ fn assert_batches(batches: Vec<Vec<ModelRuleBinding>>, expected: &[&str]) {
     let metadata = TypeMetadata::of::<BatchModel>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
-    let graph = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: &models,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            roots: &[],
+            models: &models,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )

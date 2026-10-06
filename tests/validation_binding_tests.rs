@@ -105,14 +105,16 @@ fn test_structure_resolution_and_binding_are_separate() {
     let models = ModelRegistry::from_static_metadata(&[(owner, source()), (fixture, source())])
         .expect("isolated model registry");
     let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION]).expect("isolated validator registry");
-    let graph = StructureResolver::new(inputs(&models))
-        .resolve()
-        .expect("structure does not require validator lookup");
+    let graph = Arc::new(
+        StructureResolver::new(inputs(&models))
+            .resolve()
+            .expect("structure does not require validator lookup"),
+    );
 
     let plan = ValidationPlan::build(
         fixture,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -176,12 +178,14 @@ fn test_parent_dependency_uses_explicit_context() {
     let child = TypeMetadata::of::<Child>();
     let parent = TypeMetadata::of::<Parent>();
     let roots = [child, parent];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("graph");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("graph"),
+    );
     assert_eq!(
         graph.dependencies()[0].context_requirement(),
         ContextRequirement::ParentObject
@@ -195,7 +199,7 @@ fn test_parent_dependency_uses_explicit_context() {
     let plan = ValidationPlan::build_with_context(
         child,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
         &[parent],
@@ -204,7 +208,7 @@ fn test_parent_dependency_uses_explicit_context() {
     let deferred = ValidationPlan::build(
         child,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -282,17 +286,19 @@ fn test_same_type_dependencies_follow_signature_order() {
     let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
     let model = TypeMetadata::of::<NamedDependencies>();
     let roots = [model];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("dependency graph");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("dependency graph"),
+    );
     let validators = ValidatorRegistry::from_registrations([SAME_TYPE_REGISTRATION]).expect("registry");
     let plan = ValidationPlan::build(
         model,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -357,16 +363,18 @@ fn test_repeated_validator_ids_execute_every_occurrence() {
     let validators = ValidatorRegistry::from_registrations([registration]).expect("validator registry");
     let root = TypeMetadata::of::<RepeatedRules>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
-        roots: &roots,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -401,17 +409,19 @@ struct WrongDependencyType {
 fn build_dependency_fixture(root: &'static TypeMetadata) -> qubit_model_metadata::validation::ValidationBuildErrors {
     let models = ModelRegistry::from_static_metadata(&[]).expect("empty model registry");
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("dependency fixture has a valid structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("dependency fixture has a valid structure"),
+    );
     let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("parent rule binds");
     match ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     ) {

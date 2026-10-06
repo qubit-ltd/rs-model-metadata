@@ -120,17 +120,19 @@ fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated model registry");
     let root = TypeMetadata::of::<ConfiguredToken>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("valid model structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("valid model structure"),
+    );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("registered rule");
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
