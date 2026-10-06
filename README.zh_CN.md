@@ -197,9 +197,37 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 
 ## 声明默认能力与显式根
 
-角色宏默认生成 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize 和 Deserialize。
-有意关闭某项能力时使用 `no_*`；`no_eq` 同时关闭默认 Hash。Copy、Default 和排序能力通过
-`copy`、`default`、`partial_ord`、`ord` 启用。具名 Option 与标准集合字段支持缺失默认值和空值省略。
+五种角色宏均默认生成 Clone、Debug、Display、PartialEq、Redact、Serialize 和 Deserialize。
+结构相等与哈希的默认值按角色区分：
+
+| 角色 | 默认相等与哈希能力 |
+| --- | --- |
+| `Value`、`Enum` | `PartialEq`、`Eq`、`Hash` |
+| `Entity`、`Projection`、`Model` | 仅 `PartialEq` |
+
+需要按全部字段比较和哈希的实体可写为 `#[Entity(id = "example.User", eq, hash)]`；
+`Projection` 和 `Model` 同样可显式使用 `eq`、`hash`。`hash` 要求最终启用 `Eq`；
+`ord` 隐含 `Eq`，但不隐含 `Hash`；`partial_ord` 只要求 `PartialEq`。
+`eq` 与 `no_eq` 并用、`hash` 与 `no_hash` 并用均会报错。原有 `no_*` 关闭开关仍可用，
+其中 `no_eq` 也会关闭默认的 `Hash`。所有变体均无字段的 `Enum` 默认生成 `Copy`，
+但 `no_clone` 或 `no_copy` 会关闭该默认能力；其他情况需显式使用 `copy`。
+`default` 需要显式启用。
+旧代码若依赖实体、投影或模型默认实现 `Eq`、`Hash`，应按实际需要显式开启。
+具名 Option 与标准集合字段支持缺失默认值和空值省略。
+
+### 泛型元数据的生命周期与度量
+
+启用 `generic` 后，每个实际查询过的具体泛型类型都会在进程中缓存一份 `TypeMetadata`。
+重复查询同一具体类型会复用元数据地址；不同具体类型使用不同地址，同时共享泛型定义身份。
+返回值为 `&'static TypeMetadata`，不提供卸载能力。因此，查询过的具体类型越多，
+进程常驻元数据也会相应增加。
+
+可运行 `cargo bench -p qubit-model-metadata --bench generic_metadata --features generic`
+复测。基准对三种具体类型各记录一次冷初始化，输出耗时、分配器调用次数、请求的字节数以及
+净存活请求字节变化；第一种类型还包含共享初始化。随后 Criterion 分别重复测量
+`TypeMetadata::try_of::<T>()`、生成的 provider 直接查询和已持有的静态引用。
+`try_of` 与 provider 的差异包含重复 ABI 校验成本；provider 与静态引用的差异可近似反映
+泛型缓存查询及锁的开销。分配器字节数不是进程 RSS，耗时也会随机器和构建环境变化。
 
 需要审计链接注册表中的全部模型时使用 `new`；业务请求只需要根模型及其可达模型时使用
 `for_roots`。两种调用都借用同一个 `ModelRegistry` 快照：按根解析会跳过无关模型的结构初始化，

@@ -244,10 +244,44 @@ itself also requires boxing. Conversion and original access costs are measured s
 
 ## Declaration defaults and explicit roots
 
-Role macros supply Clone, Debug, Display, PartialEq, Eq, Hash, Redact, Serialize,
-and Deserialize by default. Use `no_*` options for intentional opt-outs; `no_eq`
-also removes default Hash. `copy`, `default`, `partial_ord`, and `ord` are opt-in.
+All five role macros supply Clone, Debug, Display, PartialEq, Redact, Serialize,
+and Deserialize by default. Structural equality and hashing depend on the role:
+
+| Role | Default equality and hashing |
+| --- | --- |
+| `Value`, `Enum` | `PartialEq`, `Eq`, `Hash` |
+| `Entity`, `Projection`, `Model` | `PartialEq` only |
+
+For an entity whose fields should also support structural equality and hashing,
+write `#[Entity(id = "example.User", eq, hash)]`. The same `eq` and `hash` options
+apply to `Projection` and `Model`. `hash` requires effective `Eq`; `ord` enables
+`Eq` but does not enable `Hash`, while `partial_ord` requires only `PartialEq`.
+`eq` with `no_eq`, or `hash` with `no_hash`, is an error. Existing `no_*` opt-outs
+remain available; `no_eq` also removes default `Hash`. All-unit `Enum` declarations
+get `Copy` by default unless `no_clone` or `no_copy` is set; elsewhere `copy` is
+opt-in. `default` is opt-in. Code that relied on an entity, projection, or
+model having `Eq` or `Hash` by default must enable the needed options explicitly.
 Named Option and standard collection fields default when missing and omit empty values.
+
+### Generic metadata lifetime and measurement
+
+With the `generic` feature, each concrete specialization that is actually
+queried gets one cached `TypeMetadata` instance for the process lifetime.
+Repeated queries of the same concrete type reuse its address; different
+concrete types have distinct metadata and share their generic definition
+identity. The returned `&'static TypeMetadata` cannot be unloaded. Plan for
+resident metadata to grow with the number of distinct specializations queried.
+
+Run the dedicated benchmark with
+`cargo bench -p qubit-model-metadata --bench generic_metadata --features generic`.
+It prints one cold observation for each of three concrete types: elapsed time,
+allocator calls, requested bytes, and the net live requested-byte change.
+The first observation includes shared initialization. Criterion then measures
+warm `TypeMetadata::try_of::<T>()` queries, direct generated-provider queries,
+and an already held static reference separately. The `try_of` versus provider
+difference includes repeated ABI validation; provider versus static reference
+approximates generic cache lookup and lock overhead. Allocator byte counts are not
+process RSS, and timings depend on the machine and build environment.
 
 Use `new` when an application must audit every model in a linked registry. Use
 `for_roots` when a request or business workflow needs a plan for only its root
