@@ -29,6 +29,7 @@ use qubit_model_metadata::metadata::TargetMode;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::metadata::ValidatorMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ModelGraph;
 use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
@@ -50,6 +51,23 @@ use std::sync::OnceLock;
 #[Model]
 struct Page<T> {
     items: Vec<T>,
+}
+
+/// Returns a graph after the resolver's locally owned root array is gone.
+fn graph_from_local_roots() -> ModelGraph<'static> {
+    let root = TypeMetadata::of::<Page<String>>();
+    StructureResolver::for_static_roots(ModelRegistry::global(), [root])
+        .resolve()
+        .expect("anonymous root graph survives its input array")
+}
+
+/// Root input storage does not limit the lifetime of a graph backed by a
+/// process-wide registry.
+#[test]
+fn test_root_graph_lifetime_follows_registry() {
+    let root = TypeMetadata::of::<Page<String>>();
+    let graph = graph_from_local_roots();
+    assert!(graph.model(root.type_id()).is_some());
 }
 
 #[derive(Reflect)]

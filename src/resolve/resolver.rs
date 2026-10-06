@@ -69,7 +69,8 @@ pub struct ResolveInputs<'a> {
 /// registry; it does not initialize or consult a process-global registry.
 /// Use [`StructureResolver::new`] to audit every concrete registration, or
 /// [`StructureResolver::for_roots`] to resolve only the subgraph reachable
-/// from explicit roots.
+/// from explicit roots. Use [`StructureResolver::for_static_roots`] when the
+/// resulting graph must outlive a caller-local root array.
 ///
 /// # Examples
 ///
@@ -120,6 +121,9 @@ pub struct ResolveInputs<'a> {
 pub struct StructureResolver<'a> {
     /// Explicit registries used by this resolver.
     inputs: ResolveInputs<'a>,
+    /// Roots owned by this resolver when their input slice must not constrain
+    /// the resulting graph's registry lifetime.
+    owned_roots: Option<Box<[&'static TypeMetadata]>>,
     /// Initial node set used by the resolution attempt.
     scope: ResolveScope,
 }
@@ -146,6 +150,7 @@ impl<'a> StructureResolver<'a> {
     pub const fn new(inputs: ResolveInputs<'a>) -> Self {
         Self {
             inputs,
+            owned_roots: None,
             scope: ResolveScope::AllRegistered,
         }
     }
@@ -169,8 +174,41 @@ impl<'a> StructureResolver<'a> {
     pub const fn for_roots(inputs: ResolveInputs<'a>) -> Self {
         Self {
             inputs,
+            owned_roots: None,
             scope: ResolveScope::ReachableFromRoots,
         }
+    }
+
+    /// Creates a root-scoped resolver that owns its root slice.
+    ///
+    /// The resulting graph borrows only `models`; the root array is used
+    /// during resolution and may be local to the caller.
+    ///
+    /// # Parameters
+    ///
+    /// - `models`: Registry supplying model capabilities and retained by the graph.
+    /// - `roots`: Static metadata roots copied into the resolver.
+    ///
+    /// # Returns
+    ///
+    /// A resolver whose graph lifetime follows the registry, independent of
+    /// the caller's root array.
+    #[must_use]
+    pub fn for_static_roots<const N: usize>(
+        models: &'a ModelRegistry<'a>,
+        roots: [&'static TypeMetadata; N],
+    ) -> Self {
+        let owned_roots: Box<[&'static TypeMetadata]> = Box::new(roots);
+        Self {
+            inputs: ResolveInputs { models, roots: &[] },
+            owned_roots: Some(owned_roots),
+            scope: ResolveScope::ReachableFromRoots,
+        }
+    }
+
+    /// Returns the explicit roots, whether borrowed or owned by this resolver.
+    fn roots(&self) -> &[&'static TypeMetadata] {
+        self.owned_roots.as_deref().unwrap_or(self.inputs.roots)
     }
 
     /// Resolves model structure and property capabilities.
@@ -204,7 +242,7 @@ impl<'a> StructureResolver<'a> {
     /// Accumulates property assembly, capability, relationship, role, closure,
     /// projection, and query failures in deterministic diagnostic order.
     fn resolve_internal(&self) -> Result<ModelGraph<'a>, ResolveErrors> {
-        let mut context = ResolutionContext::new(self.inputs.models, self.inputs.roots);
+        let mut context = ResolutionContext::new(self.inputs.models, self.roots());
         let mut references = HashMap::new();
         let mut dependencies = Vec::new();
         let mut projection_sources = HashMap::new();
@@ -223,7 +261,7 @@ impl<'a> StructureResolver<'a> {
             ResolveScope::ReachableFromRoots => Vec::new(),
         };
         let mut seen: HashSet<_> = nodes.iter().map(|(metadata, _)| metadata.type_id()).collect();
-        for &root in self.inputs.roots {
+        for &root in self.roots() {
             if let Err(source) = root.validate_descriptor(root.descriptor()) {
                 errors.push(ResolveError::resolution(
                     root,
