@@ -131,6 +131,8 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
     let selected = FieldPath::from_segments(names.iter());
     drop(names);
     assert_eq!(selected, FieldPath::new("fields.second"));
+    assert_eq!(format!("{selected:?}"), "FieldPath { segments: \"<redacted>\" }");
+    assert_eq!(selected.to_string(), "field path did not match validation rules");
     let value = SelectedEnvelope {
         fields: SelectedFields {
             first: String::new(),

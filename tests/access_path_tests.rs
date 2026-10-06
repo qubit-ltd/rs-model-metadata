@@ -220,19 +220,26 @@ fn test_write_read_only_intermediate_reports_access_failure() {
     let failure = path
         .write(
             ReflectedMut::new(&mut root),
-            ReflectedOwned::new("replacement".to_owned()),
+            ReflectedOwned::new("secret-value".to_owned()),
         )
         .expect_err("reflection policy blocks mutable projection");
     assert!(matches!(
         failure.path_error(),
         Some(PropertyAccessPathError::AccessFailure { .. })
     ));
+    assert!(failure.property_failure().is_none());
+    assert!(std::error::Error::source(&failure).is_some());
+    assert_eq!(
+        failure.to_string(),
+        failure.path_error().expect("path failure").to_string()
+    );
+    assert!(!format!("{failure:?}").contains("secret-value"));
     assert_eq!(
         failure
             .replacement()
             .and_then(|value| value.downcast_ref::<String>())
             .map(String::as_str),
-        Some("replacement")
+        Some("secret-value")
     );
     assert_eq!(root.middle.leaf.value, "unchanged");
 }
@@ -378,6 +385,13 @@ fn test_write_leaf_failure_preserves_replacement() {
         .expect_err("leaf value type must match");
 
     assert!(failure.property_failure().is_some());
+    assert!(failure.path_error().is_none());
+    assert!(std::error::Error::source(&failure).is_some());
+    assert_eq!(
+        failure.to_string(),
+        failure.property_failure().expect("leaf failure").to_string()
+    );
+    assert!(format!("{failure:?}").contains("Property"));
     assert_eq!(
         failure.replacement().and_then(|value| value.downcast_ref::<u32>()),
         Some(&17)
