@@ -8,19 +8,22 @@
 
 //! Model-owned adapters over the reflection codegen protocol.
 
-use qubit_reflect::__private::codegen_v3::descriptor::lazy_type_ref;
 use qubit_reflect::Reflect;
 use qubit_reflect::descriptor::TypeRef;
 
-/// Returns reflection's resolved root reference for `T`.
+/// Returns a static type reference for model-generated metadata.
 ///
 /// # Returns
-/// The shared root type reference resolved by reflection for `T`.
+/// A static reference to a resolved root type reference for `T`.
+///
+/// # Allocation
+/// Each call may allocate to provide the static reference required by
+/// model-generated metadata.
 #[doc(hidden)]
 #[inline]
 #[must_use]
 pub fn reflected_type_ref<T: Reflect + ?Sized>() -> &'static TypeRef {
-    lazy_type_ref::<T>().get()
+    Box::leak(Box::new(TypeRef::of::<T>()))
 }
 
 /// Emits generic model expansion only when the runtime feature is enabled.

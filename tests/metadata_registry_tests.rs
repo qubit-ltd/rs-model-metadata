@@ -44,6 +44,11 @@ impl StaticPropertyFixture {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    /// Replaces the stored name through an independently registered setter.
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
 }
 
 #[derive(Reflect)]
@@ -755,4 +760,18 @@ fn test_static_registry_excludes_independently_registered_model_impl_getter() {
         .getter()
         .expect("impl getter");
     assert_eq!(getter.rust_method_name(), "name");
+    assert!(std::ptr::eq(
+        getter.output_type().as_resolved().expect("getter output root"),
+        TypeDescriptor::of::<str>(),
+    ));
+    let setter = properties
+        .property("name")
+        .expect("stored property")
+        .setter()
+        .expect("impl setter");
+    assert_eq!(setter.rust_method_name(), "set_name");
+    assert!(std::ptr::eq(
+        setter.input_type().as_resolved().expect("setter input root"),
+        TypeDescriptor::of::<String>(),
+    ));
 }

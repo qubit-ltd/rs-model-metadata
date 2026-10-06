@@ -147,7 +147,12 @@ fn assert_reflected_root<T: Reflect + ?Sized>() {
     let resolved = reference
         .as_resolved()
         .expect("the helper must return a resolved root");
+    let direct_reference = TypeRef::of::<T>();
+    let direct_resolved = direct_reference
+        .as_resolved()
+        .expect("TypeRef::of must return a resolved root");
     assert!(std::ptr::eq(resolved, TypeDescriptor::of::<T>()));
+    assert!(std::ptr::eq(direct_resolved, resolved));
 }
 
 /// Finds the inventory fragment that installs `expected_metadata` on
