@@ -94,16 +94,33 @@ fn main() {
 Entity 必须声明稳定模型 `id`，其他角色可以省略；ID 控制注册，不决定匿名模型的 metadata 是否存在。泛型定义与具体类型需要启用运行时
 `generic` feature，不支持 lifetime 参数。
 
-角色默认实现 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize、Deserialize； 后续新增 trait 默认保持关闭，须先增加显式宏选项才能启用。
-全部为 unit variant 的 Enum 还默认实现 Copy。`no_*` 关闭自动实现；`no_eq` 同时移除默认 Hash，
-`no_partial_eq` 同时关闭相等、Hash 与排序能力。额外能力使用 `copy`、`default`、`partial_ord`、`ord`。
+五种角色均默认生成 Clone、Debug、Display、PartialEq、Redact、Serialize 与 Deserialize。
+结构性相等和哈希的默认值按角色区分：
+
+| 角色 | PartialEq | Eq | Hash |
+| --- | --- | --- | --- |
+| Entity | 默认启用 | 显式启用 | 显式启用 |
+| Projection | 默认启用 | 显式启用 | 显式启用 |
+| Model | 默认启用 | 显式启用 | 显式启用 |
+| Value | 默认启用 | 默认启用 | 默认启用 |
+| Enum | 默认启用 | 默认启用 | 默认启用 |
+
+确实需要结构性 Eq 和 Hash 时使用 `#[Entity(id = "example.Person", eq, hash)]`。
+这是源码兼容性变更：只为实际依赖这些 trait 的模型补开关。全部存储字段参与比较和哈希；
+业务身份比较及可变实体的集合键应使用稳定 identifier。
+`eq` 启用 Eq；`hash` 要求 Eq 已启用，包括 `ord` 或值角色提供的 Eq。
+`ord` 隐含 Eq 与排序能力，但不启用 Hash；`partial_ord` 只依赖 PartialEq。
+`eq, no_eq` 和 `hash, no_hash` 为冲突组合。`no_*` 关闭自动能力，`no_eq` 同时移除默认 Hash。
+全部 variant 为 unit 的 Enum 还默认生成 Copy。`copy`、`default`、`partial_ord`、`ord` 启用额外能力。
+后续新增 trait 默认关闭，须先增加显式宏选项才能启用。
+
 Enum 的 `default` 要求恰有一个标准 `#[default]` unit variant。可构造默认值不等于满足领域约束。
 未声明类型级 `serde(rename_all)` 时，宏会为每个 variant 安装与 metadata canonical 名一致的默认 Serde
 wire 名（通常为 SCREAMING_SNAKE_CASE）；`#[variant(name = "...")]` 或 variant 级 `#[serde(rename = "...")]` 仍优先。
 
 角色属性放在显式 derive 之前，宏才能识别并避免重复生成。手写实现使用对应的关闭开关。
 `no_redact` 禁止当前字段或 selector 上存在脱敏规则，但嵌套类型保留自己的安全输出。
-包含 HashMap 的模型通常需要 `no_hash`。泛型约束按实际存储字段生成，涵盖 PhantomData 和 const 数组。
+包含 HashMap 的 Value 类型通常需要 `no_hash`。泛型约束按实际存储字段生成，涵盖 PhantomData 和 const 数组。
 
 具名 Option 与标准集合字段在缺失时使用默认值，空值默认不序列化。`keep_serializing` 只关闭自动省略，
 显式 Serde 配置优先；位置字段不自动省略。
@@ -223,7 +240,7 @@ use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
-#[Model]
+#[Model(eq, hash)]
 struct Plain { name: String }
 #[Value]
 struct InvalidValue(Plain);

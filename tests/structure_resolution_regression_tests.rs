@@ -38,7 +38,7 @@ use qubit_reflect::registry::RegistrySnapshotBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
-#[Entity(id = "structure.Inner")]
+#[Entity(id = "structure.Inner", eq, hash)]
 #[derive(Ord, PartialOrd)]
 struct Inner {
     #[identifier]
@@ -80,7 +80,7 @@ struct MapValueEntity {
     inner: BTreeMap<String, (Inner,)>,
 }
 
-#[Model(id = "structure.Plain")]
+#[Model(id = "structure.Plain", eq, hash)]
 struct Plain {
     name: String,
 }
@@ -96,7 +96,7 @@ struct WrappedValue(Plain);
 #[Value]
 struct TupleValue((u8, Plain));
 
-#[Projection(source = Inner)]
+#[Projection(source = Inner, eq, hash)]
 struct View {
     #[identifier]
     id: Id,
@@ -206,7 +206,7 @@ struct OpaqueEntity {
     inner: Inner,
 }
 
-#[Model]
+#[Model(eq, hash)]
 struct Child {
     number: u8,
 }

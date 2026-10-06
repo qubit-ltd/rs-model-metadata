@@ -1,6 +1,6 @@
-use qubit_model_derive::Model;
+use qubit_model_derive::Value as ValueRole;
 
-#[Model(no_eq)]
+#[ValueRole(no_eq)]
 struct Value {
     value: String,
 }

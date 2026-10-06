@@ -129,10 +129,27 @@ pipeline:
 - `#[ModelImpl]` merges public inherent getters and setters with fields
   into safe property metadata.
 
-The five roles default to Clone, Debug, Display, PartialEq, Eq, Hash, Redact,
-Serialize, and Deserialize. All-unit Enum also defaults to Copy. Use `no_*`
-to suppress a generated capability; `no_eq` removes default Hash as well.
-`copy`, `default`, `partial_ord`, and `ord` opt into additional capabilities. Future traits must remain opt-in until an explicit role option is added.
+All roles default to Clone, Debug, Display, PartialEq, Redact, Serialize, and
+Deserialize. Structural equality and hashing defaults depend on the role:
+
+| Role | PartialEq | Eq | Hash |
+| --- | --- | --- | --- |
+| Entity | Yes | Opt-in | Opt-in |
+| Projection | Yes | Opt-in | Opt-in |
+| Model | Yes | Opt-in | Opt-in |
+| Value | Yes | Yes | Yes |
+| Enum | Yes | Yes | Yes |
+
+Use `#[Entity(id = "example.Person", eq, hash)]` when structural Eq and Hash
+are required. This is a source-breaking change: migrate only models whose
+consumers require these traits. Every stored field participates; use a stable
+identifier for business identity comparisons and mutable entity collection keys.
+`eq` enables Eq; `hash` requires enabled Eq, including Eq supplied by `ord` or a
+value role. `ord` enables Eq and ordering but does not enable Hash. `partial_ord`
+only requires PartialEq. `eq, no_eq` and `hash, no_hash` are rejected.
+`no_*` suppresses automatic capabilities; `no_eq` also removes default Hash.
+An all-unit Enum also defaults to Copy. `copy`, `default`, `partial_ord`, and
+`ord` are opt-in. Future traits remain opt-in until an explicit role option is added.
 Place the role attribute before explicit derives so duplicate derives are visible.
 Handwritten implementations require the corresponding opt-out.
 

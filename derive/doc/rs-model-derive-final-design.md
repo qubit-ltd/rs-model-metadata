@@ -12,7 +12,7 @@ Known-type static queries do not initialize model registries or invoke getters. 
 
 ## Generated capabilities and output
 
-All roles default to Clone, Debug, Display, PartialEq, Eq, Hash, Redact, Serialize, and Deserialize. Only unit-only enums default to Copy. Default, PartialOrd, and Ord require opt-in. Retain the confirmed Eq/Hash and ordering switch dependencies. Visible derives suppress duplicate generation; implementations in separate impls require explicit no_* switches. Generate bounds based on actually accessed fields and serialization direction.
+All roles default to Clone, Debug, Display, PartialEq, Redact, Serialize, and Deserialize. Value and Enum additionally default to Eq and Hash; Entity, Projection, and Model enable them with `eq, hash`. `ord` implies Eq without enabling Hash. Only unit-only enums default to Copy. Default, PartialOrd, and Ord require opt-in. Retain the confirmed Eq/Hash and ordering switch dependencies. Visible derives suppress duplicate generation; implementations in separate impls require explicit no_* switches. Generate bounds based on actually accessed fields and serialization direction.
 
 Redact generation and structural output use qubit-redact projections, not an independent masking engine. Debug and Display use borrowed redacted views; Serialize delegates the structural projection instead of serializing an already encoded JSON string. Deserialize uses the original Serde input contract. Transparent Values keep nominal Debug identity and inner Display/Serde representation.
 

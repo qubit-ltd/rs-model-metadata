@@ -46,6 +46,14 @@ pub(crate) fn prepare(
     }
     let options = &declaration.options.behavior;
     let explicit = explicit_derives(item)?;
+    for (positive, negative) in [("eq", "no_eq"), ("hash", "no_hash"), ("eq", "no_partial_eq")] {
+        if options.contains(positive) && options.contains(negative) {
+            return Err(Error::new_spanned(
+                &item.ident,
+                format!("{positive} conflicts with {negative}"),
+            ));
+        }
+    }
     if options.contains("no_copy") && !matches!(item.data, Data::Enum(_)) {
         return Err(Error::new_spanned(&item.ident, "no_copy is only supported by Enum"));
     }
@@ -91,6 +99,16 @@ pub(crate) fn prepare(
         ));
     }
     let enabled = |name: &str| !options.contains(&format!("no_{name}"));
+    let value_role = matches!(declaration.kind, MacroKind::Value | MacroKind::Enum);
+    let want_eq =
+        (value_role || options.contains("eq") || options.contains("ord")) && enabled("eq") && enabled("partial_eq");
+    if options.contains("hash") && !want_eq {
+        return Err(Error::new_spanned(
+            &item.ident,
+            "hash requires eq (or ord) or a role with default Eq",
+        ));
+    }
+    let want_hash = (value_role || options.contains("hash")) && enabled("hash") && want_eq;
     let mut derives: Vec<TokenStream> = Vec::new();
     let mut implementations = Vec::new();
     let source = item.clone();
@@ -110,12 +128,8 @@ pub(crate) fn prepare(
     };
     add("Clone", quote!(::core::clone::Clone), enabled("clone"));
     add("PartialEq", quote!(::core::cmp::PartialEq), enabled("partial_eq"));
-    add("Eq", quote!(::core::cmp::Eq), enabled("eq") && enabled("partial_eq"));
-    add(
-        "Hash",
-        quote!(::core::hash::Hash),
-        enabled("hash") && enabled("eq") && enabled("partial_eq"),
-    );
+    add("Eq", quote!(::core::cmp::Eq), want_eq);
+    add("Hash", quote!(::core::hash::Hash), want_hash);
     add(
         "Copy",
         quote!(::core::marker::Copy),

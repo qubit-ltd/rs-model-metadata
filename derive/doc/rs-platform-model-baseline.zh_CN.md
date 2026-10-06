@@ -23,7 +23,7 @@
 移除 validate_nested 标记，以 metadata 和消费者遍历边界表达嵌套验证。
 非文本 Phone、CredentialInfo 的 unique 保留值唯一性，删除不适用的 ignore_case 参数。
 
-Entity 的默认 `Eq`/`Hash` 是结构语义：全部字段共同参与比较和哈希，不代表按 identifier 比较。可变 Entity 放入
+Entity 显式启用的 `Eq`/`Hash` 是结构语义：全部字段共同参与比较和哈希，不代表按 identifier 比较。可变 Entity 放入
 `HashSet` 或作为 `HashMap` key 后，如果任何参与哈希的字段发生变化，将破坏集合不变量。业务代码应避免这种用法；若领域
 对象需要身份相等，应显式关闭默认实现并自行定义，或使用稳定 identifier 作为集合 key。
 

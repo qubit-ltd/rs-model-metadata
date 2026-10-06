@@ -478,7 +478,7 @@ use qubit_reflect::Reflect;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 use qubit_validator::ValidatorRegistry;
 
-#[Model]
+#[Model(eq, hash)]
 struct Child { #[text(non_blank)] name: String }
 
 #[derive(Clone, Eq, Hash, PartialEq, Reflect)]
@@ -487,7 +487,7 @@ struct Raw { child: Child }
 #[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
 struct Root { raw: Raw }
 
-#[Model]
+#[Model(eq, hash)]
 struct EmptyChild { name: String }
 
 #[derive(Clone, Eq, Hash, PartialEq, Reflect)]

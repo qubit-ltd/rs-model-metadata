@@ -25,13 +25,7 @@ struct Label {
 fn test_default_model_capabilities() {
     /// Checks the observable default trait contract at compilation.
     fn traits<
-        T: Clone
-            + Eq
-            + std::hash::Hash
-            + std::fmt::Debug
-            + std::fmt::Display
-            + serde::Serialize
-            + for<'de> serde::Deserialize<'de>,
+        T: Clone + PartialEq + std::fmt::Debug + std::fmt::Display + serde::Serialize + for<'de> serde::Deserialize<'de>,
     >() {
     }
     traits::<Label>();
@@ -102,7 +96,7 @@ fn test_default_outputs_protect_secrets() {
 #[derive(Reflect)]
 struct NoValueTraits;
 
-#[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
+#[Model(eq, hash, no_redact, no_debug, no_display, no_serialize, no_deserialize)]
 struct Marker<T> {
     marker: std::marker::PhantomData<T>,
 }

@@ -120,6 +120,8 @@ fn is_behavior_option(path: &Path) -> bool {
         "no_debug",
         "no_display",
         "no_partial_eq",
+        "eq",
+        "hash",
         "no_eq",
         "no_hash",
         "no_serialize",
@@ -187,7 +189,7 @@ mod tests {
     #[test]
     fn test_parse_behavior_options() {
         let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
-        for name in ["no_hash", "copy", "default", "partial_ord", "ord"] {
+        for name in ["eq", "hash", "no_hash", "copy", "default", "partial_ord", "ord"] {
             let option: TokenStream = name.parse().expect("option tokens");
             let options = parser.parse2(option).expect("option syntax");
             let options = parse_declaration_options(options).expect("supported behavior option");

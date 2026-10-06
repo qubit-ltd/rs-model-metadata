@@ -39,7 +39,7 @@ thread_local! {
     static OPTIONAL_TEXT_GETTER_CALLS: Cell<usize> = const { Cell::new(0) };
 }
 
-#[Model]
+#[Model(eq, hash)]
 #[derive(Ord, PartialOrd)]
 struct Child {
     #[text(non_blank)]
@@ -165,7 +165,7 @@ struct RecursiveEnvelope {
     raw: RecursiveWrapper,
 }
 
-#[Model]
+#[Model(eq, hash)]
 struct EmptyChild {
     name: String,
 }

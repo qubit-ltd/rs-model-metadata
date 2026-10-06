@@ -14,7 +14,8 @@
 //! structured data, [`Enum`] for domain enumerations, [`Value`] for value
 //! objects, and [`ModelImpl`] for getter/setter-backed properties.
 //!
-//! Roles supply Clone, equality, Hash, redacted Debug/Display/Serialize, and
+//! Value and Enum also default to Eq and Hash; other roles opt in with eq/hash.
+//! Roles supply Clone, PartialEq, redacted Debug/Display/Serialize, and
 //! Deserialize by default. Capability opt-outs preserve metadata. Named Option
 //! and standard collections receive missing defaults and empty-value omission.
 //! `ModelImpl` preserves impl reflection; getter-only properties are computed

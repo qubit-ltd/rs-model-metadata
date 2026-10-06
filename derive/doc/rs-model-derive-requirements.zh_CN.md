@@ -183,7 +183,7 @@ pub struct FindUserRequest {
 - **REQ-ROLE-003**：角色必须是 metadata 中可查询的一等值，至少包含 Entity、Projection、Model、Enum、Value。
 - **REQ-ROLE-004**：注册与角色必须正交；为非 Entity 类型声明 `id` 只增加动态发现能力，不得赋予 identifier、
   持久化或 relation target 身份。
-- **REQ-ROLE-005**：五种角色默认实现 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize、Deserialize。
+- **REQ-ROLE-005**：五种角色默认实现 Clone、Debug、Display、PartialEq、Redact、Serialize、Deserialize；只有 Value、Enum 默认实现 Eq、Hash，其他角色通过 `eq`、`hash` 显式启用。
 - **REQ-ROLE-006**：只有全部 variant 都是 unit 的 Enum 默认实现 Copy；其他角色默认不得实现 Copy。
 - **REQ-ROLE-007**：五种角色默认不得实现 Default、PartialOrd、Ord。
 - **REQ-ROLE-008**：角色宏必须识别当前类型声明上可见的显式 derive，避免重复生成同一能力；角色 attribute 必须位于
@@ -213,7 +213,7 @@ pub struct Order {
   明确关联语义。
 - **REQ-ENT-006**：Entity 不得声明单数 `projection` 或 `projection_id` 参数。一个 Entity 可以产生零个、一个或多个
   Projection，关系必须从 Projection source 和 Property getter 输出反向发现。
-- **REQ-ENT-007**：Entity 的默认 PartialEq、Eq、Hash 必须采用标准结构化字段语义，不得擅自改为只比较 identifier。
+- **REQ-ENT-007**：Entity 的默认 PartialEq 及显式启用的 Eq、Hash 必须采用标准结构化字段语义，不得擅自改为只比较 identifier。
 
 ### 2.4 Projection
 
@@ -338,11 +338,11 @@ struct SequenceNumber(u64);
 
 - **REQ-CAP-001**：五种角色必须支持 `no_clone`、`no_debug`、`no_display`、`no_partial_eq`、`no_eq`、`no_hash`、
   `no_redact`、`no_serialize`、`no_deserialize`。
-- **REQ-CAP-002**：五种角色必须支持 opt-in `copy`、`default`、`partial_ord`、`ord`。
+- **REQ-CAP-002**：五种角色必须支持 opt-in `eq`、`hash`、`copy`、`default`、`partial_ord`、`ord`。`hash` 要求 Eq 已启用；`eq/no_eq` 和 `hash/no_hash` 冲突。
 - **REQ-CAP-003**：`copy` 必须要求 Clone 未关闭且所有存储字段实现 Copy；冲突必须编译报错。
 - **REQ-CAP-004**：`no_partial_eq` 必须同时移除 Eq、Hash、PartialOrd、Ord。
 - **REQ-CAP-005**：`no_eq` 必须保留 PartialEq，但移除默认 Hash 并禁止 Ord。
-- **REQ-CAP-006**：`ord` 必须同时启用 PartialEq、Eq、PartialOrd、Ord，并与 `no_eq/no_partial_eq` 冲突。
+- **REQ-CAP-006**：`ord` 必须同时启用 PartialEq、Eq、PartialOrd、Ord，并与 `no_eq/no_partial_eq` 冲突，但不隐含 Hash。
 - **REQ-CAP-007**：struct 的 `default` 必须使用字段 Default；Enum 的 `default` 必须要求恰有一个标准 `#[default]`
   unit variant。
 - **REQ-CAP-008**：自动 Default 只保证 Rust 值可构造，不得声明其一定满足模型约束或 validator。

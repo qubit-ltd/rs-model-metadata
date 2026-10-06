@@ -90,7 +90,7 @@ pub struct ResolveInputs<'a> {
 /// use qubit_model_metadata::resolve::StructureResolver;
 /// use qubit_reflect::registry::RegistrySnapshotBuilder;
 ///
-/// #[Model]
+/// #[Model(eq, hash)]
 /// struct Note { title: String }
 ///
 /// #[Value]

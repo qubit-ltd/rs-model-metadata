@@ -50,7 +50,8 @@ flowchart TD
 
 | 能力 | 默认 | 生成与冲突规则 |
 | --- | --- | --- |
-| Clone、PartialEq、Eq、Hash | 五种角色启用 | 标准字段语义；保留 no_partial_eq/no_eq 对 Eq/Hash/Ord 的联动 |
+| Clone、PartialEq | 五种角色启用 | 标准字段语义；保留 no_partial_eq/no_eq 对 Eq/Hash/Ord 的联动 |
+| Eq、Hash | 仅 Value、Enum 默认启用；Entity、Projection、Model 通过 `eq`、`hash` 显式启用 | 标准字段语义；`hash` 要求 Eq 已启用；`ord` 隐含 Eq，但不启用 Hash |
 | Copy | 仅全 unit Enum | no_copy 关闭；其他角色 copy 显式启用并检查 Clone/字段 Copy |
 | Default、PartialOrd、Ord | 关闭 | 显式开关；Enum Default 要求一个标准 default unit variant |
 | Redact、Debug、Display、Serialize、Deserialize | 启用 | 输出执行字段策略；Deserialize 不脱敏；可分别关闭 |
@@ -262,7 +263,7 @@ declarations 记录 Entity 直接 indexed 成员，包括 identifier、global un
 
 ## 13. 验收场景与交付门槛
 
-1. 不手写 derive 的五角色类型具备默认能力；float 等不支持 Eq 的字段只有显式关闭相应自动能力后才通过；泛型 bound 不过约束。
+1. 不手写 derive 的五角色类型具备默认能力；只有 Value/Enum 默认 Eq/Hash，Entity/Projection/Model 显式 `eq, hash` 启用，`ord` 隐含 Eq 但不启用 Hash。普通角色可直接存储 float；值角色需关闭不支持的自动能力；泛型 bound 不过约束。
 2. 显式输出 derive、Serde 回调、skip、透明 Value、map key 冲突、disabled 策略验证实际输出，不只检查 metadata 标签。
 3. ModelImpl trait/generic/普通方法可反射；skip 方法不贡献 Property；同名 field 仍存在；借用返回不逃逸。
 4. 无 ID 泛型定义可导航，无 ID 根完成结构解析；并发查询同 TypeId 使用同一 metadata 根；递归类型终止。

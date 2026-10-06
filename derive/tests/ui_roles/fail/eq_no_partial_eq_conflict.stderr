@@ -1,0 +1,5 @@
+error: eq conflicts with no_partial_eq
+ --> tests/ui_roles/fail/eq_no_partial_eq_conflict.rs:4:8
+  |
+4 | struct Invalid { value: u8 }
+  |        ^^^^^^^

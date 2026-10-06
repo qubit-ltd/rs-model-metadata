@@ -260,12 +260,12 @@ fn test_anonymous_root_validation_binds() {
     assert!(plan.root().model_id().is_none());
 }
 
-#[Model]
+#[Model(eq, hash)]
 struct Owner {
     name: String,
 }
 
-#[Entity(id = "roots.Record")]
+#[Entity(id = "roots.Record", eq, hash)]
 struct Record {
     #[identifier]
     id: Id,

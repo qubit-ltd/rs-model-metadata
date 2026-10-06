@@ -58,8 +58,10 @@ capabilities must also satisfy the redaction contract. Impl reflection can recor
 methods and trait implementations, but those facts do not automatically suppress
 trait generation by the type-declaration macro (REQ-ROLE-008).
 Default capabilities are `Clone`,
-`PartialEq`, `Eq`, `Hash`, `Redact`, redaction-aware `Debug`, `Display`,
-`Serialize`, and `Deserialize`. Corresponding `no_*` switches disable them;
+`PartialEq`, `Redact`, redaction-aware `Debug`, `Display`,
+`Serialize`, and `Deserialize`. Value and Enum also default to `Eq` and `Hash`;
+Entity, Projection, and Model opt in with `eq` and `hash`. `ord` implies Eq,
+but not Hash. `hash` requires enabled Eq. Corresponding `no_*` switches disable them;
 `copy`, `default`, `partial_ord`, and `ord` are opt-in. Unit-only enums are
 `Copy` unless `no_copy` is present. Conflicting capability combinations must
 produce compile-time diagnostics.

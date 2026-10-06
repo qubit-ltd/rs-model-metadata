@@ -99,18 +99,34 @@ Entity requires a stable model `id`; it is optional for the other roles. The ID
 controls registration, not the availability of metadata for anonymous models. Enable the runtime `generic` feature for generic definitions and
 concrete specializations; lifetime parameters are unsupported.
 
-Roles default to Clone, Debug, Display, PartialEq, Eq, Hash, Redact, Serialize,
-and Deserialize. An all-unit Enum also defaults to Copy. `no_*` options suppress
-generated implementations; `no_eq` also removes default Hash, and
-`no_partial_eq` removes equality, hashing, and ordering. `copy`, `default`,
-`partial_ord`, and `ord` are opt-in. Future traits must remain opt-in until an
-explicit role option is added. Enum `default` requires exactly one standard
+All roles default to Clone, Debug, Display, PartialEq, Redact, Serialize, and
+Deserialize. Structural equality and hashing defaults depend on the role:
+
+| Role | PartialEq | Eq | Hash |
+| --- | --- | --- | --- |
+| Entity | Yes | Opt-in | Opt-in |
+| Projection | Yes | Opt-in | Opt-in |
+| Model | Yes | Opt-in | Opt-in |
+| Value | Yes | Yes | Yes |
+| Enum | Yes | Yes | Yes |
+
+Use `#[Entity(id = "example.Person", eq, hash)]` when structural Eq and Hash
+are required. This is a source-breaking change: migrate only models whose
+consumers require these traits. Every stored field participates; use a stable
+identifier for business identity comparisons and mutable entity collection keys.
+`eq` enables Eq; `hash` requires enabled Eq, including Eq supplied by `ord` or a
+value role. `ord` enables Eq and ordering but does not enable Hash. `partial_ord`
+only requires PartialEq. `eq, no_eq` and `hash, no_hash` are rejected.
+`no_*` suppresses automatic capabilities; `no_eq` also removes default Hash.
+An all-unit Enum also defaults to Copy. `copy`, `default`, `partial_ord`, and
+`ord` are opt-in. Future traits remain opt-in until an explicit role option is added.
+Enum `default` requires exactly one standard
 `#[default]` unit variant. Default values need not satisfy domain constraints.
 
 Place the role attribute above explicit derives. Visible explicit derives are
 not generated twice. Use the corresponding opt-out for handwritten impls.
 `no_redact` forbids local field or selector redaction; nested types retain their
-own safe output implementations. HashMap-bearing models commonly need `no_hash`.
+own safe output implementations. HashMap-bearing Value types commonly need `no_hash`.
 Generic bounds follow stored field capabilities, including PhantomData and const arrays.
 
 Named Option and standard collection fields default when absent and omit empty
@@ -262,7 +278,7 @@ use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
-#[Model]
+#[Model(eq, hash)]
 struct Plain { name: String }
 #[Value]
 struct InvalidValue(Plain);

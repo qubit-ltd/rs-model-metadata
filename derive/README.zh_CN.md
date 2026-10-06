@@ -112,9 +112,26 @@ fn main() {
 - `#[Value]`：声明值对象；`transparent` 支持单字段包装类型。
 - `#[ModelImpl]`：把公开固有方法中的 getter/setter 与字段合并为安全的属性元数据。
 
-五种角色默认生成 Clone、Debug、Display、PartialEq、Eq、Hash、Redact、Serialize 与 Deserialize； 后续新增 trait 默认保持关闭，须先增加显式宏选项才能启用。
-全部 variant 为 unit 的 Enum 还默认生成 Copy。`no_*` 关闭自动能力，`no_eq` 同时移除默认 Hash；
-`copy`、`default`、`partial_ord`、`ord` 启用额外能力。角色属性应放在显式 derive 之前，以便识别并去重；
+五种角色均默认生成 Clone、Debug、Display、PartialEq、Redact、Serialize 与 Deserialize。
+结构性相等和哈希的默认值按角色区分：
+
+| 角色 | PartialEq | Eq | Hash |
+| --- | --- | --- | --- |
+| Entity | 默认启用 | 显式启用 | 显式启用 |
+| Projection | 默认启用 | 显式启用 | 显式启用 |
+| Model | 默认启用 | 显式启用 | 显式启用 |
+| Value | 默认启用 | 默认启用 | 默认启用 |
+| Enum | 默认启用 | 默认启用 | 默认启用 |
+
+确实需要结构性 Eq 和 Hash 时使用 `#[Entity(id = "example.Person", eq, hash)]`。
+这是源码兼容性变更：只为实际依赖这些 trait 的模型补开关。全部存储字段参与比较和哈希；
+业务身份比较及可变实体的集合键应使用稳定 identifier。
+`eq` 启用 Eq；`hash` 要求 Eq 已启用，包括 `ord` 或值角色提供的 Eq。
+`ord` 隐含 Eq 与排序能力，但不启用 Hash；`partial_ord` 只依赖 PartialEq。
+`eq, no_eq` 和 `hash, no_hash` 为冲突组合。`no_*` 关闭自动能力，`no_eq` 同时移除默认 Hash。
+全部 variant 为 unit 的 Enum 还默认生成 Copy。`copy`、`default`、`partial_ord`、`ord` 启用额外能力。
+后续新增 trait 默认关闭，须先增加显式宏选项才能启用。
+角色属性应放在显式 derive 之前，以便识别并去重；
 手写实现通过对应的关闭开关避免冲突。
 
 `#[ModelImpl]` 转发反射选项，保留普通方法与 trait impl 的反射。只有公开、安全、同步且方法自身无泛型的

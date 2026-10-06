@@ -116,7 +116,7 @@ pub enum ModelResolutionCause {
 ///
 /// #[Value]
 /// pub struct InvalidValue { nested: PlainModel }
-/// #[Model(id = "example.PlainModel")]
+/// #[Model(id = "example.PlainModel", eq, hash)]
 /// pub struct PlainModel;
 /// # }
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -503,7 +503,7 @@ impl Display for ResolveError {
 ///
 /// #[Value]
 /// pub struct InvalidValue { nested: PlainModel }
-/// #[Model(id = "example.ResolveErrorsPlainModel")]
+/// #[Model(id = "example.ResolveErrorsPlainModel", eq, hash)]
 /// pub struct PlainModel;
 /// # }
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
