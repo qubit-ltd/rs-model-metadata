@@ -136,7 +136,6 @@ impl TypeMetadataProvider for CountedProviderFixture {
     }
 }
 
-
 static NAMED_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Reflect)]
@@ -160,7 +159,6 @@ impl TypeMetadataProvider for CountedNamedProviderFixture {
         })
     }
 }
-
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]
@@ -545,9 +543,15 @@ fn test_metadata_for_caches_projected_and_anonymous_metadata_by_registry() {
     let reflection = builder.build().expect("counted snapshot");
     let registry = ModelRegistry::from_reflect_registry(&reflection).expect("projected registry");
     let projected_calls = COUNTED_PROVIDER_CALLS.load(Ordering::SeqCst);
-    let first = registry.metadata_for(descriptor).expect("first lookup").expect("metadata");
+    let first = registry
+        .metadata_for(descriptor)
+        .expect("first lookup")
+        .expect("metadata");
     let after_first = COUNTED_PROVIDER_CALLS.load(Ordering::SeqCst);
-    let second = registry.metadata_for(descriptor).expect("second lookup").expect("metadata");
+    let second = registry
+        .metadata_for(descriptor)
+        .expect("second lookup")
+        .expect("metadata");
     let after_second = COUNTED_PROVIDER_CALLS.load(Ordering::SeqCst);
 
     assert!(std::ptr::eq(first, second));
@@ -580,7 +584,10 @@ fn test_metadata_for_caches_projected_and_anonymous_metadata_by_registry() {
         .expect("named metadata");
     assert!(std::ptr::eq(named_first, named_second));
     assert_eq!(NAMED_PROVIDER_CALLS.load(Ordering::SeqCst), named_calls);
-    assert_eq!(named_first.model_id().map(ModelId::as_str), Some("example.CountedNamedProvider"));
+    assert_eq!(
+        named_first.model_id().map(ModelId::as_str),
+        Some("example.CountedNamedProvider")
+    );
 }
 
 #[test]

@@ -8,15 +8,19 @@
 
 //! Metadata and property lookup distinguish invalid capabilities from absence.
 
-use qubit_model_metadata::__private::model_metadata_key;
+use std::sync::OnceLock;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+
 use qubit_model_metadata::__private::ModelMetadataProvider;
+use qubit_model_metadata::__private::ModelTypeSeal;
+use qubit_model_metadata::__private::TypeMetadataProvider as TypeMetadataProviderTrait;
+use qubit_model_metadata::__private::model_metadata_key;
 use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::metadata::FieldMetadata;
 use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::ModelMetadataError;
 use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_model_metadata::__private::ModelTypeSeal;
-use qubit_model_metadata::__private::TypeMetadataProvider as TypeMetadataProviderTrait;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ModelResolutionCause;
 use qubit_model_metadata::resolve::ResolveErrorKind;
@@ -24,15 +28,12 @@ use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::descriptor::StructKind;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
+use qubit_reflect::descriptor::StructKind;
 use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::registry::ReflectRegistry;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
-use std::sync::OnceLock;
 
 /// The conflicting intrinsic contract used on unregistered const instances.
 fn conflict_key() -> CapabilityKey<usize> {
@@ -116,23 +117,20 @@ fn wrong_provider<T: 'static>() -> CapabilityDescriptor {
 #[reflect(crate = qubit_model_metadata, capabilities(wrong_provider))]
 struct Wrong<const N: usize>;
 
-static ALTERNATE_WRONG_DESCRIPTOR: TypeDescriptor =
-    qubit_reflect::__private::codegen_v3::descriptor::struct_type::<Wrong<2>>(
-        "WrongAlternateShape",
-        StructKind::Tuple,
-        &[],
-    );
+static ALTERNATE_WRONG_DESCRIPTOR: TypeDescriptor = qubit_reflect::__private::codegen_v3::descriptor::struct_type::<
+    Wrong<2>,
+>("WrongAlternateShape", StructKind::Tuple, &[]);
 
 static PANIC_ONCE_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata, capabilities(panic_once_capability))]
 struct PanicOnce<const N: usize>;
+
 #[allow(
     clippy::extra_unused_type_parameters,
     reason = "derive capability providers receive the concrete type parameter"
 )]
-
 fn panic_once_capability<T: 'static>() -> CapabilityDescriptor {
     CapabilityDescriptor::with_adapter(model_metadata_key(), panic_once_metadata as ModelMetadataProvider)
 }
@@ -217,8 +215,16 @@ fn test_metadata_for_caches_absence_and_structured_errors() {
     assert!(matches!(second, ModelMetadataError::Abi { .. }));
     match (first, second) {
         (
-            ModelMetadataError::Abi { type_id: first_id, source: first_source, .. },
-            ModelMetadataError::Abi { type_id: second_id, source: second_source, .. },
+            ModelMetadataError::Abi {
+                type_id: first_id,
+                source: first_source,
+                ..
+            },
+            ModelMetadataError::Abi {
+                type_id: second_id,
+                source: second_source,
+                ..
+            },
         ) => {
             assert_eq!(first_id, second_id);
             assert_eq!(first_source.code(), second_source.code());
@@ -237,7 +243,7 @@ fn test_metadata_cache_separates_descriptors_with_the_same_type_id() {
             &[],
             v7::leak(v7::model_role()),
         )
-            .finish::<Wrong<2>>(),
+        .finish::<Wrong<2>>(),
     );
     let source = qubit_reflect::identity::FragmentIdentity::new("fixture", "alternate", 1, 1, "model", 1);
     let models = ModelRegistry::from_static_metadata(&[(metadata, &source)]).unwrap();
