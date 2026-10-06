@@ -31,7 +31,10 @@ use syn::visit_mut::visit_generic_argument_mut;
 use syn::visit_mut::visit_type_mut;
 
 /// Applies explicit reflect-style specializations to property signature types.
-pub(super) fn concrete_impls(item: &ItemImpl, options: &Punctuated<Meta, Token![,]>) -> Result<Vec<ItemImpl>> {
+pub(super) fn concrete_impls(
+    item: &ItemImpl,
+    options: &Punctuated<Meta, Token![,]>,
+) -> Result<Vec<ItemImpl>> {
     let mut concrete = Vec::new();
     for option in options {
         let Meta::List(list) = option else {
@@ -48,12 +51,24 @@ pub(super) fn concrete_impls(item: &ItemImpl, options: &Punctuated<Meta, Token![
                 .ok_or_else(|| binding.error("specialization parameter must be an identifier"))?
                 .to_string();
             let value = binding.value()?;
-            if item.generics.type_params().any(|parameter| parameter.ident == name) {
+            if item
+                .generics
+                .type_params()
+                .any(|parameter| parameter.ident == name)
+            {
                 if substitutions.types.insert(name, value.parse()?).is_some() {
                     return Err(binding.error("duplicate specialization parameter"));
                 }
-            } else if item.generics.const_params().any(|parameter| parameter.ident == name) {
-                if substitutions.constants.insert(name, value.parse()?).is_some() {
+            } else if item
+                .generics
+                .const_params()
+                .any(|parameter| parameter.ident == name)
+            {
+                if substitutions
+                    .constants
+                    .insert(name, value.parse()?)
+                    .is_some()
+                {
                     return Err(binding.error("duplicate specialization parameter"));
                 }
             } else {
@@ -105,7 +120,8 @@ impl VisitMut for Substitutions {
                 *ty = replacement.clone();
                 return;
             }
-            let rest: Punctuated<PathSegment, Token![::]> = path.path.segments.iter().skip(1).cloned().collect();
+            let rest: Punctuated<PathSegment, Token![::]> =
+                path.path.segments.iter().skip(1).cloned().collect();
             *ty = parse_quote!(<#replacement>::#rest);
         }
         visit_type_mut(self, ty);

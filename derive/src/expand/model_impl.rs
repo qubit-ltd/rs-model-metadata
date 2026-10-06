@@ -42,7 +42,11 @@ use crate::compiler::type_path::is_option_path;
 ///
 /// `item` is preserved in the emitted tokens and `runtime` identifies the
 /// metadata facade. Returns diagnostics for invalid property-method contracts.
-pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream, arguments: TokenStream) -> Result<TokenStream> {
+pub(crate) fn expand_model_impl(
+    item: ItemImpl,
+    runtime: &TokenStream,
+    arguments: TokenStream,
+) -> Result<TokenStream> {
     expand_inner(item, runtime, arguments, true)
 }
 
@@ -121,7 +125,8 @@ fn expand_inner(
         .map(|(index, setter)| expand_setter_adapter(index, setter, &target, runtime))
         .collect();
     let duplicate_assertions = expand_duplicate_property_assertions(&getters, &setters);
-    let compatibility_assertions = expand_property_compatibility_assertions(&getters, &setters, runtime);
+    let compatibility_assertions =
+        expand_property_compatibility_assertions(&getters, &setters, runtime);
     let getter_metadata: Vec<_> = getters
         .iter()
         .enumerate()
@@ -342,7 +347,10 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
     let name = method.sig.ident.to_string();
     if let Some(property) = name.strip_prefix("set_") {
         if !matches!(method.vis, Visibility::Public(_)) {
-            return Err(Error::new_spanned(&method.sig.ident, "property setters must be public"));
+            return Err(Error::new_spanned(
+                &method.sig.ident,
+                "property setters must be public",
+            ));
         }
         if method.sig.asyncness.is_some() || method.sig.unsafety.is_some() {
             return Err(Error::new_spanned(
@@ -364,7 +372,10 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
         }
         let mut inputs = method.sig.inputs.iter();
         let Some(FnArg::Receiver(receiver)) = inputs.next() else {
-            return Err(Error::new_spanned(&method.sig, "setter requires `&mut self`"));
+            return Err(Error::new_spanned(
+                &method.sig,
+                "setter requires `&mut self`",
+            ));
         };
         if receiver.reference.is_none() || receiver.mutability.is_none() {
             return Err(Error::new_spanned(receiver, "setter requires `&mut self`"));
@@ -421,7 +432,8 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
         }
         Type::Path(path) => {
             if let Some(reference) = option_borrowed_type(path) {
-                if matches!(reference.elem.as_ref(), Type::Path(path) if path.path.is_ident("str")) {
+                if matches!(reference.elem.as_ref(), Type::Path(path) if path.path.is_ident("str"))
+                {
                     GetterReturn::OptionalBorrowedStr
                 } else {
                     GetterReturn::OptionalBorrowed((*reference.elem).clone())
@@ -473,7 +485,10 @@ fn returns_unit(output: &ReturnType) -> bool {
 /// Emits one guarded diagnostic for each same-kind candidate pair.
 /// The consuming compiler reports only simultaneously enabled duplicates,
 /// anchored at the later method and including the canonical property name.
-fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterIr]) -> Vec<TokenStream> {
+fn expand_duplicate_property_assertions(
+    getters: &[GetterIr],
+    setters: &[SetterIr],
+) -> Vec<TokenStream> {
     let mut assertions = Vec::new();
     for (index, getter) in getters.iter().enumerate() {
         for other in getters[..index]
@@ -482,7 +497,8 @@ fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterI
         {
             let presence = getter.presence.intersection(&other.presence).attribute();
             let message = format!("duplicate property getter `{}`", getter.property);
-            assertions.push(quote_spanned!(getter.method.span()=> #presence compile_error!(#message);));
+            assertions
+                .push(quote_spanned!(getter.method.span()=> #presence compile_error!(#message);));
         }
     }
     for (index, setter) in setters.iter().enumerate() {
@@ -492,7 +508,8 @@ fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterI
         {
             let presence = setter.presence.intersection(&other.presence).attribute();
             let message = format!("duplicate property setter `{}`", setter.property);
-            assertions.push(quote_spanned!(setter.method.span()=> #presence compile_error!(#message);));
+            assertions
+                .push(quote_spanned!(setter.method.span()=> #presence compile_error!(#message);));
         }
     }
     assertions
@@ -502,7 +519,12 @@ fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterI
 ///
 /// `index` makes the generated symbol unique; `getter`, `target`, and
 /// `runtime` supply the validated method contract and emitted type paths.
-fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
+fn expand_getter_adapter(
+    index: usize,
+    getter: &GetterIr,
+    target: &Type,
+    runtime: &TokenStream,
+) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
     let adapter = format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}",);
     let method = &getter.method;
@@ -541,7 +563,12 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
 ///
 /// `index` makes the generated symbol unique; `setter`, `target`, and
 /// `runtime` supply the validated method contract and emitted type paths.
-fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
+fn expand_setter_adapter(
+    index: usize,
+    setter: &SetterIr,
+    target: &Type,
+    runtime: &TokenStream,
+) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
     let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}",);
     let method = &setter.method;

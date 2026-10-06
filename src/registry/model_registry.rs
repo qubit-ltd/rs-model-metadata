@@ -155,7 +155,9 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// Propagates a panic from a registered metadata provider.
     #[must_use = "handle invalid model registrations"]
-    pub fn from_reflect_registry(reflection: &'reflection ReflectRegistry) -> Result<Self, ModelRegistryError> {
+    pub fn from_reflect_registry(
+        reflection: &'reflection ReflectRegistry,
+    ) -> Result<Self, ModelRegistryError> {
         if let Some((type_id, source)) = reflection
             .capability_only_type_targets(model_metadata_key().id().as_str())
             .first()
@@ -202,7 +204,9 @@ impl<'reflection> ModelRegistry<'reflection> {
                         member.origin().clone(),
                     ));
                 }
-                CapabilityLookup::Missing => unreachable!("capability members always contain a fact"),
+                CapabilityLookup::Missing => {
+                    unreachable!("capability members always contain a fact")
+                }
             };
             let capability_source = member.source();
             let metadata = provider();
@@ -251,7 +255,9 @@ impl<'reflection> ModelRegistry<'reflection> {
                         member.origin().clone(),
                     ));
                 }
-                CapabilityLookup::Missing => unreachable!("capability members always contain a fact"),
+                CapabilityLookup::Missing => {
+                    unreachable!("capability members always contain a fact")
+                }
             };
             let capability_source = member.source();
             let metadata = provider();
@@ -415,7 +421,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// initialization.
     #[must_use = "handle model registry initialization failure"]
     pub fn try_global() -> Result<&'static ModelRegistry<'static>, ModelRegistryError> {
-        static REGISTRY: OnceLock<Result<ModelRegistry<'static>, ModelRegistryError>> = OnceLock::new();
+        static REGISTRY: OnceLock<Result<ModelRegistry<'static>, ModelRegistryError>> =
+            OnceLock::new();
         match REGISTRY.get_or_init(|| {
             ModelRegistry::<'static>::from_reflect_registry(
                 ReflectRegistry::initialize().map_err(ModelRegistryError::reflection)?,
@@ -472,9 +479,11 @@ impl<'reflection> ModelRegistry<'reflection> {
         #[cfg(feature = "generic")]
         {
             generic_inputs.sort_by(|(left, left_source, _), (right, right_source, _)| {
-                left_source
-                    .cmp(right_source)
-                    .then_with(|| left.definition().rust_path().cmp(right.definition().rust_path()))
+                left_source.cmp(right_source).then_with(|| {
+                    left.definition()
+                        .rust_path()
+                        .cmp(right.definition().rust_path())
+                })
             });
         }
         #[cfg(feature = "generic")]
@@ -496,13 +505,11 @@ impl<'reflection> ModelRegistry<'reflection> {
             generic_definitions.push(metadata);
         }
         #[cfg(feature = "generic")]
-        entries.extend(
-            generic_inputs
-                .iter()
-                .filter_map(|&(metadata, source, declaration_source)| {
-                    ModelEntry::generic(metadata, source, declaration_source)
-                }),
-        );
+        entries.extend(generic_inputs.iter().filter_map(
+            |&(metadata, source, declaration_source)| {
+                ModelEntry::generic(metadata, source, declaration_source)
+            },
+        ));
         entries.sort_by(compare_entries);
         for pair in entries.windows(2) {
             if pair[0].model_id == pair[1].model_id {
@@ -535,16 +542,23 @@ impl<'reflection> ModelRegistry<'reflection> {
             HashMap::with_capacity(metadata_inputs.len());
         for metadata in metadata_inputs {
             let descriptor = metadata.descriptor();
-            let key = (descriptor.type_id(), descriptor as *const TypeDescriptor as usize);
+            let key = (
+                descriptor.type_id(),
+                descriptor as *const TypeDescriptor as usize,
+            );
             if let Some(cell) = metadata_cache.get(&key) {
                 let cached = cell.get().expect("prefilled metadata cell").as_ref();
                 if !matches!(cached, Ok(Some(existing)) if std::ptr::eq(*existing, metadata)) {
-                    return Err(ModelRegistryError::conflict(metadata.model_id(), Vec::new()));
+                    return Err(ModelRegistryError::conflict(
+                        metadata.model_id(),
+                        Vec::new(),
+                    ));
                 }
                 continue;
             }
             let cell = Arc::new(OnceLock::new());
-            cell.set(Ok(Some(metadata))).expect("new metadata cache cell");
+            cell.set(Ok(Some(metadata)))
+                .expect("new metadata cache cell");
             metadata_cache.insert(key, cell);
         }
 
@@ -677,10 +691,17 @@ impl<'reflection> ModelRegistry<'reflection> {
         &self,
         descriptor: &'static TypeDescriptor,
     ) -> Result<Option<&'static TypeMetadata>, ModelMetadataError> {
-        let key = (descriptor.type_id(), descriptor as *const TypeDescriptor as usize);
+        let key = (
+            descriptor.type_id(),
+            descriptor as *const TypeDescriptor as usize,
+        );
         let cell = {
             let mut cache = self.metadata_cache.lock().expect("metadata cache lock");
-            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceLock::new())))
+            Arc::clone(
+                cache
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(OnceLock::new())),
+            )
         };
         cell.get_or_init(|| {
             let provided = match self.reflection {
@@ -696,13 +717,13 @@ impl<'reflection> ModelRegistry<'reflection> {
             };
             let metadata = provided.or_else(|| self.by_type_id(descriptor.type_id()));
             if let Some(metadata) = metadata {
-                metadata
-                    .validate_descriptor(descriptor)
-                    .map_err(|source| ModelMetadataError::Abi {
+                metadata.validate_descriptor(descriptor).map_err(|source| {
+                    ModelMetadataError::Abi {
                         type_id: descriptor.type_id(),
                         type_name: descriptor.type_name(),
                         source,
-                    })?;
+                    }
+                })?;
             }
             Ok(metadata)
         })
@@ -748,9 +769,14 @@ impl<'reflection> ModelRegistry<'reflection> {
         let key = (metadata.type_id(), metadata as *const TypeMetadata as usize);
         let cell = {
             let mut cache = self.property_cache.lock().expect("property cache lock");
-            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceLock::new())))
+            Arc::clone(
+                cache
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(OnceLock::new())),
+            )
         };
-        cell.get_or_init(|| metadata.try_properties_in(reflection)).clone()
+        cell.get_or_init(|| metadata.try_properties_in(reflection))
+            .clone()
     }
 
     /// Compiles or reuses a successful readable path within this registry.
@@ -848,7 +874,10 @@ impl<'reflection> ModelRegistry<'reflection> {
     #[must_use]
     #[inline]
     #[cfg(feature = "generic")]
-    pub fn generic_metadata_for(&self, definition_id: TypeDefinitionId) -> Option<&'static GenericModelMetadata> {
+    pub fn generic_metadata_for(
+        &self,
+        definition_id: TypeDefinitionId,
+    ) -> Option<&'static GenericModelMetadata> {
         self.generic_definition_indices.get(&definition_id).copied()
     }
 

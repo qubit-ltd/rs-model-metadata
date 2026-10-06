@@ -115,7 +115,11 @@ impl CodecOccurrenceId {
     /// An identity containing the model type, property path, and declaration
     /// source.
     #[must_use]
-    pub fn new(model: &'static TypeMetadata, property: impl Into<Box<str>>, source: CodecSource) -> Self {
+    pub fn new(
+        model: &'static TypeMetadata,
+        property: impl Into<Box<str>>,
+        source: CodecSource,
+    ) -> Self {
         Self {
             model: model.model_id().map(ModelIdBuf::from),
             type_id: model.type_id(),
@@ -319,7 +323,9 @@ impl<'a> CodecBindings<'a> {
 /// # Returns
 ///
 /// All successful bindings, keyed by stable codec occurrence identity.
-pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<CodecBindings<'graph>, CodecBindErrors> {
+pub fn bind_codecs<'a, 'graph>(
+    inputs: CodecBindInputs<'a, 'graph>,
+) -> Result<CodecBindings<'graph>, CodecBindErrors> {
     let mut bindings = BTreeMap::new();
     let mut errors = Vec::new();
     for &metadata in inputs.graph.models() {
@@ -334,9 +340,15 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
                 &mut errors,
             );
         }
-        for variant in metadata.as_enum().into_iter().flat_map(|value| value.variants()) {
+        for variant in metadata
+            .as_enum()
+            .into_iter()
+            .flat_map(|value| value.variants())
+        {
             for field in variant.fields() {
-                let field_name = field.name().map_or_else(|| field.index().to_string(), str::to_owned);
+                let field_name = field
+                    .name()
+                    .map_or_else(|| field.index().to_string(), str::to_owned);
                 let path = format!("{}.{}", variant.canonical_name(), field_name);
                 bind_field_at(
                     model,
@@ -418,7 +430,9 @@ fn bind_field_at<'a>(
             errors,
         );
     }
-    let sequence = field.sequence_constraint().and_then(|value| value.element());
+    let sequence = field
+        .sequence_constraint()
+        .and_then(|value| value.element());
     let map = field.map_constraint();
     for selector in [
         sequence,
@@ -431,11 +445,18 @@ fn bind_field_at<'a>(
         let Some(expected) = selector_type_id(descriptor, selector.position()) else {
             continue;
         };
-        let Some(codec) = selector.codec().or_else(|| canonical_codec(expected, models)) else {
+        let Some(codec) = selector
+            .codec()
+            .or_else(|| canonical_codec(expected, models))
+        else {
             continue;
         };
         bind_one(
-            CodecOccurrenceId::new(model, path.clone(), CodecSource::Selector(selector.position())),
+            CodecOccurrenceId::new(
+                model,
+                path.clone(),
+                CodecSource::Selector(selector.position()),
+            ),
             codec,
             expected,
             codecs,
@@ -447,7 +468,10 @@ fn bind_field_at<'a>(
 
 /// Reads a canonical declaration only from the resolved graph's concrete
 /// models.
-fn canonical_codec(expected: TypeId, models: &[&'static TypeMetadata]) -> Option<&'static CodecMetadata> {
+fn canonical_codec(
+    expected: TypeId,
+    models: &[&'static TypeMetadata],
+) -> Option<&'static CodecMetadata> {
     models
         .iter()
         .find(|model| model.type_id() == expected)?
@@ -492,7 +516,10 @@ fn bind_one<'a>(
                 *declaration.codec(),
                 expected_type,
                 None,
-                candidates.iter().map(|registration| registration.source()).collect(),
+                candidates
+                    .iter()
+                    .map(|registration| registration.source())
+                    .collect(),
             ));
             return;
         }
@@ -521,7 +548,10 @@ fn bind_one<'a>(
 }
 
 /// Resolves the runtime value type at one nested selector position.
-fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosition) -> Option<TypeId> {
+fn selector_type_id(
+    descriptor: &'static TypeDescriptor,
+    position: SelectorPosition,
+) -> Option<TypeId> {
     let descriptor = transparent_descriptor(descriptor)?;
     let type_ref = match position {
         SelectorPosition::Element => descriptor

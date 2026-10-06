@@ -63,6 +63,8 @@ impl ResolvedProperties {
     #[must_use]
     #[inline]
     pub fn property(&self, name: &str) -> Option<&PropertyMetadata> {
-        self.properties().iter().find(|property| property.name() == name)
+        self.properties()
+            .iter()
+            .find(|property| property.name() == name)
     }
 }

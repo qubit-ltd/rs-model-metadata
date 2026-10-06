@@ -82,7 +82,8 @@ impl ValueDecoder<str> for U64Codec {
     }
 }
 
-static STRING_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<StringCodec, String>();
+static STRING_DESCRIPTOR: ValueStringCodecDescriptor =
+    ValueStringCodecDescriptor::of::<StringCodec, String>();
 static STRING_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.string"),
     &STRING_DESCRIPTOR,
@@ -93,7 +94,8 @@ static STRING_ALIAS_REGISTRATION: ValueStringCodecRegistration = ValueStringCode
     &STRING_DESCRIPTOR,
     ValueCodecRegistrationSource::new("codec-tests", "fixture", file!(), line!()),
 );
-static U64_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<U64Codec, u64>();
+static U64_DESCRIPTOR: ValueStringCodecDescriptor =
+    ValueStringCodecDescriptor::of::<U64Codec, u64>();
 static U64_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.wrong"),
     &U64_DESCRIPTOR,
@@ -142,7 +144,8 @@ fn test_binds_anonymous_root_codecs() {
     })
     .resolve()
     .expect("anonymous graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
     let bindings = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -156,7 +159,8 @@ fn source() -> FragmentIdentity {
 }
 
 fn graph<'a>(metadata: &'static TypeMetadata, source: &'a FragmentIdentity) -> ModelGraph<'a> {
-    let models = ModelRegistry::from_static_metadata(&[(metadata, source)]).expect("model registry");
+    let models =
+        ModelRegistry::from_static_metadata(&[(metadata, source)]).expect("model registry");
     let models = Box::leak(Box::new(models));
     StructureResolver::new(ResolveInputs { roots: &[], models })
         .resolve()
@@ -168,7 +172,8 @@ fn test_binds_declared_and_rust_type_references() {
     let source = source();
     let declared_graph = graph(TypeMetadata::of::<Success>(), &source);
     let rust_graph = graph(TypeMetadata::of::<RustType>(), &source);
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
 
     assert_eq!(
         bind_codecs(CodecBindInputs {
@@ -217,11 +222,27 @@ fn test_reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
         codecs: &codecs,
     })
     .unwrap_err();
-    assert_eq!(mismatch.errors()[0].kind(), CodecBindErrorKind::ValueTypeMismatch);
-    assert_eq!(mismatch.errors()[0].candidate_sources(), &[U64_REGISTRATION.source()]);
-    assert_eq!(mismatch.errors()[0].actual_type(), Some(TypeId::of::<u64>()));
-    assert_eq!(mismatch.errors()[0].declaration().declared_id(), Some("test.wrong"));
-    assert!(mismatch.errors()[0].to_string().contains("codec binding failed"));
+    assert_eq!(
+        mismatch.errors()[0].kind(),
+        CodecBindErrorKind::ValueTypeMismatch
+    );
+    assert_eq!(
+        mismatch.errors()[0].candidate_sources(),
+        &[U64_REGISTRATION.source()]
+    );
+    assert_eq!(
+        mismatch.errors()[0].actual_type(),
+        Some(TypeId::of::<u64>())
+    );
+    assert_eq!(
+        mismatch.errors()[0].declaration().declared_id(),
+        Some("test.wrong")
+    );
+    assert!(
+        mismatch.errors()[0]
+            .to_string()
+            .contains("codec binding failed")
+    );
     assert_eq!(mismatch.to_string(), "1 codec binding error(s)");
     let ambiguous = bind_codecs(CodecBindInputs {
         graph: &rust_graph,
@@ -265,7 +286,8 @@ struct CanonicalOwner {
 /// Explicit equality with canonical is legal and unannotated uses inherit it.
 #[test]
 fn test_canonical_fallback_preserves_occurrence_sources() {
-    static DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<NameCodec, Name>();
+    static DESCRIPTOR: ValueStringCodecDescriptor =
+        ValueStringCodecDescriptor::of::<NameCodec, Name>();
     static REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
         ValueCodecId::new("test.name"),
         &DESCRIPTOR,
@@ -274,7 +296,8 @@ fn test_canonical_fallback_preserves_occurrence_sources() {
     let owner = TypeMetadata::of::<CanonicalOwner>();
     let name = TypeMetadata::of::<Name>();
     let source = source();
-    let models = ModelRegistry::from_static_metadata(&[(owner, &source), (name, &source)]).expect("models");
+    let models =
+        ModelRegistry::from_static_metadata(&[(owner, &source), (name, &source)]).expect("models");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &[],
@@ -328,7 +351,8 @@ fn test_tuple_payload_codecs_have_distinct_occurrences() {
     })
     .resolve()
     .expect("tuple graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codecs");
+    let codecs =
+        ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codecs");
     let bound = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -376,7 +400,8 @@ fn test_container_selector_bindings_preserve_identity_and_execute() {
     })
     .resolve()
     .expect("container graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
     let bindings = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -394,16 +419,30 @@ fn test_container_selector_bindings_preserve_identity_and_execute() {
         ("map", SelectorPosition::MapValue),
     ] {
         let id = CodecOccurrenceId::new(root, field, CodecSource::Selector(selector));
-        let binding = bindings.get(&id).expect("each distinct selector is indexed");
+        let binding = bindings
+            .get(&id)
+            .expect("each distinct selector is indexed");
         assert_eq!(binding.occurrence(), &id);
-        assert_eq!(id.model(), None, "anonymous identity does not fabricate a model ID");
+        assert_eq!(
+            id.model(),
+            None,
+            "anonymous identity does not fabricate a model ID"
+        );
         assert_eq!(id.source(), CodecSource::Selector(selector));
-        assert_eq!(binding.registration().source(), STRING_REGISTRATION.source());
+        assert_eq!(
+            binding.registration().source(),
+            STRING_REGISTRATION.source()
+        );
         let descriptor = binding.descriptor();
         let input = format!("{field} value");
         let encoded = descriptor.encode(&input).expect("bound String encoder");
         let decoded = descriptor.decode(&encoded).expect("bound String decoder");
-        assert_eq!(*decoded.downcast::<String>().expect("exact bound value type"), input);
+        assert_eq!(
+            *decoded
+                .downcast::<String>()
+                .expect("exact bound value type"),
+            input
+        );
         assert!(id.to_string().ends_with(&format!("::{field}")));
     }
     assert!(
@@ -431,7 +470,8 @@ fn test_opaque_collection_field_is_not_resolved_for_codec_binding() {
     })
     .resolve()
     .expect("opaque graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
     let bindings = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -457,7 +497,8 @@ fn test_collection_is_not_unwrapped_for_direct_codec_binding() {
     })
     .resolve()
     .expect("collection graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
     let errors = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,

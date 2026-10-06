@@ -71,11 +71,14 @@ impl PreparedValidator for AcceptText {
     }
 }
 
-fn prepare_text(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_text(
+    _: &[NamedValidationArgument<'_>],
+) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(AcceptText))
 }
 
-static TEXT_SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
+static TEXT_SIGNATURES: &[ValidatorSignature] =
+    &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
 static TEXT_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(TEXT_SIGNATURES);
 static TEXT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("test.text"),
@@ -104,7 +107,8 @@ fn test_structure_resolution_and_binding_are_separate() {
     let fixture = TypeMetadata::of::<BindingFixture>();
     let models = ModelRegistry::from_static_metadata(&[(owner, source()), (fixture, source())])
         .expect("isolated model registry");
-    let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION]).expect("isolated validator registry");
+    let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION])
+        .expect("isolated validator registry");
     let graph = Arc::new(
         StructureResolver::new(inputs(&models))
             .resolve()
@@ -155,7 +159,9 @@ impl PreparedValidator for CheckParent {
 }
 
 /// Prepares an isolated validator consuming one text dependency.
-fn prepare_parent(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_parent(
+    _: &[NamedValidationArgument<'_>],
+) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(CheckParent))
 }
 
@@ -195,7 +201,8 @@ fn test_parent_dependency_uses_explicit_context() {
         dependency,
         &child.field("value").expect("dependent field").validators()[0].dependency_bindings()[0]
     ));
-    let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("registry");
+    let validators =
+        ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("registry");
     let plan = ValidationPlan::build_with_context(
         child,
         ValidationBuildInputs {
@@ -222,13 +229,25 @@ fn test_parent_dependency_uses_explicit_context() {
     };
     let options = ValidationOptions::default();
     assert!(plan.validate(ReflectedRef::new(&value), &options).is_err());
-    assert!(deferred.validate(ReflectedRef::new(&value), &options).is_err());
+    assert!(
+        deferred
+            .validate(ReflectedRef::new(&value), &options)
+            .is_err()
+    );
     let deferred_report = deferred
-        .validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&parent_value)], &options)
+        .validate_with_context(
+            ReflectedRef::new(&value),
+            &[ReflectedRef::new(&parent_value)],
+            &options,
+        )
         .expect("deferred parent execution");
     assert!(deferred_report.is_valid());
     let plan_report = plan
-        .validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&parent_value)], &options)
+        .validate_with_context(
+            ReflectedRef::new(&value),
+            &[ReflectedRef::new(&parent_value)],
+            &options,
+        )
         .expect("parent execution");
     assert!(plan_report.is_valid());
 }
@@ -261,7 +280,9 @@ impl PreparedValidator for CheckNamedDependencies {
     }
 }
 
-fn prepare_same_type(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_same_type(
+    _: &[NamedValidationArgument<'_>],
+) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(CheckNamedDependencies))
 }
 
@@ -294,7 +315,8 @@ fn test_same_type_dependencies_follow_signature_order() {
         .resolve()
         .expect("dependency graph"),
     );
-    let validators = ValidatorRegistry::from_registrations([SAME_TYPE_REGISTRATION]).expect("registry");
+    let validators =
+        ValidatorRegistry::from_registrations([SAME_TYPE_REGISTRATION]).expect("registry");
     let plan = ValidationPlan::build(
         model,
         ValidationBuildInputs {
@@ -342,7 +364,9 @@ impl PreparedValidator for RecordOrder {
     }
 }
 
-fn prepare_order(arguments: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_order(
+    arguments: &[NamedValidationArgument<'_>],
+) -> Result<Arc<dyn PreparedValidator>, BindError> {
     let mut reader = ArgumentReader::new(arguments)?;
     let order = reader.required_u32("order")?;
     reader.finish()?;
@@ -360,7 +384,8 @@ fn test_repeated_validator_ids_execute_every_occurrence() {
         &DESCRIPTOR,
         RegistrationSource::new("test", "repeat", file!(), line!()),
     );
-    let validators = ValidatorRegistry::from_registrations([registration]).expect("validator registry");
+    let validators =
+        ValidatorRegistry::from_registrations([registration]).expect("validator registry");
     let root = TypeMetadata::of::<RepeatedRules>();
     let roots = [root];
     let graph = Arc::new(
@@ -406,7 +431,9 @@ struct WrongDependencyType {
     value: String,
 }
 
-fn build_dependency_fixture(root: &'static TypeMetadata) -> qubit_model_metadata::validation::ValidationBuildErrors {
+fn build_dependency_fixture(
+    root: &'static TypeMetadata,
+) -> qubit_model_metadata::validation::ValidationBuildErrors {
     let models = ModelRegistry::from_static_metadata(&[]).expect("empty model registry");
     let roots = [root];
     let graph = Arc::new(
@@ -417,7 +444,8 @@ fn build_dependency_fixture(root: &'static TypeMetadata) -> qubit_model_metadata
         .resolve()
         .expect("dependency fixture has a valid structure"),
     );
-    let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("parent rule binds");
+    let validators =
+        ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("parent rule binds");
     match ValidationPlan::build(
         root,
         ValidationBuildInputs {

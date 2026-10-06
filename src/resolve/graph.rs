@@ -151,7 +151,11 @@ impl ResolvedReference {
     #[must_use]
     #[inline]
     pub fn context_requirement(&self) -> ContextRequirement {
-        if self.declaration.path().is_some_and(|path| path.requires_parent()) {
+        if self
+            .declaration
+            .path()
+            .is_some_and(|path| path.requires_parent())
+        {
             ContextRequirement::ParentObject
         } else {
             ContextRequirement::None
@@ -332,8 +336,13 @@ impl ResolvedProjectionProducer {
     /// The getter result when it is a borrowed or owned Projection with the
     /// same identifier as the source Entity.
     #[must_use = "handle projection execution failure"]
-    pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
-        let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
+    pub fn project<'a>(
+        &self,
+        source: ReflectedRef<'a>,
+    ) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
+        let projector = self
+            .projector
+            .ok_or(ProjectionExecutionError::MissingProjector)?;
         let source_identifier = self
             .source
             .as_entity()
@@ -378,7 +387,10 @@ impl ResolvedProjectionProducer {
     ///
     /// Panics if resolved projection metadata refers to an identifier that is
     /// not a concrete reflected field. The resolver guarantees this invariant.
-    fn projection_identifier(&self, target: ReflectedRef<'_>) -> Result<Id, ProjectionExecutionError> {
+    fn projection_identifier(
+        &self,
+        target: ReflectedRef<'_>,
+    ) -> Result<Id, ProjectionExecutionError> {
         self.projection
             .as_projection()
             .ok_or(ProjectionExecutionError::InvalidProducer)?

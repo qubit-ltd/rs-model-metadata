@@ -113,7 +113,8 @@ pub type GenericModelMetadataProvider = fn() -> &'static GenericModelMetadata;
 #[doc(hidden)]
 #[must_use]
 pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider> {
-    let id = CapabilityId::new("qubit.model.metadata.v1").expect("the model metadata capability ID must be valid");
+    let id = CapabilityId::new("qubit.model.metadata.v1")
+        .expect("the model metadata capability ID must be valid");
     CapabilityKey::new(id)
 }
 
@@ -125,7 +126,8 @@ pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider> {
 #[doc(hidden)]
 #[must_use]
 pub fn model_impl_key() -> CapabilityKey<ModelImplProvider> {
-    let id = CapabilityId::new("qubit.model.impl.v1").expect("the model implementation capability ID must be valid");
+    let id = CapabilityId::new("qubit.model.impl.v1")
+        .expect("the model implementation capability ID must be valid");
     CapabilityKey::new(id)
 }
 
@@ -236,7 +238,9 @@ pub(crate) fn model_impl_metadata(
         .filter(|item| is_model_impl_capability(item.id().as_str()))
     {
         let id = capability.id();
-        if let Some(provider) = registry.capability(descriptor, CapabilityKey::<ModelImplProvider>::new(*id))? {
+        if let Some(provider) =
+            registry.capability(descriptor, CapabilityKey::<ModelImplProvider>::new(*id))?
+        {
             let origin = registry
                 .capability_origin(descriptor, id.as_str())
                 .map_err(CapabilityAccessError::IntrinsicConflict)?
@@ -247,9 +251,9 @@ pub(crate) fn model_impl_metadata(
     match providers.as_slice() {
         [] => Ok(None),
         [(provider, _)] => Ok(Some(ModelImplResolution::Static(provider()))),
-        _ => Ok(Some(ModelImplResolution::Merged(Arc::new(ModelImplMetadata::merge(
-            metadata, &providers,
-        ))))),
+        _ => Ok(Some(ModelImplResolution::Merged(Arc::new(
+            ModelImplMetadata::merge(metadata, &providers),
+        )))),
     }
 }
 

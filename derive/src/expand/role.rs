@@ -27,8 +27,11 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
     match declaration.kind {
         MacroKind::Entity => {
             let Some(index) = identifier_index(&declaration.fields) else {
-                return Error::new(Span::call_site(), "Entity requires exactly one identifier field")
-                    .into_compile_error();
+                return Error::new(
+                    Span::call_site(),
+                    "Entity requires exactly one identifier field",
+                )
+                .into_compile_error();
             };
             quote! {
                 let role: &'static #runtime::metadata::RoleMetadata =
@@ -37,8 +40,11 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
         }
         MacroKind::Projection => {
             let Some(index) = identifier_index(&declaration.fields) else {
-                return Error::new(Span::call_site(), "Projection requires exactly one identifier field")
-                    .into_compile_error();
+                return Error::new(
+                    Span::call_site(),
+                    "Projection requires exactly one identifier field",
+                )
+                .into_compile_error();
             };
             let source = if let Some(source) = declaration.options.source.as_ref() {
                 quote!(Some(#runtime::__private::v7::leak(
@@ -90,9 +96,11 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
             }
         }
         MacroKind::Enum => expand_enum_role(&declaration.variants, runtime),
-        MacroKind::ModelImpl => {
-            Error::new(Span::call_site(), "ModelImpl does not produce role metadata").into_compile_error()
-        }
+        MacroKind::ModelImpl => Error::new(
+            Span::call_site(),
+            "ModelImpl does not produce role metadata",
+        )
+        .into_compile_error(),
     }
 }
 

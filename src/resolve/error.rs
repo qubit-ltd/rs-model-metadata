@@ -396,7 +396,8 @@ impl ResolveError {
     ///
     /// - `owner`: metadata for the concrete owner type.
     pub(super) fn attach_owner(&mut self, owner: &'static TypeMetadata) {
-        self.owner.get_or_insert((owner.type_id(), owner.type_name()));
+        self.owner
+            .get_or_insert((owner.type_id(), owner.type_name()));
     }
 
     /// Associates a field diagnostic with its original declaration.

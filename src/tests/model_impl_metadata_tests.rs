@@ -13,7 +13,8 @@ use crate::metadata::ModelImplMetadata;
 
 #[test]
 fn test_generated_impl_metadata_retains_empty_local_view() {
-    let generated = ModelImplMetadata::new(&[], Ok(Box::leak(Box::new(LocalPropertySet::new(&[])))));
+    let generated =
+        ModelImplMetadata::new(&[], Ok(Box::leak(Box::new(LocalPropertySet::new(&[])))));
     assert!(generated.fragments().is_empty());
     assert!(
         generated

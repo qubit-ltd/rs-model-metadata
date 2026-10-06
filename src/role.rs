@@ -144,7 +144,10 @@ impl ProjectionMetadata {
     /// Projection metadata retaining its identifier and source declaration.
     #[must_use]
     #[inline]
-    pub(crate) const fn new(identifier: &'static FieldMetadata, source: Option<&'static DeclaredEntityTarget>) -> Self {
+    pub(crate) const fn new(
+        identifier: &'static FieldMetadata,
+        source: Option<&'static DeclaredEntityTarget>,
+    ) -> Self {
         Self { identifier, source }
     }
 

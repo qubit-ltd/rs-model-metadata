@@ -23,12 +23,18 @@ use qubit_reflect::TypeDescriptor;
 /// `None` when a traversed layer is opaque or symbolic. Semantic containers
 /// such as sequences and maps remain intact.
 #[must_use]
-pub(crate) fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
+pub(crate) fn transparent_descriptor(
+    mut descriptor: &'static TypeDescriptor,
+) -> Option<&'static TypeDescriptor> {
     loop {
         let element = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()));
+            .or_else(|| {
+                descriptor
+                    .as_smart_pointer()
+                    .map(|view| view.pointee_type())
+            });
         let Some(element) = element else {
             return Some(descriptor);
         };

@@ -175,13 +175,17 @@ fn test_for_roots_ignores_unrelated_invalid_snapshot_member() {
     ] {
         builder.add_type_with_capabilities(
             metadata.descriptor(),
-            vec![CapabilityDescriptor::with_adapter(model_metadata_key(), provider)],
+            vec![CapabilityDescriptor::with_adapter(
+                model_metadata_key(),
+                provider,
+            )],
             FragmentIdentity::new("roots-test", member, 1, 1, "type", 0),
             FragmentIdentity::new("roots-test", member, 1, 2, "capability", 0),
         );
     }
     let reflection = builder.build().expect("isolated reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model projection");
+    let models =
+        ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model projection");
     let root = snapshot_good_metadata();
     let roots = [root];
     let inputs = ResolveInputs {
@@ -283,7 +287,10 @@ fn test_query_declarations_do_not_apply_product_filter_policy() {
         .resolve()
         .expect("indexed model is a valid declaration");
     let root = TypeMetadata::of::<Record>();
-    let declarations = graph.query(root.type_id()).expect("query declarations").declarations();
+    let declarations = graph
+        .query(root.type_id())
+        .expect("query declarations")
+        .declarations();
     let names: Vec<_> = declarations
         .iter()
         .map(|value| value.field().name().expect("named field"))
@@ -303,10 +310,17 @@ fn test_optional_sequence_reference_resolves() {
     let models = ModelRegistry::global();
     let root = TypeMetadata::of::<References>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .expect("wrapped reference");
-    assert!(graph.reference(root.fields()[0].location().unwrap()).is_some());
+    let graph = StructureResolver::new(ResolveInputs {
+        models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("wrapped reference");
+    assert!(
+        graph
+            .reference(root.fields()[0].location().unwrap())
+            .is_some()
+    );
     assert!(
         root.fields()[0]
             .descriptor()
@@ -331,14 +345,21 @@ struct ClosedValue {
 fn test_value_closure_rejects_enum_payload_references() {
     let models = ModelRegistry::global();
     let roots = [TypeMetadata::of::<ClosedValue>()];
-    let result = StructureResolver::new(ResolveInputs { models, roots: &roots }).resolve();
+    let result = StructureResolver::new(ResolveInputs {
+        models,
+        roots: &roots,
+    })
+    .resolve();
     let errors = result.expect_err("Value closure must reject hidden references");
     let error = errors
         .errors()
         .iter()
         .find(|error| error.kind() == ResolveErrorKind::InvalidValueClosure)
         .expect("closure error");
-    assert_eq!(error.owner_type_id(), Some(TypeMetadata::of::<ClosedValue>().type_id()));
+    assert_eq!(
+        error.owner_type_id(),
+        Some(TypeMetadata::of::<ClosedValue>().type_id())
+    );
     let location = error.declaration().expect("payload declaration");
     assert_eq!(location.variant, Some(0));
     assert_eq!(location.field, Some(0));
@@ -372,9 +393,12 @@ fn test_binding_path_navigates_entity_behind_saved_id() {
     let models = ModelRegistry::global();
     let root = TypeMetadata::of::<BoundAddress>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .expect("binding navigation follows Entity metadata");
+    let graph = StructureResolver::new(ResolveInputs {
+        models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("binding navigation follows Entity metadata");
     assert_eq!(
         graph
             .reference(root.fields()[1].location().unwrap())
@@ -396,7 +420,12 @@ struct InvalidDependency {
 fn test_missing_local_dependency_is_a_structure_error() {
     let models = ModelRegistry::global();
     let roots = [TypeMetadata::of::<InvalidDependency>()];
-    let errors = match StructureResolver::new(ResolveInputs { models, roots: &roots }).resolve() {
+    let errors = match StructureResolver::new(ResolveInputs {
+        models,
+        roots: &roots,
+    })
+    .resolve()
+    {
         Err(errors) => errors,
         Ok(_) => panic!("missing dependency must fail structural resolution"),
     };
@@ -429,13 +458,9 @@ fn test_enum_entity_payload_requires_reference() {
         Err(errors) => errors,
         Ok(_) => panic!("unbound Entity payload must fail"),
     };
-    assert!(
-        errors
-            .errors()
-            .iter()
-            .any(|error| error.kind() == ResolveErrorKind::InvalidEntityNesting
-                && error.owner_type_id() == Some(metadata.type_id()))
-    );
+    assert!(errors.errors().iter().any(|error| error.kind()
+        == ResolveErrorKind::InvalidEntityNesting
+        && error.owner_type_id() == Some(metadata.type_id())));
 }
 
 #[Model]
@@ -518,7 +543,10 @@ fn test_reference_type_mismatch_retains_machine_readable_context() {
     let errors = errors.into_vec();
     let error = &errors[0];
     assert_eq!(error.kind(), ResolveErrorKind::TypeMismatch);
-    assert_eq!(error.expected_type(), Some(std::any::TypeId::of::<String>()));
+    assert_eq!(
+        error.expected_type(),
+        Some(std::any::TypeId::of::<String>())
+    );
     assert_eq!(error.actual_type(), Some(std::any::TypeId::of::<u32>()));
     assert_eq!(error.expected_role(), Some(ModelRole::Entity));
     assert_eq!(error.actual_role(), Some(ModelRole::Entity));

@@ -100,15 +100,15 @@ fn assert_missing_rule(root: &'static TypeMetadata) {
             root.type_name()
         );
     };
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.kind() == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule))
-    );
+    assert!(errors.iter().any(|error| error.kind()
+        == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule)));
     assert_eq!(errors[0].declared_rule_id(), Some("binding.missing"));
     assert_eq!(errors[0].root_type_id(), root.type_id());
     assert_eq!(errors[0].owner_type_id(), TypeId::of::<Child>());
-    assert_eq!(errors[0].field_location().unwrap().owner(), TypeId::of::<Child>());
+    assert_eq!(
+        errors[0].field_location().unwrap().owner(),
+        TypeId::of::<Child>()
+    );
     assert_eq!(errors[0].selector(), Some(SelectorPosition::Element));
     assert_eq!(
         errors[0].path(),
@@ -127,7 +127,10 @@ fn assert_missing_rule(root: &'static TypeMetadata) {
         .and_then(|cause| cause.downcast_ref::<BindError>())
         .expect("typed binder cause");
     assert_eq!(cause.kind(), BindErrorKind::MissingRule);
-    assert!(eq(cause, errors[0].source_error().expect("same binder cause")));
+    assert!(eq(
+        cause,
+        errors[0].source_error().expect("same binder cause")
+    ));
     let display = errors[0].to_string();
     assert!(display.contains(root.type_name()));
     assert!(display.contains(errors[0].path().expect("declaration path")));
@@ -189,15 +192,21 @@ impl PreparedValidator for Reject {
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
         assert!(value.as_text().is_some());
-        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
-            "bad",
-        ))]))
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(
+            ViolationCode::new("bad"),
+        )]))
     }
 }
-fn prepare_reject(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_reject(
+    _: &[NamedValidationArgument<'_>],
+) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(Reject))
 }
-static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_reject)];
+static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(
+    InputType::Text,
+    &[],
+    prepare_reject,
+)];
 static DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("binding.missing"),
@@ -206,30 +215,47 @@ static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
 );
 
 static OPTIONAL_REQUIRED_DEPS: &[qubit_validator::DependencySpec] =
-    &[qubit_validator::DependencySpec::new("expected", InputType::Text, false)];
+    &[qubit_validator::DependencySpec::new(
+        "expected",
+        InputType::Text,
+        false,
+    )];
 static OPTIONAL_ALLOWED_DEPS: &[qubit_validator::DependencySpec] =
-    &[qubit_validator::DependencySpec::new("expected", InputType::Text, true)];
-fn prepare_optional_required(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+    &[qubit_validator::DependencySpec::new(
+        "expected",
+        InputType::Text,
+        true,
+    )];
+fn prepare_optional_required(
+    _: &[NamedValidationArgument<'_>],
+) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(prepare_text_with_context(OPTIONAL_REQUIRED_DEPS, |_, _| {
         Ok(PreparedOutcome::Valid)
     }))
 }
-fn prepare_optional_allowed(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
-    Ok(prepare_text_with_context(OPTIONAL_ALLOWED_DEPS, |_, context| {
-        let _ = context.value(0)?;
-        Ok(PreparedOutcome::Valid)
-    }))
+fn prepare_optional_allowed(
+    _: &[NamedValidationArgument<'_>],
+) -> Result<Arc<dyn PreparedValidator>, BindError> {
+    Ok(prepare_text_with_context(
+        OPTIONAL_ALLOWED_DEPS,
+        |_, context| {
+            let _ = context.value(0)?;
+            Ok(PreparedOutcome::Valid)
+        },
+    ))
 }
-static OPTIONAL_REQUIRED_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(&[ValidatorSignature::new(
-    InputType::Text,
-    OPTIONAL_REQUIRED_DEPS,
-    prepare_optional_required,
-)]);
-static OPTIONAL_ALLOWED_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(&[ValidatorSignature::new(
-    InputType::Text,
-    OPTIONAL_ALLOWED_DEPS,
-    prepare_optional_allowed,
-)]);
+static OPTIONAL_REQUIRED_DESCRIPTOR: ValidatorDescriptor =
+    ValidatorDescriptor::new(&[ValidatorSignature::new(
+        InputType::Text,
+        OPTIONAL_REQUIRED_DEPS,
+        prepare_optional_required,
+    )]);
+static OPTIONAL_ALLOWED_DESCRIPTOR: ValidatorDescriptor =
+    ValidatorDescriptor::new(&[ValidatorSignature::new(
+        InputType::Text,
+        OPTIONAL_ALLOWED_DEPS,
+        prepare_optional_allowed,
+    )]);
 static OPTIONAL_VALIDATORS: &[ValidatorRegistration] = &[
     ValidatorRegistration::new(
         ValidatorId::new("binding.optional_required"),
@@ -366,7 +392,10 @@ fn test_capability_check_does_not_require_a_registered_validator() {
         .unwrap();
     ValidationCapabilities::check(TypeMetadata::of::<Parent>(), &graph).unwrap();
     let errors = ValidationCapabilities::check(TypeMetadata::of::<Choice>(), &graph).unwrap_err();
-    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(
+        errors[0].kind(),
+        ValidationBuildErrorKind::UnsupportedExecution
+    );
     assert_eq!(errors[0].field_location().unwrap().variant(), Some(0));
     assert_eq!(errors[0].field_location().unwrap().index(), 0);
 }
@@ -451,7 +480,10 @@ fn test_tuple_contained_declarations_are_discovered_and_rejected() {
     let errors = ValidationCapabilities::check(root, &graph)
         .expect_err("tuple-contained execution must not be silently omitted");
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(
+        errors[0].kind(),
+        ValidationBuildErrorKind::UnsupportedExecution
+    );
     assert_eq!(errors[0].owner_type_id(), TypeId::of::<Child>());
     assert_eq!(errors[0].declared_rule_id(), Some("binding.missing"));
 }
@@ -469,10 +501,13 @@ fn test_selector_value_targets_require_an_actual_element_unwrap_adapter() {
         })
         .resolve()
         .expect("wrapper element structure is representable");
-        let errors =
-            ValidationCapabilities::check(root, &graph).expect_err("slice elements cannot be implicitly unwrapped");
+        let errors = ValidationCapabilities::check(root, &graph)
+            .expect_err("slice elements cannot be implicitly unwrapped");
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+        assert_eq!(
+            errors[0].kind(),
+            ValidationBuildErrorKind::UnsupportedExecution
+        );
         assert_eq!(errors[0].selector(), Some(SelectorPosition::Element));
         assert_eq!(errors[0].path(), Some("values"));
     }
@@ -518,11 +553,17 @@ struct Repeated {
 #[test]
 fn test_cycles_and_payloads_without_executable_work_are_allowed() {
     let models = ModelRegistry::try_global().unwrap();
-    for root in [TypeMetadata::of::<QuietCycle>(), TypeMetadata::of::<QuietChoice>()] {
+    for root in [
+        TypeMetadata::of::<QuietCycle>(),
+        TypeMetadata::of::<QuietChoice>(),
+    ] {
         let roots = [root];
-        let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap();
+        let graph = StructureResolver::new(ResolveInputs {
+            models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap();
         ValidationCapabilities::check(root, &graph).unwrap();
     }
 }
@@ -537,10 +578,14 @@ fn test_unsupported_recursive_container_and_adapter_paths_fail_before_execution(
         TypeMetadata::of::<OwnedParent>(),
     ] {
         let roots = [root];
-        let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap();
-        let errors = ValidationCapabilities::check(root, &graph).expect_err("unsupported execution shape");
+        let graph = StructureResolver::new(ResolveInputs {
+            models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap();
+        let errors =
+            ValidationCapabilities::check(root, &graph).expect_err("unsupported execution shape");
         assert!(
             errors
                 .iter()
@@ -559,9 +604,12 @@ fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
     let models = ModelRegistry::try_global().unwrap();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
@@ -586,7 +634,9 @@ fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
     let report = plan
         .validate(
             ReflectedRef::new(&BorrowedOption {
-                child: Some(OptionalChild { value: String::new() }),
+                child: Some(OptionalChild {
+                    value: String::new(),
+                }),
             }),
             &ValidationOptions::default(),
         )
@@ -603,9 +653,12 @@ fn test_duplicate_rule_ids_remain_distinct_occurrences() {
     let root = TypeMetadata::of::<Repeated>();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     let validators = ValidatorRegistry::empty();
     let Err(errors) = ValidationPlan::build(
@@ -680,9 +733,12 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
     let root = TypeMetadata::of::<Mixed>();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     let validators = ValidatorRegistry::empty();
     let Err(errors) = ValidationPlan::build(
@@ -701,8 +757,14 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
         ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule)
     );
     assert_eq!(errors[1].path(), Some("a_date"));
-    assert_eq!(errors[1].kind(), ValidationBuildErrorKind::UnsupportedExecution);
-    assert!(matches!(errors[1].constraint(), Some(ConstraintMetadata::Time(_))));
+    assert_eq!(
+        errors[1].kind(),
+        ValidationBuildErrorKind::UnsupportedExecution
+    );
+    assert!(matches!(
+        errors[1].constraint(),
+        Some(ConstraintMetadata::Time(_))
+    ));
     assert!(
         !errors.is_empty(),
         "a rejected plan exposes its independent diagnostics"
@@ -713,7 +775,10 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
     // renderer or inspect them through borrowed collection iteration.
     let diagnostics: &[ValidationBuildError] = errors.as_ref();
     assert_eq!(diagnostics[0].declared_rule_id(), Some("binding.missing"));
-    let paths: Vec<_> = (&errors).into_iter().map(ValidationBuildError::path).collect();
+    let paths: Vec<_> = (&errors)
+        .into_iter()
+        .map(ValidationBuildError::path)
+        .collect();
     assert_eq!(paths, [Some("z_missing"), Some("a_date")]);
 }
 
@@ -725,11 +790,17 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_exp
         TypeMetadata::of::<SelectorConstraint>(),
     ] {
         let roots = [root];
-        let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap();
+        let graph = StructureResolver::new(ResolveInputs {
+            models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap();
         let errors = ValidationCapabilities::check(root, &graph).unwrap_err();
-        assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+        assert_eq!(
+            errors[0].kind(),
+            ValidationBuildErrorKind::UnsupportedExecution
+        );
         if root.type_id() == TypeId::of::<SelectorConstraint>() {
             assert_eq!(errors[0].selector(), Some(SelectorPosition::Element));
         }
@@ -737,9 +808,12 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_exp
     let root = TypeMetadata::of::<Counted>();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     ValidationCapabilities::check(root, graph.as_ref()).unwrap();
     let validators = ValidatorRegistry::empty();
@@ -769,8 +843,8 @@ fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
             .resolve()
             .expect("valid structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations(OPTIONAL_VALIDATORS.iter().copied()).expect("rules register");
+    let validators = ValidatorRegistry::from_registrations(OPTIONAL_VALIDATORS.iter().copied())
+        .expect("rules register");
     let root = TypeMetadata::of::<OptionalDependency>();
     let Err(errors) = ValidationPlan::build(
         root,
@@ -793,7 +867,10 @@ fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
         .source()
         .and_then(|source| source.downcast_ref::<BindError>())
         .expect("typed cause");
-    assert_eq!(cause.rule_id(), Some(ValidatorId::new("binding.optional_required")));
+    assert_eq!(
+        cause.rule_id(),
+        Some(ValidatorId::new("binding.optional_required"))
+    );
     assert_eq!(cause.dependency(), Some("expected"));
     let root = TypeMetadata::of::<PresentOptionalDependency>();
     let _plan = ValidationPlan::build(

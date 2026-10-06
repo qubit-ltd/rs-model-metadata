@@ -55,7 +55,9 @@ pub(crate) fn read<'value>(
             .checked_add(index)
             .and_then(|depth| depth.checked_add(1))
             .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit))?;
-        budget.read(depth).map_err(|error| error.with_path(path_for(path)))?;
+        budget
+            .read(depth)
+            .map_err(|error| error.with_path(path_for(path)))?;
         let output = step
             .property()
             .get(receiver)
@@ -70,22 +72,31 @@ pub(crate) fn read<'value>(
                     .descriptor()
                     .and_then(|descriptor| descriptor.as_optional())
                     .ok_or_else(|| {
-                        ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
+                        ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                            .with_path(path_for(path))
                     })?;
                 match descriptor.project_ref(value).map_err(|error| {
                     let error = match error {
-                        OptionalProjectionError::Unavailable => PropertyAccessError::AdapterUnavailable,
-                        OptionalProjectionError::TypeMismatch(error) => PropertyAccessError::ValueTypeMismatch(error),
+                        OptionalProjectionError::Unavailable => {
+                            PropertyAccessError::AdapterUnavailable
+                        }
+                        OptionalProjectionError::TypeMismatch(error) => {
+                            PropertyAccessError::ValueTypeMismatch(error)
+                        }
                     };
                     property_read_error(error, path_for(path))
                 })? {
                     Some(value) if Some(value.value_type_id()) == step.optional_element() => value,
                     Some(value) => {
                         let expected = step.optional_element().ok_or_else(|| {
-                            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
+                            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                                .with_path(path_for(path))
                         })?;
                         return Err(property_read_error(
-                            PropertyAccessError::ValueTypeMismatch(TypeMismatch::new(expected, value.value_type_id())),
+                            PropertyAccessError::ValueTypeMismatch(TypeMismatch::new(
+                                expected,
+                                value.value_type_id(),
+                            )),
                             path_for(path),
                         ));
                     }
@@ -97,7 +108,8 @@ pub(crate) fn read<'value>(
                 return Ok(PropertyValue::OptionalBorrowed(None));
             }
             PropertyValue::Owned(_) | PropertyValue::BorrowedSlice(_) => {
-                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)));
+                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                    .with_path(path_for(path)));
             }
         };
     }
@@ -198,25 +210,36 @@ fn read_dependency<'value>(
     let owner = if path.context_depth() == 0 {
         root
     } else {
-        ancestors.get(path.context_depth() - 1).cloned().ok_or_else(|| {
-            ExecutionError::new(ExecutionErrorKind::MissingRequiredDependencyValue).with_path(path_for(path))
-        })?
+        ancestors
+            .get(path.context_depth() - 1)
+            .cloned()
+            .ok_or_else(|| {
+                ExecutionError::new(ExecutionErrorKind::MissingRequiredDependencyValue)
+                    .with_path(path_for(path))
+            })?
     };
     if path.deferred().is_empty() {
         return read(path, owner, path.context_depth(), budget);
     }
-    let metadata = graph
-        .model(owner.value_type_id())
-        .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))?;
-    let compiled =
-        CompiledPropertyPath::compile(metadata, &PropertyPath::new(path.deferred()), graph, TargetMode::Value)
-            .map_err(|error| {
-                ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                    .with_trusted_source(error)
-                    .with_path(path_for(path))
-            })?;
+    let metadata = graph.model(owner.value_type_id()).ok_or_else(|| {
+        ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
+    })?;
+    let compiled = CompiledPropertyPath::compile(
+        metadata,
+        &PropertyPath::new(path.deferred()),
+        graph,
+        TargetMode::Value,
+    )
+    .map_err(|error| {
+        ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+            .with_trusted_source(error)
+            .with_path(path_for(path))
+    })?;
     if compiled.input_type() != path.input_type() {
-        return Err(ExecutionError::new(ExecutionErrorKind::DependencyTypeMismatch).with_path(path_for(path)));
+        return Err(
+            ExecutionError::new(ExecutionErrorKind::DependencyTypeMismatch)
+                .with_path(path_for(path)),
+        );
     }
     read(&compiled, owner, path.context_depth(), budget)
 }
@@ -238,9 +261,11 @@ pub(crate) fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
             .iter()
             .fold(ValidationPath::root(), |path, name| path.with_field(name));
     }
-    path.steps().iter().fold(ValidationPath::root(), |path, step| {
-        path.with_field(step.property().name())
-    })
+    path.steps()
+        .iter()
+        .fold(ValidationPath::root(), |path, step| {
+            path.with_field(step.property().name())
+        })
 }
 
 #[cfg(test)]
@@ -300,6 +325,9 @@ mod tests {
             Ok(_) => panic!("missing context unexpectedly succeeded"),
             Err(error) => error,
         };
-        assert_eq!(error.kind(), ExecutionErrorKind::MissingRequiredDependencyValue);
+        assert_eq!(
+            error.kind(),
+            ExecutionErrorKind::MissingRequiredDependencyValue
+        );
     }
 }

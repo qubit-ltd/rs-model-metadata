@@ -36,14 +36,20 @@ use qubit_reflect::identity::FragmentIdentity;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata, definition_provider_v2 = first_definition)]
-#[allow(dead_code, reason = "the reflection derive registers this definition-only fixture")]
+#[allow(
+    dead_code,
+    reason = "the reflection derive registers this definition-only fixture"
+)]
 struct FirstGeneric<T> {
     value: T,
 }
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata, definition_provider_v2 = second_definition)]
-#[allow(dead_code, reason = "the reflection derive registers this definition-only fixture")]
+#[allow(
+    dead_code,
+    reason = "the reflection derive registers this definition-only fixture"
+)]
 enum SecondGeneric<T> {
     Value(T),
 }
@@ -138,7 +144,9 @@ static SECOND_CONFLICT: RegistrationFragment = RegistrationFragment::new(
 /// root for `T`.
 fn assert_reflected_root<T: Reflect + ?Sized>() {
     let reference: &'static TypeRef = v7::reflected_type_ref::<T>();
-    let resolved = reference.as_resolved().expect("the helper must return a resolved root");
+    let resolved = reference
+        .as_resolved()
+        .expect("the helper must return a resolved root");
     assert!(std::ptr::eq(resolved, TypeDescriptor::of::<T>()));
 }
 
@@ -168,7 +176,8 @@ fn assert_fragment_source(
     conflict: &'static RegistrationFragment,
     expected: &FragmentIdentity,
 ) {
-    let error = build_registry(&[fragment, conflict]).expect_err("the duplicate capability must conflict");
+    let error =
+        build_registry(&[fragment, conflict]).expect_err("the duplicate capability must conflict");
     let (first, second) = error
         .conflicting_fragments()
         .expect("the conflict must retain both fragment sources");
@@ -185,11 +194,16 @@ fn test_reflected_type_ref_preserves_sized_and_unsized_descriptor_roots() {
 #[test]
 fn test_generic_model_registration_preserves_definition_providers_and_sources() {
     let reflection = ReflectRegistry::initialize().expect("generic capabilities must register");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("generic models must project");
+    let models =
+        ModelRegistry::from_reflect_registry(reflection).expect("generic models must project");
 
     let cases = [
         (first_definition(), first_metadata(), "example.FirstGeneric"),
-        (second_definition(), second_metadata(), "example.SecondGeneric"),
+        (
+            second_definition(),
+            second_metadata(),
+            "example.SecondGeneric",
+        ),
     ];
     for (definition, expected_metadata, model_id) in cases {
         let provider = reflection
@@ -208,7 +222,10 @@ fn test_generic_model_registration_preserves_definition_providers_and_sources() 
                 .source(model_id)
                 .expect("the projected model must retain its capability source"),
             reflection
-                .definition_capability_source(definition.id(), v7::generic_model_metadata_key().id().as_str())
+                .definition_capability_source(
+                    definition.id(),
+                    v7::generic_model_metadata_key().id().as_str()
+                )
                 .expect("the generic capability must retain its source"),
         ));
         assert!(std::ptr::eq(
@@ -224,13 +241,16 @@ fn test_generic_model_registration_preserves_definition_providers_and_sources() 
     }
 
     assert_ne!(
-        models.source("example.FirstGeneric").expect("first definition source"),
+        models
+            .source("example.FirstGeneric")
+            .expect("first definition source"),
         models
             .source("example.SecondGeneric")
             .expect("second definition source"),
     );
 
-    let first_fragment = find_generic_model_capability_fragment(first_definition(), first_metadata());
+    let first_fragment =
+        find_generic_model_capability_fragment(first_definition(), first_metadata());
     assert_fragment_source(
         first_fragment,
         &FIRST_CONFLICT,
@@ -243,7 +263,8 @@ fn test_generic_model_registration_preserves_definition_providers_and_sources() 
             0x1111,
         ),
     );
-    let second_fragment = find_generic_model_capability_fragment(second_definition(), second_metadata());
+    let second_fragment =
+        find_generic_model_capability_fragment(second_definition(), second_metadata());
     assert_fragment_source(
         second_fragment,
         &SECOND_CONFLICT,

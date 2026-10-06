@@ -41,7 +41,9 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
     let variants = concrete.as_enum().expect("concrete enum").variants();
     assert_eq!(variants.len(), 2);
     assert_eq!(definition.variants().len(), variants.len());
-    for (index, (symbolic, concrete_variant)) in definition.variants().iter().zip(variants).enumerate() {
+    for (index, (symbolic, concrete_variant)) in
+        definition.variants().iter().zip(variants).enumerate()
+    {
         assert_eq!(symbolic.index(), index);
         assert_eq!(concrete_variant.index(), index);
         assert!(symbolic.reflect().is_none());
@@ -50,8 +52,14 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
         assert!(concrete_variant.definition().is_none());
         assert_eq!(symbolic.rust_name(), concrete_variant.rust_name());
         assert_eq!(symbolic.canonical_name(), concrete_variant.canonical_name());
-        assert_eq!(symbolic.serialized_name(), concrete_variant.serialized_name());
-        assert_eq!(symbolic.deserialized_name(), concrete_variant.deserialized_name());
+        assert_eq!(
+            symbolic.serialized_name(),
+            concrete_variant.serialized_name()
+        );
+        assert_eq!(
+            symbolic.deserialized_name(),
+            concrete_variant.deserialized_name()
+        );
         assert_eq!(symbolic.is_default(), concrete_variant.is_default());
         assert_eq!(symbolic.fields().len(), concrete_variant.fields().len());
         assert!(symbolic.field_at(symbolic.fields().len()).is_none());
@@ -62,10 +70,18 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
             assert!(symbolic_field.location().is_none());
             assert!(symbolic_field.reflect().is_none());
             assert!(symbolic_field.definition().is_some());
-            assert!(matches!(symbolic_field.visibility(), FieldVisibility::VariantInherited));
-            let field = concrete_variant.field_at(field_index).expect("concrete payload");
+            assert!(matches!(
+                symbolic_field.visibility(),
+                FieldVisibility::VariantInherited
+            ));
+            let field = concrete_variant
+                .field_at(field_index)
+                .expect("concrete payload");
             assert!(field.definition().is_none());
-            assert!(matches!(field.visibility(), FieldVisibility::VariantInherited));
+            assert!(matches!(
+                field.visibility(),
+                FieldVisibility::VariantInherited
+            ));
             let location = field.location().expect("concrete field identity");
             assert_eq!(location.owner(), concrete.type_id());
             assert_eq!(location.variant(), Some(index));
@@ -79,7 +95,9 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
         }
     }
     assert_eq!(definition.variants()[0].rust_name(), "Named");
-    let named = definition.variants()[0].field("value").expect("named symbolic payload");
+    let named = definition.variants()[0]
+        .field("value")
+        .expect("named symbolic payload");
     assert!(core::ptr::eq(
         named,
         definition.variants()[0].field_at(0).expect("first payload")
@@ -98,14 +116,20 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
 #[test]
 fn test_specialization_cache_is_stable_per_concrete_type() {
     let first = TypeMetadata::try_of::<CacheFixture<u32>>().expect("valid first specialization");
-    let second = TypeMetadata::try_of::<CacheFixture<u32>>().expect("valid repeated specialization");
-    let different = TypeMetadata::try_of::<CacheFixture<u64>>().expect("valid second specialization");
+    let second =
+        TypeMetadata::try_of::<CacheFixture<u32>>().expect("valid repeated specialization");
+    let different =
+        TypeMetadata::try_of::<CacheFixture<u64>>().expect("valid second specialization");
 
     assert!(core::ptr::eq(first, second));
     assert!(!core::ptr::eq(first, different));
     assert!(core::ptr::eq(
-        first.generic_definition().expect("first generic definition"),
-        different.generic_definition().expect("shared generic definition")
+        first
+            .generic_definition()
+            .expect("first generic definition"),
+        different
+            .generic_definition()
+            .expect("shared generic definition")
     ));
     let definition_field = &first.generic_definition().expect("definition").fields()[0];
     assert!(definition_field.definition().is_some());

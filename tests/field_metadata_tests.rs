@@ -38,7 +38,9 @@ struct Fields {
 struct SymbolicOwner;
 
 static SYMBOLIC_FIELD: LazyLock<FieldDescriptor> = LazyLock::new(|| {
-    let relationship = Box::leak(Box::new(TypeRef::Symbolic(TypeExpression::Parameter("T".into()))));
+    let relationship = Box::leak(Box::new(TypeRef::Symbolic(TypeExpression::Parameter(
+        "T".into(),
+    ))));
     reflect_field(
         <SymbolicOwner as Reflect>::type_descriptor,
         0,
@@ -60,7 +62,8 @@ fn test_field_overlay_delegates_structure_and_preserves_type_ref_kind() {
         descriptor.fields()[1].declaring_type().type_id(),
         &descriptor.fields()[1],
     );
-    let symbolic = FieldMetadata::from_reflect(SYMBOLIC_FIELD.declaring_type().type_id(), &SYMBOLIC_FIELD);
+    let symbolic =
+        FieldMetadata::from_reflect(SYMBOLIC_FIELD.declaring_type().type_id(), &SYMBOLIC_FIELD);
 
     assert_eq!(resolved.name(), Some("value"));
     assert_eq!(resolved.index(), 0);
@@ -106,7 +109,10 @@ fn test_precision_queries_preserve_values_and_absence() {
     assert!(decimal.min_inclusive());
     assert!(decimal.max_inclusive());
     assert_eq!(
-        instant.time_constraint().expect("declared time precision").precision(),
+        instant
+            .time_constraint()
+            .expect("declared time precision")
+            .precision(),
         TemporalPrecision::Second
     );
     assert!(amount.time_constraint().is_none());

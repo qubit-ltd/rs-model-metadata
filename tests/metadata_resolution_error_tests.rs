@@ -66,7 +66,8 @@ fn test_metadata_and_properties_preserve_intrinsic_conflicts() {
     let descriptor = TypeDescriptor::of::<Invalid<1>>();
     assert!(models.metadata_for(descriptor).is_err());
     let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], v7::leak(v7::model_role())).finish::<Invalid<1>>(),
+        v7::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], v7::leak(v7::model_role()))
+            .finish::<Invalid<1>>(),
     );
     assert!(metadata.try_properties_in(&reflection).is_err());
     assert!(metadata.property_fragments_in(&reflection).is_err());
@@ -110,16 +111,22 @@ v7::register_model_capability!(Root, root_metadata);
     reason = "derive capability providers receive the concrete type parameter"
 )]
 fn wrong_provider<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(model_metadata_key(), root_metadata as fn() -> &'static TypeMetadata)
+    CapabilityDescriptor::with_adapter(
+        model_metadata_key(),
+        root_metadata as fn() -> &'static TypeMetadata,
+    )
 }
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata, capabilities(wrong_provider))]
 struct Wrong<const N: usize>;
 
-static ALTERNATE_WRONG_DESCRIPTOR: TypeDescriptor = qubit_reflect::__private::codegen_v3::descriptor::struct_type::<
-    Wrong<2>,
->("WrongAlternateShape", StructKind::Tuple, &[]);
+static ALTERNATE_WRONG_DESCRIPTOR: TypeDescriptor =
+    qubit_reflect::__private::codegen_v3::descriptor::struct_type::<Wrong<2>>(
+        "WrongAlternateShape",
+        StructKind::Tuple,
+        &[],
+    );
 
 static PANIC_ONCE_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -132,7 +139,10 @@ struct PanicOnce<const N: usize>;
     reason = "derive capability providers receive the concrete type parameter"
 )]
 fn panic_once_capability<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(model_metadata_key(), panic_once_metadata as ModelMetadataProvider)
+    CapabilityDescriptor::with_adapter(
+        model_metadata_key(),
+        panic_once_metadata as ModelMetadataProvider,
+    )
 }
 
 fn panic_once_metadata() -> &'static TypeMetadata {
@@ -187,10 +197,17 @@ impl TypeMetadataProviderTrait for PanicOnce<2> {
 fn test_metadata_abi_failure_is_distinct_from_absence() {
     let reflection = RegistrySnapshotBuilder::new().build().unwrap();
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
-    let error = models.metadata_for(TypeDescriptor::of::<Wrong<1>>()).unwrap_err();
+    let error = models
+        .metadata_for(TypeDescriptor::of::<Wrong<1>>())
+        .unwrap_err();
     assert!(matches!(error, ModelMetadataError::Abi { .. }));
     assert!(std::error::Error::source(&error).is_some());
-    assert!(models.metadata_for(TypeDescriptor::of::<u8>()).unwrap().is_none());
+    assert!(
+        models
+            .metadata_for(TypeDescriptor::of::<u8>())
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]
@@ -245,7 +262,8 @@ fn test_metadata_cache_separates_descriptors_with_the_same_type_id() {
         )
         .finish::<Wrong<2>>(),
     );
-    let source = qubit_reflect::identity::FragmentIdentity::new("fixture", "alternate", 1, 1, "model", 1);
+    let source =
+        qubit_reflect::identity::FragmentIdentity::new("fixture", "alternate", 1, 1, "model", 1);
     let models = ModelRegistry::from_static_metadata(&[(metadata, &source)]).unwrap();
     assert!(models.metadata_for(descriptor).unwrap().is_some());
 
@@ -273,7 +291,9 @@ fn test_metadata_provider_panic_does_not_initialize_cache_cell() {
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
 
     let queried = TypeDescriptor::of::<PanicOnce<2>>();
-    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| models.metadata_for(queried)));
+    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        models.metadata_for(queried)
+    }));
     assert!(panic.is_err());
     let metadata = models
         .metadata_for(queried)
@@ -304,11 +324,16 @@ fn test_resolver_aggregates_real_causes_without_false_role_errors() {
             assert!(!error.sources().is_empty());
             assert!(matches!(
                 error.cause(),
-                Some(ModelResolutionCause::Metadata(ModelMetadataError::Capability { .. }))
+                Some(ModelResolutionCause::Metadata(
+                    ModelMetadataError::Capability { .. }
+                ))
             ));
             error.path().map(|path| path.to_string())
         })
         .collect();
     assert_eq!(paths.iter().filter(|path| path.is_none()).count(), 2);
-    assert_eq!(paths.into_iter().flatten().collect::<Vec<_>>(), ["first", "second"]);
+    assert_eq!(
+        paths.into_iter().flatten().collect::<Vec<_>>(),
+        ["first", "second"]
+    );
 }

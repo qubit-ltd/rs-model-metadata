@@ -59,7 +59,9 @@ impl ObjectPath {
     pub fn new(steps: &'static [NavigationStep]) -> Result<Self, ObjectPathError> {
         for (index, step) in steps.iter().enumerate() {
             if let NavigationStep::Property(name) = step
-                && (name.is_empty() || name.contains(['.', '/']) || name.chars().any(char::is_whitespace))
+                && (name.is_empty()
+                    || name.contains(['.', '/'])
+                    || name.chars().any(char::is_whitespace))
             {
                 return Err(ObjectPathError { index, name });
             }

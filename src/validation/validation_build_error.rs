@@ -134,7 +134,10 @@ impl ValidationBuildError {
 
     /// Records a declaration which cannot be executed without losing semantics.
     pub(crate) fn unsupported(occurrence: &ValidationOccurrence) -> Self {
-        let mut error = Self::at_occurrence(occurrence, BindError::new(BindErrorKind::UnsupportedConstraint));
+        let mut error = Self::at_occurrence(
+            occurrence,
+            BindError::new(BindErrorKind::UnsupportedConstraint),
+        );
         error.kind = ValidationBuildErrorKind::UnsupportedExecution;
         error.source = None;
         error
@@ -265,7 +268,8 @@ impl ValidationBuildError {
     /// map to several rules.
     #[must_use]
     pub fn constraint_rules(&self) -> Vec<ConstraintRuleRef> {
-        self.constraint.map_or_else(Vec::new, standard_constraints::rule_refs)
+        self.constraint
+            .map_or_else(Vec::new, standard_constraints::rule_refs)
     }
 
     /// Returns the underlying validator binding error, or `None` for an
@@ -309,7 +313,12 @@ impl fmt::Display for ValidationBuildError {
     ///
     /// Returns the formatter's error if writing diagnostics fails.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "validation plan for {} failed: {:?}", self.type_name(), self.kind())?;
+        write!(
+            f,
+            "validation plan for {} failed: {:?}",
+            self.type_name(),
+            self.kind()
+        )?;
         if let Some(path) = &self.path {
             write!(f, " at {path}")?;
         }

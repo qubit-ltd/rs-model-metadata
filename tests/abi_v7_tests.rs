@@ -57,14 +57,16 @@ struct Anonymous<T> {
 fn test_generic_model_definition_accepts_no_stable_id() {
     let Anonymous { value } = Anonymous { value: 7u8 };
     assert_eq!(value, 7);
-    let definition = generic_model_metadata(None, ModelRole::Model, anonymous_definition(), &[], &[]);
+    let definition =
+        generic_model_metadata(None, ModelRole::Model, anonymous_definition(), &[], &[]);
     assert!(definition.model_id().is_none());
 }
 
 /// Returning from a child is local navigation, not external parent context.
 #[test]
 fn test_balanced_navigation_does_not_require_parent_context() {
-    let path = ObjectPath::new(&[NavigationStep::Property("child"), NavigationStep::Parent]).unwrap();
+    let path =
+        ObjectPath::new(&[NavigationStep::Property("child"), NavigationStep::Parent]).unwrap();
     assert!(!path.requires_parent());
     let external = ObjectPath::new(&[
         NavigationStep::Property("child"),

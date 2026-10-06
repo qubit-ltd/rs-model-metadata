@@ -80,7 +80,10 @@ fn reachable_work(graph: &ModelGraph<'_>) -> HashSet<TypeId> {
                 continue;
             }
             for (target, _) in nested_models(field.descriptor(), graph) {
-                predecessors.entry(target.type_id()).or_default().push(model.type_id());
+                predecessors
+                    .entry(target.type_id())
+                    .or_default()
+                    .push(model.type_id());
             }
         }
     }
@@ -114,7 +117,8 @@ fn walk(
     for field in fields(owner) {
         let mut segments = prefix.to_vec();
         segments.push(field.name().unwrap_or("<unnamed>"));
-        let unsupported = inherited_unsupported || owner.as_enum().is_some() || field.name().is_none();
+        let unsupported =
+            inherited_unsupported || owner.as_enum().is_some() || field.name().is_none();
         let unsupported_path = unsupported.then(|| {
             let mut path = diagnostic_prefix.map_or_else(|| prefix.join("."), str::to_owned);
             if let Some(variant) = field
@@ -132,7 +136,9 @@ fn walk(
             }
             append_segment(
                 &mut path,
-                &field.name().map_or_else(|| field.index().to_string(), str::to_owned),
+                &field
+                    .name()
+                    .map_or_else(|| field.index().to_string(), str::to_owned),
             );
             path
         });
@@ -164,9 +170,12 @@ fn walk(
             // A structural suffix identifies a container, tuple or raw field use,
             // never an executable property access promised by the current backend.
             let direct = suffix.is_empty()
-                && direct_model(field.descriptor(), graph).is_some_and(|model| model.type_id() == target.type_id());
+                && direct_model(field.descriptor(), graph)
+                    .is_some_and(|model| model.type_id() == target.type_id());
             let nested_path = (unsupported || !direct).then(|| {
-                let mut path = unsupported_path.clone().unwrap_or_else(|| segments.join("."));
+                let mut path = unsupported_path
+                    .clone()
+                    .unwrap_or_else(|| segments.join("."));
                 path.push_str(&suffix);
                 path
             });
@@ -206,14 +215,20 @@ fn walk(
 /// Returns struct fields or enum payload fields in declaration order.
 fn fields(model: &'static TypeMetadata) -> Vec<&'static FieldMetadata> {
     match model.as_enum() {
-        Some(value) => value.variants().iter().flat_map(|variant| variant.fields()).collect(),
+        Some(value) => value
+            .variants()
+            .iter()
+            .flat_map(|variant| variant.fields())
+            .collect(),
         None => model.fields().iter().collect(),
     }
 }
 
 /// Enumerates actual executable declarations without mistaking empty selectors
 /// for work.
-fn declarations(field: &'static FieldMetadata) -> Vec<(Option<SelectorPosition>, ExecutionDeclaration)> {
+fn declarations(
+    field: &'static FieldMetadata,
+) -> Vec<(Option<SelectorPosition>, ExecutionDeclaration)> {
     let mut result = Vec::new();
     for constraint in field.constraints() {
         if constraint_has_work(constraint) {
@@ -222,15 +237,18 @@ fn declarations(field: &'static FieldMetadata) -> Vec<(Option<SelectorPosition>,
         for selector in selectors(constraint) {
             for constraint in selector.constraints() {
                 if constraint_has_work(constraint) {
-                    result.push((Some(selector.position()), ExecutionDeclaration::Constraint(constraint)));
+                    result.push((
+                        Some(selector.position()),
+                        ExecutionDeclaration::Constraint(constraint),
+                    ));
                 }
             }
-            result.extend(
-                selector
-                    .validators()
-                    .iter()
-                    .map(|value| (Some(selector.position()), ExecutionDeclaration::Validator(value))),
-            );
+            result.extend(selector.validators().iter().map(|value| {
+                (
+                    Some(selector.position()),
+                    ExecutionDeclaration::Validator(value),
+                )
+            }));
         }
     }
     result.extend(
@@ -266,7 +284,9 @@ fn constraint_has_work(constraint: &ConstraintMetadata) -> bool {
         ConstraintMetadata::Sequence(value) => {
             value.min_items().is_some() || value.max_items().is_some() || value.unique_items()
         }
-        ConstraintMetadata::Map(value) => value.min_entries().is_some() || value.max_entries().is_some(),
+        ConstraintMetadata::Map(value) => {
+            value.min_entries().is_some() || value.max_entries().is_some()
+        }
         ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_) => true,
     }
 }
@@ -320,7 +340,9 @@ fn structural_suffix(kind: StructuralEdgeKind) -> String {
             name,
             query_name,
         } => {
-            let name = query_name.or(name).map_or_else(|| index.to_string(), str::to_owned);
+            let name = query_name
+                .or(name)
+                .map_or_else(|| index.to_string(), str::to_owned);
             format!(".{name}")
         }
         StructuralEdgeKind::EnumVariantField {

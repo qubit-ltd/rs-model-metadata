@@ -128,7 +128,11 @@ impl ModelValidationError {
     ///
     /// Returns this error with root identity and optional occurrence attached.
     #[must_use = "the enriched model validation error must be retained"]
-    pub(crate) fn at_model(mut self, root: &'static TypeMetadata, occurrence: Option<usize>) -> Self {
+    pub(crate) fn at_model(
+        mut self,
+        root: &'static TypeMetadata,
+        occurrence: Option<usize>,
+    ) -> Self {
         self.root_type_id = Some(root.type_id());
         self.occurrence = occurrence;
         self
@@ -232,7 +236,9 @@ impl ModelValidationError {
     #[must_use = "the optional field location should be checked"]
     #[inline]
     pub fn field_location(&self) -> Option<FieldLocation> {
-        self.context.as_ref().and_then(|context| context.field.location())
+        self.context
+            .as_ref()
+            .and_then(|context| context.field.location())
     }
 
     /// Returns source coordinates for the field and selected collection
@@ -259,7 +265,9 @@ impl ModelValidationError {
     #[must_use = "the optional declared rule identifier should be checked"]
     #[inline]
     pub fn declared_rule_id(&self) -> Option<&'static str> {
-        self.context.as_ref().and_then(|context| context.declared_rule_id())
+        self.context
+            .as_ref()
+            .and_then(|context| context.declared_rule_id())
     }
 
     /// Returns dependency object navigation separately from property selection.
@@ -271,7 +279,9 @@ impl ModelValidationError {
     #[must_use = "the optional dependency object path should be checked"]
     #[inline]
     pub fn dependency_object_path(&self) -> Option<ObjectPath> {
-        self.dependency.as_ref().map(|binding| binding.object_path())
+        self.dependency
+            .as_ref()
+            .map(|binding| binding.object_path())
     }
 
     /// Returns the property selected after dependency object navigation.

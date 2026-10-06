@@ -54,7 +54,9 @@ fn write_name(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), Pro
     let target = target
         .downcast::<ResolutionFixture>()
         .unwrap_or_else(|_| panic!("validated owner"));
-    target.name = value.downcast::<String>().unwrap_or_else(|_| panic!("validated input"));
+    target.name = value
+        .downcast::<String>()
+        .unwrap_or_else(|_| panic!("validated input"));
     Ok(())
 }
 
@@ -104,7 +106,9 @@ fn overlay(getter: bool) -> ModelImplMetadata {
         getter,
         setter,
     )]);
-    owner.validate_properties(properties).expect("valid overlay");
+    owner
+        .validate_properties(properties)
+        .expect("valid overlay");
     v7::model_impl_metadata(
         v7::leak_slice(fragments),
         Ok(v7::leak(v7::local_property_set(properties))),
@@ -140,10 +144,11 @@ fn snapshot(two_providers: bool, unrelated: bool) -> ReflectRegistry {
             setter_provider as ModelImplProvider,
         ),
     ];
-    for (index, (id, provider)) in providers
-        .into_iter()
-        .enumerate()
-        .take(if two_providers { 2 } else { 1 })
+    for (index, (id, provider)) in
+        providers
+            .into_iter()
+            .enumerate()
+            .take(if two_providers { 2 } else { 1 })
     {
         builder.add_type_capabilities(
             owner.descriptor(),
@@ -151,18 +156,33 @@ fn snapshot(two_providers: bool, unrelated: bool) -> ReflectRegistry {
                 model_impl_fragment_key(id),
                 provider,
             )],
-            FragmentIdentity::new("property-resolution-bench", id, 1, 1, "capability", index as u64 + 2),
+            FragmentIdentity::new(
+                "property-resolution-bench",
+                id,
+                1,
+                1,
+                "capability",
+                index as u64 + 2,
+            ),
         );
     }
     if unrelated {
         for index in 0..128_u64 {
-            let id = Box::leak(format!("qubit.bench.unrelated.v1.item_{index:03}").into_boxed_str());
+            let id =
+                Box::leak(format!("qubit.bench.unrelated.v1.item_{index:03}").into_boxed_str());
             builder.add_type_capabilities(
                 owner.descriptor(),
-                vec![CapabilityDescriptor::without_adapter(CapabilityKey::<()>::new(
-                    CapabilityId::new(id).expect("valid unrelated ID"),
-                ))],
-                FragmentIdentity::new("property-resolution-bench", id, 1, 1, "capability", index + 4),
+                vec![CapabilityDescriptor::without_adapter(
+                    CapabilityKey::<()>::new(CapabilityId::new(id).expect("valid unrelated ID")),
+                )],
+                FragmentIdentity::new(
+                    "property-resolution-bench",
+                    id,
+                    1,
+                    1,
+                    "capability",
+                    index + 4,
+                ),
             );
         }
     }
@@ -184,27 +204,68 @@ fn property_resolution(criterion: &mut Criterion) {
         name: "before".to_owned(),
     };
     property
-        .set(ReflectedMut::new(&mut value), ReflectedOwned::new("after".to_owned()))
+        .set(
+            ReflectedMut::new(&mut value),
+            ReflectedOwned::new("after".to_owned()),
+        )
         .expect("merged setter works");
-    let PropertyValue::Borrowed(read) = property.get(ReflectedRef::new(&value)).expect("merged getter works") else {
+    let PropertyValue::Borrowed(read) = property
+        .get(ReflectedRef::new(&value))
+        .expect("merged getter works")
+    else {
         panic!("expected borrowed name");
     };
-    assert_eq!(read.downcast_ref::<String>().expect("String getter"), "after");
-    let unrelated = owner.try_properties_in(&many).expect("unrelated capabilities ignored");
+    assert_eq!(
+        read.downcast_ref::<String>().expect("String getter"),
+        "after"
+    );
+    let unrelated = owner
+        .try_properties_in(&many)
+        .expect("unrelated capabilities ignored");
     assert_eq!(unrelated.properties().len(), merged.properties().len());
-    assert!(unrelated.property("name").expect("same name property").is_getter());
-    assert!(unrelated.property("name").expect("same name property").is_setter());
-    models.properties_for(owner).expect("prime model registry cache");
+    assert!(
+        unrelated
+            .property("name")
+            .expect("same name property")
+            .is_getter()
+    );
+    assert!(
+        unrelated
+            .property("name")
+            .expect("same name property")
+            .is_setter()
+    );
+    models
+        .properties_for(owner)
+        .expect("prime model registry cache");
 
     let mut group = criterion.benchmark_group("model_property_resolution");
     group.bench_function("direct_one", |bencher| {
-        bencher.iter(|| black_box(owner.try_properties_in(black_box(&one)).expect("one provider")));
+        bencher.iter(|| {
+            black_box(
+                owner
+                    .try_properties_in(black_box(&one))
+                    .expect("one provider"),
+            )
+        });
     });
     group.bench_function("direct_two", |bencher| {
-        bencher.iter(|| black_box(owner.try_properties_in(black_box(&two)).expect("two providers")));
+        bencher.iter(|| {
+            black_box(
+                owner
+                    .try_properties_in(black_box(&two))
+                    .expect("two providers"),
+            )
+        });
     });
     group.bench_function("registry_cached_two", |bencher| {
-        bencher.iter(|| black_box(models.properties_for(black_box(owner)).expect("cached two providers")));
+        bencher.iter(|| {
+            black_box(
+                models
+                    .properties_for(black_box(owner))
+                    .expect("cached two providers"),
+            )
+        });
     });
     group.bench_function("direct_many_unrelated", |bencher| {
         bencher.iter(|| {

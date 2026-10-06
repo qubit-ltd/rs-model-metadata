@@ -73,7 +73,9 @@ fn existence_predicate(meta: &Meta) -> Result<Option<TokenStream>> {
     let trigger = arguments
         .next()
         .ok_or_else(|| Error::new_spanned(list, "cfg_attr requires a predicate"))?;
-    let conditions = arguments.map(existence_predicate).collect::<Result<Vec<_>>>()?;
+    let conditions = arguments
+        .map(existence_predicate)
+        .collect::<Result<Vec<_>>>()?;
     let conditions: Vec<_> = conditions.into_iter().flatten().collect();
     if conditions.is_empty() {
         return Ok(None);

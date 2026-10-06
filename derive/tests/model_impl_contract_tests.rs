@@ -61,8 +61,16 @@ impl Person {
 #[test]
 fn test_exclusion_preserves_computed_and_stored_properties() {
     let meta = TypeMetadata::of::<Person>();
-    assert!(meta.try_property("unavailable").expect("properties").is_none());
-    assert!(meta.try_property("diagnostic").expect("properties").is_none());
+    assert!(
+        meta.try_property("unavailable")
+            .expect("properties")
+            .is_none()
+    );
+    assert!(
+        meta.try_property("diagnostic")
+            .expect("properties")
+            .is_none()
+    );
     assert!(
         meta.try_property("full_name")
             .expect("properties")
@@ -179,7 +187,11 @@ impl<const N: usize> Fixed<N> {
 fn test_const_impl_specialization() {
     let metadata = TypeMetadata::of::<Fixed<2>>();
     let property = metadata.try_property("length").unwrap().unwrap();
-    assert!(property.get(ReflectedRef::new(&Fixed { bytes: [1, 2] })).is_ok());
+    assert!(
+        property
+            .get(ReflectedRef::new(&Fixed { bytes: [1, 2] }))
+            .is_ok()
+    );
 }
 
 #[Model]
@@ -210,7 +222,9 @@ fn test_multiple_impl_blocks_merge_accessors() {
     assert!(title.getter().is_some());
     assert!(title.setter().is_some());
     let repeated = metadata.try_properties().expect("repeat resolution");
-    let repeated_title = repeated.property("title").expect("repeated computed property");
+    let repeated_title = repeated
+        .property("title")
+        .expect("repeated computed property");
     assert!(repeated_title.getter().is_some());
     assert!(repeated_title.setter().is_some());
 }

@@ -61,7 +61,12 @@ fn test_missing_property_lookup_returns_none_for_static_metadata() {
     let registry = RegistrySnapshotBuilder::new()
         .build()
         .expect("empty reflection snapshot");
-    assert!(metadata.try_property_in(&registry, "missing").unwrap().is_none());
+    assert!(
+        metadata
+            .try_property_in(&registry, "missing")
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]

@@ -40,7 +40,10 @@ fn test_model_id_uses_one_shared_ascii_segment_grammar() {
 #[test]
 fn test_static_model_id_borrowed_registry_lookup() {
     let entries = std::collections::HashMap::from([(STATIC_MODEL_ID, "user metadata")]);
-    assert_eq!(entries.get("qubit.platform.iam.User"), Some(&"user metadata"));
+    assert_eq!(
+        entries.get("qubit.platform.iam.User"),
+        Some(&"user metadata")
+    );
     assert_eq!(entries.get("qubit.platform.iam.user"), None);
 }
 
@@ -73,7 +76,10 @@ fn test_static_and_dynamic_ids_sort_and_hash_by_text() {
     use std::collections::BTreeSet;
     use std::collections::HashSet;
 
-    let static_ids = BTreeSet::from([ModelId::new("example.Zebra"), ModelId::new("example.Account")]);
+    let static_ids = BTreeSet::from([
+        ModelId::new("example.Zebra"),
+        ModelId::new("example.Account"),
+    ]);
     let sorted: Vec<_> = static_ids.into_iter().map(ModelId::as_str).collect();
     assert_eq!(sorted, ["example.Account", "example.Zebra"]);
 

@@ -56,7 +56,8 @@ pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Res
     validate_declaration_ir(&declaration, &item)?;
     let output = super::output::prepare(&mut item, &declaration, &runtime)?;
     rewrite_field_helpers(&mut item.data, &declaration);
-    item.attrs.push(parse_quote!(#[derive(#runtime::__private::Reflect)]));
+    item.attrs
+        .push(parse_quote!(#[derive(#runtime::__private::Reflect)]));
     item.attrs.push(parse_quote!(#[reflect(crate = #runtime)]));
     if !item.generics.params.is_empty() {
         let provider = format_ident!("__qubit_model_reflect_definition_{}", item.ident);

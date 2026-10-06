@@ -82,7 +82,9 @@ fn test_model_impl_merges_fields_getters_and_setters() {
             .len(),
         10
     );
-    let properties = metadata.try_properties().expect("profile properties must merge");
+    let properties = metadata
+        .try_properties()
+        .expect("profile properties must merge");
     let name = properties.property("name").expect("merged name property");
     let visits = properties.property("visits").expect("field property");
     let summary = properties.property("summary").expect("computed property");
@@ -95,7 +97,9 @@ fn test_model_impl_merges_fields_getters_and_setters() {
     assert_eq!(summary.storage_kind(), PropertyStorageKind::Computed);
     assert_eq!(token.storage_kind(), PropertyStorageKind::Virtual);
 
-    let alias = properties.property("alias").expect("optional borrowed property");
+    let alias = properties
+        .property("alias")
+        .expect("optional borrowed property");
     let tags = properties.property("tags").expect("slice property");
     let mut profile = Profile {
         name: "before".to_owned(),
@@ -104,26 +108,45 @@ fn test_model_impl_merges_fields_getters_and_setters() {
         tags: vec!["one".to_owned(), "two".to_owned()],
     };
     profile.rename_with_prefix("");
-    let PropertyValue::Borrowed(value) = name.get(ReflectedRef::new(&profile)).expect("borrowed getter") else {
+    let PropertyValue::Borrowed(value) = name
+        .get(ReflectedRef::new(&profile))
+        .expect("borrowed getter")
+    else {
         panic!("name getter must borrow");
     };
     assert_eq!(value.as_str(), Some("before"));
-    name.set(ReflectedMut::new(&mut profile), ReflectedOwned::new("after".to_owned()))
-        .expect("setter");
+    name.set(
+        ReflectedMut::new(&mut profile),
+        ReflectedOwned::new("after".to_owned()),
+    )
+    .expect("setter");
     assert_eq!(profile.name, "after");
 
-    let PropertyValue::Owned(value) = summary.get(ReflectedRef::new(&profile)).expect("owned getter") else {
+    let PropertyValue::Owned(value) = summary
+        .get(ReflectedRef::new(&profile))
+        .expect("owned getter")
+    else {
         panic!("summary getter must own");
     };
-    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("after:3"));
+    assert_eq!(
+        value.downcast_ref::<String>().map(String::as_str),
+        Some("after:3")
+    );
 
-    let PropertyValue::OptionalBorrowed(Some(value)) = alias.get(ReflectedRef::new(&profile)).expect("optional getter")
+    let PropertyValue::OptionalBorrowed(Some(value)) = alias
+        .get(ReflectedRef::new(&profile))
+        .expect("optional getter")
     else {
         panic!("alias getter must preserve optional borrowing");
     };
-    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("visible"));
+    assert_eq!(
+        value.downcast_ref::<String>().map(String::as_str),
+        Some("visible")
+    );
 
-    let PropertyValue::BorrowedSlice(values) = tags.get(ReflectedRef::new(&profile)).expect("slice getter") else {
+    let PropertyValue::BorrowedSlice(values) =
+        tags.get(ReflectedRef::new(&profile)).expect("slice getter")
+    else {
         panic!("tags getter must preserve slice borrowing");
     };
     assert_eq!(values.len(), 2);

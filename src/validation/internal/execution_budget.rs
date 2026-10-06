@@ -130,7 +130,9 @@ impl<'options> ExecutionBudget<'options> {
     /// budget is exhausted.
     pub(crate) fn invoke(&mut self, depth: usize, selector: bool) -> Result<(), ExecutionError> {
         self.check_depth(depth)?;
-        if self.nodes >= self.options.max_nodes() || selector && self.comparisons >= self.options.max_comparisons() {
+        if self.nodes >= self.options.max_nodes()
+            || selector && self.comparisons >= self.options.max_comparisons()
+        {
             return Err(limit());
         }
         self.nodes += 1;
@@ -172,7 +174,10 @@ mod tests {
             comparisons: 0,
         };
         budget.read(0).unwrap();
-        assert_eq!(budget.read(0).unwrap_err().kind(), ExecutionErrorKind::TraversalLimit);
+        assert_eq!(
+            budget.read(0).unwrap_err().kind(),
+            ExecutionErrorKind::TraversalLimit
+        );
         assert_eq!(
             budget.invoke(0, false).unwrap_err().kind(),
             ExecutionErrorKind::TraversalLimit
@@ -208,7 +213,10 @@ mod tests {
         assert_eq!(budget.comparisons, 1);
         assert_eq!(budget.nodes, 1);
         assert_eq!(
-            budget.compare(0).expect_err("second comparison blocked").kind(),
+            budget
+                .compare(0)
+                .expect_err("second comparison blocked")
+                .kind(),
             ExecutionErrorKind::TraversalLimit
         );
         assert_eq!(budget.comparisons, 1);
@@ -227,7 +235,10 @@ mod tests {
         };
         budget.compare(0).expect("last comparison");
         assert_eq!(
-            budget.compare(0).expect_err("saturated comparison blocked").kind(),
+            budget
+                .compare(0)
+                .expect_err("saturated comparison blocked")
+                .kind(),
             ExecutionErrorKind::TraversalLimit
         );
         assert_eq!(budget.comparisons, usize::MAX);

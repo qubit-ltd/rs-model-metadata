@@ -54,7 +54,11 @@ struct SelectionEntry {
 }
 
 impl SelectionMask {
-    fn new(selection: &ValidationSelection, model_rule_count: usize, bindings: &[FieldRuleBinding]) -> Self {
+    fn new(
+        selection: &ValidationSelection,
+        model_rule_count: usize,
+        bindings: &[FieldRuleBinding],
+    ) -> Self {
         let total = model_rule_count + bindings.len();
         if matches!(selection, ValidationSelection::All) {
             return Self::All { total };
@@ -160,14 +164,19 @@ impl<'a> ValidationPlan<'a> {
             )
             .at_model(self.root(), None));
         }
-        if let Some(path) = unmatched_selection(options.selection(), self.model_rules().len(), self.bindings()) {
+        if let Some(path) = unmatched_selection(
+            options.selection(),
+            self.model_rules().len(),
+            self.bindings(),
+        ) {
             let error = ExecutionError::new(ExecutionErrorKind::InvalidSelection)
                 .with_path(ValidationPath::root())
                 .with_trusted_source(path);
-            return Err(
-                ModelValidationError::new(error, ReportAccumulator::new(options).into_report())
-                    .at_model(self.root(), None),
-            );
+            return Err(ModelValidationError::new(
+                error,
+                ReportAccumulator::new(options).into_report(),
+            )
+            .at_model(self.root(), None));
         }
         let mut report = ReportAccumulator::new(options);
         let mut budget = ExecutionBudget::new(options);
@@ -188,13 +197,16 @@ impl<'a> ValidationPlan<'a> {
                 budget.invoke(0, false)?;
                 let outcome = binding.validate(input, &context)?;
                 let has_more_work = mask.later_selected(occurrence);
-                report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())
+                report
+                    .accept(occurrence, &path, outcome, has_more_work)
+                    .map(|_| ())
             })();
             if let Err(error) = result {
-                return Err(
-                    ModelValidationError::new(error.with_rule(binding.rule_id()), report.into_report())
-                        .at_model(self.root(), Some(occurrence)),
-                );
+                return Err(ModelValidationError::new(
+                    error.with_rule(binding.rule_id()),
+                    report.into_report(),
+                )
+                .at_model(self.root(), Some(occurrence)));
             }
         }
         for (binding_index, binding) in self.bindings().iter().enumerate() {
@@ -224,11 +236,13 @@ impl<'a> ValidationPlan<'a> {
                 if error.path().as_segments().is_empty() {
                     error = error.with_path(path);
                 }
-                return Err(ModelValidationError::new(error, report.into_report()).at_field(
-                    &binding.context,
-                    occurrence,
-                    failure.dependency,
-                ));
+                return Err(
+                    ModelValidationError::new(error, report.into_report()).at_field(
+                        &binding.context,
+                        occurrence,
+                        failure.dependency,
+                    ),
+                );
             }
         }
         Ok(report.into_report())
@@ -297,7 +311,10 @@ fn execute_field<'value>(
             .steps()
             .last()
             .and_then(|step| step.property().descriptor())
-            .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone()))?;
+            .ok_or_else(|| {
+                ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+                    .with_path(path.clone())
+            })?;
         Some(optional_scalar_value(&value, descriptor).map_err(|error| {
             ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
                 .with_trusted_source(error)
@@ -321,7 +338,9 @@ fn execute_field<'value>(
                 prerequisites: Vec::new(),
             }
         };
-        report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
+        report
+            .accept(occurrence, &path, outcome, has_more_work)
+            .map(|_| ())?;
         return Ok(());
     }
     if let FieldExecution::SequenceUnique { item_eq } = binding.execution() {
@@ -341,7 +360,16 @@ fn execute_field<'value>(
         if selector.position() != SelectorPosition::Element {
             return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
         }
-        return execute_elements(binding, occurrence, value, &path, budget, report, has_more_work).map_err(Into::into);
+        return execute_elements(
+            binding,
+            occurrence,
+            value,
+            &path,
+            budget,
+            report,
+            has_more_work,
+        )
+        .map_err(Into::into);
     }
     let FieldExecution::Registry {
         validator,
@@ -351,7 +379,8 @@ fn execute_field<'value>(
     else {
         return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
     };
-    let (dependencies, paths) = path_reader::dependencies(binding.dependencies(), root, ancestors, graph, budget)?;
+    let (dependencies, paths) =
+        path_reader::dependencies(binding.dependencies(), root, ancestors, graph, budget)?;
     let values: Vec<_> = dependencies.iter().map(property_value).collect();
     // The plan binder matched dependencies by signature name, so this ordered
     // fast path receives values in the validator's declared order.
@@ -378,9 +407,11 @@ fn execute_field<'value>(
                     .and_then(|step| step.property().descriptor())
                     .is_some_and(|descriptor| descriptor.as_optional().is_some());
             if !declared_optional {
-                return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
-                    .with_path(path)
-                    .into());
+                return Err(
+                    ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+                        .with_path(path)
+                        .into(),
+                );
             }
             report
                 .accept(
@@ -403,9 +434,10 @@ fn execute_field<'value>(
         (Some(StandardTarget::SequenceCount), PropertyValue::BorrowedSlice(_)) => {
             ValidationValue::Typed(count.as_ref().expect("slice count"))
         }
-        (Some(StandardTarget::MapCount), PropertyValue::Borrowed(_) | PropertyValue::OptionalBorrowed(Some(_))) => {
-            ValidationValue::Typed(map_count.as_ref().expect("map count"))
-        }
+        (
+            Some(StandardTarget::MapCount),
+            PropertyValue::Borrowed(_) | PropertyValue::OptionalBorrowed(Some(_)),
+        ) => ValidationValue::Typed(map_count.as_ref().expect("map count")),
         (Some(StandardTarget::MapCount), _) => {
             return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
                 .with_path(path)
@@ -424,7 +456,9 @@ fn execute_field<'value>(
     let outcome = validator
         .validate(input, &context)
         .map_err(|error| prefix_error(error, &path))?;
-    report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
+    report
+        .accept(occurrence, &path, outcome, has_more_work)
+        .map(|_| ())?;
     Ok(())
 }
 
@@ -442,7 +476,9 @@ fn execute_unique(
     has_more_work: bool,
 ) -> Result<(), ExecutionError> {
     let PropertyValue::BorrowedSlice(values) = value else {
-        return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path.clone()));
+        return Err(
+            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path.clone())
+        );
     };
     budget
         .invoke(path.as_segments().len(), false)
@@ -459,13 +495,16 @@ fn execute_unique(
             .read(first_path.as_segments().len())
             .map_err(|error| error.with_path(first_path.clone()))?;
         let Some(first_value) = values.get(first) else {
-            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(first_path));
+            return Err(
+                ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(first_path)
+            );
         };
         budget
             .read(second_path.as_segments().len())
             .map_err(|error| error.with_path(second_path.clone()))?;
         let Some(second_value) = values.get(second) else {
-            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(second_path.clone()));
+            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                .with_path(second_path.clone()));
         };
         budget
             .compare(second_path.as_segments().len())
@@ -476,9 +515,12 @@ fn execute_unique(
                 .with_path(second_path.clone())
         })?;
         if equal {
-            let violation = Violation::new(binding.rule_id(), ViolationCode::new("collection.duplicate_item"))
-                .with_path(ValidationPath::root().with_index(second))
-                .with_param("first_index", ViolationParam::Unsigned(first as u128));
+            let violation = Violation::new(
+                binding.rule_id(),
+                ViolationCode::new("collection.duplicate_item"),
+            )
+            .with_path(ValidationPath::root().with_index(second))
+            .with_param("first_index", ViolationParam::Unsigned(first as u128));
             report.accept(
                 occurrence,
                 path,
@@ -516,14 +558,18 @@ fn execute_elements(
             .read(depth)
             .map_err(|error| error.with_path(element_path.clone()))?;
         let element = values.get(index).ok_or_else(|| {
-            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(element_path.clone())
+            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                .with_path(element_path.clone())
         })?;
         let context = BoundValidationContext::new_with_paths(&[], &[])?;
         budget
             .invoke(depth, true)
             .map_err(|error| error.with_path(element_path.clone()))?;
         let FieldExecution::Registry { validator, .. } = binding.execution() else {
-            return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(element_path));
+            return Err(
+                ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+                    .with_path(element_path),
+            );
         };
         let outcome = validator
             .validate(reflected_value(&element), &context)
@@ -542,19 +588,18 @@ fn execute_elements(
 
 /// Prefixes a validator's relative error path without discarding its source.
 fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionError {
-    let path =
-        prefix
-            .as_segments()
-            .iter()
-            .chain(error.path().as_segments())
-            .fold(ValidationPath::root(), |path, segment| match segment {
-                PathSegment::Field(field) => path.with_field(field),
-                PathSegment::Index(index) => path.with_index(*index),
-                PathSegment::MapEntry(index) => path.with_map_entry(*index),
-                PathSegment::MapKey => path.with_map_key(),
-                PathSegment::MapValue => path.with_map_value(),
-                _ => path,
-            });
+    let path = prefix
+        .as_segments()
+        .iter()
+        .chain(error.path().as_segments())
+        .fold(ValidationPath::root(), |path, segment| match segment {
+            PathSegment::Field(field) => path.with_field(field),
+            PathSegment::Index(index) => path.with_index(*index),
+            PathSegment::MapEntry(index) => path.with_map_entry(*index),
+            PathSegment::MapKey => path.with_map_key(),
+            PathSegment::MapValue => path.with_map_value(),
+            _ => path,
+        });
     error.with_path(path)
 }
 
@@ -608,7 +653,9 @@ fn owned_value<'a>(value: &'a ReflectedOwned) -> ValidationValue<'a> {
 fn selected(selection: &ValidationSelection, path: &ValidationPath) -> bool {
     match selection {
         ValidationSelection::All => true,
-        ValidationSelection::Fields(fields) => fields.iter().any(|field| field_matches(field, path)),
+        ValidationSelection::Fields(fields) => {
+            fields.iter().any(|field| field_matches(field, path))
+        }
     }
 }
 
@@ -618,10 +665,13 @@ fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
         .segments()
         .iter()
         .map(String::as_str)
-        .eq(path.as_segments().iter().filter_map(|segment| match segment {
-            PathSegment::Field(name) => Some(*name),
-            _ => None,
-        }))
+        .eq(path
+            .as_segments()
+            .iter()
+            .filter_map(|segment| match segment {
+                PathSegment::Field(name) => Some(*name),
+                _ => None,
+            }))
 }
 
 #[cfg(test)]
