@@ -10,6 +10,9 @@
 
 #![allow(clippy::result_large_err)]
 
+#[path = "path_cache.rs"]
+mod path_cache;
+
 use std::any::TypeId;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -28,6 +31,8 @@ use qubit_reflect::registry::ReflectRegistry;
 
 use super::ModelRegistryError;
 use super::model_entry::ModelEntry;
+use self::path_cache::PathCache;
+use self::path_cache::PathCacheKey;
 #[cfg(feature = "generic")]
 use crate::generic::GenericModelMetadata;
 use crate::metadata::ModelId;
@@ -35,6 +40,8 @@ use crate::metadata::ModelMetadataError;
 use crate::metadata::PropertyResolutionError;
 use crate::metadata::ResolvedProperties;
 use crate::metadata::TypeMetadata;
+use crate::PropertyAccessPath;
+use crate::PropertyAccessPathError;
 #[cfg(feature = "generic")]
 use crate::reflect_facade::generic_model_metadata_key;
 use crate::reflect_facade::model_metadata_key;
@@ -100,6 +107,8 @@ pub struct ModelRegistry<'reflection> {
     reflection: Option<&'reflection ReflectRegistry>,
     /// Per-registry cache for snapshot-specific property resolutions.
     property_cache: PropertyCache,
+    /// Bounded successful access paths retained only by this registry.
+    path_cache: Mutex<PathCache<PropertyAccessPath>>,
 }
 
 impl<'reflection> ModelRegistry<'reflection> {
@@ -510,6 +519,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             generic_definition_indices,
             reflection: None,
             property_cache: Mutex::default(),
+            path_cache: Mutex::default(),
         })
     }
 
@@ -690,6 +700,82 @@ impl<'reflection> ModelRegistry<'reflection> {
             Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceLock::new())))
         };
         cell.get_or_init(|| metadata.try_properties_in(reflection)).clone()
+    }
+
+    /// Compiles or reuses a successful readable path within this registry.
+    ///
+    /// The key includes the exact root metadata address and all segments.
+    /// Failed compilations are retried on later calls. Each registry retains
+    /// at most 256 successful paths and evicts the oldest inserted entry when
+    /// full, so pointer identity is shared only while an entry remains cached.
+    /// A miss compiles outside the cache lock, so concurrent misses may compile
+    /// more than once.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original [`PropertyAccessPathError`] for invalid segments,
+    /// unresolved metadata, and unreadable or unsupported properties.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache mutex was poisoned.
+    #[must_use = "handle access path compilation failures"]
+    pub fn compile_read_path_cached(
+        &self,
+        root: &'static TypeMetadata,
+        segments: &[&str],
+    ) -> Result<Arc<PropertyAccessPath>, PropertyAccessPathError> {
+        self.compile_path_cached(root, segments, false)
+    }
+
+    /// Compiles or reuses a successful writable path within this registry.
+    ///
+    /// Write paths have separate entries from read paths. The leaf's runtime
+    /// writability remains checked by the compiled path when writing. Each
+    /// registry retains at most 256 successful paths, so pointer identity is
+    /// shared only while an entry remains cached.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original [`PropertyAccessPathError`] for invalid segments,
+    /// unresolved metadata, and unreadable or unsupported intermediates.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache mutex was poisoned.
+    #[must_use = "handle access path compilation failures"]
+    pub fn compile_write_path_cached(
+        &self,
+        root: &'static TypeMetadata,
+        segments: &[&str],
+    ) -> Result<Arc<PropertyAccessPath>, PropertyAccessPathError> {
+        self.compile_path_cached(root, segments, true)
+    }
+
+    /// Looks up the keyed mode, compiling without a cache lock on a miss.
+    ///
+    /// Returns the retained `Arc` on success and preserves compilation errors.
+    /// A second lookup under the insertion lock resolves concurrent misses.
+    fn compile_path_cached(
+        &self,
+        root: &'static TypeMetadata,
+        segments: &[&str],
+        write: bool,
+    ) -> Result<Arc<PropertyAccessPath>, PropertyAccessPathError> {
+        let key = PathCacheKey::new(root.type_id(), root as *const _ as usize, segments, write);
+        {
+            let cache = self.path_cache.lock().expect("path cache lock");
+            if let Some(hit) = cache.get(&key) {
+                return Ok(hit);
+            }
+        }
+        let compiled = Arc::new(if write {
+            PropertyAccessPath::compile_for_write(self, root, segments)?
+        } else {
+            PropertyAccessPath::compile(self, root, segments)?
+        });
+        let mut cache = self.path_cache.lock().expect("path cache lock");
+        Ok(cache.insert_or_existing(key, compiled))
     }
 
     /// Returns registered generic metadata for one definition identity, or

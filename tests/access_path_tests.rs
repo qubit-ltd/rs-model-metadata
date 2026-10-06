@@ -8,6 +8,7 @@
 
 //! Public contracts for compiled dynamic property access paths.
 
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -116,6 +117,106 @@ fn test_registry() -> ModelRegistry<'static> {
         (TypeMetadata::of::<SetterOnly>(), setter_only_source),
     ])
     .expect("isolated model registry")
+}
+
+/// Repeated read compilation reuses one path within a registry snapshot.
+#[test]
+fn test_cached_read_path_reuses_successful_compilation() {
+    let registry = test_registry();
+    let root = TypeMetadata::of::<AccessRoot>();
+    let first = registry
+        .compile_read_path_cached(root, &["middle", "leaf", "value"])
+        .expect("first read path compiles");
+    let second = registry
+        .compile_read_path_cached(root, &["middle", "leaf", "value"])
+        .expect("second read path uses cache");
+
+    assert!(Arc::ptr_eq(&first, &second));
+}
+
+/// Read and write modes hold distinct compiled paths for the same segments.
+#[test]
+fn test_cached_path_separates_read_and_write_modes() {
+    let registry = test_registry();
+    let root = TypeMetadata::of::<AccessRoot>();
+    let read = registry
+        .compile_read_path_cached(root, &["middle", "leaf", "value"])
+        .expect("read path compiles");
+    let write = registry
+        .compile_write_path_cached(root, &["middle", "leaf", "value"])
+        .expect("write path compiles");
+    let write_again = registry
+        .compile_write_path_cached(root, &["middle", "leaf", "value"])
+        .expect("write path uses cache");
+
+    assert!(!Arc::ptr_eq(&read, &write));
+    assert!(Arc::ptr_eq(&write, &write_again));
+}
+
+/// Separate registries never share cached paths for the same metadata.
+#[test]
+fn test_cached_path_isolated_between_registry_snapshots() {
+    let first_registry = test_registry();
+    let second_registry = test_registry();
+    let root = TypeMetadata::of::<AccessRoot>();
+    let first = first_registry
+        .compile_read_path_cached(root, &["middle", "leaf", "value"])
+        .expect("first registry compiles");
+    let second = second_registry
+        .compile_read_path_cached(root, &["middle", "leaf", "value"])
+        .expect("second registry compiles");
+
+    assert!(!Arc::ptr_eq(&first, &second));
+}
+
+/// Distinct static metadata allocations for one Rust type have distinct keys.
+#[test]
+fn test_cached_path_separates_metadata_addresses_for_one_type() {
+    let registry = test_registry();
+    let original = TypeMetadata::of::<AccessRoot>();
+    let overlay = Box::leak(Box::new(*original));
+    assert_eq!(original.type_id(), overlay.type_id());
+
+    let first = registry
+        .compile_read_path_cached(original, &["middle", "leaf", "value"])
+        .expect("original metadata path compiles");
+    let second = registry
+        .compile_read_path_cached(overlay, &["middle", "leaf", "value"])
+        .expect("alternate metadata path compiles");
+
+    assert!(!Arc::ptr_eq(&first, &second));
+}
+
+/// An invalid path keeps its original error on every attempt.
+#[test]
+fn test_cached_path_does_not_store_unknown_property_errors() {
+    let registry = test_registry();
+    for _ in 0..2 {
+        assert!(matches!(
+            registry.compile_read_path_cached(TypeMetadata::of::<AccessRoot>(), &["middle", "missing"]),
+            Err(PropertyAccessPathError::UnknownProperty { index: 1, name }) if name == "missing"
+        ));
+    }
+}
+
+/// Concurrent initial misses still return usable paths for every caller.
+#[test]
+fn test_cached_path_concurrent_initial_misses_return_valid_paths() {
+    let registry = Arc::new(test_registry());
+    let handles: Vec<_> = (0..8)
+        .map(|_| {
+            let registry = Arc::clone(&registry);
+            std::thread::spawn(move || {
+                registry
+                    .compile_read_path_cached(TypeMetadata::of::<AccessRoot>(), &["middle", "leaf", "value"])
+                    .expect("concurrent path compiles")
+            })
+        })
+        .collect();
+    for handle in handles {
+        let path = handle.join().expect("path compilation thread succeeds");
+        assert_eq!(path.leaf_property().name(), "value");
+    }
 }
 
 /// Compiles and writes a setter-only leaf without requiring a getter.
