@@ -97,13 +97,16 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
 
 #[test]
 fn test_specialization_cache_is_stable_per_concrete_type() {
-    let first = TypeMetadata::of::<CacheFixture<u32>>();
-    let second = TypeMetadata::of::<CacheFixture<u32>>();
-    let different = TypeMetadata::of::<CacheFixture<u64>>();
+    let first = TypeMetadata::try_of::<CacheFixture<u32>>().expect("valid first specialization");
+    let second = TypeMetadata::try_of::<CacheFixture<u32>>().expect("valid repeated specialization");
+    let different = TypeMetadata::try_of::<CacheFixture<u64>>().expect("valid second specialization");
 
     assert!(core::ptr::eq(first, second));
     assert!(!core::ptr::eq(first, different));
-    assert!(first.generic_definition().is_some());
+    assert!(core::ptr::eq(
+        first.generic_definition().expect("first generic definition"),
+        different.generic_definition().expect("shared generic definition")
+    ));
     let definition_field = &first.generic_definition().expect("definition").fields()[0];
     assert!(definition_field.definition().is_some());
     assert!(matches!(
