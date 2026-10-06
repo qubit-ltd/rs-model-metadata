@@ -813,10 +813,11 @@ impl<'reflection> ModelRegistry<'reflection> {
         segments: &[&str],
         write: bool,
     ) -> Result<Arc<PropertyAccessPath>, PropertyAccessPathError> {
-        let key = PathCacheKey::new(root.type_id(), root as *const _ as usize, segments, write);
+        let type_id = root.type_id();
+        let metadata_address = root as *const _ as usize;
         {
             let cache = self.path_cache.lock().expect("path cache lock");
-            if let Some(hit) = cache.get(&key) {
+            if let Some(hit) = cache.get_borrowed(type_id, metadata_address, segments, write) {
                 return Ok(hit);
             }
         }
@@ -826,6 +827,10 @@ impl<'reflection> ModelRegistry<'reflection> {
             PropertyAccessPath::compile(self, root, segments)?
         });
         let mut cache = self.path_cache.lock().expect("path cache lock");
+        if let Some(hit) = cache.get_borrowed(type_id, metadata_address, segments, write) {
+            return Ok(hit);
+        }
+        let key = PathCacheKey::new(type_id, metadata_address, segments, write);
         Ok(cache.insert_or_existing(key, compiled))
     }
 

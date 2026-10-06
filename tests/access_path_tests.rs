@@ -8,7 +8,12 @@
 
 //! Public contracts for compiled dynamic property access paths.
 
+use std::alloc::GlobalAlloc;
+use std::alloc::Layout;
+use std::alloc::System;
+use std::cell::Cell;
 use std::sync::Arc;
+use std::sync::Barrier;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -23,6 +28,55 @@ use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
+
+thread_local! {
+    static COUNT_ALLOCATIONS: Cell<bool> = const { Cell::new(false) };
+    static ALLOCATION_COUNT: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Counts allocations made by only the active test thread.
+struct ThreadCountingAllocator;
+
+#[global_allocator]
+static ALLOCATOR: ThreadCountingAllocator = ThreadCountingAllocator;
+
+// SAFETY: Allocation calls delegate unchanged pointers and layouts to System.
+unsafe impl GlobalAlloc for ThreadCountingAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let _ = COUNT_ALLOCATIONS.try_with(|enabled| {
+            if enabled.get() {
+                ALLOCATION_COUNT.with(|count| count.set(count.get() + 1));
+            }
+        });
+        // SAFETY: The caller guarantees a valid allocation layout.
+        unsafe { System.alloc(layout) }
+    }
+
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        let _ = COUNT_ALLOCATIONS.try_with(|enabled| {
+            if enabled.get() {
+                ALLOCATION_COUNT.with(|count| count.set(count.get() + 1));
+            }
+        });
+        // SAFETY: The caller guarantees a valid allocation layout.
+        unsafe { System.alloc_zeroed(layout) }
+    }
+
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        let _ = COUNT_ALLOCATIONS.try_with(|enabled| {
+            if enabled.get() {
+                ALLOCATION_COUNT.with(|count| count.set(count.get() + 1));
+            }
+        });
+        // SAFETY: The caller guarantees the pointer, layout, and new size.
+        unsafe { System.realloc(pointer, layout, new_size) }
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        // SAFETY: The caller guarantees the pointer and layout.
+        unsafe { System.dealloc(pointer, layout) }
+    }
+}
 
 #[Model(id = "access.Leaf")]
 struct AccessLeaf {
@@ -134,6 +188,28 @@ fn test_cached_read_path_reuses_successful_compilation() {
     assert!(Arc::ptr_eq(&first, &second));
 }
 
+/// A warmed public cache hit clones its Arc without heap allocation.
+#[test]
+fn test_cached_read_path_hit_does_not_allocate() {
+    let registry = test_registry();
+    let root = TypeMetadata::of::<AccessRoot>();
+    let segments = &["middle", "leaf", "value"];
+    let first = registry
+        .compile_read_path_cached(root, segments)
+        .expect("path warms cache");
+
+    ALLOCATION_COUNT.with(|count| count.set(0));
+    COUNT_ALLOCATIONS.with(|enabled| enabled.set(true));
+    let second = registry
+        .compile_read_path_cached(root, segments)
+        .expect("warmed path hits cache");
+    COUNT_ALLOCATIONS.with(|enabled| enabled.set(false));
+    let allocations = ALLOCATION_COUNT.with(Cell::get);
+
+    assert!(Arc::ptr_eq(&first, &second));
+    assert_eq!(allocations, 0, "cache hit allocated {allocations} times");
+}
+
 /// Read and write modes hold distinct compiled paths for the same segments.
 #[test]
 fn test_cached_path_separates_read_and_write_modes() {
@@ -191,31 +267,57 @@ fn test_cached_path_separates_metadata_addresses_for_one_type() {
 #[test]
 fn test_cached_path_does_not_store_unknown_property_errors() {
     let registry = test_registry();
+    let root = TypeMetadata::of::<AccessRoot>();
+    let first = registry
+        .compile_read_path_cached(root, &["middle", "leaf", "value"])
+        .expect("first valid path");
     for _ in 0..2 {
         assert!(matches!(
-            registry.compile_read_path_cached(TypeMetadata::of::<AccessRoot>(), &["middle", "missing"]),
+            registry.compile_read_path_cached(root, &["middle", "missing"]),
             Err(PropertyAccessPathError::UnknownProperty { index: 1, name }) if name == "missing"
         ));
     }
+    for _ in 1..256 {
+        let overlay = Box::leak(Box::new(*root));
+        registry
+            .compile_read_path_cached(overlay, &["middle", "leaf", "value"])
+            .expect("distinct metadata path compiles");
+    }
+    let first_again = registry
+        .compile_read_path_cached(root, &["middle", "leaf", "value"])
+        .expect("first path remains within 256 successful entries");
+    assert!(
+        Arc::ptr_eq(&first, &first_again),
+        "invalid paths must not consume cache capacity"
+    );
 }
 
 /// Concurrent initial misses still return usable paths for every caller.
 #[test]
 fn test_cached_path_concurrent_initial_misses_return_valid_paths() {
     let registry = Arc::new(test_registry());
+    let barrier = Arc::new(Barrier::new(8));
     let handles: Vec<_> = (0..8)
         .map(|_| {
             let registry = Arc::clone(&registry);
+            let barrier = Arc::clone(&barrier);
             std::thread::spawn(move || {
+                barrier.wait();
                 registry
                     .compile_read_path_cached(TypeMetadata::of::<AccessRoot>(), &["middle", "leaf", "value"])
                     .expect("concurrent path compiles")
             })
         })
         .collect();
+    let mut first = None;
     for handle in handles {
         let path = handle.join().expect("path compilation thread succeeds");
         assert_eq!(path.leaf_property().name(), "value");
+        if let Some(first) = &first {
+            assert!(Arc::ptr_eq(first, &path));
+        } else {
+            first = Some(path);
+        }
     }
 }
 
