@@ -110,9 +110,7 @@ impl<'options> ReportAccumulator<'options> {
         let added_failures = !accepted.failure_ids().is_empty();
         let at_limit = self.report.failure_count() >= self.options.max_violations();
         if !accepted.complete()
-            || (added_failures
-                && has_more_work
-                && (self.options.mode() == ValidationMode::FailFast || at_limit))
+            || (added_failures && has_more_work && (self.options.mode() == ValidationMode::FailFast || at_limit))
         {
             self.stopped = true;
             self.report.mark_truncated();
@@ -193,9 +191,7 @@ mod tests {
 
     #[test]
     fn test_fail_fast_stops_on_original_failure() {
-        let options = ValidationOptions::builder()
-            .mode(ValidationMode::FailFast)
-            .build();
+        let options = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
         let mut accumulator = ReportAccumulator::new(&options);
         accumulator
             .accept(

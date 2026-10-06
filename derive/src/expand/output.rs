@@ -46,11 +46,7 @@ pub(crate) fn prepare(
     }
     let options = &declaration.options.behavior;
     let explicit = explicit_derives(item)?;
-    for (positive, negative) in [
-        ("eq", "no_eq"),
-        ("hash", "no_hash"),
-        ("eq", "no_partial_eq"),
-    ] {
+    for (positive, negative) in [("eq", "no_eq"), ("hash", "no_hash"), ("eq", "no_partial_eq")] {
         if options.contains(positive) && options.contains(negative) {
             return Err(Error::new_spanned(
                 &item.ident,
@@ -59,51 +55,33 @@ pub(crate) fn prepare(
         }
     }
     if options.contains("no_copy") && !matches!(item.data, Data::Enum(_)) {
-        return Err(Error::new_spanned(
-            &item.ident,
-            "no_copy is only supported by Enum",
-        ));
+        return Err(Error::new_spanned(&item.ident, "no_copy is only supported by Enum"));
     }
     let all_unit = matches!(&item.data, Data::Enum(data) if data.variants.iter().all(|variant| matches!(variant.fields, Fields::Unit)));
     if (options.contains("ord") && (options.contains("no_eq") || options.contains("no_partial_eq")))
-        || (options.contains("copy")
-            && (options.contains("no_clone") || options.contains("no_copy")))
+        || (options.contains("copy") && (options.contains("no_clone") || options.contains("no_copy")))
         || (options.contains("partial_ord") && options.contains("no_partial_eq"))
     {
-        return Err(Error::new_spanned(
-            &item.ident,
-            "conflicting model capability options",
-        ));
+        return Err(Error::new_spanned(&item.ident, "conflicting model capability options"));
     }
     let fields: Vec<_> = match &item.data {
         Data::Struct(data) => data.fields.iter().collect(),
-        Data::Enum(data) => data
-            .variants
-            .iter()
-            .flat_map(|variant| variant.fields.iter())
-            .collect(),
+        Data::Enum(data) => data.variants.iter().flat_map(|variant| variant.fields.iter()).collect(),
         Data::Union(_) => Vec::new(),
     };
-    let has_redaction = fields.iter().any(|field| {
-        field
-            .attrs
-            .iter()
-            .any(|attr| attr.path().is_ident("redact"))
-    }) || declaration
-        .fields
+    let has_redaction = fields
         .iter()
-        .chain(
-            declaration
-                .variants
-                .iter()
-                .flat_map(|variant| &variant.fields),
-        )
-        .any(|field| {
-            field.occurrences.iter().any(|occurrence| {
-                matches!(occurrence,
+        .any(|field| field.attrs.iter().any(|attr| attr.path().is_ident("redact")))
+        || declaration
+            .fields
+            .iter()
+            .chain(declaration.variants.iter().flat_map(|variant| &variant.fields))
+            .any(|field| {
+                field.occurrences.iter().any(|occurrence| {
+                    matches!(occurrence,
                 FieldOccurrence::Selector(selector) if selector.redact.is_some())
-            })
-        });
+                })
+            });
     if options.contains("no_redact") && has_redaction {
         return Err(Error::new_spanned(
             &item.ident,
@@ -122,9 +100,8 @@ pub(crate) fn prepare(
     }
     let enabled = |name: &str| !options.contains(&format!("no_{name}"));
     let value_role = matches!(declaration.kind, MacroKind::Value | MacroKind::Enum);
-    let want_eq = (value_role || options.contains("eq") || options.contains("ord"))
-        && enabled("eq")
-        && enabled("partial_eq");
+    let want_eq =
+        (value_role || options.contains("eq") || options.contains("ord")) && enabled("eq") && enabled("partial_eq");
     if options.contains("hash") && !want_eq {
         return Err(Error::new_spanned(
             &item.ident,
@@ -150,11 +127,7 @@ pub(crate) fn prepare(
         }
     };
     add("Clone", quote!(::core::clone::Clone), enabled("clone"));
-    add(
-        "PartialEq",
-        quote!(::core::cmp::PartialEq),
-        enabled("partial_eq"),
-    );
+    add("PartialEq", quote!(::core::cmp::PartialEq), enabled("partial_eq"));
     add("Eq", quote!(::core::cmp::Eq), want_eq);
     add("Hash", quote!(::core::hash::Hash), want_hash);
     add(
@@ -162,11 +135,7 @@ pub(crate) fn prepare(
         quote!(::core::marker::Copy),
         ((all_unit && enabled("clone")) || options.contains("copy")) && enabled("copy"),
     );
-    add(
-        "Default",
-        quote!(::core::default::Default),
-        options.contains("default"),
-    );
+    add("Default", quote!(::core::default::Default), options.contains("default"));
     add(
         "PartialOrd",
         quote!(::core::cmp::PartialOrd),
@@ -207,10 +176,7 @@ pub(crate) fn prepare(
         item.attrs.insert(0, parse_quote!(#[derive(#(#derives),*)]));
     }
     if enabled("serialize") || enabled("deserialize") || redact {
-        let serde_path = LitStr::new(
-            &quote!(#runtime::__private::serde).to_string(),
-            item.ident.span(),
-        );
+        let serde_path = LitStr::new(&quote!(#runtime::__private::serde).to_string(), item.ident.span());
         if !has_serde_control(item, "crate")? {
             item.attrs.push(parse_quote!(#[serde(crate = #serde_path)]));
         }
@@ -230,9 +196,7 @@ fn explicit_derives(item: &DeriveInput) -> Result<BTreeSet<String>> {
     let mut result = BTreeSet::new();
     for attribute in &item.attrs {
         if attribute.path().is_ident("derive") {
-            for path in
-                attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?
-            {
+            for path in attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)? {
                 if let Some(segment) = path.segments.last() {
                     result.insert(segment.ident.to_string());
                 }
@@ -298,11 +262,8 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
                     }
                     match &variant.fields {
                         Fields::Named(fields) => {
-                            let names: Vec<_> = fields
-                                .named
-                                .iter()
-                                .map(|field| field.ident.as_ref().unwrap())
-                                .collect();
+                            let names: Vec<_> =
+                                fields.named.iter().map(|field| field.ident.as_ref().unwrap()).collect();
                             let labels: Vec<_> = names.iter().map(ToString::to_string).collect();
                             quote!(Self::#variant_name { #(#names: #bindings),* } => {
                                 let mut builder = formatter.debug_struct(#label);
@@ -320,10 +281,7 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
             quote!(match self { #(#arms),* })
         }
         Data::Union(_) => {
-            return Err(Error::new_spanned(
-                item,
-                "model output does not support unions",
-            ));
+            return Err(Error::new_spanned(item, "model output does not support unions"));
         }
     };
     Ok(display_impl(item, &generics, body))
@@ -362,34 +320,25 @@ fn add_deserialize_bounds(item: &mut DeriveInput, runtime: &TokenStream) -> Resu
         let mut custom = false;
         for attr in &field.attrs {
             if attr.path().is_ident("serde") {
-                let values =
-                    attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+                let values = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
                 custom |= values.iter().any(|value| {
-                    [
-                        "bound",
-                        "with",
-                        "deserialize_with",
-                        "skip",
-                        "skip_deserializing",
-                    ]
-                    .iter()
-                    .any(|name| value.path().is_ident(name))
+                    ["bound", "with", "deserialize_with", "skip", "skip_deserializing"]
+                        .iter()
+                        .any(|name| value.path().is_ident(name))
                 });
             }
         }
         if custom {
             continue;
         }
-        let types = super::structural_traits::recursive_bounds(&field.ty, &recursive_type)
-            .unwrap_or_else(|| vec![&field.ty]);
+        let types =
+            super::structural_traits::recursive_bounds(&field.ty, &recursive_type).unwrap_or_else(|| vec![&field.ty]);
         let predicates: Vec<_> = types
             .iter()
             .map(|ty| quote!(#ty: #runtime::__private::serde::Deserialize<'de>))
             .collect();
         let bound = LitStr::new(&quote!(#(#predicates),*).to_string(), field.ty.span());
-        field
-            .attrs
-            .push(parse_quote!(#[serde(bound(deserialize = #bound))]));
+        field.attrs.push(parse_quote!(#[serde(bound(deserialize = #bound))]));
     }
     Ok(())
 }
@@ -398,10 +347,7 @@ fn add_deserialize_bounds(item: &mut DeriveInput, runtime: &TokenStream) -> Resu
 ///
 /// Wire names match metadata `serialized_name` / `deserialized_name` unless the
 /// enum or variant already declares Serde renaming.
-fn apply_enum_default_serde_wire_names(
-    item: &mut DeriveInput,
-    declaration: &DeclarationIr,
-) -> Result<()> {
+fn apply_enum_default_serde_wire_names(item: &mut DeriveInput, declaration: &DeclarationIr) -> Result<()> {
     if declaration.kind != MacroKind::Enum {
         return Ok(());
     }
@@ -431,9 +377,9 @@ fn apply_enum_default_serde_wire_names(
         } else {
             let serialize = LitStr::new(serialized, variant.ident.span());
             let deserialize = LitStr::new(deserialized, variant.ident.span());
-            variant.attrs.push(
-                parse_quote!(#[serde(rename(serialize = #serialize, deserialize = #deserialize))]),
-            );
+            variant
+                .attrs
+                .push(parse_quote!(#[serde(rename(serialize = #serialize, deserialize = #deserialize))]));
         }
     }
     Ok(())
@@ -441,10 +387,7 @@ fn apply_enum_default_serde_wire_names(
 
 /// Returns whether a variant already declares Serde rename options.
 fn variant_has_serde_rename(attributes: &[syn::Attribute]) -> Result<bool> {
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("serde"))
-    {
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("serde")) {
         for meta in attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)? {
             if meta.path().is_ident("rename") {
                 return Ok(true);
@@ -458,9 +401,7 @@ fn variant_has_serde_rename(attributes: &[syn::Attribute]) -> Result<bool> {
 fn has_serde_control(item: &DeriveInput, name: &str) -> Result<bool> {
     for attribute in &item.attrs {
         if attribute.path().is_ident("serde") {
-            for meta in
-                attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?
-            {
+            for meta in attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)? {
                 if meta.path().is_ident(name) {
                     return Ok(true);
                 }

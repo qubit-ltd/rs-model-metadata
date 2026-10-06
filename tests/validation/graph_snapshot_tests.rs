@@ -49,13 +49,8 @@ fn unconstrained<T: Reflect>() -> &'static TypeMetadata {
         .map(|field| FieldMetadata::from_reflect(descriptor.type_id(), field))
         .collect();
     v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
-            descriptor,
-            None,
-            v7::leak_slice(fields),
-            v7::leak(v7::model_role()),
-        )
-        .finish::<T>(),
+        v7::GeneratedTypeMetadataBuilder::new(descriptor, None, v7::leak_slice(fields), v7::leak(v7::model_role()))
+            .finish::<T>(),
     )
 }
 
@@ -91,9 +86,7 @@ fn test_plan_uses_the_graphs_canonical_root_declarations() {
     assert!(std::ptr::eq(plan.root(), declared));
     let report = plan
         .validate(
-            ReflectedRef::new(&Record {
-                name: String::new(),
-            }),
+            ReflectedRef::new(&Record { name: String::new() }),
             &ValidationOptions::default(),
         )
         .expect("execution");
@@ -133,9 +126,7 @@ fn test_plan_does_not_import_constraints_from_another_overlay() {
     assert!(std::ptr::eq(plan.root(), stripped));
     assert!(
         plan.validate(
-            ReflectedRef::new(&Record {
-                name: String::new()
-            }),
+            ReflectedRef::new(&Record { name: String::new() }),
             &ValidationOptions::default()
         )
         .expect("execution")
@@ -157,13 +148,9 @@ fn test_capabilities_check_graph_declarations_for_the_requested_type() {
     })
     .resolve()
     .expect("uniqueness is structurally valid");
-    let errors = ValidationCapabilities::check(stripped, &graph)
-        .expect_err("erased uniqueness is unsupported");
+    let errors = ValidationCapabilities::check(stripped, &graph).expect_err("erased uniqueness is unsupported");
     assert_eq!(errors.len(), 1);
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].field_location(), declared.fields()[0].location());
     assert!(errors[0].constraint().is_some());
 }

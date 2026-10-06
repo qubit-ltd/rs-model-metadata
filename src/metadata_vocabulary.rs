@@ -141,10 +141,7 @@ impl fmt::Debug for ValidationArgument<'_> {
             Self::Integer(_) => formatter.write_str("Integer(<redacted>)"),
             Self::Unsigned(_) => formatter.write_str("Unsigned(<redacted>)"),
             Self::String(_) => formatter.write_str("String(<redacted>)"),
-            Self::BoolList(values) => formatter
-                .debug_struct("BoolList")
-                .field("len", &values.len())
-                .finish(),
+            Self::BoolList(values) => formatter.debug_struct("BoolList").field("len", &values.len()).finish(),
             Self::IntegerList(values) => formatter
                 .debug_struct("IntegerList")
                 .field("len", &values.len())
@@ -415,10 +412,7 @@ impl UniqueMetadata {
     /// Unresolved metadata retaining the declaration for later substitution.
     #[must_use]
     #[inline]
-    pub const fn for_definition(
-        respect_to: &'static [PropertyPath<'static>],
-        ignore_case: Option<bool>,
-    ) -> Self {
+    pub const fn for_definition(respect_to: &'static [PropertyPath<'static>], ignore_case: Option<bool>) -> Self {
         Self {
             respect_to,
             ignore_case: false,
@@ -439,11 +433,7 @@ impl UniqueMetadata {
     ///
     /// Concrete uniqueness metadata with the explicit or inferred policy.
     #[must_use]
-    pub fn for_type(
-        respect_to: &'static [PropertyPath<'static>],
-        ignore_case: Option<bool>,
-        ty: &TypeRef,
-    ) -> Self {
+    pub fn for_type(respect_to: &'static [PropertyPath<'static>], ignore_case: Option<bool>, ty: &TypeRef) -> Self {
         Self {
             respect_to,
             ignore_case: ignore_case.unwrap_or_else(|| text_reference(ty)),
@@ -818,14 +808,8 @@ impl DependencyBindingMetadata {
     #[inline]
     pub const fn new(name: &'static str, path: PropertyPath<'static>) -> Self {
         static UNKNOWN: DeclarationLocation = DeclarationLocation::unknown();
-        assert!(
-            !name.is_empty(),
-            "validator dependency name cannot be empty"
-        );
-        assert!(
-            !path.is_empty(),
-            "validator dependency path cannot be empty"
-        );
+        assert!(!name.is_empty(), "validator dependency name cannot be empty");
+        assert!(!path.is_empty(), "validator dependency path cannot be empty");
         Self {
             name,
             path,
@@ -1165,11 +1149,7 @@ impl ValidatorMetadata {
 ///
 /// `true` when a binding in the prefix already uses `name`.
 #[must_use]
-const fn contains_dependency_name(
-    bindings: &[DependencyBindingMetadata],
-    end: usize,
-    name: &str,
-) -> bool {
+const fn contains_dependency_name(bindings: &[DependencyBindingMetadata], end: usize, name: &str) -> bool {
     let mut index = 0;
     while index < end {
         if same_str(bindings[index].name(), name) {
@@ -1437,11 +1417,7 @@ impl RedactMetadata {
     /// Metadata describing the redaction policy at the selected position.
     #[must_use]
     #[inline]
-    pub const fn new(
-        sensitivity: Option<Sensitivity>,
-        mode: RedactModeMetadata,
-        position: RedactPosition,
-    ) -> Self {
+    pub const fn new(sensitivity: Option<Sensitivity>, mode: RedactModeMetadata, position: RedactPosition) -> Self {
         Self {
             sensitivity,
             mode,
@@ -1691,11 +1667,7 @@ impl SerdeFieldMetadata {
     /// This metadata with both behavior provenance values recorded.
     #[must_use]
     #[inline]
-    pub const fn with_sources(
-        mut self,
-        default_source: SerdeBehaviorSource,
-        omit_source: SerdeBehaviorSource,
-    ) -> Self {
+    pub const fn with_sources(mut self, default_source: SerdeBehaviorSource, omit_source: SerdeBehaviorSource) -> Self {
         self.default_source = default_source;
         self.omit_source = omit_source;
         self
@@ -1868,10 +1840,6 @@ pub(crate) fn text_reference(ty: &TypeRef) -> bool {
     descriptor
         .as_optional()
         .map(|value| value.element_type())
-        .or_else(|| {
-            descriptor
-                .as_smart_pointer()
-                .map(|value| value.pointee_type())
-        })
+        .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()))
         .is_some_and(text_reference)
 }

@@ -73,35 +73,24 @@ impl PreparedValidator for AllowToken {
         if value.as_text() == Some(self.0.as_str()) {
             Ok(PreparedOutcome::Valid)
         } else {
-            Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(
-                ViolationCode::new("unexpected_token"),
-            )]))
+            Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+                "unexpected_token",
+            ))]))
         }
     }
 }
 
 /// Checks the consumer-visible parameter contract before compiling the rule.
-fn prepare(
-    arguments: &[NamedValidationArgument<'_>],
-) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare(arguments: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
     let expected = [
         ("enabled", ValidationArgument::Bool(true)),
         ("lower", ValidationArgument::Integer(i128::MIN)),
         ("upper", ValidationArgument::Unsigned(u128::MAX)),
         ("accepted", ValidationArgument::String("accepted")),
         ("switches", ValidationArgument::BoolList(&[true, false])),
-        (
-            "signed",
-            ValidationArgument::IntegerList(&[i128::MIN, i128::MAX]),
-        ),
-        (
-            "unsigned",
-            ValidationArgument::UnsignedList(&[0, u128::MAX]),
-        ),
-        (
-            "labels",
-            ValidationArgument::StringList(&["first", "second"]),
-        ),
+        ("signed", ValidationArgument::IntegerList(&[i128::MIN, i128::MAX])),
+        ("unsigned", ValidationArgument::UnsignedList(&[0, u128::MAX])),
+        ("labels", ValidationArgument::StringList(&["first", "second"])),
     ];
     let received: Vec<_> = arguments
         .iter()
@@ -117,8 +106,7 @@ fn prepare(
     Ok(Arc::new(AllowToken(accepted.to_owned())))
 }
 
-static SIGNATURES: &[ValidatorSignature] =
-    &[ValidatorSignature::new(InputType::Text, &[], prepare)];
+static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare)];
 static DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("arguments.allow_token"),
@@ -140,8 +128,7 @@ fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
         .resolve()
         .expect("valid model structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("registered rule");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("registered rule");
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {

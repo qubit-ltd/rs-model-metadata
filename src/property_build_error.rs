@@ -156,11 +156,7 @@ impl Display for PropertyBuildError {
     ///
     /// Returns the formatter error if writing the diagnostic fails.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
-        write!(
-            formatter,
-            "property {:?} for `{}`",
-            self.kind, self.property_name
-        )?;
+        write!(formatter, "property {:?} for `{}`", self.kind, self.property_name)?;
         if let Some(conflict) = &self.conflict {
             write!(
                 formatter,

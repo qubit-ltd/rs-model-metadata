@@ -266,8 +266,7 @@ pub enum GetterOutputKind {
 /// let adapter: GetterAdapter = get_count;
 /// assert!(adapter(ReflectedRef::new(&())).is_ok());
 /// ```
-pub type GetterAdapter =
-    for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
+pub type GetterAdapter = for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
 
 /// Reads a map length from an exact borrowed property value; `None` means an
 /// optional map field is absent.
@@ -288,8 +287,7 @@ pub type GetterAdapter =
 /// let value = PropertyValue::Owned(qubit_reflect::ReflectedOwned::new(()));
 /// assert_eq!(map_len(&value).expect("map length"), Some(2));
 /// ```
-pub type MapLenAdapter =
-    for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>, PropertyAccessError>;
+pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>, PropertyAccessError>;
 
 /// Compares two exact borrowed collection elements.
 ///
@@ -307,8 +305,7 @@ pub type MapLenAdapter =
 ///
 /// assert!(equal(ReflectedRef::new(&1_u32), ReflectedRef::new(&1_u32)).expect("comparison"));
 /// ```
-pub type ItemEqAdapter =
-    for<'a> fn(ReflectedRef<'a>, ReflectedRef<'a>) -> Result<bool, PropertyAccessError>;
+pub type ItemEqAdapter = for<'a> fn(ReflectedRef<'a>, ReflectedRef<'a>) -> Result<bool, PropertyAccessError>;
 
 /// Safe, read-only operations available for a declared collection field.
 ///
@@ -554,10 +551,7 @@ impl PropertySetFailure {
     /// replacement.
     #[must_use = "handle the property error and recovered replacement"]
     pub fn into_parts(self) -> (PropertyAccessError, Option<ReflectedOwned>) {
-        (
-            *self.error,
-            self.replacement.map(|replacement| *replacement),
-        )
+        (*self.error, self.replacement.map(|replacement| *replacement))
     }
 }
 
@@ -718,10 +712,7 @@ impl GetterMetadata {
     /// Returns [`PropertyAccessError::TargetTypeMismatch`] when `target` has
     /// a different concrete type, or propagates the generated adapter error.
     #[must_use = "handle property access failure"]
-    pub fn get<'a>(
-        &self,
-        target: ReflectedRef<'a>,
-    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         let actual = target.value_type_id();
         let expected = (self.target_type_id)();
         if actual != expected {
@@ -884,19 +875,12 @@ impl SetterMetadata {
     /// Returns [`PropertySetFailure`] retaining `value` when target or input
     /// validation fails before adapter execution, or reports the adapter error.
     #[must_use = "handle property write failure and recover the replacement when available"]
-    pub fn set(
-        &self,
-        target: ReflectedMut<'_>,
-        value: ReflectedOwned,
-    ) -> Result<(), PropertySetFailure> {
+    pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         let actual_target = target.value_type_id();
         let expected_target = (self.target_type_id)();
         if actual_target != expected_target {
             return Err(PropertySetFailure::before_execution(
-                PropertyAccessError::TargetTypeMismatch(TypeMismatch::new(
-                    expected_target,
-                    actual_target,
-                )),
+                PropertyAccessError::TargetTypeMismatch(TypeMismatch::new(expected_target, actual_target)),
                 value,
             ));
         }
@@ -904,10 +888,7 @@ impl SetterMetadata {
         let expected_value = (self.input_type_id)();
         if actual_value != expected_value {
             return Err(PropertySetFailure::before_execution(
-                PropertyAccessError::ValueTypeMismatch(TypeMismatch::new(
-                    expected_value,
-                    actual_value,
-                )),
+                PropertyAccessError::ValueTypeMismatch(TypeMismatch::new(expected_value, actual_value)),
                 value,
             ));
         }
@@ -1156,10 +1137,7 @@ impl PropertyMetadata {
     /// reflection descriptor. Generated runtime metadata cannot create this
     /// state.
     #[must_use = "handle property access failure"]
-    pub fn get<'a>(
-        &self,
-        target: ReflectedRef<'a>,
-    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         if let Some(getter) = self.getter {
             return getter.get(target);
         }
@@ -1197,11 +1175,7 @@ impl PropertyMetadata {
     /// reflection descriptor. Generated runtime metadata cannot create this
     /// state.
     #[must_use = "handle property write failure and recover the replacement when available"]
-    pub fn set(
-        &self,
-        target: ReflectedMut<'_>,
-        value: ReflectedOwned,
-    ) -> Result<(), PropertySetFailure> {
+    pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
         if let Some(setter) = self.setter {
             return setter.set(target, value);
         }

@@ -103,18 +103,8 @@ struct UniqueFields {
 #[test]
 fn test_unique_defaults_follow_field_capabilities() {
     let metadata = TypeMetadata::of::<UniqueFields>();
-    assert!(
-        !metadata.fields()[0]
-            .unique()
-            .expect("numeric unique")
-            .ignore_case()
-    );
-    assert!(
-        metadata.fields()[1]
-            .unique()
-            .expect("text unique")
-            .ignore_case()
-    );
+    assert!(!metadata.fields()[0].unique().expect("numeric unique").ignore_case());
+    assert!(metadata.fields()[1].unique().expect("text unique").ignore_case());
 }
 
 #[Model]
@@ -129,10 +119,7 @@ struct UniqueGeneric<T> {
 fn test_generic_unique_retains_deferred_default() {
     let metadata = TypeMetadata::of::<UniqueGeneric<Title>>();
     assert_eq!(
-        metadata.fields()[0]
-            .unique()
-            .unwrap()
-            .effective_ignore_case(),
+        metadata.fields()[0].unique().unwrap().effective_ignore_case(),
         Some(true)
     );
     assert_eq!(

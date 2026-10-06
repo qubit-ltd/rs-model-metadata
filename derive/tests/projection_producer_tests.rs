@@ -89,28 +89,19 @@ fn test_resolver_discovers_and_executes_projection_producers() {
         .iter()
         .find(|producer| producer.property().name() == "good")
         .expect("good producer");
-    assert_eq!(
-        good.source().type_id(),
-        TypeMetadata::of::<Source>().type_id()
-    );
+    assert_eq!(good.source().type_id(), TypeMetadata::of::<Source>().type_id());
     assert_eq!(
         good.projection().type_id(),
         TypeMetadata::of::<GoodProjection>().type_id()
     );
     let getter = good.projector().expect("executable getter");
     assert_eq!(getter.rust_method_name(), "good");
-    assert!(std::ptr::eq(
-        getter,
-        good.property().getter().expect("property getter")
-    ));
+    assert!(std::ptr::eq(getter, good.property().getter().expect("property getter")));
     assert!(matches!(
         good.project(ReflectedRef::new(&7_u32)),
         Err(ProjectionExecutionError::Field(_))
     ));
-    let PropertyValue::Owned(value) = good
-        .project(ReflectedRef::new(&source))
-        .expect("matching identifier")
-    else {
+    let PropertyValue::Owned(value) = good.project(ReflectedRef::new(&source)).expect("matching identifier") else {
         panic!("owned getter must produce an owned projection");
     };
     assert_eq!(
@@ -146,9 +137,7 @@ fn test_resolver_discovers_and_executes_projection_producers() {
         panic!("borrowed projector must preserve the borrow");
     };
     assert!(std::ptr::eq(
-        value
-            .downcast_ref::<GoodProjection>()
-            .expect("projection type"),
+        value.downcast_ref::<GoodProjection>().expect("projection type"),
         &*CACHED_PROJECTION
     ));
 }

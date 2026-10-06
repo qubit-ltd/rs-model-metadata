@@ -41,9 +41,7 @@ fn test_reference_lookup_preserves_copied_field_identity() {
     let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
         .resolve()
         .expect("valid graph");
-    let field = TypeMetadata::of::<Root>()
-        .field("target")
-        .expect("reference field");
+    let field = TypeMetadata::of::<Root>().field("target").expect("reference field");
     let copy = *field;
     assert!(
         graph.reference(field.location().unwrap()).is_some(),
@@ -53,9 +51,7 @@ fn test_reference_lookup_preserves_copied_field_identity() {
         graph.reference(copy.location().unwrap()).is_some(),
         "copy must retain declaration identity"
     );
-    let reference = graph
-        .reference(copy.location().unwrap())
-        .expect("resolved reference");
+    let reference = graph.reference(copy.location().unwrap()).expect("resolved reference");
     assert_eq!(reference.context_requirement(), ContextRequirement::None);
     assert!(std::ptr::eq(
         reference.declaration(),
@@ -90,26 +86,14 @@ fn test_reference_context_and_selection_are_independent() {
     let parent = TypeMetadata::of::<ParentBoundReference>();
     let whole = TypeMetadata::of::<WholeEntityReference>();
     let roots = [parent, whole];
-    let graph = StructureResolver::new(ResolveInputs {
-        models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("valid references");
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
+        .resolve()
+        .expect("valid references");
     let parent_reference = graph
         .reference(parent.fields()[0].location().expect("parent field"))
         .expect("parent reference");
-    assert_eq!(
-        parent_reference.context_requirement(),
-        ContextRequirement::ParentObject
-    );
-    assert_eq!(
-        parent_reference
-            .property()
-            .expect("selected identifier")
-            .name(),
-        "id"
-    );
+    assert_eq!(parent_reference.context_requirement(), ContextRequirement::ParentObject);
+    assert_eq!(parent_reference.property().expect("selected identifier").name(), "id");
     assert!(
         parent_reference
             .declaration()
@@ -120,21 +104,15 @@ fn test_reference_context_and_selection_are_independent() {
     let whole_reference = graph
         .reference(whole.fields()[0].location().expect("whole field"))
         .expect("entity reference");
-    assert_eq!(
-        whole_reference.context_requirement(),
-        ContextRequirement::None
-    );
+    assert_eq!(whole_reference.context_requirement(), ContextRequirement::None);
     assert!(whole_reference.property().is_none());
     assert_eq!(whole_reference.target().type_id(), TypeId::of::<Target>());
 
     let wrong = TypeMetadata::of::<WrongWholeEntityReference>();
     let roots = [wrong];
-    let errors = StructureResolver::new(ResolveInputs {
-        models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect_err("Id cannot hold the complete Entity");
+    let errors = StructureResolver::new(ResolveInputs { models, roots: &roots })
+        .resolve()
+        .expect_err("Id cannot hold the complete Entity");
     let error = errors
         .errors()
         .iter()
@@ -165,16 +143,10 @@ struct TargetView {
 #[test]
 fn test_anonymous_roots_and_role_queries_use_concrete_type_identity() {
     let models = ModelRegistry::try_global().expect("valid registry");
-    let roots = [
-        TypeMetadata::of::<Anonymous>(),
-        TypeMetadata::of::<TargetView>(),
-    ];
-    let graph = StructureResolver::new(ResolveInputs {
-        models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("valid graph");
+    let roots = [TypeMetadata::of::<Anonymous>(), TypeMetadata::of::<TargetView>()];
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
+        .resolve()
+        .expect("valid graph");
     assert_eq!(
         graph.model(TypeId::of::<Anonymous>()).unwrap().type_id(),
         TypeId::of::<Anonymous>()
@@ -188,11 +160,7 @@ fn test_anonymous_roots_and_role_queries_use_concrete_type_identity() {
     assert_eq!(declarations.len(), 1);
     assert_eq!(declarations[0].field().name(), Some("id"));
     assert_eq!(declarations[0].path().segments(), &["id"]);
-    assert!(
-        declarations[0]
-            .reasons()
-            .contains(IndexingReasons::IDENTIFIER)
-    );
+    assert!(declarations[0].reasons().contains(IndexingReasons::IDENTIFIER));
     assert!(graph.query(TypeId::of::<Anonymous>()).is_none());
     assert_eq!(
         graph
@@ -239,9 +207,5 @@ fn test_generic_instances_have_distinct_owners_and_definition_has_no_location() 
     assert_eq!(text_field.owner(), TypeId::of::<Generic<String>>());
     assert_eq!(number_field.owner(), TypeId::of::<Generic<u32>>());
     assert_ne!(text_field, number_field);
-    assert!(
-        text.generic_definition().unwrap().fields()[0]
-            .location()
-            .is_none()
-    );
+    assert!(text.generic_definition().unwrap().fields()[0].location().is_none());
 }

@@ -40,10 +40,7 @@ impl<'a> ResolutionContext<'a> {
     ///
     /// A context seeded with the registry's concrete models and the explicit
     /// roots, without modifying the registry.
-    pub(in crate::resolve) fn new(
-        registry: &'a ModelRegistry<'a>,
-        roots: &[&'static TypeMetadata],
-    ) -> Self {
+    pub(in crate::resolve) fn new(registry: &'a ModelRegistry<'a>, roots: &[&'static TypeMetadata]) -> Self {
         let mut context = Self {
             registry,
             known: HashMap::new(),

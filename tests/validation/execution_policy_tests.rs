@@ -113,18 +113,9 @@ fn assert_stopped(options: ValidationOptions, expected: usize) {
     )
     .expect("prepared model shape")]);
     let report = plan
-        .validate(
-            ReflectedRef::new(&Root {
-                value: String::new(),
-            }),
-            &options,
-        )
+        .validate(ReflectedRef::new(&Root { value: String::new() }), &options)
         .unwrap();
-    assert_eq!(
-        report.violations().len(),
-        expected,
-        "report must obey the hard limit"
-    );
+    assert_eq!(report.violations().len(), expected, "report must obey the hard limit");
     assert_eq!(
         GETTER_CALLS.with(Cell::get),
         0,
@@ -135,12 +126,7 @@ fn assert_stopped(options: ValidationOptions, expected: usize) {
 
 #[test]
 fn test_fail_fast_retains_only_one_violation_and_stops_before_fields() {
-    assert_stopped(
-        ValidationOptions::builder()
-            .mode(ValidationMode::FailFast)
-            .build(),
-        1,
-    );
+    assert_stopped(ValidationOptions::builder().mode(ValidationMode::FailFast).build(), 1);
 }
 
 #[test]
@@ -193,12 +179,7 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
         .max_violations(NonZeroUsize::new(3).unwrap())
         .build();
     let report = plan
-        .validate(
-            ReflectedRef::new(&Root {
-                value: "valid".into(),
-            }),
-            &options,
-        )
+        .validate(ReflectedRef::new(&Root { value: "valid".into() }), &options)
         .unwrap();
 
     assert_eq!(report.failure_count(), 3);
@@ -251,10 +232,7 @@ fn test_model_empty_invalid_outcome_is_an_execution_error() {
             &ValidationOptions::default(),
         )
         .unwrap_err();
-    assert_eq!(
-        error.error().kind(),
-        ExecutionErrorKind::AdapterContractViolation
-    );
+    assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
 }
 
 #[test]
@@ -279,12 +257,7 @@ fn test_property_reads_and_rule_invocations_each_consume_a_node() {
         .max_nodes(NonZeroUsize::new(2).unwrap())
         .build();
     let error = plan
-        .validate(
-            ReflectedRef::new(&Root {
-                value: String::new(),
-            }),
-            &options,
-        )
+        .validate(ReflectedRef::new(&Root { value: String::new() }), &options)
         .unwrap_err();
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert!(error.partial_report().violations().is_empty());
@@ -384,11 +357,7 @@ fn test_fields_and_selectors_prefix_relative_violation_paths() {
         values: vec!["invalid".into()],
     };
     for (root, value, occurrence_path) in [
-        (
-            TypeMetadata::of::<Fields>(),
-            ReflectedRef::new(&fields),
-            "first",
-        ),
+        (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields), "first"),
         (
             TypeMetadata::of::<Elements>(),
             ReflectedRef::new(&elements),
@@ -399,22 +368,17 @@ fn test_fields_and_selectors_prefix_relative_violation_paths() {
         assert_eq!(report.violations().len(), 3);
         assert!(report.skipped().is_empty());
         assert!(
-            report.violations().iter().all(|violation| {
-                violation.path().render() == format!("{occurrence_path}.nested")
-            })
+            report
+                .violations()
+                .iter()
+                .all(|violation| { violation.path().render() == format!("{occurrence_path}.nested") })
         );
     }
 }
-fn prepare_outcome(
-    _: &[NamedValidationArgument<'_>],
-) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_outcome(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(OutcomeRule))
 }
-static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(
-    InputType::Text,
-    &[],
-    prepare_outcome,
-)];
+static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_outcome)];
 static DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("execution.rule"),
@@ -434,12 +398,9 @@ fn run(
     let models = ModelRegistry::try_global().unwrap();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            models,
-            roots: &roots,
-        })
-        .resolve()
-        .unwrap(),
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .unwrap(),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).unwrap();
     let plan = ValidationPlan::build(
@@ -487,9 +448,7 @@ fn test_fields_and_selectors_stop_globally_after_invalid_outcomes() {
         let report = run(
             root,
             value,
-            &ValidationOptions::builder()
-                .mode(ValidationMode::FailFast)
-                .build(),
+            &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
         )
         .unwrap();
         assert_eq!(report.violations().len(), 1);
@@ -514,22 +473,13 @@ fn test_fields_and_selectors_reject_empty_invalid_outcomes() {
         (TypeMetadata::of::<Elements>(), ReflectedRef::new(&elements)),
     ] {
         let error = run(root, value, &ValidationOptions::default()).unwrap_err();
-        assert_eq!(
-            error.error().kind(),
-            ExecutionErrorKind::AdapterContractViolation
-        );
+        assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
         assert!(error.partial_report().violations().is_empty());
         assert_eq!(error.root_type_id(), Some(root.type_id()));
         assert_eq!(error.owner_type_id(), Some(root.type_id()));
         assert_eq!(error.field_location().unwrap().index(), 0);
         assert_eq!(error.declared_rule_id(), Some("execution.rule"));
-        assert!(
-            error
-                .source()
-                .unwrap()
-                .downcast_ref::<ExecutionError>()
-                .is_some()
-        );
+        assert!(error.source().unwrap().downcast_ref::<ExecutionError>().is_some());
     }
 }
 
@@ -543,9 +493,7 @@ fn test_missing_optional_does_not_trigger_fail_fast_before_invalid_field() {
     let report = run(
         TypeMetadata::of::<OptionalFields>(),
         ReflectedRef::new(&fields),
-        &ValidationOptions::builder()
-            .mode(ValidationMode::FailFast)
-            .build(),
+        &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
     )
     .unwrap();
     assert_eq!(RULE_CALLS.with(Cell::get), 1);
@@ -574,10 +522,7 @@ fn test_execution_error_retains_partial_report_occurrence_without_source() {
     .unwrap_err();
     assert_eq!(error.partial_report().violations().len(), 3);
     assert_eq!(error.occurrence(), Some(1));
-    assert_eq!(
-        error.field_location().unwrap().owner(),
-        TypeId::of::<Fields>()
-    );
+    assert_eq!(error.field_location().unwrap().owner(), TypeId::of::<Fields>());
     assert_eq!(error.field_location().unwrap().index(), 1);
     assert!(error.declaration().unwrap().line.is_some());
     assert_eq!(error.owner_type_id(), Some(TypeId::of::<Fields>()));
@@ -608,18 +553,13 @@ fn test_model_validation_error_without_field_context_exposes_empty_accessors() {
     assert!(error.dependency_object_path().is_none());
     assert!(error.dependency_property_path().is_none());
     let (execution_error, report) = error.into_parts();
-    assert_eq!(
-        execution_error.kind(),
-        ExecutionErrorKind::InputTypeMismatch
-    );
+    assert_eq!(execution_error.kind(), ExecutionErrorKind::InputTypeMismatch);
     assert!(report.violations().is_empty());
 }
 
 #[test]
 fn test_owned_getter_value_is_executed_without_borrowing() {
-    let value = OwnedField {
-        value: "valid".into(),
-    };
+    let value = OwnedField { value: "valid".into() };
     assert!(TypeMetadata::try_of::<OwnedField>().is_ok());
     let report = run(
         TypeMetadata::of::<OwnedField>(),
@@ -643,12 +583,7 @@ fn test_selector_budgets_preserve_partial_report_and_stop_before_next_rule() {
             .max_comparisons(NonZeroUsize::new(1).unwrap())
             .build(),
     ] {
-        let error = run(
-            TypeMetadata::of::<Elements>(),
-            ReflectedRef::new(&value),
-            &options,
-        )
-        .unwrap_err();
+        let error = run(TypeMetadata::of::<Elements>(), ReflectedRef::new(&value), &options).unwrap_err();
         assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
         assert_eq!(error.partial_report().violations().len(), 3);
         assert!(!error.partial_report().is_truncated());
@@ -658,12 +593,7 @@ fn test_selector_budgets_preserve_partial_report_and_stop_before_next_rule() {
     let options = ValidationOptions::builder()
         .max_depth(NonZeroUsize::new(1).unwrap())
         .build();
-    let error = run(
-        TypeMetadata::of::<Elements>(),
-        ReflectedRef::new(&value),
-        &options,
-    )
-    .unwrap_err();
+    let error = run(TypeMetadata::of::<Elements>(), ReflectedRef::new(&value), &options).unwrap_err();
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert_eq!(RULE_CALLS.with(Cell::get), 0);
     assert!(error.partial_report().violations().is_empty());
@@ -678,12 +608,7 @@ fn test_node_budget_boundary_preserves_completed_field_results() {
     let options = ValidationOptions::builder()
         .max_nodes(NonZeroUsize::new(4).unwrap())
         .build();
-    let error = run(
-        TypeMetadata::of::<Fields>(),
-        ReflectedRef::new(&value),
-        &options,
-    )
-    .unwrap_err();
+    let error = run(TypeMetadata::of::<Fields>(), ReflectedRef::new(&value), &options).unwrap_err();
     assert_eq!(error.partial_report().violations().len(), 3);
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert_eq!(RULE_CALLS.with(Cell::get), 1);
@@ -692,14 +617,10 @@ fn test_node_budget_boundary_preserves_completed_field_results() {
         .max_nodes(NonZeroUsize::new(5).unwrap())
         .build();
     assert_eq!(
-        run(
-            TypeMetadata::of::<Fields>(),
-            ReflectedRef::new(&value),
-            &options
-        )
-        .unwrap()
-        .violations()
-        .len(),
+        run(TypeMetadata::of::<Fields>(), ReflectedRef::new(&value), &options)
+            .unwrap()
+            .violations()
+            .len(),
         6
     );
 }
@@ -735,9 +656,7 @@ fn test_missing_optional_occurrences_are_unique_without_triggering_fail_fast() {
             second: None,
             third: None,
         }),
-        &ValidationOptions::builder()
-            .mode(ValidationMode::FailFast)
-            .build(),
+        &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
     )
     .expect("absent optional fields should be skipped");
     assert!(report.is_valid());
@@ -793,9 +712,7 @@ impl PreparedValidator for ParentRule {
         Ok(PreparedOutcome::Valid)
     }
 }
-fn prepare_parent(
-    _: &[NamedValidationArgument<'_>],
-) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_parent(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(ParentRule))
 }
 static PARENT_SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(
@@ -817,12 +734,9 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
     let models = ModelRegistry::try_global().unwrap();
     let roots = [root, parent];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            models,
-            roots: &roots,
-        })
-        .resolve()
-        .unwrap(),
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .unwrap(),
     );
     let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).unwrap();
     let known = ValidationPlan::build_with_context(
@@ -842,9 +756,7 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
         },
     )
     .unwrap();
-    let value = Dependent {
-        value: "child".into(),
-    };
+    let value = Dependent { value: "child".into() };
     let containing = Parent {
         nickname: "parent".into(),
     };
@@ -859,20 +771,13 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
         ] {
             PARENT_READS.with(|calls| calls.set(0));
             let error = plan
-                .validate_with_context(
-                    ReflectedRef::new(&value),
-                    &[ReflectedRef::new(&containing)],
-                    &options,
-                )
+                .validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&containing)], &options)
                 .unwrap_err();
             assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
             assert_eq!(PARENT_READS.with(Cell::get), 0);
             assert_eq!(error.root_type_id(), Some(TypeId::of::<Dependent>()));
             assert_eq!(error.dependency_object_path().unwrap().to_string(), "..");
-            assert_eq!(
-                error.dependency_property_path().unwrap().to_string(),
-                "nickname"
-            );
+            assert_eq!(error.dependency_property_path().unwrap().to_string(), "nickname");
             assert_eq!(error.error().path().render(), "nickname");
         }
         let options = ValidationOptions::builder()
@@ -880,21 +785,14 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
             .max_nodes(NonZeroUsize::new(4).unwrap())
             .build();
         assert!(
-            plan.validate_with_context(
-                ReflectedRef::new(&value),
-                &[ReflectedRef::new(&containing)],
-                &options
-            )
-            .unwrap()
-            .is_valid()
+            plan.validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&containing)], &options)
+                .unwrap()
+                .is_valid()
         );
         let error = plan
             .validate(ReflectedRef::new(&value), &ValidationOptions::default())
             .unwrap_err();
-        assert_eq!(
-            error.error().kind(),
-            ExecutionErrorKind::MissingRequiredDependencyValue
-        );
+        assert_eq!(error.error().kind(), ExecutionErrorKind::MissingRequiredDependencyValue);
         assert_eq!(error.dependency_object_path().unwrap().to_string(), "..");
     }
 }

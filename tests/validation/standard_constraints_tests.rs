@@ -66,13 +66,7 @@ struct Formats {
 
 #[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
 struct DecimalNarrowWindow {
-    #[decimal(
-        precision = 3,
-        scale = 2,
-        min = "1.23",
-        max = "1.24",
-        min_inclusive = false
-    )]
+    #[decimal(precision = 3, scale = 2, min = "1.23", max = "1.24", min_inclusive = false)]
     amount: bigdecimal::BigDecimal,
 }
 
@@ -155,13 +149,7 @@ fn test_text_character_and_byte_bounds_are_independent() {
     let root = TypeMetadata::of::<TextUnits>();
     for text in ["é", "ab", "中"] {
         assert!(
-            validate(
-                root,
-                ReflectedRef::new(&TextUnits {
-                    value: text.to_owned()
-                })
-            )
-            .is_valid(),
+            validate(root, ReflectedRef::new(&TextUnits { value: text.to_owned() })).is_valid(),
             "{text}"
         );
     }
@@ -169,32 +157,12 @@ fn test_text_character_and_byte_bounds_are_independent() {
         ("a", vec!["qubit.rules.text.byte_length"]),
         ("éé", vec!["qubit.rules.text.byte_length"]),
         ("abc", vec!["qubit.rules.text.char_length"]),
-        (
-            "",
-            vec![
-                "qubit.rules.text.char_length",
-                "qubit.rules.text.byte_length",
-            ],
-        ),
+        ("", vec!["qubit.rules.text.char_length", "qubit.rules.text.byte_length"]),
     ] {
-        let report = validate(
-            root,
-            ReflectedRef::new(&TextUnits {
-                value: text.to_owned(),
-            }),
-        );
-        let rules: Vec<_> = report
-            .violations()
-            .iter()
-            .map(|item| item.rule_id().as_str())
-            .collect();
+        let report = validate(root, ReflectedRef::new(&TextUnits { value: text.to_owned() }));
+        let rules: Vec<_> = report.violations().iter().map(|item| item.rule_id().as_str()).collect();
         assert_eq!(rules, expected_rules, "{text:?}");
-        assert!(
-            report
-                .violations()
-                .iter()
-                .all(|item| item.path().render() == "value")
-        );
+        assert!(report.violations().iter().all(|item| item.path().render() == "value"));
         if text == "a" {
             assert_eq!(report.violations()[0].code().as_str(), "text.too_few_bytes");
             assert_eq!(
@@ -215,10 +183,7 @@ fn test_decimal_contract_narrow_window_executes() {
         let report = validate(root, ReflectedRef::new(&value));
         assert_eq!(report.is_valid(), valid);
         if !valid {
-            assert_eq!(
-                report.violations()[0].rule_id().as_str(),
-                ids::DECIMAL_VALUE
-            );
+            assert_eq!(report.violations()[0].rule_id().as_str(), ids::DECIMAL_VALUE);
             assert_eq!(report.violations()[0].code().as_str(), "decimal.range");
             assert_eq!(report.violations()[0].path().render(), "amount");
         }
@@ -277,15 +242,8 @@ fn test_character_policies_preserve_unicode_and_printability() {
         code: "with space".to_owned(),
     };
     let report = validate(root, ReflectedRef::new(&invalid));
-    let paths: Vec<_> = report
-        .violations()
-        .iter()
-        .map(|item| item.path().render())
-        .collect();
-    assert_eq!(
-        paths,
-        ["printable_unicode", "ascii", "printable_ascii", "code"]
-    );
+    let paths: Vec<_> = report.violations().iter().map(|item| item.path().render()).collect();
+    assert_eq!(paths, ["printable_unicode", "ascii", "printable_ascii", "code"]);
     assert!(
         report
             .violations()
@@ -339,10 +297,7 @@ fn test_text_formats_bind_and_report_their_own_rule_identity() {
         failures,
         [
             ("email".to_owned(), "qubit.rules.text.email_ascii"),
-            (
-                "mobile".to_owned(),
-                "qubit.rules.text.china_mobile_structure"
-            ),
+            ("mobile".to_owned(), "qubit.rules.text.china_mobile_structure"),
             ("uri".to_owned(), "qubit.rules.text.uri"),
             ("uuid".to_owned(), "qubit.rules.text.uuid"),
         ]
@@ -376,10 +331,7 @@ fn test_uri_format_preserves_rfc3986_boundaries_and_rule_identity() {
     let report = validate(root, ReflectedRef::new(&invalid));
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "uri");
-    assert_eq!(
-        report.violations()[0].rule_id().as_str(),
-        "qubit.rules.text.uri"
-    );
+    assert_eq!(report.violations()[0].rule_id().as_str(), "qubit.rules.text.uri");
 }
 
 /// Item-count validation reads the exposed slice and includes both boundaries.
@@ -448,10 +400,7 @@ fn test_sequence_minimum_above_u32_max_binds_and_reports_empty_values() {
         report.violations()[0].rule_id().as_str(),
         "qubit.rules.collection.item_count"
     );
-    assert_eq!(
-        report.violations()[0].code().as_str(),
-        "collection.too_small"
-    );
+    assert_eq!(report.violations()[0].code().as_str(), "collection.too_small");
 }
 
 /// A supplied registration cannot override the meaning of a standard rule ID.
@@ -468,8 +417,7 @@ fn test_custom_registry_cannot_override_a_builtin_rule() {
         .expect("structure"),
     );
     let builtin = registrations()[0];
-    let validators =
-        ValidatorRegistry::from_registrations([builtin]).expect("one valid registration");
+    let validators = ValidatorRegistry::from_registrations([builtin]).expect("one valid registration");
     let Err(errors) = ValidationPlan::build(
         root,
         ValidationBuildInputs {
@@ -507,8 +455,7 @@ fn test_custom_registry_cannot_claim_intrinsic_unique_id() {
         builtin.descriptor(),
         builtin.source(),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([intrinsic]).expect("valid custom descriptor");
+    let validators = ValidatorRegistry::from_registrations([intrinsic]).expect("valid custom descriptor");
     let Err(errors) = ValidationPlan::build(
         root,
         ValidationBuildInputs {
@@ -524,10 +471,7 @@ fn test_custom_registry_cannot_claim_intrinsic_unique_id() {
         errors[0].kind(),
         ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::InvalidDeclaration)
     );
-    assert_eq!(
-        errors[0].rule(),
-        Some(ValidatorId::new(ids::COLLECTION_UNIQUE))
-    );
+    assert_eq!(errors[0].rule(), Some(ValidatorId::new(ids::COLLECTION_UNIQUE)));
 }
 
 /// A registry collision must not hide independent structural or binding errors.
@@ -560,36 +504,20 @@ fn test_builtin_collision_retains_independent_declaration_errors() {
     ) else {
         panic!("independent failures must reject the plan");
     };
-    assert_eq!(
-        errors.len(),
-        3,
-        "registry, unsupported payload, and missing rule"
-    );
+    assert_eq!(errors.len(), 3, "registry, unsupported payload, and missing rule");
     assert_eq!(
         errors[0].kind(),
         ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::InvalidDeclaration)
     );
     assert_eq!(errors[0].rule(), Some(builtin.id()));
-    assert!(
-        errors[0].constraint_rules().is_empty(),
-        "registration-level error"
-    );
-    assert_eq!(
-        errors[1].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert!(errors[0].constraint_rules().is_empty(), "registration-level error");
+    assert_eq!(errors[1].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[1].path(), Some("choice.Named.name"));
     assert_eq!(
         errors[2].kind(),
         ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule)
     );
     assert_eq!(errors[2].path(), Some("value"));
-    assert_eq!(
-        errors[2].declared_rule_id(),
-        Some("example.missing_independent_rule")
-    );
-    assert!(
-        errors[2].constraint_rules().is_empty(),
-        "custom rule declaration"
-    );
+    assert_eq!(errors[2].declared_rule_id(), Some("example.missing_independent_rule"));
+    assert!(errors[2].constraint_rules().is_empty(), "custom rule declaration");
 }

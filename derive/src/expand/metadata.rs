@@ -30,11 +30,7 @@ use crate::ir::declaration::VariantIr;
 
 /// Generates lazy type metadata and registration implementations.
 #[must_use]
-pub(crate) fn expand_metadata(
-    declaration: &DeclarationIr,
-    item: &DeriveInput,
-    runtime: &TokenStream,
-) -> TokenStream {
+pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let ident = &item.ident;
     let fields = expand_field_vector(&declaration.fields, quote!(descriptor.fields()), runtime);
     let role = expand_role(declaration, runtime);
@@ -52,10 +48,7 @@ pub(crate) fn expand_metadata(
         .predicates
         .push(parse_quote!(Self: #runtime::__private::Reflect));
     let (impl_generics, ty_generics, where_clause) = impl_generics_source.split_for_impl();
-    let generic_metadata = format_ident!(
-        "__qubit_model_generic_metadata_{}",
-        ident.to_string().to_snake_case()
-    );
+    let generic_metadata = format_ident!("__qubit_model_generic_metadata_{}", ident.to_string().to_snake_case());
     let registration = match (declaration.options.id.as_ref(), has_generics) {
         (Some(_), false) => TokenStream::new(),
         (id, true) => expand_generic_registration(

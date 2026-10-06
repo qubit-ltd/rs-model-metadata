@@ -128,23 +128,13 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         },
     )
     .expect("nested constraints");
-    assert_eq!(
-        plan.binding_count(),
-        2,
-        "both nested declarations must be bound"
-    );
+    assert_eq!(plan.binding_count(), 2, "both nested declarations must be bound");
     let names = ["fields".to_owned(), "second".to_owned()];
     let selected = FieldPath::from_segments(names.iter());
     drop(names);
     assert_eq!(selected, FieldPath::new("fields.second"));
-    assert_eq!(
-        format!("{selected:?}"),
-        "FieldPath { segments: \"<redacted>\" }"
-    );
-    assert_eq!(
-        selected.to_string(),
-        "field path did not match validation rules"
-    );
+    assert_eq!(format!("{selected:?}"), "FieldPath { segments: \"<redacted>\" }");
+    assert_eq!(selected.to_string(), "field path did not match validation rules");
     let value = SelectedEnvelope {
         fields: SelectedFields {
             first: String::new(),
@@ -165,17 +155,12 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
     let explicitly_all = plan
         .validate(
             ReflectedRef::new(&value),
-            &ValidationOptions::builder()
-                .selection(ValidationSelection::All)
-                .build(),
+            &ValidationOptions::builder().selection(ValidationSelection::All).build(),
         )
         .expect("All selection validates every bound occurrence");
     assert_eq!(explicitly_all.violations().len(), 2);
     let options = ValidationOptions::builder()
-        .selection(ValidationSelection::Fields(vec![
-            selected.clone(),
-            selected,
-        ]))
+        .selection(ValidationSelection::Fields(vec![selected.clone(), selected]))
         .build();
     let report = plan
         .validate(ReflectedRef::new(&value), &options)
@@ -218,10 +203,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
 /// Default construction paths agree without requiring compatibility setters.
 #[test]
 fn test_builder_preserves_default_options() {
-    assert_eq!(
-        ValidationOptions::builder().build(),
-        ValidationOptions::default()
-    );
+    assert_eq!(ValidationOptions::builder().build(), ValidationOptions::default());
     assert_eq!(
         ValidationOptionsBuilder::default().build(),
         ValidationOptions::default()
@@ -265,10 +247,7 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
             FieldPath::new("typo"),
         ),
         (vec![FieldPath::new("plain")], FieldPath::new("plain")),
-        (
-            vec![],
-            FieldPath::from_segments(std::iter::empty::<String>()),
-        ),
+        (vec![], FieldPath::from_segments(std::iter::empty::<String>())),
         (
             vec![FieldPath::from_segments(std::iter::empty::<String>())],
             FieldPath::from_segments(std::iter::empty::<String>()),

@@ -105,10 +105,7 @@ impl ModelRegistryError {
     /// # Returns
     ///
     /// An error retaining the capability ID and origin.
-    pub(crate) fn fact_only_capability(
-        capability_id: CapabilityId,
-        origin: CapabilityOrigin,
-    ) -> Self {
+    pub(crate) fn fact_only_capability(capability_id: CapabilityId, origin: CapabilityOrigin) -> Self {
         Self {
             kind: ModelRegistryErrorKind::FactOnlyCapability,
             model_id: None,
@@ -306,11 +303,7 @@ impl ModelRegistryError {
     /// # Returns
     ///
     /// A registration conflict that also retains `cause` as its ABI detail.
-    pub(crate) fn invalid_abi(
-        model_id: Option<ModelId>,
-        sources: Vec<FragmentIdentity>,
-        cause: AbiViolation,
-    ) -> Self {
+    pub(crate) fn invalid_abi(model_id: Option<ModelId>, sources: Vec<FragmentIdentity>, cause: AbiViolation) -> Self {
         let mut error = Self::conflict(model_id, sources);
         error.abi = Some(cause);
         error
@@ -424,14 +417,12 @@ impl Display for ModelRegistryError {
             ModelRegistryErrorKind::FactOnlyCapability => write!(
                 formatter,
                 "model capability {} has no executable adapter",
-                self.capability_id
-                    .expect("fact-only errors retain their ID"),
+                self.capability_id.expect("fact-only errors retain their ID"),
             ),
             ModelRegistryErrorKind::AdapterTypeMismatch => write!(
                 formatter,
                 "model capability {} adapter type mismatch: expected {:?}, actual {:?}",
-                self.capability_id
-                    .expect("adapter mismatch errors retain their ID"),
+                self.capability_id.expect("adapter mismatch errors retain their ID"),
                 self.expected_adapter_type
                     .expect("adapter mismatch errors retain the expected type"),
                 self.actual_adapter_type
@@ -448,35 +439,24 @@ impl Display for ModelRegistryError {
             ModelRegistryErrorKind::ReflectionRegistry => write!(
                 formatter,
                 "reflection registry initialization failed: {}",
-                self.reflection
-                    .as_ref()
-                    .expect("reflection errors retain their source"),
+                self.reflection.as_ref().expect("reflection errors retain their source"),
             ),
             ModelRegistryErrorKind::DuplicateModelId => write!(
                 formatter,
                 "duplicate model ID {}",
-                self.model_id
-                    .expect("duplicate errors retain their ID")
-                    .as_str(),
+                self.model_id.expect("duplicate errors retain their ID").as_str(),
             ),
             ModelRegistryErrorKind::RegistrationConflict => {
                 match self.model_id {
-                    Some(model_id) => write!(
-                        formatter,
-                        "model capability conflict for {}",
-                        model_id.as_str()
-                    )?,
-                    None => formatter
-                        .write_str("model capability conflict without a stable model ID")?,
+                    Some(model_id) => write!(formatter, "model capability conflict for {}", model_id.as_str())?,
+                    None => formatter.write_str("model capability conflict without a stable model ID")?,
                 }
                 if let Some(cause) = &self.abi {
                     write!(formatter, ": {cause}")?;
                 }
                 Ok(())
             }
-            ModelRegistryErrorKind::UnsupportedPlatform => {
-                formatter.write_str("model registration is unsupported")
-            }
+            ModelRegistryErrorKind::UnsupportedPlatform => formatter.write_str("model registration is unsupported"),
         }
     }
 }
@@ -486,16 +466,8 @@ impl Error for ModelRegistryError {
         self.abi
             .as_ref()
             .map(|error| error as &(dyn Error + 'static))
-            .or_else(|| {
-                self.reflection
-                    .as_ref()
-                    .map(|error| error as &(dyn Error + 'static))
-            })
-            .or_else(|| {
-                self.capability
-                    .as_ref()
-                    .map(|error| error as &(dyn Error + 'static))
-            })
+            .or_else(|| self.reflection.as_ref().map(|error| error as &(dyn Error + 'static)))
+            .or_else(|| self.capability.as_ref().map(|error| error as &(dyn Error + 'static)))
     }
 }
 
@@ -523,19 +495,14 @@ mod tests {
             CapabilityTarget::TypeDefinition(TypeDefinitionId::of::<u16>()),
         ] {
             let error = ModelRegistryError::unregistered_model_target(target, id, source.clone());
-            assert_eq!(
-                error.kind(),
-                ModelRegistryErrorKind::UnregisteredModelTarget
-            );
+            assert_eq!(error.kind(), ModelRegistryErrorKind::UnregisteredModelTarget);
             assert_eq!(error.capability_target(), Some(target));
             assert_eq!(error.capability_id(), Some(id));
             assert_eq!(error.model_id(), None);
             assert_eq!(error.sources(), std::slice::from_ref(&source));
             assert_eq!(
                 error.origins(),
-                &[CapabilityOrigin::Registered {
-                    source: source.clone()
-                }]
+                &[CapabilityOrigin::Registered { source: source.clone() }]
             );
             assert!(error.to_string().contains("qubit.model.metadata.v1"));
             assert!(error.to_string().contains(&format!("{target:?}")));
@@ -556,12 +523,7 @@ mod tests {
         assert_eq!(fact.origins().len(), 1);
         assert!(fact.to_string().contains("no executable adapter"));
 
-        let mismatch = ModelRegistryError::adapter_type_mismatch(
-            id,
-            TypeId::of::<u8>(),
-            TypeId::of::<u16>(),
-            origin,
-        );
+        let mismatch = ModelRegistryError::adapter_type_mismatch(id, TypeId::of::<u8>(), TypeId::of::<u16>(), origin);
         assert_eq!(mismatch.kind(), ModelRegistryErrorKind::AdapterTypeMismatch);
         assert_eq!(mismatch.expected_adapter_type(), Some(TypeId::of::<u8>()));
         assert_eq!(mismatch.actual_adapter_type(), Some(TypeId::of::<u16>()));
@@ -574,10 +536,6 @@ mod tests {
         let error = ModelRegistryError::reflection(cause);
         assert_eq!(error.kind(), ModelRegistryErrorKind::ReflectionRegistry);
         assert!(error.source().is_some());
-        assert!(
-            error
-                .to_string()
-                .contains("reflection registry initialization failed")
-        );
+        assert!(error.to_string().contains("reflection registry initialization failed"));
     }
 }

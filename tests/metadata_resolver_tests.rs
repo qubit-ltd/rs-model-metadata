@@ -31,9 +31,7 @@ use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::identity::FragmentIdentity;
 
-fn model_registry(
-    entries: &[(&'static TypeMetadata, &'static FragmentIdentity)],
-) -> ModelRegistry<'static> {
+fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]) -> ModelRegistry<'static> {
     ModelRegistry::from_static_metadata(entries).expect("valid isolated model registry")
 }
 
@@ -96,9 +94,7 @@ fn source_identity(line: u32) -> &'static FragmentIdentity {
 #[test]
 fn test_resolver_resolves_reference_targets_and_properties() {
     let target_descriptor = TypeDescriptor::of::<TargetFixture>();
-    let identifier = Box::leak(Box::new(IdentifierMetadata::new(
-        IdentifierAssignment::Application,
-    )));
+    let identifier = Box::leak(Box::new(IdentifierMetadata::new(IdentifierAssignment::Application)));
     let target_attributes = Box::leak(
         vec![
             FieldAttributeMetadata::Identifier(identifier),
@@ -108,9 +104,7 @@ fn test_resolver_resolves_reference_targets_and_properties() {
     );
     let target_fields = Box::leak(
         vec![v7::field_metadata(
-            (target_descriptor.field_at(0).unwrap())
-                .declaring_type()
-                .type_id(),
+            (target_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
             target_descriptor.field_at(0).unwrap(),
             target_attributes,
             &[],
@@ -141,26 +135,19 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         .finish::<TargetFixture>(),
     ));
 
-    let declared_target = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new(
-        "example.Target",
-    ))));
-    let selection = Box::leak(Box::new(ReferenceSelection::Property(PropertyPath::new(
-        &["id"],
-    ))));
+    let declared_target = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new("example.Target"))));
+    let selection = Box::leak(Box::new(ReferenceSelection::Property(PropertyPath::new(&["id"]))));
     let reference = Box::leak(Box::new(FieldReferenceMetadata::new(
         declared_target,
         selection,
         true,
         None,
     )));
-    let attributes =
-        Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
+    let attributes = Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
     let source_descriptor = TypeDescriptor::of::<SourceFixture>();
     let source_fields = Box::leak(
         vec![v7::field_metadata(
-            (source_descriptor.field_at(0).unwrap())
-                .declaring_type()
-                .type_id(),
+            (source_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
             source_descriptor.field_at(0).unwrap(),
             attributes,
             &[],
@@ -196,9 +183,7 @@ fn test_resolver_resolves_reference_targets_and_properties() {
 
     assert!(std::ptr::eq(resolved.target(), target_metadata));
     assert_eq!(resolved.property().map(PropertyMetadata::name), Some("id"));
-    let query = graph
-        .query(target_metadata.type_id())
-        .expect("entity query");
+    let query = graph.query(target_metadata.type_id()).expect("entity query");
     assert_eq!(query.declarations().len(), 1);
     assert_eq!(query.declarations()[0].path().segments(), &["id"]);
 }
@@ -206,15 +191,10 @@ fn test_resolver_resolves_reference_targets_and_properties() {
 #[test]
 fn test_resolver_aggregates_missing_targets_deterministically() {
     let descriptor = TypeDescriptor::of::<SourceFixture>();
-    let target = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new(
-        "missing.Target",
-    ))));
+    let target = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))));
     let selection = Box::leak(Box::new(ReferenceSelection::Entity));
-    let reference = Box::leak(Box::new(FieldReferenceMetadata::new(
-        target, selection, true, None,
-    )));
-    let attributes =
-        Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
+    let reference = Box::leak(Box::new(FieldReferenceMetadata::new(target, selection, true, None)));
+    let attributes = Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
     let fields = Box::leak(
         vec![v7::field_metadata(
             (descriptor.field_at(0).unwrap()).declaring_type().type_id(),
@@ -228,13 +208,8 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
     );
     let role = v7::leak(v7::model_role());
     let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
-            descriptor,
-            Some(ModelId::new("example.SourceMissing")),
-            fields,
-            role,
-        )
-        .finish::<SourceFixture>(),
+        v7::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.SourceMissing")), fields, role)
+            .finish::<SourceFixture>(),
     );
     let registry = model_registry(&[(metadata, source_identity(3))]);
     let errors = StructureResolver::new(ResolveInputs {
@@ -250,9 +225,7 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
 }
 
 fn indexed_field(reflect: &'static FieldDescriptor) -> FieldMetadata {
-    let attributes = Box::leak(
-        vec![FieldAttributeMetadata::Indexed(IndexingReasons::EXPLICIT)].into_boxed_slice(),
-    );
+    let attributes = Box::leak(vec![FieldAttributeMetadata::Indexed(IndexingReasons::EXPLICIT)].into_boxed_slice());
     v7::field_metadata(
         (reflect).declaring_type().type_id(),
         reflect,
@@ -269,17 +242,13 @@ fn entity_metadata<T: 'static>(
     fields: &'static [FieldMetadata],
 ) -> &'static TypeMetadata {
     let role = v7::leak(v7::entity_role(&fields[0]));
-    v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new(id)), fields, role)
-            .finish::<T>(),
-    )
+    v7::leak(v7::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new(id)), fields, role).finish::<T>())
 }
 
 #[test]
 fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     let nested_descriptor = TypeDescriptor::of::<NestedQueryFixture>();
-    let nested_fields =
-        Box::leak(vec![indexed_field(nested_descriptor.field_at(0).unwrap())].into_boxed_slice());
+    let nested_fields = Box::leak(vec![indexed_field(nested_descriptor.field_at(0).unwrap())].into_boxed_slice());
     let nested_role = v7::leak(v7::value_role(None, None));
     let nested = v7::leak(
         v7::GeneratedTypeMetadataBuilder::new(
@@ -292,9 +261,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     );
 
     let root_descriptor = TypeDescriptor::of::<RootQueryFixture>();
-    let identifier = Box::leak(Box::new(IdentifierMetadata::new(
-        IdentifierAssignment::Application,
-    )));
+    let identifier = Box::leak(Box::new(IdentifierMetadata::new(IdentifierAssignment::Application)));
     let identifier_attributes = Box::leak(
         vec![
             FieldAttributeMetadata::Identifier(identifier),
@@ -305,9 +272,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     let root_fields = Box::leak(
         vec![
             v7::field_metadata(
-                (root_descriptor.field_at(0).unwrap())
-                    .declaring_type()
-                    .type_id(),
+                (root_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
                 root_descriptor.field_at(0).unwrap(),
                 identifier_attributes,
                 &[],
@@ -342,9 +307,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     let conflict_fields = Box::leak(
         vec![
             v7::field_metadata(
-                (conflict_descriptor.field_at(0).unwrap())
-                    .declaring_type()
-                    .type_id(),
+                (conflict_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
                 conflict_descriptor.field_at(0).unwrap(),
                 identifier_attributes,
                 &[],
@@ -356,29 +319,15 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
         ]
         .into_boxed_slice(),
     );
-    let conflict = entity_metadata::<ConflictingQueryFixture>(
-        conflict_descriptor,
-        "query.Conflict",
-        conflict_fields,
-    );
-    let registry = model_registry(&[
-        (nested, source_identity(10)),
-        (conflict, source_identity(12)),
-    ]);
+    let conflict = entity_metadata::<ConflictingQueryFixture>(conflict_descriptor, "query.Conflict", conflict_fields);
+    let registry = model_registry(&[(nested, source_identity(10)), (conflict, source_identity(12))]);
     let graph = StructureResolver::new(ResolveInputs {
         roots: &[],
         models: &registry,
     })
     .resolve()
     .expect("flat-name policy belongs to downstream consumers");
-    assert_eq!(
-        graph
-            .query(conflict.type_id())
-            .unwrap()
-            .declarations()
-            .len(),
-        3
-    );
+    assert_eq!(graph.query(conflict.type_id()).unwrap().declarations().len(), 3);
 }
 
 #[test]
@@ -386,9 +335,7 @@ fn test_resolver_rejects_value_closure_over_model_role() {
     let model_descriptor = TypeDescriptor::of::<PlainModelFixture>();
     let model_fields = Box::leak(
         vec![FieldMetadata::from_reflect(
-            (model_descriptor.field_at(0).unwrap())
-                .declaring_type()
-                .type_id(),
+            (model_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
             model_descriptor.field_at(0).unwrap(),
         )]
         .into_boxed_slice(),
@@ -406,9 +353,7 @@ fn test_resolver_rejects_value_closure_over_model_role() {
     let value_descriptor = TypeDescriptor::of::<InvalidValueFixture>();
     let value_fields = Box::leak(
         vec![FieldMetadata::from_reflect(
-            (value_descriptor.field_at(0).unwrap())
-                .declaring_type()
-                .type_id(),
+            (value_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
             value_descriptor.field_at(0).unwrap(),
         )]
         .into_boxed_slice(),

@@ -149,31 +149,25 @@ fn test_registry() -> ModelRegistry<'static> {
     static READ_ONLY_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static SMART_POINTER_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static SETTER_ONLY_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
-    let leaf_source = LEAF_SOURCE
-        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 1, 1, "leaf", 1));
-    let middle_source = MIDDLE_SOURCE
-        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 2, 1, "middle", 2));
-    let root_source = ROOT_SOURCE
-        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 3, 1, "root", 3));
-    let optional_root_source = OPTIONAL_ROOT_SOURCE
-        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 4, 1, "optional-root", 4));
+    let leaf_source = LEAF_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 1, 1, "leaf", 1));
+    let middle_source =
+        MIDDLE_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 2, 1, "middle", 2));
+    let root_source = ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 3, 1, "root", 3));
+    let optional_root_source =
+        OPTIONAL_ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 4, 1, "optional-root", 4));
     let read_only_root_source = READ_ONLY_ROOT_SOURCE
         .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 5, 1, "read-only-root", 5));
-    let smart_pointer_root_source = SMART_POINTER_ROOT_SOURCE.get_or_init(|| {
-        FragmentIdentity::new("fixture", "access_path", 6, 1, "smart-pointer-root", 6)
-    });
-    let setter_only_source = SETTER_ONLY_SOURCE
-        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "setter-only", 6));
+    let smart_pointer_root_source = SMART_POINTER_ROOT_SOURCE
+        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "smart-pointer-root", 6));
+    let setter_only_source =
+        SETTER_ONLY_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "setter-only", 6));
     ModelRegistry::from_static_metadata(&[
         (TypeMetadata::of::<AccessLeaf>(), leaf_source),
         (TypeMetadata::of::<AccessMiddle>(), middle_source),
         (TypeMetadata::of::<AccessRoot>(), root_source),
         (TypeMetadata::of::<OptionalRoot>(), optional_root_source),
         (TypeMetadata::of::<ReadOnlyRoot>(), read_only_root_source),
-        (
-            TypeMetadata::of::<SmartPointerRoot>(),
-            smart_pointer_root_source,
-        ),
+        (TypeMetadata::of::<SmartPointerRoot>(), smart_pointer_root_source),
         (TypeMetadata::of::<SetterOnly>(), setter_only_source),
     ])
     .expect("isolated model registry")
@@ -310,10 +304,7 @@ fn test_cached_path_concurrent_initial_misses_return_valid_paths() {
             std::thread::spawn(move || {
                 barrier.wait();
                 registry
-                    .compile_read_path_cached(
-                        TypeMetadata::of::<AccessRoot>(),
-                        &["middle", "leaf", "value"],
-                    )
+                    .compile_read_path_cached(TypeMetadata::of::<AccessRoot>(), &["middle", "leaf", "value"])
                     .expect("concurrent path compiles")
             })
         })
@@ -344,18 +335,11 @@ fn test_compile_for_write_accepts_setter_only_leaf() {
     let mut root = SetterOnly {};
     SETTER_ONLY_CALLS.store(0, Ordering::Relaxed);
 
-    path.write(
-        ReflectedMut::new(&mut root),
-        ReflectedOwned::new("after".to_owned()),
-    )
-    .expect("setter-only leaf accepts replacement");
+    path.write(ReflectedMut::new(&mut root), ReflectedOwned::new("after".to_owned()))
+        .expect("setter-only leaf accepts replacement");
     assert_eq!(SETTER_ONLY_CALLS.load(Ordering::Relaxed), 1);
     assert!(matches!(
-        qubit_model_metadata::PropertyAccessPath::compile(
-            registry,
-            TypeMetadata::of::<SetterOnly>(),
-            &["value"],
-        ),
+        qubit_model_metadata::PropertyAccessPath::compile(registry, TypeMetadata::of::<SetterOnly>(), &["value"],),
         Err(PropertyAccessPathError::UnreadableIntermediate { index: 0, .. })
     ));
 }
@@ -487,10 +471,7 @@ fn test_read_nested_property_from_root_instance() {
     let PropertyValue::Borrowed(value) = value else {
         panic!("string field should be returned as a borrow");
     };
-    assert_eq!(
-        value.downcast_ref::<String>().map(String::as_str),
-        Some("nested")
-    );
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("nested"));
     assert_eq!(path.leaf_property().name(), "value");
 }
 
@@ -513,11 +494,8 @@ fn test_write_nested_property_through_root_instance() {
         },
     };
 
-    path.write(
-        ReflectedMut::new(&mut root),
-        ReflectedOwned::new("after".to_owned()),
-    )
-    .expect("nested property is writable");
+    path.write(ReflectedMut::new(&mut root), ReflectedOwned::new("after".to_owned()))
+        .expect("nested property is writable");
     assert_eq!(root.middle.leaf.value, "after");
 }
 
@@ -526,19 +504,11 @@ fn test_write_nested_property_through_root_instance() {
 fn test_compile_and_read_report_structured_path_errors() {
     let registry = test_registry();
     assert!(matches!(
-        qubit_model_metadata::PropertyAccessPath::compile(
-            &registry,
-            TypeMetadata::of::<AccessRoot>(),
-            &[],
-        ),
+        qubit_model_metadata::PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &[],),
         Err(PropertyAccessPathError::EmptyPath)
     ));
     assert!(matches!(
-        qubit_model_metadata::PropertyAccessPath::compile(
-            &registry,
-            TypeMetadata::of::<AccessRoot>(),
-            &[""],
-        ),
+        qubit_model_metadata::PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &[""],),
         Err(PropertyAccessPathError::EmptySegment { index: 0 })
     ));
     assert!(matches!(
@@ -622,16 +592,11 @@ fn test_write_leaf_failure_preserves_replacement() {
     assert!(std::error::Error::source(&failure).is_some());
     assert_eq!(
         failure.to_string(),
-        failure
-            .property_failure()
-            .expect("leaf failure")
-            .to_string()
+        failure.property_failure().expect("leaf failure").to_string()
     );
     assert!(format!("{failure:?}").contains("Property"));
     assert_eq!(
-        failure
-            .replacement()
-            .and_then(|value| value.downcast_ref::<u32>()),
+        failure.replacement().and_then(|value| value.downcast_ref::<u32>()),
         Some(&17)
     );
     assert_eq!(root.middle.leaf.value, "unchanged");

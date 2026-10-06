@@ -66,16 +66,8 @@ impl PropertyFragment {
     /// A fragment retaining the supplied static type and declaration metadata.
     #[must_use]
     #[inline]
-    pub(crate) const fn new(
-        name: &'static str,
-        type_ref: &'static TypeRef,
-        source: PropertyFragmentSource,
-    ) -> Self {
-        Self {
-            name,
-            type_ref,
-            source,
-        }
+    pub(crate) const fn new(name: &'static str, type_ref: &'static TypeRef, source: PropertyFragmentSource) -> Self {
+        Self { name, type_ref, source }
     }
 
     /// Returns the canonical public property name.

@@ -87,9 +87,7 @@ fn source(declaring_crate: &'static str, line: u32) -> FragmentIdentity {
     )
 }
 
-fn model_provider_snapshot(
-    capability: CapabilityDescriptor,
-) -> (ReflectRegistry, FragmentIdentity) {
+fn model_provider_snapshot(capability: CapabilityDescriptor) -> (ReflectRegistry, FragmentIdentity) {
     let target = TypeDescriptor::of::<DiagnosticsTarget>();
     let type_source = source("model-provider-type", 50);
     let mut builder = RegistrySnapshotBuilder::new();
@@ -114,8 +112,7 @@ fn unreachable_model_impl_provider() -> &'static qubit_model_metadata::metadata:
 }
 
 #[cfg(feature = "generic")]
-fn unreachable_generic_metadata_provider()
--> &'static qubit_model_metadata::generic::GenericModelMetadata {
+fn unreachable_generic_metadata_provider() -> &'static qubit_model_metadata::generic::GenericModelMetadata {
     panic!("orphan audit must precede generic provider invocation")
 }
 
@@ -133,25 +130,14 @@ fn test_model_registry_rejects_capability_only_generic_targets_before_provider_c
         )],
         capability_source.clone(),
     );
-    let reflection = builder
-        .build()
-        .expect("capability-only generic fact is valid");
-    let error = ModelRegistry::from_reflect_registry(&reflection)
-        .expect_err("orphan generic target rejected");
-    assert_eq!(
-        error.kind(),
-        ModelRegistryErrorKind::UnregisteredModelTarget
-    );
+    let reflection = builder.build().expect("capability-only generic fact is valid");
+    let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("orphan generic target rejected");
+    assert_eq!(error.kind(), ModelRegistryErrorKind::UnregisteredModelTarget);
     assert_eq!(
         error.capability_target(),
-        Some(CapabilityTarget::TypeDefinition(
-            GENERIC_ORPHAN_DEFINITION.id()
-        ))
+        Some(CapabilityTarget::TypeDefinition(GENERIC_ORPHAN_DEFINITION.id()))
     );
-    assert_eq!(
-        error.capability_id(),
-        Some(*v7::generic_model_metadata_key().id())
-    );
+    assert_eq!(error.capability_id(), Some(*v7::generic_model_metadata_key().id()));
     assert_eq!(error.sources(), &[capability_source]);
 }
 
@@ -166,18 +152,12 @@ fn test_generic_provider_contract_errors_report_capability_sources() {
         let capability_source = source("generic-model-capability", 72);
         let mut builder = RegistrySnapshotBuilder::new();
         builder.add_definition(&GENERIC_ORPHAN_DEFINITION, declaration_source);
-        builder.add_definition_capabilities(
-            &GENERIC_ORPHAN_DEFINITION,
-            vec![capability],
-            capability_source.clone(),
-        );
+        builder.add_definition_capabilities(&GENERIC_ORPHAN_DEFINITION, vec![capability], capability_source.clone());
         let reflection = builder.build().expect("valid generic capability snapshot");
-        let error = ModelRegistry::from_reflect_registry(&reflection)
-            .expect_err("invalid provider contract");
+        let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("invalid provider contract");
         assert!(matches!(
             error.kind(),
-            ModelRegistryErrorKind::FactOnlyCapability
-                | ModelRegistryErrorKind::AdapterTypeMismatch
+            ModelRegistryErrorKind::FactOnlyCapability | ModelRegistryErrorKind::AdapterTypeMismatch
         ));
         assert_eq!(error.sources(), &[capability_source]);
         assert_eq!(error.origins().len(), 1);
@@ -196,15 +176,9 @@ fn test_model_registry_rejects_capability_only_model_targets_before_provider_cal
         )],
         orphan_source.clone(),
     );
-    let reflection = builder
-        .build()
-        .expect("capability-only fact is a valid snapshot");
-    let error = ModelRegistry::from_reflect_registry(&reflection)
-        .expect_err("orphan model capability rejected");
-    assert_eq!(
-        error.kind(),
-        ModelRegistryErrorKind::UnregisteredModelTarget
-    );
+    let reflection = builder.build().expect("capability-only fact is a valid snapshot");
+    let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("orphan model capability rejected");
+    assert_eq!(error.kind(), ModelRegistryErrorKind::UnregisteredModelTarget);
     assert_eq!(
         error.capability_target(),
         Some(CapabilityTarget::Type(TypeId::of::<DiagnosticsTarget>()))
@@ -223,12 +197,8 @@ fn test_model_registry_rejects_capability_only_model_targets_before_provider_cal
             source("orphan-model-capability-variant", 62),
         );
         let reflection = builder.build().expect("capability-only fact is valid");
-        let error = ModelRegistry::from_reflect_registry(&reflection)
-            .expect_err("orphan model target rejected");
-        assert_eq!(
-            error.kind(),
-            ModelRegistryErrorKind::UnregisteredModelTarget
-        );
+        let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("orphan model target rejected");
+        assert_eq!(error.kind(), ModelRegistryErrorKind::UnregisteredModelTarget);
         assert_eq!(
             error.capability_target(),
             Some(CapabilityTarget::Type(TypeId::of::<DiagnosticsTarget>()))
@@ -244,9 +214,7 @@ fn test_model_registry_rejects_capability_only_model_targets_before_provider_cal
         )],
         source("orphan-model-impl-capability", 63),
     );
-    let reflection = builder
-        .build()
-        .expect("ModelImpl capability is independent");
+    let reflection = builder.build().expect("ModelImpl capability is independent");
     assert!(
         ModelRegistry::from_reflect_registry(&reflection)
             .expect("ModelImpl-only capability does not create a model requirement")
@@ -260,8 +228,8 @@ fn test_model_registry_rejects_fact_only_model_provider() {
     let (reflection, expected_source) =
         model_provider_snapshot(CapabilityDescriptor::without_adapter(model_metadata_key()));
 
-    let error = ModelRegistry::from_reflect_registry(&reflection)
-        .expect_err("a model capability without a provider must fail");
+    let error =
+        ModelRegistry::from_reflect_registry(&reflection).expect_err("a model capability without a provider must fail");
 
     assert_eq!(error.kind(), ModelRegistryErrorKind::FactOnlyCapability);
     assert_eq!(error.capability_id(), Some(*model_metadata_key().id()));
@@ -279,8 +247,7 @@ fn test_model_registry_rejects_fact_only_model_provider() {
 #[test]
 fn test_model_registry_rejects_model_provider_with_wrong_adapter_type() {
     let wrong_key = key::<u32>("qubit.model.metadata.v1");
-    let (reflection, expected_source) =
-        model_provider_snapshot(CapabilityDescriptor::with_adapter(wrong_key, 7_u32));
+    let (reflection, expected_source) = model_provider_snapshot(CapabilityDescriptor::with_adapter(wrong_key, 7_u32));
 
     let error = ModelRegistry::from_reflect_registry(&reflection)
         .expect_err("a model capability with the wrong provider type must fail");
@@ -330,8 +297,7 @@ fn test_model_registry_global_preserves_nested_reflection_error_chain() {
     assert!(adapter_types.contains(&TypeId::of::<u32>()));
     assert!(adapter_types.contains(&TypeId::of::<u64>()));
     assert_eq!(
-        std::error::Error::source(reflection)
-            .and_then(|cause| cause.downcast_ref::<CapabilityConflict>()),
+        std::error::Error::source(reflection).and_then(|cause| cause.downcast_ref::<CapabilityConflict>()),
         Some(details)
     );
 }
@@ -342,24 +308,16 @@ fn test_public_builder_preserves_conflict_context_and_error_chain() {
     let mut builder = RegistrySnapshotBuilder::new();
     builder.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(
-            key("model.test.context"),
-            7_u32,
-        )],
+        vec![CapabilityDescriptor::with_adapter(key("model.test.context"), 7_u32)],
         source("context-left", 10),
     );
     builder.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(
-            key("model.test.context"),
-            9_u64,
-        )],
+        vec![CapabilityDescriptor::with_adapter(key("model.test.context"), 9_u64)],
         source("context-right", 20),
     );
 
-    let error = builder
-        .build()
-        .expect_err("adapter mismatch must be rejected");
+    let error = builder.build().expect_err("adapter mismatch must be rejected");
 
     assert_eq!(error.kind(), RegistryErrorKind::CapabilityConflict);
     assert_eq!(
@@ -379,8 +337,7 @@ fn test_public_builder_preserves_conflict_context_and_error_chain() {
     assert_eq!(left, &source("context-left", 10));
     assert_eq!(right, &source("context-right", 20));
     assert_eq!(
-        std::error::Error::source(&error)
-            .and_then(|cause| cause.downcast_ref::<CapabilityConflict>()),
+        std::error::Error::source(&error).and_then(|cause| cause.downcast_ref::<CapabilityConflict>()),
         Some(detail)
     );
 }
@@ -391,36 +348,24 @@ fn test_public_builder_normalizes_source_order_for_duplicate_category() {
     let mut forward = RegistrySnapshotBuilder::new();
     forward.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(
-            key("model.test.duplicate"),
-            1_u32,
-        )],
+        vec![CapabilityDescriptor::with_adapter(key("model.test.duplicate"), 1_u32)],
         source("duplicate-left", 30),
     );
     forward.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(
-            key("model.test.duplicate"),
-            2_u32,
-        )],
+        vec![CapabilityDescriptor::with_adapter(key("model.test.duplicate"), 2_u32)],
         source("duplicate-right", 40),
     );
 
     let mut reverse = RegistrySnapshotBuilder::new();
     reverse.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(
-            key("model.test.duplicate"),
-            2_u32,
-        )],
+        vec![CapabilityDescriptor::with_adapter(key("model.test.duplicate"), 2_u32)],
         source("duplicate-right", 40),
     );
     reverse.add_type_capabilities(
         target,
-        vec![CapabilityDescriptor::with_adapter(
-            key("model.test.duplicate"),
-            1_u32,
-        )],
+        vec![CapabilityDescriptor::with_adapter(key("model.test.duplicate"), 1_u32)],
         source("duplicate-left", 30),
     );
 
@@ -432,10 +377,7 @@ fn test_public_builder_normalizes_source_order_for_duplicate_category() {
         Some(CapabilityTarget::Type(TypeId::of::<DiagnosticsTarget>()))
     );
     assert_eq!(
-        forward
-            .capability_details()
-            .expect("conflict details")
-            .kind(),
+        forward.capability_details().expect("conflict details").kind(),
         CapabilityConflictKind::DuplicateId
     );
     assert_eq!(

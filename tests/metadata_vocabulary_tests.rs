@@ -48,13 +48,7 @@ fn test_validator_argument_debug_redacts_names_and_values() {
         NamedValidationArgument::new("labels", ValidationArgument::StringList(&labels)),
     ];
     let output = format!("{arguments:?}");
-    for secret in [
-        "secret-name",
-        "secret-value",
-        "first-secret",
-        "second-secret",
-        "labels",
-    ] {
+    for secret in ["secret-name", "secret-value", "first-secret", "second-secret", "labels"] {
         assert!(!output.contains(secret), "debug output leaked {secret}");
     }
     assert!(output.contains("String(<redacted>)"));
@@ -153,26 +147,14 @@ fn test_reference_target_inspection_is_lazy_and_preserves_assignment() {
     static SELECTION: ReferenceSelection = ReferenceSelection::Property(PropertyPath::new(&["id"]));
     static CURRENT: ObjectPath = ObjectPath::current();
     let reference = FieldReferenceMetadata::new(&TARGET, &SELECTION, true, Some(&CURRENT));
-    assert_eq!(
-        reference.target().kind(),
-        DeclaredEntityTargetKind::RustType
-    );
+    assert_eq!(reference.target().kind(), DeclaredEntityTargetKind::RustType);
     assert_eq!(reference.target().model_id(), None);
     assert!(reference.existing());
     assert_eq!(reference.selection(), &SELECTION);
-    assert!(
-        reference
-            .path()
-            .expect("explicit current object")
-            .steps()
-            .is_empty()
-    );
+    assert!(reference.path().expect("explicit current object").steps().is_empty());
     assert!(format!("{reference:?}").contains("RustType"));
     assert_eq!(PROVIDER_CALLS.load(Ordering::SeqCst), 0);
-    let target = reference
-        .target()
-        .metadata()
-        .expect("invoke provider explicitly");
+    let target = reference.target().metadata().expect("invoke provider explicitly");
     assert_eq!(PROVIDER_CALLS.load(Ordering::SeqCst), 1);
     assert_eq!(target.model_id(), Some(ModelId::new("vocabulary.Tenant")));
     let identifier = target
@@ -203,10 +185,7 @@ fn test_unique_definition_preserves_explicit_and_deferred_policies() {
     for explicit in [false, true] {
         let definition = FieldUniqueMetadata::for_definition(&SCOPE, Some(explicit));
         let concrete = FieldUniqueMetadata::new(&SCOPE, explicit);
-        assert_eq!(
-            definition.effective_ignore_case(),
-            concrete.effective_ignore_case()
-        );
+        assert_eq!(definition.effective_ignore_case(), concrete.effective_ignore_case());
         assert_eq!(definition.declared_ignore_case(), Some(explicit));
         assert!(definition.is_scoped());
         assert_eq!(definition.respect_to(), concrete.respect_to());
@@ -242,28 +221,14 @@ fn test_validator_rejects_duplicate_dependency_slots() {
         DependencyBindingMetadata::new("owner", PropertyPath::new(&["first"])),
         DependencyBindingMetadata::new("owner", PropertyPath::new(&["second"])),
     ];
-    let _ = ValidatorMetadata::new_bound(
-        "example.rule",
-        &[],
-        &[],
-        &BINDINGS,
-        TargetMode::Value,
-        OnNone::Skip,
-    );
+    let _ = ValidatorMetadata::new_bound("example.rule", &[], &[], &BINDINGS, TargetMode::Value, OnNone::Skip);
 }
 
 /// Container input cannot simultaneously request absent-value expansion policy.
 #[test]
 #[should_panic(expected = "container validators cannot reject missing expanded values")]
 fn test_validator_rejects_incompatible_container_policy() {
-    let _ = ValidatorMetadata::new_bound(
-        "example.rule",
-        &[],
-        &[],
-        &[],
-        TargetMode::Container,
-        OnNone::Reject,
-    );
+    let _ = ValidatorMetadata::new_bound("example.rule", &[], &[], &[], TargetMode::Container, OnNone::Reject);
 }
 
 /// Field and selector redaction facts explain the generated protected output.
@@ -374,10 +339,7 @@ fn test_serde_metadata_matches_generated_wire_behavior() {
     assert!(decoded.tags.is_empty());
     assert!(decoded.kept.is_empty());
     assert!(decoded.optional.is_none());
-    assert_eq!(
-        decoded.extra.get("extension").map(String::as_str),
-        Some("value")
-    );
+    assert_eq!(decoded.extra.get("extension").map(String::as_str), Some("value"));
     assert_eq!(decoded.converted, "mixed");
 
     let metadata = TypeMetadata::of::<WireRecord>();
@@ -400,19 +362,9 @@ fn test_serde_metadata_matches_generated_wire_behavior() {
             .serde()
             .skip_deserializing()
     );
-    assert!(
-        metadata
-            .field("extra")
-            .expect("extra field")
-            .serde()
-            .flatten()
-    );
+    assert!(metadata.field("extra").expect("extra field").serde().flatten());
     assert_eq!(
-        metadata
-            .field("converted")
-            .expect("converted field")
-            .serde()
-            .with(),
+        metadata.field("converted").expect("converted field").serde().with(),
         Some("wire_text")
     );
     let tags = metadata.field("tags").expect("tags field").serde();
@@ -420,11 +372,7 @@ fn test_serde_metadata_matches_generated_wire_behavior() {
     assert_eq!(tags.default_source(), SerdeBehaviorSource::ModelDefault);
     assert_eq!(tags.omit_source(), SerdeBehaviorSource::ModelDefault);
     assert_eq!(
-        metadata
-            .field("kept")
-            .expect("kept field")
-            .serde()
-            .omit_source(),
+        metadata.field("kept").expect("kept field").serde().omit_source(),
         SerdeBehaviorSource::Suppressed
     );
     assert_eq!(

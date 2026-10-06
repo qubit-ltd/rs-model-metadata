@@ -49,10 +49,7 @@ fn test_model_id_uses_one_shared_ascii_segment_grammar() {
 #[test]
 fn test_static_model_id_borrowed_registry_lookup() {
     let entries = std::collections::HashMap::from([(STATIC_MODEL_ID, "user metadata")]);
-    assert_eq!(
-        entries.get("qubit.platform.iam.User"),
-        Some(&"user metadata")
-    );
+    assert_eq!(entries.get("qubit.platform.iam.User"), Some(&"user metadata"));
     assert_eq!(entries.get("qubit.platform.iam.user"), None);
 }
 

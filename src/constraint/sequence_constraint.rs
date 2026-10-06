@@ -49,11 +49,7 @@ impl SequenceConstraint {
     ///
     /// Panics when the supplied minimum item count exceeds the maximum.
     #[must_use]
-    pub const fn new(
-        min_items: Option<usize>,
-        max_items: Option<usize>,
-        unique_items: bool,
-    ) -> Self {
+    pub const fn new(min_items: Option<usize>, max_items: Option<usize>, unique_items: bool) -> Self {
         if let (Some(min_items), Some(max_items)) = (min_items, max_items) {
             assert!(
                 min_items <= max_items,
@@ -78,10 +74,7 @@ impl SequenceConstraint {
     ///
     /// The updated constraints, with the supplied element semantics attached.
     #[must_use]
-    pub const fn with_element(
-        mut self,
-        element: &'static crate::metadata::SelectorMetadata,
-    ) -> Self {
+    pub const fn with_element(mut self, element: &'static crate::metadata::SelectorMetadata) -> Self {
         self.element = Some(element);
         self
     }

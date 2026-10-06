@@ -108,11 +108,7 @@ impl FieldMetadata {
     pub const fn from_reflect(owner: TypeId, reflect: &'static FieldDescriptor) -> Self {
         Self {
             declaration: DeclarationLocation::unknown(),
-            location: Some(FieldLocation::new(
-                owner,
-                reflect.variant_index(),
-                reflect.index(),
-            )),
+            location: Some(FieldLocation::new(owner, reflect.variant_index(), reflect.index())),
             reflect: Some(reflect),
             definition: None,
             symbolic_type: None,
@@ -158,11 +154,7 @@ impl FieldMetadata {
     ) -> Self {
         Self {
             declaration: DeclarationLocation::unknown(),
-            location: Some(FieldLocation::new(
-                owner,
-                reflect.variant_index(),
-                reflect.index(),
-            )),
+            location: Some(FieldLocation::new(owner, reflect.variant_index(), reflect.index())),
             reflect: Some(reflect),
             definition: None,
             symbolic_type: None,
@@ -420,12 +412,10 @@ impl FieldMetadata {
     /// declared.
     #[must_use]
     pub fn identifier(&self) -> Option<&'static IdentifierMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Identifier(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Identifier(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns whether this field is the model identifier.
@@ -446,13 +436,12 @@ impl FieldMetadata {
     /// The combined indexing reasons, empty when the field is not indexed.
     #[must_use]
     pub fn indexing_reasons(&self) -> IndexingReasons {
-        self.attributes.iter().fold(
-            IndexingReasons::empty(),
-            |result, attribute| match attribute {
+        self.attributes
+            .iter()
+            .fold(IndexingReasons::empty(), |result, attribute| match attribute {
                 FieldAttributeMetadata::Indexed(value) => result | *value,
                 _ => result,
-            },
-        )
+            })
     }
 
     /// Returns whether this field participates in any index.
@@ -473,12 +462,10 @@ impl FieldMetadata {
     /// declared.
     #[must_use]
     pub fn unique(&self) -> Option<&'static FieldUniqueMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Unique(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Unique(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns whether this field declares uniqueness.
@@ -500,12 +487,10 @@ impl FieldMetadata {
     /// entity reference.
     #[must_use]
     pub fn reference(&self) -> Option<&'static FieldReferenceMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Reference(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Reference(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns the ordered composite-key declaration, when present.
@@ -516,12 +501,10 @@ impl FieldMetadata {
     /// part of a composite key.
     #[must_use]
     pub fn key_part(&self) -> Option<&'static KeyPartMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::KeyPart(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::KeyPart(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns all standard field constraints.
@@ -618,12 +601,10 @@ impl FieldMetadata {
     /// `Some` with the codec metadata, or `None` when no codec is declared.
     #[must_use]
     pub fn codec(&self) -> Option<&'static CodecMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Codec(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Codec(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns the field redaction declaration, when present.
@@ -634,12 +615,10 @@ impl FieldMetadata {
     /// declared.
     #[must_use]
     pub fn redact(&self) -> Option<&'static RedactMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Redact(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Redact(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns the effective Serde behavior.

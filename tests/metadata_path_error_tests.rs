@@ -34,10 +34,7 @@ use qubit_reflect::identity::CapabilityId;
     reason = "derive capability providers receive the concrete type parameter"
 )]
 fn conflict<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(
-        CapabilityKey::new(CapabilityId::new("error.path").unwrap()),
-        1_usize,
-    )
+    CapabilityDescriptor::with_adapter(CapabilityKey::new(CapabilityId::new("error.path").unwrap()), 1_usize)
 }
 
 fn second_conflict<T: 'static>() -> CapabilityDescriptor {
@@ -60,17 +57,11 @@ fn metadata() -> &'static TypeMetadata {
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
         let reference = v7::leak(FieldReferenceMetadata::new(
-            v7::leak(DeclaredEntityTarget::ModelId(ModelId::new(
-                "missing.Target",
-            ))),
+            v7::leak(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))),
             v7::leak(ReferenceSelection::Entity),
             false,
             Some(v7::leak(
-                ObjectPath::new(&[
-                    NavigationStep::Property("invalid"),
-                    NavigationStep::Property("value"),
-                ])
-                .unwrap(),
+                ObjectPath::new(&[NavigationStep::Property("invalid"), NavigationStep::Property("value")]).unwrap(),
             )),
         ));
         let fields = v7::leak_slice(vec![
@@ -90,15 +81,7 @@ fn metadata() -> &'static TypeMetadata {
         let properties = v7::leak_slice(
             fields
                 .iter()
-                .map(|field| {
-                    v7::property_metadata(
-                        field.name().unwrap(),
-                        field.type_ref(),
-                        Some(field),
-                        None,
-                        None,
-                    )
-                })
+                .map(|field| v7::property_metadata(field.name().unwrap(), field.type_ref(), Some(field), None, None))
                 .collect(),
         );
         v7::GeneratedTypeMetadataBuilder::new(
@@ -126,9 +109,7 @@ fn test_path_conflict_and_missing_target_are_both_reported() {
     let cause = errors
         .errors()
         .iter()
-        .find(|error| {
-            error.kind() == ResolveErrorKind::MetadataResolution && error.path().is_some()
-        })
+        .find(|error| error.kind() == ResolveErrorKind::MetadataResolution && error.path().is_some())
         .unwrap();
     assert_eq!(cause.model_id(), Some("error.PathRoot"));
     assert_eq!(cause.path().unwrap().to_string(), "target");

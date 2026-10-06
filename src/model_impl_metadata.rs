@@ -68,10 +68,7 @@ impl ModelImplMetadata {
         fragments: &'static [PropertyFragment],
         properties: Result<&'static LocalPropertySet, &'static PropertyBuildErrors>,
     ) -> Self {
-        Self {
-            fragments,
-            properties,
-        }
+        Self { fragments, properties }
     }
 
     /// Merges the providers visible in one immutable reflection snapshot.
@@ -101,20 +98,13 @@ impl ModelImplMetadata {
     ///
     /// Propagates provider panics.
     #[must_use]
-    pub(crate) fn merge(
-        owner: &TypeMetadata,
-        providers: &[(ModelImplProvider, CapabilityOrigin)],
-    ) -> MergedModelImpl {
+    pub(crate) fn merge(owner: &TypeMetadata, providers: &[(ModelImplProvider, CapabilityOrigin)]) -> MergedModelImpl {
         let overlays: Vec<_> = providers
             .iter()
             .map(|(provider, origin)| (provider(), origin))
             .collect();
         let mut fragments = Vec::new();
-        let mut properties: Vec<(
-            PropertyMetadata,
-            Option<CapabilityOrigin>,
-            Option<CapabilityOrigin>,
-        )> = Vec::new();
+        let mut properties: Vec<(PropertyMetadata, Option<CapabilityOrigin>, Option<CapabilityOrigin>)> = Vec::new();
         let mut errors = Vec::new();
         for (overlay, origin) in overlays {
             for fragment in overlay.fragments() {
@@ -147,9 +137,7 @@ impl ModelImplMetadata {
                                     current.name(),
                                     first.rust_method_name(),
                                     second.rust_method_name(),
-                                    getter_origin
-                                        .clone()
-                                        .expect("selected getter retains its origin"),
+                                    getter_origin.clone().expect("selected getter retains its origin"),
                                     origin.clone(),
                                 ));
                             }
@@ -161,9 +149,7 @@ impl ModelImplMetadata {
                                     current.name(),
                                     first.rust_method_name(),
                                     second.rust_method_name(),
-                                    setter_origin
-                                        .clone()
-                                        .expect("selected setter retains its origin"),
+                                    setter_origin.clone().expect("selected setter retains its origin"),
                                     origin.clone(),
                                 ));
                             }
@@ -173,12 +159,11 @@ impl ModelImplMetadata {
                             if setter_origin.is_none() && property.setter().is_some() {
                                 *setter_origin = Some(origin.clone());
                             }
-                            let selected =
-                                if current.field().is_some() || current.getter().is_some() {
-                                    *current
-                                } else {
-                                    *property
-                                };
+                            let selected = if current.field().is_some() || current.getter().is_some() {
+                                *current
+                            } else {
+                                *property
+                            };
                             *current = PropertyMetadata::new(
                                 current.name(),
                                 selected.type_ref(),
@@ -197,10 +182,7 @@ impl ModelImplMetadata {
                 }
             }
         }
-        let properties: Vec<_> = properties
-            .into_iter()
-            .map(|(property, _, _)| property)
-            .collect();
+        let properties: Vec<_> = properties.into_iter().map(|(property, _, _)| property).collect();
         if let Err(error) = owner.validate_properties(&properties) {
             errors.extend_from_slice(error.errors());
         }
@@ -209,10 +191,7 @@ impl ModelImplMetadata {
         } else {
             Err(Arc::new(PropertyBuildErrors::new(errors)))
         };
-        MergedModelImpl::new(
-            ResolvedPropertyFragments::Merged(Arc::from(fragments)),
-            properties,
-        )
+        MergedModelImpl::new(ResolvedPropertyFragments::Merged(Arc::from(fragments)), properties)
     }
 
     /// Returns this implementation's original declarations in source order.
@@ -240,9 +219,7 @@ impl ModelImplMetadata {
     /// not rerun assembly or invoke providers.
     #[must_use = "handle property assembly failures"]
     #[inline]
-    pub const fn try_properties(
-        &self,
-    ) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
+    pub const fn try_properties(&self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
         self.properties
     }
 }

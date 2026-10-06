@@ -74,14 +74,9 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistr
     const SAMPLES: usize = 30;
     println!(
         "model_rule_batch_build: samples={SAMPLES}, profile={}",
-        if cfg!(debug_assertions) {
-            "debug"
-        } else {
-            "release"
-        }
+        if cfg!(debug_assertions) { "debug" } else { "release" }
     );
-    let models =
-        ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
     let root = TypeMetadata::of::<Pipeline1>();
     let roots = [root];
     let graph = Arc::new(
@@ -125,24 +120,20 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistr
                 });
             },
         );
-        group.bench_with_input(
-            BenchmarkId::new("batch_api", count),
-            &bindings,
-            |bencher, bindings| {
-                bencher.iter(|| {
-                    let plan = ValidationPlan::build(
-                        root,
-                        ValidationBuildInputs {
-                            graph: Arc::clone(&graph),
-                            validators: &validators,
-                        },
-                    )
-                    .expect("benchmark plan")
-                    .with_model_rules(black_box(bindings.iter().cloned()));
-                    let _ = black_box(plan);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("batch_api", count), &bindings, |bencher, bindings| {
+            bencher.iter(|| {
+                let plan = ValidationPlan::build(
+                    root,
+                    ValidationBuildInputs {
+                        graph: Arc::clone(&graph),
+                        validators: &validators,
+                    },
+                )
+                .expect("benchmark plan")
+                .with_model_rules(black_box(bindings.iter().cloned()));
+                let _ = black_box(plan);
+            });
+        });
     }
     group.finish();
 }
@@ -152,16 +143,11 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistr
 fn cold_properties(roots: &[(&'static TypeMetadata, usize)], reflection: &ReflectRegistry) {
     for &(root, size) in roots {
         let started = Instant::now();
-        let properties = black_box(root.try_properties_in(black_box(reflection)))
-            .expect("compatible independent getter fragments");
+        let properties =
+            black_box(root.try_properties_in(black_box(reflection))).expect("compatible independent getter fragments");
         let elapsed = started.elapsed();
         assert_eq!(properties.properties().len(), size);
-        assert!(
-            properties
-                .properties()
-                .iter()
-                .all(|property| property.is_getter())
-        );
+        assert!(properties.properties().iter().all(|property| property.is_getter()));
         println!(
             "cold_properties/fields_{size}/impls_{size}: {} ns (one first-use observation)",
             elapsed.as_nanos()
@@ -170,13 +156,8 @@ fn cold_properties(roots: &[(&'static TypeMetadata, usize)], reflection: &Reflec
 }
 
 /// Measures each stable pipeline stage without recreating business inputs.
-fn pipeline(
-    criterion: &mut Criterion,
-    reflection: &ReflectRegistry,
-    roots: &[(&'static TypeMetadata, usize)],
-) {
-    let models =
-        ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
+fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&'static TypeMetadata, usize)]) {
+    let models = ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
     let validators = ValidatorRegistry::empty();
     let options = ValidationOptions::default();
     let one = Pipeline1::sample();
@@ -190,13 +171,9 @@ fn pipeline(
 
     let mut properties = criterion.benchmark_group("model_properties_merge_warm");
     for &(root, size) in roots {
-        properties.bench_with_input(
-            BenchmarkId::new("fields_and_impls", size),
-            &root,
-            |bencher, root| {
-                bencher.iter(|| black_box(root.try_properties_in(black_box(reflection))));
-            },
-        );
+        properties.bench_with_input(BenchmarkId::new("fields_and_impls", size), &root, |bencher, root| {
+            bencher.iter(|| black_box(root.try_properties_in(black_box(reflection))));
+        });
     }
     properties.finish();
 
@@ -206,13 +183,9 @@ fn pipeline(
     }
     let mut cached = criterion.benchmark_group("model_properties_registry_cached");
     for &(root, size) in roots {
-        cached.bench_with_input(
-            BenchmarkId::new("fields_and_impls", size),
-            &root,
-            |bencher, root| {
-                bencher.iter(|| black_box(models.properties_for(black_box(*root))));
-            },
-        );
+        cached.bench_with_input(BenchmarkId::new("fields_and_impls", size), &root, |bencher, root| {
+            bencher.iter(|| black_box(models.properties_for(black_box(*root))));
+        });
     }
     cached.finish();
 
@@ -227,21 +200,17 @@ fn pipeline(
         .expect("valid benchmark graph");
         assert_eq!(graph.models().len(), 1);
         assert_eq!(graph.models()[0].type_id(), root.type_id());
-        graphs.bench_with_input(
-            BenchmarkId::new("fields", size),
-            &root_set,
-            |bencher, roots| {
-                bencher.iter(|| {
-                    black_box(
-                        StructureResolver::for_roots(ResolveInputs {
-                            models: &models,
-                            roots: black_box(roots),
-                        })
-                        .resolve(),
-                    )
-                });
-            },
-        );
+        graphs.bench_with_input(BenchmarkId::new("fields", size), &root_set, |bencher, roots| {
+            bencher.iter(|| {
+                black_box(
+                    StructureResolver::for_roots(ResolveInputs {
+                        models: &models,
+                        roots: black_box(roots),
+                    })
+                    .resolve(),
+                )
+            });
+        });
     }
     graphs.finish();
 
@@ -295,15 +264,12 @@ fn pipeline(
             },
         )
         .expect("plan outside execution timing");
-        let report = plan
-            .validate(value.clone(), &options)
-            .expect("valid fixture execution");
+        let report = plan.validate(value.clone(), &options).expect("valid fixture execution");
         assert!(report.violations().is_empty());
         assert!(report.skipped().is_empty());
         assert!(!report.is_truncated());
         execution.bench_function(BenchmarkId::new("fields", size), |bencher| {
-            bencher
-                .iter(|| black_box(plan.validate(black_box(value.clone()), black_box(&options))));
+            bencher.iter(|| black_box(plan.validate(black_box(value.clone()), black_box(&options))));
         });
         let last_selected = ValidationOptions::builder()
             .selection(ValidationSelection::Fields(vec![FieldPath::new(format!(
@@ -312,9 +278,7 @@ fn pipeline(
             ))]))
             .build();
         execution.bench_function(BenchmarkId::new("fields_last_selected", size), |bencher| {
-            bencher.iter(|| {
-                black_box(plan.validate(black_box(value.clone()), black_box(&last_selected)))
-            });
+            bencher.iter(|| black_box(plan.validate(black_box(value.clone()), black_box(&last_selected))));
         });
     }
     execution.finish();
@@ -342,15 +306,13 @@ fn model_count_pipeline(criterion: &mut Criterion) {
 
     for model_count in counts {
         let entries = &registrations[..model_count];
-        let models =
-            ModelRegistry::from_static_metadata(entries).expect("valid static registrations");
+        let models = ModelRegistry::from_static_metadata(entries).expect("valid static registrations");
         criterion.bench_function(
             &format!("model_registry_construction_models/{model_count}/static_entries"),
             |bencher| {
                 bencher.iter(|| {
                     black_box(
-                        ModelRegistry::from_static_metadata(black_box(entries))
-                            .expect("valid static registrations"),
+                        ModelRegistry::from_static_metadata(black_box(entries)).expect("valid static registrations"),
                     )
                 })
             },
@@ -368,10 +330,7 @@ fn model_count_pipeline(criterion: &mut Criterion) {
             full.models().len(),
             model_count,
             "complete graph for {model_count} entries included IDs: {:?}",
-            full.models()
-                .iter()
-                .map(|model| model.model_id())
-                .collect::<Vec<_>>(),
+            full.models().iter().map(|model| model.model_id()).collect::<Vec<_>>(),
         );
         let root = roots[0];
         let root_set = [root];
@@ -443,8 +402,7 @@ fn model_count_pipeline(criterion: &mut Criterion) {
 
 /// Keeps cold probes ahead of any code that could initialize property caches.
 fn main() {
-    let reflection =
-        ReflectRegistry::initialize().expect("reflection startup outside property timing");
+    let reflection = ReflectRegistry::initialize().expect("reflection startup outside property timing");
     let roots = [
         (TypeMetadata::of::<Pipeline1>(), 1),
         (TypeMetadata::of::<Pipeline8>(), 8),

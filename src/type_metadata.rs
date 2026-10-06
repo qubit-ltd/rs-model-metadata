@@ -134,10 +134,7 @@ impl TypeMetadata {
     #[doc(hidden)]
     #[must_use]
     #[inline]
-    pub(crate) const fn with_property_fragments(
-        mut self,
-        fragments: &'static [PropertyFragment],
-    ) -> Self {
+    pub(crate) const fn with_property_fragments(mut self, fragments: &'static [PropertyFragment]) -> Self {
         self.property_fragments = fragments;
         self
     }
@@ -147,10 +144,7 @@ impl TypeMetadata {
     #[must_use]
     #[inline]
     #[cfg(feature = "generic")]
-    pub(crate) const fn with_generic_definition(
-        mut self,
-        definition: &'static GenericModelMetadata,
-    ) -> Self {
+    pub(crate) const fn with_generic_definition(mut self, definition: &'static GenericModelMetadata) -> Self {
         self.generic_definition = Some(definition);
         self
     }
@@ -300,9 +294,7 @@ impl TypeMetadata {
     /// # Errors
     ///
     /// Returns reflection initialization or intrinsic capability conflicts.
-    pub fn property_fragments(
-        &'static self,
-    ) -> Result<ResolvedPropertyFragments, PropertyResolutionError> {
+    pub fn property_fragments(&'static self) -> Result<ResolvedPropertyFragments, PropertyResolutionError> {
         self.property_fragments_in(ReflectRegistry::initialize()?)
     }
 
@@ -328,15 +320,11 @@ impl TypeMetadata {
     ) -> Result<ResolvedPropertyFragments, PropertyResolutionError> {
         use crate::reflect_facade::ModelImplResolution;
 
-        Ok(
-            match crate::reflect_facade::model_impl_metadata(self, registry)? {
-                None => ResolvedPropertyFragments::Static(self.property_fragments),
-                Some(ModelImplResolution::Static(metadata)) => {
-                    ResolvedPropertyFragments::Static(metadata.fragments())
-                }
-                Some(ModelImplResolution::Merged(metadata)) => metadata.fragments(),
-            },
-        )
+        Ok(match crate::reflect_facade::model_impl_metadata(self, registry)? {
+            None => ResolvedPropertyFragments::Static(self.property_fragments),
+            Some(ModelImplResolution::Static(metadata)) => ResolvedPropertyFragments::Static(metadata.fragments()),
+            Some(ModelImplResolution::Merged(metadata)) => metadata.fragments(),
+        })
     }
 
     /// Returns effective properties from the process-wide reflection snapshot.
@@ -386,12 +374,10 @@ impl TypeMetadata {
             Some(ModelImplResolution::Static(metadata)) => metadata
                 .try_properties()
                 .map(ResolvedProperties::Static)
-                .map_err(|error| {
-                    PropertyResolutionError::Assembly(std::sync::Arc::new(error.clone()))
-                }),
-            Some(ModelImplResolution::Merged(metadata)) => metadata
-                .try_properties()
-                .map_err(PropertyResolutionError::Assembly),
+                .map_err(|error| PropertyResolutionError::Assembly(std::sync::Arc::new(error.clone()))),
+            Some(ModelImplResolution::Merged(metadata)) => {
+                metadata.try_properties().map_err(PropertyResolutionError::Assembly)
+            }
         }
     }
 
@@ -422,10 +408,7 @@ impl TypeMetadata {
     ///
     /// Returns reflection initialization, capability, or property assembly
     /// errors.
-    pub fn try_property(
-        &'static self,
-        name: &str,
-    ) -> Result<Option<PropertyMetadata>, PropertyResolutionError> {
+    pub fn try_property(&'static self, name: &str) -> Result<Option<PropertyMetadata>, PropertyResolutionError> {
         self.try_properties()
             .map(|properties| properties.property(name).copied())
     }
@@ -586,8 +569,7 @@ impl TypeMetadata {
     /// Panics when the descriptor or generated metadata violates the ABI.
     #[doc(hidden)]
     pub fn assert_valid_for<T: 'static>(&self) {
-        self.validate_for::<T>()
-            .unwrap_or_else(|error| panic!("{error}"));
+        self.validate_for::<T>().unwrap_or_else(|error| panic!("{error}"));
     }
 
     /// Checks that generated metadata is anchored to `T`.
@@ -617,10 +599,7 @@ impl TypeMetadata {
     }
 
     /// Checks that this metadata remains attached to `descriptor`.
-    pub(crate) fn validate_descriptor(
-        &self,
-        descriptor: &TypeDescriptor,
-    ) -> Result<(), AbiViolation> {
+    pub(crate) fn validate_descriptor(&self, descriptor: &TypeDescriptor) -> Result<(), AbiViolation> {
         if !core::ptr::eq(self.descriptor, descriptor) {
             return Err(abi_violation(
                 "QMM-ABI-002",
@@ -640,8 +619,7 @@ impl TypeMetadata {
                 ));
             }
             if let Some(definition) = self.generic_definition
-                && (self.descriptor.concrete_generic().is_none()
-                    || definition.role() != self.role())
+                && (self.descriptor.concrete_generic().is_none() || definition.role() != self.role())
             {
                 return Err(abi_violation(
                     "QMM-ABI-022",
@@ -675,10 +653,7 @@ impl TypeMetadata {
     /// field, getter, or setter types.
     #[doc(hidden)]
     #[must_use = "handle invalid generated property metadata"]
-    pub fn validate_properties(
-        &self,
-        properties: &[PropertyMetadata],
-    ) -> Result<(), PropertyBuildErrors> {
+    pub fn validate_properties(&self, properties: &[PropertyMetadata]) -> Result<(), PropertyBuildErrors> {
         validate_properties(properties, self.fields, self.descriptor)
     }
 }
@@ -707,9 +682,7 @@ fn validate_fields(
             || location.index() != index
             || location.variant() != reflect.variant_index()
             || field.index() != index
-            || !field
-                .reflect()
-                .is_some_and(|actual| core::ptr::eq(actual, reflect))
+            || !field.reflect().is_some_and(|actual| core::ptr::eq(actual, reflect))
             || !core::ptr::eq(reflect.declaring_type(), descriptor)
         {
             return Err(abi_violation(
@@ -796,9 +769,7 @@ fn validate_field_semantics(field: &FieldMetadata) -> Result<(), AbiViolation> {
 }
 
 /// Verifies that validator declarations have non-empty, unique dependencies.
-fn validate_validators(
-    validators: &[crate::metadata::ValidatorMetadata],
-) -> Result<(), AbiViolation> {
+fn validate_validators(validators: &[crate::metadata::ValidatorMetadata]) -> Result<(), AbiViolation> {
     for validator in validators {
         let mut parameter_names = HashSet::with_capacity(validator.params().len());
         if validator
@@ -806,10 +777,7 @@ fn validate_validators(
             .iter()
             .any(|argument| !parameter_names.insert(argument.name()))
         {
-            return Err(abi_violation(
-                "QMM-ABI-018",
-                "validator parameter names must be unique",
-            ));
+            return Err(abi_violation("QMM-ABI-018", "validator parameter names must be unique"));
         }
         for (index, dependency) in validator.depends_on().iter().enumerate() {
             if dependency.is_empty() || validator.depends_on()[..index].contains(dependency) {
@@ -838,10 +806,7 @@ fn validate_constraint_kinds(
             ConstraintMetadata::Sequence(sequence) => {
                 if let Some(selector) = sequence.element() {
                     if !allow_selectors {
-                        return Err(abi_violation(
-                            "QMM-ABI-020",
-                            "selector semantics must be non-recursive",
-                        ));
+                        return Err(abi_violation("QMM-ABI-020", "selector semantics must be non-recursive"));
                     }
                     validate_selector(selector, SelectorPosition::Element, type_ref)?;
                 }
@@ -854,10 +819,7 @@ fn validate_constraint_kinds(
                 ] {
                     if let Some(selector) = selector {
                         if !allow_selectors {
-                            return Err(abi_violation(
-                                "QMM-ABI-020",
-                                "selector semantics must be non-recursive",
-                            ));
+                            return Err(abi_violation("QMM-ABI-020", "selector semantics must be non-recursive"));
                         }
                         validate_selector(selector, position, type_ref)?;
                     }
@@ -962,8 +924,7 @@ fn validate_properties(
                 property.name(),
             ));
         }
-        if property.field().is_none() && property.getter().is_none() && property.setter().is_none()
-        {
+        if property.field().is_none() && property.getter().is_none() && property.setter().is_none() {
             errors.push(PropertyBuildError::new(
                 PropertyBuildErrorKind::MissingSource,
                 property.name(),
@@ -1079,12 +1040,7 @@ fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) -> Result
                         "enum variant names must be non-empty and unique per namespace",
                     ));
                 }
-                validate_fields(
-                    variant.fields(),
-                    reflect.fields(),
-                    descriptor,
-                    "QMM-ABI-013",
-                )?;
+                validate_fields(variant.fields(), reflect.fields(), descriptor, "QMM-ABI-013")?;
                 defaults += usize::from(variant.is_default());
             }
             if defaults > 1 {
@@ -1099,10 +1055,7 @@ fn validate_role(metadata: &TypeMetadata, descriptor: &TypeDescriptor) -> Result
 }
 
 /// Verifies that an identifier belongs to the declaring field collection.
-fn validate_identifier(
-    fields: &[FieldMetadata],
-    identifier: &FieldMetadata,
-) -> Result<(), AbiViolation> {
+fn validate_identifier(fields: &[FieldMetadata], identifier: &FieldMetadata) -> Result<(), AbiViolation> {
     if !contains_field(fields, identifier)
         || !identifier.is_identifier()
         || fields.iter().filter(|field| field.is_identifier()).count() != 1

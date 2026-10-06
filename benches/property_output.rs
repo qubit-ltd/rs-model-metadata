@@ -55,17 +55,13 @@ fn property_output(criterion: &mut Criterion) {
     let mut scalar = criterion.benchmark_group("property_scalar");
     scalar.bench_function("borrowed", |bencher| {
         bencher.iter(|| {
-            black_box(
-                PropertyValue::Borrowed(ReflectedRef::new(black_box(&value)))
-                    .into_invocation_output(),
-            );
+            black_box(PropertyValue::Borrowed(ReflectedRef::new(black_box(&value))).into_invocation_output());
         })
     });
     scalar.bench_function("optional_some", |bencher| {
         bencher.iter(|| {
             black_box(
-                PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(black_box(&value))))
-                    .into_invocation_output(),
+                PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(black_box(&value)))).into_invocation_output(),
             );
         })
     });
@@ -87,47 +83,29 @@ fn property_output(criterion: &mut Criterion) {
     let mut slices = criterion.benchmark_group("property_slice");
     for length in [0, 1, 32, 1024, 65536] {
         let values = vec![value; length];
-        slices.bench_with_input(
-            BenchmarkId::new("native", length),
-            &values,
-            |bencher, values| {
-                bencher.iter(|| {
-                    black_box(black_box(values.as_slice()).get(values.len() / 2));
-                });
-            },
-        );
-        slices.bench_with_input(
-            BenchmarkId::new("direct", length),
-            &values,
-            |bencher, values| {
-                bencher.iter(|| {
-                    let slice = BorrowedPropertySlice::new(black_box(values.as_slice()));
-                    black_box(slice.get(slice.len() / 2));
-                });
-            },
-        );
-        slices.bench_with_input(
-            BenchmarkId::new("convert", length),
-            &values,
-            |bencher, values| {
-                bencher.iter(|| {
-                    let input = PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(
-                        black_box(values.as_slice()),
-                    ));
-                    black_box(input.into_invocation_output());
-                });
-            },
-        );
+        slices.bench_with_input(BenchmarkId::new("native", length), &values, |bencher, values| {
+            bencher.iter(|| {
+                black_box(black_box(values.as_slice()).get(values.len() / 2));
+            });
+        });
+        slices.bench_with_input(BenchmarkId::new("direct", length), &values, |bencher, values| {
+            bencher.iter(|| {
+                let slice = BorrowedPropertySlice::new(black_box(values.as_slice()));
+                black_box(slice.get(slice.len() / 2));
+            });
+        });
+        slices.bench_with_input(BenchmarkId::new("convert", length), &values, |bencher, values| {
+            bencher.iter(|| {
+                let input = PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(black_box(values.as_slice())));
+                black_box(input.into_invocation_output());
+            });
+        });
         slices.bench_with_input(
             BenchmarkId::new("conversion_only", length),
             &values,
             |bencher, values| {
                 bencher.iter_batched(
-                    || {
-                        PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(black_box(
-                            values.as_slice(),
-                        )))
-                    },
+                    || PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(black_box(values.as_slice()))),
                     |input| {
                         black_box(input.into_invocation_output());
                     },
@@ -143,18 +121,10 @@ fn property_output(criterion: &mut Criterion) {
 fn generated_getters(criterion: &mut Criterion) {
     let metadata = TypeMetadata::of::<GetterFixture>();
     let properties = metadata.try_properties().expect("valid getter fixture");
-    let number = properties
-        .property("number")
-        .expect("generated scalar getter");
-    let label = properties
-        .property("label")
-        .expect("generated string getter");
-    let alias = properties
-        .property("alias")
-        .expect("generated optional getter");
-    let values = properties
-        .property("values")
-        .expect("generated slice getter");
+    let number = properties.property("number").expect("generated scalar getter");
+    let label = properties.property("label").expect("generated string getter");
+    let alias = properties.property("alias").expect("generated optional getter");
+    let values = properties.property("values").expect("generated slice getter");
     assert!(number.is_getter());
     assert!(label.is_getter());
     assert!(alias.is_getter());
@@ -233,13 +203,9 @@ fn generated_getters(criterion: &mut Criterion) {
             &fixture,
             |bencher, fixture| bencher.iter(|| black_box(black_box(fixture).alias())),
         );
-        optional.bench_with_input(
-            BenchmarkId::new("property_get", state),
-            &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| black_box(alias.get(ReflectedRef::new(black_box(fixture)))))
-            },
-        );
+        optional.bench_with_input(BenchmarkId::new("property_get", state), &fixture, |bencher, fixture| {
+            bencher.iter(|| black_box(alias.get(ReflectedRef::new(black_box(fixture)))))
+        });
         optional.bench_with_input(
             BenchmarkId::new("property_get_and_convert", state),
             &fixture,
@@ -279,9 +245,7 @@ fn generated_getters(criterion: &mut Criterion) {
         slices.bench_with_input(
             BenchmarkId::new("property_get", length),
             &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| black_box(values.get(ReflectedRef::new(black_box(fixture)))))
-            },
+            |bencher, fixture| bencher.iter(|| black_box(values.get(ReflectedRef::new(black_box(fixture))))),
         );
         slices.bench_with_input(
             BenchmarkId::new("property_get_and_convert", length),
@@ -325,19 +289,15 @@ fn generated_getters(criterion: &mut Criterion) {
             alias: alias_value,
             values: Vec::new(),
         };
-        lookup.bench_with_input(
-            BenchmarkId::new("optional", state),
-            &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| {
-                    black_box(
-                        properties
-                            .property(black_box("alias"))
-                            .map(|property| property.get(ReflectedRef::new(black_box(fixture)))),
-                    )
-                })
-            },
-        );
+        lookup.bench_with_input(BenchmarkId::new("optional", state), &fixture, |bencher, fixture| {
+            bencher.iter(|| {
+                black_box(
+                    properties
+                        .property(black_box("alias"))
+                        .map(|property| property.get(ReflectedRef::new(black_box(fixture)))),
+                )
+            })
+        });
     }
     for length in [0, 1, 32, 1024, 65536] {
         let fixture = GetterFixture {
@@ -346,19 +306,15 @@ fn generated_getters(criterion: &mut Criterion) {
             alias: None,
             values: vec![7; length],
         };
-        lookup.bench_with_input(
-            BenchmarkId::new("slice", length),
-            &fixture,
-            |bencher, fixture| {
-                bencher.iter(|| {
-                    black_box(
-                        properties
-                            .property(black_box("values"))
-                            .map(|property| property.get(ReflectedRef::new(black_box(fixture)))),
-                    )
-                })
-            },
-        );
+        lookup.bench_with_input(BenchmarkId::new("slice", length), &fixture, |bencher, fixture| {
+            bencher.iter(|| {
+                black_box(
+                    properties
+                        .property(black_box("values"))
+                        .map(|property| property.get(ReflectedRef::new(black_box(fixture)))),
+                )
+            })
+        });
     }
     lookup.finish();
 }

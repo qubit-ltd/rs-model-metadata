@@ -54,8 +54,7 @@ impl TypeMetadataProvider for WrongTarget {
         static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
         METADATA.get_or_init(|| {
             let role = v7::leak(v7::model_role());
-            v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<OneField>(), None, &[], role)
-                .finish_unchecked()
+            v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<OneField>(), None, &[], role).finish_unchecked()
         })
     }
 }
@@ -71,11 +70,7 @@ fn panic_message(action: impl FnOnce() + std::panic::UnwindSafe) -> String {
     payload
         .downcast_ref::<String>()
         .cloned()
-        .or_else(|| {
-            payload
-                .downcast_ref::<&str>()
-                .map(|message| (*message).to_owned())
-        })
+        .or_else(|| payload.downcast_ref::<&str>().map(|message| (*message).to_owned()))
         .expect("ABI panic payload must be text")
 }
 
@@ -89,14 +84,12 @@ fn test_finish_rejects_descriptor_and_field_overlay_mismatches() {
     let descriptor = TypeDescriptor::of::<OneField>();
 
     let mismatch = panic_message(|| {
-        let _ = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], role)
-            .finish::<WrongTarget>();
+        let _ = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], role).finish::<WrongTarget>();
     });
     assert!(mismatch.starts_with("QMM-ABI-001:"));
 
     let missing_field = panic_message(|| {
-        let _ =
-            v7::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], role).finish::<OneField>();
+        let _ = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], role).finish::<OneField>();
     });
     assert!(missing_field.starts_with("QMM-ABI-003:"));
 }
@@ -115,8 +108,7 @@ fn test_finish_rejects_duplicate_properties_and_wrong_getter_targets() {
         &descriptor.fields()[0],
     )]);
     let role = v7::leak(v7::model_role());
-    let property =
-        v7::property_metadata("value", fields[0].type_ref(), Some(&fields[0]), None, None);
+    let property = v7::property_metadata("value", fields[0].type_ref(), Some(&fields[0]), None, None);
     let properties = v7::leak_slice(vec![property, property]);
     let duplicate = panic_message(|| {
         let _ = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role)
@@ -156,8 +148,7 @@ fn test_finish_rejects_invalid_role_payloads() {
     let entity_role = v7::leak(v7::entity_role(&one_fields[0]));
     let invalid_identifier = panic_message(|| {
         let _ =
-            v7::GeneratedTypeMetadataBuilder::new(one_descriptor, None, one_fields, entity_role)
-                .finish::<OneField>();
+            v7::GeneratedTypeMetadataBuilder::new(one_descriptor, None, one_fields, entity_role).finish::<OneField>();
     });
     assert!(invalid_identifier.starts_with("QMM-ABI-010:"));
 
@@ -171,16 +162,15 @@ fn test_finish_rejects_invalid_role_payloads() {
     );
     let value_role = v7::leak(v7::value_role(Some(&two_fields[0]), None));
     let invalid_transparent = panic_message(|| {
-        let _ = v7::GeneratedTypeMetadataBuilder::new(two_descriptor, None, two_fields, value_role)
-            .finish::<TwoFields>();
+        let _ =
+            v7::GeneratedTypeMetadataBuilder::new(two_descriptor, None, two_fields, value_role).finish::<TwoFields>();
     });
     assert!(invalid_transparent.starts_with("QMM-ABI-011:"));
 
     let enum_descriptor = TypeDescriptor::of::<OneVariant>();
     let enum_role = v7::leak(v7::enum_role(&[]));
     let invalid_enum = panic_message(|| {
-        let _ = v7::GeneratedTypeMetadataBuilder::new(enum_descriptor, None, &[], enum_role)
-            .finish::<OneVariant>();
+        let _ = v7::GeneratedTypeMetadataBuilder::new(enum_descriptor, None, &[], enum_role).finish::<OneVariant>();
     });
     assert!(invalid_enum.starts_with("QMM-ABI-012:"));
 }
@@ -188,13 +178,7 @@ fn test_finish_rejects_invalid_role_payloads() {
 #[test]
 fn test_finish_rejects_selector_on_incompatible_field_shape() {
     let descriptor = TypeDescriptor::of::<OneField>();
-    let selector = v7::leak(SelectorMetadata::new(
-        SelectorPosition::Element,
-        &[],
-        &[],
-        None,
-        None,
-    ));
+    let selector = v7::leak(SelectorMetadata::new(SelectorPosition::Element, &[], &[], None, None));
     let constraints = v7::leak_slice(vec![ConstraintMetadata::Sequence(
         SequenceConstraint::new(None, None, false).with_element(selector),
     )]);
@@ -210,8 +194,7 @@ fn test_finish_rejects_selector_on_incompatible_field_shape() {
     let role = v7::leak(v7::model_role());
 
     let mismatch = panic_message(|| {
-        let _ = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role)
-            .finish::<OneField>();
+        let _ = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role).finish::<OneField>();
     });
     assert!(mismatch.starts_with("QMM-ABI-020:"));
 }
@@ -226,8 +209,7 @@ fn test_finish_rejects_wrong_field_owner_identity() {
     )]);
     let role = v7::leak(v7::model_role());
     let message = panic_message(|| {
-        let _ = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role)
-            .finish::<OneField>();
+        let _ = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role).finish::<OneField>();
     });
     assert!(message.starts_with("QMM-ABI-003:"));
     assert!(message.contains("identity"));
@@ -240,12 +222,7 @@ fn test_singleton_semantic_counts_cannot_overflow() {
     let descriptor = TypeDescriptor::of::<OneField>();
     let role = v7::leak(v7::model_role());
     for count in [2, 255, 256, 257] {
-        let attributes = v7::leak_slice(vec![
-            FieldAttributeMetadata::Indexed(
-                IndexingReasons::EXPLICIT
-            );
-            count
-        ]);
+        let attributes = v7::leak_slice(vec![FieldAttributeMetadata::Indexed(IndexingReasons::EXPLICIT); count]);
         let fields = v7::leak_slice(vec![v7::field_metadata(
             descriptor.type_id(),
             &descriptor.fields()[0],
@@ -254,8 +231,7 @@ fn test_singleton_semantic_counts_cannot_overflow() {
             &[],
             &SerdeFieldMetadata::DEFAULT,
         )]);
-        let metadata = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role)
-            .finish_unchecked();
+        let metadata = v7::GeneratedTypeMetadataBuilder::new(descriptor, None, fields, role).finish_unchecked();
         let error = metadata
             .validate_for::<OneField>()
             .expect_err("duplicate singleton semantics");
@@ -279,8 +255,7 @@ fn test_concrete_enum_rejects_definition_only_variants_without_panicking() {
         .expect("generic definition retained");
     let role = v7::leak(v7::enum_role(definition.variants()));
     let metadata =
-        v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<OneVariant>(), None, &[], role)
-            .finish_unchecked();
+        v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<OneVariant>(), None, &[], role).finish_unchecked();
     let error = metadata
         .validate_for::<OneVariant>()
         .expect_err("definition cannot stand in for concrete variants");

@@ -124,9 +124,7 @@ fn bounded_generics(
     let recursive_type = quote!(#ident #arguments).to_string();
     for (_, fields) in shapes {
         for field in *fields {
-            for ty in
-                recursive_bounds(&field.ty, &recursive_type).unwrap_or_else(|| vec![&field.ty])
-            {
+            for ty in recursive_bounds(&field.ty, &recursive_type).unwrap_or_else(|| vec![&field.ty]) {
                 generics
                     .make_where_clause()
                     .predicates
@@ -153,11 +151,7 @@ fn bounded_generics(
 /// # Returns
 /// Match-arm token streams in constructor order.
 #[must_use]
-fn trait_arms(
-    item: &DeriveInput,
-    name: &str,
-    shapes: &[(TokenStream, &Fields)],
-) -> Vec<TokenStream> {
+fn trait_arms(item: &DeriveInput, name: &str, shapes: &[(TokenStream, &Fields)]) -> Vec<TokenStream> {
     let arms: Vec<_> = shapes
         .iter()
         .map(|(constructor, fields)| {
@@ -247,12 +241,7 @@ fn trait_arms(
 /// Panics if `name` is unsupported or `Default` is requested for an item with
 /// no constructor shape.
 #[must_use]
-fn trait_body(
-    item: &DeriveInput,
-    name: &str,
-    shapes: &[(TokenStream, &Fields)],
-    arms: &[TokenStream],
-) -> TokenStream {
+fn trait_body(item: &DeriveInput, name: &str, shapes: &[(TokenStream, &Fields)], arms: &[TokenStream]) -> TokenStream {
     let discriminant = matches!(item.data, Data::Enum(_))
         .then(|| quote!(::core::hash::Hash::hash(&::core::mem::discriminant(self), state);));
     let ordering_prefix = if matches!(name, "PartialOrd" | "Ord") {
@@ -267,8 +256,8 @@ fn trait_body(
             quote!(fn clone(&self) -> Self { match self { #(#arms),* } })
         }
         "PartialEq" => {
-            let fallback = matches!(&item.data, Data::Enum(data) if data.variants.len() > 1)
-                .then(|| quote!(_ => false,));
+            let fallback =
+                matches!(&item.data, Data::Enum(data) if data.variants.len() > 1).then(|| quote!(_ => false,));
             quote!(fn eq(&self, other: &Self) -> bool { match (self, other) { #(#arms,)* #fallback } })
         }
         "Hash" => {
@@ -352,8 +341,7 @@ fn enum_ordering_prefix(item: &DeriveInput, trait_name: &str) -> TokenStream {
     let mut representation: Type = parse_quote!(isize);
     for attribute in &item.attrs {
         if attribute.path().is_ident("repr")
-            && let Ok(paths) =
-                attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)
+            && let Ok(paths) = attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)
         {
             for path in paths {
                 if path.get_ident().is_some_and(|ident| {

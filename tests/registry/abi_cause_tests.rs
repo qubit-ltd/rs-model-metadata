@@ -34,13 +34,8 @@ struct Invalid {
 fn invalid_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v7::GeneratedTypeMetadataBuilder::new(
-            TypeDescriptor::of::<Invalid>(),
-            None,
-            &[],
-            v7::leak(v7::model_role()),
-        )
-        .finish_unchecked()
+        v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Invalid>(), None, &[], v7::leak(v7::model_role()))
+            .finish_unchecked()
     })
 }
 
@@ -59,8 +54,7 @@ fn test_registry_retains_typed_abi_violation() {
         source.clone(),
     );
     let reflection = builder.build().expect("valid reflection snapshot");
-    let error =
-        ModelRegistry::from_reflect_registry(&reflection).expect_err("missing overlay must fail");
+    let error = ModelRegistry::from_reflect_registry(&reflection).expect_err("missing overlay must fail");
     assert_eq!(error.kind(), ModelRegistryErrorKind::RegistrationConflict);
     assert_eq!(error.sources(), &[source]);
     let abi = error
@@ -69,10 +63,7 @@ fn test_registry_retains_typed_abi_violation() {
         .expect("original ABI cause must remain available");
     assert_eq!(abi.code(), "QMM-ABI-003");
     assert!(!abi.message().is_empty());
-    assert_eq!(
-        abi.to_string(),
-        format!("{}: {}", abi.code(), abi.message())
-    );
+    assert_eq!(abi.to_string(), format!("{}: {}", abi.code(), abi.message()));
     assert_eq!(error.abi_cause(), Some(abi));
     assert!(error.to_string().contains(abi.code()));
     assert!(error.to_string().contains(abi.message()));

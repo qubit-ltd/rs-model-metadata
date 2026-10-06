@@ -67,13 +67,8 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
     let reflection = RegistrySnapshotBuilder::new().build().unwrap();
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
     let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
-            TypeDescriptor::of::<Broken<1>>(),
-            None,
-            &[],
-            v7::leak(v7::model_role()),
-        )
-        .finish::<Broken<1>>(),
+        v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Broken<1>>(), None, &[], v7::leak(v7::model_role()))
+            .finish::<Broken<1>>(),
     );
     let empty_merge = ModelImplMetadata::merge(metadata, &[]);
     assert!(empty_merge.fragments().fragments().is_empty());
@@ -85,8 +80,7 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
             .is_empty()
     );
     let context = ResolutionContext::new(&models, &[metadata]);
-    let error =
-        resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &context).unwrap_err();
+    let error = resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &context).unwrap_err();
     let ModelResolutionCause::Properties(PropertyResolutionError::Assembly(errors)) = error else {
         panic!("expected original property assembly failure");
     };
@@ -129,8 +123,6 @@ fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
     assert!(Error::source(error).is_some());
     assert!(matches!(
         error.cause(),
-        Some(ModelResolutionCause::Properties(
-            PropertyResolutionError::Assembly(_)
-        ))
+        Some(ModelResolutionCause::Properties(PropertyResolutionError::Assembly(_)))
     ));
 }

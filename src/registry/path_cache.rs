@@ -31,31 +31,17 @@ pub(super) struct PathCacheKey {
 
 impl PathCacheKey {
     /// Copies the path inputs into a key for this registry's cache.
-    pub(super) fn new(
-        type_id: TypeId,
-        metadata_address: usize,
-        segments: &[&str],
-        write: bool,
-    ) -> Self {
+    pub(super) fn new(type_id: TypeId, metadata_address: usize, segments: &[&str], write: bool) -> Self {
         Self {
             type_id,
             metadata_address,
-            segments: segments
-                .iter()
-                .map(|segment| (*segment).to_owned())
-                .collect(),
+            segments: segments.iter().map(|segment| (*segment).to_owned()).collect(),
             write,
         }
     }
 
     /// Compares an owned key against caller-borrowed path segments.
-    fn matches_borrowed(
-        &self,
-        type_id: TypeId,
-        metadata_address: usize,
-        segments: &[&str],
-        write: bool,
-    ) -> bool {
+    fn matches_borrowed(&self, type_id: TypeId, metadata_address: usize, segments: &[&str], write: bool) -> bool {
         self.type_id == type_id
             && self.metadata_address == metadata_address
             && self.write == write
@@ -106,13 +92,7 @@ impl<T> Default for PathCache<T> {
 
 impl<T> PathCache<T> {
     /// Hashes borrowed fields in the same order as their owned counterpart.
-    fn hash_borrowed(
-        &self,
-        type_id: TypeId,
-        metadata_address: usize,
-        segments: &[&str],
-        write: bool,
-    ) -> u64 {
+    fn hash_borrowed(&self, type_id: TypeId, metadata_address: usize, segments: &[&str], write: bool) -> u64 {
         #[cfg(test)]
         if let Some(hash) = self.forced_hash {
             return hash;
@@ -158,11 +138,7 @@ impl<T> PathCache<T> {
         self.entries
             .get(&hash)?
             .iter()
-            .find(|entry| {
-                entry
-                    .key
-                    .matches_borrowed(type_id, metadata_address, segments, write)
-            })
+            .find(|entry| entry.key.matches_borrowed(type_id, metadata_address, segments, write))
             .map(|entry| Arc::clone(&entry.compiled))
     }
 
@@ -226,30 +202,15 @@ mod tests {
     fn test_path_cache_borrowed_lookup_reuses_value() {
         let mut cache = PathCache::default();
         let type_id = TypeId::of::<usize>();
-        let value = cache.insert_or_existing(
-            PathCacheKey::new(type_id, 7, &["middle", "leaf"], false),
-            Arc::new(42),
-        );
+        let value = cache.insert_or_existing(PathCacheKey::new(type_id, 7, &["middle", "leaf"], false), Arc::new(42));
 
         let hit = cache
             .get_borrowed(type_id, 7, &["middle", "leaf"], false)
             .expect("borrowed path should hit");
         assert!(Arc::ptr_eq(&value, &hit));
-        assert!(
-            cache
-                .get_borrowed(type_id, 7, &["middle", "other"], false)
-                .is_none()
-        );
-        assert!(
-            cache
-                .get_borrowed(type_id, 8, &["middle", "leaf"], false)
-                .is_none()
-        );
-        assert!(
-            cache
-                .get_borrowed(type_id, 7, &["middle", "leaf"], true)
-                .is_none()
-        );
+        assert!(cache.get_borrowed(type_id, 7, &["middle", "other"], false).is_none());
+        assert!(cache.get_borrowed(type_id, 8, &["middle", "leaf"], false).is_none());
+        assert!(cache.get_borrowed(type_id, 7, &["middle", "leaf"], true).is_none());
     }
 
     /// A second insertion of the same key keeps the first compiled Arc.
@@ -279,22 +240,11 @@ mod tests {
             ..PathCache::default()
         };
         let type_id = TypeId::of::<usize>();
-        let first = cache.insert_or_existing(
-            PathCacheKey::new(type_id, 7, &["a", "b"], false),
-            Arc::new(1),
-        );
-        let second = cache.insert_or_existing(
-            PathCacheKey::new(type_id, 7, &["a", "c"], false),
-            Arc::new(2),
-        );
-        let read = cache.insert_or_existing(
-            PathCacheKey::new(type_id, 7, &["a", "b"], true),
-            Arc::new(3),
-        );
-        let alternate_metadata = cache.insert_or_existing(
-            PathCacheKey::new(type_id, 8, &["a", "b"], false),
-            Arc::new(4),
-        );
+        let first = cache.insert_or_existing(PathCacheKey::new(type_id, 7, &["a", "b"], false), Arc::new(1));
+        let second = cache.insert_or_existing(PathCacheKey::new(type_id, 7, &["a", "c"], false), Arc::new(2));
+        let read = cache.insert_or_existing(PathCacheKey::new(type_id, 7, &["a", "b"], true), Arc::new(3));
+        let alternate_metadata =
+            cache.insert_or_existing(PathCacheKey::new(type_id, 8, &["a", "b"], false), Arc::new(4));
         let alternate_type = cache.insert_or_existing(
             PathCacheKey::new(TypeId::of::<u8>(), 7, &["a", "b"], false),
             Arc::new(5),
@@ -304,20 +254,8 @@ mod tests {
             (type_id, 7, &["a", "b"][..].as_ref(), false, &first),
             (type_id, 7, &["a", "c"][..].as_ref(), false, &second),
             (type_id, 7, &["a", "b"][..].as_ref(), true, &read),
-            (
-                type_id,
-                8,
-                &["a", "b"][..].as_ref(),
-                false,
-                &alternate_metadata,
-            ),
-            (
-                TypeId::of::<u8>(),
-                7,
-                &["a", "b"][..].as_ref(),
-                false,
-                &alternate_type,
-            ),
+            (type_id, 8, &["a", "b"][..].as_ref(), false, &alternate_metadata),
+            (TypeId::of::<u8>(), 7, &["a", "b"][..].as_ref(), false, &alternate_type),
         ] {
             let actual = cache
                 .get_borrowed(lookup_type, address, segments, write)
@@ -351,22 +289,15 @@ mod tests {
             assert!(cache.len() <= CACHE_CAPACITY);
         }
 
-        assert!(
-            cache.get(&first_key).is_none(),
-            "the oldest key should be evicted"
-        );
+        assert!(cache.get(&first_key).is_none(), "the oldest key should be evicted");
         assert!(Arc::ptr_eq(
             &second,
-            &cache
-                .get(&second_key)
-                .expect("second colliding key remains")
+            &cache.get(&second_key).expect("second colliding key remains")
         ));
         let newest_key = PathCacheKey::new(TypeId::of::<usize>(), 1, &["path-256"], false);
         assert!(Arc::ptr_eq(
             &newest.expect("257th insertion is retained"),
-            &cache
-                .get(&newest_key)
-                .expect("newest colliding key remains")
+            &cache.get(&newest_key).expect("newest colliding key remains")
         ));
         let replacement = cache.insert_or_existing(first_key, Arc::new(999));
         assert!(!Arc::ptr_eq(&first, &replacement));

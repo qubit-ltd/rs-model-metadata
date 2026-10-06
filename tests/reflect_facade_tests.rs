@@ -50,8 +50,7 @@ impl TypeMetadataProvider for Account {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
             let role = v7::leak(v7::model_role());
-            v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role)
-                .finish::<Account>()
+            v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
         })
     }
 }
@@ -86,8 +85,7 @@ fn test_model_metadata_reuses_the_reflect_descriptor_root() {
 
 #[test]
 fn test_public_metadata_entry_points_reject_cross_type_providers() {
-    let direct = std::panic::catch_unwind(TypeMetadata::of::<Impostor>)
-        .expect_err("cross-type provider must fail");
+    let direct = std::panic::catch_unwind(TypeMetadata::of::<Impostor>).expect_err("cross-type provider must fail");
     assert!(panic_message(direct).starts_with("QMM-ABI-001:"));
 
     let registry = ModelRegistry::try_global().expect("model registry must initialize");
@@ -104,10 +102,7 @@ fn test_reflect_facade_supports_enabled_ecosystem_and_qubit_types() {
     let descriptor = TypeDescriptor::of::<ExternalTypeFixture>();
 
     for field in ["id", "created_at", "amount", "request_id", "data_type"] {
-        assert!(
-            descriptor.field(field).is_some(),
-            "missing reflected field {field}"
-        );
+        assert!(descriptor.field(field).is_some(), "missing reflected field {field}");
     }
 }
 
@@ -118,9 +113,7 @@ fn test_model_impl_fragment_key_rejects_empty_suffix() {
 
 #[test]
 fn test_model_impl_fragment_key_rejects_other_capability() {
-    assert!(
-        std::panic::catch_unwind(|| model_impl_fragment_key("qubit.model.impl.v1.other")).is_err()
-    );
+    assert!(std::panic::catch_unwind(|| model_impl_fragment_key("qubit.model.impl.v1.other")).is_err());
 }
 
 #[test]
@@ -133,10 +126,6 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
     payload
         .downcast_ref::<String>()
         .cloned()
-        .or_else(|| {
-            payload
-                .downcast_ref::<&'static str>()
-                .map(|value| (*value).to_owned())
-        })
+        .or_else(|| payload.downcast_ref::<&'static str>().map(|value| (*value).to_owned()))
         .expect("ABI panic must contain text")
 }

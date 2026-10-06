@@ -40,9 +40,7 @@ use crate::ir::declaration::DeclarationOptions;
 ///
 /// Returns combined diagnostics for duplicate, unsupported, or malformed
 /// options.
-pub(crate) fn parse_declaration_options(
-    options: Punctuated<Meta, Token![,]>,
-) -> Result<DeclarationOptions> {
+pub(crate) fn parse_declaration_options(options: Punctuated<Meta, Token![,]>) -> Result<DeclarationOptions> {
     let mut result = DeclarationOptions {
         behavior: Default::default(),
         id: None,
@@ -88,13 +86,9 @@ pub(crate) fn parse_declaration_options(
                     Err(error) => diagnostics.push(error),
                 }
             }
-            Meta::Path(path) if path.is_ident("open") => set_marker_option(
-                &mut markers,
-                &mut diagnostics,
-                "open",
-                &mut result.open,
-                path.span(),
-            ),
+            Meta::Path(path) if path.is_ident("open") => {
+                set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span())
+            }
             Meta::Path(path) if path.is_ident("transparent") => set_marker_option(
                 &mut markers,
                 &mut diagnostics,
@@ -105,10 +99,7 @@ pub(crate) fn parse_declaration_options(
             Meta::Path(path) if is_behavior_option(&path) => {
                 let name = path.get_ident().expect("behavior option identifier");
                 if !result.behavior.insert(name.to_string()) {
-                    diagnostics.push(Error::new_spanned(
-                        &path,
-                        "duplicate model capability option",
-                    ));
+                    diagnostics.push(Error::new_spanned(&path, "duplicate model capability option"));
                 }
             }
             other => {
@@ -188,10 +179,7 @@ mod tests {
         let parsed = parse_declaration_options(options).expect("supported options");
 
         assert_eq!(parsed.id.expect("id").value(), "example.Model");
-        assert_eq!(
-            parsed.source_id.expect("source id").value(),
-            "example.Source"
-        );
+        assert_eq!(parsed.source_id.expect("source id").value(), "example.Source");
         assert!(parsed.source.is_some());
         assert!(parsed.codec.is_some());
         assert!(parsed.open && parsed.transparent);
@@ -201,15 +189,7 @@ mod tests {
     #[test]
     fn test_parse_behavior_options() {
         let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
-        for name in [
-            "eq",
-            "hash",
-            "no_hash",
-            "copy",
-            "default",
-            "partial_ord",
-            "ord",
-        ] {
+        for name in ["eq", "hash", "no_hash", "copy", "default", "partial_ord", "ord"] {
             let option: TokenStream = name.parse().expect("option tokens");
             let options = parser.parse2(option).expect("option syntax");
             let options = parse_declaration_options(options).expect("supported behavior option");

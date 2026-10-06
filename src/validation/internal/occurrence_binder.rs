@@ -109,9 +109,7 @@ pub(crate) fn check_access(
     let optional_scalar_candidate = matches!(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(
-            ConstraintMetadata::Text(_)
-                | ConstraintMetadata::Decimal(_)
-                | ConstraintMetadata::Time(_)
+            ConstraintMetadata::Text(_) | ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_)
         )
     ) && occurrence
         .segments
@@ -150,26 +148,19 @@ pub(crate) fn check_access(
             _ => TargetMode::Value,
         }
     };
-    let path = CompiledPropertyPath::compile(
-        occurrence.root,
-        &PropertyPath::new(&occurrence.segments),
-        graph,
-        target,
-    )
-    .map_err(|error| {
-        if error.kind() == BindErrorKind::UnsupportedConstraint {
-            ValidationBuildError::unsupported(occurrence)
-        } else {
-            ValidationBuildError::at_occurrence(occurrence, error)
-        }
-    })?;
+    let path = CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&occurrence.segments), graph, target)
+        .map_err(|error| {
+            if error.kind() == BindErrorKind::UnsupportedConstraint {
+                ValidationBuildError::unsupported(occurrence)
+            } else {
+                ValidationBuildError::at_occurrence(occurrence, error)
+            }
+        })?;
     let path = if direct_optional_scalar {
         match path.unwrap_terminal_optional() {
             Ok(path) => path,
             Err(error) => {
-                return Err(Box::new(ValidationBuildError::at_occurrence(
-                    occurrence, error,
-                )));
+                return Err(Box::new(ValidationBuildError::at_occurrence(occurrence, error)));
             }
         }
     } else {
@@ -185,10 +176,7 @@ pub(crate) fn check_access(
     }
     if matches!(occurrence.declaration, ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(sequence)) if sequence.unique_items())
     {
-        let item_eq = occurrence
-            .field
-            .collection_ops()
-            .and_then(|ops| ops.item_eq());
+        let item_eq = occurrence.field.collection_ops().and_then(|ops| ops.item_eq());
         let elements_match = occurrence
             .field
             .descriptor()
@@ -285,18 +273,9 @@ pub(crate) fn check_access(
         }
         if declaration.dependency_bindings().is_empty() {
             for dependency in declaration.depends_on() {
-                let segments: Vec<_> = prefix
-                    .iter()
-                    .chain(dependency.segments())
-                    .copied()
-                    .collect();
-                CompiledPropertyPath::compile(
-                    occurrence.root,
-                    &PropertyPath::new(&segments),
-                    graph,
-                    TargetMode::Value,
-                )
-                .map_err(|error| access_error(occurrence, error))?;
+                let segments: Vec<_> = prefix.iter().chain(dependency.segments()).copied().collect();
+                CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&segments), graph, TargetMode::Value)
+                    .map_err(|error| access_error(occurrence, error))?;
             }
         }
     }
@@ -322,9 +301,7 @@ fn sequence_element_matches(declared: &TypeDescriptor, output: &TypeDescriptor) 
         .or_else(|| declared.as_array().map(|array| array.element_type()))
         .or_else(|| declared.as_slice().map(|slice| slice.element_type()))
         .and_then(|element| element.as_resolved());
-    let output_element = output
-        .as_slice()
-        .and_then(|slice| slice.element_type().as_resolved());
+    let output_element = output.as_slice().and_then(|slice| slice.element_type().as_resolved());
     declared_element
         .zip(output_element)
         .is_some_and(|(declared, output)| declared.type_id() == output.type_id())
@@ -378,17 +355,14 @@ pub(crate) fn bind(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(ConstraintMetadata::Map(_))
     ) {
-        occurrence
-            .field
-            .collection_ops()
-            .and_then(|ops| ops.map_len())
+        occurrence.field.collection_ops().and_then(|ops| ops.map_len())
     } else {
         None
     };
     match occurrence.declaration {
         ExecutionDeclaration::Constraint(constraint) => {
-            let standards = standard_constraints::bind(constraint, validators, value.input_type())
-                .map_err(|errors| {
+            let standards =
+                standard_constraints::bind(constraint, validators, value.input_type()).map_err(|errors| {
                     errors
                         .into_iter()
                         .map(|error| ValidationBuildError::at_occurrence(occurrence, error))
@@ -411,13 +385,8 @@ pub(crate) fn bind(
                     selector: None,
                 })
                 .collect();
-            if matches!(constraint, ConstraintMetadata::Sequence(sequence) if sequence.unique_items())
-            {
-                let Some(item_eq) = occurrence
-                    .field
-                    .collection_ops()
-                    .and_then(|ops| ops.item_eq())
-                else {
+            if matches!(constraint, ConstraintMetadata::Sequence(sequence) if sequence.unique_items()) {
+                let Some(item_eq) = occurrence.field.collection_ops().and_then(|ops| ops.item_eq()) else {
                     return Err(vec![ValidationBuildError::unsupported(occurrence)]);
                 };
                 bindings.push(FieldRuleBinding {
@@ -460,20 +429,13 @@ pub(crate) fn bind(
             if occurrence.selector.is_some() && !validator.dependency_specs().is_empty() {
                 return Err(vec![ValidationBuildError::unsupported(occurrence)]);
             }
-            let dependencies = bind_dependencies(
-                occurrence,
-                declaration,
-                &validator,
-                &value,
-                graph,
-                ancestors,
-            )
-            .map_err(|errors| {
-                errors
-                    .into_iter()
-                    .map(|error| access_error(occurrence, error))
-                    .collect::<Vec<_>>()
-            })?;
+            let dependencies = bind_dependencies(occurrence, declaration, &validator, &value, graph, ancestors)
+                .map_err(|errors| {
+                    errors
+                        .into_iter()
+                        .map(|error| access_error(occurrence, error))
+                        .collect::<Vec<_>>()
+                })?;
             Ok(vec![FieldRuleBinding {
                 context: occurrence.clone(),
                 occurrence: occurrence.ordinal,
@@ -486,9 +448,7 @@ pub(crate) fn bind(
                     map_len: None,
                 },
                 on_none: declaration.on_none(),
-                selector: occurrence
-                    .selector
-                    .map(|position| SelectorBinding { position }),
+                selector: occurrence.selector.map(|position| SelectorBinding { position }),
             }])
         }
         ExecutionDeclaration::Traversal => Err(vec![ValidationBuildError::unsupported(occurrence)]),
@@ -556,17 +516,8 @@ fn bind_dependencies(
                 );
                 continue;
             }
-            let segments: Vec<_> = prefix
-                .iter()
-                .chain(dependency.segments())
-                .copied()
-                .collect();
-            CompiledPropertyPath::compile(
-                occurrence.root,
-                &PropertyPath::new(&segments),
-                graph,
-                TargetMode::Value,
-            )
+            let segments: Vec<_> = prefix.iter().chain(dependency.segments()).copied().collect();
+            CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&segments), graph, TargetMode::Value)
         } else {
             let Some(binding) = declared_by_name
                 .as_ref()
@@ -580,14 +531,7 @@ fn bind_dependencies(
                 );
                 continue;
             };
-            CompiledPropertyPath::compile_dependency(
-                occurrence.root,
-                prefix,
-                binding,
-                graph,
-                ancestors,
-                spec.input(),
-            )
+            CompiledPropertyPath::compile_dependency(occurrence.root, prefix, binding, graph, ancestors, spec.input())
         };
         match path {
             Ok(path)
@@ -631,9 +575,7 @@ fn bind_dependencies(
 /// Returns a name-to-declaration index; duplicate names retain their first
 /// declaration to match a source-order search.
 #[must_use]
-fn index_declared_bindings(
-    declared: &[DependencyBindingMetadata],
-) -> HashMap<&str, &DependencyBindingMetadata> {
+fn index_declared_bindings(declared: &[DependencyBindingMetadata]) -> HashMap<&str, &DependencyBindingMetadata> {
     let mut indexed = HashMap::with_capacity(declared.len());
     for binding in declared {
         indexed.entry(binding.name()).or_insert(binding);
@@ -659,10 +601,7 @@ mod tests {
 
         let indexed = index_declared_bindings(&BINDINGS);
 
-        assert!(std::ptr::eq(
-            *indexed.get("owner").expect("indexed slot"),
-            &BINDINGS[0]
-        ));
+        assert!(std::ptr::eq(*indexed.get("owner").expect("indexed slot"), &BINDINGS[0]));
     }
 
     #[test]

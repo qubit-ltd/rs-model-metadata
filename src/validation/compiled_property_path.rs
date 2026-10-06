@@ -139,70 +139,66 @@ impl CompiledPropertyPath {
             } else {
                 (descriptor, false)
             };
-            let (actual, optional, project_borrowed_optional) =
-                if let Some(getter) = property.getter() {
-                    let output = getter
-                        .output_type()
+            let (actual, optional, project_borrowed_optional) = if let Some(getter) = property.getter() {
+                let output = getter
+                    .output_type()
+                    .as_resolved()
+                    .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
+                if !last
+                    && matches!(
+                        getter.output_kind(),
+                        GetterOutputKind::Owned | GetterOutputKind::BorrowedSlice
+                    )
+                {
+                    return Err(path_error(BindErrorKind::UnsupportedConstraint));
+                }
+                if matches!(getter.output_kind(), GetterOutputKind::OptionalBorrowed) {
+                    let inner = output
+                        .as_optional()
+                        .and_then(|value| value.element_type().as_resolved())
+                        .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+                    (inner, true, false)
+                } else if !last && declared_optional {
+                    if getter.output_kind() != GetterOutputKind::Borrowed {
+                        return Err(path_error(BindErrorKind::UnsupportedConstraint));
+                    }
+                    let declared_optional = descriptor
+                        .as_optional()
+                        .filter(|optional| optional.has_ref_projection())
+                        .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+                    let actual_optional = output
+                        .as_optional()
+                        .and_then(|value| value.element_type().as_resolved())
+                        .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+                    if declared_optional
+                        .element_type()
                         .as_resolved()
-                        .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
-                    if !last
-                        && matches!(
-                            getter.output_kind(),
-                            GetterOutputKind::Owned | GetterOutputKind::BorrowedSlice
-                        )
+                        .is_none_or(|value| value.type_id() != expected.type_id())
+                        || actual_optional.type_id() != expected.type_id()
                     {
                         return Err(path_error(BindErrorKind::UnsupportedConstraint));
                     }
-                    if matches!(getter.output_kind(), GetterOutputKind::OptionalBorrowed) {
-                        let inner = output
-                            .as_optional()
-                            .and_then(|value| value.element_type().as_resolved())
-                            .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
-                        (inner, true, false)
-                    } else if !last && declared_optional {
-                        if getter.output_kind() != GetterOutputKind::Borrowed {
-                            return Err(path_error(BindErrorKind::UnsupportedConstraint));
-                        }
-                        let declared_optional = descriptor
-                            .as_optional()
-                            .filter(|optional| optional.has_ref_projection())
-                            .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
-                        let actual_optional = output
-                            .as_optional()
-                            .and_then(|value| value.element_type().as_resolved())
-                            .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
-                        if declared_optional
-                            .element_type()
-                            .as_resolved()
-                            .is_none_or(|value| value.type_id() != expected.type_id())
-                            || actual_optional.type_id() != expected.type_id()
-                        {
-                            return Err(path_error(BindErrorKind::UnsupportedConstraint));
-                        }
-                        (actual_optional, true, true)
-                    } else {
-                        (output, false, false)
-                    }
-                } else if !last && declared_optional {
-                    let optional = descriptor
-                        .as_optional()
-                        .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
-                    if !optional.has_ref_projection() {
-                        return Err(path_error(BindErrorKind::UnsupportedConstraint));
-                    }
-                    (expected, true, true)
+                    (actual_optional, true, true)
                 } else {
-                    (descriptor, false, false)
-                };
-            let slice = property.getter().is_some_and(|getter| {
-                matches!(getter.output_kind(), GetterOutputKind::BorrowedSlice)
-            });
-            let compatible_text = matches!(expected.kind(), TypeKind::Text(_))
-                && matches!(actual.kind(), TypeKind::Text(_));
-            if expected.type_id() != actual.type_id()
-                && !compatible_text
-                && !(last && slice && !value_target)
-            {
+                    (output, false, false)
+                }
+            } else if !last && declared_optional {
+                let optional = descriptor
+                    .as_optional()
+                    .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+                if !optional.has_ref_projection() {
+                    return Err(path_error(BindErrorKind::UnsupportedConstraint));
+                }
+                (expected, true, true)
+            } else {
+                (descriptor, false, false)
+            };
+            let slice = property
+                .getter()
+                .is_some_and(|getter| matches!(getter.output_kind(), GetterOutputKind::BorrowedSlice));
+            let compatible_text =
+                matches!(expected.kind(), TypeKind::Text(_)) && matches!(actual.kind(), TypeKind::Text(_));
+            if expected.type_id() != actual.type_id() && !compatible_text && !(last && slice && !value_target) {
                 return Err(path_error(BindErrorKind::UnsupportedConstraint));
             }
             path_optional |= optional || declared_optional && !last;
@@ -296,12 +292,7 @@ impl CompiledPropertyPath {
                 optional: false,
             });
         };
-        let mut path = Self::compile(
-            owner,
-            &PropertyPath::new(&segments),
-            graph,
-            TargetMode::Value,
-        )?;
+        let mut path = Self::compile(owner, &PropertyPath::new(&segments), graph, TargetMode::Value)?;
         path.context_depth = depth;
         path.dependency = Some(*binding);
         Ok(path)
@@ -475,11 +466,7 @@ fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDe
         let Some(element) = descriptor
             .as_optional()
             .map(|view| view.element_type())
-            .or_else(|| {
-                descriptor
-                    .as_smart_pointer()
-                    .map(|view| view.pointee_type())
-            })
+            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()))
         else {
             return (descriptor, optional);
         };

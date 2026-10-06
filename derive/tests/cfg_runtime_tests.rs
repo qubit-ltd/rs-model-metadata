@@ -16,13 +16,10 @@ use std::process::Output;
 /// Checks all declared presence axes and the intersecting failure cases.
 #[test]
 fn test_cfg_accessor_feature_matrix() {
-    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/runtime-fixtures/cfg-accessors/Cargo.toml");
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/runtime-fixtures/cfg-accessors/Cargo.toml");
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            std::env::temp_dir().join(format!("qubit-model-cfg-{}", std::process::id()))
-        })
+        .unwrap_or_else(|| std::env::temp_dir().join(format!("qubit-model-cfg-{}", std::process::id())))
         .join("cfg-accessors-runtime");
     let axes = ["accessors", "alternate", "impl-enabled"];
     for mask in 0..8 {
@@ -48,10 +45,7 @@ fn test_cfg_accessor_feature_matrix() {
     ] {
         let output = run_fixture(&fixture, &target, "check", features);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            !output.status.success(),
-            "invalid cfg features {features} compiled"
-        );
+        assert!(!output.status.success(), "invalid cfg features {features} compiled");
         assert!(
             stderr.contains(diagnostic),
             "cfg features {features} missing {diagnostic}: {stderr}"
@@ -76,7 +70,5 @@ fn run_fixture(manifest: &Path, target: &Path, action: &str, features: &str) -> 
     if !features.is_empty() {
         command.args(["--features", features]);
     }
-    command
-        .output()
-        .expect("cfg fixture Cargo process should start")
+    command.output().expect("cfg fixture Cargo process should start")
 }

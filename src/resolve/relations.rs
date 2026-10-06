@@ -328,22 +328,12 @@ fn validate_value_field(
     errors: &mut Vec<ResolveError>,
 ) -> bool {
     let before = errors.len();
-    let closed = value_type_ref_is_closed(
-        field.type_ref(),
-        context,
-        visited,
-        root,
-        source,
-        errors,
-        path,
-    );
+    let closed = value_type_ref_is_closed(field.type_ref(), context, visited, root, source, errors, path);
     let property_path = (!path.is_empty()).then(|| PropertyPath::new(path));
     if !closed && errors.len() == before {
         let actual_role = field
             .descriptor()
-            .and_then(|descriptor| {
-                reported_metadata(descriptor, context, root, property_path, source, errors)
-            })
+            .and_then(|descriptor| reported_metadata(descriptor, context, root, property_path, source, errors))
             .map(TypeMetadata::role);
         if errors.len() == before {
             errors.push(ResolveError::new(
@@ -392,9 +382,9 @@ fn value_type_ref_is_closed(
     errors: &mut Vec<ResolveError>,
     path: &[&'static str],
 ) -> bool {
-    type_ref.as_resolved().is_some_and(|descriptor| {
-        value_descriptor_is_closed(descriptor, context, visited, root, source, errors, path)
-    })
+    type_ref
+        .as_resolved()
+        .is_some_and(|descriptor| value_descriptor_is_closed(descriptor, context, visited, root, source, errors, path))
 }
 
 /// Checks a descriptor without turning lookup failures into role violations.
@@ -438,9 +428,7 @@ fn value_descriptor_is_closed(
     };
     if let Some(metadata) = metadata {
         return match metadata.role() {
-            ModelRole::Value => {
-                validate_nested_value(metadata, root, path, context, visited, source, errors)
-            }
+            ModelRole::Value => validate_nested_value(metadata, root, path, context, visited, source, errors),
             ModelRole::Enum => {
                 let Some(enumeration) = metadata.as_enum() else {
                     return false;
@@ -474,9 +462,7 @@ fn value_descriptor_is_closed(
                             closed = false;
                             continue;
                         }
-                        closed &= validate_value_field(
-                            field, root, &nested, context, visited, source, errors,
-                        );
+                        closed &= validate_value_field(field, root, &nested, context, visited, source, errors);
                     }
                 }
                 visited.remove(&metadata.type_id());
@@ -515,8 +501,7 @@ fn value_descriptor_is_closed(
     }
     let mut closed = true;
     children(descriptor, |edge| {
-        closed &=
-            value_type_ref_is_closed(edge.target, context, visited, root, source, errors, path);
+        closed &= value_type_ref_is_closed(edge.target, context, visited, root, source, errors, path);
     });
     visited.remove(&descriptor.type_id());
     closed
@@ -564,11 +549,7 @@ pub(super) fn resolve_property_path(
                 let inner = descriptor
                     .as_optional()
                     .map(|value| value.element_type())
-                    .or_else(|| {
-                        descriptor
-                            .as_smart_pointer()
-                            .map(|value| value.pointee_type())
-                    });
+                    .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()));
                 let Some(inner) = inner else {
                     break;
                 };
@@ -658,10 +639,7 @@ pub(super) fn validate_unique_scope(
 /// `true` when unwrapping allowed containers reaches the expected type, or
 /// `false` for mismatches, maps, unresolved wrappers, or cycles.
 #[must_use]
-pub(super) fn reference_value_matches(
-    expected: &TypeDescriptor,
-    mut actual: &'static TypeDescriptor,
-) -> bool {
+pub(super) fn reference_value_matches(expected: &TypeDescriptor, mut actual: &'static TypeDescriptor) -> bool {
     let mut visited = HashSet::new();
     while visited.insert(actual.type_id()) {
         if actual.as_map().is_some() {
@@ -748,10 +726,7 @@ fn resolve_object_path(
             }
             NavigationStep::Property(name) => {
                 let properties = context.registry().properties_for(current)?;
-                let Some(property) = properties
-                    .property(name)
-                    .filter(|property| property.is_readable())
-                else {
+                let Some(property) = properties.property(name).filter(|property| property.is_readable()) else {
                     return Ok((None, false));
                 };
                 let next = if follow_entity_bindings

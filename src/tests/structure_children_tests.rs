@@ -50,8 +50,7 @@ enum Event {
 static OPAQUE: OpaqueTypeDescriptor = descriptor::opaque_member::<String>();
 static OPAQUE_REF: TypeRef = TypeRef::Opaque(&OPAQUE);
 static SYMBOLIC_REF: TypeRef = TypeRef::Symbolic(TypeExpression::SelfType);
-static OPTIONAL_SYMBOLIC: TypeDescriptor =
-    descriptor::optional::<Option<String>>("Option<String>", &SYMBOLIC_REF);
+static OPTIONAL_SYMBOLIC: TypeDescriptor = descriptor::optional::<Option<String>>("Option<String>", &SYMBOLIC_REF);
 static POINTER_OPAQUE: TypeDescriptor =
     descriptor::smart_pointer::<Box<String>>("Box<String>", SmartPointerKind::Box, &OPAQUE_REF);
 
@@ -63,10 +62,7 @@ fn collect_edges(descriptor: &'static TypeDescriptor) -> Vec<StructuralEdge> {
 }
 
 /// Checks edge kinds and target identities in the exact traversal order.
-fn assert_edges(
-    descriptor: &'static TypeDescriptor,
-    expected: &[(StructuralEdgeKind, &'static TypeDescriptor)],
-) {
+fn assert_edges(descriptor: &'static TypeDescriptor, expected: &[(StructuralEdgeKind, &'static TypeDescriptor)]) {
     let actual = collect_edges(descriptor);
     assert_eq!(actual.len(), expected.len(), "unexpected direct edge count");
     for (edge, (kind, target)) in actual.iter().zip(expected) {
@@ -195,30 +191,12 @@ fn test_structure_children_map_key_before_value() {
 #[test]
 fn test_structure_children_container_and_wrapper_edges() {
     for (descriptor, kind) in [
-        (
-            TypeDescriptor::of::<Vec<u8>>(),
-            StructuralEdgeKind::SequenceElement,
-        ),
-        (
-            TypeDescriptor::of::<BTreeSet<u8>>(),
-            StructuralEdgeKind::SetElement,
-        ),
-        (
-            TypeDescriptor::of::<[u8; 3]>(),
-            StructuralEdgeKind::ArrayElement,
-        ),
-        (
-            TypeDescriptor::of::<[u8]>(),
-            StructuralEdgeKind::SliceElement,
-        ),
-        (
-            TypeDescriptor::of::<Option<u8>>(),
-            StructuralEdgeKind::OptionalElement,
-        ),
-        (
-            TypeDescriptor::of::<Box<u8>>(),
-            StructuralEdgeKind::PointerPointee,
-        ),
+        (TypeDescriptor::of::<Vec<u8>>(), StructuralEdgeKind::SequenceElement),
+        (TypeDescriptor::of::<BTreeSet<u8>>(), StructuralEdgeKind::SetElement),
+        (TypeDescriptor::of::<[u8; 3]>(), StructuralEdgeKind::ArrayElement),
+        (TypeDescriptor::of::<[u8]>(), StructuralEdgeKind::SliceElement),
+        (TypeDescriptor::of::<Option<u8>>(), StructuralEdgeKind::OptionalElement),
+        (TypeDescriptor::of::<Box<u8>>(), StructuralEdgeKind::PointerPointee),
     ] {
         assert_edges(descriptor, &[(kind, TypeDescriptor::of::<u8>())]);
     }
@@ -227,16 +205,8 @@ fn test_structure_children_container_and_wrapper_edges() {
 #[test]
 fn test_structure_children_preserves_unresolved_targets() {
     for (descriptor, target, kind) in [
-        (
-            &OPTIONAL_SYMBOLIC,
-            &SYMBOLIC_REF,
-            StructuralEdgeKind::OptionalElement,
-        ),
-        (
-            &POINTER_OPAQUE,
-            &OPAQUE_REF,
-            StructuralEdgeKind::PointerPointee,
-        ),
+        (&OPTIONAL_SYMBOLIC, &SYMBOLIC_REF, StructuralEdgeKind::OptionalElement),
+        (&POINTER_OPAQUE, &OPAQUE_REF, StructuralEdgeKind::PointerPointee),
     ] {
         let edges = collect_edges(descriptor);
         assert_eq!(edges.len(), 1);

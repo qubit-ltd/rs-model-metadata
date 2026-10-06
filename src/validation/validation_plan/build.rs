@@ -73,8 +73,7 @@ impl<'registry> ValidationPlan<'registry> {
             ]));
         };
         let (occurrences, mut errors) = declaration_walker::collect(root, inputs.graph.as_ref());
-        let (validators, registry_errors) = match standard_constraints::registry(inputs.validators)
-        {
+        let (validators, registry_errors) = match standard_constraints::registry(inputs.validators) {
             Ok(result) => result,
             Err(error) => {
                 errors.push(ValidationBuildError::new(root, error));
@@ -88,12 +87,7 @@ impl<'registry> ValidationPlan<'registry> {
         );
         let mut bindings = Vec::new();
         for occurrence in occurrences {
-            match occurrence_binder::bind(
-                &occurrence,
-                inputs.graph.as_ref(),
-                &validators,
-                ancestors,
-            ) {
+            match occurrence_binder::bind(&occurrence, inputs.graph.as_ref(), &validators, ancestors) {
                 Ok(mut compiled) => bindings.append(&mut compiled),
                 Err(mut failures) => errors.append(&mut failures),
             }

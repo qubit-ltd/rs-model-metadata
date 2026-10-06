@@ -66,20 +66,11 @@ fn test_bilingual_documentation_examples() {
             .collect();
         assert_eq!(
             manifests.len(),
-            blocks
-                .iter()
-                .filter(|block| block.language == "toml")
-                .count(),
+            blocks.iter().filter(|block| block.language == "toml").count(),
             "{document}: duplicate installation identifier"
         );
-        let programs: Vec<_> = blocks
-            .iter()
-            .filter(|block| block.language == "rust")
-            .collect();
-        assert!(
-            !programs.is_empty(),
-            "{document}: no complete runnable program"
-        );
+        let programs: Vec<_> = blocks.iter().filter(|block| block.language == "rust").collect();
+        assert!(!programs.is_empty(), "{document}: no complete runnable program");
         for (program_index, program) in programs.iter().enumerate() {
             let (installation, _) = program.example.split_once('/').unwrap_or_else(|| {
                 panic!(
@@ -171,10 +162,7 @@ fn test_installation_rejects_missing_validation_feature() {
         .find(|block| block.example == "validation/profile")
         .expect("validation source");
     let incomplete = manifest.source.replace(", features = [\"validation\"]", "");
-    assert_ne!(
-        incomplete, manifest.source,
-        "actual manifest must declare validation"
-    );
+    assert_ne!(incomplete, manifest.source, "actual manifest must declare validation");
     let fixture = create_fixture();
     let directory = fixture.directory.join("rs-platform/app-missing-feature");
     prepare_consumer(&directory, root, &incomplete, &program.source);
@@ -214,22 +202,12 @@ fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str)
     for (declared, actual) in replacements {
         assert!(actual.is_dir(), "checkout root {} exists", actual.display());
         let absolute = actual.to_str().expect("UTF-8 checkout root");
-        assert!(
-            !absolute.chars().any(char::is_control),
-            "printable checkout path"
-        );
-        dependencies = dependencies.replace(
-            declared,
-            &absolute.replace('\\', "\\\\").replace('"', "\\\""),
-        );
+        assert!(!absolute.chars().any(char::is_control), "printable checkout path");
+        dependencies = dependencies.replace(declared, &absolute.replace('\\', "\\\\").replace('"', "\\\""));
     }
     // Package/workspace scaffolding is independent of dependency configuration.
     let package = "[package]\nname = \"model-documentation-consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\n\n";
-    fs::write(
-        directory.join("Cargo.toml"),
-        format!("{package}{dependencies}"),
-    )
-    .expect("exact documented dependencies");
+    fs::write(directory.join("Cargo.toml"), format!("{package}{dependencies}")).expect("exact documented dependencies");
     fs::write(directory.join("src/main.rs"), source).expect("verbatim Markdown source");
 }
 

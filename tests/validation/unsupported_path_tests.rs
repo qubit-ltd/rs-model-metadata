@@ -265,16 +265,10 @@ fn test_unsupported_constraints_retain_complete_rule_mappings() {
             "qubit.rules.collection.item_count"
         ))]
     );
-    assert_eq!(
-        sequence_rules[0].registry_id(),
-        Some(sequence_rules[0].id())
-    );
+    assert_eq!(sequence_rules[0].registry_id(), Some(sequence_rules[0].id()));
     assert_eq!(sequence_rules[1].registry_id(), None);
     assert!(errors.iter().all(|error| error.source_error().is_none()));
-    assert!(
-        errors.iter().all(|error| error.rule().is_none()),
-        "no rule was bound"
-    );
+    assert!(errors.iter().all(|error| error.rule().is_none()), "no rule was bound");
 }
 
 /// Checks only the explicit root graph and returns its unsupported
@@ -283,8 +277,7 @@ fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
     let reflection = RegistrySnapshotBuilder::new()
         .build()
         .expect("fresh reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection)
-        .expect("explicit reflection model registry");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("explicit reflection model registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -372,12 +365,9 @@ fn optional_text_borrowed_getter_is_lazy_and_reads_once() {
     let models = ModelRegistry::global();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            models,
-            roots: &roots,
-        })
-        .resolve()
-        .expect("optional getter structure"),
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .expect("optional getter structure"),
     );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
@@ -441,10 +431,7 @@ fn test_unadapted_paths_still_fail_during_plan_construction() {
     let errors = ValidationCapabilities::check(root, graph.as_ref())
         .expect_err("owned intermediate getter must be rejected at build");
     assert_eq!(errors.len(), 1);
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("child.name"));
     let validators = ValidatorRegistry::empty();
     let plan_errors = match ValidationPlan::build(
@@ -458,28 +445,17 @@ fn test_unadapted_paths_still_fail_during_plan_construction() {
         Ok(_) => panic!("owned intermediate getter must not produce a plan"),
     };
     assert_eq!(plan_errors.len(), 1);
-    assert_eq!(
-        plan_errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(plan_errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(plan_errors[0].path(), Some("child.name"));
 }
 
 #[test]
 fn test_repeated_tuple_models_keep_each_position_in_source_order() {
     let errors = unsupported(TypeMetadata::of::<TupleUses>());
-    assert_eq!(
-        errors.len(),
-        3,
-        "type reachability must not deduplicate static uses"
-    );
+    assert_eq!(errors.len(), 3, "type reachability must not deduplicate static uses");
     assert_eq!(
         errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
-        [
-            Some("pair.0.name"),
-            Some("pair.1.0.name"),
-            Some("pair.1.1.name")
-        ]
+        [Some("pair.0.name"), Some("pair.1.0.name"), Some("pair.1.1.name")]
     );
     for (ordinal, error) in errors.iter().enumerate() {
         assert_eq!(error.owner_type_id(), TypeId::of::<Child>());
@@ -585,10 +561,7 @@ fn test_unsupported_time_type_is_rejected_at_its_field() {
     let errors = unsupported(TypeMetadata::of::<UnsupportedTimeType>());
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].path(), Some("date"));
-    assert_eq!(
-        errors[0].owner_type_id(),
-        TypeId::of::<UnsupportedTimeType>()
-    );
+    assert_eq!(errors[0].owner_type_id(), TypeId::of::<UnsupportedTimeType>());
 }
 
 #[test]
@@ -655,8 +628,7 @@ fn test_unsupported_shapes_without_execution_work_remain_acceptable() {
     let reflection = RegistrySnapshotBuilder::new()
         .build()
         .expect("fresh reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection)
-        .expect("explicit reflection model registry");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("explicit reflection model registry");
     let root = TypeMetadata::of::<EmptyEnvelope>();
     let roots = [root];
     let graph = Arc::new(
@@ -671,8 +643,7 @@ fn test_unsupported_shapes_without_execution_work_remain_acceptable() {
         graph.model(TypeId::of::<EmptyChild>()).is_some(),
         "empty Child still has a discoverable capability"
     );
-    ValidationCapabilities::check(root, graph.as_ref())
-        .expect("empty declarations require no execution adapter");
+    ValidationCapabilities::check(root, graph.as_ref()).expect("empty declarations require no execution adapter");
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
@@ -687,8 +658,7 @@ fn test_unsupported_shapes_without_execution_work_remain_acceptable() {
 
 #[test]
 fn test_unsupported_metadata_only_graph_does_not_import_reflection_capabilities() {
-    let models = ModelRegistry::from_static_metadata(&[])
-        .expect("metadata-only registry has no reflection snapshot");
+    let models = ModelRegistry::from_static_metadata(&[]).expect("metadata-only registry has no reflection snapshot");
     let root = TypeMetadata::of::<ReflectedStructEnvelope>();
     let roots = [root];
     let graph = Arc::new(
