@@ -839,6 +839,7 @@ mod tests {
             Vec::new(),
             #[cfg(feature = "generic")]
             Vec::new(),
+            Vec::new(),
         )
         .expect("empty registry is valid");
 
