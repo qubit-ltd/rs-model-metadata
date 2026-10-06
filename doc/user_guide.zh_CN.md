@@ -186,6 +186,12 @@ let title = resolved.property("title");
 缓存归所属 registry 管理，registry 丢弃后即可释放。`ModelGraph` 会在自身生命周期内保留属性视图，
 从 `graph.properties()` 借出的引用也不能超过 graph。
 
+重复访问属性路径时，可调用 `ModelRegistry::compile_read_path_cached` 或
+`compile_write_path_cached` 取得共享的编译结果。每个 registry 快照最多保留 256 条成功路径，读写
+共用这一上限；满额后移除最早加入的成功条目。编译失败会原样返回，后续调用仍会重试。缓存键同时区分
+根模型的准确 metadata、路径段和读写模式。不同 registry（包括不同反射快照或 overlay 所建的注册表）
+各有独立缓存，不会跨快照复用路径。未命中时在锁外编译，因此并发请求可能重复编译同一条路径。
+
 旧的 `FieldMetadata::validate_nested()` 方法和 `FieldAttributeMetadata::ValidateNested` 标记已移除；
 它们不控制执行。计划构建器负责发现受支持的嵌套声明，遍历边界按文档中的 reference 和 opaque 语义处理，
 不再使用递归开关。
@@ -205,6 +211,8 @@ owner 名称、variant/field 序号与 selector 位置，无名 Enum payload 也
 
 启用 validation 后，调用 `ValidationPlan::build(root, ValidationBuildInputs { graph: Arc::clone(&graph),
 validators: &validators })`，传入自己的 validator registry。
+计划持有 `Arc<ModelGraph>`；构建后即使调用方释放自己的 graph 句柄，计划仍可执行。普通请求按根解析，
+完整链接模型审计则解析全图；局部计划成功不表示无关模型也通过结构检查。
 绑定检查稳定 ID、参数、可读 Property 路径及已知的输入、依赖类型。预备实例的形状还会与签名逐项核对。
 metadata 保存借用的声明参数，并在绑定每条规则时将其转换为 `qubit-validator` 的参数。
 静态可判定的 optional getter 路径不能满足必需依赖；deferred 父路径会在上下文提供后检查。同 ID 声明分别绑定，不会互相覆盖。
