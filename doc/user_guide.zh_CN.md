@@ -203,7 +203,7 @@ owner 名称、variant/field 序号与 selector 位置，无名 Enum payload 也
 
 ## 进阶用法：显式绑定执行适配器
 
-启用 validation 后，调用 `ValidationPlan::build(root, ValidationBuildInputs { graph: &graph,
+启用 validation 后，调用 `ValidationPlan::build(root, ValidationBuildInputs { graph: Arc::clone(&graph),
 validators: &validators })`，传入自己的 validator registry。
 绑定检查稳定 ID、参数、可读 Property 路径及已知的输入、依赖类型。预备实例的形状还会与签名逐项核对。
 metadata 保存借用的声明参数，并在绑定每条规则时将其转换为 `qubit-validator` 的参数。
@@ -264,6 +264,7 @@ qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
 
 <!-- example: validation/profile -->
 ```rust
+use std::sync::Arc;
 use std::num::NonZeroUsize;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
@@ -302,12 +303,12 @@ fn main() {
     let root = TypeMetadata::of::<Profile>();
     let roots = [root];
     let models = ModelRegistry::try_global().expect("linked metadata and accessors");
-    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
-        .resolve().expect("valid structure");
-    ValidationCapabilities::check(root, &graph).expect("supported access shapes");
+    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("valid structure"));
+    ValidationCapabilities::check(root, graph.as_ref()).expect("supported access shapes");
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(root, ValidationBuildInputs {
-        graph: &graph,
+        graph: Arc::clone(&graph),
         validators: &validators,
     }).expect("built-in text constraints bind without custom registrations");
 
@@ -357,6 +358,7 @@ fn main() {
 
 <!-- example: validation/refusal -->
 ```rust
+use std::sync::Arc;
 use qubit_model_derive::Enum;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -377,11 +379,11 @@ fn main() {
     let root = TypeMetadata::of::<ContactMethod>();
     let roots = [root];
     let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
-        .resolve().expect("enum declarations are structurally supported");
+    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("enum declarations are structurally supported"));
     let validators = ValidatorRegistry::empty();
     let errors = match ValidationPlan::build(root, ValidationBuildInputs {
-        graph: &graph,
+        graph: Arc::clone(&graph),
         validators: &validators,
     }) {
         Err(errors) => errors,
@@ -454,6 +456,7 @@ fn main() {
 
 <!-- example: validation/wrappers -->
 ```rust
+use std::sync::Arc;
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -491,15 +494,15 @@ fn main() {
     let validators = ValidatorRegistry::empty();
     let root = TypeMetadata::of::<Root>();
     let roots = [root];
-    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
-        .resolve().expect("structurally valid wrapper");
+    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("structurally valid wrapper"));
     assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
     assert_eq!(graph.models().len(), 2);
-    let errors = ValidationCapabilities::check(root, &graph).expect_err("raw path cannot execute");
+    let errors = ValidationCapabilities::check(root, graph.as_ref()).expect_err("raw path cannot execute");
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("raw.child.name"));
-    let errors = match ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators }) {
+    let errors = match ValidationPlan::build(root, ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators }) {
         Err(errors) => errors,
         Ok(_) => panic!("reachable rules cannot silently disappear"),
     };
@@ -508,11 +511,11 @@ fn main() {
 
     let root = TypeMetadata::of::<EmptyRoot>();
     let roots = [root];
-    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
-        .resolve().expect("no-work wrapper");
+    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("no-work wrapper"));
     assert!(graph.model(TypeMetadata::of::<EmptyChild>().type_id()).is_some());
-    ValidationCapabilities::check(root, &graph).expect("no execution work");
-    let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators })
+    ValidationCapabilities::check(root, graph.as_ref()).expect("no execution work");
+    let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators })
         .expect("valid empty plan");
     assert_eq!(plan.binding_count(), 0);
 }

@@ -10,6 +10,7 @@
 
 //! Tests for explicit erased-selector execution capabilities.
 
+use std::sync::Arc;
 use std::collections::HashMap;
 
 use qubit_model_derive::Model;
@@ -48,18 +49,20 @@ fn unsupported_map_selector_retains_model_path_and_position() {
     let source = FragmentIdentity::new("validation-tests", "fixture", line!(), 1, "model", 1);
     let metadata = TypeMetadata::of::<UnsupportedMapKey>();
     let models = ModelRegistry::from_static_metadata(&[(metadata, &source)]).expect("model registry");
-    let graph = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: &models,
-    })
-    .resolve()
-    .expect("model graph");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            roots: &[],
+            models: &models,
+        })
+        .resolve()
+        .expect("model graph"),
+    );
     let validators = ValidatorRegistry::empty();
 
     let result = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     );

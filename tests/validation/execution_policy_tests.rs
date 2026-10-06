@@ -93,14 +93,16 @@ impl PreparedValidator for Many {
 fn assert_stopped(options: ValidationOptions, expected: usize) {
     GETTER_CALLS.with(|calls| calls.set(0));
     let models = ModelRegistry::try_global().unwrap();
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &[] })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         TypeMetadata::of::<Root>(),
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -151,14 +153,16 @@ fn test_exact_limit_stops_before_later_selected_work() {
 fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
     GETTER_CALLS.with(|calls| calls.set(0));
     let models = ModelRegistry::try_global().unwrap();
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &[] })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         TypeMetadata::of::<Root>(),
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -203,14 +207,16 @@ impl PreparedValidator for EmptyInvalid {
 #[test]
 fn test_model_empty_invalid_outcome_is_an_execution_error() {
     let models = ModelRegistry::try_global().unwrap();
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &[] })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         TypeMetadata::of::<Root>(),
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -233,14 +239,16 @@ fn test_model_empty_invalid_outcome_is_an_execution_error() {
 fn test_property_reads_and_rule_invocations_each_consume_a_node() {
     GETTER_CALLS.with(|calls| calls.set(0));
     let models = ModelRegistry::try_global().unwrap();
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &[] })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         TypeMetadata::of::<Root>(),
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -389,14 +397,16 @@ fn run(
     RULE_CALLS.with(|calls| calls.set(0));
     let models = ModelRegistry::try_global().unwrap();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).unwrap();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -723,14 +733,16 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
     let parent = TypeMetadata::of::<Parent>();
     let models = ModelRegistry::try_global().unwrap();
     let roots = [root, parent];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &roots })
+            .resolve()
+            .unwrap(),
+    );
     let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).unwrap();
     let known = ValidationPlan::build_with_context(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
         &[parent],
@@ -739,7 +751,7 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
     let deferred = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )

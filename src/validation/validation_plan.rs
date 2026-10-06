@@ -11,6 +11,8 @@
 //! Construction and execution methods are defined in the `build` and `execute`
 //! child modules; the plan owns their shared immutable state.
 
+use std::sync::Arc;
+
 // Defines declaration discovery and fallible plan construction.
 mod build;
 // Defines instance borrowing, rule execution and bounded report collection.
@@ -31,8 +33,8 @@ use crate::validation::model_rule_binding::ModelRuleBinding;
 ///
 /// # Type Parameters
 ///
-/// - `'a`: lifetime of the immutable structural graph and its registry
-///   snapshot. The graph must outlive the plan.
+/// - `'registry`: lifetime of the registry snapshot borrowed by the retained
+///   graph. The plan owns its graph handle.
 ///
 /// # Examples
 ///
@@ -47,6 +49,7 @@ use crate::validation::model_rule_binding::ModelRuleBinding;
 /// use qubit_model_metadata::validation::ValidationPlan;
 /// use qubit_reflect::ReflectedRef;
 /// use qubit_validator::ValidatorRegistry;
+/// use std::sync::Arc;
 ///
 /// #[Model]
 /// struct Profile { #[text(non_blank)] name: String }
@@ -54,10 +57,10 @@ use crate::validation::model_rule_binding::ModelRuleBinding;
 /// let root = TypeMetadata::of::<Profile>();
 /// let roots = [root];
 /// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
-///     .resolve().expect("valid structure");
+/// let graph = Arc::new(StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+///     .resolve().expect("valid structure"));
 /// let validators = ValidatorRegistry::empty();
-/// let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: &graph, validators: &validators })
+/// let plan = ValidationPlan::build(root, ValidationBuildInputs { graph, validators: &validators })
 ///     .expect("built-in text rules bind without custom registration");
 /// let profile = Profile { name: String::new() };
 /// let report = plan.validate(ReflectedRef::new(&profile), &ValidationOptions::default())
@@ -67,18 +70,18 @@ use crate::validation::model_rule_binding::ModelRuleBinding;
 /// # }
 /// ```
 #[must_use]
-pub struct ValidationPlan<'a> {
+pub struct ValidationPlan<'registry> {
     /// Metadata root for the plan.
     root: &'static TypeMetadata,
     /// Resolved graph used to compile and execute paths.
-    graph: &'a ModelGraph<'a>,
+    graph: Arc<ModelGraph<'registry>>,
     /// Field-level validator bindings.
     bindings: Box<[FieldRuleBinding]>,
     /// Model-level validator bindings.
     model_rules: Box<[ModelRuleBinding]>,
 }
 
-impl<'a> ValidationPlan<'a> {
+impl<'registry> ValidationPlan<'registry> {
     /// Returns the number of bound validator occurrences.
     ///
     /// # Returns
@@ -102,16 +105,15 @@ impl<'a> ValidationPlan<'a> {
         self.root
     }
 
-    /// Returns the borrowed graph used for both binding and execution.
+    /// Returns the graph used for both binding and execution.
     ///
     /// # Returns
     ///
-    /// The graph retained by this plan; its lifetime is bounded by the plan's
-    /// registry snapshot.
+    /// The graph retained by this plan; its registry remains borrowed.
     #[must_use = "inspect the graph retained by this plan"]
     #[inline]
-    pub const fn graph(&self) -> &'a ModelGraph<'a> {
-        self.graph
+    pub fn graph(&self) -> &ModelGraph<'registry> {
+        self.graph.as_ref()
     }
 
     /// Adds prepared model-level validators to this plan in iteration order.
@@ -146,5 +148,74 @@ impl<'a> ValidationPlan<'a> {
     #[inline]
     pub(crate) fn bindings(&self) -> &[FieldRuleBinding] {
         &self.bindings
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use qubit_reflect::Reflect;
+    use qubit_reflect::ReflectedRef;
+    use qubit_reflect::TypeDescriptor;
+    use qubit_validator::ValidatorRegistry;
+
+    use crate::__private::v7;
+    use crate::metadata::TypeMetadata;
+    use crate::registry::ModelRegistry;
+    use crate::resolve::ResolveInputs;
+    use crate::resolve::StructureResolver;
+    use crate::validation::ValidationBuildInputs;
+    use crate::validation::ValidationOptions;
+    use crate::validation::ValidationPlan;
+
+    #[derive(Reflect)]
+    #[reflect(crate = crate)]
+    struct Profile;
+
+    /// A plan retains the resolved graph after the caller releases its handle.
+    #[test]
+    fn test_plan_retains_graph_after_caller_drops_arc() {
+        let root: &'static TypeMetadata = v7::leak(
+            v7::GeneratedTypeMetadataBuilder::new(
+                TypeDescriptor::of::<Profile>(),
+                None,
+                &[],
+                v7::leak(v7::model_role()),
+            )
+            .finish::<Profile>(),
+        );
+        let roots = [root];
+        let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+        let graph = Arc::new(
+            StructureResolver::new(ResolveInputs {
+                models: &models,
+                roots: &roots,
+            })
+            .resolve()
+            .expect("valid structure"),
+        );
+        let validators = ValidatorRegistry::empty();
+        let graph_ptr = Arc::as_ptr(&graph);
+        let plan = ValidationPlan::build(
+            root,
+            ValidationBuildInputs {
+                graph: Arc::clone(&graph),
+                validators: &validators,
+            },
+        )
+        .expect("empty model plan builds");
+
+        drop(graph);
+        drop(validators);
+
+        assert!(std::ptr::eq(plan.graph(), graph_ptr));
+        let profile = Profile;
+        let report = plan
+            .validate(ReflectedRef::new(&profile), &ValidationOptions::default())
+            .expect("validation succeeds");
+        assert!(report.is_valid());
+        assert!(report.violations().is_empty());
+        assert!(report.skipped().is_empty());
     }
 }

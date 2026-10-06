@@ -8,6 +8,7 @@
 // The filename is part of a Cargo or trybuild fixture protocol.
 
 use core::mem::size_of;
+use std::sync::Arc;
 
 use model_a::Source;
 use model_a::TargetView;
@@ -33,12 +34,14 @@ fn main() {
     let registry = ModelRegistry::try_global().expect("cross-crate registrations should be valid");
     assert!(registry.metadata("test.linked.Source").is_some());
     assert!(registry.metadata("test.linked.Target").is_some());
-    let graph = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: registry,
-    })
-    .resolve()
-    .expect("cross-crate reference should resolve");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            roots: &[],
+            models: registry,
+        })
+        .resolve()
+        .expect("cross-crate reference should resolve"),
+    );
     let field = TypeMetadata::of::<Source>().field("target_id").expect("source field");
     assert_eq!(
         graph
@@ -60,7 +63,7 @@ fn main() {
     let plan = ValidationPlan::build(
         TypeMetadata::of::<Source>(),
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -76,7 +79,7 @@ fn main() {
     assert!(report.is_valid());
     let codecs = ValueStringCodecRegistry::from_registrations([&CODEC]).unwrap();
     let bound = bind_codecs(CodecBindInputs {
-        graph: &graph,
+        graph: graph.as_ref(),
         codecs: &codecs,
     })
     .unwrap();

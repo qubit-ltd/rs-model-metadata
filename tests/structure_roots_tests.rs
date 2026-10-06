@@ -15,8 +15,19 @@ use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Value;
+use qubit_model_metadata::__private::ModelMetadataProvider;
+use qubit_model_metadata::__private::model_metadata_key;
+use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::metadata::DependencyBindingMetadata;
+use qubit_model_metadata::metadata::FieldAttributeMetadata;
+use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::ModelRole;
+use qubit_model_metadata::metadata::OnNone;
+use qubit_model_metadata::metadata::PropertyPath;
+use qubit_model_metadata::metadata::SerdeFieldMetadata;
+use qubit_model_metadata::metadata::TargetMode;
 use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::metadata::ValidatorMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
@@ -25,12 +36,157 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 #[cfg(feature = "validation")]
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::Reflect;
+use qubit_reflect::TypeDescriptor;
+use qubit_reflect::capability::CapabilityDescriptor;
+use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
 #[cfg(feature = "validation")]
 use qubit_validator::ValidatorRegistry;
+#[cfg(feature = "validation")]
+use std::sync::Arc;
+use std::sync::OnceLock;
 
 #[Model]
 struct Page<T> {
     items: Vec<T>,
+}
+
+#[derive(Reflect)]
+struct SnapshotGood {
+    value: String,
+}
+
+#[derive(Reflect)]
+struct SnapshotBad {
+    value: String,
+}
+
+/// Supplies metadata for the valid snapshot member.
+fn snapshot_good_metadata() -> &'static TypeMetadata {
+    static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
+    METADATA.get_or_init(|| {
+        let descriptor = TypeDescriptor::of::<SnapshotGood>();
+        let reflected = descriptor.field_at(0).expect("good value field");
+        let fields = v7::leak_slice(vec![v7::field_metadata(
+            reflected.declaring_type().type_id(),
+            reflected,
+            &[],
+            &[],
+            &[],
+            &SerdeFieldMetadata::DEFAULT,
+        )]);
+        let properties = v7::leak_slice(vec![v7::property_metadata(
+            "value",
+            fields[0].type_ref(),
+            Some(&fields[0]),
+            None,
+            None,
+        )]);
+        v7::GeneratedTypeMetadataBuilder::new(
+            descriptor,
+            Some(ModelId::new("roots.SnapshotGood")),
+            fields,
+            v7::leak(v7::model_role()),
+        )
+        .properties(properties)
+        .finish::<SnapshotGood>()
+    })
+}
+
+/// Supplies metadata for the invalid snapshot member.
+fn snapshot_bad_metadata() -> &'static TypeMetadata {
+    static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
+    METADATA.get_or_init(|| {
+        let descriptor = TypeDescriptor::of::<SnapshotBad>();
+        let reflected = descriptor.field_at(0).expect("bad value field");
+        let missing = PropertyPath::new(&["missing"]);
+        let dependencies = v7::leak_slice(vec![missing]);
+        let bindings = v7::leak_slice(vec![DependencyBindingMetadata::new("expected", missing)]);
+        let validators = v7::leak_slice(vec![ValidatorMetadata::new_bound(
+            "roots.rule",
+            &[],
+            dependencies,
+            bindings,
+            TargetMode::Value,
+            OnNone::Skip,
+        )]);
+        let attributes = v7::leak_slice(vec![FieldAttributeMetadata::Validator(&validators[0])]);
+        let fields = v7::leak_slice(vec![v7::field_metadata(
+            reflected.declaring_type().type_id(),
+            reflected,
+            attributes,
+            &[],
+            validators,
+            &SerdeFieldMetadata::DEFAULT,
+        )]);
+        let properties = v7::leak_slice(vec![v7::property_metadata(
+            "value",
+            fields[0].type_ref(),
+            Some(&fields[0]),
+            None,
+            None,
+        )]);
+        v7::GeneratedTypeMetadataBuilder::new(
+            descriptor,
+            Some(ModelId::new("roots.SnapshotBad")),
+            fields,
+            v7::leak(v7::model_role()),
+        )
+        .properties(properties)
+        .finish::<SnapshotBad>()
+    })
+}
+
+/// A frozen reflection snapshot isolates valid roots from unrelated defects.
+#[test]
+fn test_for_roots_ignores_unrelated_invalid_snapshot_member() {
+    let mut builder = RegistrySnapshotBuilder::new();
+    for (metadata, provider, member) in [
+        (
+            snapshot_good_metadata(),
+            snapshot_good_metadata as ModelMetadataProvider,
+            "good",
+        ),
+        (
+            snapshot_bad_metadata(),
+            snapshot_bad_metadata as ModelMetadataProvider,
+            "bad",
+        ),
+    ] {
+        builder.add_type_with_capabilities(
+            metadata.descriptor(),
+            vec![CapabilityDescriptor::with_adapter(
+                model_metadata_key(),
+                provider,
+            )],
+            FragmentIdentity::new("roots-test", member, 1, 1, "type", 0),
+            FragmentIdentity::new("roots-test", member, 1, 2, "capability", 0),
+        );
+    }
+    let reflection = builder.build().expect("isolated reflection snapshot");
+    let models =
+        ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model projection");
+    let root = snapshot_good_metadata();
+    let roots = [root];
+    let inputs = ResolveInputs {
+        models: &models,
+        roots: &roots,
+    };
+
+    let full_errors = StructureResolver::new(inputs)
+        .resolve()
+        .expect_err("complete audit visits the unrelated bad model");
+    assert!(full_errors.errors().iter().any(|error| {
+        error.kind() == ResolveErrorKind::MissingProperty
+            && error.owner_type_id() == Some(snapshot_bad_metadata().type_id())
+    }));
+
+    let graph = StructureResolver::for_roots(inputs)
+        .resolve()
+        .expect("root-scoped resolution ignores the bad model");
+    assert!(graph.model(root.type_id()).is_some());
+    assert!(graph.model(snapshot_bad_metadata().type_id()).is_none());
 }
 
 /// Registration identity is independent from generic model capability.
@@ -69,17 +225,17 @@ fn test_anonymous_root_validation_binds() {
     let registry = ModelRegistry::global();
     let root = TypeMetadata::of::<Page<String>>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
+    let graph = Arc::new(StructureResolver::new(ResolveInputs {
         models: registry,
         roots: &roots,
     })
     .resolve()
-    .expect("root graph");
+    .expect("root graph"));
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )

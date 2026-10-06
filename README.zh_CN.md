@@ -207,6 +207,7 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 
 <!-- example: validation/root-scoped -->
 ```rust
+use std::sync::Arc;
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -231,12 +232,12 @@ fn main() {
 
     let root = TypeMetadata::of::<Request>();
     let roots = [root];
-    let local = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
-        .resolve().expect("解析请求所需的模型结构");
+    let local = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("解析请求所需的模型结构"));
     assert!(local.model(root.type_id()).is_some());
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(root, ValidationBuildInputs {
-        graph: &local,
+        graph: Arc::clone(&local),
         validators: &validators,
     }).expect("构建请求验证计划");
     let report = plan.validate(

@@ -208,17 +208,19 @@ fn test_executes_bound_rule_and_prefixes_field_path() {
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     assert!(models.by_type_id(TypeMetadata::of::<NestedModel>().type_id()).is_some());
-    let graph = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: &models,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            roots: &[],
+            models: &models,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -239,12 +241,14 @@ fn test_executes_typed_model_rule_binding() {
     let metadata = TypeMetadata::of::<TestModel>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
-    let graph = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: &models,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            roots: &[],
+            models: &models,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let binding =
         ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.reject"), Arc::new(RejectModel))
@@ -258,7 +262,7 @@ fn test_executes_typed_model_rule_binding() {
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -290,12 +294,14 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
     let metadata = TypeMetadata::of::<TestModel>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
-    let graph = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: &models,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            roots: &[],
+            models: &models,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let binding =
         ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.failure"), Arc::new(FailModel))
@@ -303,7 +309,7 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -335,17 +341,19 @@ fn test_executes_element_selector_for_borrowed_slice() {
     let metadata = TypeMetadata::of::<SelectorFixture>();
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
-    let graph = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: &models,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            roots: &[],
+            models: &models,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -380,17 +388,19 @@ fn test_executes_validators_declared_by_an_optional_nested_model() {
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     assert!(models.by_type_id(TypeMetadata::of::<NestedModel>().type_id()).is_some());
-    let graph = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: &models,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            roots: &[],
+            models: &models,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -421,17 +431,19 @@ fn test_executes_validators_declared_by_an_optional_nested_model() {
 fn optional_nested_model_executes_at_each_usage_path() {
     let root = TypeMetadata::of::<OptionalPathRoot>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
-        roots: &roots,
-    })
-    .resolve()
-    .expect("optional child structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .expect("optional child structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -478,17 +490,19 @@ fn test_optional_intermediate_none_skips_terminal_optional_text() {
     let reflection = ReflectRegistry::initialize().expect("reflection registry");
     let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: &models,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("optional scalar structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("optional scalar structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -535,17 +549,19 @@ fn test_optional_intermediate_none_skips_terminal_optional_text() {
 fn test_traversal_budgets_are_enforced_before_execution() {
     let metadata = TypeMetadata::of::<TestModel>();
     let models = ModelRegistry::from_static_metadata(&[(metadata, source())]).expect("model registry");
-    let graph = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: &models,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            roots: &[],
+            models: &models,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
@@ -632,9 +648,9 @@ fn map_plan(
     })
     .resolve()
     .expect("map structure");
-    let graph = Box::leak(Box::new(graph));
-    let validators = Box::leak(Box::new(ValidatorRegistry::empty()));
-    ValidationPlan::build(root, ValidationBuildInputs { graph, validators })
+    let graph = Arc::new(graph);
+    let validators = ValidatorRegistry::empty();
+    ValidationPlan::build(root, ValidationBuildInputs { graph, validators: &validators })
 }
 
 #[test]
@@ -770,17 +786,19 @@ impl ConstrainedRoot {
 fn test_nested_standard_constraints_are_executed() {
     let metadata = TypeMetadata::of::<ConstrainedRoot>();
     let roots = [metadata];
-    let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
-        roots: &roots,
-    })
-    .resolve()
-    .expect("structure");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .expect("structure"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
-            graph: &graph,
+            graph: Arc::clone(&graph),
             validators: &validators,
         },
     )
