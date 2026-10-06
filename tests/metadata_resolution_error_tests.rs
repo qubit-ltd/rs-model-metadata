@@ -128,6 +128,10 @@ static PANIC_ONCE_CALLS: AtomicUsize = AtomicUsize::new(0);
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata, capabilities(panic_once_capability))]
 struct PanicOnce<const N: usize>;
+#[allow(
+    clippy::extra_unused_type_parameters,
+    reason = "derive capability providers receive the concrete type parameter"
+)]
 
 fn panic_once_capability<T: 'static>() -> CapabilityDescriptor {
     CapabilityDescriptor::with_adapter(model_metadata_key(), panic_once_metadata as ModelMetadataProvider)
