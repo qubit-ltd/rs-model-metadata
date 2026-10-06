@@ -27,6 +27,8 @@ jobs:
       pages: write
       id-token: write
     uses: qubit-ltd/rs-infra-ci/.github/workflows/github-ci.yml@main
+    with:
+      feature-matrix-prefetch: true
 
   dependency-policy:
     runs-on: ubuntu-latest
