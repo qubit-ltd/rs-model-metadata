@@ -136,7 +136,6 @@ impl TypeMetadataProvider for CountedProviderFixture {
     }
 }
 
-register_model_capability!(CountedProviderFixture, CountedProviderFixture::__type_metadata);
 
 static NAMED_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -162,7 +161,6 @@ impl TypeMetadataProvider for CountedNamedProviderFixture {
     }
 }
 
-register_model_capability!(CountedNamedProviderFixture, CountedNamedProviderFixture::__type_metadata);
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]
