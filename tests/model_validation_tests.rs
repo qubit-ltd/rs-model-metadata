@@ -650,7 +650,13 @@ fn map_plan(
     .expect("map structure");
     let graph = Arc::new(graph);
     let validators = ValidatorRegistry::empty();
-    ValidationPlan::build(root, ValidationBuildInputs { graph, validators: &validators })
+    ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+    )
 }
 
 #[test]

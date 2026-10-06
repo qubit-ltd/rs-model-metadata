@@ -9,6 +9,7 @@
 //! Graph snapshots, rather than caller overlays, own validation declarations.
 
 use std::sync::Arc;
+
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::metadata::FieldMetadata;

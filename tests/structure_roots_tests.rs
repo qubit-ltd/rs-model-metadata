@@ -10,6 +10,10 @@
 
 #![cfg(feature = "generic")]
 
+#[cfg(feature = "validation")]
+use std::sync::Arc;
+use std::sync::OnceLock;
+
 use qubit_id::Id;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
@@ -44,9 +48,6 @@ use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 #[cfg(feature = "validation")]
 use qubit_validator::ValidatorRegistry;
-#[cfg(feature = "validation")]
-use std::sync::Arc;
-use std::sync::OnceLock;
 
 #[Model]
 struct Page<T> {
@@ -174,17 +175,13 @@ fn test_for_roots_ignores_unrelated_invalid_snapshot_member() {
     ] {
         builder.add_type_with_capabilities(
             metadata.descriptor(),
-            vec![CapabilityDescriptor::with_adapter(
-                model_metadata_key(),
-                provider,
-            )],
+            vec![CapabilityDescriptor::with_adapter(model_metadata_key(), provider)],
             FragmentIdentity::new("roots-test", member, 1, 1, "type", 0),
             FragmentIdentity::new("roots-test", member, 1, 2, "capability", 0),
         );
     }
     let reflection = builder.build().expect("isolated reflection snapshot");
-    let models =
-        ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model projection");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model projection");
     let root = snapshot_good_metadata();
     let roots = [root];
     let inputs = ResolveInputs {
@@ -243,12 +240,14 @@ fn test_anonymous_root_validation_binds() {
     let registry = ModelRegistry::global();
     let root = TypeMetadata::of::<Page<String>>();
     let roots = [root];
-    let graph = Arc::new(StructureResolver::new(ResolveInputs {
-        models: registry,
-        roots: &roots,
-    })
-    .resolve()
-    .expect("root graph"));
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: registry,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("root graph"),
+    );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,

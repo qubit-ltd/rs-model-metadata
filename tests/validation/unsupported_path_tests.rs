@@ -9,11 +9,11 @@
 //! Unsupported paths retain each structural use, including tuple positions.
 
 use std::any::TypeId;
-use std::sync::Arc;
 use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
@@ -428,8 +428,8 @@ fn test_unadapted_paths_still_fail_during_plan_construction() {
         .resolve()
         .expect("owned child structure"),
     );
-    let errors =
-        ValidationCapabilities::check(root, graph.as_ref()).expect_err("owned intermediate getter must be rejected at build");
+    let errors = ValidationCapabilities::check(root, graph.as_ref())
+        .expect_err("owned intermediate getter must be rejected at build");
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("child.name"));
@@ -673,7 +673,8 @@ fn test_unsupported_metadata_only_graph_does_not_import_reflection_capabilities(
         graph.model(TypeId::of::<Child>()).is_none(),
         "Child capability cannot be imported from another snapshot"
     );
-    ValidationCapabilities::check(root, graph.as_ref()).expect("this explicit graph contains no child execution declarations");
+    ValidationCapabilities::check(root, graph.as_ref())
+        .expect("this explicit graph contains no child execution declarations");
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
         root,

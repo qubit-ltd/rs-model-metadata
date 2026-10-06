@@ -10,8 +10,8 @@
 
 //! Tests for explicit erased-selector execution capabilities.
 
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::SelectorPosition;

@@ -62,7 +62,8 @@ impl<T> Default for PathCache<T> {
 }
 
 impl<T> PathCache<T> {
-    /// Clones a cached value, returning `None` for a miss without changing order.
+    /// Clones a cached value, returning `None` for a miss without changing
+    /// order.
     pub(super) fn get(&self, key: &PathCacheKey) -> Option<Arc<T>> {
         self.entries.get(key).map(Arc::clone)
     }
@@ -77,7 +78,10 @@ impl<T> PathCache<T> {
         self.insertion_order.push_back(key.clone());
         self.entries.insert(key, Arc::clone(&compiled));
         if self.entries.len() > CACHE_CAPACITY {
-            let oldest = self.insertion_order.pop_front().expect("cache insertion has an oldest key");
+            let oldest = self
+                .insertion_order
+                .pop_front()
+                .expect("cache insertion has an oldest key");
             self.entries.remove(&oldest);
         }
         compiled
@@ -99,7 +103,8 @@ mod tests {
     use super::PathCache;
     use super::PathCacheKey;
 
-    /// Inserting past the bound evicts the earliest key and allows recompilation.
+    /// Inserting past the bound evicts the earliest key and allows
+    /// recompilation.
     #[test]
     fn test_path_cache_evicts_earliest_success_after_256_entries() {
         let mut cache = PathCache::default();

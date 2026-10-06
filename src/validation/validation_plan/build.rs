@@ -27,7 +27,8 @@ impl<'registry> ValidationPlan<'registry> {
     /// # Parameters
     ///
     /// * `root` - Static metadata identifying the concrete type to plan for.
-    /// * `inputs` - Shared graph and borrowed validator registry used for binding.
+    /// * `inputs` - Shared graph and borrowed validator registry used for
+    ///   binding.
     ///
     /// # Returns
     ///
@@ -49,7 +50,8 @@ impl<'registry> ValidationPlan<'registry> {
     /// # Parameters
     ///
     /// * `root` - Static metadata identifying the concrete type to plan for.
-    /// * `inputs` - Shared graph and borrowed validator registry used for binding.
+    /// * `inputs` - Shared graph and borrowed validator registry used for
+    ///   binding.
     /// * `ancestors` - Parent types ordered nearest first, used to resolve
     ///   external validator dependencies.
     ///
@@ -85,12 +87,7 @@ impl<'registry> ValidationPlan<'registry> {
         );
         let mut bindings = Vec::new();
         for occurrence in occurrences {
-            match occurrence_binder::bind(
-                &occurrence,
-                inputs.graph.as_ref(),
-                &validators,
-                ancestors,
-            ) {
+            match occurrence_binder::bind(&occurrence, inputs.graph.as_ref(), &validators, ancestors) {
                 Ok(mut compiled) => bindings.append(&mut compiled),
                 Err(mut failures) => errors.append(&mut failures),
             }

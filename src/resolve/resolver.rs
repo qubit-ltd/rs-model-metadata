@@ -186,7 +186,8 @@ impl<'a> StructureResolver<'a> {
     ///
     /// # Parameters
     ///
-    /// - `models`: Registry supplying model capabilities and retained by the graph.
+    /// - `models`: Registry supplying model capabilities and retained by the
+    ///   graph.
     /// - `roots`: Static metadata roots copied into the resolver.
     ///
     /// # Returns
@@ -194,10 +195,7 @@ impl<'a> StructureResolver<'a> {
     /// A resolver whose graph lifetime follows the registry, independent of
     /// the caller's root array.
     #[must_use]
-    pub fn for_static_roots<const N: usize>(
-        models: &'a ModelRegistry<'a>,
-        roots: [&'static TypeMetadata; N],
-    ) -> Self {
+    pub fn for_static_roots<const N: usize>(models: &'a ModelRegistry<'a>, roots: [&'static TypeMetadata; N]) -> Self {
         let owned_roots: Box<[&'static TypeMetadata]> = Box::new(roots);
         Self {
             inputs: ResolveInputs { models, roots: &[] },

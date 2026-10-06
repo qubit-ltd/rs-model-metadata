@@ -10,6 +10,7 @@
 //! identity.
 
 use std::sync::Arc;
+
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;

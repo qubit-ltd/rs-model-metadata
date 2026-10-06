@@ -29,10 +29,12 @@ use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::CapabilityTarget;
 use qubit_reflect::registry::ReflectRegistry;
 
-use super::ModelRegistryError;
-use super::model_entry::ModelEntry;
 use self::path_cache::PathCache;
 use self::path_cache::PathCacheKey;
+use super::ModelRegistryError;
+use super::model_entry::ModelEntry;
+use crate::PropertyAccessPath;
+use crate::PropertyAccessPathError;
 #[cfg(feature = "generic")]
 use crate::generic::GenericModelMetadata;
 use crate::metadata::ModelId;
@@ -40,8 +42,6 @@ use crate::metadata::ModelMetadataError;
 use crate::metadata::PropertyResolutionError;
 use crate::metadata::ResolvedProperties;
 use crate::metadata::TypeMetadata;
-use crate::PropertyAccessPath;
-use crate::PropertyAccessPathError;
 #[cfg(feature = "generic")]
 use crate::reflect_facade::generic_model_metadata_key;
 use crate::reflect_facade::model_metadata_key;
