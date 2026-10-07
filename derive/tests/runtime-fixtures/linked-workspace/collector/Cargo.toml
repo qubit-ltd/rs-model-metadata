@@ -9,7 +9,7 @@ model-a = { path = "../model-a" }
 model-b = { path = "../model-b" }
 qubit-model-metadata = { path = "../../../../../", features = ["validation", "codec"] }
 
-qubit-codec = { version = "0.16", path = "../../../../../../rs-codec", features = ["registry"] }
+qubit-codec = { version = "0.16", features = ["registry"] }
 qubit-validator = { version = "=0.1.0", path = "../../../../../../../rust-common/rs-validator" }
 
 [features]

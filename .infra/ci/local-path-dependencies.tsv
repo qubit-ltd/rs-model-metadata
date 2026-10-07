@@ -1,8 +1,4 @@
 # relative git root<TAB>repository URL<TAB>default branch
-../rs-codec	https://github.com/qubit-ltd/rs-codec	main
-../../rust-common/rs-datatype	https://github.com/qubit-ltd/rs-datatype	main
-../rs-id	https://github.com/qubit-ltd/rs-id	main
-../../rust-common/rs-redact	https://github.com/qubit-ltd/rs-redact	main
 ../rs-reflect	https://github.com/qubit-ltd/rs-reflect	main
 ../../rust-common/rs-validation-rules	https://github.com/qubit-ltd/rs-validation-rules	main
 ../../rust-common/rs-validator	https://github.com/qubit-ltd/rs-validator	main

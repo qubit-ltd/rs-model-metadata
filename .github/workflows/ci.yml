@@ -42,37 +42,9 @@ jobs:
           submodules: false
       - uses: actions/checkout@v6
         with:
-          repository: qubit-ltd/rs-codec
-          ref: main
-          path: rust-platform/rs-codec
-          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
-          submodules: false
-      - uses: actions/checkout@v6
-        with:
           repository: qubit-ltd/rs-reflect
           ref: main
           path: rust-platform/rs-reflect
-          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
-          submodules: false
-      - uses: actions/checkout@v6
-        with:
-          repository: qubit-ltd/rs-id
-          ref: main
-          path: rust-common/rs-id
-          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
-          submodules: false
-      - uses: actions/checkout@v6
-        with:
-          repository: qubit-ltd/rs-datatype
-          ref: main
-          path: rust-common/rs-datatype
-          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
-          submodules: false
-      - uses: actions/checkout@v6
-        with:
-          repository: qubit-ltd/rs-redact
-          ref: main
-          path: rust-common/rs-redact
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
       - uses: actions/checkout@v6
@@ -125,37 +97,9 @@ jobs:
           submodules: false
       - uses: actions/checkout@v6
         with:
-          repository: qubit-ltd/rs-codec
-          ref: main
-          path: rust-platform/rs-codec
-          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
-          submodules: false
-      - uses: actions/checkout@v6
-        with:
           repository: qubit-ltd/rs-reflect
           ref: main
           path: rust-platform/rs-reflect
-          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
-          submodules: false
-      - uses: actions/checkout@v6
-        with:
-          repository: qubit-ltd/rs-id
-          ref: main
-          path: rust-common/rs-id
-          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
-          submodules: false
-      - uses: actions/checkout@v6
-        with:
-          repository: qubit-ltd/rs-datatype
-          ref: main
-          path: rust-common/rs-datatype
-          token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
-          submodules: false
-      - uses: actions/checkout@v6
-        with:
-          repository: qubit-ltd/rs-redact
-          ref: main
-          path: rust-common/rs-redact
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
       - uses: actions/checkout@v6

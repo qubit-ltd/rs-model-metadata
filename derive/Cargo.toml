@@ -37,7 +37,7 @@ syn = { version = "2", features = ["full", "visit-mut"] }
 bigdecimal = "0.4"
 chrono = { version = "0.4", features = ["std"], default-features = false }
 model_runtime = { package = "qubit-model-metadata", path = "..", features = ["generic"] }
-qubit-codec = { version = "0.16", path = "../../rs-codec", features = ["registry"] }
+qubit-codec = { version = "0.16", features = ["registry"] }
 qubit-id = { version = "0.7" }
 qubit-reflect = { version = "=0.2.0", path = "../../rs-reflect" }
 qubit-validator = { version = "=0.1.0", path = "../../../rust-common/rs-validator" }
