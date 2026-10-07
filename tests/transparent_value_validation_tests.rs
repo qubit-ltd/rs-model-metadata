@@ -27,6 +27,9 @@ use qubit_validator::ValidatorRegistry;
 #[Value(transparent)]
 struct Email(#[text(min_chars = 1)] String);
 
+#[Value(transparent)]
+struct OptionalEmail(#[text(min_chars = 1)] Option<String>);
+
 #[Model]
 struct Envelope {
     email: Option<Email>,
@@ -108,6 +111,46 @@ fn test_transparent_value_root_field_reports_numeric_path() {
         .expect("transparent root execution");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "0");
+}
+
+#[test]
+fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
+    let root = TypeMetadata::of::<OptionalEmail>();
+    let roots = [root];
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: ModelRegistry::global(),
+            roots: &roots,
+        })
+        .resolve()
+        .expect("optional email structure"),
+    );
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+    )
+    .expect("transparent optional scalar must bind");
+
+    let invalid = OptionalEmail(Some(String::new()));
+    let report = plan
+        .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+        .expect("present optional scalar execution");
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].path().render(), "0");
+    assert!(report.skipped().is_empty());
+
+    let missing = OptionalEmail(None);
+    let report = plan
+        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .expect("missing optional scalar skips the field");
+    assert!(report.violations().is_empty());
+    assert_eq!(report.skipped().len(), 1);
+    assert_eq!(report.skipped()[0].path().render(), "0");
+    assert_eq!(report.skipped()[0].reason(), SkipReason::MissingOptional);
 }
 
 #[test]

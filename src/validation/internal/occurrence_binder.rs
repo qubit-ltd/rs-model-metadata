@@ -95,45 +95,61 @@ pub(crate) fn check_access(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(ConstraintMetadata::Map(_))
     );
-    let optional_map_getter = is_map
-        && occurrence
-            .segments
-            .last()
-            .and_then(|name| {
-                graph
-                    .properties(occurrence.owner)
-                    .and_then(|properties| properties.property(name))
-            })
-            .and_then(|property| property.getter())
-            .is_some_and(|getter| getter.output_kind() == GetterOutputKind::OptionalBorrowed);
-    let optional_scalar_candidate = matches!(
+    let scalar_constraint = matches!(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(
-            ConstraintMetadata::Text(_) | ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_)
+            ConstraintMetadata::Text(_)
+                | ConstraintMetadata::Decimal(_)
+                | ConstraintMetadata::Time(_)
         )
-    ) && occurrence
-        .segments
-        .last()
-        .and_then(|name| {
-            graph
-                .properties(occurrence.owner)
-                .and_then(|properties| properties.property(name))
+    );
+    let compile = |target| {
+        CompiledPropertyPath::compile(
+            occurrence.root,
+            &PropertyPath::new(&occurrence.segments),
+            graph,
+            target,
+        )
+        .map_err(|error| {
+            if error.kind() == BindErrorKind::UnsupportedConstraint {
+                ValidationBuildError::unsupported(occurrence)
+            } else {
+                ValidationBuildError::at_occurrence(occurrence, error)
+            }
         })
-        .is_some_and(|property| {
-            property.getter().is_none()
-                && property
-                    .descriptor()
-                    .is_some_and(|descriptor| descriptor.as_optional().is_some())
-        });
-    let optional_projection_available = occurrence
-        .segments
-        .last()
-        .and_then(|name| {
-            graph
-                .properties(occurrence.owner)
-                .and_then(|properties| properties.property(name))
-        })
-        .and_then(|property| property.descriptor())
+    };
+    let initial_target = if requires_slice {
+        TargetMode::Container
+    } else {
+        match occurrence.declaration {
+            ExecutionDeclaration::Validator(value) => value.target(),
+            _ => TargetMode::Value,
+        }
+    };
+    // A direct Option<T> field needs container compilation before its
+    // terminal descriptor can be projected. The compiled step also includes
+    // transparent fields, which are not named graph properties.
+    let (path, compiled_target) = match compile(initial_target) {
+        Ok(path) => (path, initial_target),
+        Err(_) if is_map || scalar_constraint => {
+            (compile(TargetMode::Container)?, TargetMode::Container)
+        }
+        Err(error) => return Err(Box::new(error)),
+    };
+    let Some(property) = path.steps().last().map(|step| step.property()) else {
+        return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+    };
+    let optional_map_getter = is_map
+        && property
+            .getter()
+            .is_some_and(|getter| getter.output_kind() == GetterOutputKind::OptionalBorrowed);
+    let optional_scalar_candidate = scalar_constraint
+        && property.getter().is_none()
+        && property
+            .descriptor()
+            .is_some_and(|descriptor| descriptor.as_optional().is_some());
+    let optional_projection_available = property
+        .descriptor()
         .and_then(|descriptor| descriptor.as_optional())
         .is_some_and(|optional| optional.has_ref_projection());
     if optional_scalar_candidate && !optional_projection_available {
@@ -148,14 +164,11 @@ pub(crate) fn check_access(
             _ => TargetMode::Value,
         }
     };
-    let path = CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&occurrence.segments), graph, target)
-        .map_err(|error| {
-            if error.kind() == BindErrorKind::UnsupportedConstraint {
-                ValidationBuildError::unsupported(occurrence)
-            } else {
-                ValidationBuildError::at_occurrence(occurrence, error)
-            }
-        })?;
+    let path = if target == compiled_target {
+        path
+    } else {
+        compile(target)?
+    };
     let path = if direct_optional_scalar {
         match path.unwrap_terminal_optional() {
             Ok(path) => path,
