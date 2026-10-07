@@ -1,10 +1,10 @@
 # Consuming model metadata
 
-[简体中文](user_guide.zh_CN.md) · [README](../README.md) · [Declaration guide](../derive/doc/user_guide.md)
+[简体中文](user_guide.zh_CN.md) · [Design](design.md) · [README](../README.md) · [Declaration guide](../derive/doc/user_guide.md)
 
 ## Purpose and audience
 
-This guide covers the 0.1.0 contract for framework authors. It uses a
+This guide covers the 0.2.0 contract for framework authors. It uses a
 user-directory scenario: inspect a model, resolve its indexed declarations, then
 bind optional execution services explicitly. Rust 1.94 and edition 2024 are
 required. The default feature set is empty; `generic`, `validation`, and `codec`
@@ -20,7 +20,7 @@ exact TypeId identity and can be supplied as roots.
 ## Scenario and minimal configuration
 
 The metadata, model ID, and derive packages set `publish = false`, so use local checkouts.
-These paths assume the application crate sits beside `rs-model-metadata` under
+These paths assume an application crate beside `rs-model-metadata` under
 `rs-platform`. Add `validation` only when the application builds plans:
 
 The examples use this checkout layout; run the application from `rs-platform/app`.
@@ -747,12 +747,13 @@ checked v7 facade over rs-reflect codegen v3; applications should use public API
 
 Database access, random object creation, physical indexes, filter generation,
 Unicode comparison execution, and missing-parent business fallback remain
-consumer responsibilities. See the [frozen requirements](../derive/doc/rs-model-derive-requirements.zh_CN.md),
-[design](../derive/doc/rs-model-derive-final-design.md), and local API docs generated
+consumer responsibilities. See the [current runtime design](design.md),
+[derive design](../derive/doc/design.md), and local API docs generated
 by `cargo doc --workspace --all-features --no-deps`.
 
 ## Further reading
 
 - [README](../README.md)
+- [Design](design.md)
 - [简体中文用户指南](user_guide.zh_CN.md)
 - [Declaration guide](../derive/doc/user_guide.md)

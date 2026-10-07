@@ -1,8 +1,8 @@
 # Declaring domain models
 
-[简体中文](user_guide.zh_CN.md) · [README](../README.md) · [Runtime guide](../../doc/user_guide.md)
+[简体中文](user_guide.zh_CN.md) · [Design](design.md) · [README](../README.md) · [Runtime guide](../../doc/user_guide.md)
 
-This guide covers the 0.1 workspace contract for application authors. Declare a
+This guide covers the 0.2.0 workspace contract for application authors. Declare a
 model once, inspect its metadata, and let explicit consumers implement validation,
 querying, or persistence. Rust 1.94 and edition 2024 are required. These manifests use
 `publish = false`; use the checkout dependencies below.
@@ -345,5 +345,5 @@ invalid declarations. Fallible `try_*` queries preserve capability and Property
 assembly failures; see the runtime guide for execution and error handling.
 
 The [requirements](rs-model-derive-requirements.zh_CN.md) and
-[final design](rs-model-derive-final-design.md) define the contract. Build local
+[current design](design.md) define the contract. Build local
 API documentation with `cargo doc --workspace --all-features --no-deps`.
