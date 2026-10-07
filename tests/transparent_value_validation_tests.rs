@@ -2,6 +2,8 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 #![cfg(feature = "validation")]
@@ -104,10 +106,7 @@ fn test_transparent_value_root_field_reports_numeric_path() {
     )
     .expect("transparent root field must bind");
     let report = plan
-        .validate(
-            ReflectedRef::new(&Email(String::new())),
-            &ValidationOptions::default(),
-        )
+        .validate(ReflectedRef::new(&Email(String::new())), &ValidationOptions::default())
         .expect("transparent root execution");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "0");
@@ -177,9 +176,6 @@ fn test_ordinary_tuple_field_remains_unsupported() {
         Err(errors) => errors,
     };
     assert_eq!(errors.len(), 1);
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("pair.0.0"));
 }

@@ -370,22 +370,29 @@ fn property_resolution(criterion: &mut Criterion) {
             for root in first_cold_roots {
                 black_box(models.compile_read_path_cached(root, path).expect("cold root path"));
             }
-            black_box(models.compile_read_path_cached(owner, path).expect("refreshed hot path"));
-            black_box(models.compile_read_path_cached(final_cold_root, path).expect("final cold root path"));
-            black_box(models.compile_read_path_cached(owner, path).expect("hot path after cold roots"));
+            black_box(
+                models
+                    .compile_read_path_cached(owner, path)
+                    .expect("refreshed hot path"),
+            );
+            black_box(
+                models
+                    .compile_read_path_cached(final_cold_root, path)
+                    .expect("final cold root path"),
+            );
+            black_box(
+                models
+                    .compile_read_path_cached(owner, path)
+                    .expect("hot path after cold roots"),
+            );
         });
     });
     paths.finish();
 
     let path_snapshot = path_snapshot();
-    let path_models =
-        ModelRegistry::from_reflect_registry(&path_snapshot).expect("path model registry");
+    let path_models = ModelRegistry::from_reflect_registry(&path_snapshot).expect("path model registry");
     let path_cases = [
-        (
-            9,
-            TypeMetadata::of::<ResolutionPathNine>(),
-            ["f08", "leaf", "value"],
-        ),
+        (9, TypeMetadata::of::<ResolutionPathNine>(), ["f08", "leaf", "value"]),
         (
             17,
             TypeMetadata::of::<ResolutionPathSeventeen>(),
@@ -403,33 +410,23 @@ fn property_resolution(criterion: &mut Criterion) {
         path_models
             .compile_read_path_cached(root, &segments)
             .expect("cached path compiles before measurement");
-        full_paths.bench_function(
-            format!("uncached_last_field_{width}_fields_3_segments"),
-            |bencher| {
-                bencher.iter(|| {
-                    black_box(
-                        PropertyAccessPath::compile(
-                            black_box(&path_models),
-                            black_box(root),
-                            black_box(&segments),
-                        )
+        full_paths.bench_function(format!("uncached_last_field_{width}_fields_3_segments"), |bencher| {
+            bencher.iter(|| {
+                black_box(
+                    PropertyAccessPath::compile(black_box(&path_models), black_box(root), black_box(&segments))
                         .expect("uncached full path"),
-                    )
-                });
-            },
-        );
-        full_paths.bench_function(
-            format!("cached_hit_last_field_{width}_fields_3_segments"),
-            |bencher| {
-                bencher.iter(|| {
-                    black_box(
-                        path_models
-                            .compile_read_path_cached(black_box(root), black_box(&segments))
-                            .expect("cached full path"),
-                    )
-                });
-            },
-        );
+                )
+            });
+        });
+        full_paths.bench_function(format!("cached_hit_last_field_{width}_fields_3_segments"), |bencher| {
+            bencher.iter(|| {
+                black_box(
+                    path_models
+                        .compile_read_path_cached(black_box(root), black_box(&segments))
+                        .expect("cached full path"),
+                )
+            });
+        });
     }
     full_paths.finish();
 }

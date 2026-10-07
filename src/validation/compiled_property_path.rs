@@ -129,8 +129,12 @@ impl CompiledPropertyPath {
                 .and_then(|value| value.transparent_field())
                 .filter(|field| *segment == "0" && is_transparent_unnamed_field(current, field));
             let property = if let Some(field) = transparent_field {
-                let reflect = field.reflect().ok_or_else(|| path_error(BindErrorKind::UnreadablePath))?;
-                let declared = field.descriptor().ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
+                let reflect = field
+                    .reflect()
+                    .ok_or_else(|| path_error(BindErrorKind::UnreadablePath))?;
+                let declared = field
+                    .descriptor()
+                    .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
                 let reflected = reflect
                     .field_type()
                     .as_resolved()

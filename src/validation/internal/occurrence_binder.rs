@@ -98,25 +98,19 @@ pub(crate) fn check_access(
     let scalar_constraint = matches!(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(
-            ConstraintMetadata::Text(_)
-                | ConstraintMetadata::Decimal(_)
-                | ConstraintMetadata::Time(_)
+            ConstraintMetadata::Text(_) | ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_)
         )
     );
     let compile = |target| {
-        CompiledPropertyPath::compile(
-            occurrence.root,
-            &PropertyPath::new(&occurrence.segments),
-            graph,
-            target,
+        CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&occurrence.segments), graph, target).map_err(
+            |error| {
+                if error.kind() == BindErrorKind::UnsupportedConstraint {
+                    ValidationBuildError::unsupported(occurrence)
+                } else {
+                    ValidationBuildError::at_occurrence(occurrence, error)
+                }
+            },
         )
-        .map_err(|error| {
-            if error.kind() == BindErrorKind::UnsupportedConstraint {
-                ValidationBuildError::unsupported(occurrence)
-            } else {
-                ValidationBuildError::at_occurrence(occurrence, error)
-            }
-        })
     };
     let initial_target = if requires_slice {
         TargetMode::Container
@@ -131,9 +125,7 @@ pub(crate) fn check_access(
     // transparent fields, which are not named graph properties.
     let (path, compiled_target) = match compile(initial_target) {
         Ok(path) => (path, initial_target),
-        Err(_) if is_map || scalar_constraint => {
-            (compile(TargetMode::Container)?, TargetMode::Container)
-        }
+        Err(_) if is_map || scalar_constraint => (compile(TargetMode::Container)?, TargetMode::Container),
         Err(error) => return Err(Box::new(error)),
     };
     let Some(property) = path.steps().last().map(|step| step.property()) else {

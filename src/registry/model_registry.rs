@@ -556,11 +556,10 @@ impl<'reflection> ModelRegistry<'reflection> {
             cell.set(Ok(Some(metadata))).expect("new metadata cache cell");
             metadata_cache_with_sources.insert(key, (cell, source));
         }
-        let metadata_cache: HashMap<MetadataCacheKey, MetadataCacheCell> =
-            metadata_cache_with_sources
-                .into_iter()
-                .map(|(key, (cell, _source))| (key, cell))
-                .collect();
+        let metadata_cache: HashMap<MetadataCacheKey, MetadataCacheCell> = metadata_cache_with_sources
+            .into_iter()
+            .map(|(key, (cell, _source))| (key, cell))
+            .collect();
 
         Ok(Self {
             entries: entries.into_boxed_slice(),

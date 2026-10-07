@@ -114,8 +114,13 @@ fn walk(
     for field in fields(owner) {
         let mut segments = prefix.to_vec();
         let transparent_unnamed = is_transparent_unnamed_field(owner, field);
-        segments.push(field.name().unwrap_or(if transparent_unnamed { "0" } else { "<unnamed>" }));
-        let unsupported = inherited_unsupported || owner.as_enum().is_some() || field.name().is_none() && !transparent_unnamed;
+        segments.push(
+            field
+                .name()
+                .unwrap_or(if transparent_unnamed { "0" } else { "<unnamed>" }),
+        );
+        let unsupported =
+            inherited_unsupported || owner.as_enum().is_some() || field.name().is_none() && !transparent_unnamed;
         let unsupported_path = unsupported.then(|| {
             let mut path = diagnostic_prefix.map_or_else(|| prefix.join("."), str::to_owned);
             if let Some(variant) = field

@@ -72,10 +72,7 @@ pub(super) struct PathCache<T> {
 
 impl<T> std::fmt::Debug for PathCache<T> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("PathCache")
-            .field("len", &self.len)
-            .finish()
+        formatter.debug_struct("PathCache").field("len", &self.len).finish()
     }
 }
 
@@ -93,7 +90,8 @@ impl<T> Default for PathCache<T> {
 }
 
 impl<T> PathCache<T> {
-    /// Compresses access stamps in their existing order without heap allocation.
+    /// Compresses access stamps in their existing order without heap
+    /// allocation.
     fn renumber_accesses(&mut self) {
         let mut stamps = [0; CACHE_CAPACITY];
         let mut count = 0;
@@ -166,7 +164,8 @@ impl<T> PathCache<T> {
     ) -> Option<Arc<T>> {
         let hash = self.hash_borrowed(type_id, metadata_address, segments, write);
         self.ensure_access_stamp();
-        let entry = self.entries
+        let entry = self
+            .entries
             .get_mut(&hash)?
             .iter_mut()
             .find(|entry| entry.key.matches_borrowed(type_id, metadata_address, segments, write))?;
@@ -179,7 +178,8 @@ impl<T> PathCache<T> {
     pub(super) fn get(&mut self, key: &PathCacheKey) -> Option<Arc<T>> {
         let hash = self.hash_owned(key);
         self.ensure_access_stamp();
-        let entry = self.entries
+        let entry = self
+            .entries
             .get_mut(&hash)?
             .iter_mut()
             .find(|entry| entry.key == *key)?;
@@ -196,12 +196,21 @@ impl<T> PathCache<T> {
             return existing;
         }
         if self.len == CACHE_CAPACITY {
-            let (oldest_hash, oldest_index, _) = self.entries
+            let (oldest_hash, oldest_index, _) = self
+                .entries
                 .iter()
-                .flat_map(|(&hash, bucket)| bucket.iter().enumerate().map(move |(index, entry)| (hash, index, entry.last_access)))
+                .flat_map(|(&hash, bucket)| {
+                    bucket
+                        .iter()
+                        .enumerate()
+                        .map(move |(index, entry)| (hash, index, entry.last_access))
+                })
                 .min_by_key(|(_, _, stamp)| *stamp)
                 .expect("full cache has a least recently used entry");
-            let bucket = self.entries.get_mut(&oldest_hash).expect("oldest bucket remains present");
+            let bucket = self
+                .entries
+                .get_mut(&oldest_hash)
+                .expect("oldest bucket remains present");
             bucket.remove(oldest_index);
             if bucket.is_empty() {
                 self.entries.remove(&oldest_hash);
@@ -364,7 +373,10 @@ mod tests {
             Arc::new(CACHE_CAPACITY + 1),
         );
 
-        assert!(Arc::ptr_eq(&hot, &cache.get(&hot_key).expect("recent hot path remains cached")));
+        assert!(Arc::ptr_eq(
+            &hot,
+            &cache.get(&hot_key).expect("recent hot path remains cached")
+        ));
         assert!(cache.get_borrowed(type_id, 2, &["cold"], false).is_none());
         assert_eq!(cache.len(), CACHE_CAPACITY);
     }
@@ -380,8 +392,14 @@ mod tests {
             cache.insert_or_existing(PathCacheKey::new(type_id, address, &["cold"], false), Arc::new(address));
         }
         assert!(Arc::ptr_eq(&hot, &cache.get(&hot_key).expect("owned-key hit")));
-        cache.insert_or_existing(PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false), Arc::new(0));
-        assert!(Arc::ptr_eq(&hot, &cache.get(&hot_key).expect("recent owned-key hit remains")));
+        cache.insert_or_existing(
+            PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false),
+            Arc::new(0),
+        );
+        assert!(Arc::ptr_eq(
+            &hot,
+            &cache.get(&hot_key).expect("recent owned-key hit remains")
+        ));
     }
 
     /// A racing duplicate insertion counts as use of the retained value.
@@ -394,8 +412,14 @@ mod tests {
         for address in 2..=CACHE_CAPACITY {
             cache.insert_or_existing(PathCacheKey::new(type_id, address, &["cold"], false), Arc::new(address));
         }
-        assert!(Arc::ptr_eq(&hot, &cache.insert_or_existing(hot_key.clone(), Arc::new(999))));
-        cache.insert_or_existing(PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false), Arc::new(0));
+        assert!(Arc::ptr_eq(
+            &hot,
+            &cache.insert_or_existing(hot_key.clone(), Arc::new(999))
+        ));
+        cache.insert_or_existing(
+            PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false),
+            Arc::new(0),
+        );
         assert!(Arc::ptr_eq(&hot, &cache.get(&hot_key).expect("duplicate hit remains")));
     }
 
@@ -410,10 +434,19 @@ mod tests {
             cache.insert_or_existing(PathCacheKey::new(type_id, address, &["cold"], false), Arc::new(address));
         }
         cache.next_access = u64::MAX;
-        assert!(Arc::ptr_eq(&hot, &cache.get_borrowed(type_id, 1, &["hot"], false).expect("hot hit")));
-        cache.insert_or_existing(PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false), Arc::new(0));
+        assert!(Arc::ptr_eq(
+            &hot,
+            &cache.get_borrowed(type_id, 1, &["hot"], false).expect("hot hit")
+        ));
+        cache.insert_or_existing(
+            PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false),
+            Arc::new(0),
+        );
 
-        assert!(Arc::ptr_eq(&hot, &cache.get(&hot_key).expect("hot path survives overflow")));
+        assert!(Arc::ptr_eq(
+            &hot,
+            &cache.get(&hot_key).expect("hot path survives overflow")
+        ));
         assert!(cache.get_borrowed(type_id, 2, &["cold"], false).is_none());
         assert_eq!(cache.len(), CACHE_CAPACITY);
     }
