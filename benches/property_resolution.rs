@@ -18,6 +18,7 @@ use qubit_model_derive::Model;
 use qubit_model_metadata::__private::ModelImplProvider;
 use qubit_model_metadata::__private::model_impl_fragment_key;
 use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::PropertyAccessPath;
 use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
 use qubit_model_metadata::metadata::ModelImplMetadata;
@@ -41,6 +42,106 @@ use qubit_reflect::registry::RegistrySnapshotBuilder;
 #[Model]
 struct ResolutionFixture {
     name: String,
+}
+
+#[Model]
+struct ResolutionPathLeaf {
+    value: String,
+}
+
+#[Model]
+struct ResolutionPathMiddle {
+    leaf: ResolutionPathLeaf,
+}
+
+// Root widths match the platform's observed p50, nearest-rank p90, and maximum.
+#[Model]
+struct ResolutionPathNine {
+    f00: u8,
+    f01: u8,
+    f02: u8,
+    f03: u8,
+    f04: u8,
+    f05: u8,
+    f06: u8,
+    f07: u8,
+    f08: ResolutionPathMiddle,
+}
+
+#[Model]
+struct ResolutionPathSeventeen {
+    f00: u8,
+    f01: u8,
+    f02: u8,
+    f03: u8,
+    f04: u8,
+    f05: u8,
+    f06: u8,
+    f07: u8,
+    f08: u8,
+    f09: u8,
+    f10: u8,
+    f11: u8,
+    f12: u8,
+    f13: u8,
+    f14: u8,
+    f15: u8,
+    f16: ResolutionPathMiddle,
+}
+
+#[Model]
+struct ResolutionPathFiftyOne {
+    f00: u8,
+    f01: u8,
+    f02: u8,
+    f03: u8,
+    f04: u8,
+    f05: u8,
+    f06: u8,
+    f07: u8,
+    f08: u8,
+    f09: u8,
+    f10: u8,
+    f11: u8,
+    f12: u8,
+    f13: u8,
+    f14: u8,
+    f15: u8,
+    f16: u8,
+    f17: u8,
+    f18: u8,
+    f19: u8,
+    f20: u8,
+    f21: u8,
+    f22: u8,
+    f23: u8,
+    f24: u8,
+    f25: u8,
+    f26: u8,
+    f27: u8,
+    f28: u8,
+    f29: u8,
+    f30: u8,
+    f31: u8,
+    f32: u8,
+    f33: u8,
+    f34: u8,
+    f35: u8,
+    f36: u8,
+    f37: u8,
+    f38: u8,
+    f39: u8,
+    f40: u8,
+    f41: u8,
+    f42: u8,
+    f43: u8,
+    f44: u8,
+    f45: u8,
+    f46: u8,
+    f47: u8,
+    f48: u8,
+    f49: u8,
+    f50: ResolutionPathMiddle,
 }
 
 fn read_name(target: ReflectedRef<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
@@ -169,6 +270,34 @@ fn snapshot(two_providers: bool, unrelated: bool) -> ReflectRegistry {
     builder.build().expect("valid explicit benchmark snapshot")
 }
 
+/// Builds one explicit registry for full three-segment compilation cases.
+fn path_snapshot() -> ReflectRegistry {
+    let mut builder = RegistrySnapshotBuilder::new();
+    for (index, descriptor) in [
+        TypeMetadata::of::<ResolutionPathLeaf>().descriptor(),
+        TypeMetadata::of::<ResolutionPathMiddle>().descriptor(),
+        TypeMetadata::of::<ResolutionPathNine>().descriptor(),
+        TypeMetadata::of::<ResolutionPathSeventeen>().descriptor(),
+        TypeMetadata::of::<ResolutionPathFiftyOne>().descriptor(),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        builder.add_type(
+            descriptor,
+            FragmentIdentity::new(
+                "property-resolution-bench",
+                Box::leak(format!("path-type-{index}").into_boxed_str()),
+                1,
+                1,
+                "type",
+                index as u64 + 1,
+            ),
+        );
+    }
+    builder.build().expect("valid path benchmark snapshot")
+}
+
 /// Checks the result before measurements and registers four resolution paths.
 fn property_resolution(criterion: &mut Criterion) {
     let owner = TypeMetadata::of::<ResolutionFixture>();
@@ -216,6 +345,62 @@ fn property_resolution(criterion: &mut Criterion) {
         });
     });
     group.finish();
+
+    let path_snapshot = path_snapshot();
+    let path_models =
+        ModelRegistry::from_reflect_registry(&path_snapshot).expect("path model registry");
+    let path_cases = [
+        (
+            9,
+            TypeMetadata::of::<ResolutionPathNine>(),
+            ["f08", "leaf", "value"],
+        ),
+        (
+            17,
+            TypeMetadata::of::<ResolutionPathSeventeen>(),
+            ["f16", "leaf", "value"],
+        ),
+        (
+            51,
+            TypeMetadata::of::<ResolutionPathFiftyOne>(),
+            ["f50", "leaf", "value"],
+        ),
+    ];
+    let mut paths = criterion.benchmark_group("full_property_path_compile");
+    for (width, root, segments) in path_cases {
+        PropertyAccessPath::compile(&path_models, root, &segments).expect("uncached path compiles");
+        path_models
+            .compile_read_path_cached(root, &segments)
+            .expect("cached path compiles before measurement");
+        paths.bench_function(
+            format!("uncached_last_field_{width}_fields_3_segments"),
+            |bencher| {
+                bencher.iter(|| {
+                    black_box(
+                        PropertyAccessPath::compile(
+                            black_box(&path_models),
+                            black_box(root),
+                            black_box(&segments),
+                        )
+                        .expect("uncached full path"),
+                    )
+                });
+            },
+        );
+        paths.bench_function(
+            format!("cached_hit_last_field_{width}_fields_3_segments"),
+            |bencher| {
+                bencher.iter(|| {
+                    black_box(
+                        path_models
+                            .compile_read_path_cached(black_box(root), black_box(&segments))
+                            .expect("cached full path"),
+                    )
+                });
+            },
+        );
+    }
+    paths.finish();
 }
 
 criterion_group!(benches, property_resolution);
