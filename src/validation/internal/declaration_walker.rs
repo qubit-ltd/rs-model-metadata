@@ -113,8 +113,9 @@ fn walk(
     active.insert(owner.type_id());
     for field in fields(owner) {
         let mut segments = prefix.to_vec();
-        segments.push(field.name().unwrap_or("<unnamed>"));
-        let unsupported = inherited_unsupported || owner.as_enum().is_some() || field.name().is_none();
+        let transparent_unnamed = is_transparent_unnamed_field(owner, field);
+        segments.push(field.name().unwrap_or(if transparent_unnamed { "0" } else { "<unnamed>" }));
+        let unsupported = inherited_unsupported || owner.as_enum().is_some() || field.name().is_none() && !transparent_unnamed;
         let unsupported_path = unsupported.then(|| {
             let mut path = diagnostic_prefix.map_or_else(|| prefix.join("."), str::to_owned);
             if let Some(variant) = field
@@ -201,6 +202,18 @@ fn walk(
         }
     }
     active.remove(&owner.type_id());
+}
+
+/// Accepts only the sole anonymous field declared by a transparent value.
+///
+/// `owner` supplies the role declaration and `field` is the visited field.
+/// Returns `true` only for the exact anonymous field at index zero. Other
+/// tuple fields remain unsupported.
+pub(crate) fn is_transparent_unnamed_field(owner: &TypeMetadata, field: &FieldMetadata) -> bool {
+    owner
+        .as_value()
+        .and_then(|value| value.transparent_field())
+        .is_some_and(|inner| std::ptr::eq(inner, field) && field.index() == 0 && field.name().is_none())
 }
 
 /// Returns struct fields or enum payload fields in declaration order.

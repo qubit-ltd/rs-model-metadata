@@ -23,11 +23,12 @@ use crate::metadata::PropertyPath;
 use crate::metadata::TargetMode;
 use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
+use crate::validation::internal::declaration_walker::is_transparent_unnamed_field;
 
 /// One validated property access retained for a later executor.
 ///
-/// The metadata is copied from the resolved property set; constructing or
-/// inspecting a step never invokes the property's user-defined getter.
+/// The metadata is copied from the resolved property set or constructed from
+/// a transparent value field. Inspecting a step never invokes a getter.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PropertyStep {
     property: PropertyMetadata,
@@ -84,9 +85,10 @@ pub(crate) struct CompiledPropertyPath {
 impl CompiledPropertyPath {
     /// Checks and compiles a declaration path without invoking user adapters.
     ///
-    /// Resolves every named property from `root`, validates its getter output
-    /// against `target`, and records optional reads and the validator input
-    /// type. No model instance is read and no user getter is called.
+    /// Resolves properties from `root`, including a transparent value's field
+    /// at index zero, validates their output against `target`, and records
+    /// optional reads and the validator input type. No instance is read and
+    /// no user getter is called.
     ///
     /// # Parameters
     ///
@@ -122,10 +124,28 @@ impl CompiledPropertyPath {
         let mut path_optional = false;
         let mut input = InputType::of::<()>();
         for (index, segment) in path.segments().iter().enumerate() {
-            let property = graph
-                .properties(current)
-                .and_then(|properties| properties.property(segment))
-                .ok_or_else(|| path_error(BindErrorKind::UnreadablePath))?;
+            let transparent_field = current
+                .as_value()
+                .and_then(|value| value.transparent_field())
+                .filter(|field| *segment == "0" && is_transparent_unnamed_field(current, field));
+            let property = if let Some(field) = transparent_field {
+                let reflect = field.reflect().ok_or_else(|| path_error(BindErrorKind::UnreadablePath))?;
+                let declared = field.descriptor().ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
+                let reflected = reflect
+                    .field_type()
+                    .as_resolved()
+                    .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
+                if reflect.index() != 0 || !std::ptr::eq(reflected, declared) {
+                    return Err(path_error(BindErrorKind::UnsupportedConstraint));
+                }
+                PropertyMetadata::new("0", field.type_ref(), Some(field), None, None)
+            } else {
+                graph
+                    .properties(current)
+                    .and_then(|properties| properties.property(segment))
+                    .copied()
+                    .ok_or_else(|| path_error(BindErrorKind::UnreadablePath))?
+            };
             if !property.is_readable() {
                 return Err(path_error(BindErrorKind::UnreadablePath));
             }
@@ -206,7 +226,7 @@ impl CompiledPropertyPath {
                 optional_steps.push(index);
             }
             steps.push(PropertyStep {
-                property: *property,
+                property,
                 optional_element: project_borrowed_optional.then_some(expected.type_id()),
             });
             input = if matches!(actual.kind(), TypeKind::Text(_)) {
