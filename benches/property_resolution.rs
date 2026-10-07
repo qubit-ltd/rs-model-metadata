@@ -169,7 +169,7 @@ fn snapshot(two_providers: bool, unrelated: bool) -> ReflectRegistry {
     builder.build().expect("valid explicit benchmark snapshot")
 }
 
-/// Checks the result before measurements and registers four resolution paths.
+/// Checks the result before measurements and registers resolution paths.
 fn property_resolution(criterion: &mut Criterion) {
     let owner = TypeMetadata::of::<ResolutionFixture>();
     let one = snapshot(false, false);
@@ -216,6 +216,34 @@ fn property_resolution(criterion: &mut Criterion) {
         });
     });
     group.finish();
+
+    let roots: Vec<&'static TypeMetadata> = (0..256)
+        .map(|_| -> &'static TypeMetadata { Box::leak(Box::new(*owner)) })
+        .collect();
+    let path = &["name"];
+    models
+        .compile_read_path_cached(owner, path)
+        .expect("hot path compiles before measurement");
+    let mut paths = criterion.benchmark_group("property_path_cache");
+    paths.bench_function("single_path_hit", |bencher| {
+        bencher.iter(|| {
+            black_box(
+                models
+                    .compile_read_path_cached(black_box(owner), black_box(path))
+                    .expect("cached hot path"),
+            )
+        });
+    });
+    paths.bench_function("hot_path_after_256_cold_roots", |bencher| {
+        bencher.iter(|| {
+            black_box(models.compile_read_path_cached(owner, path).expect("initial hot path"));
+            for root in &roots {
+                black_box(models.compile_read_path_cached(root, path).expect("cold root path"));
+            }
+            black_box(models.compile_read_path_cached(owner, path).expect("retained hot path"));
+        });
+    });
+    paths.finish();
 }
 
 criterion_group!(benches, property_resolution);
