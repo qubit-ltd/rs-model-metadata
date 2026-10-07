@@ -1,0 +1,5 @@
+error: no_hash has no effect for this model role
+ --> tests/ui_roles/fail/entity_no_hash.rs:4:8
+  |
+4 | struct InvalidEntity {
+  |        ^^^^^^^^^^^^^
