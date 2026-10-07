@@ -830,7 +830,7 @@ impl<'reflection> ModelRegistry<'reflection> {
         let type_id = root.type_id();
         let metadata_address = root as *const _ as usize;
         {
-            let cache = self.path_cache.lock().expect("path cache lock");
+            let mut cache = self.path_cache.lock().expect("path cache lock");
             if let Some(hit) = cache.get_borrowed(type_id, metadata_address, segments, write) {
                 return Ok(hit);
             }
