@@ -349,6 +349,7 @@ fn property_resolution(criterion: &mut Criterion) {
     let roots: Vec<&'static TypeMetadata> = (0..256)
         .map(|_| -> &'static TypeMetadata { Box::leak(Box::new(*owner)) })
         .collect();
+    let (final_cold_root, first_cold_roots) = roots.split_last().expect("256 cold roots");
     let path = &["name"];
     models
         .compile_read_path_cached(owner, path)
@@ -363,12 +364,14 @@ fn property_resolution(criterion: &mut Criterion) {
             )
         });
     });
-    paths.bench_function("hot_path_after_256_cold_roots", |bencher| {
+    paths.bench_function("hot_path_refreshed_amid_256_cold_roots", |bencher| {
         bencher.iter(|| {
             black_box(models.compile_read_path_cached(owner, path).expect("initial hot path"));
-            for root in &roots {
+            for root in first_cold_roots {
                 black_box(models.compile_read_path_cached(root, path).expect("cold root path"));
             }
+            black_box(models.compile_read_path_cached(owner, path).expect("refreshed hot path"));
+            black_box(models.compile_read_path_cached(final_cold_root, path).expect("final cold root path"));
             black_box(models.compile_read_path_cached(owner, path).expect("hot path after cold roots"));
         });
     });
