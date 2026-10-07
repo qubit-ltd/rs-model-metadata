@@ -240,7 +240,7 @@ fn property_resolution(criterion: &mut Criterion) {
             for root in &roots {
                 black_box(models.compile_read_path_cached(root, path).expect("cold root path"));
             }
-            black_box(models.compile_read_path_cached(owner, path).expect("retained hot path"));
+            black_box(models.compile_read_path_cached(owner, path).expect("hot path after cold roots"));
         });
     });
     paths.finish();

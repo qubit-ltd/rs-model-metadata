@@ -173,6 +173,8 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 `ModelRegistry::metadata_for` 返回 `Result<Option<&TypeMetadata>, ModelMetadataError>`。
 注册表构建失败时，`ModelRegistryError::origins()` 会保留相关能力来自类型内建能力还是注册片段，
 并为注册能力保留精确的片段身份；`sources()` 仍可用于直接检查片段。
+两份元数据输入发生注册冲突时，`sources()` 按发现顺序返回双方的片段身份。
+
 `Ok(None)` 表示没有匹配的模型元数据；能力冲突和描述符 ABI 不匹配返回结构化错误。
 `TypeMetadata::try_properties_in`、`try_property_in`、`property_fragments_in` 传播
 `PropertyResolutionError`，显式 snapshot 查询不会初始化全局注册表。
@@ -208,8 +210,10 @@ FailFast 和报告上限会停止整个计划，基础执行错误则保留部�
 需要按全部字段比较和哈希的实体可写为 `#[Entity(id = "example.User", eq, hash)]`；
 `Projection` 和 `Model` 同样可显式使用 `eq`、`hash`。`hash` 要求最终启用 `Eq`；
 `ord` 隐含 `Eq`，但不隐含 `Hash`；`partial_ord` 只要求 `PartialEq`。
-`eq` 与 `no_eq` 并用、`hash` 与 `no_hash` 并用均会报错。原有 `no_*` 关闭开关仍可用，
-其中 `no_eq` 也会关闭默认的 `Hash`。所有变体均无字段的 `Enum` 默认生成 `Copy`，
+`eq` 与 `no_eq` 并用、`hash` 与 `no_hash` 并用均会报错。`Entity`、`Projection`、`Model`
+默认没有 `Eq` 和 `Hash`，对这些角色使用 `no_eq` 或 `no_hash` 也会报编译错误。`Value` 和
+`Enum` 仍可使用这些关闭开关，其中 `no_eq` 也会关闭默认的 `Hash`。
+所有变体均无字段的 `Enum` 默认生成 `Copy`，
 但 `no_clone` 或 `no_copy` 会关闭该默认能力；其他情况需显式使用 `copy`。
 `default` 需要显式启用。
 旧代码若依赖实体、投影或模型默认实现 `Eq`、`Hash`，应按实际需要显式开启。
@@ -295,13 +299,15 @@ fn main() {
 | Decimal / Money | 准确的 `BigDecimal` 及 Option；检查 scale、`DECIMAL(p,s)` precision 和区间，不舍入 |
 | Time precision | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 的秒/毫秒/微秒/纳秒精度；拒绝 `NaiveDate` |
 | Option | 借用的 `Option<T>` 中间对象遇到 `None` 会跳过，遇到 `Some` 会继续访问；终端 `Option<String>` text 规则跳过 `None`、校验 `Some`；构建时仍检查具体类型 |
-| selector 内约束或依赖、MapKey/MapValue、tuple 路径、含约束的 Enum payload、容器内模型、返回 owned 中间对象且还需继续遍历的 getter | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
+| 透明单字段 tuple `Value` 的内部约束 | 可穿过唯一字段执行；外层 Option 缺失时跳过，例如 `email.value.0` |
+| selector 内约束或依赖、MapKey/MapValue、普通 tuple 路径、含约束的 Enum payload、容器内模型、返回 owned 中间对象且还需继续遍历的 getter | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
 | Enum/raw wrapper 与递归路径 | 发现可达工作后，不支持的使用路径在能力检查和计划构建时明确拒绝；无工作包装可以通过 |
 
 基于反射快照的注册表能从根发现可达匿名子模型，包括 raw reflection wrapper 内的模型；
 `ResolveInputs.roots` 只需传入根，发现范围始终受传入快照限制。仅静态元数据注册表需要显式子元数据，
-不会引入反射能力。单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；`transparent` 只控制表示，
-不保证内部约束可执行。Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerEntity,)`
+不会引入反射能力。单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；标记 `transparent`
+后，唯一字段上受支持的约束可以执行，但普通 tuple 位置与 Enum payload 仍不支持。
+Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerEntity,)`
 返回 `InvalidEntityNesting`。newtype Value 不能在值闭包中隐藏 Model/Entity/Projection、引用、
 未解析描述符或 raw struct（`InvalidValueClosure`）；基本值及合法 Value/Enum 闭包仍可通过。
 无名载荷字段不会成为具名 Property。`ModelImpl` 的 provider、签名和访问适配器与方法/impl 的 `cfg` 及嵌套

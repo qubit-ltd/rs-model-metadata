@@ -216,7 +216,8 @@ from `graph.properties()` must not outlive the graph.
 For repeated property access, `ModelRegistry::compile_read_path_cached` and
 `compile_write_path_cached` return shared compiled paths. Each registry snapshot
 retains at most 256 successful paths across read and write modes; inserting a
-new success evicts the oldest inserted success when full. Failed compilations
+new success evicts the least recently used entry when full. A successful cache
+hit refreshes recency. Failed compilations
 are returned to the caller and retried on later calls. The key includes the
 exact root metadata, path segments, and access mode. Separate registries, including registries made
 from different reflection snapshots or overlays, have separate caches; a path
@@ -499,7 +500,8 @@ available through `rule.id().as_str()`.
 | `#[time(precision = ...)]` | Executes on `DateTime<Utc>`, `NaiveDateTime`, or `NaiveTime`, including optional values; checks exact second, millisecond, microsecond, or nanosecond resolution. `NaiveDate` is rejected at build time. |
 | Standard constraints or dependencies inside a selector; MapKey/MapValue | `UnsupportedExecution` |
 | Missing map length or sequence equality adapter, unknown collection shape, unsupported temporal type, or mismatched scalar input | `UnsupportedExecution` at build time |
-| Constrained enum payloads, tuples/newtypes, and models inside container elements | `UnsupportedExecution` |
+| Internal constraints on a transparent one-field tuple `Value` | Bind and execute through the sole field; an absent optional value skips it |
+| Constrained enum payloads, ordinary tuples/newtypes, and models inside container elements | `UnsupportedExecution` |
 | Recursive instance paths with reachable execution declarations | `UnsupportedExecution`; no infinite expansion |
 | Unit enums, and payloads or cycles without reachable execution declarations | Accepted as ordinary values |
 | Reference fields | Only explicit rules on the stored field; no referenced Entity instance is fetched |
@@ -527,6 +529,8 @@ optional wrapper and at two separate paths. Its `PersonInfo.delete_time`
 constraint uses the supported `DateTime<Utc>` shape; a valid plan checks a
 present value and skips `None`. Plan construction still checks the declaration
 and concrete input type before any instance is inspected.
+The production `User` plan also binds `Email`'s transparent field constraint:
+an empty email reports `email.value.0`, while a missing email skips that path.
 
 ### Root-only discovery through raw wrappers
 
@@ -610,6 +614,7 @@ fn main() {
 | Decimal / Money | Exact `BigDecimal`, including Option; scale, `DECIMAL(p,s)` precision and range; no rounding |
 | Time precision | `DateTime<Utc>`, `NaiveDateTime`, `NaiveTime`: second/millisecond/microsecond/nanosecond; `NaiveDate` is rejected |
 | Option | `None` skips inner constraints; `Some` executes; build still checks the concrete type |
+| Transparent one-field tuple `Value` | A supported constraint on its sole field executes; an absent optional value skips it |
 | Selector constraints/dependencies; MapKey/MapValue; container model interiors | `UnsupportedExecution`; outer support does not imply inner traversal |
 | Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
 
@@ -622,7 +627,8 @@ handle generated metadata ABI violations as `AbiViolation`; `TypeMetadata::of::<
 panics when that validation fails. Invalid explicit roots are reported during
 resolution, while invalid static registry entries fail registry construction.
 One-field tuple `Value` declarations obey the same value-closure checks as named
-Values; `transparent` controls representation, not execution support.
+Values. With `transparent`, a supported constraint on the sole field can execute;
+other tuple positions and enum payloads remain unsupported.
 Entity role checks also traverse tuple fields: `(InnerEntity,)` without an
 explicit reference is rejected as `InvalidEntityNesting`. Newtype Values cannot
 hide a Model/Entity/Projection, reference, unresolved descriptor, or raw struct
@@ -701,6 +707,7 @@ a missing or non-text dependency is an execution error, not a value violation.
 | --- | --- |
 | Missing model target | The target ID and linked registrations in the supplied registry |
 | Capability or Property conflict | The fallible query's cause and original declaration sources |
+| Metadata registration conflict | Inspect `ModelRegistryError::sources()` for both fragment identities in discovery order |
 | Anonymous model absent from graph | Check the supplied reflection snapshot; metadata-only registries need explicit child metadata |
 | Missing parent dependency | Supply nearest-parent-first instance context and graph metadata |
 | Unsupported validation selector | Check ValidationCapabilities or use another consumer |

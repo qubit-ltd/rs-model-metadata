@@ -214,6 +214,9 @@ When registry construction fails, `ModelRegistryError::origins()` preserves whet
 the relevant capability was intrinsic or registered, including the exact fragment
 identity for registered capabilities. `sources()` remains available for direct
 fragment inspection.
+For a registration conflict between two metadata inputs, `sources()` returns
+both fragment identities in discovery order.
+
 `Ok(None)` means no matching model metadata; capability conflicts and descriptor ABI mismatches
 return structured errors. `TypeMetadata::try_properties_in`, `try_property_in`, and
 `property_fragments_in` propagate `PropertyResolutionError`. Explicit snapshot queries never
@@ -256,8 +259,10 @@ For an entity whose fields should also support structural equality and hashing,
 write `#[Entity(id = "example.User", eq, hash)]`. The same `eq` and `hash` options
 apply to `Projection` and `Model`. `hash` requires effective `Eq`; `ord` enables
 `Eq` but does not enable `Hash`, while `partial_ord` requires only `PartialEq`.
-`eq` with `no_eq`, or `hash` with `no_hash`, is an error. Existing `no_*` opt-outs
-remain available; `no_eq` also removes default `Hash`. All-unit `Enum` declarations
+`eq` with `no_eq`, or `hash` with `no_hash`, is an error. `no_eq` and `no_hash`
+also produce a compile error on `Entity`, `Projection`, and `Model`, whose defaults
+include neither capability. On `Value` and `Enum`, the opt-outs remain available;
+`no_eq` also removes default `Hash`. All-unit `Enum` declarations
 get `Copy` by default unless `no_clone` or `no_copy` is set; elsewhere `copy` is
 opt-in. `default` is opt-in. Code that relied on an entity, projection, or
 model having `Eq` or `Hash` by default must enable the needed options explicitly.
@@ -356,7 +361,8 @@ to consumers. `reference.path` uses `/` and `..`; Property paths retain `.`.
 | Decimal / Money | Exact `BigDecimal`, including Option; scale, `DECIMAL(p,s)` precision and range; no rounding |
 | Time precision | `DateTime<Utc>`, `NaiveDateTime`, `NaiveTime`: second/millisecond/microsecond/nanosecond; `NaiveDate` is rejected |
 | Option | Borrowed `Option<T>` intermediates skip `None` and continue through `Some`; terminal `Option<String>` text rules skip `None` and validate `Some`; build still checks the concrete type |
-| Selector constraints/dependencies; MapKey/MapValue; tuple paths; constrained enum payloads; container model interiors; owned intermediate getters requiring further traversal | `UnsupportedExecution`; outer support does not imply inner traversal |
+| Internal constraint on a transparent one-field tuple `Value` | Executes through its sole field; an absent optional value skips it (for example, `email.value.0`) |
+| Selector constraints/dependencies; MapKey/MapValue; ordinary tuple paths; constrained enum payloads; container model interiors; owned intermediate getters requiring further traversal | `UnsupportedExecution`; outer support does not imply inner traversal |
 | Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
 
 A reflection-backed registry discovers anonymous children reachable from the root,
@@ -364,7 +370,8 @@ even through raw reflection wrappers. Supply only that root in `ResolveInputs.ro
 all discovery stays in the supplied snapshot. Metadata-only registries require
 explicit child metadata and do not import reflection capabilities.
 One-field tuple `Value` declarations obey the same value-closure checks as named
-Values; `transparent` controls representation, not execution support.
+Values. With `transparent`, a supported constraint on the sole field can execute;
+this does not make other tuple positions or enum payloads executable.
 Entity role checks also traverse tuple fields: `(InnerEntity,)` without an
 explicit reference is rejected as `InvalidEntityNesting`. Newtype Values cannot
 hide a Model/Entity/Projection, reference, unresolved descriptor, or raw struct

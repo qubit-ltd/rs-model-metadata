@@ -188,7 +188,8 @@ let title = resolved.property("title");
 
 重复访问属性路径时，可调用 `ModelRegistry::compile_read_path_cached` 或
 `compile_write_path_cached` 取得共享的编译结果。每个 registry 快照最多保留 256 条成功路径，读写
-共用这一上限；满额后移除最早加入的成功条目。编译失败会原样返回，后续调用仍会重试。缓存键同时区分
+共用这一上限；满额后移除最久未使用的条目，成功命中会更新使用顺序。
+编译失败会原样返回，后续调用仍会重试。缓存键同时区分
 根模型的准确 metadata、路径段和读写模式。不同 registry（包括不同反射快照或 overlay 所建的注册表）
 各有独立缓存，不会跨快照复用路径。未命中时在锁外编译，因此并发请求可能重复编译同一条路径。
 
@@ -434,7 +435,8 @@ fn main() {
 | `#[time(precision = ...)]` | 对 `DateTime<Utc>`、`NaiveDateTime` 或 `NaiveTime` 及其可选值执行；检查秒、毫秒、微秒或纳秒精度；`NaiveDate` 在构建时拒绝。 |
 | selector 内的标准约束或依赖，MapKey/MapValue | `UnsupportedExecution` |
 | 缺少 map 长度或 sequence 相等性适配器、未知集合形状、不支持的时间类型、标量输入类型不符 | 构建阶段返回 `UnsupportedExecution` |
-| 含执行声明的 Enum payload、tuple/newtype、容器元素模型 | `UnsupportedExecution` |
+| 透明单字段 tuple `Value` 的内部约束 | 穿过唯一字段绑定并执行；外层 Option 缺失时跳过 |
+| 含执行声明的 Enum payload、普通 tuple/newtype、容器元素模型 | `UnsupportedExecution` |
 | 有可达执行声明的递归实例路径 | `UnsupportedExecution`，不会无限展开 |
 | unit Enum，以及无可达执行声明的 payload 或循环 | 可作为普通值通过 |
 | reference 字段 | 只执行存储字段的显式规则，不读取被引用的完整 Entity 实例 |
@@ -454,6 +456,8 @@ fn main() {
 
 真实下游 `rs-platform` 的 testkit 覆盖了生产 `CredentialInfo` 的 Option 包装和两个独立使用位置。
 `PersonInfo.delete_time` 使用受支持的 `DateTime<Utc>` 形状；计划可检查有值情况，并跳过 `None`。
+生产 `User` 的验证计划也会绑定 `Email` 透明字段的约束：空邮件报告 `email.value.0`，
+缺少邮件时跳过该路径。
 构建阶段仍会在查看实例前检查声明与具体输入类型。
 
 ### 只传根发现 raw wrapper 内的模型
@@ -537,6 +541,7 @@ fn main() {
 | Decimal / Money | 准确的 `BigDecimal` 及 Option；检查 scale、`DECIMAL(p,s)` precision 和区间，不舍入 |
 | Time precision | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 的秒/毫秒/微秒/纳秒精度；拒绝 `NaiveDate` |
 | Option | `None` 跳过内层约束，`Some` 执行；构建时仍检查具体类型 |
+| 透明单字段 tuple `Value` | 唯一字段上受支持的约束可执行；外层 Option 缺失时跳过 |
 | selector 内约束或依赖、MapKey/MapValue、容器内模型 | `UnsupportedExecution`；外层支持不能推导内部遍历能力 |
 | Enum/raw wrapper 与递归路径 | 发现可达工作后，不支持的使用路径在能力检查和计划构建时明确拒绝；无工作包装可以通过 |
 
@@ -545,8 +550,9 @@ fn main() {
 必须显式提供每个可达子模型的元数据，也不会引入反射能力。使用 `TypeMetadata::try_of::<T>()`
 可将生成元数据 ABI 错误作为 `AbiViolation` 处理；校验失败时 `TypeMetadata::of::<T>()` 会 panic。
 无效显式根会在解析时报告，静态注册表中的无效条目会在注册表构造时失败。
-单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；`transparent` 只控制表示，
-不保证内部约束可执行。Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerEntity,)`
+单字段 tuple `Value` 与具名 Value 遵循相同的值闭包检查；标记 `transparent` 后，唯一字段上
+受支持的约束可执行，普通 tuple 位置和 Enum payload 仍不支持。
+Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerEntity,)`
 返回 `InvalidEntityNesting`。newtype Value 不能在值闭包中隐藏 Model/Entity/Projection、引用、
 未解析描述符或 raw struct（`InvalidValueClosure`）；基本值及合法 Value/Enum 闭包仍可通过。
 无名载荷字段不会成为具名 Property。`ModelImpl` 的 provider、签名和访问适配器与方法/impl 的 `cfg` 及嵌套
@@ -604,6 +610,7 @@ precision 为 1、scale 为 0 时会接受 `1e3`，新版拒绝。元数据中�
 | --- | --- |
 | 找不到引用目标 | 稳定 ID、已链接 crate、传入注册表的内容 |
 | 能力或 Property 冲突 | fallible 查询的 cause 与原始声明来源 |
+| 元数据注册冲突 | 查看 `ModelRegistryError::sources()`，按发现顺序取得双方片段身份 |
 | 匿名模型不在图中 | 检查传入反射快照；仅静态元数据注册表需要显式子元数据 |
 | 父依赖缺失 | 最近父对象优先的实例上下文与 graph 中的类型信息 |
 | selector 无执行支持 | ValidationCapabilities 或其他消费后端 |
