@@ -36,7 +36,7 @@ fn test_default_model_capabilities() {
     assert!(format!("{label}").contains("visible"));
 }
 
-#[Model(no_eq, no_display, no_debug, no_serialize, no_deserialize, no_redact)]
+#[Model(no_display, no_debug, no_serialize, no_deserialize, no_redact)]
 struct Measurement {
     value: f64,
 }

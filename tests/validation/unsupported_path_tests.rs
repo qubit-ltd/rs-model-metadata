@@ -204,7 +204,7 @@ struct SetAndSliceUses {
 
 type MapAlias = HashMap<String, String>;
 
-#[Model(no_hash)]
+#[Model]
 struct MissingCollectionAdapters {
     #[map(min_entries = 1)]
     entries: MapAlias,

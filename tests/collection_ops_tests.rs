@@ -25,7 +25,7 @@ use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_reflect::ReflectedRef;
 
-#[Model(no_hash)]
+#[Model]
 struct Collections {
     #[map(min_entries = 1)]
     hashed: HashMap<String, i32>,

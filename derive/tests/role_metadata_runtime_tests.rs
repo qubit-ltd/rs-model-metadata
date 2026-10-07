@@ -83,7 +83,7 @@ struct AccountView {
     id: Id,
 }
 
-#[Model(id = "runtime.Payload", no_hash)]
+#[Model(id = "runtime.Payload")]
 struct Payload {
     #[text(min_chars = 1, max_chars = 8, allowed_chars = code)]
     value: String,

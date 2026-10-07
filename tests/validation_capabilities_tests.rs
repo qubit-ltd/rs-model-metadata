@@ -26,7 +26,7 @@ use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_validator::ValidatorRegistry;
 
-#[Model(id = "validation.UnsupportedMapKey", no_hash)]
+#[Model(id = "validation.UnsupportedMapKey")]
 struct UnsupportedMapKey {
     #[map_key(validator(id = "test.text"))]
     values: HashMap<String, String>,

@@ -577,7 +577,7 @@ fn test_traversal_budgets_are_enforced_before_execution() {
         .build();
     assert!(plan.validate(value, &nodes).is_err());
 }
-#[Model(no_hash)]
+#[Model]
 struct MapCountFixture {
     #[map(min_entries = 1, max_entries = 2)]
     hashed: HashMap<String, i32>,
@@ -592,7 +592,7 @@ impl MapCountFixture {
     }
 }
 
-#[Model(no_hash)]
+#[Model]
 struct MapOptionalFixture {
     child: Option<MapCountFixture>,
 }
@@ -604,7 +604,7 @@ impl MapOptionalFixture {
     }
 }
 
-#[Model(no_hash)]
+#[Model]
 struct DirectOptionalMaps {
     #[map(min_entries = 1, max_entries = 2)]
     hashed: Option<HashMap<String, i32>>,
@@ -612,7 +612,7 @@ struct DirectOptionalMaps {
     ordered: Option<BTreeMap<String, i32>>,
 }
 
-#[Model(no_hash)]
+#[Model]
 struct OptionalGetterMaps {
     #[map(min_entries = 1, max_entries = 2)]
     hashed: Option<HashMap<String, i32>>,
@@ -630,7 +630,7 @@ impl OptionalGetterMaps {
     }
 }
 
-#[Model(no_hash)]
+#[Model]
 struct MapUnsupportedFixture {
     #[map(min_entries = 1)]
     entries: MapAlias,
