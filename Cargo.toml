@@ -81,3 +81,7 @@ required-features = ["validation"]
 name = "generic_metadata"
 harness = false
 required-features = ["generic"]
+
+[[bench]]
+name = "typeref_baseline"
+harness = false
