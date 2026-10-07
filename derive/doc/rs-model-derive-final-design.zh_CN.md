@@ -1,5 +1,7 @@
 # 模型元数据与派生宏重构设计
 
+> 本文为历史重构规格。当前 0.2.0 实现请参阅[派生宏设计](design.zh_CN.md)和[运行时设计](../../doc/design.zh_CN.md)。
+
 - 版本：2026-09-10，依据用户已确认的[冻结需求](rs-model-derive-requirements.zh_CN.md)。
 - 状态：本次执行正确性修订的契约设计；v7 身份、声明遍历、预算和错误契约见后文。实现与最终 CI 验收状态另见逐项台账，不以文档存在代替验收。
 - 适用范围：`qubit-model-metadata` 与 `qubit-model-derive`，以及必要的 reflect/redact/validator/codec 集成。

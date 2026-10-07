@@ -182,7 +182,7 @@ codec 执行属于独立的可选 adapter：启用 runtime 的 `codec` feature�
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
 - 本地 API 文档：在 crate 根目录运行 `cargo doc --open`
-- [最终设计](doc/rs-model-derive-final-design.zh_CN.md)
+- [Design](doc/design.md) · [设计文档](doc/design.zh_CN.md)
 - [English README](README.md)
 
 以下命令均在 **rs-model-metadata 仓库根目录**运行，不能直接在 `derive` 子目录复制执行；

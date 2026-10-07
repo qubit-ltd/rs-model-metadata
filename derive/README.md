@@ -216,7 +216,7 @@ accessors are supported; enabled conflicting pairs are still diagnosed.
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
 - Local API documentation: run `cargo doc --open`
-- [Final design](doc/rs-model-derive-final-design.md)
+- [Design](doc/design.md) · [设计文档](doc/design.zh_CN.md)
 - [中文 README](README.zh_CN.md)
 
 Run the commands below from the **repository workspace root** (`rs-model-metadata`),

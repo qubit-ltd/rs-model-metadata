@@ -1,5 +1,7 @@
 # Model Metadata and Derive Refactoring Design
 
+> Historical refactoring specification. For the implemented 0.2.0 contract, see the [current derive design](design.md) and [runtime design](../../doc/design.md).
+
 Version: 2026-09-10, execution-correctness revision. This design preserves the user-confirmed [frozen requirements](rs-model-derive-requirements.md) and specifies the checked v7 identity and validation contracts below. The [Chinese edition](rs-model-derive-final-design.zh_CN.md) describes the same contract. Implementation and verification status are tracked separately in the [coverage ledger](rs-model-derive-requirements-coverage.zh_CN.md); documenting a contract does not certify that final CI has passed. The earlier [gap assessment](rs-model-implementation-gaps.zh_CN.md) and [implementation plan](../../doc/plans/2026-09-10-model-metadata-plan.md) remain dated historical evidence.
 
 This replaces the historical design. It preserves the existing reflection foundation while restoring required generated capabilities and removing product-specific query policies.

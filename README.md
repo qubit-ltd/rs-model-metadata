@@ -385,6 +385,7 @@ accessors are supported; enabled conflicting pairs are still diagnosed.
 
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
+- [Design](doc/design.md) · [设计文档](doc/design.zh_CN.md)
 - [`qubit-model-derive` declaration guide](derive/doc/user_guide.md)
 - [Coverage measurement and reproducible tooling checks](doc/coverage_measurement.md)
 - The paired derive crate lives in this repository's [`derive/`](derive/) workspace member.

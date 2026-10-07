@@ -317,6 +317,7 @@ Entity 的角色检查同样穿过 tuple 字段：没有显式引用的 `(InnerE
 
 - [English user guide](doc/user_guide.md)
 - [简体中文用户指南](doc/user_guide.zh_CN.md)
+- [Design](doc/design.md) · [设计文档](doc/design.zh_CN.md)
 - [`qubit-model-derive` 声明指南](derive/doc/user_guide.zh_CN.md)
 - [覆盖率测量与工具复现检查](doc/coverage_measurement.zh_CN.md)
 - 配套的 derive crate 位于本仓库的 [`derive/`](derive/) workspace member 中。
