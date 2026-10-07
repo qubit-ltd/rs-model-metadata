@@ -1,0 +1,5 @@
+error: no_eq has no effect for this model role
+ --> tests/ui_roles/fail/model_no_eq.rs:4:8
+  |
+4 | struct InvalidModel {
+  |        ^^^^^^^^^^^^

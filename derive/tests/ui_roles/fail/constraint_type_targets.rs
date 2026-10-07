@@ -13,7 +13,7 @@ use std::collections::HashSet;
 
 use qubit_model_derive::Model;
 
-#[Model(no_eq)]
+#[Model]
 struct InvalidConstraintTargets {
     #[text(min_chars = 1)]
     number: u64,

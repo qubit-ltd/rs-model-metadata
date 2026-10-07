@@ -100,6 +100,14 @@ pub(crate) fn prepare(
     }
     let enabled = |name: &str| !options.contains(&format!("no_{name}"));
     let value_role = matches!(declaration.kind, MacroKind::Value | MacroKind::Enum);
+    for option in ["no_eq", "no_hash"] {
+        if !value_role && options.contains(option) {
+            return Err(Error::new_spanned(
+                &item.ident,
+                format!("{option} has no effect for this model role"),
+            ));
+        }
+    }
     let want_eq =
         (value_role || options.contains("eq") || options.contains("ord")) && enabled("eq") && enabled("partial_eq");
     if options.contains("hash") && !want_eq {
