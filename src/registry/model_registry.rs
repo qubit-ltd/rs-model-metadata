@@ -215,7 +215,7 @@ impl<'reflection> ModelRegistry<'reflection> {
                     cause,
                 ));
             }
-            metadata_inputs.push(metadata);
+            metadata_inputs.push((metadata, capability_source));
             if metadata.model_id().is_some() {
                 entries.push(
                     ModelEntry::concrete(
@@ -335,7 +335,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             entries,
             #[cfg(feature = "generic")]
             Vec::new(),
-            concrete.iter().map(|(metadata, _)| *metadata).collect(),
+            concrete.to_vec(),
         )
     }
 
@@ -394,7 +394,7 @@ impl<'reflection> ModelRegistry<'reflection> {
                 .iter()
                 .map(|&(metadata, source)| (metadata, source, None))
                 .collect(),
-            concrete.iter().map(|(metadata, _)| *metadata).collect(),
+            concrete.to_vec(),
         )
     }
 
@@ -457,8 +457,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// - `entries`: Concrete and generic model entries to validate and index.
     /// - `generic_inputs`: Generic definitions and their declaration provenance
     ///   when generic metadata is enabled.
-    /// - `metadata_inputs`: Concrete metadata validated before registry build,
-    ///   including anonymous metadata that is not indexed by stable ID.
+    /// - `metadata_inputs`: Concrete metadata and its source validated before
+    ///   registry build, including anonymous metadata without a stable ID.
     ///
     /// # Returns
     ///
@@ -471,7 +471,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             &'reflection FragmentIdentity,
             Option<&'reflection FragmentIdentity>,
         )>,
-        metadata_inputs: Vec<&'static TypeMetadata>,
+        metadata_inputs: Vec<(&'static TypeMetadata, &'reflection FragmentIdentity)>,
     ) -> Result<Self, ModelRegistryError> {
         #[cfg(feature = "generic")]
         {
@@ -535,22 +535,32 @@ impl<'reflection> ModelRegistry<'reflection> {
             }
         }
 
-        let mut metadata_cache: HashMap<MetadataCacheKey, MetadataCacheCell> =
-            HashMap::with_capacity(metadata_inputs.len());
-        for metadata in metadata_inputs {
+        let mut metadata_cache_with_sources: HashMap<
+            MetadataCacheKey,
+            (MetadataCacheCell, &'reflection FragmentIdentity),
+        > = HashMap::with_capacity(metadata_inputs.len());
+        for (metadata, source) in metadata_inputs {
             let descriptor = metadata.descriptor();
             let key = (descriptor.type_id(), descriptor as *const TypeDescriptor as usize);
-            if let Some(cell) = metadata_cache.get(&key) {
+            if let Some((cell, first_source)) = metadata_cache_with_sources.get(&key) {
                 let cached = cell.get().expect("prefilled metadata cell").as_ref();
                 if !matches!(cached, Ok(Some(existing)) if std::ptr::eq(*existing, metadata)) {
-                    return Err(ModelRegistryError::conflict(metadata.model_id(), Vec::new()));
+                    return Err(ModelRegistryError::conflict(
+                        metadata.model_id(),
+                        vec![(*first_source).clone(), source.clone()],
+                    ));
                 }
                 continue;
             }
             let cell = Arc::new(OnceLock::new());
             cell.set(Ok(Some(metadata))).expect("new metadata cache cell");
-            metadata_cache.insert(key, cell);
+            metadata_cache_with_sources.insert(key, (cell, source));
         }
+        let metadata_cache: HashMap<MetadataCacheKey, MetadataCacheCell> =
+            metadata_cache_with_sources
+                .into_iter()
+                .map(|(key, (cell, _source))| (key, cell))
+                .collect();
 
         Ok(Self {
             entries: entries.into_boxed_slice(),
@@ -924,9 +934,68 @@ fn compare_entries(left: &ModelEntry, right: &ModelEntry) -> Ordering {
 mod tests {
     use std::any::TypeId;
 
+    use qubit_reflect::Reflect;
     use qubit_reflect::TypeDescriptor;
+    use qubit_reflect::identity::FragmentIdentity;
 
     use super::ModelRegistry;
+    use crate::__private::v7;
+    use crate::metadata::TypeMetadata;
+    use crate::registry::ModelRegistryErrorKind;
+
+    #[derive(Reflect)]
+    #[reflect(crate = crate)]
+    struct AnonymousMetadataFixture;
+
+    /// Creates distinct ABI-valid anonymous metadata values for one descriptor.
+    fn anonymous_metadata() -> &'static TypeMetadata {
+        v7::leak(
+            v7::GeneratedTypeMetadataBuilder::new(
+                TypeDescriptor::of::<AnonymousMetadataFixture>(),
+                None,
+                &[],
+                v7::leak(v7::model_role()),
+            )
+            .finish::<AnonymousMetadataFixture>(),
+        )
+    }
+
+    #[test]
+    fn test_conflicting_anonymous_metadata_retains_both_sources() {
+        let first = anonymous_metadata();
+        let second = anonymous_metadata();
+        assert!(!std::ptr::eq(first, second));
+        assert!(first.validate_descriptor(first.descriptor()).is_ok());
+        assert!(second.validate_descriptor(second.descriptor()).is_ok());
+        let first_source = FragmentIdentity::new("fixture", "tests", 1, 1, "model", 1);
+        let second_source = FragmentIdentity::new("fixture", "tests", 2, 1, "model", 2);
+
+        let error = ModelRegistry::build(
+            Vec::new(),
+            #[cfg(feature = "generic")]
+            Vec::new(),
+            vec![(first, &first_source), (second, &second_source)],
+        )
+        .expect_err("different metadata values for one descriptor must conflict");
+        assert_eq!(error.kind(), ModelRegistryErrorKind::RegistrationConflict);
+        assert_eq!(error.model_id(), None);
+        assert_eq!(error.sources(), &[first_source, second_source]);
+    }
+
+    #[test]
+    fn test_repeated_anonymous_metadata_pointer_does_not_conflict() {
+        let metadata = anonymous_metadata();
+        let first_source = FragmentIdentity::new("fixture", "tests", 3, 1, "model", 3);
+        let second_source = FragmentIdentity::new("fixture", "tests", 4, 1, "model", 4);
+
+        ModelRegistry::build(
+            Vec::new(),
+            #[cfg(feature = "generic")]
+            Vec::new(),
+            vec![(metadata, &first_source), (metadata, &second_source)],
+        )
+        .expect("repeating one metadata pointer is valid during cache prefill");
+    }
 
     #[test]
     fn test_empty_metadata_registry_exposes_empty_indexes() {
