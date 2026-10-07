@@ -13,14 +13,17 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::process::Output;
 
+#[path = "support/temporary_target_dir.rs"]
+mod temporary_target_dir;
+
+use temporary_target_dir::TemporaryTargetDir;
+
 /// Checks all declared presence axes and the intersecting failure cases.
 #[test]
 fn test_cfg_accessor_feature_matrix() {
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/runtime-fixtures/cfg-accessors/Cargo.toml");
-    let target = std::env::var_os("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join(format!("qubit-model-cfg-{}", std::process::id())))
-        .join("cfg-accessors-runtime");
+    let target_dir = TemporaryTargetDir::new("qubit-model-cfg");
+    let target = target_dir.path().join("cfg-accessors-runtime");
     let axes = ["accessors", "alternate", "impl-enabled"];
     for mask in 0..8 {
         let features: Vec<_> = axes
