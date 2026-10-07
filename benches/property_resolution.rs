@@ -54,7 +54,7 @@ struct ResolutionPathMiddle {
     leaf: ResolutionPathLeaf,
 }
 
-// Root widths match the platform's observed p50, p90, and maximum.
+// Root widths match the platform's observed p50, nearest-rank p90, and maximum.
 #[Model]
 struct ResolutionPathNine {
     f00: u8,
@@ -69,7 +69,7 @@ struct ResolutionPathNine {
 }
 
 #[Model]
-struct ResolutionPathSixteen {
+struct ResolutionPathSeventeen {
     f00: u8,
     f01: u8,
     f02: u8,
@@ -85,7 +85,8 @@ struct ResolutionPathSixteen {
     f12: u8,
     f13: u8,
     f14: u8,
-    f15: ResolutionPathMiddle,
+    f15: u8,
+    f16: ResolutionPathMiddle,
 }
 
 #[Model]
@@ -276,7 +277,7 @@ fn path_snapshot() -> ReflectRegistry {
         TypeMetadata::of::<ResolutionPathLeaf>().descriptor(),
         TypeMetadata::of::<ResolutionPathMiddle>().descriptor(),
         TypeMetadata::of::<ResolutionPathNine>().descriptor(),
-        TypeMetadata::of::<ResolutionPathSixteen>().descriptor(),
+        TypeMetadata::of::<ResolutionPathSeventeen>().descriptor(),
         TypeMetadata::of::<ResolutionPathFiftyOne>().descriptor(),
     ]
     .into_iter()
@@ -355,9 +356,9 @@ fn property_resolution(criterion: &mut Criterion) {
             ["f08", "leaf", "value"],
         ),
         (
-            16,
-            TypeMetadata::of::<ResolutionPathSixteen>(),
-            ["f15", "leaf", "value"],
+            17,
+            TypeMetadata::of::<ResolutionPathSeventeen>(),
+            ["f16", "leaf", "value"],
         ),
         (
             51,
