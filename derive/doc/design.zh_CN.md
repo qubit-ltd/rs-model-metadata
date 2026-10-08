@@ -12,7 +12,7 @@
 
 ## 角色与身份
 
-`Entity` 必须是非泛型具名结构体，恰有一个满足运行时 `IdentifierType` 契约的 `#[identifier]` 字段；常用类型是 `qubit_id::Id`。`Projection` 也有标识符，可以指定固定来源或保持开放。`Model` 表示结构化数据，`Enum` 表示领域枚举；`Value` 的值闭包不能藏入实体、投影、模型或引用语义。需要稳定身份时通过 `id = "..."` 声明。具体 Rust 类型另有 `TypeId`；它与稳定模型 ID 的用途、有效期不同。
+`Entity` 必须是非泛型具名结构体，恰有一个 `#[identifier]` 字段；`Projection` 同样必须恰有一个此类字段。两者标识字段的实际类型都必须是 `qubit_id::Id`；该类型的别名可用，因为别名不创建新的 Rust 类型，newtype 包装和容器类型不可用。宏生成的代码通过私有 sealed `IdentifierType` 契约在编译期检查此要求，下游不能自行实现该契约来扩展允许的类型。`Projection` 还可以指定固定来源或保持开放。`Model` 表示结构化数据，`Enum` 表示领域枚举；`Value` 的值闭包不能藏入实体、投影、模型或引用语义。需要稳定身份时通过 `id = "..."` 声明。具体 Rust 类型另有 `TypeId`；它与稳定模型 ID 的用途、有效期不同。
 
 角色宏按文档生成反射、Clone、比较、脱敏格式化及 Serde 等默认 Rust 能力，并受相应 trait bound 限制。`Value` 与 `Enum` 默认还生成 Eq、Hash。显式能力开关改变生成的 Rust 行为，但仍保留模型元数据；无法满足的 trait bound 由 Rust 编译器报告。枚举 payload 的元数据保留所属变体，泛型声明则需结合具体实例检查。
 

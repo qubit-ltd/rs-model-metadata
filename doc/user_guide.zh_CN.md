@@ -585,6 +585,27 @@ assert_eq!(errors[0].path(), Some("raw.child.name"));
 `raw.child.name` 是声明位置，不是当前实例的元素下标。若使用静态元数据注册表，
 必须显式提供可达子模型；它不会从全局注册表补入。
 
+### 形状迁移与条件访问器
+
+修改字段类型、容器或 `ModelImpl` 访问器时，可先按下表确认当前验证后端能否执行对应声明。外层容器可计数，不代表后端会遍历其中的键、值或模型。
+
+| 执行声明 | 当前契约 |
+| --- | --- |
+| 外层 Map 条目数 | 对 `HashMap` / `BTreeMap` 使用生成的可读长度适配器；违规报告在字段路径上 |
+| Decimal / Money | 必须是准确的 `BigDecimal`（可为 `Option`）；按 scale、`DECIMAL(p,s)` 精度及精确区间检查，不会舍入 |
+| 时间精度 | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 的秒、毫秒、微秒或纳秒精度；`NaiveDate` 在构建时拒绝 |
+| `Option` | `None` 跳过内部约束，`Some` 执行；构建阶段仍检查具体类型 |
+| 透明单字段 tuple `Value` | 唯一字段上的受支持约束可以执行；外层可选值缺失时跳过 |
+| selector 内约束或依赖、MapKey/MapValue、容器内部模型 | 返回 `UnsupportedExecution`；支持外层操作不代表会遍历内部结构 |
+| Enum / raw wrapper 与递归路径 | 会发现可达工作；不支持的使用路径在能力检查和计划构建时拒绝，无执行工作的包装可以通过 |
+
+反射注册表可以从根类型发现匿名子模型，包括 raw 反射包装内的子模型；但发现只提供结构信息，不会自动生成 raw 路径的执行适配器。使用静态元数据注册表时，须显式列出每个可达子模型，也不会导入反射能力。调用 `TypeMetadata::try_of::<T>()` 可将生成元数据的 ABI 问题作为 `AbiViolation` 处理；`TypeMetadata::of::<T>()` 遇到同类问题会 panic。
+
+迁移到 Enum payload 上的约束或多字段 tuple 时，当前后端会在构建阶段返回 `UnsupportedExecution`；声明不会被静默丢弃。透明单字段 tuple `Value` 是受支持的例外，但它仍遵守 Value 闭包检查：不能借由 `Value` 隐藏 Entity、Projection、Model、reference 或 raw struct。若数据必须保留为这些形状，应改用当前可执行的具名字段访问路径，或由下游组件承担对应检查。
+Entity 角色检查也会递归检查 tuple 字段：若 `(InnerEntity,)` 没有显式声明为 Reference，解析会返回 `InvalidEntityNesting`。迁移时应将该关系改为具名 Reference 字段，或调整嵌套模型的角色。
+
+为 `ModelImpl` 增删条件访问器时，确保方法与其 impl 的 `cfg` 及嵌套 `cfg_attr` 条件一致。provider、签名和访问器适配器会采用相同的存在条件；互斥配置下的访问器可用，但启用后发生冲突的访问器仍会被诊断。
+
 ## 进阶用法：停止条件与执行预算
 
 使用 `ValidationOptions::default()` 获取默认策略。需要定制时，通过
