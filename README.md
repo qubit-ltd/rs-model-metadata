@@ -418,8 +418,14 @@ full license text.
 ## Contributing
 
 Contributions are welcome. Please follow the Rust API guidelines, keep public
-API documentation and tests current, and run `./.infra/bin/align-ci.sh` to format code and
-`./.infra/bin/ci-check.sh` to satisfy CI requirements before submitting a pull request.
+API documentation and tests current. Run `./.infra/bin/style-check.sh` to check the
+project's Rust style, `./.infra/bin/align-ci.sh` to apply its pinned nightly and rustfmt
+configuration, and `./.infra/bin/ci-check.sh` for the complete CI gate before submitting
+a pull request. These rs-infra commands define the project gate; plain
+`cargo fmt --all -- --check` uses the active toolchain and default rustfmt configuration,
+so it is not an equivalent check. Cargo's workspace and path-dependency layout also
+determines which source files each invocation reaches; use the paths reported by the
+rs-infra gate to identify the files it checked or formatted.
 
 ## Author
 

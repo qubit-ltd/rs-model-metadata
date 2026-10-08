@@ -349,8 +349,13 @@ Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
 
 ## 贡献
 
-欢迎贡献。请遵循 Rust API 指南，及时更新公共 API 文档与测试，并在提交
-Pull Request 前运行 `./.infra/bin/align-ci.sh`格式化代码，运行`./.infra/bin/ci-check.sh`对齐CI要求。
+欢迎贡献。请遵循 Rust API 指南，及时更新公共 API 文档与测试。提交 Pull Request
+前，运行 `./.infra/bin/style-check.sh` 检查项目 Rust 样式，运行
+`./.infra/bin/align-ci.sh` 按项目固定的 nightly 工具链和 rustfmt 配置自动对齐，
+并运行 `./.infra/bin/ci-check.sh` 执行完整 CI 门禁。这些 rs-infra 命令是项目的
+权威门禁；普通 `cargo fmt --all -- --check` 使用当前工具链和默认 rustfmt 配置，
+不能替代它们。Cargo workspace 和路径依赖布局也会影响各命令覆盖的源码文件；
+应以 rs-infra 门禁实际报告的路径判断检查或格式化了哪些文件。
 
 ## 作者
 
