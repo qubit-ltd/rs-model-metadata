@@ -71,7 +71,7 @@ fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
         .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
         .expect("transparent field execution");
     assert_eq!(report.violations().len(), 1);
-    assert_eq!(report.violations()[0].path().render(), "email.0");
+    assert_eq!(report.violations()[0].path().render(), "email[0]");
     assert!(report.skipped().is_empty());
 
     let missing = Envelope { email: None };
@@ -80,7 +80,7 @@ fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
         .expect("missing email skips the field");
     assert!(report.violations().is_empty());
     assert_eq!(report.skipped().len(), 1);
-    assert_eq!(report.skipped()[0].path().render(), "email.0");
+    assert_eq!(report.skipped()[0].path().render(), "email[0]");
     assert_eq!(report.skipped()[0].reason(), SkipReason::MissingOptional);
 }
 
@@ -109,7 +109,7 @@ fn test_transparent_value_root_field_reports_numeric_path() {
         .validate(ReflectedRef::new(&Email(String::new())), &ValidationOptions::default())
         .expect("transparent root execution");
     assert_eq!(report.violations().len(), 1);
-    assert_eq!(report.violations()[0].path().render(), "0");
+    assert_eq!(report.violations()[0].path().render(), "[0]");
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
         .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
         .expect("present optional scalar execution");
     assert_eq!(report.violations().len(), 1);
-    assert_eq!(report.violations()[0].path().render(), "0");
+    assert_eq!(report.violations()[0].path().render(), "[0]");
     assert!(report.skipped().is_empty());
 
     let missing = OptionalEmail(None);
@@ -148,7 +148,7 @@ fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
         .expect("missing optional scalar skips the field");
     assert!(report.violations().is_empty());
     assert_eq!(report.skipped().len(), 1);
-    assert_eq!(report.skipped()[0].path().render(), "0");
+    assert_eq!(report.skipped()[0].path().render(), "[0]");
     assert_eq!(report.skipped()[0].reason(), SkipReason::MissingOptional);
 }
 
