@@ -196,12 +196,17 @@ class CiWrapperTests(unittest.TestCase):
         self.assertRegex(setup.group("with"), r"(?m)^\s+components:\s*clippy\s*$")
 
     def test_coverage_report_expands_workspace_scope_to_package_arguments(self):
+        if not os.environ.get("RS_INFRA_SHARED_ROOT"):
+            self.skipTest("requires the shared rs-infra-tools checkout")
         with tempfile.TemporaryDirectory(prefix="metadata coverage report ") as directory:
             root = Path(directory)
             tools = root / ".infra" / "tools"
             tools.mkdir(parents=True)
-            config = root / ".infra" / "ci"
+            config = root / ".infra" / "coverage"
             config.mkdir()
+            shared_lib = root / ".infra" / "lib"
+            shared_lib.mkdir()
+            (shared_lib / "cleanup-build-artifacts.sh").write_text("", encoding="utf-8")
             (root / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
             (config / "coverage.json").write_text(
                 json.dumps({"scope": "workspace", "exclude_packages": ["excluded"]}),
@@ -210,6 +215,7 @@ class CiWrapperTests(unittest.TestCase):
             metadata = {
                 "workspace_root": str(root),
                 "workspace_default_members": ["pkg-root"],
+                "workspace_members": ["pkg-root", "pkg-member", "pkg-excluded"],
                 "packages": [
                     {"id": "pkg-root", "name": "root-package", "manifest_path": str(root / "Cargo.toml")},
                     {"id": "pkg-member", "name": "member-package", "manifest_path": str(root / "member/Cargo.toml")},
@@ -218,11 +224,16 @@ class CiWrapperTests(unittest.TestCase):
             }
             metadata_path = root / "metadata.json"
             metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
-            shutil.copyfile(PROJECT_ROOT / ".infra/tools/coverage-report.sh", tools / "coverage-report.sh")
+            shared_root = Path(os.environ["RS_INFRA_SHARED_ROOT"])
+            shutil.copyfile(
+                shared_root / ".infra/lib/coverage-report.sh",
+                tools / "coverage-report.sh",
+            )
 
             cargo_bin = root / "bin"
             cargo_bin.mkdir()
             records = root / "cargo-arguments.jsonl"
+            step_summary = root / "step-summary.md"
             fake_cargo = cargo_bin / "cargo"
             fake_cargo.write_text(
                 "#!/usr/bin/env python3\n"
@@ -248,6 +259,7 @@ class CiWrapperTests(unittest.TestCase):
                     "PATH": f"{cargo_bin}{os.pathsep}{environment['PATH']}",
                     "CARGO_METADATA_FIXTURE": str(metadata_path),
                     "CARGO_ARGUMENTS": str(records),
+                    "GITHUB_STEP_SUMMARY": str(step_summary),
                 }
             )
             result = subprocess.run(
@@ -260,6 +272,10 @@ class CiWrapperTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
+            summary = step_summary.read_text(encoding="utf-8")
+            self.assertIn("Full text report", summary)
+            self.assertNotIn("coverage report", summary)
+            self.assertLess(len(summary.encode("utf-8")), 1024 * 1024)
             report_calls = [json.loads(line) for line in records.read_text().splitlines()]
             self.assertEqual(len(report_calls), 5)
             for arguments in report_calls:
