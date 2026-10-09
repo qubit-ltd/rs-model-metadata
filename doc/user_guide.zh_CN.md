@@ -2,19 +2,13 @@
 
 [English](user_guide.md) · [设计文档](design.zh_CN.md) · [README](../README.zh_CN.md) · [声明指南](../derive/doc/user_guide.zh_CN.md)
 
-## 先看它解决什么问题
+## 它解决什么问题
 
-本指南面向消费模型元数据的应用和框架开发者，适用于 0.2.0。假设用户目录要根据模型声明
-找出可查询字段、检查跨模型关系，并校验一份资料。仅靠 Rust 字段类型，程序无法知道哪个字段是
-用户身份、哪个字段可索引、哪个约束要执行。`qubit-model-derive` 在类型上生成这些领域声明；
-本 crate 负责读取声明、建立关系图，并在启用对应 feature 后绑定验证或 codec。
-数据库查询、物理索引和持久化动作仍由消费元数据的应用完成。
+本指南面向需要**读取和利用领域模型语义**的应用、框架及工具开发者，适用于 0.2.0。`rs-reflect` 提供 Rust 类型、字段和访问能力等语言层面的反射；领域业务还需要表达长度限制、唯一性、身份、引用及自定义规则。`qubit-model-derive` 用宏把这些事实标在领域对象上，`qubit-model-metadata` 则提供读取、注册和解析这些声明的入口。
 
-第一次使用请沿[实战场景](#实战场景与最小配置)读取字段和查询声明，再做
-[验证报告](#核心工作流从声明到验证报告)。随后按任务查阅各专题；
-声明宏的选项见[derive 指南](../derive/doc/user_guide.zh_CN.md)。
-Rust 最低版本为 1.94，edition 为 2024；默认 feature 集为空，`generic`、`validation`、
-`codec` 分别开启对应能力。
+同一份元数据可供不同消费者使用：验证器检查实际对象；随机对象生成器按约束准备数据库层或业务层测试数据；REST 查询层依据 `indexed` 等声明校验查询字段并构造过滤器。库提供**语义信息及其结构关系**，具体执行策略由消费者决定。例如，`unique` 说明必须满足领域唯一性，验证现有数据库记录需要调用方提供数据访问能力；`reference` 指明目标关系，准备已存在的测试对象需要调用方提供仓储能力。
+
+首次阅读从[实战场景](#实战场景从声明到结构检查与验证)进入；已在编写消费者时可按下表查找入口。如何写宏标注见[声明指南](../derive/doc/user_guide.zh_CN.md)。Rust 最低版本为 1.94、edition 为 2024；默认 feature 集为空，`generic`、`validation`、`codec` 分别开启对应能力。
 
 | 要完成的任务 | 从哪里开始 | 成功信号 |
 | --- | --- | --- |
@@ -28,38 +22,11 @@ Rust 最低版本为 1.94，edition 为 2024；默认 feature 集为空，`gener
 这里的 Field 是存储字段；Property 是字段与合格访问器合并后的可访问属性；
 `TypeMetadata` 是不依赖实例的静态描述。只有当任务涉及多个模型的关系时才需要结构图。
 
-## 实战场景与最小配置
+## 实战场景：从声明到结构检查与验证
 
-用户目录要显示用户昵称，并根据 `indexed` 声明生成应用自己的筛选入口。
-成功标准是：读到 `User` 的稳定 ID，发现 `nickname` 的查询声明，并从 `User`
-这个根找到 `Child`。下面的程序只读取声明，不会连接数据库，也不会生成筛选 SQL。
+沿用[声明指南中的 `User` 与 `PersonInfo`](../derive/doc/user_guide.zh_CN.md#实战场景声明用户与人员资料的业务关系)：`User.username` 有长度与唯一性要求，`PersonInfo.user_id` 引用 `User.id`。消费者要做两件事：先确认关系声明在最终链接的模型集合中能解析，再把可执行的字段约束绑定为验证计划。随机测试生成器也会从相同元数据得知用户名应满足什么约束、`user_id` 应从哪个已存在用户取得。
 
-metadata、model-id 和 derive package 都设置了 `publish = false`，需要使用本地检出。
-以下路径假设应用 crate 与 `rs-model-metadata` 同属 `rs-platform` 检出目录。只有构建验证计划时，
-才为运行时 crate 启用 `validation`：
-
-示例统一使用以下检出布局，应用命令在 `rs-platform/app` 中执行。
-直接依赖必须与 runtime 使用同一份检出路径：
-
-```text
-checkout/
-  rs-platform/
-    app/                 # Cargo.toml 与 src/main.rs
-    rs-model-metadata/   # runtime、model-id/ 与 derive/
-    rs-reflect/
-  rust-common/
-    rs-id/
-    rs-validator/
-    rs-validation-rules/
-    rs-redact/
-    rs-datatype/
-```
-
-下面的 `core` 安装方案用于 `core/...` 示例；`validation/...` 程序使用
-运行时指南中的独立 validation 安装方案。每次把一份完整程序复制到 `src/main.rs`，执行 `cargo run`。
-标记为 `rust,ignore` 的片段需要旁边说明的 API 对象或应用自定义类型。
-`publish = false` 仅说明当前清单禁止发布，不能据此断言某版本没有发布到 crates.io；
-离线解析失败也只能说明当前本地依赖缓存不足。
+当前 checkout 中相关 manifest 均为 `publish = false`，示例因此使用本地路径依赖。路径假设应用位于 `rs-platform/app`，与 `rs-model-metadata`、`rs-reflect` 同属 `rs-platform`；版本字段不代表这些版本已发布。将完整程序放入应用的 `src/main.rs`，并从该应用目录运行 `cargo run`。
 
 <!-- example: core -->
 ```toml
@@ -70,7 +37,7 @@ qubit-id = "0.7"
 qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 ```
 
-如果库只需要稳定身份值，可以直接安装独立的 ID 协议 crate：
+只需要稳定模型 ID 的库可单独依赖协议 crate：
 
 <!-- example: core/model-id -->
 ```toml
@@ -78,158 +45,114 @@ qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
 ```
 
-该库可使用 `qubit_model_id::{ModelId, ModelIdBuf, ModelIdError}`。
-模型声明、注册表和结构解析仍依赖 `qubit-model-metadata`；
-`qubit_model_metadata::metadata` 重导出完全相同的 ID 类型。
+首先读取本地语义，再解析两个模型的关系。下例沿用声明指南的模型类型；完整程序需引用定义它们的 crate。
 
-<!-- example: core/quick-start -->
-```rust
-use qubit_id::Id;
-use qubit_model_derive::Entity;
-use qubit_model_derive::Model;
+```rust,ignore
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_model_metadata::resolve::ResolveInputs;
-use qubit_model_metadata::resolve::StructureResolver;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
 
-#[Model]
-struct Child { name: String }
+let user_metadata = TypeMetadata::try_of::<User>()?;
+let person_metadata = TypeMetadata::try_of::<PersonInfo>()?;
+let username_field = user_metadata.field("username").expect("declared field");
+assert_eq!(username_field.text_constraint().unwrap().max_chars(), Some(64));
+assert!(username_field.is_unique());
 
-#[Entity(id = "guide.directory.User")]
-struct User {
-    #[identifier]
-    id: Id,
-    #[indexed]
-    nickname: String,
-    child: Child,
-}
-
-fn main() {
-    let root = TypeMetadata::of::<User>();
-    assert_eq!(root.model_id().expect("Entity ID").as_str(), "guide.directory.User");
-    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model registry");
-    let roots = [root];
-    let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
-        .resolve().unwrap();
-    assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
-    assert_eq!(graph.models().len(), 2);
-    let query = graph.query(root.type_id()).unwrap();
-    assert_eq!(query.declarations().len(), 2);
-    assert_eq!(query.declarations()[1].path().segments(), &["nickname"]);
-}
+let models = ModelRegistry::try_global()?;
+let roots = [user_metadata, person_metadata];
+let graph = StructureResolver::for_roots(ResolveInputs {
+    models, roots: &roots,
+}).resolve()?;
+let field = person_metadata.field("user_id").unwrap();
+let relation = graph.reference(field.location().unwrap()).expect("resolved relation");
+assert_eq!(relation.target().type_id(), user_metadata.type_id());
 ```
 
-查询视图包含 id 和 nickname，因为 identifier 也贡献 indexed 原因。每条 QueryDeclaration 保留来源 Field、
-路径、索引原因，并可通过 Field 读取类型。这里不会展开 filter，也不检查平面字段名是否冲突。
-未来的 filter crate 可以选择 nickname 子串匹配，以及 age、时间字段的上下界参数；这些是下游策略。
+`try_of` 读取具体类型的静态元数据并检查生成协议；`try_global` 投影最终二进制已链接的模型；`for_roots` 解析所选根及其可达关系。`reference()` 能查到结果，说明目标模型与属性已在**这一注册范围**中解析成功。字段上有 `#[reference]` 但图内查不到目标时，应先核对稳定 ID、链接范围和目标属性类型。`#[unique]` 的存在只说明规则已声明；是否与现存记录冲突仍由具备数据访问能力的消费者判断。
 
-## 核心工作流：从声明到验证报告
+同一图还能提供查询声明。REST 层可以从 `graph.query(user_metadata.type_id())` 取得带索引原因的字段，建立可接受查询参数的白名单：
 
-给 runtime 依赖启用 `validation`，并为下列**可独立运行的完整程序**添加与 runtime 同一份检出的执行 API 直接依赖：
+```rust,ignore
+let query = graph.query(user_metadata.type_id()).expect("Entity query declarations");
+let requested_field = "display_name";
+let declared = query.declarations().iter().any(|entry| {
+    entry.path().segments() == [requested_field]
+});
+assert!(declared);
+// 再结合字段类型、调用方权限和业务策略决定比较操作与 SQL 映射。
+```
+
+这里先确认查询字段出现在模型声明中；实际接口还必须确定该字段是否对当前调用方开放、接受哪种比较操作，再构造过滤器并映射到 SQL。`QueryDeclaration::field()` 可继续读取字段类型和约束，`reasons()` 返回索引原因。`identifier`、`unique`、`reference` 也贡献索引原因，因此不能把所有声明直接暴露给客户端。
+
+## 实战场景续：校验一个用户实例
+
+给运行时依赖启用 `validation`，并添加验证执行 API：
 
 <!-- example: validation -->
 ```toml
 [dependencies]
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-id = "0.7"
 qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
 ```
 
-下面的用户资料要求 label 与可选联系人的 name 非空白。先发现元数据、解析结构图，再绑定规则。
-嵌套执行需要读取借用的中间对象；本例使用返回 `Option<&Contact>` 的 getter。字段 `Option<Contact>`
-和返回 `&Option<Contact>` 的 getter 也支持借用式可选路径，适用于不同的访问接口。
+验证执行依赖同一 checkout 的 `rs-validator`；添加该依赖后，从 `rs-platform/app` 运行完整示例。
 
-<!-- example: validation/profile -->
+沿用前述用户模型，这里只校验输入中的 `username` 文本约束。`#[unique]` 告诉需要访问数据源的消费者应检查什么，却不等于只凭当前对象就能判断数据库中是否重名。下列完整程序故意提供长度不合格的用户名，展示元数据如何变成可执行的验证报告。
+
+<!-- example: validation/user -->
 ```rust
 use std::sync::Arc;
-use std::num::NonZeroUsize;
-use qubit_model_derive::Model;
-use qubit_model_derive::ModelImpl;
+use qubit_model_derive::Entity;
+use qubit_id::Id;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
-use qubit_model_metadata::validation::ValidationCapabilities;
-use qubit_model_metadata::validation::ValidationMode;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::ReflectedRef;
-use qubit_validator::ExecutionErrorKind;
 use qubit_validator::ValidatorRegistry;
 
-#[Model]
-struct Contact {
-    #[text(non_blank)]
-    name: String,
-}
-
-#[Model]
-struct Profile {
-    #[text(non_blank)]
-    label: String,
-    contact: Option<Contact>,
-}
-
-#[ModelImpl]
-impl Profile {
-    pub fn contact(&self) -> Option<&Contact> { self.contact.as_ref() }
+#[Entity(id = "guide.iam.User")]
+struct User {
+    #[identifier]
+    id: Id,
+    #[unique(ignore_case = true)]
+    #[text(non_blank, min_chars = 3, max_chars = 64, allowed_chars = ascii)]
+    username: String,
+    #[indexed]
+    display_name: String,
 }
 
 fn main() {
-    let root = TypeMetadata::of::<Profile>();
+    let root = TypeMetadata::of::<User>();
     let roots = [root];
-    let models = ModelRegistry::try_global().expect("linked metadata and accessors");
+    let models = ModelRegistry::try_global().expect("linked models");
     let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("valid structure"));
-    ValidationCapabilities::check(root, graph.as_ref()).expect("supported access shapes");
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(root, ValidationBuildInputs {
         graph: Arc::clone(&graph),
         validators: &validators,
-    }).expect("built-in text constraints bind without custom registrations");
+    }).expect("text constraint bound");
 
-    let invalid = Profile {
-        label: String::new(),
-        contact: Some(Contact { name: String::new() }),
+    let invalid = User {
+        id: Id::new(1),
+        username: "a".to_owned(),
+        display_name: "Alice".to_owned(),
     };
     let report = plan.validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
         .expect("validation executed");
     assert!(!report.is_valid());
-    assert_eq!(report.violations().len(), 2);
-    assert_eq!(report.violations()[0].path().render(), "label");
-    assert_eq!(report.violations()[1].path().render(), "contact.name");
-
-    let absent = Profile { label: "personal".to_owned(), contact: None };
-    assert!(plan.validate(ReflectedRef::new(&absent), &ValidationOptions::default())
-        .expect("absent optional child is skipped").is_valid());
-
-    let fail_fast = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
-    let report = plan.validate(ReflectedRef::new(&invalid), &fail_fast)
-        .expect("policy stop is a successful, truncated execution");
-    assert_eq!(report.violations().len(), 1);
-    assert!(report.is_truncated());
-
-    let limited = ValidationOptions::builder()
-        .max_nodes(NonZeroUsize::new(3).expect("positive budget")).build();
-    let error = plan.validate(ReflectedRef::new(&invalid), &limited)
-        .expect_err("root, label read, and rule invocation consume all three nodes");
-    assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
-    assert_eq!(error.partial_report().violations().len(), 1);
-    assert_eq!(error.partial_report().violations()[0].path().render(), "label");
+    assert_eq!(report.violations()[0].path().render(), "username");
 }
 ```
 
-普通验证报告保留两条完整字段路径。contact 缺失时跳过其内部规则；FailFast 只保留 label 的首条违规，
-不会继续读取 contact。节点预算不足则属于执行错误，已经收集的 label 违规仍在部分报告中。
-处理错误时不能把 `Err` 转换为“空报告，所以验证通过”。
-
-示例中的空 registry 只表示没有**自定义 validator**，标准 text 约束由内置适配器绑定。
-使用 `#[validator(id = "...")]` 时，调用方必须在传入的 validator registry 中提供对应注册项。
-能力检查只检查声明与访问形状，不调用 getter、不绑定自定义注册项，也不能证明实例有效。
+`ValidationPlan::build` 把图内可执行约束与规则实现绑定；`validate` 返回报告，`is_valid()` 才表示该实例通过。`Ok(report)` 中可以含有违规；`Err` 表示结构、绑定或执行故障，不能当作“没有违规”。空 `ValidatorRegistry` 只表示没有自定义规则，标准文本约束由内置适配器绑定；使用 `#[validator(id = "...")]` 时须提供对应注册项。验证计划可复用，报告对应每次传入的实例。
 
 ## 速查：注册表、全图审计与泛型定义
 
@@ -237,8 +160,8 @@ fn main() {
 
 ```rust,ignore
 let models = ModelRegistry::try_global()?;
-let user = models.metadata("guide.directory.User").expect("已注册 User");
-assert_eq!(user.type_id(), TypeMetadata::of::<User>().type_id());
+let user_metadata = models.metadata("guide.iam.User").expect("已注册 User");
+assert_eq!(user_metadata.type_id(), TypeMetadata::of::<User>().type_id());
 ```
 
 `None` 表示所选注册范围内没有这个 ID；如果注册表构造失败，应处理 `Err`，不能当作不存在。
@@ -289,83 +212,30 @@ fn main() {
 }
 ```
 
-## 进阶用法：字段身份与 API 迁移
+## 速查：字段身份与 Property 访问
 
-以下专题供已经走通实战场景的读者按任务查阅。先用公开 API 完成操作；
-版本迁移表和内部约束放在对应示例之后。
-
-具体字段的 `location()` 返回 `Some(FieldLocation)`，由 owner 的 `TypeId`、可选 Enum variant 序号
-和字段序号组成；复制 `FieldMetadata` 不会改变身份。泛型定义字段尚未对应具体 Rust 类型，
-因此没有具体 location。`DeclarationLocation` 用于追溯声明来源，不是结构图的查询键。
-`TypeId` 和 `FieldLocation` 只在当前进程中有效；持久化外部标识时应使用 `ModelId`。
-
-已有 `graph` 和 `root` 时，定位一条引用先取字段身份，再查解析结果：
+Field 是存储声明；Property 合并同名字段和合格的 getter/setter。需要读取业务语义时从 Field 开始；需要读取实例或沿嵌套路径执行规则时检查 Property 的访问能力。
 
 ```rust,ignore
-let field = root.field("owner_id").expect("已声明字段");
-let location = field.location().expect("具体字段");
-let reference = graph.reference(location).expect("引用已解析");
-let target = reference.target();
+let field = person_metadata.field("user_id").expect("declared field");
+let location = field.location().expect("concrete field");
+let target = graph.reference(location).expect("resolved relation").target();
+assert_eq!(target.type_id(), user_metadata.type_id());
+
+let resolved = user_metadata.try_properties()?;
+let username_property = resolved.property("username").expect("readable property");
 ```
 
-这里的 `owner_id` 需在模型上声明 `#[reference(...)]`。`target` 是目标模型元数据；
-字段上有声明却查不到解析结果时，先确认同一个根和注册表确实进入了 `graph`。
+`FieldLocation` 由当前进程的 owner 类型、variant 和字段序号组成，是图中查询具体声明的键；外部持久化身份应使用稳定 `ModelId`。`try_properties()` 返回持有合并结果的视图，借出的 Property 不能超过 `resolved` 的生命周期。组装错误会作为 `Err` 返回，而非伪装成属性不存在。
 
-| 旧 API | 当前 API |
-| --- | --- |
-| `ModelRegistry::from_metadata` | `ModelRegistry::from_static_metadata` |
-| `ModelRegistry::from_metadata_with_generics` | `ModelRegistry::from_static_metadata_with_generics`（启用 `generic`） |
-| `graph.reference(field)` | 处理 `field.location()` 后调用 `graph.reference(location)` |
-| `graph.query(entity_payload)` | `graph.query(entity_type_id)` |
-| `graph.projection_source(projection_payload)` | `graph.projection_source(projection_type_id)` |
-| 按地址查找节点 | `graph.model(type_id)` |
-| `capabilities.supports(position)` | `ValidationCapabilities::check(root, &graph)` |
-| 仅查看绑定错误的 `rule()` | `declared_rule_id()` 在注册项缺失时也保留自定义声明 ID |
-
-生成代码采用 checked `__private::v7`。升级时同步更新 runtime、derive 与手写生成协议 fixture；
-旧私有协议没有兼容层。应用代码使用上表的公开接口即可，`rs-reflect` 的生成协议版本独立维护。
-
-### 快照拥有的 Property 视图
-
-`TypeMetadata::try_properties[_in]` 现在返回 `ResolvedProperties`。需要读取切片或查找属性时，
-先保留这个视图：
+重复按路径访问实例时，可以在同一个 `ModelRegistry` 中缓存编译结果；读写能力分别编译：
 
 ```rust,ignore
-let resolved = metadata.try_properties_in(&reflection)?;
-let properties = resolved.properties();
-let title = resolved.property("title");
+let read = models.compile_read_path_cached(user, &["username"])?;
+let write = models.compile_write_path_cached(user, &["username"])?;
 ```
 
-此片段假定已有 `TypeMetadata` 和冻结的 `reflection` 快照；`title` 为
-`Option<&PropertyMetadata>`，表示该属性是否存在。`Err` 则表示组装失败，常见原因是访问器冲突。
-需要把属性切片交给其他代码时，应同时保留 `resolved`，不要让借用超过视图的生命周期。
-
-`try_property[_in]` 返回复制后的 `Option<PropertyMetadata>`。fragment 查询返回
-`ResolvedPropertyFragments`，其 `fragments()` 切片不能超过视图本身的生命周期。直接调用 `*_in`
-会自行持有合并结果，但不会写入全局缓存；重复查询可通过 `ModelRegistry::properties_for` 复用。
-缓存归所属 registry 管理，registry 丢弃后即可释放。`ModelGraph` 会在自身生命周期内保留属性视图，
-从 `graph.properties()` 借出的引用也不能超过 graph。
-
-重复访问属性路径时，可调用 `ModelRegistry::compile_read_path_cached` 或
-`compile_write_path_cached` 取得共享的编译结果。每个 registry 快照最多保留 256 条成功路径，读写
-共用这一上限；满额后移除最久未使用的条目，成功命中会更新使用顺序。
-
-```rust,ignore
-let read = models.compile_read_path_cached(root, &["contact", "name"])?;
-let write = models.compile_write_path_cached(root, &["contact", "name"])?;
-```
-
-这里的 `models` 是同一个 `ModelRegistry`，`root` 是对应 `TypeMetadata`。
-读写能力分别编译；读路径成功不代表写路径可用。需要对实例读写时，再使用返回的
-`PropertyAccessPath`，并由应用处理授权、白名单和输出脱敏。
-平台 JSON 属性读写的接入顺序见 [rs-platform 用户指南](../../rs-platform/doc/user-guide.zh_CN.md#属性路径的实际使用顺序)。
-编译失败会原样返回，后续调用仍会重试。缓存键同时区分
-根模型的准确 metadata、路径段和读写模式。不同 registry（包括不同反射快照或 overlay 所建的注册表）
-各有独立缓存，不会跨快照复用路径。未命中时在锁外编译，因此并发请求可能重复编译同一条路径。
-
-旧的 `FieldMetadata::validate_nested()` 方法和 `FieldAttributeMetadata::ValidateNested` 标记已移除；
-它们不控制执行。计划构建器负责发现受支持的嵌套声明，遍历边界按文档中的 reference 和 opaque 语义处理，
-不再使用递归开关。
+上例沿用已取得的 `models` 与 `user`。编译成功表示结构路径和对应访问能力成立，不等于应用授权调用方读写该字段。缓存属于注册表快照，不跨不同快照复用；实际 JSON 读写可参考 [rs-platform 用户指南](../../rs-platform/doc/user-guide.zh_CN.md#属性路径的实际使用顺序)。
 
 ## 进阶用法：对象路径、引用与声明位置
 
@@ -468,143 +338,71 @@ for binding in bindings.bindings() {
 此片段假定 `codecs` 是应用已建立的 `ValueStringCodecRegistry`，`graph` 是解析成功的图。
 缺少注册项或值类型不匹配时，绑定返回错误；声明 `#[codec(...)]` 本身不会执行编码。
 
-## 限制：执行范围与构建拒绝
+## 验证消费者：按声明和访问形状绑定
 
-结构图合法不代表当前验证后端可以执行全部声明。下面的 Enum payload 能保留约束及声明来源，
-但构建执行计划时必须明确拒绝，不能返回遗漏了约束的空计划：
+验证计划在构建时检查声明、字段访问能力和规则实现；执行时检查一个具体值。对业务代码最重要的是区分这两个结果：构建失败意味着规则无法安全绑定，执行成功但 `report.is_valid() == false` 意味着实例违反了规则。
 
-<!-- example: validation/refusal -->
-```rust
-use std::sync::Arc;
-use qubit_model_derive::Enum;
-use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_model_metadata::registry::ModelRegistry;
-use qubit_model_metadata::resolve::ResolveInputs;
-use qubit_model_metadata::resolve::StructureResolver;
-use qubit_model_metadata::validation::ValidationBuildErrorKind;
-use qubit_model_metadata::validation::ConstraintRuleRef;
-use qubit_model_metadata::validation::ValidationBuildInputs;
-use qubit_model_metadata::validation::ValidationPlan;
-use qubit_validator::ValidatorRegistry;
+| 声明 | 执行时如何使用 | 需要提供什么 |
+| --- | --- | --- |
+| `#[text(...)]` | 按字符数、非空白或格式检查字段值 | 可读取的文本属性 |
+| `#[decimal(...)]`、`#[money(...)]`、`#[time(...)]` | 对准确的数值或时间类型检查精度与范围 | 与声明匹配的具体 Rust 类型 |
+| `#[sequence(...)]`、`#[map(...)]` | 检查容器长度；`unique_items` 检查序列内部重复 | 可借用容器的访问器；去重需要元素相等性适配器 |
+| `#[validator(id = ...)]` | 调用按 ID 绑定的自定义规则 | 同 ID 的注册项；有依赖时还需可读依赖路径 |
+| `#[reference(...)]` | 检查保存引用的字段上显式声明的值约束 | 数据库存在性等跨对象检查由具备仓储能力的消费者完成 |
+| `#[opaque]` | 执行外层字段约束，停止内部遍历 | 在模型上标出交给其他组件处理的边界 |
 
-#[Enum]
-enum ContactMethod {
-    Named { #[text(non_blank)] name: String },
-}
+可选子对象为 `None` 时跳过内部值约束，为 `Some` 时继续访问；需要继续穿过该属性时，应提供借用 getter：
 
-fn main() {
-    let root = TypeMetadata::of::<ContactMethod>();
-    let roots = [root];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
-        .resolve().expect("enum declarations are structurally supported"));
-    let validators = ValidatorRegistry::empty();
-    let errors = match ValidationPlan::build(root, ValidationBuildInputs {
-        graph: Arc::clone(&graph),
-        validators: &validators,
-    }) {
-        Err(errors) => errors,
-        Ok(_) => panic!("constrained enum payloads cannot produce an empty successful plan"),
-    };
-    assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
-    let location = errors[0].field_location().expect("concrete payload field");
-    assert_eq!(location.owner(), root.type_id());
-    assert_eq!(location.variant(), Some(0));
-    assert_eq!(location.index(), 0);
-    assert!(errors[0].constraint().is_some());
-    let mapped = errors[0].constraint_rules();
-    assert_eq!(mapped[0].id().as_str(), "qubit.rules.text.non_blank");
-    match mapped[0] {
-        ConstraintRuleRef::Registry(id) => assert_eq!(id.as_str(), "qubit.rules.text.non_blank"),
-        ConstraintRuleRef::ModelIntrinsic(_) => panic!("文本规则应使用注册表"),
-    }
-    assert!(errors[0].source_error().is_none());
+```rust,ignore
+#[Model]
+struct Profile { contact: Option<Contact> }
+
+#[ModelImpl]
+impl Profile {
+    pub fn contact(&self) -> Option<&Contact> { self.contact.as_ref() }
 }
 ```
 
-`ValidationBuildError::constraint_rules()` 即使在声明无法执行时，也会按执行顺序列出
-已知映射。`Registry(id)` 仍须由相应注册表按输入类型和参数完成绑定；
-`ModelIntrinsic(id)` 由模型计划直接执行，不能通过注册表绑定。序列 `unique_items`
-属于后一类，使用 `qubit_validation_rules::ids::COLLECTION_UNIQUE`。该 ID 由模型计划保留；
-自定义注册占用它时，计划构建会返回标明该 ID 的根级 `InvalidDeclaration`。
-原 `constraint_rule_ids()` 方法已删除；如只需读取旧有 ID 字符串，
-可使用 `rule.id().as_str()`。
+片段需引入 `Model`、`ModelImpl`，并定义 `Contact`。在计划构建前可检查访问能力；检查不会读取具体对象：
+
+```rust,ignore
+ValidationCapabilities::check(root, graph.as_ref())?;
+let plan = ValidationPlan::build(
+    root,
+    ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators },
+)?;
+```
+
+这里的 `root`、`graph` 和 `validators` 与上文验证流程相同。`UnsupportedExecution` 表示消费方无法安全执行某条已发现的声明；错误保留字段位置和声明来源。调用方应处理该错误，不能把它转换为空计划或“验证通过”。
+
+## 限制：执行支持与构建拒绝
+
+结构图能够解析某种声明，不代表当前验证后端能沿该路径执行它。下表描述当前后端的执行边界：
 
 | 声明或访问形状 | 当前验证后端 |
 | --- | --- |
-| 具名字段的现有 text 约束、自定义 validator | 绑定并执行 |
-| 直接或 Option 嵌套的具名模型 | 共用 binder；可选中间对象缺失时跳过；要求真实的借用访问能力 |
-| 借用 slice getter 上的显式 element validator，包括嵌套路径 | 绑定并执行，检查准确的元素输入类型 |
-| 外层 sequence item count | 需要可读取的借用切片 |
-| 外层 `#[sequence(unique_items)]` | 生成的 `Vec<T>` 或 `[T; N]` 配合借用切片 getter 可用，要求 `T: PartialEq + 'static` 及元素相等性适配器。第一处重复报告在 `field[second_index]`，并附 `first_index`。 |
-| 外层 `#[map(min_entries = ..., max_entries = ...)]` | 通过生成的可读借用 getter 适配器统计 `HashMap<K, V>` 或 `BTreeMap<K, V>`；违规路径是字段本身。 |
-| `#[decimal(...)]` / `#[money(...)]` | 对准确的 `BigDecimal` 值或可选值执行；检查 scale、precision 与精确区间，不舍入。 |
-| `#[time(precision = ...)]` | 对 `DateTime<Utc>`、`NaiveDateTime` 或 `NaiveTime` 及其可选值执行；检查秒、毫秒、微秒或纳秒精度；`NaiveDate` 在构建时拒绝。 |
-| selector 内的标准约束或依赖，MapKey/MapValue | `UnsupportedExecution` |
-| 缺少 map 长度或 sequence 相等性适配器、未知集合形状、不支持的时间类型、标量输入类型不符 | 构建阶段返回 `UnsupportedExecution` |
-| 透明单字段 tuple `Value` 的内部约束 | 穿过唯一字段绑定并执行；外层 Option 缺失时跳过 |
-| 含执行声明的 Enum payload、普通 tuple/newtype、容器元素模型 | `UnsupportedExecution` |
-| 有可达执行声明的递归实例路径 | `UnsupportedExecution`，不会无限展开 |
-| unit Enum，以及无可达执行声明的 payload 或循环 | 可作为普通值通过 |
-| reference 字段 | 只执行存储字段的显式规则，不读取被引用的完整 Entity 实例 |
-| opaque 字段 | 只检查外层声明，不穿透内部对象 |
-| 返回 owned 中间对象的 getter | 后续需要继续借用时返回 `UnsupportedExecution` |
-| Option、智能指针解包 | 必须有实际适配器；切片元素需要隐式解包时明确拒绝 |
+| 具名字段上的 text 约束、自定义 validator | 可绑定并执行；自定义 validator 还需要匹配的注册项 |
+| 直接或 `Option` 包装的具名嵌套模型 | 可执行；`None` 跳过内部规则，继续访问要求实际的借用 getter |
+| 借用 slice getter 上的显式元素 validator（含嵌套路径） | 可绑定并执行，并检查元素输入类型 |
+| 外层 sequence item count | 需要可读取借用 slice 的长度适配器 |
+| 外层 `#[sequence(unique_items)]` | 生成的 `Vec<T>` 或 `[T; N]` 配合借用 slice getter 可执行；要求 `T: PartialEq + 'static` 及元素相等性适配器。首次重复报告在 `field[second_index]`，并带有 `first_index` |
+| 外层 `#[map(min_entries = ..., max_entries = ...)]` | 生成的可读借用 getter 适配器可统计 `HashMap<K, V>` 或 `BTreeMap<K, V>`；违规位置是字段本身 |
+| `#[decimal(...)]` / `#[money(...)]` | 对准确的 `BigDecimal` 值或可选值执行；检查 scale、precision 与精确区间，不舍入 |
+| `#[time(precision = ...)]` | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 及其可选值，检查秒、毫秒、微秒或纳秒精度；`NaiveDate` 在构建时拒绝 |
+| selector 内的标准约束或依赖、`MapKey` / `MapValue` | `UnsupportedExecution` |
+| 缺少 map 长度或 sequence 相等性适配器、未知集合形状、不支持的时间类型、标量输入类型不匹配 | 在构建阶段返回 `UnsupportedExecution` |
+| 透明单字段 tuple `Value` 内部约束 | 可穿过唯一字段绑定并执行；外层可选值为 `None` 时跳过 |
+| 含执行声明的 Enum payload、普通 tuple/newtype、容器元素模型内部规则 | `UnsupportedExecution` |
+| 存在可达执行声明的递归实例路径 | `UnsupportedExecution`，不会无限展开 |
+| unit Enum，以及没有可达执行声明的 payload 或循环 | 可作为普通值通过 |
+| `reference` 字段 | 只执行存储字段上的显式规则，不读取被引用的完整 Entity 实例 |
+| `opaque` 字段 | 只执行外层声明，不继续遍历内部对象 |
+| 后续访问需要借用、但 getter 返回 owned 中间对象 | `UnsupportedExecution` |
+| `Option` 或智能指针解包 | 必须有实际适配器；slice 元素需要隐式解包时会拒绝 |
 
-同一子类型分别出现在 `primary.name` 和 `secondary.name` 时，各有一份独立 occurrence；
-同 ID 的多条规则也不会去重。构建阶段按声明顺序聚合独立错误，不会忽略不支持的声明。
-`ValidationCapabilities::check(root, &graph)` 与计划构建共用声明和访问检查。
-出现 `RootNotInGraph` 时，应先通过 `ResolveInputs.roots` 或传入的注册表把根模型纳入图中。
+`ValidationCapabilities::check(root, &graph)` 与 `ValidationPlan::build` 使用相同的声明和访问形状检查。能力检查只检查静态声明与可用访问能力，不调用 getter，也不绑定自定义 validator；因此它不能证明运行时访问一定成功，也不能证明注册表中有匹配规则。`ValidationPlan::build` 还会绑定支持的规则：缺少注册项或签名/参数不匹配会产生 `ValidatorBinding(...)` 诊断；缺少访问适配器、访问类型不匹配或某条可达声明落在不支持的路径上，则产生 `UnsupportedExecution`。结构路径可解析但其中有可达执行工作时，计划构建仍会拒绝；没有可达执行工作的包装可作为普通值通过。
 
-不支持的结构路径包含变体名和元组序号，例如 `choice.First.name`、`pair.1.0.name`。
-容器内模型路径使用 `[]`、`[key]` 或 `[value]`，例如 `items[].name`；这些标记表示静态声明位置，
-不是某个实例中的元素下标。同一模型出现在不同元组位置时分别保留诊断。基于反射快照的图可只从根发现 raw wrapper 内的匿名模型；
-发现可达工作后，不支持的使用路径明确拒绝，无工作包装则可以生成有效空计划。
-
-真实下游 `rs-platform` 的 testkit 覆盖了生产 `CredentialInfo` 的 Option 包装和两个独立使用位置。
-`PersonInfo.delete_time` 使用受支持的 `DateTime<Utc>` 形状；计划可检查有值情况，并跳过 `None`。
-生产 `User` 的验证计划也会绑定 `Email` 透明字段的约束：空邮件报告 `email.value.0`，
-缺少邮件时跳过该路径。
-构建阶段仍会在查看实例前检查声明与具体输入类型。
-
-### raw wrapper 与匿名子模型
-
-反射快照可从根发现 raw wrapper 内的匿名模型；发现模型不等于验证器能够沿 raw 访问路径执行。
-若子模型有可达规则，`ValidationCapabilities::check` 和 `ValidationPlan::build` 会返回
-`UnsupportedExecution`，错误路径可指向 `raw.child.name`。没有可达规则时，空计划可正常建立。
-下面用已有的 `root`、`graph` 和 `validators` 检查这个边界：
-
-```rust,ignore
-let errors = ValidationCapabilities::check(root, graph.as_ref())
-    .expect_err("raw wrapper 中有可达规则");
-assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
-assert_eq!(errors[0].path(), Some("raw.child.name"));
-```
-
-`raw.child.name` 是声明位置，不是当前实例的元素下标。若使用静态元数据注册表，
-必须显式提供可达子模型；它不会从全局注册表补入。
-
-### 形状迁移与条件访问器
-
-修改字段类型、容器或 `ModelImpl` 访问器时，可先按下表确认当前验证后端能否执行对应声明。外层容器可计数，不代表后端会遍历其中的键、值或模型。
-
-| 执行声明 | 当前契约 |
-| --- | --- |
-| 外层 Map 条目数 | 对 `HashMap` / `BTreeMap` 使用生成的可读长度适配器；违规报告在字段路径上 |
-| Decimal / Money | 必须是准确的 `BigDecimal`（可为 `Option`）；按 scale、`DECIMAL(p,s)` 精度及精确区间检查，不会舍入 |
-| 时间精度 | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 的秒、毫秒、微秒或纳秒精度；`NaiveDate` 在构建时拒绝 |
-| `Option` | `None` 跳过内部约束，`Some` 执行；构建阶段仍检查具体类型 |
-| 透明单字段 tuple `Value` | 唯一字段上的受支持约束可以执行；外层可选值缺失时跳过 |
-| selector 内约束或依赖、MapKey/MapValue、容器内部模型 | 返回 `UnsupportedExecution`；支持外层操作不代表会遍历内部结构 |
-| Enum / raw wrapper 与递归路径 | 会发现可达工作；不支持的使用路径在能力检查和计划构建时拒绝，无执行工作的包装可以通过 |
-
-反射注册表可以从根类型发现匿名子模型，包括 raw 反射包装内的子模型；但发现只提供结构信息，不会自动生成 raw 路径的执行适配器。使用静态元数据注册表时，须显式列出每个可达子模型，也不会导入反射能力。调用 `TypeMetadata::try_of::<T>()` 可将生成元数据的 ABI 问题作为 `AbiViolation` 处理；`TypeMetadata::of::<T>()` 遇到同类问题会 panic。
-
-迁移到 Enum payload 上的约束或多字段 tuple 时，当前后端会在构建阶段返回 `UnsupportedExecution`；声明不会被静默丢弃。透明单字段 tuple `Value` 是受支持的例外，但它仍遵守 Value 闭包检查：不能借由 `Value` 隐藏 Entity、Projection、Model、reference 或 raw struct。若数据必须保留为这些形状，应改用当前可执行的具名字段访问路径，或由下游组件承担对应检查。
-Entity 角色检查也会递归检查 tuple 字段：若 `(InnerEntity,)` 没有显式声明为 Reference，解析会返回 `InvalidEntityNesting`。迁移时应将该关系改为具名 Reference 字段，或调整嵌套模型的角色。
-
-为 `ModelImpl` 增删条件访问器时，确保方法与其 impl 的 `cfg` 及嵌套 `cfg_attr` 条件一致。provider、签名和访问器适配器会采用相同的存在条件；互斥配置下的访问器可用，但启用后发生冲突的访问器仍会被诊断。
+遇到构建错误时，先按诊断中的模型、字段/variant 坐标、selector 和完整路径定位声明，再检查 getter 是否返回所需的借用形状、容器或元素适配器是否存在，以及 getter 暴露的 Rust 类型是否与规则输入一致。若是 `ValidatorBinding(...)`，再检查 validator ID、输入类型、参数和依赖注册。不要忽略错误或把失败转成空计划。英文指南包含完整的 [拒绝示例与诊断说明](user_guide.md#limitations-execution-support-and-explicit-refusal)。
 
 ## 进阶用法：停止条件与执行预算
 
@@ -679,31 +477,9 @@ precision 为 1、scale 为 0 时会接受 `1e3`，新版拒绝。元数据中�
 | selector 无执行支持 | ValidationCapabilities 或其他消费后端 |
 | codec 缺失或类型不符 | 注册项、显式引用和准确 value type |
 
-`ModelRegistry::metadata_for` 返回 Result<Option<_>>，Ok(None) 只表示不存在；能力和 ABI 失败保持错误。
-每个注册表按 descriptor 的精确分配地址缓存已校验结果，包括缺失和结构化错误。
-构建投影时已读取的元数据会预填缓存，因此 `metadata_for` 不会再次调用对应 provider；
-其他 provider 的返回结果会按注册表和 descriptor 缓存。注册表销毁时缓存一并释放。
-provider panic 不会初始化缓存 cell，后续查询可以重试。
-`try_properties_in`、`try_property_in`、`property_fragments_in` 保留组装错误。
-ResolveErrors 聚合独立问题；同一错误 descriptor 可能分别在可达闭包检查和具体引用路径处报告。
-ResolveError 提供 owner Rust 身份、可选稳定 ID、已知声明位置和底层 cause，不应把失败转换成空 metadata。
+`ModelRegistry::metadata_for` 返回 `Result<Option<_>>`：`Ok(None)` 才表示当前注册范围内没有目标；注册或 ABI 错误应保留原始错误。`try_properties_in`、`try_property_in` 保留访问器组装错误；`ResolveErrors` 聚合结构问题并附模型与声明位置。诊断时先确认所用注册表、根模型和链接范围一致，再根据错误中的 owner、字段位置和 cause 修正声明或消费方注册。
 
-反射快照中的每个 `qubit.model.metadata.v1` 目标也必须是已注册类型成员；缺少成员时，
-快照投影会在调用 provider 前报告 `UnregisteredModelTarget`。`ModelEntry::source()` 指向元数据能力片段；
-`declaration_source()` 指向反射类型或泛型定义，静态条目没有声明来源。
-这比普通反射能力查询更严格：capability-only 目标仍可查询，但不会自动投影为模型。
-可用 `capability_only_type_targets("qubit.model.metadata.v1")` 诊断类型目标；启用泛型元数据时，
-还应检查 `capability_only_definition_targets("qubit.model.metadata.v1")`。投影前应将预期类型或定义加入同一
-snapshot，或移除已过期的元数据注册。
-
-结构图借用不可变注册表；静态 metadata 不借用 graph 分配或模型实例。
-Property 的借用值不能逃出源实例生命周期，也不强制 Send。新生成代码采用 rs-reflect codegen v3 上的
-私有 checked v7 门面，应用应使用公开 API。
-
-数据库访问、随机对象创建、物理索引、filter 生成、Unicode 比较执行，以及父对象缺失时的业务回退，
-仍由下游组件实现。当前契约见[运行时设计](design.zh_CN.md)与
-[派生宏设计](../derive/doc/design.zh_CN.md)。
-运行 `cargo doc --workspace --all-features --no-deps` 可生成本地 API 文档。
+需要具体签名和错误类型时看 Rustdoc；设计依据见[运行时设计](design.zh_CN.md)与[派生宏设计](../derive/doc/design.zh_CN.md)。
 
 ## 延伸阅读
 

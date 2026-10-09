@@ -2,7 +2,11 @@
 
 [简体中文](design.zh_CN.md) · [User guide](user_guide.md) · [Runtime design](../../doc/design.md)
 
-This document describes the implemented `qubit-model-derive` 0.2.0 procedural macro crate (Rust 1.94, edition 2024). Its output is consumed by `qubit-model-metadata` 0.2.0 and `qubit-reflect` 0.2. The package is currently `publish = false`.
+This document describes `qubit-model-derive` 0.2.0 (Rust 1.94, edition 2024). `qubit-reflect` supplies structural reflection; these macros attach domain semantics to the same Rust declarations. `qubit-model-metadata` 0.2.0 exposes and resolves the result.
+
+## Why annotations become metadata
+
+Rust field types cannot express every business rule. `#[text(...)]`, `#[unique(...)]`, `#[reference(...)]`, `#[indexed]`, and `#[validator(...)]` describe limits, relationships, queryability, and custom rules beside the fields they govern. The macros convert them into typed metadata. A validation layer can bind checks, a test-data generator can produce values that respect constraints and existing references, and a REST query layer can validate filters before building SQL. The macros preserve declarations and reject invalid local combinations during compilation; consumers perform the external operations.
 
 ## Scope and compilation pipeline
 

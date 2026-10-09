@@ -2,7 +2,11 @@
 
 [English](design.md) · [用户手册](user_guide.zh_CN.md) · [运行时设计](../../doc/design.zh_CN.md)
 
-本文对应当前 `qubit-model-derive` 0.2.0 过程宏实现（Rust 1.94、edition 2024）。生成结果由 `qubit-model-metadata` 0.2.0 与 `qubit-reflect` 0.2 消费。当前 manifest 设置了 `publish = false`。
+本文对应 `qubit-model-derive` 0.2.0（Rust 1.94、edition 2024）。`qubit-reflect` 提供结构反射，这组宏在同一份 Rust 声明上增加领域语义；`qubit-model-metadata` 0.2.0 负责读取和解析生成结果。
+
+## 为什么把标注编译成元数据
+
+Rust 字段类型无法表达全部业务规则。`#[text(...)]`、`#[unique(...)]`、`#[reference(...)]`、`#[indexed]`、`#[validator(...)]` 把限制、关系、查询能力和自定义规则写在对应字段旁，宏将其编译为类型化元数据。校验层可绑定规则，测试数据生成器可据此生成满足约束并引用已有对象的值，REST 查询层可先校验过滤条件再生成 SQL。宏只保存声明并在编译期拒绝非法的局部组合，外部操作由消费者执行。
 
 ## 职责与编译流水线
 
@@ -20,7 +24,7 @@
 
 字段属性记录标识符、逻辑键、索引、唯一性、引用、约束、validator、selector、codec、脱敏与 Serde 行为。每个具体字段都有 `FieldLocation`，声明位置和顺序也会保留供诊断使用。`ModelImpl` 反射方法，并把符合条件的 getter/setter 与普通字段组合。只有 getter 的方法默认成为计算属性；`#[model_property(skip)]` 可排除其属性贡献。`cfg` 等存在条件同时作用于 impl 反射和访问器适配，因此被禁用的方法不会留下访问器。
 
-引用对象路径使用 `/` 与 `..`，属性路径使用 `.`。宏检查局部语法和类型形状；跨模型目标、结构关系、validator 注册及 codec 执行由后续 registry、resolver 或显式执行绑定器检查。能声明不代表当前执行器支持该形状。为集合内部或 selector 附加可执行约束前，请核对[运行时支持矩阵](../../doc/user_guide.zh_CN.md#限制执行范围与构建拒绝)。
+引用对象路径使用 `/` 与 `..`，属性路径使用 `.`。宏检查局部语法和类型形状；跨模型目标、结构关系、validator 注册及 codec 执行由后续 registry、resolver 或显式执行绑定器检查。能声明不代表当前执行器支持该形状。为集合内部或 selector 附加可执行约束前，请核对[运行时验证边界](../../doc/user_guide.zh_CN.md#验证消费者按声明和访问形状绑定)。
 
 ## 错误阶段与验证
 

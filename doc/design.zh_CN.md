@@ -2,7 +2,19 @@
 
 [English](design.md) · [用户手册](user_guide.zh_CN.md) · [派生宏设计](../derive/doc/design.zh_CN.md)
 
-本文对应当前 `qubit-model-metadata` 0.2.0 实现（Rust 1.94、edition 2024）。该 crate 负责运行时元数据与模型关系解析；`qubit-model-derive` 生成声明，持久化、查询和业务校验的最终决策由应用负责。当前 manifest 设置了 `publish = false`。
+本文对应 `qubit-model-metadata` 0.2.0（Rust 1.94、edition 2024）。`qubit-reflect` 描述 Rust 结构，`qubit-model-derive` 为领域声明增加业务语义，本运行时让其他库读取这些语义并解析其关系。持久化和应用策略由消费者决定。
+
+## 领域语义与消费者
+
+字段标注表达结构反射无法推断的事实：`text`、`number` 的限制，`unique` 的作用域，`reference` 的目标，`indexed` 的可查询性，以及自定义 `validator` 的绑定。规则与领域类型写在一起，校验、测试数据生成和查询层便可共用一份声明。
+
+| 消费者 | 读取的元数据 | 仍需自行决定的工作 |
+| --- | --- | --- |
+| 合法性校验 | 字段约束、唯一性作用域、validator、依赖与访问路径 | 检查实例，以及执行数据库唯一性查询等外部操作 |
+| 满足约束的测试数据生成 | 长度、范围、唯一性和引用关系 | 生成值、预留唯一值、选择已存在的关联记录 |
+| REST 查询层 | `ModelGraph` 中的 `indexed` 等查询声明 | 校验过滤条件、生成 SQL 并执行查询 |
+
+可选的 `validation` feature 可将受支持的声明绑定为 `ValidationPlan`。随机对象生成和 REST 查询执行可以消费这份元数据契约，但不是 `ModelGraph` 自身的行为。
 
 ## 边界与数据流
 
@@ -28,7 +40,7 @@ ReflectRegistry 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
 
 核心 crate 保存约束、validator、selector、codec 引用，以及对象路径和属性路径。对象路径使用 `/` 与 `..`，属性路径使用 `.`。查询元数据提供声明及原因，不替应用生成任意筛选器。`PropertyAccessPath` 先编译结构路径，再对实例读写；读写支持范围不同。结构性写入错误会在调用末级 setter 前报告。授权、持久化及查询执行由应用负责。
 
-启用 `validation` 后，`ValidationCapabilities::check` 检查根模型声明能否执行。`ValidationPlan::build` 使用调用方提供的 `ValidatorRegistry` 和 `Arc<ModelGraph>` 绑定受支持的声明；不支持的形状或缺少规则会形成聚合的构建错误。`validate` 将规则违例作为报告返回；执行失败返回带部分报告的 `ModelValidationError`。`ValidationOptions` 控制字段选择、停止策略和预算。可选 codec 绑定也需要显式 registry。具体支持矩阵和完整操作见[用户手册](user_guide.zh_CN.md#限制执行范围与构建拒绝)。
+启用 `validation` 后，`ValidationCapabilities::check` 检查根模型声明能否执行。`ValidationPlan::build` 使用调用方提供的 `ValidatorRegistry` 和 `Arc<ModelGraph>` 绑定受支持的声明；不支持的形状或缺少规则会形成聚合的构建错误。`validate` 将规则违例作为报告返回；执行失败返回带部分报告的 `ModelValidationError`。`ValidationOptions` 控制字段选择、停止策略和预算。可选 codec 绑定也需要显式 registry。具体操作和执行边界见[用户手册](user_guide.zh_CN.md)。
 
 ## 错误与兼容契约
 
@@ -98,7 +110,7 @@ ReflectRegistry 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
 2. `ValidationPlan::build(root, ValidationBuildInputs { graph, validators })` 对每个可执行 occurrence 绑定内置规则或传入的 `ValidatorRegistry`。构建时聚合独立的缺失注册、类型不匹配和 `UnsupportedExecution` 等错误。根以图内同一 `TypeId` 的规范元数据为准，调用方另传的 overlay 不能篡改图内声明。
 3. `plan.validate(ReflectedRef::new(&value), &options)` 核对实例根类型，按模型规则、字段及 selector 的声明次序读取并执行。规则违例返回 `Ok(ValidationReport)`；访问器、依赖、预算等基础设施故障返回 `Err(ModelValidationError)`，并保留已经产生的部分报告。
 
-遍历会发现每条实际使用路径上的声明，例如两个不同字段都指向同一种子类型时保留两个 occurrence。没有执行工作的递归形状可以终止；含执行工作的递归路径、受约束的 Enum payload 或当前无适配器的集合内部路径会明确拒绝，不会生成遗漏规则的“成功空计划”。Reference 停在存储字段，`opaque` 停在内部结构，但两者的外层显式规则仍保留。完整形状矩阵见[用户手册](user_guide.zh_CN.md#限制执行范围与构建拒绝)。
+遍历会发现每条实际使用路径上的声明，例如两个不同字段都指向同一种子类型时保留两个 occurrence。没有执行工作的递归形状可以终止；含执行工作的递归路径、受约束的 Enum payload 或当前无适配器的集合内部路径会明确拒绝，不会生成遗漏规则的“成功空计划”。Reference 停在存储字段，`opaque` 停在内部结构，但两者的外层显式规则仍保留。具体支持形状见[用户手册](user_guide.zh_CN.md#验证消费者按声明和访问形状绑定)。
 
 `ValidationOptions::default()` 采用 `CollectAll`、全部字段，以及深度 64、节点 100,000、违例 100、比较 1,000,000 的非零上限。`FailFast` 或达到违例上限属于成功执行后的截断报告；深度、节点、比较等遍历预算耗尽属于执行错误并附部分报告。预算计算覆盖本库的读取、元素访问和规则调用，不约束外部自定义 validator 内部自行分配或执行的工作。字段选择匹配完整字段路径，不代表自动展开某个路径前缀。
 

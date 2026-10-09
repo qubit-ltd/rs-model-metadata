@@ -2,40 +2,15 @@
 
 [English](user_guide.md) · [设计文档](design.zh_CN.md) · [README](../README.zh_CN.md) · [运行时指南](../../doc/user_guide.zh_CN.md)
 
-本指南面向定义业务模型的开发者，适用于 0.2.0。假设账户服务同时需要识别用户身份、
-查找可查询字段、保护敏感信息和校验输入：如果这些规则分别写在数据库映射、验证器和输出代码里，
-字段改名时就容易遗漏一处。`qubit-model-derive` 让你在 Rust 类型上声明这些**领域事实**，
-生成的元数据可由 `qubit-model-metadata` 读取。它不会替应用生成数据库查询或自动执行所有规则。
+本指南面向已有 Rust 开发经验的领域模型作者，适用于 0.2.0。需要声明某项业务语义时，可直接查[功能速查](#功能速查)；初次使用请先看实战场景，再看[元数据消费指南](../../doc/user_guide.zh_CN.md)。
 
-第一次接入请按“安装 → [实战场景](#实战场景声明用户模型并读取属性) →
-[运行时指南](../../doc/user_guide.zh_CN.md)”阅读。已在使用时，可直接跳到下面的
-[功能速查](#功能速查)：每节给出使用场合、代码和结果；精确的参数与类型签名以 Rustdoc 为准。
-项目要求 Rust 1.94、edition 2024。清单设置了 `publish = false`，安装方式见下文。
+## 它解决什么问题
 
-## 安装与示例上下文
+`rs-reflect` 能让程序知道字段名、Rust 类型和访问方式；这些语言信息无法说明“用户名最多 64 个字符”“用户名在业务上唯一”或“这个 ID 引用另一个领域对象”。`qubit-model-derive` 用标注宏把这些**业务约束与关联关系**写在类型声明旁，生成 `qubit-model-metadata` 可读取的语义信息。
 
-示例统一使用以下检出布局，应用命令在 `rs-platform/app` 中执行。
-直接依赖必须与 runtime 使用同一份检出路径：
+其他库可以利用同一份语义：自动验证领域对象；生成满足长度、唯一性及引用关系的随机测试数据；依据 `indexed` 等声明检查 REST 查询参数、构造过滤器并交给数据库层执行。宏负责声明，不替这些消费者决定数据库查询、唯一性检查或随机生成策略。
 
-```text
-checkout/
-  rs-platform/
-    app/                 # Cargo.toml 与 src/main.rs
-    rs-model-metadata/   # runtime 与 derive/
-    rs-reflect/
-  rust-common/
-    rs-id/
-    rs-validator/
-    rs-validation-rules/
-    rs-redact/
-    rs-datatype/
-```
-
-下面的 `core` 安装方案用于 `core/...` 示例；`validation/...` 程序使用
-运行时指南中的独立 validation 安装方案。每次把一份完整程序复制到 `src/main.rs`，执行 `cargo run`。
-标记为 `rust,ignore` 的片段需要旁边说明的 API 对象或应用自定义类型。
-`publish = false` 仅说明当前清单禁止发布，不能据此断言某版本没有发布到 crates.io；
-离线解析失败也只能说明当前本地依赖缓存不足。
+当前 checkout 中相关 manifest 均为 `publish = false`，示例因此使用本地路径依赖。路径假设应用位于 `rs-platform/app`，与 `rs-model-metadata`、`rs-reflect` 同属 `rs-platform`；版本字段不代表这些版本已发布。将完整程序放入应用的 `src/main.rs`，并从该应用目录运行 `cargo run`。
 
 <!-- example: core -->
 ```toml
@@ -46,51 +21,52 @@ qubit-id = "0.7"
 qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 ```
 
-## 实战场景：声明用户模型并读取属性
+## 实战场景：声明用户与人员资料的业务关系
 
-账户资料由 `User` 保存。它需要稳定身份，`nickname` 可供上层构造查询条件，`token`
-在默认输出中按脱敏策略处理；页面显示名由方法计算，不另存一份。下面先验证这些**声明确实进入元数据**。
+IAM crate 保存用户，人员资料 crate 只保存关联用户的 ID。`Option<Id>` 能说明存储形状，却不能说明它指向谁。随机化测试若要创建有效资料，需要先准备被引用的用户；验证器则需要知道用户名的长度限制。下面把这些事实声明一次，供不同消费者读取。跨 crate 时用稳定模型 ID 指定引用目标，避免反向 Rust 依赖。
 
 <!-- example: core/quick-start -->
 ```rust
 use qubit_id::Id;
-use qubit_model_derive::{Entity, ModelImpl};
+use qubit_model_derive::Entity;
 use qubit_model_metadata::metadata::TypeMetadata;
 
-#[Entity(id = "guide.User")]
+#[Entity(id = "guide.iam.User")]
 struct User {
     #[identifier]
     id: Id,
+    #[unique(ignore_case = true)]
+    #[text(non_blank, min_chars = 3, max_chars = 64, allowed_chars = ascii)]
+    username: String,
     #[indexed]
-    nickname: String,
-    #[redact(level = "secret")]
-    token: String,
-    tags: Vec<String>,
+    #[text(max_chars = 128)]
+    display_name: String,
 }
 
-#[ModelImpl]
-impl User {
-    pub fn display_name(&self) -> String { self.nickname.clone() }
-    #[model_property(skip)]
-    pub fn diagnostic(&self) -> usize { self.tags.len() }
+#[Entity(id = "guide.person.PersonInfo")]
+struct PersonInfo {
+    #[identifier]
+    id: Id,
+    #[reference(entity = "guide.iam.User", property = id)]
+    user_id: Option<Id>,
+    #[text(non_blank, max_chars = 128)]
+    name: String,
 }
 
 fn main() {
-    let metadata = TypeMetadata::of::<User>();
-    assert!(metadata.field("nickname").unwrap().is_indexed());
-    assert!(metadata.try_property("display_name").unwrap().unwrap().is_computed());
-    assert!(metadata.try_property("diagnostic").unwrap().is_none());
+    let user_metadata = TypeMetadata::of::<User>();
+    let username_field = user_metadata.field("username").unwrap();
+    assert!(username_field.is_unique());
+    assert_eq!(username_field.text_constraint().unwrap().max_chars(), Some(64));
+    assert!(user_metadata.field("display_name").unwrap().is_indexed());
+    assert!(TypeMetadata::of::<PersonInfo>()
+        .field("user_id").unwrap().reference().is_some());
 }
 ```
 
-运行 `cargo run` 后三个断言都通过：`indexed` 被记录在 `nickname` 上，公开 getter
-`display_name` 成为计算属性，`diagnostic` 因 `skip` 不出现在 Property 集合。
-存储字段本身也是 Property；`#[ModelImpl]` 可以把公开 getter/setter 与同名字段合并。
-这些结果只证明声明和属性组装成功；要解析跨模型关系或执行验证，继续看运行时指南。
+断言通过说明业务语义已进入元数据；`reference()` 只返回声明，目标是否存在还需结构解析。`unique` 描述领域唯一性，不会自行查询数据库；`indexed` 描述查询层可使用的字段，不会自行创建 SQL 或物理索引。消费方法见[运行时实战场景](../../doc/user_guide.zh_CN.md#实战场景从声明到结构检查与验证)。
 
-默认 Debug、Display、Serialize 委托 rs-redact。`redact(skip)` 在具名、位置字段、Enum payload 和透明
-包装上都省略整个字段；关闭应用脱敏策略后恢复输出。Map 键脱敏后发生重名时，序列化返回错误。
-观察原始字段值的脱敏模式不能与绕过它的自定义序列化适配器混用。
+其他业务语义按下文查阅。例如输出层需要保护敏感信息时，可以声明脱敏策略。默认 Debug、Display、Serialize 委托 rs-redact；`redact(skip)` 省略整个字段，具体掩码取决于应用策略。
 
 可以直接检查生成的 `Debug` 是否泄漏原值：
 
@@ -283,7 +259,7 @@ email: String,
 文本能力字段默认忽略大小写，真实类型别名同样有效；
 非文本字段不能显式指定 ignore_case。具名 Model、Value 的 `key_part(order = n)` 表达逻辑键组成及顺序。
 
-下游可以把 indexed nickname 设计为子串匹配，把 birthday、create_time、age 设计为上下界参数。
+下游可以把 indexed display_name 设计为子串匹配，把 birthday、create_time、age 设计为上下界参数。
 这些例子解释元数据的用途，不表示本库生成 filter 对象。本库公开直接 indexed 声明，
 操作选择、物理索引和数据库匹配由消费者设计。
 
@@ -305,7 +281,7 @@ phone: String,
 宏把约束、元素作用位置、规则 ID 和依赖写入元数据。`#[element(...)]` 描述元素，
 `#[sequence(...)]` 描述容器；二者不能互换。`phone` 的规则要由应用注册同 ID 的 validator，
 并在运行时建立验证计划。声明成功并不保证当前执行后端支持每种容器形状，见
-[运行时支持范围](../../doc/user_guide.zh_CN.md#限制执行范围与构建拒绝)。
+[运行时验证消费说明](../../doc/user_guide.zh_CN.md#验证消费者按声明和访问形状绑定)。
 
 金额、时间和 Map 使用各自的约束，按字段的实际类型声明：
 
@@ -374,29 +350,11 @@ struct Profile {
 `Email` 的默认选择；没有相应注册项或准确类型不匹配，会在 `codec::bind_codecs`
 阶段报错，不会在宏展开时自动补齐。
 
-## 能够声明不等于能够执行
+## 从声明到消费
 
-宏接受某项声明，只说明模型可以表达该语义。当前 runtime 验证适配器支持具名字段的现有 text 约束
-和自定义 validator，并递归处理直接及 Option 嵌套模型。需要穿过可选子对象时，应提供实际可用的
-借用 getter，例如 `Option<&Child>`。字段存储类型为 `Vec<T>` 本身不能证明可以读取元素，
-显式 element validator 需要借用 slice getter。
+宏展开时检查当前类型的属性语法和本地冲突；`StructureResolver` 在模型集合确定后检查引用、角色与逻辑键；验证器、查询层或测试数据生成器再根据各自任务消费解析后的信息。验证器需要可读属性与规则实现，查询层需要决定参数名、比较操作和权限，随机生成器需要取得可复用的目标实体。三个消费者可以共享声明，但各自负责执行。
 
-含规则的 Enum payload、普通 tuple/newtype 内部、容器元素模型、有可达执行声明的循环，以及缺少集合
-适配器、selector 内约束或依赖，都属于当前明确拒绝的执行形状。
-需要但缺少解包适配器，或 owned 中间对象无法继续借用时，也在计划构建阶段返回 `UnsupportedExecution`。
-透明单字段 tuple `Value` 的内部约束在受支持形状下可以执行；不能把普通 tuple 的限制套用到它。
-unit Enum 和没有可达执行声明的循环仍可作为普通值通过。reference 只验证存储字段的显式规则，
-opaque 只截断内部遍历，不删除外层声明。
-
-先用 `ValidationCapabilities::check(root, &graph)` 检查访问能力，再把真实自定义注册表传给
-`ValidationPlan::build`。两者都保留声明来源；即使缺少规则注册项，错误中也有原始 ID。
-运行时指南提供[完整执行矩阵](../../doc/user_guide.zh_CN.md#限制执行范围与构建拒绝)、
-[可运行示例](../../doc/user_guide.zh_CN.md#核心工作流从声明到验证报告)、报告上限与部分错误处理，
-并说明真实 `rs-platform` 的集成边界。不能为让某个后端接受模型而删除约束或添加 opaque。
-
-生成代码使用 checked `__private::v7`，runtime 与宏 crate 必须同步升级，不保留 v5/v6 兼容门面。
-具体字段通过 owner TypeId、variant 序号和字段序号识别；稳定外部命名仍使用 ModelId。
-`rs-reflect` 的协议版本独立维护。
+验证接入时，可先用 `ValidationCapabilities::check(root, &graph)` 检查访问形状，再通过 `ValidationPlan::build` 绑定规则。支持的嵌套读取通常需要借用 getter，例如 `Option<&Child>`；执行范围、错误处理和[可运行示例](../../doc/user_guide.zh_CN.md#实战场景续校验一个用户实例)见元数据指南。生成代码与运行时版本应保持一致；应用使用公开 API，不直接依赖私有生成协议。
 
 ### 角色闭包与条件访问器
 
@@ -425,7 +383,7 @@ struct Line {
 #[ModelImpl]
 impl Profile {
     #[cfg(feature = "display-name")]
-    pub fn display_name(&self) -> String { self.nickname.clone() }
+    pub fn display_name(&self) -> String { self.name.clone() }
 }
 ```
 
