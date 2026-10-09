@@ -238,15 +238,13 @@ pub(crate) fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
             .iter()
             .fold(ValidationPath::root(), |path, name| path.with_field(name));
     }
-    path.steps()
-        .iter()
-        .fold(ValidationPath::root(), |path, step| {
-            let property = step.property();
-            match property.field().filter(|field| field.name().is_none()) {
-                Some(field) => path.with_index(field.index()),
-                None => path.with_field(property.name()),
-            }
-        })
+    path.steps().iter().fold(ValidationPath::root(), |path, step| {
+        let property = step.property();
+        match property.field().filter(|field| field.name().is_none()) {
+            Some(field) => path.with_index(field.index()),
+            None => path.with_field(property.name()),
+        }
+    })
 }
 
 #[cfg(test)]
