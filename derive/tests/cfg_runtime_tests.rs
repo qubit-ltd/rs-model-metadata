@@ -22,6 +22,16 @@ use temporary_target_dir::TemporaryTargetDir;
 #[test]
 fn test_cfg_accessor_feature_matrix() {
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/runtime-fixtures/cfg-accessors/Cargo.toml");
+    let fetched = Command::new(env!("CARGO"))
+        .args(["fetch", "--locked", "--manifest-path"])
+        .arg(&fixture)
+        .output()
+        .expect("cfg fixture dependency fetch should start");
+    assert!(
+        fetched.status.success(),
+        "failed to fetch cfg fixture dependencies: {}",
+        String::from_utf8_lossy(&fetched.stderr)
+    );
     let target_dir = TemporaryTargetDir::new("qubit-model-cfg");
     let target = target_dir.path().join("cfg-accessors-runtime");
     let axes = ["accessors", "alternate", "impl-enabled"];

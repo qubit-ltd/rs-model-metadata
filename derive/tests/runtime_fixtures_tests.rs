@@ -19,6 +19,7 @@ use temporary_target_dir::TemporaryTargetDir;
 /// Checks normal, renamed, and absent runtime dependency declarations.
 #[test]
 fn test_runtime_dependency_fixtures() {
+    prefetch_runtime_fixture_dependencies();
     let target_dir = TemporaryTargetDir::new("qubit-model-derive-runtime-fixtures");
     assert_fixture_succeeds(target_dir.path(), "normal");
     assert_fixture_succeeds(target_dir.path(), "renamed");
@@ -27,6 +28,25 @@ fn test_runtime_dependency_fixtures() {
     assert_linked_fixture_succeeds(target_dir.path(), "missing_target");
     assert_missing_runtime_fixture_fails(target_dir.path());
     assert_missing_runtime_fixture_preserves_validation_error(target_dir.path());
+}
+
+/// Downloads fixture dependencies before the isolated builds run offline.
+fn prefetch_runtime_fixture_dependencies() {
+    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/runtime-fixtures");
+    for fixture in ["normal", "renamed", "missing", "missing-invalid", "linked-workspace"] {
+        let manifest = fixture_root.join(fixture).join("Cargo.toml");
+        let output = Command::new(env!("CARGO"))
+            .args(["fetch", "--locked", "--manifest-path"])
+            .arg(&manifest)
+            .output()
+            .expect("runtime fixture dependency fetch should start");
+        assert!(
+            output.status.success(),
+            "failed to fetch runtime fixture dependencies for {}: {}",
+            manifest.display(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 /// Runs one fixture that must compile successfully.
