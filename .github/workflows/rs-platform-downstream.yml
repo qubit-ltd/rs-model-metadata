@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - id: dependency-token
+      - id: dependency_token
         name: Check cross-repository access
         env:
           DEPENDENCY_TOKEN: ${{ secrets.DEPENDENCY_TOKEN }}
@@ -29,13 +29,13 @@ jobs:
           fi
 
       - name: Check out metadata under the platform sibling layout
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         uses: actions/checkout@v6
         with:
           path: platform/rs-model-metadata
 
       - name: Check out platform dependencies
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-reflect
@@ -44,7 +44,7 @@ jobs:
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         with:
           repository: qubit-ltd/rs-platform
           ref: 912bfb45d7e29cf3df71cc4bf26aa8d2d2e6f173
@@ -52,7 +52,7 @@ jobs:
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - name: Check out Rust common path dependencies
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-id
@@ -61,7 +61,7 @@ jobs:
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         with:
           repository: qubit-ltd/rs-datatype
           ref: 48c4aee096f97c483dd44d6ded00bd166ccb0985
@@ -69,7 +69,7 @@ jobs:
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         with:
           repository: qubit-ltd/rs-redact
           ref: 5b992b879ab1bbff5a34c141693d0c6334604cdc
@@ -77,7 +77,7 @@ jobs:
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         with:
           repository: qubit-ltd/rs-redact-derive
           ref: fdb0ad4b73d5a22745d5db1326075eaa852ec483
@@ -85,7 +85,7 @@ jobs:
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         with:
           repository: qubit-ltd/rs-codec
           ref: 975501f075de49cfb3c473c5048137daec608b43
@@ -93,7 +93,7 @@ jobs:
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - uses: actions/checkout@v6
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         with:
           repository: qubit-ltd/rs-validator
           ref: fb64546a16ca7659e10d9296728e1cfdace86de0
@@ -101,7 +101,7 @@ jobs:
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - name: Check out validation rule definitions
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validation-rules
@@ -110,20 +110,20 @@ jobs:
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
 
       - name: Install the platform build toolchain
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         run: rustup toolchain install 1.94.0 --profile minimal
 
       - name: Test the downstream platform workspace
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         working-directory: platform/rs-platform
         run: cargo +1.94.0 test --workspace --all-features
 
       - name: Build downstream platform documentation
-        if: steps.dependency-token.outputs.available == 'true'
+        if: steps.dependency_token.outputs.available == 'true'
         working-directory: platform/rs-platform
         run: RUSTDOCFLAGS=-D warnings cargo +1.94.0 doc --workspace --no-deps
 
       - name: Report skipped downstream compatibility check
-        if: steps.dependency-token.outputs.available != 'true'
+        if: steps.dependency_token.outputs.available != 'true'
         run: |
           echo "The platform compatibility check was skipped because rs-platform is private and the DEPENDENCY_TOKEN repository secret is not configured." >> "$GITHUB_STEP_SUMMARY"
