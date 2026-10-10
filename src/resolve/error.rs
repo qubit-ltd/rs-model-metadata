@@ -242,6 +242,7 @@ impl ResolveError {
     ///
     /// `Some` contains the navigation path; `None` means no object path was
     /// attached.
+    #[inline]
     #[must_use]
     pub const fn object_path(&self) -> Option<&ObjectPath> {
         self.object_path.as_ref()
@@ -253,6 +254,7 @@ impl ResolveError {
     ///
     /// `Some` is the process-local `TypeId`; `None` means the error has no
     /// concrete owner metadata.
+    #[inline]
     #[must_use]
     pub fn owner_type_id(&self) -> Option<TypeId> {
         self.owner.map(|(id, _)| id)
@@ -264,6 +266,7 @@ impl ResolveError {
     ///
     /// `Some` is the owner's Rust type name; `None` means no owner was
     /// attached.
+    #[inline]
     #[must_use]
     pub fn owner_type_name(&self) -> Option<&'static str> {
         self.owner.map(|(_, name)| name)
@@ -274,6 +277,7 @@ impl ResolveError {
     /// # Returns
     ///
     /// The copied declaration location, or `None` for model-wide errors.
+    #[inline]
     #[must_use]
     pub const fn declaration(&self) -> Option<DeclarationLocation> {
         self.declaration
@@ -285,6 +289,7 @@ impl ResolveError {
     ///
     /// `Some` is the retained metadata or property failure; `None` means the
     /// error was classified without an underlying cause.
+    #[inline]
     #[must_use]
     pub const fn cause(&self) -> Option<&ModelResolutionCause> {
         self.cause.as_ref()
@@ -295,6 +300,7 @@ impl ResolveError {
     /// # Returns
     ///
     /// The stable category assigned when this diagnostic was created.
+    #[inline]
     #[must_use]
     pub const fn kind(&self) -> ResolveErrorKind {
         self.kind
@@ -306,6 +312,7 @@ impl ResolveError {
     ///
     /// `Some` borrows the owned property path; `None` means the diagnostic
     /// applies to the model as a whole.
+    #[inline]
     #[must_use]
     pub fn path(&self) -> Option<PropertyPath<'_>> {
         self.path.as_ref().map(OwnedPropertyPath::as_path)
@@ -316,6 +323,7 @@ impl ResolveError {
     /// # Returns
     ///
     /// `Some` is the registered model ID; `None` means no stable ID is known.
+    #[inline]
     #[must_use]
     pub const fn model_id(&self) -> Option<&str> {
         self.model_id
@@ -327,6 +335,7 @@ impl ResolveError {
     ///
     /// `Some` is the required role; `None` means this failure did not require
     /// role matching.
+    #[inline]
     #[must_use]
     pub const fn expected_role(&self) -> Option<ModelRole> {
         self.expected_role
@@ -337,6 +346,7 @@ impl ResolveError {
     /// # Returns
     ///
     /// `Some` is the resolved role; `None` means no actual role was observed.
+    #[inline]
     #[must_use]
     pub const fn actual_role(&self) -> Option<ModelRole> {
         self.actual_role
@@ -348,6 +358,7 @@ impl ResolveError {
     ///
     /// `Some` is the expected `TypeId`; `None` means no type comparison was
     /// recorded.
+    #[inline]
     #[must_use]
     pub const fn expected_type(&self) -> Option<TypeId> {
         self.expected_type
@@ -359,6 +370,7 @@ impl ResolveError {
     ///
     /// `Some` is the actual `TypeId`; `None` means no type comparison was
     /// recorded.
+    #[inline]
     #[must_use]
     pub const fn actual_type(&self) -> Option<TypeId> {
         self.actual_type
@@ -370,6 +382,7 @@ impl ResolveError {
     ///
     /// A borrowed slice of contributing fragment identities; it is empty when
     /// the diagnostic has no fragment source.
+    #[inline]
     #[must_use]
     pub fn sources(&self) -> &[FragmentIdentity] {
         &self.sources
@@ -544,6 +557,7 @@ impl ResolveErrors {
     /// # Returns
     ///
     /// The owned diagnostics in deterministic order.
+    #[inline]
     #[must_use]
     pub fn into_vec(self) -> Vec<ResolveError> {
         self.errors

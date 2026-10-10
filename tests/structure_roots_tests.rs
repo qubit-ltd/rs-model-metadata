@@ -10,6 +10,7 @@
 
 #![cfg(feature = "generic")]
 
+use std::any::TypeId;
 #[cfg(feature = "validation")]
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -518,8 +519,8 @@ fn test_reference_type_mismatch_retains_machine_readable_context() {
     let errors = errors.into_vec();
     let error = &errors[0];
     assert_eq!(error.kind(), ResolveErrorKind::TypeMismatch);
-    assert_eq!(error.expected_type(), Some(std::any::TypeId::of::<String>()));
-    assert_eq!(error.actual_type(), Some(std::any::TypeId::of::<u32>()));
+    assert_eq!(error.expected_type(), Some(TypeId::of::<String>()));
+    assert_eq!(error.actual_type(), Some(TypeId::of::<u32>()));
     assert_eq!(error.expected_role(), Some(ModelRole::Entity));
     assert_eq!(error.actual_role(), Some(ModelRole::Entity));
     assert_eq!(error.owner_type_id(), Some(owner.type_id()));

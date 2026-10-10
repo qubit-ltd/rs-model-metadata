@@ -87,7 +87,7 @@ fn expand_inner(
             Ok(Some(PropertyMethod::Getter(value))) => getters.push(value),
             Ok(Some(PropertyMethod::Setter(value))) => setters.push(value),
             Ok(None) => {}
-            Err(_) => {}
+            Err(error) => return Err(error),
         }
     }
     let retained = if retain {

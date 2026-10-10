@@ -219,9 +219,9 @@ fn test_generic_model_registration_preserves_definition_providers_and_sources() 
         assert!(std::ptr::eq(
             models
                 .get(model_id)
-                .expect("entry")
+                .expect("the projected model entry must exist")
                 .declaration_source()
-                .expect("declaration source"),
+                .expect("the projected model must retain its declaration source"),
             reflection
                 .definition_source(definition.id())
                 .expect("the generic definition must retain its source"),

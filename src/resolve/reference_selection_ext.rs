@@ -19,7 +19,6 @@ pub(super) trait ReferenceSelectionExt {
     ///
     /// `Some(path)` when this selection names a property, or `None` when it
     /// selects the entity as a whole.
-    #[must_use]
     fn property_path(&self) -> Option<&PropertyPath<'static>>;
 }
 
@@ -30,6 +29,7 @@ impl ReferenceSelectionExt for ReferenceSelection {
     ///
     /// `Some(path)` for a property selection, or `None` for an entity
     /// selection.
+    #[inline]
     fn property_path(&self) -> Option<&PropertyPath<'static>> {
         match self {
             Self::Entity => None,

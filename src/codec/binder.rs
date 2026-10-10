@@ -132,6 +132,7 @@ impl CodecOccurrenceId {
     /// `Some` with the stable ID when the model has one, or `None` for an
     /// anonymous model.
     #[must_use]
+    #[inline]
     pub const fn model(&self) -> Option<&ModelIdBuf> {
         self.model.as_ref()
     }
@@ -142,6 +143,7 @@ impl CodecOccurrenceId {
     ///
     /// The concrete Rust type identity used for exact registration matching.
     #[must_use]
+    #[inline]
     pub const fn type_id(&self) -> TypeId {
         self.type_id
     }
@@ -153,6 +155,7 @@ impl CodecOccurrenceId {
     /// The normalized path, or an empty string for a model's canonical value
     /// codec.
     #[must_use]
+    #[inline]
     pub const fn property(&self) -> &str {
         &self.property
     }
@@ -164,6 +167,7 @@ impl CodecOccurrenceId {
     /// The model field, canonical value, or nested selector that supplied the
     /// codec.
     #[must_use]
+    #[inline]
     pub const fn source(&self) -> CodecSource {
         self.source
     }
@@ -215,6 +219,7 @@ impl<'a> CodecBinding<'a> {
     /// The stable identity of the model declaration represented by this
     /// binding.
     #[must_use]
+    #[inline]
     pub const fn occurrence(&self) -> &CodecOccurrenceId {
         &self.occurrence
     }
@@ -226,6 +231,7 @@ impl<'a> CodecBinding<'a> {
     /// Static metadata for the codec declaration that selected this
     /// registration.
     #[must_use]
+    #[inline]
     pub const fn declaration(&self) -> &'static CodecMetadata {
         self.declaration
     }
@@ -236,6 +242,7 @@ impl<'a> CodecBinding<'a> {
     ///
     /// The descriptor used to dispatch values to the selected codec.
     #[must_use]
+    #[inline]
     pub const fn descriptor(&self) -> &'static ValueStringCodecDescriptor {
         self.descriptor
     }
@@ -246,6 +253,7 @@ impl<'a> CodecBinding<'a> {
     ///
     /// The registry entry selected after uniqueness and value-type checks.
     #[must_use]
+    #[inline]
     pub const fn registration(&self) -> &'a ValueStringCodecRegistration {
         self.registration
     }
@@ -291,6 +299,7 @@ impl<'a> CodecBindings<'a> {
     ///
     /// The matching binding, or `None` when the identity is not present.
     #[must_use]
+    #[inline]
     pub fn get(&self, occurrence: &CodecOccurrenceId) -> Option<&CodecBinding<'a>> {
         self.0.get(occurrence)
     }
@@ -301,6 +310,7 @@ impl<'a> CodecBindings<'a> {
     ///
     /// An exact-size iterator over bindings, ordered by occurrence identity.
     #[must_use]
+    #[inline]
     pub fn bindings(&self) -> impl ExactSizeIterator<Item = &CodecBinding<'a>> {
         self.0.values()
     }

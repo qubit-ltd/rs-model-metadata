@@ -129,8 +129,11 @@ pub struct StructureResolver<'a> {
 }
 
 #[derive(Clone, Copy)]
+/// Selects the initial set of models processed by a resolution attempt.
 enum ResolveScope {
+    /// Includes every concrete model registered in the configured registry.
     AllRegistered,
+    /// Includes only explicit roots and models reachable from those roots.
     ReachableFromRoots,
 }
 

@@ -447,7 +447,6 @@ impl UniqueMetadata {
     /// # Returns
     ///
     /// The declared option, preserving whether the policy was omitted.
-    #[must_use]
     #[inline]
     pub const fn declared_ignore_case(&self) -> Option<bool> {
         self.declared_ignore_case
@@ -461,7 +460,6 @@ impl UniqueMetadata {
     ///
     /// The explicit option for deferred definitions, or the effective policy
     /// for concrete metadata.
-    #[must_use]
     #[inline]
     pub const fn effective_ignore_case(&self) -> Option<bool> {
         if self.deferred {
@@ -614,7 +612,6 @@ impl DeclaredEntityTarget {
     ///
     /// # Panics
     /// Propagates any panic raised by the supplied provider.
-    #[must_use]
     pub fn metadata(&self) -> Option<&'static TypeMetadata> {
         match self {
             Self::RustType(provider) => Some(provider()),
@@ -627,7 +624,6 @@ impl DeclaredEntityTarget {
     /// # Returns
     ///
     /// The stable model ID for that target kind, or `None` for Rust types.
-    #[must_use]
     #[inline]
     pub const fn model_id(&self) -> Option<ModelId> {
         match self {
@@ -759,7 +755,6 @@ impl ReferenceMetadata {
     /// # Returns
     ///
     /// The declared navigation path, or `None` when the reference is local.
-    #[must_use]
     #[inline]
     pub const fn path(&self) -> Option<&'static ObjectPath> {
         self.path
@@ -913,7 +908,14 @@ impl DependencyBindingMetadata {
 /// ```
 /// use qubit_model_metadata::metadata::{OnNone, TargetMode, ValidatorMetadata};
 ///
-/// let validator = ValidatorMetadata::new_bound("example.container", &[], &[], &[], TargetMode::Container, OnNone::Skip);
+/// let validator = ValidatorMetadata::new_bound(
+///     "example.container",
+///     &[],
+///     &[],
+///     &[],
+///     TargetMode::Container,
+///     OnNone::Skip,
+/// );
 /// assert_eq!(validator.target(), TargetMode::Container);
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1211,7 +1213,6 @@ impl CodecReference {
     /// # Returns
     ///
     /// The Rust codec type reference, or `None` for a textual ID declaration.
-    #[must_use]
     #[inline]
     pub const fn rust_type(self) -> Option<RustTypeReference> {
         match self {
@@ -1225,7 +1226,6 @@ impl CodecReference {
     /// # Returns
     ///
     /// The stable codec ID, or `None` when a Rust type identifies the codec.
-    #[must_use]
     #[inline]
     pub const fn declared_id(self) -> Option<&'static str> {
         match self {
@@ -1430,7 +1430,6 @@ impl RedactMetadata {
     /// # Returns
     ///
     /// The disclosure level, or `None` when the mode does not use one.
-    #[must_use]
     #[inline]
     pub const fn sensitivity(&self) -> Option<Sensitivity> {
         self.sensitivity
@@ -1466,7 +1465,10 @@ impl RedactMetadata {
 /// ```
 /// use qubit_model_metadata::metadata::{SerdeBehaviorSource, SerdeFieldMetadata};
 ///
-/// let serde = SerdeFieldMetadata::DEFAULT.with_sources(SerdeBehaviorSource::Explicit, SerdeBehaviorSource::Suppressed);
+/// let serde = SerdeFieldMetadata::DEFAULT.with_sources(
+///     SerdeBehaviorSource::Explicit,
+///     SerdeBehaviorSource::Suppressed,
+/// );
 /// assert_eq!(serde.default_source(), SerdeBehaviorSource::Explicit);
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1567,7 +1569,6 @@ impl SerdeFieldMetadata {
     /// # Returns
     ///
     /// The serialization name override, or `None` to retain the field name.
-    #[must_use]
     #[inline]
     pub const fn serialize_name(&self) -> Option<&'static str> {
         self.serialize_name
@@ -1578,7 +1579,6 @@ impl SerdeFieldMetadata {
     /// # Returns
     ///
     /// The deserialization name override, or `None` to retain the field name.
-    #[must_use]
     #[inline]
     pub const fn deserialize_name(&self) -> Option<&'static str> {
         self.deserialize_name
@@ -1618,7 +1618,6 @@ impl SerdeFieldMetadata {
     /// # Returns
     ///
     /// The configured conversion path, or `None` when absent.
-    #[must_use]
     #[inline]
     pub const fn with(&self) -> Option<&'static str> {
         self.with
@@ -1766,7 +1765,6 @@ impl SelectorMetadata {
     /// # Returns
     ///
     /// The selector codec metadata, or `None` when no codec was declared.
-    #[must_use]
     #[inline]
     pub const fn codec(&self) -> Option<&'static CodecMetadata> {
         self.codec
@@ -1776,7 +1774,6 @@ impl SelectorMetadata {
     /// # Returns
     ///
     /// The selector redaction metadata, or `None` when absent.
-    #[must_use]
     #[inline]
     pub const fn redact(&self) -> Option<&'static RedactMetadata> {
         self.redact
@@ -1792,7 +1789,11 @@ impl SelectorMetadata {
 ///
 /// static IDENTIFIER: IdentifierMetadata = IdentifierMetadata::new(IdentifierAssignment::Database);
 /// let attribute = FieldAttributeMetadata::Identifier(&IDENTIFIER);
-/// assert!(matches!(attribute, FieldAttributeMetadata::Identifier(value) if value.assigned_by() == IdentifierAssignment::Database));
+/// assert!(matches!(
+///     attribute,
+///     FieldAttributeMetadata::Identifier(value)
+///         if value.assigned_by() == IdentifierAssignment::Database
+/// ));
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub enum FieldAttributeMetadata {

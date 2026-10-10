@@ -21,6 +21,7 @@ use qubit_reflect::ReflectedMut;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
 
+use crate::metadata::GetterOutputKind;
 use crate::metadata::PropertyAccessError;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyValue;
@@ -95,6 +96,11 @@ impl PropertyAccessPath {
         Self::compile_with_leaf_readability(registry, root, segments, false)
     }
 
+    /// Resolves each segment while optionally allowing an unreadable leaf.
+    ///
+    /// Intermediate properties remain readable because path traversal must
+    /// inspect their values. The `require_readable_leaf` flag distinguishes
+    /// read paths from write paths, whose leaf can be setter-only.
     fn compile_with_leaf_readability(
         registry: &ModelRegistry<'_>,
         root: &'static TypeMetadata,
@@ -161,7 +167,6 @@ impl PropertyAccessPath {
                     descriptor
                 };
                 if let Some(getter) = property.getter() {
-                    use crate::metadata::GetterOutputKind;
                     let output = getter.output_kind();
                     if output == GetterOutputKind::Owned
                         || output == GetterOutputKind::BorrowedSlice
@@ -194,6 +199,21 @@ impl PropertyAccessPath {
             root_type: root.type_id(),
             steps: steps.into_boxed_slice(),
         })
+    }
+
+    /// Returns the metadata for the final property in this path.
+    ///
+    /// Callers can inspect the declared leaf type before converting an input
+    /// value, while [`Self::write`] remains responsible for executing the
+    /// setter or reflected field operation.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the copied metadata for the last path segment.
+    #[must_use]
+    #[inline]
+    pub fn leaf_property(&self) -> &PropertyMetadata {
+        &self.steps[self.steps.len() - 1].property
     }
 
     /// Reads the final property while traversing each intermediate borrow.
@@ -309,20 +329,6 @@ impl PropertyAccessPath {
             }
         }
         Ok(())
-    }
-
-    /// Returns the metadata for the final property in this path.
-    ///
-    /// Callers can inspect the declared leaf type before converting an input
-    /// value, while [`Self::write`] remains responsible for executing the
-    /// setter or reflected field operation.
-    ///
-    /// # Returns
-    ///
-    /// A reference to the copied metadata for the last path segment.
-    #[must_use]
-    pub fn leaf_property(&self) -> &PropertyMetadata {
-        &self.steps[self.steps.len() - 1].property
     }
 
     /// Writes the leaf property through mutable intermediate field projections.

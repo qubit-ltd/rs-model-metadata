@@ -727,11 +727,24 @@ mod tests {
             #[key_part(order = 0)]
             #[text(min_chars = 1, max_chars = 8, non_blank, allowed_chars = ascii, format = email_ascii)]
             #[sequence(min_items = 1, max_items = 3, unique_items)]
-            #[element(text(max_chars = 4), validator(id = "example.element"), codec(id = "example.codec"), redact(level = "public"))]
+            #[element(
+                text(max_chars = 4),
+                validator(id = "example.element"),
+                codec(id = "example.codec"),
+                redact(level = "public")
+            )]
             #[validator(id = "example.field", params(limit = 3))]
             #[codec(type = Codec)]
             #[redact(keyed_by = owner::id)]
-            #[serde(rename(serialize = "out", deserialize = "in"), skip_serializing, flatten, with = "helper", default = "make", skip_serializing_if = "skip", unknown = true)]
+            #[serde(
+                rename(serialize = "out", deserialize = "in"),
+                skip_serializing,
+                flatten,
+                with = "helper",
+                default = "make",
+                skip_serializing_if = "skip",
+                unknown = true
+            )]
             #[opaque]
             #[keep_serializing]
             value: Vec<String>

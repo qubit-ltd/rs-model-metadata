@@ -43,7 +43,7 @@ pub enum PropertyStorageKind {
     FieldBacked,
     /// A getter computes the value.
     Computed,
-    /// Only an explicit setter is available.
+    /// No reflected field or explicit getter provides the value.
     Virtual,
 }
 

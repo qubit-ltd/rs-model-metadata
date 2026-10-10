@@ -8,6 +8,10 @@
 
 //! Integration tests for stable model identifiers.
 
+use std::collections::BTreeSet;
+use std::collections::HashMap;
+use std::collections::HashSet;
+
 use qubit_model_id::ModelId;
 use qubit_model_id::ModelIdBuf;
 use qubit_model_id::ModelIdError;
@@ -39,7 +43,7 @@ fn test_model_id_uses_one_shared_ascii_segment_grammar() {
 /// Static IDs can index a registry queried by an unallocated string slice.
 #[test]
 fn test_static_model_id_borrowed_registry_lookup() {
-    let entries = std::collections::HashMap::from([(STATIC_MODEL_ID, "user metadata")]);
+    let entries = HashMap::from([(STATIC_MODEL_ID, "user metadata")]);
     assert_eq!(entries.get("qubit.platform.iam.User"), Some(&"user metadata"));
     assert_eq!(entries.get("qubit.platform.iam.user"), None);
 }
@@ -70,9 +74,6 @@ fn test_model_id_rejects_invalid_segments_consistently() {
 
 #[test]
 fn test_static_and_dynamic_ids_sort_and_hash_by_text() {
-    use std::collections::BTreeSet;
-    use std::collections::HashSet;
-
     let static_ids = BTreeSet::from([ModelId::new("example.Zebra"), ModelId::new("example.Account")]);
     let sorted: Vec<_> = static_ids.into_iter().map(ModelId::as_str).collect();
     assert_eq!(sorted, ["example.Account", "example.Zebra"]);

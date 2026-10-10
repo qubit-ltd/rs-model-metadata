@@ -221,7 +221,14 @@ fn test_validator_rejects_duplicate_dependency_slots() {
         DependencyBindingMetadata::new("owner", PropertyPath::new(&["first"])),
         DependencyBindingMetadata::new("owner", PropertyPath::new(&["second"])),
     ];
-    let _ = ValidatorMetadata::new_bound("example.rule", &[], &[], &BINDINGS, TargetMode::Value, OnNone::Skip);
+    let _ = ValidatorMetadata::new_bound(
+        "example.rule",
+        &[],
+        &[],
+        &BINDINGS,
+        TargetMode::Value,
+        OnNone::Skip,
+    );
 }
 
 /// Container input cannot simultaneously request absent-value expansion policy.

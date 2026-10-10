@@ -21,6 +21,7 @@ use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::FieldPath;
+use qubit_model_metadata::validation::ModelRuleBinding;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationMode;
 use qubit_model_metadata::validation::ValidationOptions;
@@ -31,6 +32,7 @@ use qubit_reflect::ReflectedRef;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
+use qubit_validator::ExecutionErrorKind;
 use qubit_validator::InputType;
 use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
@@ -184,7 +186,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
             .expect_err("non-matching path must be rejected");
         assert_eq!(
             error.error().kind(),
-            qubit_validator::ExecutionErrorKind::InvalidSelection
+            ExecutionErrorKind::InvalidSelection
         );
         let retained_path = error
             .error()
@@ -262,7 +264,7 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
             .expect_err("unmatched selection must be rejected");
         assert_eq!(
             error.error().kind(),
-            qubit_validator::ExecutionErrorKind::InvalidSelection
+            ExecutionErrorKind::InvalidSelection
         );
         assert!(error.error().path().as_segments().is_empty());
         let retained_path = error
@@ -311,7 +313,7 @@ fn test_explicit_empty_path_selects_model_level_rule() {
     )
     .expect("standard constraints")
     .with_model_rules([
-        qubit_model_metadata::validation::ModelRuleBinding::from_prepared::<SelectedFields>(
+        ModelRuleBinding::from_prepared::<SelectedFields>(
             ValidatorId::new("selection.always_valid"),
             Arc::new(AlwaysValid),
         )

@@ -12,6 +12,7 @@ use std::error::Error as _;
 
 use qubit_model_metadata::__private::ModelImplProvider;
 use qubit_model_metadata::__private::model_impl_key;
+use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::__private::v7::register_model_impl_capability;
 use qubit_model_metadata::metadata::ModelImplMetadata;
 use qubit_model_metadata::metadata::PropertyResolutionError;
@@ -56,7 +57,6 @@ fn test_duplicate_concrete_source_is_reported_by_reflection_registry() {
 /// properties.
 #[test]
 fn test_property_lookup_preserves_reflection_initialization_failure() {
-    use qubit_model_metadata::__private::v7;
     let metadata = v7::leak(
         v7::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
@@ -101,7 +101,6 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
 /// Supplies a method overlay distinguishable from the declaration's empty
 /// properties.
 fn overlay_provider() -> &'static ModelImplMetadata {
-    use qubit_model_metadata::__private::v7;
     static OVERLAY: std::sync::OnceLock<ModelImplMetadata> = std::sync::OnceLock::new();
     OVERLAY.get_or_init(|| {
         let type_ref = v7::leak(TypeRef::Resolved(TypeDescriptor::of::<u32>()));
@@ -116,7 +115,6 @@ register_model_impl_capability!(DuplicateReflectionSource, overlay_provider);
 /// fails.
 #[test]
 fn test_isolated_snapshot_selects_its_own_property_overlay() {
-    use qubit_model_metadata::__private::v7;
     let mut snapshot = RegistrySnapshotBuilder::new();
     snapshot.add_type_capabilities(
         TypeDescriptor::of::<DuplicateReflectionSource>(),

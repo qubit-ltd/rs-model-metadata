@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use model_runtime::__private::qubit_id::Id;
 use qubit_model_derive::{Entity, Enum, Model, Projection, Value};
 

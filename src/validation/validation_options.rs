@@ -213,7 +213,13 @@ impl Default for ValidationOptions {
 impl ValidationOptions {
     /// Creates a builder initialized with the default execution policy and
     /// budgets.
+    ///
+    /// # Returns
+    ///
+    /// A builder containing the same execution policy and budgets as
+    /// [`ValidationOptions::default`].
     #[must_use = "configure validation and call build"]
+    #[inline]
     pub fn builder() -> ValidationOptionsBuilder {
         ValidationOptionsBuilder::default()
     }

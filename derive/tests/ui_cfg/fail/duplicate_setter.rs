@@ -10,13 +10,23 @@
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
+
 #[Model]
-struct Conditional { value: u32 }
+struct Conditional {
+    value: u32,
+}
+
 #[ModelImpl]
 impl Conditional {
     #[cfg(all())]
-    pub fn set_title(&mut self, value: u32) { self.value = value; }
+    pub fn set_title(&mut self, value: u32) {
+        self.value = value;
+    }
+
     #[cfg_attr(any(), cfg(any()))]
-    pub fn set_title(&mut self, value: u32) { self.value = value; }
+    pub fn set_title(&mut self, value: u32) {
+        self.value = value;
+    }
 }
+
 fn main() {}

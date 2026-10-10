@@ -20,7 +20,6 @@ use qubit_reflect::descriptor::TypeRef;
 /// Each call may allocate to provide the static reference required by
 /// model-generated metadata.
 #[doc(hidden)]
-#[inline]
 #[must_use]
 pub fn reflected_type_ref<T: Reflect + ?Sized>() -> &'static TypeRef {
     Box::leak(Box::new(TypeRef::of::<T>()))

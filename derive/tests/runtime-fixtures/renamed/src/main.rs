@@ -7,8 +7,8 @@
 // =============================================================================
 // The filename is part of a Cargo or trybuild fixture protocol.
 
-use ::model_runtime::metadata::TypeMetadata;
 use ::model_runtime::metadata::HasModelId;
+use ::model_runtime::metadata::TypeMetadata;
 use ::model_runtime::registry::ModelRegistry;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;

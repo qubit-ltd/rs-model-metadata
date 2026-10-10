@@ -10,18 +10,22 @@
 
 //! Defines target-side models for linked registration and resolution fixtures.
 
+use core::convert::Infallible;
+use std::sync::Arc;
+
 use qubit_codec::ValueCodecId;
 use qubit_codec::ValueCodecRegistrationSource;
-use qubit_codec::ValueStringCodecDescriptor;
-use qubit_codec::ValueStringCodecRegistration;
 use qubit_codec::ValueDecoder;
 use qubit_codec::ValueEncoder;
+use qubit_codec::ValueStringCodecDescriptor;
+use qubit_codec::ValueStringCodecRegistration;
 use qubit_model_derive::Entity;
 #[cfg(feature = "duplicate-fixture")]
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::qubit_id::Id;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
+use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
@@ -50,7 +54,7 @@ pub struct TextCodec;
 
 impl ValueEncoder<String> for TextCodec {
     type Output = String;
-    type Error = core::convert::Infallible;
+    type Error = Infallible;
 
     fn encode(&mut self, input: &String) -> Result<String, Self::Error> {
         Ok(input.clone())
@@ -59,7 +63,7 @@ impl ValueEncoder<String> for TextCodec {
 
 impl ValueDecoder<str> for TextCodec {
     type Output = String;
-    type Error = core::convert::Infallible;
+    type Error = Infallible;
 
     fn decode(&mut self, input: &str) -> Result<String, Self::Error> {
         Ok(input.to_owned())
@@ -76,8 +80,8 @@ pub static CODEC: ValueStringCodecRegistration = ValueStringCodecRegistration::n
 struct TextRule;
 
 impl PreparedValidator for TextRule {
-    fn input_type(&self) -> qubit_validator::InputType { qubit_validator::InputType::Text }
-    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] { &[] }
+    fn input_type(&self) -> InputType { InputType::Text }
+    fn dependency_specs(&self) -> &'static [DependencySpec] { &[] }
     fn validate(
         &self,
         value: ValidationValue<'_>,
@@ -88,8 +92,8 @@ impl PreparedValidator for TextRule {
     }
 }
 
-fn prepare_text(_: &[NamedValidationArgument<'_>]) -> Result<std::sync::Arc<dyn PreparedValidator>, BindError> {
-    Ok(std::sync::Arc::new(TextRule))
+fn prepare_text(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+    Ok(Arc::new(TextRule))
 }
 
 static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];

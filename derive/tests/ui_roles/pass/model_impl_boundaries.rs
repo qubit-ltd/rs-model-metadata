@@ -17,7 +17,9 @@ use qubit_reflect::reflect;
 struct Account;
 
 #[reflect]
-trait Named {}
+trait Named {
+    // empty
+}
 
 #[ModelImpl]
 impl Named for Account {}

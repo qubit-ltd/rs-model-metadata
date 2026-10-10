@@ -129,9 +129,9 @@ mod tests {
     use std::any::TypeId;
 
     use model_runtime::metadata::TypeMetadata;
-    use qubit_reflect::ReflectedRef;
     use qubit_reflect::ReflectedMut;
     use qubit_reflect::ReflectedOwned;
+    use qubit_reflect::ReflectedRef;
     use qubit_reflect::registry::ReflectRegistry;
 
     use super::Configured;
@@ -164,9 +164,15 @@ mod tests {
                 assert!(property.get(ReflectedRef::new(&value)).is_ok(), "adapter {name}");
             }
         }
-        for (name, enabled) in [("set_absent", false), ("set_feature_value", cfg!(feature = "accessors")), ("set_paired", true)] {
+        for (name, enabled) in [
+            ("set_absent", false),
+            ("set_feature_value", cfg!(feature = "accessors")),
+            ("set_paired", true),
+        ] {
             let count = reflection.implementations(TypeId::of::<Configured>()).iter()
-                .flat_map(|implementation| implementation.methods()).filter(|method| method.rust_name() == name).count();
+                .flat_map(|implementation| implementation.methods())
+                .filter(|method| method.rust_name() == name)
+                .count();
             assert_eq!(count, usize::from(enabled), "reflection setter {name}");
         }
         let paired = metadata.try_property("paired").expect("properties").expect("paired");
@@ -191,11 +197,24 @@ mod tests {
     #[test]
     fn test_generic_specialization_presence() {
         let reflection = ReflectRegistry::initialize().expect("generic fixture reflection");
-        for metadata in [TypeMetadata::of::<GenericConfigured<String>>(), TypeMetadata::of::<GenericConfigured<u32>>()] {
-            assert_eq!(metadata.try_property("current").expect("generic properties").is_some(), cfg!(feature = "accessors"));
-            assert_eq!(metadata.try_property("impl_current").expect("generic impl properties").is_some(), cfg!(feature = "impl-enabled"));
+        for metadata in [
+            TypeMetadata::of::<GenericConfigured<String>>(),
+            TypeMetadata::of::<GenericConfigured<u32>>(),
+        ] {
+            assert_eq!(
+                metadata.try_property("current").expect("generic properties").is_some(),
+                cfg!(feature = "accessors")
+            );
+            assert_eq!(
+                metadata.try_property("impl_current").expect("generic impl properties").is_some(),
+                cfg!(feature = "impl-enabled")
+            );
             assert!(metadata.try_property("missing").expect("generic properties").is_none());
-            for (name, enabled) in [("current", cfg!(feature = "accessors")), ("impl_current", cfg!(feature = "impl-enabled")), ("missing", false)] {
+            for (name, enabled) in [
+                ("current", cfg!(feature = "accessors")),
+                ("impl_current", cfg!(feature = "impl-enabled")),
+                ("missing", false),
+            ] {
                 let present = reflection.implementations(metadata.descriptor().type_id()).iter()
                     .flat_map(|implementation| implementation.methods()).any(|method| method.rust_name() == name);
                 assert_eq!(present, enabled, "generic reflection method {name}");

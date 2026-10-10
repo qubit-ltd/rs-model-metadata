@@ -8,6 +8,8 @@
 
 //! A failed property path must not suppress independent relationship failures.
 
+use std::sync::OnceLock;
+
 use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::metadata::DeclaredEntityTarget;
 use qubit_model_metadata::metadata::FieldAttributeMetadata;
@@ -23,11 +25,11 @@ use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
-use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
+use qubit_reflect::Reflect;
+use qubit_reflect::TypeDescriptor;
 
 #[allow(
     clippy::extra_unused_type_parameters,
@@ -53,7 +55,7 @@ struct Root {
 }
 
 fn metadata() -> &'static TypeMetadata {
-    static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
+    static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
         let reference = v7::leak(FieldReferenceMetadata::new(

@@ -8,6 +8,9 @@
 
 //! Context of one executable declaration at a concrete usage path.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
 use super::execution_declaration::ExecutionDeclaration;
 use crate::metadata::FieldMetadata;
 use crate::metadata::SelectorPosition;
@@ -52,8 +55,8 @@ impl ValidationOccurrence {
     }
 }
 
-impl std::fmt::Debug for ValidationOccurrence {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for ValidationOccurrence {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("ValidationOccurrence")
             .field("root", &self.root.type_name())

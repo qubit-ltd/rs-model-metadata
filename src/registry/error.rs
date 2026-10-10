@@ -407,6 +407,7 @@ impl ModelRegistryError {
 }
 
 impl Display for ModelRegistryError {
+    /// Formats the registry failure with its primary diagnostic context.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
         match self.kind {
             ModelRegistryErrorKind::CapabilityResolution => write!(
@@ -462,6 +463,7 @@ impl Display for ModelRegistryError {
 }
 
 impl Error for ModelRegistryError {
+    /// Returns the retained ABI, reflection, or capability error as the cause.
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.abi
             .as_ref()

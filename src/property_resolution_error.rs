@@ -21,15 +21,17 @@ use crate::metadata::PropertyBuildErrors;
 /// # Examples
 ///
 /// ```
+/// use std::any::TypeId;
+
 /// use qubit_model_metadata::metadata::PropertyResolutionError;
+/// use qubit_reflect::capability::CapabilityAccessError;
+/// use qubit_reflect::identity::CapabilityId;
 ///
-/// fn category(error: &PropertyResolutionError) -> &'static str {
-///     match error {
-///         PropertyResolutionError::Capability(_) => "capability",
-///         PropertyResolutionError::Reflection(_) => "reflection",
-///         PropertyResolutionError::Assembly(_) => "assembly",
-///     }
-/// }
+/// let error = PropertyResolutionError::Capability(CapabilityAccessError::FactOnly {
+///     id: CapabilityId::new("example.fact").expect("valid capability ID"),
+///     adapter_type: TypeId::of::<u32>(),
+/// });
+/// assert!(error.to_string().contains("property capability resolution failed"));
 /// ```
 #[must_use]
 #[derive(Clone, Debug, Error)]

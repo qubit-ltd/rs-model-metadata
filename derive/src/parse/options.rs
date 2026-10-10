@@ -136,7 +136,21 @@ fn is_behavior_option(path: &Path) -> bool {
     OPTIONS.iter().any(|name| path.is_ident(name))
 }
 
-/// Records one declaration marker while preserving the second occurrence span.
+/// Records a declaration marker and reports a diagnostic for later occurrences.
+///
+/// The marker name is stored in `markers` only once. The first occurrence sets
+/// `value` to `true`; subsequent occurrences leave it unchanged and use `span`
+/// to point the diagnostic at the duplicate option.
+///
+/// # Parameters
+///
+/// * `markers` - Names of marker options already encountered in this
+///   declaration.
+/// * `diagnostics` - Accumulator for duplicate-option diagnostics.
+/// * `name` - Static option name used for duplicate detection and the message.
+/// * `value` - Destination flag set when this is the first occurrence.
+/// * `span` - Source location of this occurrence, used for a duplicate
+///   diagnostic.
 fn set_marker_option(
     markers: &mut HashSet<&'static str>,
     diagnostics: &mut Diagnostics,

@@ -60,43 +60,49 @@ pub(crate) enum FieldExecution {
 }
 
 impl FieldRuleBinding {
-    /// Returns the occurrence index in the plan.
+    /// Returns the stable position used to order this declaration in the validation plan.
     #[must_use]
     #[inline]
     pub(crate) const fn occurrence(&self) -> usize {
         self.occurrence
     }
-    /// Returns the validator identifier.
+    /// Returns the identifier used to look up or report this occurrence's validator.
     #[must_use]
     #[inline]
     pub(crate) const fn rule_id(&self) -> ValidatorId {
         self.rule_id
     }
-    /// Returns the compiled value path.
+    /// Returns the compiled path from which the validator's input value is projected.
     #[must_use]
     #[inline]
     pub(crate) const fn value(&self) -> &CompiledPropertyPath {
         &self.value
     }
-    /// Returns compiled dependency paths in declaration order.
+    /// Returns the compiled paths whose values are supplied as this rule's dependencies.
+    ///
+    /// The slice preserves declaration order and borrows the paths owned by this binding.
     #[must_use]
     #[inline]
     pub(crate) fn dependencies(&self) -> &[CompiledPropertyPath] {
         &self.dependencies
     }
-    /// Returns the checked execution mechanism.
+    /// Returns the prepared execution mechanism selected for this occurrence.
     #[must_use]
     #[inline]
     pub(crate) const fn execution(&self) -> &FieldExecution {
         &self.execution
     }
-    /// Returns the absent-value policy.
+    /// Returns the policy applied when the value at the compiled path is absent.
     #[must_use]
     #[inline]
     pub(crate) const fn on_none(&self) -> OnNone {
         self.on_none
     }
-    /// Returns the nested selector binding, if any.
+    /// Returns the selector used to traverse nested collection values, when configured.
+    ///
+    /// # Returns
+    ///
+    /// `Some` when this occurrence validates selected collection elements; otherwise `None`.
     #[must_use]
     #[inline]
     pub(crate) const fn selector(&self) -> Option<&SelectorBinding> {

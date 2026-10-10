@@ -38,6 +38,27 @@ pub(crate) use internal::merged_model_impl::MergedModelImpl;
 /// combine providers without rerunning this block's assembly. Both values are
 /// immutable static metadata; dynamic snapshot merges use `MergedModelImpl`
 /// and own their storage.
+///
+/// # Examples
+///
+/// A generated provider supplies this metadata to the reflection API. Consumers
+/// can inspect its original declarations and the result of local assembly:
+///
+/// ```
+/// use qubit_model_metadata::metadata::ModelImplMetadata;
+///
+/// fn inspect(metadata: &ModelImplMetadata) {
+///     let _fragments = metadata.fragments();
+///     match metadata.try_properties() {
+///         Ok(properties) => {
+///             let _ = properties;
+///         }
+///         Err(errors) => {
+///             let _ = errors;
+///         }
+///     }
+/// }
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct ModelImplMetadata {
     /// Original field, getter, and setter declarations in deterministic source

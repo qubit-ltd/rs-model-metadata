@@ -256,7 +256,6 @@ impl FieldMetadata {
     /// # Returns
     ///
     /// `Some` when collection operations were attached; otherwise `None`.
-    #[must_use]
     #[inline]
     pub const fn collection_ops(&self) -> Option<&CollectionOps> {
         self.collection_ops.as_ref()
@@ -271,7 +270,6 @@ impl FieldMetadata {
     ///
     /// `Some` with the concrete field identity, or `None` for a generic
     /// definition field.
-    #[must_use]
     #[inline]
     pub const fn location(&self) -> Option<FieldLocation> {
         self.location
@@ -296,7 +294,6 @@ impl FieldMetadata {
     ///
     /// `Some` for a concrete reflected field, or `None` for a generic
     /// definition field.
-    #[must_use]
     #[inline]
     pub const fn reflect(&self) -> Option<&'static FieldDescriptor> {
         self.reflect
@@ -309,7 +306,6 @@ impl FieldMetadata {
     ///
     /// `Some` for a generic declaration field, or `None` for a concrete
     /// runtime field.
-    #[must_use]
     #[inline]
     pub const fn definition(&self) -> Option<&'static FieldDefinitionDescriptor> {
         self.definition
@@ -338,7 +334,6 @@ impl FieldMetadata {
     ///
     /// `Some` with the query name, or `None` when the declaration is an
     /// unnamed tuple payload.
-    #[must_use]
     #[inline]
     pub const fn name(&self) -> Option<&'static str> {
         match (self.reflect, self.definition) {
@@ -387,7 +382,6 @@ impl FieldMetadata {
     ///
     /// `Some` when the field type is resolved, or `None` when it is opaque or
     /// symbolic.
-    #[must_use]
     #[inline]
     pub fn descriptor(&self) -> Option<&'static TypeDescriptor> {
         self.type_ref().as_resolved()
@@ -410,7 +404,6 @@ impl FieldMetadata {
     ///
     /// `Some` with the identifier metadata, or `None` when no identifier is
     /// declared.
-    #[must_use]
     pub fn identifier(&self) -> Option<&'static IdentifierMetadata> {
         self.attributes.iter().find_map(|attribute| match attribute {
             FieldAttributeMetadata::Identifier(value) => Some(*value),
@@ -460,7 +453,6 @@ impl FieldMetadata {
     ///
     /// `Some` with the uniqueness metadata, or `None` when uniqueness is not
     /// declared.
-    #[must_use]
     pub fn unique(&self) -> Option<&'static FieldUniqueMetadata> {
         self.attributes.iter().find_map(|attribute| match attribute {
             FieldAttributeMetadata::Unique(value) => Some(*value),
@@ -485,7 +477,6 @@ impl FieldMetadata {
     ///
     /// `Some` with the reference metadata, or `None` when the field is not an
     /// entity reference.
-    #[must_use]
     pub fn reference(&self) -> Option<&'static FieldReferenceMetadata> {
         self.attributes.iter().find_map(|attribute| match attribute {
             FieldAttributeMetadata::Reference(value) => Some(*value),
@@ -499,7 +490,6 @@ impl FieldMetadata {
     ///
     /// `Some` with the key position metadata, or `None` when the field is not
     /// part of a composite key.
-    #[must_use]
     pub fn key_part(&self) -> Option<&'static KeyPartMetadata> {
         self.attributes.iter().find_map(|attribute| match attribute {
             FieldAttributeMetadata::KeyPart(value) => Some(*value),
@@ -523,7 +513,6 @@ impl FieldMetadata {
     /// # Returns
     ///
     /// `Some` with the text constraint, or `None` when none is declared.
-    #[must_use]
     pub fn text_constraint(&self) -> Option<TextConstraint> {
         self.constraints.iter().find_map(|value| match value {
             ConstraintMetadata::Text(value) => Some(*value),
@@ -536,7 +525,6 @@ impl FieldMetadata {
     /// # Returns
     ///
     /// `Some` with the decimal constraint, or `None` when none is declared.
-    #[must_use]
     pub fn decimal_constraint(&self) -> Option<DecimalConstraint> {
         self.constraints.iter().find_map(|value| match value {
             ConstraintMetadata::Decimal(value) => Some(*value),
@@ -549,7 +537,6 @@ impl FieldMetadata {
     /// # Returns
     ///
     /// `Some` with the temporal constraint, or `None` when none is declared.
-    #[must_use]
     pub fn time_constraint(&self) -> Option<TimeConstraint> {
         self.constraints.iter().find_map(|value| match value {
             ConstraintMetadata::Time(value) => Some(*value),
@@ -562,7 +549,6 @@ impl FieldMetadata {
     /// # Returns
     ///
     /// `Some` with the sequence constraint, or `None` when none is declared.
-    #[must_use]
     pub fn sequence_constraint(&self) -> Option<SequenceConstraint> {
         self.constraints.iter().find_map(|value| match value {
             ConstraintMetadata::Sequence(value) => Some(*value),
@@ -575,7 +561,6 @@ impl FieldMetadata {
     /// # Returns
     ///
     /// `Some` with the map constraint, or `None` when none is declared.
-    #[must_use]
     pub fn map_constraint(&self) -> Option<MapConstraint> {
         self.constraints.iter().find_map(|value| match value {
             ConstraintMetadata::Map(value) => Some(*value),
@@ -599,7 +584,6 @@ impl FieldMetadata {
     /// # Returns
     ///
     /// `Some` with the codec metadata, or `None` when no codec is declared.
-    #[must_use]
     pub fn codec(&self) -> Option<&'static CodecMetadata> {
         self.attributes.iter().find_map(|attribute| match attribute {
             FieldAttributeMetadata::Codec(value) => Some(*value),
@@ -613,7 +597,6 @@ impl FieldMetadata {
     ///
     /// `Some` with the redaction metadata, or `None` when no redaction is
     /// declared.
-    #[must_use]
     pub fn redact(&self) -> Option<&'static RedactMetadata> {
         self.attributes.iter().find_map(|attribute| match attribute {
             FieldAttributeMetadata::Redact(value) => Some(*value),

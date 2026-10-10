@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Trybuild compile-fail fixture: model identifiers and references are restricted to supported field roles; this file covers rejected placements.
+//! Trybuild compile-fail fixture: model identifiers and references are restricted to supported field roles.
+//! This file covers rejected placements.
 
 use std::collections::HashMap;
 

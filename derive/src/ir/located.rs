@@ -13,7 +13,9 @@ use proc_macro2::Span;
 /// Stores one parsed value and the source location that declared it.
 #[derive(Clone)]
 pub(crate) struct Located<T> {
+    /// The parsed representation associated with the source location.
     value: T,
+    /// The source span that identifies where the parsed value was declared.
     span: Span,
 }
 

@@ -106,6 +106,8 @@ struct IndependentFailures {
 
 #[ModelImpl]
 impl SequenceCount {
+    #[must_use]
+    #[inline]
     pub fn values(&self) -> &[String] {
         &self.values
     }
@@ -114,6 +116,8 @@ impl SequenceCount {
 #[cfg(target_pointer_width = "64")]
 #[ModelImpl]
 impl HugeSequenceMinimum {
+    #[must_use]
+    #[inline]
     pub fn values(&self) -> &[String] {
         &self.values
     }

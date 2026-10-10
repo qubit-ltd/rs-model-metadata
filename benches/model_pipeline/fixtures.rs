@@ -51,7 +51,7 @@ fixture_models! {
     Model31 => "benchmark.Model31", Model32 => "benchmark.Model32",
 }
 
-/// 1 text declarations and 1 independently registered getter fragments.
+/// 1 text declaration and 1 independently registered getter fragment.
 #[Model]
 pub(super) struct Pipeline1 {
     #[text(non_blank)]
@@ -69,6 +69,8 @@ impl Pipeline1 {
 
 #[ModelImpl]
 impl Pipeline1 {
+    #[must_use]
+    #[inline]
     pub fn field_0(&self) -> &str {
         &self.field_0
     }
@@ -113,6 +115,8 @@ impl Pipeline8 {
 
 #[ModelImpl]
 impl Pipeline8 {
+    #[must_use]
+    #[inline]
     pub fn field_0(&self) -> &str {
         &self.field_0
     }
@@ -120,6 +124,8 @@ impl Pipeline8 {
 
 #[ModelImpl]
 impl Pipeline8 {
+    #[must_use]
+    #[inline]
     pub fn field_1(&self) -> &str {
         &self.field_1
     }
@@ -127,6 +133,8 @@ impl Pipeline8 {
 
 #[ModelImpl]
 impl Pipeline8 {
+    #[must_use]
+    #[inline]
     pub fn field_2(&self) -> &str {
         &self.field_2
     }
@@ -134,6 +142,8 @@ impl Pipeline8 {
 
 #[ModelImpl]
 impl Pipeline8 {
+    #[must_use]
+    #[inline]
     pub fn field_3(&self) -> &str {
         &self.field_3
     }
@@ -141,6 +151,8 @@ impl Pipeline8 {
 
 #[ModelImpl]
 impl Pipeline8 {
+    #[must_use]
+    #[inline]
     pub fn field_4(&self) -> &str {
         &self.field_4
     }
@@ -148,6 +160,8 @@ impl Pipeline8 {
 
 #[ModelImpl]
 impl Pipeline8 {
+    #[must_use]
+    #[inline]
     pub fn field_5(&self) -> &str {
         &self.field_5
     }
@@ -155,6 +169,8 @@ impl Pipeline8 {
 
 #[ModelImpl]
 impl Pipeline8 {
+    #[must_use]
+    #[inline]
     pub fn field_6(&self) -> &str {
         &self.field_6
     }
@@ -162,6 +178,8 @@ impl Pipeline8 {
 
 #[ModelImpl]
 impl Pipeline8 {
+    #[must_use]
+    #[inline]
     pub fn field_7(&self) -> &str {
         &self.field_7
     }
@@ -278,6 +296,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_0(&self) -> &str {
         &self.field_0
     }
@@ -285,6 +305,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_1(&self) -> &str {
         &self.field_1
     }
@@ -292,6 +314,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_2(&self) -> &str {
         &self.field_2
     }
@@ -299,6 +323,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_3(&self) -> &str {
         &self.field_3
     }
@@ -306,6 +332,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_4(&self) -> &str {
         &self.field_4
     }
@@ -313,6 +341,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_5(&self) -> &str {
         &self.field_5
     }
@@ -320,6 +350,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_6(&self) -> &str {
         &self.field_6
     }
@@ -327,6 +359,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_7(&self) -> &str {
         &self.field_7
     }
@@ -334,6 +368,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_8(&self) -> &str {
         &self.field_8
     }
@@ -341,6 +377,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_9(&self) -> &str {
         &self.field_9
     }
@@ -348,6 +386,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_10(&self) -> &str {
         &self.field_10
     }
@@ -355,6 +395,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_11(&self) -> &str {
         &self.field_11
     }
@@ -362,6 +404,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_12(&self) -> &str {
         &self.field_12
     }
@@ -369,6 +413,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_13(&self) -> &str {
         &self.field_13
     }
@@ -376,6 +422,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_14(&self) -> &str {
         &self.field_14
     }
@@ -383,6 +431,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_15(&self) -> &str {
         &self.field_15
     }
@@ -390,6 +440,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_16(&self) -> &str {
         &self.field_16
     }
@@ -397,6 +449,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_17(&self) -> &str {
         &self.field_17
     }
@@ -404,6 +458,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_18(&self) -> &str {
         &self.field_18
     }
@@ -411,6 +467,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_19(&self) -> &str {
         &self.field_19
     }
@@ -418,6 +476,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_20(&self) -> &str {
         &self.field_20
     }
@@ -425,6 +485,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_21(&self) -> &str {
         &self.field_21
     }
@@ -432,6 +494,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_22(&self) -> &str {
         &self.field_22
     }
@@ -439,6 +503,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_23(&self) -> &str {
         &self.field_23
     }
@@ -446,6 +512,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_24(&self) -> &str {
         &self.field_24
     }
@@ -453,6 +521,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_25(&self) -> &str {
         &self.field_25
     }
@@ -460,6 +530,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_26(&self) -> &str {
         &self.field_26
     }
@@ -467,6 +539,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_27(&self) -> &str {
         &self.field_27
     }
@@ -474,6 +548,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_28(&self) -> &str {
         &self.field_28
     }
@@ -481,6 +557,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_29(&self) -> &str {
         &self.field_29
     }
@@ -488,6 +566,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_30(&self) -> &str {
         &self.field_30
     }
@@ -495,6 +575,8 @@ impl Pipeline32 {
 
 #[ModelImpl]
 impl Pipeline32 {
+    #[must_use]
+    #[inline]
     pub fn field_31(&self) -> &str {
         &self.field_31
     }

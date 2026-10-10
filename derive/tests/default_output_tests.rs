@@ -8,6 +8,8 @@
 
 //! Default model capabilities and actual output contracts.
 
+use model_runtime::__private::redact::RedactionPolicy;
+use model_runtime::__private::redact::Redactor;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Value;
@@ -129,8 +131,6 @@ enum HiddenPayload {
 /// Skip omits complete payloads, while disabled policy restores their values.
 #[test]
 fn test_redact_skip_shapes_and_disabled_restoration() {
-    use model_runtime::__private::redact::RedactionPolicy;
-    use model_runtime::__private::redact::Redactor;
     let _guard = POLICY_LOCK.lock().expect("policy lock");
     let value = HiddenValue("hidden-value".into());
     let tuple = HiddenPayload::Tuple(vec!["hidden-tuple".into()], 2);

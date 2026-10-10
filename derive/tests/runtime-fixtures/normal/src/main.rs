@@ -7,8 +7,8 @@
 // =============================================================================
 // The filename is part of a Cargo or trybuild fixture protocol.
 
-use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::TypeMetadata;
 
 #[Model(id = "test.derive.Normal")]
 struct Normal {

@@ -34,7 +34,12 @@ struct Invalid {
 fn invalid_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Invalid>(), None, &[], v7::leak(v7::model_role()))
+        v7::GeneratedTypeMetadataBuilder::new(
+            TypeDescriptor::of::<Invalid>(),
+            None,
+            &[],
+            v7::leak(v7::model_role()),
+        )
             .finish_unchecked()
     })
 }

@@ -57,11 +57,17 @@ pub enum CodecBindErrorKind {
 /// ```
 #[derive(Clone, Debug)]
 pub struct CodecBindError {
+    /// Failure category reported to the caller.
     kind: CodecBindErrorKind,
+    /// Stable identity of the model declaration that failed to bind.
     occurrence: CodecOccurrenceId,
+    /// Codec reference declared by the model metadata.
     declaration: CodecReference,
+    /// Runtime value type required by the declaration.
     expected_type: TypeId,
+    /// Registered value type, when a unique candidate was selected.
     actual_type: Option<TypeId>,
+    /// Registration sources considered during binding, sorted deterministically.
     candidate_sources: Box<[ValueCodecRegistrationSource]>,
 }
 
@@ -214,6 +220,7 @@ impl CodecBindErrors {
     ///
     /// The diagnostics in deterministic occurrence and failure-class order.
     #[must_use]
+    #[inline]
     pub fn errors(&self) -> &[CodecBindError] {
         &self.0
     }
@@ -224,6 +231,7 @@ impl CodecBindErrors {
     ///
     /// The owned diagnostics in their deterministic order.
     #[must_use]
+    #[inline]
     pub fn into_vec(self) -> Vec<CodecBindError> {
         self.0.into_vec()
     }

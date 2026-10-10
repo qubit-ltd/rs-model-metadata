@@ -31,6 +31,7 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::FieldPath;
 use qubit_model_metadata::validation::ModelRuleBinding;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
+use qubit_model_metadata::validation::ValidationBuildErrors;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationMode;
 use qubit_model_metadata::validation::ValidationOptions;
@@ -43,6 +44,7 @@ use qubit_validation_rules::collection::UniqueItems;
 use qubit_validation_rules::ids;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
+use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
 use qubit_validator::InputType;
@@ -128,7 +130,7 @@ impl PreparedValidator for Reject {
     fn input_type(&self) -> InputType {
         InputType::Text
     }
-    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
         &[]
     }
     fn validate(
@@ -142,6 +144,7 @@ impl PreparedValidator for Reject {
         ))]))
     }
 }
+
 fn prepare(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(Reject))
 }
@@ -151,7 +154,7 @@ impl PreparedValidator for RejectModel {
     fn input_type(&self) -> InputType {
         InputType::of::<TestModel>()
     }
-    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
         &[]
     }
     fn validate(
@@ -171,7 +174,7 @@ impl PreparedValidator for FailModel {
     fn input_type(&self) -> InputType {
         InputType::of::<TestModel>()
     }
-    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
         &[]
     }
     fn validate(
@@ -183,6 +186,7 @@ impl PreparedValidator for FailModel {
             .with_trusted_source(PropertyAccessError::user("sensitive property detail")))
     }
 }
+
 static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare)];
 static DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
@@ -428,7 +432,7 @@ fn test_executes_validators_declared_by_an_optional_nested_model() {
 }
 
 #[test]
-fn optional_nested_model_executes_at_each_usage_path() {
+fn test_optional_nested_model_executes_at_each_usage_path() {
     let root = TypeMetadata::of::<OptionalPathRoot>();
     let roots = [root];
     let graph = Arc::new(
@@ -575,8 +579,9 @@ fn test_traversal_budgets_are_enforced_before_execution() {
     let nodes = ValidationOptions::builder()
         .max_nodes(NonZeroUsize::new(1).expect("non-zero"))
         .build();
-    assert!(plan.validate(value, &nodes).is_err());
+assert!(plan.validate(value, &nodes).is_err());
 }
+
 #[Model]
 struct MapCountFixture {
     #[map(min_entries = 1, max_entries = 2)]
@@ -640,7 +645,7 @@ type MapAlias = HashMap<String, i32>;
 
 fn map_plan(
     root: &'static TypeMetadata,
-) -> Result<ValidationPlan<'static>, qubit_model_metadata::validation::ValidationBuildErrors> {
+) -> Result<ValidationPlan<'static>, ValidationBuildErrors> {
     let roots = Box::leak(Box::new([root]));
     let graph = StructureResolver::new(ResolveInputs {
         roots,
@@ -767,6 +772,7 @@ fn test_map_missing_count_adapter_is_rejected_at_build() {
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("entries"));
 }
+
 #[Model]
 struct ConstrainedChild {
     #[text(min_chars = 3)]

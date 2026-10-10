@@ -316,7 +316,7 @@ fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
 }
 
 #[test]
-fn optional_text_value_executes_or_skips() {
+fn test_optional_text_value_executes_or_skips() {
     let root = TypeMetadata::of::<OptionalText>();
     let reflection = RegistrySnapshotBuilder::new()
         .build()
@@ -359,7 +359,7 @@ fn optional_text_value_executes_or_skips() {
 }
 
 #[test]
-fn optional_text_borrowed_getter_is_lazy_and_reads_once() {
+fn test_optional_text_borrowed_getter_is_lazy_and_reads_once() {
     OPTIONAL_TEXT_GETTER_CALLS.with(|calls| calls.set(0));
     let root = TypeMetadata::of::<OptionalTextGetter>();
     let models = ModelRegistry::global();

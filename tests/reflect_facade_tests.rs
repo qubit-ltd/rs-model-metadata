@@ -8,6 +8,7 @@
 
 //! Integration tests for the model reflection facade.
 
+use std::any::Any;
 use std::sync::OnceLock;
 
 use bigdecimal::BigDecimal;
@@ -24,6 +25,7 @@ use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
+use uuid::Uuid;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]
@@ -39,7 +41,7 @@ struct ExternalTypeFixture {
     id: Id,
     created_at: DateTime<Utc>,
     amount: BigDecimal,
-    request_id: uuid::Uuid,
+    request_id: Uuid,
     data_type: DataType,
 }
 
@@ -122,7 +124,7 @@ fn test_model_impl_fragment_key_preserves_valid_id() {
     assert_eq!(model_impl_fragment_key(id).id().as_str(), id);
 }
 
-fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+fn panic_message(payload: Box<dyn Any + Send>) -> String {
     payload
         .downcast_ref::<String>()
         .cloned()

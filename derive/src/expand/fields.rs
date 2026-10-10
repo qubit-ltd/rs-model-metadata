@@ -255,7 +255,11 @@ fn expand_field(
         let constructor = if generic_variant_inherited.is_some() {
             quote!(#runtime::metadata::FieldUniqueMetadata::for_definition(unique_paths, #ignore_case))
         } else {
-            quote!(#runtime::metadata::FieldUniqueMetadata::for_type(unique_paths, #ignore_case, #descriptor_fields[#index].field_type()))
+            quote!(#runtime::metadata::FieldUniqueMetadata::for_type(
+                unique_paths,
+                #ignore_case,
+                #descriptor_fields[#index].field_type(),
+            ))
         };
         let assertion = (unique.ignore_case.is_some() && generic_variant_inherited.is_none()).then(|| quote! {
             fn assert_text_unique<T: #runtime::__private::v7::TextConstraintTarget + ?Sized>() {}
@@ -263,7 +267,8 @@ fn expand_field(
         });
         quote! {
             #assertion
-            let unique_paths: &'static [#runtime::metadata::PropertyPath] = #runtime::__private::v7::leak_slice(::std::vec![#(#paths),*]);
+            let unique_paths: &'static [#runtime::metadata::PropertyPath] =
+                #runtime::__private::v7::leak_slice(::std::vec![#(#paths),*]);
             let unique: &'static #runtime::metadata::FieldUniqueMetadata = #runtime::__private::v7::leak(
                 #constructor,
             );
@@ -296,7 +301,10 @@ fn expand_field(
     let redact =
         redact_ir.map(|value| expand_redact(value, quote!(#runtime::metadata::RedactPosition::Field), runtime));
     let serde = serde_ir.map_or_else(
-        || quote!(let serde: &'static #runtime::metadata::SerdeFieldMetadata = &#runtime::metadata::SerdeFieldMetadata::DEFAULT;),
+        || quote!(
+            let serde: &'static #runtime::metadata::SerdeFieldMetadata =
+                &#runtime::metadata::SerdeFieldMetadata::DEFAULT;
+        ),
         |value| expand_serde(value, runtime),
     );
     let mut occurrence_tokens = Vec::new();
@@ -453,7 +461,9 @@ fn expand_collection_ops(
     }
     let field_type = &field.ty;
     let optional_map = collection_element_type(field_type)
-        .filter(|_| matches!(field_type, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Option")))
+        .filter(|_| {
+            matches!(field_type, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
+        })
         .filter(|inner| matches!(collection_name(inner), Some("HashMap" | "BTreeMap")));
     let map_adapter = if map && matches!(collection_name(field_type), Some("HashMap" | "BTreeMap")) {
         quote! {

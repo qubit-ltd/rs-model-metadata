@@ -15,6 +15,7 @@ use crate::metadata::PropertyAccessError;
 use crate::metadata::PropertyResolutionError;
 
 /// A failure to compile or execute a dynamic property path.
+#[must_use]
 #[derive(Debug, thiserror::Error)]
 pub enum PropertyAccessPathError {
     /// No property segments were supplied.
@@ -95,8 +96,8 @@ pub enum PropertyAccessPathError {
     PropertyResolution {
         /// Zero-based path position.
         index: usize,
-        #[source]
         /// Property resolution failure for the declaring model.
+        #[source]
         source: PropertyResolutionError,
     },
     /// Looking up metadata for a child descriptor failed.
@@ -104,8 +105,8 @@ pub enum PropertyAccessPathError {
     MetadataLookup {
         /// Zero-based path position.
         index: usize,
-        #[source]
         /// Metadata lookup failure for the next model type.
+        #[source]
         source: ModelMetadataError,
     },
     /// Reading or mutably projecting a property failed at runtime.
@@ -115,8 +116,8 @@ pub enum PropertyAccessPathError {
         index: usize,
         /// Property name whose adapter failed.
         name: String,
-        #[source]
         /// Underlying property access failure.
+        #[source]
         source: Box<PropertyAccessError>,
     },
 }

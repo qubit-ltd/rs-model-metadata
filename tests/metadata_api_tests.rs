@@ -8,6 +8,8 @@
 
 //! Verifies that declaration metadata does not expose execution descriptors.
 
+use core::any::type_name;
+
 use std::collections::HashSet;
 
 use qubit_model_metadata::metadata::CodecReference;
@@ -21,7 +23,7 @@ struct ExampleCodec;
 #[test]
 fn test_declaration_vocabulary_is_execution_independent() {
     let reference = RustTypeReference::of::<ExampleCodec>();
-    assert_eq!(reference.type_name(), core::any::type_name::<ExampleCodec>());
+    assert_eq!(reference.type_name(), type_name::<ExampleCodec>());
     assert_eq!(CodecReference::RustType(reference).rust_type(), Some(reference));
     let argument = NamedValidationArgument::new("minimum", ValidationArgument::Unsigned(1));
     assert_eq!(argument.name(), "minimum");

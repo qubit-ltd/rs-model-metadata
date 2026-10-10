@@ -236,7 +236,6 @@ mod compile_assertions {
                     type Value = T::Value;
                 }
 
-
                 impl<T: TextConstraintTarget + ?Sized> TextConstraintTarget for $wrapper {}
                 impl<T: DecimalConstraintTarget + ?Sized> DecimalConstraintTarget for $wrapper {}
                 impl<T: TemporalConstraintTarget + ?Sized> TemporalConstraintTarget for $wrapper {}
@@ -586,7 +585,13 @@ macro_rules! __qubit_model_register_model_impl_capability {
                 $crate::__private::codegen_v3::registration::FragmentPayload::Capability(
                     $crate::__private::codegen_v3::registration::CapabilityRegistration::for_type(
                         $crate::__private::TypeDescriptor::of::<$target>(),
-                        ::std::vec![$crate::__private::CapabilityDescriptor::with_adapter($crate::__private::model_impl_fragment_key(concat!("qubit.model.impl.v1.f", stringify!($fingerprint))), $provider)],
+                        ::std::vec![$crate::__private::CapabilityDescriptor::with_adapter(
+                            $crate::__private::model_impl_fragment_key(concat!(
+                                "qubit.model.impl.v1.f",
+                                stringify!($fingerprint)
+                            )),
+                            $provider,
+                        )],
                     ),
                 )
             }
@@ -594,7 +599,12 @@ macro_rules! __qubit_model_register_model_impl_capability {
                 $crate::__private::codegen_v3::registration::RegistrationFragment::new(
                     $crate::__private::codegen_v3::registration::FragmentKind::Capability,
                     $crate::__private::codegen_v3::registration::StaticFragmentIdentity::new(
-                        env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(), concat!("model-impl<", stringify!($target), ">"), $fingerprint,
+                        env!("CARGO_PKG_NAME"),
+                        module_path!(),
+                        line!(),
+                        column!(),
+                        concat!("model-impl<", stringify!($target), ">"),
+                        $fingerprint,
                     ),
                     runtime_identity,
                     payload,

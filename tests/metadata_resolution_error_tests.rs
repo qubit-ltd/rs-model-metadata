@@ -8,9 +8,9 @@
 
 //! Metadata and property lookup distinguish invalid capabilities from absence.
 
-use std::sync::OnceLock;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use std::sync::OnceLock;
 
 use qubit_model_metadata::__private::ModelMetadataProvider;
 use qubit_model_metadata::__private::ModelTypeSeal;

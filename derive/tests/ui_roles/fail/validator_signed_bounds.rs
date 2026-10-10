@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Trybuild compile-fail fixture: rejects validator integer values outside signed 128-bit bounds, both scalar and list entries.
+//! Trybuild compile-fail fixture: rejects validator integer values outside signed 128-bit bounds,
+//! both scalar and list entries.
 
 use qubit_model_derive::Model;
 

@@ -33,7 +33,7 @@ struct UnsupportedMapKey {
 }
 
 #[test]
-fn capability_matrix_is_explicit() {
+fn test_capability_matrix_is_explicit() {
     let models = ModelRegistry::try_global().unwrap();
     let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
         .resolve()
@@ -45,7 +45,7 @@ fn capability_matrix_is_explicit() {
 }
 
 #[test]
-fn unsupported_map_selector_retains_model_path_and_position() {
+fn test_unsupported_map_selector_retains_model_path_and_position() {
     let source = FragmentIdentity::new("validation-tests", "fixture", line!(), 1, "model", 1);
     let metadata = TypeMetadata::of::<UnsupportedMapKey>();
     let models = ModelRegistry::from_static_metadata(&[(metadata, &source)]).expect("model registry");

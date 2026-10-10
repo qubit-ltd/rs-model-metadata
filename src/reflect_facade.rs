@@ -10,7 +10,6 @@
 
 use std::sync::Arc;
 
-pub(crate) use internal::ModelImplResolution;
 use qubit_reflect::capability::CapabilityAccessError;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
@@ -19,6 +18,7 @@ use qubit_reflect::registry::ReflectRegistry;
 
 #[cfg(feature = "generic")]
 use crate::generic::GenericModelMetadata;
+pub(crate) use internal::ModelImplResolution;
 use crate::metadata::ModelImplMetadata;
 use crate::metadata::TypeMetadata;
 

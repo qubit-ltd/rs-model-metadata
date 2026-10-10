@@ -28,7 +28,7 @@ pub struct TemporalConstraint {
 }
 
 impl TemporalConstraint {
-    /// Creates temporal constraints from precision and normalization semantics.
+    /// Creates a temporal constraint that requires the specified precision.
     ///
     /// # Parameters
     ///

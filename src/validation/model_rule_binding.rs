@@ -111,7 +111,6 @@ impl ModelRuleBinding {
     ///
     /// Returns `PreparedSignatureMismatch` with the rule ID when the prepared
     /// validator shape does not match the requested root type.
-    #[must_use = "handle model rule binding errors"]
     #[inline]
     pub fn from_prepared<T: 'static>(
         rule_id: ValidatorId,

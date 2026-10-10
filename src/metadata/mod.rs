@@ -13,14 +13,15 @@ mod redaction;
 mod selector;
 mod validation;
 
-pub use codec::CodecMetadata;
-pub use codec::CodecReference;
-pub use codec::CodecSource;
-pub use codec::RustTypeReference;
 pub use qubit_model_id::HasModelId;
 pub use qubit_model_id::ModelId;
 pub use qubit_model_id::ModelIdBuf;
 pub use qubit_model_id::ModelIdError;
+
+pub use codec::CodecMetadata;
+pub use codec::CodecReference;
+pub use codec::CodecSource;
+pub use codec::RustTypeReference;
 pub use redaction::RedactMetadata;
 pub use redaction::RedactModeMetadata;
 pub use redaction::RedactPosition;

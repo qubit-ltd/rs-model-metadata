@@ -11,6 +11,7 @@
 //! Binding-only validation plan tests.
 
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -18,6 +19,8 @@ use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ContextRequirement;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildErrorKind;
+use qubit_model_metadata::validation::ValidationBuildErrors;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
@@ -25,6 +28,7 @@ use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
+use qubit_validator::BindErrorKind;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
@@ -321,7 +325,7 @@ struct RepeatedRules {
     value: String,
 }
 
-static EXECUTION_ORDER: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
+static EXECUTION_ORDER: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 
 struct RecordOrder(u32);
 
@@ -406,7 +410,7 @@ struct WrongDependencyType {
     value: String,
 }
 
-fn build_dependency_fixture(root: &'static TypeMetadata) -> qubit_model_metadata::validation::ValidationBuildErrors {
+fn build_dependency_fixture(root: &'static TypeMetadata) -> ValidationBuildErrors {
     let models = ModelRegistry::from_static_metadata(&[]).expect("empty model registry");
     let roots = [root];
     let graph = Arc::new(
@@ -436,16 +440,12 @@ fn test_model_binding_validates_required_dependency_declarations_and_types() {
         build_dependency_fixture(TypeMetadata::of::<MissingDependencyDeclaration>())
             .iter()
             .any(|error| error.kind()
-                == qubit_model_metadata::validation::ValidationBuildErrorKind::ValidatorBinding(
-                    qubit_validator::BindErrorKind::MissingDependencyDeclaration
-                ))
+                == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingDependencyDeclaration)
     );
     assert!(
         build_dependency_fixture(TypeMetadata::of::<WrongDependencyType>())
             .iter()
             .any(|error| error.kind()
-                == qubit_model_metadata::validation::ValidationBuildErrorKind::ValidatorBinding(
-                    qubit_validator::BindErrorKind::DependencyTypeMismatch
-                ))
+                == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::DependencyTypeMismatch)
     );
 }

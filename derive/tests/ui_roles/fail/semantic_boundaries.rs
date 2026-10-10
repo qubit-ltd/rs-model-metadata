@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Trybuild compile-fail fixture: rejects unsupported key-part and identifier placements, unique options, and contradictory text bounds.
+//! Trybuild compile-fail fixture for unsupported key-part and identifier
+//! placements, unique options, and contradictory text bounds.
 
 use model_runtime::__private::qubit_id::Id;
 use qubit_model_derive::Entity;

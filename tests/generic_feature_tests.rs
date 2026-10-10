@@ -128,7 +128,12 @@ fn test_concurrent_specializations_share_metadata() {
             .collect();
         let expected = TypeMetadata::of::<CacheFixture<String>>();
         for handle in handles {
-            assert!(core::ptr::eq(handle.join().unwrap(), expected));
+            assert!(core::ptr::eq(
+                handle
+                    .join()
+                    .expect("metadata query worker should complete successfully"),
+                expected
+            ));
         }
     });
 }

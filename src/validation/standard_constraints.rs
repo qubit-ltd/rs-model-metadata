@@ -287,6 +287,10 @@ fn build_builtin_registry(registrations: Vec<ValidatorRegistration>) -> Result<V
 ///
 /// Reflection-specific sequence equality is bound separately by the metadata
 /// executor; this registry binding only returns registry-backed rules.
+///
+/// # Errors
+/// Returns one binding error for each executable rule that the supplied
+/// registry cannot bind to the requested input type.
 pub(crate) fn bind(
     constraint: &ConstraintMetadata,
     validators: &ValidatorRegistry,

@@ -21,6 +21,7 @@ use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::ReflectedRef;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
+use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
@@ -59,10 +60,10 @@ struct ConfiguredToken {
 struct AllowToken(String);
 
 impl PreparedValidator for AllowToken {
-    fn input_type(&self) -> qubit_validator::InputType {
-        qubit_validator::InputType::Text
+    fn input_type(&self) -> InputType {
+        InputType::Text
     }
-    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
         &[]
     }
     fn validate(

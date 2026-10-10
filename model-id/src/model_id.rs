@@ -49,7 +49,6 @@ impl ModelId {
     ///
     /// Panics when `value` does not follow the stable-ID protocol. Use
     /// [`ModelId::try_new`] when callers need a recoverable error.
-    #[inline]
     pub const fn new(value: &'static str) -> Self {
         match Self::validate(value) {
             Ok(()) => Self(value),
@@ -71,8 +70,6 @@ impl ModelId {
     ///
     /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
     /// protocol.
-    #[must_use = "handle invalid model IDs"]
-    #[inline]
     pub const fn try_new(value: &'static str) -> Result<Self, ModelIdError> {
         match Self::validate(value) {
             Ok(()) => Ok(Self(value)),
@@ -126,8 +123,6 @@ impl ModelId {
     ///
     /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
     /// protocol.
-    #[must_use = "handle invalid model IDs"]
-    #[inline]
     pub const fn validate(value: &str) -> Result<(), ModelIdError> {
         validate_model_id(value)
     }

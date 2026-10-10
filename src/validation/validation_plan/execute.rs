@@ -8,8 +8,10 @@
 
 //! Execution APIs sharing one report accumulator and one work budget.
 
+use qubit_reflect::OptionalProjectionError;
 use qubit_reflect::ReflectedOwned;
 use qubit_reflect::ReflectedRef;
+use qubit_reflect::TypeDescriptor;
 use qubit_validation_rules::collection::UniquePairs;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
@@ -25,6 +27,7 @@ use qubit_validator::ViolationCode;
 use qubit_validator::ViolationParam;
 
 use super::ValidationPlan;
+use crate::property::ItemEqAdapter;
 use crate::metadata::OnNone;
 use crate::metadata::PropertyValue;
 use crate::metadata::SelectorPosition;
@@ -42,18 +45,29 @@ use crate::validation::standard_constraints::StandardTarget;
 use crate::validation::validation_options::FieldPath;
 use crate::validation::validation_options::ValidationSelection;
 
+/// Tracks which planned rule occurrences are selected and whether later work remains.
 enum SelectionMask {
-    All { total: usize },
+    /// Represents an all-fields selection without allocating per-occurrence entries.
+    All {
+        /// Number of planned occurrences represented by this mask.
+        total: usize,
+    },
+    /// Stores selection and path state for each planned occurrence.
     Fields(Vec<SelectionEntry>),
 }
 
+/// Selection state associated with one model or field rule occurrence.
 struct SelectionEntry {
+    /// Whether the caller selected this occurrence.
     selected: bool,
+    /// Whether a later occurrence is selected, for report stop-policy decisions.
     later_selected: bool,
+    /// Cached field path, consumed when the occurrence is executed.
     field_path: Option<ValidationPath>,
 }
 
 impl SelectionMask {
+    /// Builds occurrence state from the caller's selection and compiled bindings.
     fn new(selection: &ValidationSelection, model_rule_count: usize, bindings: &[FieldRuleBinding]) -> Self {
         let total = model_rule_count + bindings.len();
         if matches!(selection, ValidationSelection::All) {
@@ -83,6 +97,7 @@ impl SelectionMask {
         Self::Fields(entries)
     }
 
+    /// Returns whether the indexed occurrence is selected.
     fn selected(&self, index: usize) -> bool {
         match self {
             Self::All { total } => index < *total,
@@ -90,6 +105,7 @@ impl SelectionMask {
         }
     }
 
+    /// Returns whether any occurrence after the indexed one is selected.
     fn later_selected(&self, index: usize) -> bool {
         match self {
             Self::All { total } => index + 1 < *total,
@@ -97,6 +113,7 @@ impl SelectionMask {
         }
     }
 
+    /// Takes the cached field path for an occurrence, if it has one.
     fn take_field_path(&mut self, index: usize) -> Option<ValidationPath> {
         match self {
             Self::All { .. } => None,
@@ -436,7 +453,7 @@ fn execute_unique(
     occurrence: usize,
     value: PropertyValue<'_>,
     path: &ValidationPath,
-    item_eq: crate::property::ItemEqAdapter,
+    item_eq: ItemEqAdapter,
     budget: &mut ExecutionBudget<'_>,
     report: &mut ReportAccumulator<'_>,
     has_more_work: bool,
@@ -585,14 +602,14 @@ fn property_value<'a>(value: &'a PropertyValue<'_>) -> ValidationValue<'a> {
 /// means the optional field is absent. No value is cloned or formatted.
 fn optional_scalar_value<'a>(
     value: &PropertyValue<'a>,
-    descriptor: &'static qubit_reflect::TypeDescriptor,
-) -> Result<Option<ReflectedRef<'a>>, qubit_reflect::OptionalProjectionError> {
+    descriptor: &'static TypeDescriptor,
+) -> Result<Option<ReflectedRef<'a>>, OptionalProjectionError> {
     let PropertyValue::Borrowed(value) = value else {
-        return Err(qubit_reflect::OptionalProjectionError::Unavailable);
+        return Err(OptionalProjectionError::Unavailable);
     };
     descriptor
         .as_optional()
-        .ok_or(qubit_reflect::OptionalProjectionError::Unavailable)?
+        .ok_or(OptionalProjectionError::Unavailable)?
         .project_ref(value.clone())
 }
 

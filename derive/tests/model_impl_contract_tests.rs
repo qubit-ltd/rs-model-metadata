@@ -9,6 +9,8 @@
 //! Model implementation methods preserve reflection independently of
 //! properties.
 
+use std::any::TypeId;
+
 use model_runtime::metadata::TypeMetadata;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
@@ -82,7 +84,7 @@ fn test_exclusion_preserves_computed_and_stored_properties() {
     let reflection = ReflectRegistry::initialize().expect("reflection");
     assert!(
         reflection
-            .implementations(std::any::TypeId::of::<Person>())
+            .implementations(TypeId::of::<Person>())
             .iter()
             .flat_map(|implementation| implementation.methods())
             .any(|method| method.rust_name() == "diagnostic")
@@ -116,7 +118,7 @@ fn test_trait_methods_do_not_contribute_properties() {
     let reflection = ReflectRegistry::initialize().expect("reflection");
     assert!(
         reflection
-            .implementations(std::any::TypeId::of::<Person>())
+            .implementations(TypeId::of::<Person>())
             .iter()
             .flat_map(|implementation| implementation.methods())
             .any(|method| method.rust_name() == "greeting")
@@ -151,11 +153,11 @@ fn test_generic_impl_specializations_have_exact_property_types() {
         .expect("number property");
     assert_eq!(
         text_property.descriptor().expect("type").type_id(),
-        std::any::TypeId::of::<String>()
+        TypeId::of::<String>()
     );
     assert_eq!(
         number_property.descriptor().expect("type").type_id(),
-        std::any::TypeId::of::<u32>()
+        TypeId::of::<u32>()
     );
     let value = GenericName { value: 7u32 };
     assert!(number_property.get(ReflectedRef::new(&value)).is_ok());

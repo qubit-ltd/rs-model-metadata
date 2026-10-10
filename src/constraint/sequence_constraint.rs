@@ -113,6 +113,11 @@ impl SequenceConstraint {
     }
 
     /// Returns element semantics, if declared.
+    ///
+    /// # Returns
+    ///
+    /// `Some` with the declared selector metadata; otherwise, `None` when no
+    /// element semantics are attached.
     #[must_use]
     #[inline]
     pub const fn element(&self) -> Option<&'static crate::metadata::SelectorMetadata> {

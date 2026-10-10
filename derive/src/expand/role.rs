@@ -21,7 +21,14 @@ use crate::ir::declaration::FieldIr;
 use crate::ir::declaration::FieldOccurrence;
 use crate::ir::declaration::VariantIr;
 
-/// Generates role-specific model metadata for a declaration.
+/// Generates the role metadata binding for one parsed declaration.
+///
+/// The returned tokens are inserted into the generated metadata initializer.
+/// Entity and projection declarations must contain an identifier field;
+/// projections may also provide a Rust type or model ID as their source.
+/// Value declarations use their transparent field and canonical codec options
+/// when present. An unsupported `ModelImpl` declaration produces a compile
+/// error instead of a metadata binding.
 #[must_use]
 pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
     match declaration.kind {
@@ -96,7 +103,12 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
     }
 }
 
-/// Generates role metadata for all enum variants.
+/// Generates enum role metadata from the parsed variants.
+///
+/// Each variant's reflected fields are expanded and retained in the generated
+/// metadata alongside its canonical and serialized names and default marker.
+/// The generated binding also includes an empty declaration-level field slice,
+/// since enum fields belong to individual variants.
 #[must_use]
 fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
     let variants = variants.iter().enumerate().map(|(variant_index, variant)| {
@@ -137,7 +149,10 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
     }
 }
 
-/// Returns the index of the declaration's identifier field.
+/// Returns the index of the first field marked as an identifier.
+///
+/// Returns `None` when no field has an identifier occurrence. Callers that
+/// require exactly one identifier treat that case as a declaration error.
 #[must_use]
 #[inline]
 fn identifier_index(fields: &[FieldIr]) -> Option<usize> {

@@ -87,6 +87,7 @@ impl LocalPropertySet {
     /// `Some` with the matching property, or `None` when no property has that
     /// name.
     #[must_use]
+    #[inline]
     pub fn property(&self, name: &str) -> Option<&'static PropertyMetadata> {
         self.properties.iter().find(|property| property.name() == name)
     }

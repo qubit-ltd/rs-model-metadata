@@ -488,7 +488,7 @@ pub(crate) fn normalize_selector_containers(field: &mut FieldIr) {
     }
 }
 
-/// Validates that a field's constraints match its Rust type and role.
+/// Validates duplicate field and selector constraints and checks their ranges.
 pub(crate) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Error>) {
     let mut kinds = HashSet::new();
     for constraint in field.occurrences.iter().filter_map(|value| match value {
@@ -497,7 +497,6 @@ pub(crate) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
     }) {
         let kind = match constraint {
             ConstraintIr::Text(_) => "text",
-            ConstraintIr::Decimal(value) if value.money => "decimal-or-money",
             ConstraintIr::Decimal(_) => "decimal-or-money",
             ConstraintIr::Time(_) => "time",
             ConstraintIr::Sequence { .. } => "sequence",

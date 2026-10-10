@@ -84,6 +84,7 @@ pub(super) fn push_field_error(
 /// # Errors
 ///
 /// Propagates the model metadata lookup or descriptor compatibility failure.
+#[inline]
 pub(super) fn metadata_for_descriptor(
     descriptor: &'static TypeDescriptor,
     context: &ResolutionContext,
@@ -222,6 +223,7 @@ pub(super) fn forbidden_entity_nested_role(
 ///
 /// An owned path retaining the supplied segment sequence.
 #[must_use]
+#[inline]
 pub(super) fn path_from_segments(segments: &[&'static str]) -> OwnedPropertyPath {
     OwnedPropertyPath::from_segments(segments)
 }
@@ -566,6 +568,7 @@ pub(super) fn resolve_property_path(
     }
     Ok(result)
 }
+
 /// Returns a stable target ID for textual target declarations.
 ///
 /// # Parameters
@@ -681,6 +684,7 @@ pub(super) fn reference_value_matches(expected: &TypeDescriptor, mut actual: &'s
 ///
 /// Returns the cause from registry property lookup or nested metadata
 /// resolution.
+#[inline]
 pub(super) fn resolve_object_binding(
     root: &'static TypeMetadata,
     path: &ObjectPath,

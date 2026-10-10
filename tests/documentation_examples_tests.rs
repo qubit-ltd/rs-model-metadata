@@ -206,7 +206,14 @@ fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str)
         dependencies = dependencies.replace(declared, &absolute.replace('\\', "\\\\").replace('"', "\\\""));
     }
     // Package/workspace scaffolding is independent of dependency configuration.
-    let package = "[package]\nname = \"model-documentation-consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\n\n";
+    let package = concat!(
+        "[package]\n",
+        "name = \"model-documentation-consumer\"\n",
+        "version = \"0.0.0\"\n",
+        "edition = \"2024\"\n",
+        "publish = false\n\n",
+        "[workspace]\n\n",
+    );
     fs::write(directory.join("Cargo.toml"), format!("{package}{dependencies}")).expect("exact documented dependencies");
     fs::write(directory.join("src/main.rs"), source).expect("verbatim Markdown source");
 }

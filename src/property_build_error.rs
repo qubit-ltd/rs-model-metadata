@@ -110,7 +110,6 @@ impl PropertyBuildError {
     /// # Returns
     ///
     /// The category recorded when the error was assembled.
-    #[must_use = "the failure category should be handled"]
     #[inline]
     pub const fn kind(&self) -> PropertyBuildErrorKind {
         self.kind
@@ -134,7 +133,6 @@ impl PropertyBuildError {
     ///
     /// Both accessor methods and origins for a conflict, or `None` when the
     /// error describes a static validation failure.
-    #[must_use = "the optional accessor conflict should be checked"]
     #[inline]
     pub const fn conflict(&self) -> Option<&PropertyAccessorConflict> {
         self.conflict.as_ref()

@@ -8,9 +8,11 @@
 
 //! Compile-fail coverage for role shape and shared-pipeline diagnostics.
 
+use trybuild::TestCases;
+
 #[test]
 fn test_role_shape_diagnostics() {
-    let tests = trybuild::TestCases::new();
+    let tests = TestCases::new();
     tests.compile_fail("tests/ui_roles/fail/*.rs");
     tests.pass("tests/ui_roles/pass/*.rs");
 }

@@ -39,7 +39,9 @@ enum EnumFixture {
 fn test_five_role_payloads_expose_only_role_specific_facts() {
     let descriptor = TypeDescriptor::of::<EntityFixture>();
     let identifier = Box::leak(Box::new(FieldMetadata::from_reflect(
-        (descriptor.field_at(0).expect("identifier field"))
+        descriptor
+            .field_at(0)
+            .expect("identifier field")
             .declaring_type()
             .type_id(),
         descriptor.field_at(0).expect("identifier field"),
@@ -130,7 +132,9 @@ fn test_type_metadata_navigates_fields_and_role_without_copying_reflection_facts
     let attributes = Box::leak(vec![FieldAttributeMetadata::Identifier(identifier)].into_boxed_slice());
     let fields = Box::leak(
         vec![v7::field_metadata(
-            (descriptor.field_at(0).expect("identifier field"))
+            descriptor
+                .field_at(0)
+                .expect("identifier field")
                 .declaring_type()
                 .type_id(),
             descriptor.field_at(0).expect("identifier field"),

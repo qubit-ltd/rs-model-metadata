@@ -110,7 +110,6 @@ impl TextConstraint {
     ///
     /// `Some` with the minimum scalar-value count when constrained; otherwise,
     /// `None`.
-    #[must_use]
     #[inline]
     pub const fn min_chars(self) -> Option<u32> {
         self.min_chars
@@ -122,7 +121,6 @@ impl TextConstraint {
     ///
     /// `Some` with the maximum scalar-value count when constrained; otherwise,
     /// `None`.
-    #[must_use]
     #[inline]
     pub const fn max_chars(self) -> Option<u32> {
         self.max_chars
@@ -133,7 +131,6 @@ impl TextConstraint {
     /// # Returns
     ///
     /// `Some` with the minimum byte length when constrained; otherwise, `None`.
-    #[must_use]
     #[inline]
     pub const fn min_bytes(self) -> Option<u32> {
         self.min_bytes
@@ -144,7 +141,6 @@ impl TextConstraint {
     /// # Returns
     ///
     /// `Some` with the maximum byte length when constrained; otherwise, `None`.
-    #[must_use]
     #[inline]
     pub const fn max_bytes(self) -> Option<u32> {
         self.max_bytes
@@ -178,7 +174,6 @@ impl TextConstraint {
     ///
     /// `Some` with the required format when one is configured; otherwise,
     /// `None`.
-    #[must_use]
     #[inline]
     pub const fn format(self) -> Option<TextFormat> {
         self.format

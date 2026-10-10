@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Trybuild compile-fail fixture: `no_copy` enum output must not satisfy a `Copy` bound; the filename is part of the fixture protocol.
+//! Trybuild compile-fail fixture: `no_copy` enum output must not satisfy a `Copy` bound.
+//! The filename is part of the fixture protocol.
 
 use qubit_model_derive::Enum;
 

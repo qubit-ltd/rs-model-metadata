@@ -20,6 +20,7 @@ use std::sync::atomic::Ordering;
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
+use qubit_model_metadata::PropertyAccessPath;
 use qubit_model_metadata::PropertyAccessPathError;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -325,7 +326,7 @@ fn test_cached_path_concurrent_initial_misses_return_valid_paths() {
 #[test]
 fn test_compile_for_write_accepts_setter_only_leaf() {
     let registry = ModelRegistry::try_global().expect("linked setter-only model registration");
-    let path = qubit_model_metadata::PropertyAccessPath::compile_for_write(
+    let path = PropertyAccessPath::compile_for_write(
         registry,
         TypeMetadata::of::<SetterOnly>(),
         &["value"],
@@ -339,7 +340,7 @@ fn test_compile_for_write_accepts_setter_only_leaf() {
         .expect("setter-only leaf accepts replacement");
     assert_eq!(SETTER_ONLY_CALLS.load(Ordering::Relaxed), 1);
     assert!(matches!(
-        qubit_model_metadata::PropertyAccessPath::compile(registry, TypeMetadata::of::<SetterOnly>(), &["value"],),
+        PropertyAccessPath::compile(registry, TypeMetadata::of::<SetterOnly>(), &["value"],),
         Err(PropertyAccessPathError::UnreadableIntermediate { index: 0, .. })
     ));
 }
@@ -348,7 +349,7 @@ fn test_compile_for_write_accepts_setter_only_leaf() {
 #[test]
 fn test_read_optional_intermediate_reports_missing_value() {
     let registry = test_registry();
-    let path = qubit_model_metadata::PropertyAccessPath::compile(
+    let path = PropertyAccessPath::compile(
         &registry,
         TypeMetadata::of::<OptionalRoot>(),
         &["middle", "leaf", "value"],
@@ -371,7 +372,7 @@ fn test_read_optional_intermediate_reports_missing_value() {
 fn test_compile_rejects_owned_intermediate_getter() {
     let registry = ModelRegistry::try_global().expect("linked model registrations");
     OWNED_GETTER_CALLS.store(0, Ordering::Relaxed);
-    let result = qubit_model_metadata::PropertyAccessPath::compile(
+    let result = PropertyAccessPath::compile(
         registry,
         TypeMetadata::of::<OwnedParent>(),
         &["owned_child", "value"],
@@ -389,7 +390,7 @@ fn test_compile_rejects_owned_intermediate_getter() {
 #[test]
 fn test_compile_rejects_smart_pointer_intermediate() {
     let registry = test_registry();
-    let result = qubit_model_metadata::PropertyAccessPath::compile(
+    let result = PropertyAccessPath::compile(
         &registry,
         TypeMetadata::of::<SmartPointerRoot>(),
         &["middle", "leaf", "value"],
@@ -405,7 +406,7 @@ fn test_compile_rejects_smart_pointer_intermediate() {
 #[test]
 fn test_write_read_only_intermediate_reports_access_failure() {
     let registry = test_registry();
-    let path = qubit_model_metadata::PropertyAccessPath::compile(
+    let path = PropertyAccessPath::compile(
         &registry,
         TypeMetadata::of::<ReadOnlyRoot>(),
         &["middle", "leaf", "value"],
@@ -451,7 +452,7 @@ fn test_write_read_only_intermediate_reports_access_failure() {
 #[test]
 fn test_read_nested_property_from_root_instance() {
     let registry = test_registry();
-    let path = qubit_model_metadata::PropertyAccessPath::compile(
+    let path = PropertyAccessPath::compile(
         &registry,
         TypeMetadata::of::<AccessRoot>(),
         &["middle", "leaf", "value"],
@@ -479,7 +480,7 @@ fn test_read_nested_property_from_root_instance() {
 #[test]
 fn test_write_nested_property_through_root_instance() {
     let registry = test_registry();
-    let path = qubit_model_metadata::PropertyAccessPath::compile(
+    let path = PropertyAccessPath::compile(
         &registry,
         TypeMetadata::of::<AccessRoot>(),
         &["middle", "leaf", "value"],
@@ -504,22 +505,22 @@ fn test_write_nested_property_through_root_instance() {
 fn test_compile_and_read_report_structured_path_errors() {
     let registry = test_registry();
     assert!(matches!(
-        qubit_model_metadata::PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &[],),
+        PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &[],),
         Err(PropertyAccessPathError::EmptyPath)
     ));
     assert!(matches!(
-        qubit_model_metadata::PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &[""],),
+        PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &[""],),
         Err(PropertyAccessPathError::EmptySegment { index: 0 })
     ));
     assert!(matches!(
-        qubit_model_metadata::PropertyAccessPath::compile(
+        PropertyAccessPath::compile(
             &registry,
             TypeMetadata::of::<AccessRoot>(),
             &["middle", "missing"],
         ),
         Err(PropertyAccessPathError::UnknownProperty { index: 1, .. })
     ));
-    let path = qubit_model_metadata::PropertyAccessPath::compile(
+    let path = PropertyAccessPath::compile(
         &registry,
         TypeMetadata::of::<AccessRoot>(),
         &["middle", "leaf", "value"],
@@ -537,7 +538,7 @@ fn test_compile_and_read_report_structured_path_errors() {
 #[test]
 fn test_write_root_mismatch_preserves_replacement() {
     let registry = test_registry();
-    let path = qubit_model_metadata::PropertyAccessPath::compile(
+    let path = PropertyAccessPath::compile(
         &registry,
         TypeMetadata::of::<AccessRoot>(),
         &["middle", "leaf", "value"],
@@ -570,7 +571,7 @@ fn test_write_root_mismatch_preserves_replacement() {
 #[test]
 fn test_write_leaf_failure_preserves_replacement() {
     let registry = test_registry();
-    let path = qubit_model_metadata::PropertyAccessPath::compile(
+    let path = PropertyAccessPath::compile(
         &registry,
         TypeMetadata::of::<AccessRoot>(),
         &["middle", "leaf", "value"],

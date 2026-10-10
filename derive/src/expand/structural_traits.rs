@@ -276,13 +276,19 @@ fn trait_body(item: &DeriveInput, name: &str, shapes: &[(TokenStream, &Fields)],
             quote!(fn default() -> Self { #value })
         }
         "PartialOrd" => {
-            quote!(fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> { #ordering_prefix match (self, other) { #(#arms,)* #ordering_fallback } })
+            quote!(fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
+                #ordering_prefix match (self, other) { #(#arms,)* #ordering_fallback }
+            })
         }
         "Ord" => {
-            quote!(fn cmp(&self, other: &Self) -> ::core::cmp::Ordering { #ordering_prefix match (self, other) { #(#arms,)* #ordering_fallback } })
+            quote!(fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
+                #ordering_prefix match (self, other) { #(#arms,)* #ordering_fallback }
+            })
         }
         "Debug" => {
-            quote!(fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result { match self { #(#arms),* } })
+            quote!(fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                match self { #(#arms),* }
+            })
         }
         "Eq" | "Copy" => TokenStream::new(),
         _ => unreachable!("supported structural trait"),

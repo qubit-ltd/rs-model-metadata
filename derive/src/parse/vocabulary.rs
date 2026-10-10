@@ -32,7 +32,7 @@ pub(crate) fn validate_redact_level(level: &LitStr) -> Result<()> {
     } else {
         Err(Error::new_spanned(
             level,
-            "redact level must be public, personal, confidential, or secret",
+            "redact level must be public, personal, confidential, secret, low, medium, or high",
         ))
     }
 }

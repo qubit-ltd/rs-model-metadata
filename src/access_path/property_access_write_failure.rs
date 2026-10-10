@@ -68,6 +68,7 @@ impl PropertyAccessWriteFailure {
     /// The untouched replacement for pre-execution failures, or `None` when
     /// the setter consumed it.
     #[must_use]
+    #[inline]
     pub fn replacement(&self) -> Option<&ReflectedOwned> {
         match self {
             Self::Path { replacement, .. } => replacement.as_ref(),
@@ -77,6 +78,7 @@ impl PropertyAccessWriteFailure {
 
     /// Returns the path error when traversal failed before reaching the leaf.
     #[must_use]
+    #[inline]
     pub const fn path_error(&self) -> Option<&PropertyAccessPathError> {
         match self {
             Self::Path { error, .. } => Some(error),
@@ -86,6 +88,7 @@ impl PropertyAccessWriteFailure {
 
     /// Returns the leaf property failure when its setter was invoked.
     #[must_use]
+    #[inline]
     pub const fn property_failure(&self) -> Option<&PropertySetFailure> {
         match self {
             Self::Path { .. } => None,

@@ -52,6 +52,7 @@ impl PropertyStep {
     }
 
     /// Returns the optional element type to project for intermediate traversal.
+    #[inline]
     pub(crate) const fn optional_element(self) -> Option<std::any::TypeId> {
         self.optional_element
     }

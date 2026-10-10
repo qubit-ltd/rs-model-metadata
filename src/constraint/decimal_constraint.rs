@@ -170,6 +170,10 @@ impl DecimalConstraint {
     }
 
     /// Returns the exact lower-bound declaration.
+    ///
+    /// # Returns
+    ///
+    /// The exact lower-bound value, or `None` when no lower bound is declared.
     #[must_use]
     #[inline]
     pub const fn min(self) -> Option<&'static str> {
@@ -177,6 +181,10 @@ impl DecimalConstraint {
     }
 
     /// Returns the exact upper-bound declaration.
+    ///
+    /// # Returns
+    ///
+    /// The exact upper-bound value, or `None` when no upper bound is declared.
     #[must_use]
     #[inline]
     pub const fn max(self) -> Option<&'static str> {

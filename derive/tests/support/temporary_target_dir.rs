@@ -35,6 +35,8 @@ impl TemporaryTargetDir {
         }
     }
 
+    #[must_use]
+    #[inline]
     pub(crate) fn path(&self) -> &Path {
         &self.path
     }

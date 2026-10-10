@@ -52,6 +52,7 @@ use crate::metadata::ResolvedPropertyFragments;
 use crate::metadata::RoleMetadata;
 use crate::metadata::SelectorPosition;
 use crate::metadata::ValueMetadata;
+use crate::reflect_facade::ModelImplResolution;
 use crate::transparent_descriptor::transparent_descriptor;
 
 /// Domain semantics for one concrete reflected Rust type.
@@ -318,8 +319,6 @@ impl TypeMetadata {
         &'static self,
         registry: &ReflectRegistry,
     ) -> Result<ResolvedPropertyFragments, PropertyResolutionError> {
-        use crate::reflect_facade::ModelImplResolution;
-
         Ok(match crate::reflect_facade::model_impl_metadata(self, registry)? {
             None => ResolvedPropertyFragments::Static(self.property_fragments),
             Some(ModelImplResolution::Static(metadata)) => ResolvedPropertyFragments::Static(metadata.fragments()),
@@ -367,8 +366,6 @@ impl TypeMetadata {
         &'static self,
         registry: &ReflectRegistry,
     ) -> Result<ResolvedProperties, PropertyResolutionError> {
-        use crate::reflect_facade::ModelImplResolution;
-
         match crate::reflect_facade::model_impl_metadata(self, registry)? {
             None => Ok(ResolvedProperties::Static(&self.properties)),
             Some(ModelImplResolution::Static(metadata)) => metadata

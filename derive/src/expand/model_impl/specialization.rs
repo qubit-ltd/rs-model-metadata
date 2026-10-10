@@ -88,7 +88,9 @@ pub(super) fn concrete_impls(item: &ItemImpl, options: &Punctuated<Meta, Token![
 /// Carries type and const bindings separately, avoiding token-string rewriting.
 #[derive(Default)]
 struct Substitutions {
+    /// Maps type parameter names to their concrete replacement types.
     types: BTreeMap<String, Type>,
+    /// Maps const parameter names to expressions used at specialization sites.
     constants: BTreeMap<String, Expr>,
 }
 

@@ -331,7 +331,6 @@ impl ResolvedProjectionProducer {
     ///
     /// The getter result when it is a borrowed or owned Projection with the
     /// same identifier as the source Entity.
-    #[must_use = "handle projection execution failure"]
     pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
         let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
         let source_identifier = self
@@ -543,6 +542,7 @@ impl<'a> ModelGraph<'a> {
     pub fn projection_producers(&self) -> &[ResolvedProjectionProducer] {
         &self.projection_producers
     }
+
     /// Returns the registry used for this resolution pass.
     ///
     /// # Returns
