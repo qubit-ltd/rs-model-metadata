@@ -404,6 +404,81 @@ let plan = ValidationPlan::build(
 
 遇到构建错误时，先按诊断中的模型、字段/variant 坐标、selector 和完整路径定位声明，再检查 getter 是否返回所需的借用形状、容器或元素适配器是否存在，以及 getter 暴露的 Rust 类型是否与规则输入一致。若是 `ValidatorBinding(...)`，再检查 validator ID、输入类型、参数和依赖注册。不要忽略错误或把失败转成空计划。英文指南包含完整的 [拒绝示例与诊断说明](user_guide.md#limitations-execution-support-and-explicit-refusal)。
 
+### 只给根模型时定位包装路径
+
+下面的完整示例沿用前文 `validation` manifest。把程序放入 `rs-platform/app/src/main.rs`，并在该应用目录运行 `cargo run`；示例依赖仍由应用按同一 checkout 布局提供。程序只把根模型放入 `ResolveInputs.roots`，反射快照会沿包装发现匿名子模型。
+
+先看有执行规则的情况：`Child.name` 带有非空文本约束，根模型可达 `raw.child.name`。图能发现 `Child`，但当前后端不能穿过这个 raw 访问路径，因此能力检查和计划构建都返回 `UnsupportedExecution`，并保留路径。接着看没有执行规则的 `EmptyChild`：它同样能从根被发现，能力检查通过，空计划的 `binding_count()` 为 0。
+
+遇到拒绝时，按 `path()` 找到包装内对应的声明，再决定提供后端支持的访问形状，或在该执行边界停止。不要忽略错误，也不要把拒绝转换成空计划或“验证通过”。英文指南另有[完整拒绝示例与诊断说明](user_guide.md#limitations-execution-support-and-explicit-refusal)。
+
+<!-- example: validation/wrappers -->
+```rust
+use std::sync::Arc;
+use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildErrorKind;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationCapabilities;
+use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::Reflect;
+use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_validator::ValidatorRegistry;
+
+#[Model(eq, hash)]
+struct Child { #[text(non_blank)] name: String }
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct Raw { child: Child }
+
+#[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
+struct Root { raw: Raw }
+
+#[Model(eq, hash)]
+struct EmptyChild { name: String }
+
+#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+struct EmptyRaw { child: EmptyChild }
+
+#[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
+struct EmptyRoot { raw: EmptyRaw }
+
+fn main() {
+    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
+    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot registry");
+    let validators = ValidatorRegistry::empty();
+    let root = TypeMetadata::of::<Root>();
+    let roots = [root];
+    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("structurally valid wrapper"));
+    assert!(graph.model(TypeMetadata::of::<Child>().type_id()).is_some());
+    assert_eq!(graph.models().len(), 2);
+    let errors = ValidationCapabilities::check(root, graph.as_ref()).expect_err("raw path cannot execute");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(errors[0].path(), Some("raw.child.name"));
+    let errors = match ValidationPlan::build(root, ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators }) {
+        Err(errors) => errors,
+        Ok(_) => panic!("reachable rules cannot silently disappear"),
+    };
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(errors[0].path(), Some("raw.child.name"));
+
+    let root = TypeMetadata::of::<EmptyRoot>();
+    let roots = [root];
+    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("no-work wrapper"));
+    assert!(graph.model(TypeMetadata::of::<EmptyChild>().type_id()).is_some());
+    ValidationCapabilities::check(root, graph.as_ref()).expect("no execution work");
+    let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators })
+        .expect("valid empty plan");
+    assert_eq!(plan.binding_count(), 0);
+}
+```
+
 ## 进阶用法：停止条件与执行预算
 
 使用 `ValidationOptions::default()` 获取默认策略。需要定制时，通过
