@@ -26,7 +26,7 @@ jobs:
       pull-requests: write
       pages: write
       id-token: write
-    uses: qubit-ltd/rs-infra-ci/.github/workflows/github-ci.yml@main
+    uses: qubit-ltd/rs-infra-ci/.github/workflows/github-ci.yml@c2beddb6d00df07706a51d483649efb1ced4f532
     with:
       feature-matrix-prefetch: true
 
@@ -43,21 +43,21 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-reflect
-          ref: main
+          ref: e240f8f4c23707a4beb92b2c1568be2097f07e04
           path: rust-platform/rs-reflect
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validator
-          ref: main
+          ref: fcc87549760f4b4c4727f1b1d5d3c22055909d10
           path: rust-common/rs-validator
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validation-rules
-          ref: main
+          ref: e8806ca2ce0a30a53a58122e361eda622faee67b
           path: rust-common/rs-validation-rules
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
@@ -84,21 +84,21 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-reflect
-          ref: main
+          ref: e240f8f4c23707a4beb92b2c1568be2097f07e04
           path: rust-platform/rs-reflect
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validator
-          ref: main
+          ref: fcc87549760f4b4c4727f1b1d5d3c22055909d10
           path: rust-common/rs-validator
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
       - uses: actions/checkout@v6
         with:
           repository: qubit-ltd/rs-validation-rules
-          ref: main
+          ref: e8806ca2ce0a30a53a58122e361eda622faee67b
           path: rust-common/rs-validation-rules
           token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}
           submodules: false
