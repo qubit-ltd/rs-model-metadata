@@ -184,10 +184,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         let error = plan
             .validate(ReflectedRef::new(&value), &options)
             .expect_err("non-matching path must be rejected");
-        assert_eq!(
-            error.error().kind(),
-            ExecutionErrorKind::InvalidSelection
-        );
+        assert_eq!(error.error().kind(), ExecutionErrorKind::InvalidSelection);
         let retained_path = error
             .error()
             .trusted_source()
@@ -262,10 +259,7 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
         let error = plan
             .validate(ReflectedRef::new(&value), &options)
             .expect_err("unmatched selection must be rejected");
-        assert_eq!(
-            error.error().kind(),
-            ExecutionErrorKind::InvalidSelection
-        );
+        assert_eq!(error.error().kind(), ExecutionErrorKind::InvalidSelection);
         assert!(error.error().path().as_segments().is_empty());
         let retained_path = error
             .error()
@@ -312,13 +306,11 @@ fn test_explicit_empty_path_selects_model_level_rule() {
         },
     )
     .expect("standard constraints")
-    .with_model_rules([
-        ModelRuleBinding::from_prepared::<SelectedFields>(
-            ValidatorId::new("selection.always_valid"),
-            Arc::new(AlwaysValid),
-        )
-        .expect("prepared model rule shape"),
-    ]);
+    .with_model_rules([ModelRuleBinding::from_prepared::<SelectedFields>(
+        ValidatorId::new("selection.always_valid"),
+        Arc::new(AlwaysValid),
+    )
+    .expect("prepared model rule shape")]);
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
             std::iter::empty::<String>(),

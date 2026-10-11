@@ -67,7 +67,8 @@ pub struct CodecBindError {
     expected_type: TypeId,
     /// Registered value type, when a unique candidate was selected.
     actual_type: Option<TypeId>,
-    /// Registration sources considered during binding, sorted deterministically.
+    /// Registration sources considered during binding, sorted
+    /// deterministically.
     candidate_sources: Box<[ValueCodecRegistrationSource]>,
 }
 

@@ -25,11 +25,11 @@ use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_reflect::Reflect;
+use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
-use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
 
 #[allow(
     clippy::extra_unused_type_parameters,

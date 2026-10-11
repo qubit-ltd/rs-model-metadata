@@ -8,9 +8,9 @@
 
 //! Integration tests for frozen model registration indexes.
 
+use std::sync::OnceLock;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::sync::OnceLock;
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;

@@ -9,7 +9,6 @@
 //! Verifies that declaration metadata does not expose execution descriptors.
 
 use core::any::type_name;
-
 use std::collections::HashSet;
 
 use qubit_model_metadata::metadata::CodecReference;

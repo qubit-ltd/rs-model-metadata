@@ -27,10 +27,10 @@ use qubit_validator::ViolationCode;
 use qubit_validator::ViolationParam;
 
 use super::ValidationPlan;
-use crate::property::ItemEqAdapter;
 use crate::metadata::OnNone;
 use crate::metadata::PropertyValue;
 use crate::metadata::SelectorPosition;
+use crate::property::ItemEqAdapter;
 use crate::resolve::ModelGraph;
 use crate::validation::ModelValidationError;
 use crate::validation::ValidationOptions;
@@ -45,9 +45,11 @@ use crate::validation::standard_constraints::StandardTarget;
 use crate::validation::validation_options::FieldPath;
 use crate::validation::validation_options::ValidationSelection;
 
-/// Tracks which planned rule occurrences are selected and whether later work remains.
+/// Tracks which planned rule occurrences are selected and whether later work
+/// remains.
 enum SelectionMask {
-    /// Represents an all-fields selection without allocating per-occurrence entries.
+    /// Represents an all-fields selection without allocating per-occurrence
+    /// entries.
     All {
         /// Number of planned occurrences represented by this mask.
         total: usize,
@@ -60,14 +62,16 @@ enum SelectionMask {
 struct SelectionEntry {
     /// Whether the caller selected this occurrence.
     selected: bool,
-    /// Whether a later occurrence is selected, for report stop-policy decisions.
+    /// Whether a later occurrence is selected, for report stop-policy
+    /// decisions.
     later_selected: bool,
     /// Cached field path, consumed when the occurrence is executed.
     field_path: Option<ValidationPath>,
 }
 
 impl SelectionMask {
-    /// Builds occurrence state from the caller's selection and compiled bindings.
+    /// Builds occurrence state from the caller's selection and compiled
+    /// bindings.
     fn new(selection: &ValidationSelection, model_rule_count: usize, bindings: &[FieldRuleBinding]) -> Self {
         let total = model_rule_count + bindings.len();
         if matches!(selection, ValidationSelection::All) {

@@ -579,7 +579,7 @@ fn test_traversal_budgets_are_enforced_before_execution() {
     let nodes = ValidationOptions::builder()
         .max_nodes(NonZeroUsize::new(1).expect("non-zero"))
         .build();
-assert!(plan.validate(value, &nodes).is_err());
+    assert!(plan.validate(value, &nodes).is_err());
 }
 
 #[Model]
@@ -643,9 +643,7 @@ struct MapUnsupportedFixture {
 
 type MapAlias = HashMap<String, i32>;
 
-fn map_plan(
-    root: &'static TypeMetadata,
-) -> Result<ValidationPlan<'static>, ValidationBuildErrors> {
+fn map_plan(root: &'static TypeMetadata) -> Result<ValidationPlan<'static>, ValidationBuildErrors> {
     let roots = Box::leak(Box::new([root]));
     let graph = StructureResolver::new(ResolveInputs {
         roots,

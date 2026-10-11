@@ -156,8 +156,8 @@ mod tests {
 
     use qubit_validator::ExecutionErrorKind;
 
-    use crate::validation::ValidationOptions;
     use super::ExecutionBudget;
+    use crate::validation::ValidationOptions;
 
     /// Reaching the largest representable node count must not wrap on the next
     /// operation.

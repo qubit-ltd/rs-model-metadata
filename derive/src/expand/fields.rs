@@ -251,7 +251,9 @@ fn expand_field(
     });
     let unique = unique_ir.map(|unique| {
         let paths = unique.respect_to.iter().map(|path| expand_field_path(path, runtime));
-        let ignore_case = unique.ignore_case.map_or_else(|| quote!(None), |value| quote!(Some(#value)));
+        let ignore_case = unique
+            .ignore_case
+            .map_or_else(|| quote!(None), |value| quote!(Some(#value)));
         let constructor = if generic_variant_inherited.is_some() {
             quote!(#runtime::metadata::FieldUniqueMetadata::for_definition(unique_paths, #ignore_case))
         } else {
@@ -261,9 +263,11 @@ fn expand_field(
                 #descriptor_fields[#index].field_type(),
             ))
         };
-        let assertion = (unique.ignore_case.is_some() && generic_variant_inherited.is_none()).then(|| quote! {
-            fn assert_text_unique<T: #runtime::__private::v7::TextConstraintTarget + ?Sized>() {}
-            assert_text_unique::<#field_type>();
+        let assertion = (unique.ignore_case.is_some() && generic_variant_inherited.is_none()).then(|| {
+            quote! {
+                fn assert_text_unique<T: #runtime::__private::v7::TextConstraintTarget + ?Sized>() {}
+                assert_text_unique::<#field_type>();
+            }
         });
         quote! {
             #assertion
@@ -301,10 +305,12 @@ fn expand_field(
     let redact =
         redact_ir.map(|value| expand_redact(value, quote!(#runtime::metadata::RedactPosition::Field), runtime));
     let serde = serde_ir.map_or_else(
-        || quote!(
-            let serde: &'static #runtime::metadata::SerdeFieldMetadata =
-                &#runtime::metadata::SerdeFieldMetadata::DEFAULT;
-        ),
+        || {
+            quote!(
+                let serde: &'static #runtime::metadata::SerdeFieldMetadata =
+                    &#runtime::metadata::SerdeFieldMetadata::DEFAULT;
+            )
+        },
         |value| expand_serde(value, runtime),
     );
     let mut occurrence_tokens = Vec::new();

@@ -40,7 +40,8 @@ pub struct EnumMetadata {
 impl EnumMetadata {
     /// Creates metadata backed by a static slice of enum variants.
     ///
-    /// The slice is retained without copying and must list variants in declaration order.
+    /// The slice is retained without copying and must list variants in
+    /// declaration order.
     #[must_use]
     #[inline]
     pub(crate) const fn new(variants: &'static [EnumVariantMetadata]) -> Self {

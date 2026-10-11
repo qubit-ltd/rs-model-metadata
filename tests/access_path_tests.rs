@@ -326,12 +326,8 @@ fn test_cached_path_concurrent_initial_misses_return_valid_paths() {
 #[test]
 fn test_compile_for_write_accepts_setter_only_leaf() {
     let registry = ModelRegistry::try_global().expect("linked setter-only model registration");
-    let path = PropertyAccessPath::compile_for_write(
-        registry,
-        TypeMetadata::of::<SetterOnly>(),
-        &["value"],
-    )
-    .expect("setter-only leaf compiles for writing");
+    let path = PropertyAccessPath::compile_for_write(registry, TypeMetadata::of::<SetterOnly>(), &["value"])
+        .expect("setter-only leaf compiles for writing");
     assert!(path.check_writable().is_ok());
     let mut root = SetterOnly {};
     SETTER_ONLY_CALLS.store(0, Ordering::Relaxed);
@@ -372,11 +368,7 @@ fn test_read_optional_intermediate_reports_missing_value() {
 fn test_compile_rejects_owned_intermediate_getter() {
     let registry = ModelRegistry::try_global().expect("linked model registrations");
     OWNED_GETTER_CALLS.store(0, Ordering::Relaxed);
-    let result = PropertyAccessPath::compile(
-        registry,
-        TypeMetadata::of::<OwnedParent>(),
-        &["owned_child", "value"],
-    );
+    let result = PropertyAccessPath::compile(registry, TypeMetadata::of::<OwnedParent>(), &["owned_child", "value"]);
 
     assert!(matches!(
         result,
@@ -513,11 +505,7 @@ fn test_compile_and_read_report_structured_path_errors() {
         Err(PropertyAccessPathError::EmptySegment { index: 0 })
     ));
     assert!(matches!(
-        PropertyAccessPath::compile(
-            &registry,
-            TypeMetadata::of::<AccessRoot>(),
-            &["middle", "missing"],
-        ),
+        PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &["middle", "missing"],),
         Err(PropertyAccessPathError::UnknownProperty { index: 1, .. })
     ));
     let path = PropertyAccessPath::compile(

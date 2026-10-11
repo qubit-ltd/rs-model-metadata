@@ -10,10 +10,6 @@
 
 #[cfg(feature = "generic")]
 use qubit_model_derive::Enum;
-use qubit_reflect::Reflect;
-use qubit_reflect::ReflectedRef;
-use qubit_reflect::TypeDescriptor;
-
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
 use qubit_model_metadata::__private::v7;
@@ -30,6 +26,9 @@ use qubit_model_metadata::metadata::SelectorPosition;
 use qubit_model_metadata::metadata::SequenceConstraint;
 use qubit_model_metadata::metadata::SerdeFieldMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_reflect::Reflect;
+use qubit_reflect::ReflectedRef;
+use qubit_reflect::TypeDescriptor;
 
 #[derive(Reflect)]
 #[reflect(crate = qubit_model_metadata)]

@@ -34,10 +34,11 @@ use crate::validate::declaration::validate_declaration;
 
 /// Runs the derive pipeline for one macro invocation.
 ///
-/// Model implementation macros are parsed and expanded through their dedicated path. Other
-/// macros validate the input declaration, resolve the runtime path, normalize parsed options,
-/// validate the resulting intermediate representation, and generate the derive output. When
-/// declaration validation and runtime-path resolution both fail, their diagnostics are combined.
+/// Model implementation macros are parsed and expanded through their dedicated
+/// path. Other macros validate the input declaration, resolve the runtime path,
+/// normalize parsed options, validate the resulting intermediate
+/// representation, and generate the derive output. When declaration validation
+/// and runtime-path resolution both fail, their diagnostics are combined.
 pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let raw_options = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     if kind == MacroKind::ModelImpl {

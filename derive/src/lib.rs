@@ -73,9 +73,8 @@ mod compiler;
 
 mod runtime_path;
 
-use proc_macro::TokenStream;
-
 use ir::MacroKind;
+use proc_macro::TokenStream;
 
 /// Compiles an identity-bearing persistent entity declaration.
 ///
