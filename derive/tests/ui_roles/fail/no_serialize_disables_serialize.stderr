@@ -1,13 +1,13 @@
 error[E0277]: the trait bound `Value: serde::Serialize` is not satisfied
-  --> tests/ui_roles/fail/no_serialize_disables_serialize.rs:13:26
+  --> tests/ui_roles/fail/no_serialize_disables_serialize.rs:22:26
    |
-13 |     requires_serialize::<Value>();
+22 |     requires_serialize::<Value>();
    |                          ^^^^^ unsatisfied trait bound
    |
 help: the trait `Serialize` is not implemented for `Value`
-  --> tests/ui_roles/fail/no_serialize_disables_serialize.rs:4:1
+  --> tests/ui_roles/fail/no_serialize_disables_serialize.rs:13:1
    |
- 4 | struct Value {
+13 | struct Value {
    | ^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Value` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
@@ -22,7 +22,7 @@ help: the trait `Serialize` is not implemented for `Value`
              (T0, T1, T2, T3, T4)
            and $N others
 note: required by a bound in `requires_serialize`
-  --> tests/ui_roles/fail/no_serialize_disables_serialize.rs:8:26
+  --> tests/ui_roles/fail/no_serialize_disables_serialize.rs:17:26
    |
- 8 | fn requires_serialize<T: serde::Serialize>() {}
-   |                          ^^^^^^^^^^^^^^^^ required by this bound in `requires_serialize`
+17 | fn requires_serialize<T: Serialize>() {}
+   |                          ^^^^^^^^^ required by this bound in `requires_serialize`

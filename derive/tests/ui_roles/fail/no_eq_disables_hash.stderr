@@ -1,16 +1,16 @@
 error[E0277]: the trait bound `Value: Hash` is not satisfied
-  --> tests/ui_roles/fail/no_eq_disables_hash.rs:11:21
+  --> tests/ui_roles/fail/no_eq_disables_hash.rs:20:21
    |
-11 |     requires_hash::<Value>();
+20 |     requires_hash::<Value>();
    |                     ^^^^^ the trait `Hash` is not implemented for `Value`
    |
 note: required by a bound in `requires_hash`
-  --> tests/ui_roles/fail/no_eq_disables_hash.rs:8:21
+  --> tests/ui_roles/fail/no_eq_disables_hash.rs:17:21
    |
- 8 | fn requires_hash<T: std::hash::Hash>() {}
-   |                     ^^^^^^^^^^^^^^^ required by this bound in `requires_hash`
+17 | fn requires_hash<T: Hash>() {}
+   |                     ^^^^ required by this bound in `requires_hash`
 help: consider annotating `Value` with `#[derive(Hash)]`
    |
- 4 + #[derive(Hash)]
- 5 | struct Value {
+13 + #[derive(Hash)]
+14 | struct Value {
    |

@@ -1,5 +1,13 @@
 error: no_eq has no effect for this model role
- --> tests/ui_roles/fail/projection_no_eq.rs:4:8
+  --> tests/ui_roles/fail/projection_no_eq.rs:12:8
+   |
+12 | struct InvalidProjection {
+   |        ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `model_runtime::__private::qubit_id::Id`
+ --> tests/ui_roles/fail/projection_no_eq.rs:9:5
   |
-4 | struct InvalidProjection {
-  |        ^^^^^^^^^^^^^^^^^
+9 | use model_runtime::__private::qubit_id::Id;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
