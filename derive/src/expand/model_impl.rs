@@ -341,6 +341,12 @@ fn getter_output_type(output: &GetterReturn, runtime: &TokenStream) -> TokenStre
 fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> {
     let name = method.sig.ident.to_string();
     if let Some(property) = name.strip_prefix("set_") {
+        let Some(FnArg::Receiver(receiver)) = method.sig.inputs.first() else {
+            return Ok(None);
+        };
+        if receiver.reference.is_none() || receiver.mutability.is_none() {
+            return Ok(None);
+        }
         if !matches!(method.vis, Visibility::Public(_)) {
             return Err(Error::new_spanned(&method.sig.ident, "property setters must be public"));
         }
@@ -362,13 +368,7 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
                 "setter property name cannot be empty",
             ));
         }
-        let mut inputs = method.sig.inputs.iter();
-        let Some(FnArg::Receiver(receiver)) = inputs.next() else {
-            return Err(Error::new_spanned(&method.sig, "setter requires `&mut self`"));
-        };
-        if receiver.reference.is_none() || receiver.mutability.is_none() {
-            return Err(Error::new_spanned(receiver, "setter requires `&mut self`"));
-        }
+        let mut inputs = method.sig.inputs.iter().skip(1);
         let Some(FnArg::Typed(value)) = inputs.next() else {
             return Err(Error::new_spanned(
                 &method.sig,
