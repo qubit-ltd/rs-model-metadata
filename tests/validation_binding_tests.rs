@@ -440,12 +440,12 @@ fn test_model_binding_validates_required_dependency_declarations_and_types() {
         build_dependency_fixture(TypeMetadata::of::<MissingDependencyDeclaration>())
             .iter()
             .any(|error| error.kind()
-                == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingDependencyDeclaration)
+                == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingDependencyDeclaration))
     );
     assert!(
         build_dependency_fixture(TypeMetadata::of::<WrongDependencyType>())
             .iter()
             .any(|error| error.kind()
-                == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::DependencyTypeMismatch)
+                == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::DependencyTypeMismatch))
     );
 }

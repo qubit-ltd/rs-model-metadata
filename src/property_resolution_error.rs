@@ -22,16 +22,19 @@ use crate::metadata::PropertyBuildErrors;
 ///
 /// ```
 /// use std::any::TypeId;
-
+///
 /// use qubit_model_metadata::metadata::PropertyResolutionError;
 /// use qubit_reflect::capability::CapabilityAccessError;
 /// use qubit_reflect::identity::CapabilityId;
 ///
-/// let error = PropertyResolutionError::Capability(CapabilityAccessError::FactOnly {
+/// let error =
+/// PropertyResolutionError::Capability(CapabilityAccessError::FactOnly {
 ///     id: CapabilityId::new("example.fact").expect("valid capability ID"),
 ///     adapter_type: TypeId::of::<u32>(),
 /// });
-/// assert!(error.to_string().contains("property capability resolution failed"));
+/// assert!(error
+///     .to_string()
+///     .contains("property capability resolution failed"));
 /// ```
 #[must_use]
 #[derive(Clone, Debug, Error)]

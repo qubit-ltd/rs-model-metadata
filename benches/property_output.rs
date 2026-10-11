@@ -55,26 +55,26 @@ fn property_output(criterion: &mut Criterion) {
     let mut scalar = criterion.benchmark_group("property_scalar");
     scalar.bench_function("borrowed", |bencher| {
         bencher.iter(|| {
-            black_box(PropertyValue::Borrowed(ReflectedRef::new(black_box(&value))).into_invocation_output());
+            let _ = black_box(PropertyValue::Borrowed(ReflectedRef::new(black_box(&value))).into_invocation_output());
         })
     });
     scalar.bench_function("optional_some", |bencher| {
         bencher.iter(|| {
-            black_box(
+            let _ = black_box(
                 PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(black_box(&value)))).into_invocation_output(),
             );
         })
     });
     scalar.bench_function("optional_none", |bencher| {
         bencher.iter(|| {
-            black_box(PropertyValue::OptionalBorrowed(None).into_invocation_output());
+            let _ = black_box(PropertyValue::OptionalBorrowed(None).into_invocation_output());
         })
     });
     scalar.bench_function("owned", |bencher| {
         bencher.iter_batched(
             || PropertyValue::Owned(ReflectedOwned::new(black_box(value))),
             |input| {
-                black_box(input.into_invocation_output());
+                let _ = black_box(input.into_invocation_output());
             },
             BatchSize::SmallInput,
         )
@@ -97,7 +97,7 @@ fn property_output(criterion: &mut Criterion) {
         slices.bench_with_input(BenchmarkId::new("convert", length), &values, |bencher, values| {
             bencher.iter(|| {
                 let input = PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(black_box(values.as_slice())));
-                black_box(input.into_invocation_output());
+                let _ = black_box(input.into_invocation_output());
             });
         });
         slices.bench_with_input(
@@ -107,7 +107,7 @@ fn property_output(criterion: &mut Criterion) {
                 bencher.iter_batched(
                     || PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(black_box(values.as_slice()))),
                     |input| {
-                        black_box(input.into_invocation_output());
+                        let _ = black_box(input.into_invocation_output());
                     },
                     BatchSize::SmallInput,
                 );

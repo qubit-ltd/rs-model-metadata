@@ -92,7 +92,7 @@ impl<'a> PropertyValue<'a> {
     ///
     /// The reflection invocation output containing the original borrowed or
     /// owned value representation.
-    #[must_use]
+    #[must_use = "handle the reflected invocation output"]
     pub fn into_invocation_output(self) -> InvocationOutput<'a, Local> {
         let receiver_origin = || Box::new([BorrowOrigin::Receiver]);
         match self {
