@@ -770,10 +770,10 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// The key includes the exact root metadata address and all segments.
     /// Failed compilations are retried on later calls. Each registry retains
-    /// at most 256 successful paths and evicts the oldest inserted entry when
-    /// full, so pointer identity is shared only while an entry remains cached.
-    /// A miss compiles outside the cache lock, so concurrent misses may compile
-    /// more than once.
+    /// at most 256 successful paths and evicts the least recently used entry
+    /// when full, so pointer identity is shared only while an entry remains
+    /// cached. A miss compiles outside the cache lock, so concurrent misses
+    /// may compile more than once.
     ///
     /// # Errors
     ///
