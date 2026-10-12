@@ -47,11 +47,11 @@ error[E0277]: the trait bound `u64: TextConstraintTarget` is not satisfied
    |            ^^^ the trait `TextConstraintTarget` is not implemented for `u64`
    |
    = help: the following other types implement trait `TextConstraintTarget`:
-             Arc<T>
-             Box<T>
-             Rc<T>
+             std::boxed::Box<T>
              std::option::Option<T>
+             std::rc::Rc<T>
              std::string::String
+             std::sync::Arc<T>
              str
 note: required by a bound in `assert_text_unique`
   --> tests/ui_roles/fail/semantic_boundaries.rs:51:1
