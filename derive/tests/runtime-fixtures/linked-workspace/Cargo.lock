@@ -188,6 +188,7 @@ version = "0.0.0"
 dependencies = [
  "qubit-model-derive",
  "qubit-model-metadata",
+ "qubit-reflect",
  "serde",
 ]
 
@@ -198,6 +199,7 @@ dependencies = [
  "qubit-codec",
  "qubit-model-derive",
  "qubit-model-metadata",
+ "qubit-reflect",
  "qubit-validator",
  "serde",
 ]
