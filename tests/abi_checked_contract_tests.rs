@@ -31,20 +31,17 @@ use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeDescriptor;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct OneField {
     value: String,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct TwoFields {
     first: String,
     second: String,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct WrongTarget;
 
 impl ModelTypeSeal for WrongTarget {}
@@ -60,7 +57,6 @@ impl TypeMetadataProvider for WrongTarget {
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 enum OneVariant {
     Ready,
 }

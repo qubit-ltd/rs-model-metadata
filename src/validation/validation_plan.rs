@@ -170,7 +170,6 @@ mod tests {
     use crate::validation::ValidationPlan;
 
     #[derive(Reflect)]
-    #[reflect(crate = crate)]
     struct Profile;
 
     /// A plan retains the resolved graph after the caller releases its handle.

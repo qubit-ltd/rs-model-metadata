@@ -28,7 +28,6 @@ use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeDescriptor;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct PropertyFixture {
     name: String,
     count: u32,

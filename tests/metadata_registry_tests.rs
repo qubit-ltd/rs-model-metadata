@@ -52,11 +52,9 @@ impl StaticPropertyFixture {
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct RegistryFixture;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct StaticRegistryAbiFixture {
     value: String,
 }
@@ -67,21 +65,18 @@ struct StaticRegistryAbiValidFixture {
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 #[cfg(feature = "generic")]
 struct StaticRegistryAbiWithGenericsFixture {
     value: String,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 #[cfg(feature = "generic")]
 struct GenericFixture<T> {
     value: T,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 #[cfg(feature = "generic")]
 struct OtherGenericFixture<T> {
     value: T,
@@ -94,7 +89,6 @@ struct AnonymousGenericFixture<T> {
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct ProjectedFixture;
 
 impl ModelTypeSeal for ProjectedFixture {}
@@ -120,7 +114,6 @@ register_model_capability!(ProjectedFixture, ProjectedFixture::__type_metadata);
 static COUNTED_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct CountedProviderFixture;
 
 impl ModelTypeSeal for CountedProviderFixture {}
@@ -144,7 +137,6 @@ impl TypeMetadataProvider for CountedProviderFixture {
 static NAMED_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct CountedNamedProviderFixture;
 
 impl ModelTypeSeal for CountedNamedProviderFixture {}
@@ -166,7 +158,6 @@ impl TypeMetadataProvider for CountedNamedProviderFixture {
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct SnapshotIsolatedFixture;
 
 impl ModelTypeSeal for SnapshotIsolatedFixture {}

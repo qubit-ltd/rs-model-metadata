@@ -38,7 +38,7 @@ use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
 
 #[derive(Reflect)]
-#[reflect(crate = crate, capabilities(broken_overlay))]
+#[reflect(capabilities(broken_overlay))]
 struct Broken<const N: usize>;
 
 /// Constructs an invalid local assembly through the private constructor.

@@ -56,7 +56,7 @@ fn second<T: 'static>() -> CapabilityDescriptor {
     CapabilityDescriptor::with_adapter(conflict_key(), 2)
 }
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata, capabilities(first, second))]
+#[reflect(capabilities(first, second))]
 struct Invalid<const N: usize>;
 
 #[test]
@@ -76,7 +76,6 @@ fn test_metadata_and_properties_preserve_intrinsic_conflicts() {
 
 /// A value root with two independently invalid nested types.
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct Root {
     first: Invalid<2>,
     second: Invalid<3>,
@@ -114,7 +113,7 @@ fn wrong_provider<T: 'static>() -> CapabilityDescriptor {
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata, capabilities(wrong_provider))]
+#[reflect(capabilities(wrong_provider))]
 struct Wrong<const N: usize>;
 
 static ALTERNATE_WRONG_DESCRIPTOR: TypeDescriptor = qubit_reflect::__private::codegen_v3::descriptor::struct_type::<
@@ -124,7 +123,7 @@ static ALTERNATE_WRONG_DESCRIPTOR: TypeDescriptor = qubit_reflect::__private::co
 static PANIC_ONCE_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata, capabilities(panic_once_capability))]
+#[reflect(capabilities(panic_once_capability))]
 struct PanicOnce<const N: usize>;
 
 #[allow(

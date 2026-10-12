@@ -44,11 +44,9 @@ use qubit_reflect::registry::ReflectRegistry;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_reflect)]
 struct DiagnosticsTarget;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_reflect)]
 struct GlobalConflict;
 
 #[cfg(feature = "generic")]

@@ -25,7 +25,6 @@ use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct Invalid {
     value: String,
 }

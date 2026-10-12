@@ -91,7 +91,7 @@ fn expand_inner(
         }
     }
     let retained = if retain {
-        quote!(#[#runtime::__private::reflect_impl(crate = #runtime, #arguments)] #item)
+        quote!(#[#runtime::__private::reflect_impl(#arguments)] #item)
     } else {
         TokenStream::new()
     };

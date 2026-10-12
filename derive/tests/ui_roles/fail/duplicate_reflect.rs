@@ -12,7 +12,6 @@ use qubit_reflect::Reflect;
 
 #[Model]
 #[derive(Reflect)]
-#[reflect(crate = model_runtime)]
 struct DuplicateReflect;
 
 fn main() {}

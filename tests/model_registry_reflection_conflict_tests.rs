@@ -27,7 +27,6 @@ use qubit_reflect::register_reflected_type;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct DuplicateReflectionSource;
 
 register_reflected_type!(DuplicateReflectionSource);

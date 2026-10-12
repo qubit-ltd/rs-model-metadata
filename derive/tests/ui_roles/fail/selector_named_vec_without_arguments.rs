@@ -23,7 +23,6 @@ use serde::Serialize;
     Deserialize,
     Serialize,
 )]
-#[reflect(crate = qubit_reflect)]
 struct Vec;
 
 #[Model]

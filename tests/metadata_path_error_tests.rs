@@ -44,11 +44,10 @@ fn second_conflict<T: 'static>() -> CapabilityDescriptor {
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata, capabilities(conflict, second_conflict))]
+#[reflect(capabilities(conflict, second_conflict))]
 struct Invalid<const N: usize>;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct Root {
     invalid: Invalid<1>,
     target: u64,

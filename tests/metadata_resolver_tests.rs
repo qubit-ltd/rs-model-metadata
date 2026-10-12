@@ -36,32 +36,27 @@ fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct TargetFixture {
     id: u64,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct SourceFixture {
     target_id: u64,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct NestedQueryFixture {
     b: u64,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct RootQueryFixture {
     id: u64,
     nested: NestedQueryFixture,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct ConflictingQueryFixture {
     id: u64,
     a_b: u64,
@@ -69,13 +64,11 @@ struct ConflictingQueryFixture {
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct PlainModelFixture {
     value: u64,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct InvalidValueFixture {
     model: PlainModelFixture,
 }

@@ -24,13 +24,11 @@ use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct EntityFixture {
     id: u64,
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 enum EnumFixture {
     Ready,
 }

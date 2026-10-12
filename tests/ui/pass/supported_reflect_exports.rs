@@ -18,7 +18,6 @@ use qubit_reflect::TypeDescriptor;
 use qubit_reflect::VariantDefinitionDescriptor;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct Generic<T> {
     value: T,
 }

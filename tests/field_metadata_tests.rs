@@ -26,7 +26,6 @@ use qubit_reflect::expression::TypeExpression;
 use qubit_reflect::identity::Visibility;
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct Fields {
     value: String,
     #[reflect(opaque)]
@@ -34,7 +33,6 @@ struct Fields {
 }
 
 #[derive(Reflect)]
-#[reflect(crate = qubit_model_metadata)]
 struct SymbolicOwner;
 
 static SYMBOLIC_FIELD: LazyLock<FieldDescriptor> = LazyLock::new(|| {

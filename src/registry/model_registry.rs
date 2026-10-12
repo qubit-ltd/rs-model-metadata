@@ -943,7 +943,6 @@ mod tests {
     use crate::registry::ModelRegistryErrorKind;
 
     #[derive(Reflect)]
-    #[reflect(crate = crate)]
     struct AnonymousMetadataFixture;
 
     /// Creates distinct ABI-valid anonymous metadata values for one descriptor.
