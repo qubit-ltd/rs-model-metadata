@@ -344,7 +344,6 @@ use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationMode;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
 use qubit_validator::ExecutionErrorKind;
 use qubit_validator::ValidatorRegistry;
 
@@ -383,7 +382,7 @@ fn main() {
         label: String::new(),
         contact: Some(Contact { name: String::new() }),
     };
-    let report = plan.validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+    let report = plan.validate(&invalid, &ValidationOptions::default())
         .expect("validation executed");
     assert!(!report.is_valid());
     assert_eq!(report.violations().len(), 2);
@@ -391,18 +390,18 @@ fn main() {
     assert_eq!(report.violations()[1].path().render(), "contact.name");
 
     let absent = Profile { label: "personal".to_owned(), contact: None };
-    assert!(plan.validate(ReflectedRef::new(&absent), &ValidationOptions::default())
+    assert!(plan.validate(&absent, &ValidationOptions::default())
         .expect("absent optional child is skipped").is_valid());
 
     let fail_fast = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
-    let report = plan.validate(ReflectedRef::new(&invalid), &fail_fast)
+    let report = plan.validate(&invalid, &fail_fast)
         .expect("policy stop is a successful, truncated execution");
     assert_eq!(report.violations().len(), 1);
     assert!(report.is_truncated());
 
     let limited = ValidationOptions::builder()
         .max_nodes(NonZeroUsize::new(3).expect("positive budget")).build();
-    let error = plan.validate(ReflectedRef::new(&invalid), &limited)
+    let error = plan.validate(&invalid, &limited)
         .expect_err("root, label read, and rule invocation consume all three nodes");
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert_eq!(error.partial_report().violations().len(), 1);
@@ -558,7 +557,8 @@ use qubit_validator::ValidatorRegistry;
 #[Model(eq, hash)]
 struct Child { #[text(non_blank)] name: String }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct Raw { child: Child }
 
 #[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
@@ -567,7 +567,8 @@ struct Root { raw: Raw }
 #[Model(eq, hash)]
 struct EmptyChild { name: String }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct EmptyRaw { child: EmptyChild }
 
 #[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
