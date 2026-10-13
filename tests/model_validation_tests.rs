@@ -42,13 +42,13 @@ use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_validation_rules::collection::UniqueItems;
 use qubit_validation_rules::ids;
+use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
 use qubit_validator::InputType;
-use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
@@ -145,7 +145,7 @@ impl PreparedValidator for Reject {
     }
 }
 
-fn prepare(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(Reject))
 }
 
