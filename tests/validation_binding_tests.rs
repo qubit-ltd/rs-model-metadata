@@ -33,7 +33,6 @@ use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
-use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
@@ -75,7 +74,7 @@ impl PreparedValidator for AcceptText {
     }
 }
 
-fn prepare_text(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_text(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(AcceptText))
 }
 
@@ -159,7 +158,7 @@ impl PreparedValidator for CheckParent {
 }
 
 /// Prepares an isolated validator consuming one text dependency.
-fn prepare_parent(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_parent(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(CheckParent))
 }
 
@@ -265,7 +264,7 @@ impl PreparedValidator for CheckNamedDependencies {
     }
 }
 
-fn prepare_same_type(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_same_type(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(CheckNamedDependencies))
 }
 
@@ -346,10 +345,8 @@ impl PreparedValidator for RecordOrder {
     }
 }
 
-fn prepare_order(arguments: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
-    let mut reader = ArgumentReader::new(arguments)?;
+fn prepare_order(reader: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     let order = reader.required_u32("order")?;
-    reader.finish()?;
     Ok(Arc::new(RecordOrder(order)))
 }
 

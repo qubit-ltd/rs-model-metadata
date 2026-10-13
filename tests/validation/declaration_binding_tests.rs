@@ -30,12 +30,12 @@ use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::ReflectedRef;
+use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
-use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
@@ -194,7 +194,7 @@ impl PreparedValidator for Reject {
         ))]))
     }
 }
-fn prepare_reject(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_reject(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(Reject))
 }
 static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_reject)];
@@ -209,12 +209,12 @@ static OPTIONAL_REQUIRED_DEPS: &[qubit_validator::DependencySpec] =
     &[qubit_validator::DependencySpec::new("expected", InputType::Text, false)];
 static OPTIONAL_ALLOWED_DEPS: &[qubit_validator::DependencySpec] =
     &[qubit_validator::DependencySpec::new("expected", InputType::Text, true)];
-fn prepare_optional_required(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_optional_required(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(prepare_text_with_context(OPTIONAL_REQUIRED_DEPS, |_, _| {
         Ok(PreparedOutcome::Valid)
     }))
 }
-fn prepare_optional_allowed(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_optional_allowed(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(prepare_text_with_context(OPTIONAL_ALLOWED_DEPS, |_, context| {
         let _ = context.value(0)?;
         Ok(PreparedOutcome::Valid)

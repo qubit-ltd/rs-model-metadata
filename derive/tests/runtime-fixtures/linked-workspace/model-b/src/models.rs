@@ -23,12 +23,12 @@ use qubit_model_derive::Entity;
 #[cfg(feature = "duplicate-fixture")]
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::qubit_id::Id;
+use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
-use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
@@ -92,7 +92,7 @@ impl PreparedValidator for TextRule {
     }
 }
 
-fn prepare_text(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_text(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(TextRule))
 }
 
