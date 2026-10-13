@@ -18,13 +18,12 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
+use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
-use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
@@ -82,7 +81,7 @@ impl PreparedValidator for AllowToken {
 }
 
 /// Checks the consumer-visible parameter contract before compiling the rule.
-fn prepare(arguments: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare(reader: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     let expected = [
         ("enabled", ValidationArgument::Bool(true)),
         ("lower", ValidationArgument::Integer(i128::MIN)),
@@ -93,15 +92,22 @@ fn prepare(arguments: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn Prepared
         ("unsigned", ValidationArgument::UnsignedList(&[0, u128::MAX])),
         ("labels", ValidationArgument::StringList(&["first", "second"])),
     ];
-    let received: Vec<_> = arguments
-        .iter()
-        .map(|argument| (argument.name(), argument.value()))
-        .collect();
+    let received = [
+        ("enabled", reader.required_argument("enabled")?),
+        ("lower", reader.required_argument("lower")?),
+        ("upper", reader.required_argument("upper")?),
+        ("accepted", reader.required_argument("accepted")?),
+        ("switches", reader.required_argument("switches")?),
+        ("signed", reader.required_argument("signed")?),
+        ("unsigned", reader.required_argument("unsigned")?),
+        ("labels", reader.required_argument("labels")?),
+    ];
+    reader.finish()?;
     assert_eq!(
         received, expected,
         "all names, types, bounds, and list order must survive binding"
     );
-    let ValidationArgument::String(accepted) = arguments[3].value() else {
+    let ValidationArgument::String(accepted) = received[3].1 else {
         unreachable!("the complete public argument contract was checked above");
     };
     Ok(Arc::new(AllowToken(accepted.to_owned())))
@@ -144,7 +150,7 @@ fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
             token: token.to_owned(),
         };
         let report = plan
-            .validate(ReflectedRef::new(&value), &ValidationOptions::default())
+            .validate(&value, &ValidationOptions::default())
             .expect("configured rule executes");
         assert_eq!(report.violations().len(), expected_failures);
         assert!(!report.is_truncated());

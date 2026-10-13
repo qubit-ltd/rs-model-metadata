@@ -15,17 +15,26 @@ use std::fmt;
 use qubit_reflect::FieldAccessError;
 use qubit_reflect::FieldSetRecovery;
 use qubit_reflect::InvocationOutput;
-use qubit_reflect::ReflectedMut;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::TypeMismatch;
 use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::invoke::BorrowOrigin;
+use qubit_reflect::value::DynamicMut;
+use qubit_reflect::value::DynamicOwned;
+use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use thiserror::Error;
 
 use crate::metadata::FieldMetadata;
+
+/// Local erased shared borrow owned by the metadata layer.
+pub type PropertyBorrowed<'a> = DynamicRef<'a, Local>;
+
+/// Local erased mutable borrow owned by the metadata layer.
+pub type PropertyMutable<'a> = DynamicMut<'a, Local>;
+
+/// Local erased owned value owned by the metadata layer.
+pub type PropertyOwned = DynamicOwned<Local>;
 
 /// Classifies how a property stores or computes its value.
 ///
@@ -53,22 +62,23 @@ pub enum PropertyStorageKind {
 /// # Examples
 ///
 /// ```
+/// use qubit_model_metadata::metadata::PropertyOwned;
 /// use qubit_model_metadata::metadata::PropertyValue;
-/// use qubit_reflect::ReflectedOwned;
 ///
-/// let value = PropertyValue::Owned(ReflectedOwned::new(42_u32));
+///
+/// let value = PropertyValue::Owned(PropertyOwned::new(42_u32));
 /// assert!(matches!(value, PropertyValue::Owned(_)));
 /// ```
 #[must_use]
 pub enum PropertyValue<'a> {
     /// A dynamically typed borrow tied to the target.
-    Borrowed(ReflectedRef<'a>),
+    Borrowed(PropertyBorrowed<'a>),
     /// An optional dynamically typed borrow.
-    OptionalBorrowed(Option<ReflectedRef<'a>>),
+    OptionalBorrowed(Option<PropertyBorrowed<'a>>),
     /// A lifetime-preserving borrowed slice.
     BorrowedSlice(BorrowedPropertySlice<'a>),
     /// An owned dynamically typed value.
-    Owned(ReflectedOwned),
+    Owned(PropertyOwned),
 }
 
 impl<'a> PropertyValue<'a> {
@@ -127,7 +137,7 @@ trait PropertySlice<'a> {
     /// Returns the number of values in the borrowed slice.
     fn len(&self) -> usize;
     /// Returns the value at `index`, or `None` when it is out of bounds.
-    fn get(&self, index: usize) -> Option<ReflectedRef<'a>>;
+    fn get(&self, index: usize) -> Option<PropertyBorrowed<'a>>;
 }
 
 /// Implements [`PropertySlice`] for a slice with one concrete element type.
@@ -143,8 +153,8 @@ impl<'a, T: 'static> PropertySlice<'a> for TypedPropertySlice<'a, T> {
     }
 
     #[inline]
-    fn get(&self, index: usize) -> Option<ReflectedRef<'a>> {
-        self.values.get(index).map(ReflectedRef::new)
+    fn get(&self, index: usize) -> Option<PropertyBorrowed<'a>> {
+        self.values.get(index).map(PropertyBorrowed::new)
     }
 }
 
@@ -154,7 +164,7 @@ impl<'a, T: 'static> PropertySlice<'a> for TypedPropertySlice<'a, T> {
 ///
 /// ```
 /// use qubit_model_metadata::metadata::BorrowedPropertySlice;
-/// use qubit_reflect::ReflectedRef;
+///
 ///
 /// let values = [3_u32, 5];
 /// let slice = BorrowedPropertySlice::new(&values);
@@ -218,7 +228,7 @@ impl<'a> BorrowedPropertySlice<'a> {
     /// otherwise.
     #[must_use]
     #[inline]
-    pub fn get(&self, index: usize) -> Option<ReflectedRef<'a>> {
+    pub fn get(&self, index: usize) -> Option<PropertyBorrowed<'a>> {
         self.value.get(index)
     }
 }
@@ -255,18 +265,20 @@ pub enum GetterOutputKind {
 /// ```
 /// use qubit_model_metadata::metadata::GetterAdapter;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
+/// use qubit_model_metadata::metadata::PropertyBorrowed;
+/// use qubit_model_metadata::metadata::PropertyOwned;
 /// use qubit_model_metadata::metadata::PropertyValue;
-/// use qubit_reflect::ReflectedRef;
-/// use qubit_reflect::ReflectedOwned;
 ///
-/// fn get_count<'a>(_: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
-///     Ok(PropertyValue::Owned(ReflectedOwned::new(3_u32)))
+///
+///
+/// fn get_count<'a>(_: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
+///     Ok(PropertyValue::Owned(PropertyOwned::new(3_u32)))
 /// }
 ///
 /// let adapter: GetterAdapter = get_count;
-/// assert!(adapter(ReflectedRef::new(&())).is_ok());
+/// assert!(adapter(PropertyBorrowed::new(&())).is_ok());
 /// ```
-pub type GetterAdapter = for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
+pub type GetterAdapter = for<'a> fn(PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
 
 /// Reads a map length from an exact borrowed property value; `None` means an
 /// optional map field is absent.
@@ -278,13 +290,14 @@ pub type GetterAdapter = for<'a> fn(ReflectedRef<'a>) -> Result<PropertyValue<'a
 ///
 /// ```
 /// use qubit_model_metadata::metadata::PropertyAccessError;
+/// use qubit_model_metadata::metadata::PropertyOwned;
 /// use qubit_model_metadata::metadata::PropertyValue;
 ///
 /// fn map_len(_: &PropertyValue<'_>) -> Result<Option<usize>, PropertyAccessError> {
 ///     Ok(Some(2))
 /// }
 ///
-/// let value = PropertyValue::Owned(qubit_reflect::ReflectedOwned::new(()));
+/// let value = PropertyValue::Owned(PropertyOwned::new(()));
 /// assert_eq!(map_len(&value).expect("map length"), Some(2));
 /// ```
 pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>, PropertyAccessError>;
@@ -297,15 +310,16 @@ pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>,
 ///
 /// ```
 /// use qubit_model_metadata::metadata::PropertyAccessError;
-/// use qubit_reflect::ReflectedRef;
+/// use qubit_model_metadata::metadata::PropertyBorrowed;
 ///
-/// fn equal(_: ReflectedRef<'_>, _: ReflectedRef<'_>) -> Result<bool, PropertyAccessError> {
+///
+/// fn equal(_: PropertyBorrowed<'_>, _: PropertyBorrowed<'_>) -> Result<bool, PropertyAccessError> {
 ///     Ok(true)
 /// }
 ///
-/// assert!(equal(ReflectedRef::new(&1_u32), ReflectedRef::new(&1_u32)).expect("comparison"));
+/// assert!(equal(PropertyBorrowed::new(&1_u32), PropertyBorrowed::new(&1_u32)).expect("comparison"));
 /// ```
-pub type ItemEqAdapter = for<'a> fn(ReflectedRef<'a>, ReflectedRef<'a>) -> Result<bool, PropertyAccessError>;
+pub type ItemEqAdapter = for<'a> fn(PropertyBorrowed<'a>, PropertyBorrowed<'a>) -> Result<bool, PropertyAccessError>;
 
 /// Safe, read-only operations available for a declared collection field.
 ///
@@ -374,18 +388,20 @@ impl CollectionOps {
 ///
 /// ```
 /// use qubit_model_metadata::metadata::PropertySetFailure;
+/// use qubit_model_metadata::metadata::PropertyMutable;
+/// use qubit_model_metadata::metadata::PropertyOwned;
 /// use qubit_model_metadata::metadata::SetterAdapter;
-/// use qubit_reflect::ReflectedMut;
-/// use qubit_reflect::ReflectedOwned;
 ///
-/// fn set_value(_: ReflectedMut<'_>, _: ReflectedOwned) -> Result<(), PropertySetFailure> {
+///
+///
+/// fn set_value(_: PropertyMutable<'_>, _: PropertyOwned) -> Result<(), PropertySetFailure> {
 ///     Ok(())
 /// }
 ///
 /// let adapter: SetterAdapter = set_value;
-/// assert!(adapter(ReflectedMut::new(&mut 1_u32), ReflectedOwned::new(2_u32)).is_ok());
+/// assert!(adapter(PropertyMutable::new(&mut 1_u32), PropertyOwned::new(2_u32)).is_ok());
 /// ```
-pub type SetterAdapter = fn(ReflectedMut<'_>, ReflectedOwned) -> Result<(), PropertySetFailure>;
+pub type SetterAdapter = fn(PropertyMutable<'_>, PropertyOwned) -> Result<(), PropertySetFailure>;
 
 /// A property operation failed before or during adapter execution.
 ///
@@ -453,7 +469,7 @@ impl PropertyAccessError {
     ///
     /// A type-mismatch error containing expected and actual type identities.
     #[doc(hidden)]
-    pub fn value_type_mismatch<T: 'static>(actual: &ReflectedRef<'_>) -> Self {
+    pub fn value_type_mismatch<T: 'static>(actual: &PropertyBorrowed<'_>) -> Self {
         Self::ValueTypeMismatch(TypeMismatch::new(TypeId::of::<T>(), actual.value_type_id()))
     }
 }
@@ -465,11 +481,12 @@ impl PropertyAccessError {
 /// ```
 /// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_model_metadata::metadata::PropertySetFailure;
-/// use qubit_reflect::ReflectedOwned;
+/// use qubit_model_metadata::metadata::PropertyOwned;
+///
 ///
 /// let failure = PropertySetFailure::before_execution(
 ///     PropertyAccessError::NotWritable,
-///     ReflectedOwned::new(7_u32),
+///     PropertyOwned::new(7_u32),
 /// );
 /// assert!(failure.replacement().is_some());
 /// ```
@@ -478,7 +495,7 @@ pub struct PropertySetFailure {
     /// The structured reason why the property write failed.
     error: Box<PropertyAccessError>,
     /// The untouched replacement retained for a pre-execution failure.
-    replacement: Option<Box<ReflectedOwned>>,
+    replacement: Option<Box<PropertyOwned>>,
 }
 
 impl PropertySetFailure {
@@ -494,7 +511,7 @@ impl PropertySetFailure {
     /// A failure that preserves ownership of `replacement`.
     #[doc(hidden)]
     #[must_use = "handle the property set failure"]
-    pub fn before_execution(error: PropertyAccessError, replacement: ReflectedOwned) -> Self {
+    pub fn before_execution(error: PropertyAccessError, replacement: PropertyOwned) -> Self {
         Self {
             error: Box::new(error),
             replacement: Some(Box::new(replacement)),
@@ -539,7 +556,7 @@ impl PropertySetFailure {
     /// `None` after ownership crossed the execution boundary.
     #[must_use]
     #[inline]
-    pub fn replacement(&self) -> Option<&ReflectedOwned> {
+    pub fn replacement(&self) -> Option<&PropertyOwned> {
         self.replacement.as_deref()
     }
 
@@ -550,7 +567,7 @@ impl PropertySetFailure {
     /// The underlying access error and, when available, the untouched
     /// replacement.
     #[must_use = "handle the property error and recovered replacement"]
-    pub fn into_parts(self) -> (PropertyAccessError, Option<ReflectedOwned>) {
+    pub fn into_parts(self) -> (PropertyAccessError, Option<PropertyOwned>) {
         (*self.error, self.replacement.map(|replacement| *replacement))
     }
 }
@@ -581,23 +598,25 @@ impl Error for PropertySetFailure {}
 /// use qubit_model_metadata::metadata::GetterMetadata;
 /// use qubit_model_metadata::metadata::GetterOutputKind;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
+/// use qubit_model_metadata::metadata::PropertyBorrowed;
 /// use qubit_model_metadata::metadata::PropertyValue;
 /// use qubit_reflect::Reflect;
-/// use qubit_reflect::ReflectedRef;
+///
 /// use qubit_reflect::TypeDescriptor;
 ///
 /// # mod example {
 /// use qubit_model_metadata::metadata::PropertyAccessError;
+/// use qubit_model_metadata::metadata::PropertyBorrowed;
 /// use qubit_model_metadata::metadata::PropertyValue;
 /// use qubit_reflect::Reflect;
-/// use qubit_reflect::ReflectedRef;
 ///
-/// #[derive(Reflect)]
+///
+/// #[Reflect]
 /// pub struct Item { pub value: u32 }
 ///
-/// pub fn get_value<'a>(target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
+/// pub fn get_value<'a>(target: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
 ///     let item = target.downcast::<Item>().ok().expect("validated Item target");
-///     Ok(PropertyValue::Borrowed(ReflectedRef::new(&item.value)))
+///     Ok(PropertyValue::Borrowed(PropertyBorrowed::new(&item.value)))
 /// }
 /// # }
 ///
@@ -712,7 +731,17 @@ impl GetterMetadata {
     /// Returns [`PropertyAccessError::TargetTypeMismatch`] when `target` has
     /// a different concrete type, or propagates the generated adapter error.
     #[must_use = "handle property access failure"]
-    pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a, T: 'static>(&self, target: &'a T) -> Result<PropertyValue<'a>, PropertyAccessError> {
+        self.get_dynamic(PropertyBorrowed::new(target))
+    }
+
+    /// Executes this getter using a dynamically borrowed target.
+    ///
+    /// Returns [`PropertyAccessError::TargetTypeMismatch`] when the target's
+    /// concrete type differs from the getter's declared type, or propagates
+    /// the generated adapter error. The result preserves its borrowed or
+    /// owned representation.
+    pub fn get_dynamic<'a>(&self, target: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         let actual = target.value_type_id();
         let expected = (self.target_type_id)();
         if actual != expected {
@@ -740,21 +769,25 @@ impl fmt::Debug for GetterMetadata {
 ///
 /// ```
 /// use qubit_model_metadata::metadata::SetterMetadata;
+/// use qubit_model_metadata::metadata::PropertyMutable;
+/// use qubit_model_metadata::metadata::PropertyOwned;
 /// use qubit_reflect::Reflect;
-/// use qubit_reflect::ReflectedMut;
-/// use qubit_reflect::ReflectedOwned;
+///
+///
 /// use qubit_reflect::TypeDescriptor;
 ///
 /// # mod example {
 /// use qubit_model_metadata::metadata::PropertySetFailure;
+/// use qubit_model_metadata::metadata::PropertyMutable;
+/// use qubit_model_metadata::metadata::PropertyOwned;
 /// use qubit_reflect::Reflect;
-/// use qubit_reflect::ReflectedMut;
-/// use qubit_reflect::ReflectedOwned;
 ///
-/// #[derive(Reflect)]
+///
+///
+/// #[Reflect]
 /// pub struct Item { pub value: u32 }
 ///
-/// pub fn set_value(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
+/// pub fn set_value(target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
 ///     let mut item = target.downcast::<Item>().ok().expect("validated Item target");
 ///     item.value = value.downcast::<u32>().ok().expect("validated u32 value");
 ///     Ok(())
@@ -875,7 +908,16 @@ impl SetterMetadata {
     /// Returns [`PropertySetFailure`] retaining `value` when target or input
     /// validation fails before adapter execution, or reports the adapter error.
     #[must_use = "handle property write failure and recover the replacement when available"]
-    pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
+    pub fn set<T: 'static, V: 'static>(&self, target: &mut T, value: V) -> Result<(), PropertySetFailure> {
+        self.set_dynamic(PropertyMutable::new(target), PropertyOwned::new(value))
+    }
+
+    /// Executes this setter using a dynamic target and owned replacement.
+    ///
+    /// Returns [`PropertySetFailure`] with the replacement retained when
+    /// target or input validation fails before adapter execution; adapter
+    /// failures carry the recovery state produced by the setter.
+    pub fn set_dynamic(&self, target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
         let actual_target = target.value_type_id();
         let expected_target = (self.target_type_id)();
         if actual_target != expected_target {
@@ -1137,17 +1179,53 @@ impl PropertyMetadata {
     /// reflection descriptor. Generated runtime metadata cannot create this
     /// state.
     #[must_use = "handle property access failure"]
-    pub fn get<'a>(&self, target: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a, T: 'static>(&self, target: &'a T) -> Result<PropertyValue<'a>, PropertyAccessError> {
+        self.get_dynamic(PropertyBorrowed::new(target))
+    }
+
+    /// Reads this property using a dynamically borrowed target.
+    ///
+    /// A getter takes precedence over a backing field. Returns
+    /// [`PropertyAccessError::NotReadable`] when neither is available, and
+    /// otherwise propagates access failures while preserving borrowed or
+    /// owned output.
+    pub fn get_dynamic<'a>(&self, target: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         if let Some(getter) = self.getter {
-            return getter.get(target);
+            return getter.get_dynamic(target);
         }
         if let Some(field) = self.field {
             return field
                 .reflect()
                 .expect("runtime properties only reference concrete fields")
-                .get(target)
+                .get_dynamic(target)
                 .map(PropertyValue::Borrowed)
                 .map_err(Into::into);
+        }
+        Err(PropertyAccessError::NotReadable)
+    }
+
+    /// Reads a field-backed property after bypassing reflection visibility.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure access to this property is authorized by the
+    /// application's privacy and encapsulation invariants.
+    pub unsafe fn get_dynamic_unsafe<'a>(
+        &self,
+        target: PropertyBorrowed<'a>,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
+        if let Some(getter) = self.getter {
+            return getter.get_dynamic(target);
+        }
+        if let Some(field) = self.field {
+            return unsafe {
+                field
+                    .reflect()
+                    .expect("runtime property fields have concrete descriptors")
+                    .get_dynamic_unsafe(target)
+            }
+            .map(PropertyValue::Borrowed)
+            .map_err(Into::into);
         }
         Err(PropertyAccessError::NotReadable)
     }
@@ -1175,15 +1253,25 @@ impl PropertyMetadata {
     /// reflection descriptor. Generated runtime metadata cannot create this
     /// state.
     #[must_use = "handle property write failure and recover the replacement when available"]
-    pub fn set(&self, target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
+    pub fn set<T: 'static, V: 'static>(&self, target: &mut T, value: V) -> Result<(), PropertySetFailure> {
+        self.set_dynamic(PropertyMutable::new(target), PropertyOwned::new(value))
+    }
+
+    /// Writes an owned replacement using a dynamic mutable target.
+    ///
+    /// A setter takes precedence over a backing field. Returns
+    /// [`PropertySetFailure`] with the replacement retained when execution
+    /// has not started, or with the underlying setter or field failure after
+    /// execution begins.
+    pub fn set_dynamic(&self, target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
         if let Some(setter) = self.setter {
-            return setter.set(target, value);
+            return setter.set_dynamic(target, value);
         }
         if let Some(field) = self.field {
             return field
                 .reflect()
                 .expect("runtime properties only reference concrete fields")
-                .set(target, value)
+                .set_dynamic(target, value)
                 .map_err(|failure| {
                     let (error, recovery) = failure.into_parts();
                     PropertySetFailure {
@@ -1191,6 +1279,41 @@ impl PropertyMetadata {
                         replacement: recovery.map(FieldSetRecovery::into_value).map(Box::new),
                     }
                 });
+        }
+        Err(PropertySetFailure::before_execution(
+            PropertyAccessError::NotWritable,
+            value,
+        ))
+    }
+
+    /// Writes a field-backed property after bypassing reflection visibility.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure mutation through this property is authorized by
+    /// the application's privacy and encapsulation invariants.
+    pub unsafe fn set_dynamic_unsafe(
+        &self,
+        target: PropertyMutable<'_>,
+        value: PropertyOwned,
+    ) -> Result<(), PropertySetFailure> {
+        if let Some(setter) = self.setter {
+            return setter.set_dynamic(target, value);
+        }
+        if let Some(field) = self.field {
+            return unsafe {
+                field
+                    .reflect()
+                    .expect("runtime property fields have concrete descriptors")
+                    .set_dynamic_unsafe(target, value)
+            }
+            .map_err(|failure| {
+                let (error, recovery) = failure.into_parts();
+                PropertySetFailure {
+                    error: Box::new(PropertyAccessError::Field(error)),
+                    replacement: recovery.map(FieldSetRecovery::into_value).map(Box::new),
+                }
+            });
         }
         Err(PropertySetFailure::before_execution(
             PropertyAccessError::NotWritable,

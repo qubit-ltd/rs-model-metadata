@@ -17,13 +17,13 @@ use std::any::TypeId;
 
 pub use property_access_path_error::PropertyAccessPathError;
 pub use property_access_write_failure::PropertyAccessWriteFailure;
-use qubit_reflect::ReflectedMut;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
 
 use crate::metadata::GetterOutputKind;
 use crate::metadata::PropertyAccessError;
+use crate::metadata::PropertyBorrowed;
 use crate::metadata::PropertyMetadata;
+use crate::metadata::PropertyMutable;
+use crate::metadata::PropertyOwned;
 use crate::metadata::PropertyValue;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
@@ -232,7 +232,38 @@ impl PropertyAccessPath {
     /// Returns [`PropertyAccessPathError`] for a root type mismatch, missing
     /// optional intermediate value, or a property access failure. Intermediate
     /// owned and slice outputs are rejected rather than borrowed unsafely.
-    pub fn read<'a>(&self, root: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
+    pub fn read<'a, T: 'static>(&self, root: &'a T) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
+        self.read_dynamic(PropertyBorrowed::new(root))
+    }
+
+    /// Reads this path from a dynamically borrowed root value.
+    ///
+    /// Returns [`PropertyAccessPathError`] when the root type does not match,
+    /// an optional intermediate value is absent, or a property access fails.
+    /// Intermediate owned and slice outputs are rejected because they cannot
+    /// be safely borrowed for the remainder of the path.
+    pub fn read_dynamic<'a>(&self, root: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
+        self.read_dynamic_impl(root, false)
+    }
+
+    /// Reads a path through private fields after external authorization.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure access to every private field in this path is
+    /// permitted by the application's privacy and encapsulation invariants.
+    pub unsafe fn read_dynamic_unsafe<'a>(
+        &self,
+        root: PropertyBorrowed<'a>,
+    ) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
+        self.read_dynamic_impl(root, true)
+    }
+
+    fn read_dynamic_impl<'a>(
+        &self,
+        root: PropertyBorrowed<'a>,
+        bypass_visibility: bool,
+    ) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
         if root.value_type_id() != self.root_type {
             return Err(PropertyAccessPathError::RootTypeMismatch {
                 expected: self.root_type,
@@ -247,14 +278,16 @@ impl PropertyAccessPath {
                     actual: current.value_type_id(),
                 });
             }
-            let value = step
-                .property
-                .get(current)
-                .map_err(|source| PropertyAccessPathError::AccessFailure {
-                    index,
-                    name: step.property.name().to_owned(),
-                    source: Box::new(source),
-                })?;
+            let value = (if bypass_visibility {
+                unsafe { step.property.get_dynamic_unsafe(current) }
+            } else {
+                step.property.get_dynamic(current)
+            })
+            .map_err(|source| PropertyAccessPathError::AccessFailure {
+                index,
+                name: step.property.name().to_owned(),
+                source: Box::new(source),
+            })?;
             if index + 1 == self.steps.len() {
                 return Ok(value);
             }
@@ -269,7 +302,7 @@ impl PropertyAccessPath {
                             name: step.property.name().to_owned(),
                         })?;
                     optional
-                        .project_ref(value)
+                        .project_dynamic_ref(value)
                         .map_err(|_| PropertyAccessPathError::UnsupportedIntermediate {
                             index,
                             name: step.property.name().to_owned(),
@@ -348,7 +381,49 @@ impl PropertyAccessPath {
     /// whenever failure occurs before the leaf setter begins. A leaf setter
     /// failure preserves the underlying [`crate::metadata::PropertySetFailure`]
     /// recovery rules.
-    pub fn write(&self, root: ReflectedMut<'_>, replacement: ReflectedOwned) -> Result<(), PropertyAccessWriteFailure> {
+    pub fn write<T: 'static, V: 'static>(
+        &self,
+        root: &mut T,
+        replacement: V,
+    ) -> Result<(), PropertyAccessWriteFailure> {
+        self.write_dynamic(PropertyMutable::new(root), PropertyOwned::new(replacement))
+    }
+
+    /// Writes an owned replacement through this path from a dynamic root.
+    ///
+    /// Returns [`PropertyAccessWriteFailure`] with the original replacement
+    /// when failure occurs before the leaf setter begins. A leaf setter failure
+    /// preserves the recovery behavior of
+    /// [`crate::metadata::PropertySetFailure`].
+    pub fn write_dynamic(
+        &self,
+        root: PropertyMutable<'_>,
+        replacement: PropertyOwned,
+    ) -> Result<(), PropertyAccessWriteFailure> {
+        self.write_dynamic_impl(root, replacement, false)
+    }
+
+    /// Writes a path through private fields after external authorization.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure mutation through every private field in this
+    /// path is permitted by the application's privacy and encapsulation
+    /// invariants.
+    pub unsafe fn write_dynamic_unsafe(
+        &self,
+        root: PropertyMutable<'_>,
+        replacement: PropertyOwned,
+    ) -> Result<(), PropertyAccessWriteFailure> {
+        self.write_dynamic_impl(root, replacement, true)
+    }
+
+    fn write_dynamic_impl(
+        &self,
+        root: PropertyMutable<'_>,
+        replacement: PropertyOwned,
+        bypass_visibility: bool,
+    ) -> Result<(), PropertyAccessWriteFailure> {
         if let Err(error) = self.check_writable() {
             return Err(PropertyAccessWriteFailure::before_path(error, replacement));
         }
@@ -374,13 +449,20 @@ impl PropertyAccessPath {
                 ));
             }
             if index + 1 == self.steps.len() {
-                return step
-                    .property
-                    .set(
+                return (if bypass_visibility {
+                    unsafe {
+                        step.property.set_dynamic_unsafe(
+                            current,
+                            replacement.take().expect("replacement remains unused before the leaf"),
+                        )
+                    }
+                } else {
+                    step.property.set_dynamic(
                         current,
                         replacement.take().expect("replacement remains unused before the leaf"),
                     )
-                    .map_err(PropertyAccessWriteFailure::from_property_set);
+                })
+                .map_err(PropertyAccessWriteFailure::from_property_set);
             }
             let Some(field) = step.property.field().and_then(|field| field.reflect()) else {
                 return Err(PropertyAccessWriteFailure::before_path(
@@ -392,7 +474,12 @@ impl PropertyAccessPath {
                     replacement.take().expect("replacement remains unused before the leaf"),
                 ));
             };
-            current = field.get_mut(current).map_err(|source| {
+            current = (if bypass_visibility {
+                unsafe { field.get_mut_dynamic_unsafe(current) }
+            } else {
+                field.get_mut_dynamic(current)
+            })
+            .map_err(|source| {
                 PropertyAccessWriteFailure::before_path(
                     PropertyAccessPathError::AccessFailure {
                         index,

@@ -9,7 +9,6 @@
 //! Borrow-preserving property and dependency reads under one execution budget.
 
 use qubit_reflect::OptionalProjectionError;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeMismatch;
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
@@ -18,6 +17,7 @@ use qubit_validator::ValidationPath;
 use super::execution_budget::ExecutionBudget;
 use super::execution_failure::ExecutionFailure;
 use crate::metadata::PropertyAccessError;
+use crate::metadata::PropertyBorrowed;
 use crate::metadata::PropertyPath;
 use crate::metadata::PropertyValue;
 use crate::metadata::TargetMode;
@@ -45,7 +45,7 @@ use crate::validation::compiled_property_path::CompiledPropertyPath;
 /// cannot be read.
 pub(crate) fn read<'value>(
     path: &CompiledPropertyPath,
-    root: ReflectedRef<'value>,
+    root: PropertyBorrowed<'value>,
     parent_depth: usize,
     budget: &mut ExecutionBudget<'_>,
 ) -> Result<PropertyValue<'value>, ExecutionError> {
@@ -56,9 +56,10 @@ pub(crate) fn read<'value>(
             .and_then(|depth| depth.checked_add(1))
             .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit))?;
         budget.read(depth).map_err(|error| error.with_path(path_for(path)))?;
-        let output = step
-            .property()
-            .get(receiver)
+        // The path was compiled from registered Model metadata and its owner,
+        // field descriptor, and target type were validated during resolution.
+        // This is the trusted model-validation boundary for private fields.
+        let output = unsafe { step.property().get_dynamic_unsafe(receiver) }
             .map_err(|error| property_read_error(error, path_for(path)))?;
         if index + 1 == path.steps().len() {
             return Ok(output);
@@ -72,7 +73,7 @@ pub(crate) fn read<'value>(
                     .ok_or_else(|| {
                         ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
                     })?;
-                match descriptor.project_ref(value).map_err(|error| {
+                match descriptor.project_dynamic_ref(value).map_err(|error| {
                     let error = match error {
                         OptionalProjectionError::Unavailable => PropertyAccessError::AdapterUnavailable,
                         OptionalProjectionError::TypeMismatch(error) => PropertyAccessError::ValueTypeMismatch(error),
@@ -144,8 +145,8 @@ fn property_read_error(error: PropertyAccessError, path: ValidationPath) -> Exec
 /// Returns the first dependency execution failure with its slot context.
 pub(crate) fn dependencies<'value>(
     paths: &[CompiledPropertyPath],
-    root: ReflectedRef<'value>,
-    ancestors: &[ReflectedRef<'value>],
+    root: PropertyBorrowed<'value>,
+    ancestors: &[PropertyBorrowed<'value>],
     graph: &ModelGraph<'_>,
     budget: &mut ExecutionBudget<'_>,
 ) -> Result<(Vec<PropertyValue<'value>>, Vec<ValidationPath>), ExecutionFailure> {
@@ -187,8 +188,8 @@ pub(crate) fn dependencies<'value>(
 /// mismatched dependency type, or an exhausted traversal budget.
 fn read_dependency<'value>(
     path: &CompiledPropertyPath,
-    root: ReflectedRef<'value>,
-    ancestors: &[ReflectedRef<'value>],
+    root: PropertyBorrowed<'value>,
+    ancestors: &[PropertyBorrowed<'value>],
     graph: &ModelGraph<'_>,
     budget: &mut ExecutionBudget<'_>,
 ) -> Result<PropertyValue<'value>, ExecutionError> {
@@ -251,7 +252,6 @@ pub(crate) fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
 mod tests {
     use std::error::Error;
 
-    use qubit_reflect::ReflectedRef;
     use qubit_validator::ExecutionErrorKind;
     use qubit_validator::InputType;
     use qubit_validator::ValidationPath;
@@ -261,6 +261,7 @@ mod tests {
     use super::property_read_error;
     use super::read_dependency;
     use crate::metadata::PropertyAccessError;
+    use crate::metadata::PropertyBorrowed;
     use crate::registry::ModelRegistry;
     use crate::resolve::ResolveInputs;
     use crate::resolve::StructureResolver;
@@ -300,7 +301,7 @@ mod tests {
             input: InputType::of::<()>(),
             optional: false,
         };
-        let error = match read_dependency(&path, ReflectedRef::new(&()), &[], &graph, &mut budget) {
+        let error = match read_dependency(&path, PropertyBorrowed::new(&()), &[], &graph, &mut budget) {
             Ok(_) => panic!("missing context unexpectedly succeeded"),
             Err(error) => error,
         };

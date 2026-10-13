@@ -11,9 +11,8 @@
 use std::error::Error;
 use std::fmt;
 
-use qubit_reflect::ReflectedOwned;
-
 use super::property_access_path_error::PropertyAccessPathError;
+use crate::metadata::PropertyOwned;
 use crate::metadata::PropertySetFailure;
 
 /// A path write failure that preserves any replacement still owned by caller.
@@ -24,7 +23,7 @@ pub enum PropertyAccessWriteFailure {
         /// Structured path or traversal error.
         error: PropertyAccessPathError,
         /// Replacement retained because the leaf setter did not start.
-        replacement: Option<ReflectedOwned>,
+        replacement: Option<PropertyOwned>,
     },
     /// The leaf setter or field operation failed with its recovery semantics.
     Property(PropertySetFailure),
@@ -41,7 +40,7 @@ impl PropertyAccessWriteFailure {
     /// # Returns
     ///
     /// A failure that retains the replacement for recovery.
-    pub(crate) fn before_path(error: PropertyAccessPathError, replacement: ReflectedOwned) -> Self {
+    pub(crate) fn before_path(error: PropertyAccessPathError, replacement: PropertyOwned) -> Self {
         Self::Path {
             error,
             replacement: Some(replacement),
@@ -69,7 +68,7 @@ impl PropertyAccessWriteFailure {
     /// the setter consumed it.
     #[must_use]
     #[inline]
-    pub fn replacement(&self) -> Option<&ReflectedOwned> {
+    pub fn replacement(&self) -> Option<&PropertyOwned> {
         match self {
             Self::Path { replacement, .. } => replacement.as_ref(),
             Self::Property(failure) => failure.replacement(),

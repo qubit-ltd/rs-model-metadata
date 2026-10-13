@@ -16,10 +16,10 @@ use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use qubit_model_metadata::metadata::BorrowedPropertySlice;
+use qubit_model_metadata::metadata::PropertyBorrowed;
+use qubit_model_metadata::metadata::PropertyOwned;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
 
 /// Synthetic model used to measure generated getter adapters.
 #[qubit_model_derive::Model]
@@ -55,13 +55,15 @@ fn property_output(criterion: &mut Criterion) {
     let mut scalar = criterion.benchmark_group("property_scalar");
     scalar.bench_function("borrowed", |bencher| {
         bencher.iter(|| {
-            let _ = black_box(PropertyValue::Borrowed(ReflectedRef::new(black_box(&value))).into_invocation_output());
+            let _ =
+                black_box(PropertyValue::Borrowed(PropertyBorrowed::new(black_box(&value))).into_invocation_output());
         })
     });
     scalar.bench_function("optional_some", |bencher| {
         bencher.iter(|| {
             let _ = black_box(
-                PropertyValue::OptionalBorrowed(Some(ReflectedRef::new(black_box(&value)))).into_invocation_output(),
+                PropertyValue::OptionalBorrowed(Some(PropertyBorrowed::new(black_box(&value))))
+                    .into_invocation_output(),
             );
         })
     });
@@ -72,7 +74,7 @@ fn property_output(criterion: &mut Criterion) {
     });
     scalar.bench_function("owned", |bencher| {
         bencher.iter_batched(
-            || PropertyValue::Owned(ReflectedOwned::new(black_box(value))),
+            || PropertyValue::Owned(PropertyOwned::new(black_box(value))),
             |input| {
                 let _ = black_box(input.into_invocation_output());
             },
@@ -137,15 +139,15 @@ fn generated_getters(criterion: &mut Criterion) {
         values: Vec::new(),
     };
     assert!(matches!(
-        number.get(ReflectedRef::new(&scalar_fixture)),
+        number.get_dynamic(PropertyBorrowed::new(&scalar_fixture)),
         Ok(PropertyValue::Owned(_))
     ));
     assert!(matches!(
-        label.get(ReflectedRef::new(&scalar_fixture)),
+        label.get_dynamic(PropertyBorrowed::new(&scalar_fixture)),
         Ok(PropertyValue::Borrowed(_))
     ));
     assert!(matches!(
-        alias.get(ReflectedRef::new(&scalar_fixture)),
+        alias.get_dynamic(PropertyBorrowed::new(&scalar_fixture)),
         Ok(PropertyValue::OptionalBorrowed(Some(_)))
     ));
 
@@ -154,13 +156,13 @@ fn generated_getters(criterion: &mut Criterion) {
         bencher.iter(|| black_box(black_box(&scalar_fixture).number()))
     });
     scalar.bench_function("property_get", |bencher| {
-        bencher.iter(|| black_box(number.get(ReflectedRef::new(black_box(&scalar_fixture)))))
+        bencher.iter(|| black_box(number.get_dynamic(PropertyBorrowed::new(black_box(&scalar_fixture)))))
     });
     scalar.bench_function("property_get_and_convert", |bencher| {
         bencher.iter(|| {
             black_box(
                 number
-                    .get(ReflectedRef::new(black_box(&scalar_fixture)))
+                    .get_dynamic(PropertyBorrowed::new(black_box(&scalar_fixture)))
                     .map(PropertyValue::into_invocation_output),
             )
         })
@@ -172,13 +174,13 @@ fn generated_getters(criterion: &mut Criterion) {
         bencher.iter(|| black_box(black_box(&scalar_fixture).label()))
     });
     string.bench_function("property_get", |bencher| {
-        bencher.iter(|| black_box(label.get(ReflectedRef::new(black_box(&scalar_fixture)))))
+        bencher.iter(|| black_box(label.get_dynamic(PropertyBorrowed::new(black_box(&scalar_fixture)))))
     });
     string.bench_function("property_get_and_convert", |bencher| {
         bencher.iter(|| {
             black_box(
                 label
-                    .get(ReflectedRef::new(black_box(&scalar_fixture)))
+                    .get_dynamic(PropertyBorrowed::new(black_box(&scalar_fixture)))
                     .map(PropertyValue::into_invocation_output),
             )
         })
@@ -195,7 +197,7 @@ fn generated_getters(criterion: &mut Criterion) {
         };
         let expected_some = state == "some";
         let output = alias
-            .get(ReflectedRef::new(&fixture))
+            .get_dynamic(PropertyBorrowed::new(&fixture))
             .expect("valid optional getter output");
         assert!(matches!(output, PropertyValue::OptionalBorrowed(Some(_))) == expected_some);
         optional.bench_with_input(
@@ -204,7 +206,7 @@ fn generated_getters(criterion: &mut Criterion) {
             |bencher, fixture| bencher.iter(|| black_box(black_box(fixture).alias())),
         );
         optional.bench_with_input(BenchmarkId::new("property_get", state), &fixture, |bencher, fixture| {
-            bencher.iter(|| black_box(alias.get(ReflectedRef::new(black_box(fixture)))))
+            bencher.iter(|| black_box(alias.get_dynamic(PropertyBorrowed::new(black_box(fixture)))))
         });
         optional.bench_with_input(
             BenchmarkId::new("property_get_and_convert", state),
@@ -213,7 +215,7 @@ fn generated_getters(criterion: &mut Criterion) {
                 bencher.iter(|| {
                     black_box(
                         alias
-                            .get(ReflectedRef::new(black_box(fixture)))
+                            .get_dynamic(PropertyBorrowed::new(black_box(fixture)))
                             .map(PropertyValue::into_invocation_output),
                     )
                 })
@@ -231,7 +233,7 @@ fn generated_getters(criterion: &mut Criterion) {
             values: vec![7; length],
         };
         let output = values
-            .get(ReflectedRef::new(&fixture))
+            .get_dynamic(PropertyBorrowed::new(&fixture))
             .expect("valid slice getter output");
         let PropertyValue::BorrowedSlice(output) = output else {
             panic!("slice getter must preserve borrowing");
@@ -245,7 +247,9 @@ fn generated_getters(criterion: &mut Criterion) {
         slices.bench_with_input(
             BenchmarkId::new("property_get", length),
             &fixture,
-            |bencher, fixture| bencher.iter(|| black_box(values.get(ReflectedRef::new(black_box(fixture))))),
+            |bencher, fixture| {
+                bencher.iter(|| black_box(values.get_dynamic(PropertyBorrowed::new(black_box(fixture)))))
+            },
         );
         slices.bench_with_input(
             BenchmarkId::new("property_get_and_convert", length),
@@ -254,7 +258,7 @@ fn generated_getters(criterion: &mut Criterion) {
                 bencher.iter(|| {
                     black_box(
                         values
-                            .get(ReflectedRef::new(black_box(fixture)))
+                            .get_dynamic(PropertyBorrowed::new(black_box(fixture)))
                             .map(PropertyValue::into_invocation_output),
                     )
                 })
@@ -269,7 +273,7 @@ fn generated_getters(criterion: &mut Criterion) {
             black_box(
                 properties
                     .property(black_box("number"))
-                    .map(|property| property.get(ReflectedRef::new(black_box(&scalar_fixture)))),
+                    .map(|property| property.get_dynamic(PropertyBorrowed::new(black_box(&scalar_fixture)))),
             )
         })
     });
@@ -278,7 +282,7 @@ fn generated_getters(criterion: &mut Criterion) {
             black_box(
                 properties
                     .property(black_box("label"))
-                    .map(|property| property.get(ReflectedRef::new(black_box(&scalar_fixture)))),
+                    .map(|property| property.get_dynamic(PropertyBorrowed::new(black_box(&scalar_fixture)))),
             )
         })
     });
@@ -294,7 +298,7 @@ fn generated_getters(criterion: &mut Criterion) {
                 black_box(
                     properties
                         .property(black_box("alias"))
-                        .map(|property| property.get(ReflectedRef::new(black_box(fixture)))),
+                        .map(|property| property.get_dynamic(PropertyBorrowed::new(black_box(fixture)))),
                 )
             })
         });
@@ -311,7 +315,7 @@ fn generated_getters(criterion: &mut Criterion) {
                 black_box(
                     properties
                         .property(black_box("values"))
-                        .map(|property| property.get(ReflectedRef::new(black_box(fixture)))),
+                        .map(|property| property.get_dynamic(PropertyBorrowed::new(black_box(fixture)))),
                 )
             })
         });

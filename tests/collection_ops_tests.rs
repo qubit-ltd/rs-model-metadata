@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::metadata::PropertyAccessError;
+use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -23,7 +24,6 @@ use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationCapabilities;
-use qubit_reflect::ReflectedRef;
 
 #[Model]
 struct Collections {
@@ -77,8 +77,8 @@ fn test_generated_map_adapters_check_exact_type() {
     let hashed = HashMap::from([(String::from("one"), 1)]);
     let ordered = BTreeMap::from([(String::from("one"), 1), (String::from("two"), 2)]);
     for (name, value, expected) in [
-        ("hashed", PropertyValue::Borrowed(ReflectedRef::new(&hashed)), 1),
-        ("ordered", PropertyValue::Borrowed(ReflectedRef::new(&ordered)), 2),
+        ("hashed", PropertyValue::Borrowed(PropertyBorrowed::new(&hashed)), 1),
+        ("ordered", PropertyValue::Borrowed(PropertyBorrowed::new(&ordered)), 2),
     ] {
         let ops = model
             .field(name)
@@ -88,7 +88,7 @@ fn test_generated_map_adapters_check_exact_type() {
         let map_len = ops.map_len().expect("map length adapter");
         assert_eq!(map_len(&value).expect("matching concrete map"), Some(expected));
         assert!(matches!(
-            map_len(&PropertyValue::Borrowed(ReflectedRef::new(&42_i32))),
+            map_len(&PropertyValue::Borrowed(PropertyBorrowed::new(&42_i32))),
             Err(PropertyAccessError::ValueTypeMismatch(_))
         ));
     }
@@ -107,10 +107,10 @@ fn test_generated_sequence_adapter_checks_exact_element_type() {
     let one = String::from("same");
     let two = String::from("same");
     let other = String::from("other");
-    assert!(item_eq(ReflectedRef::new(&one), ReflectedRef::new(&two)).expect("matching elements"));
-    assert!(!item_eq(ReflectedRef::new(&one), ReflectedRef::new(&other)).expect("different elements"));
+    assert!(item_eq(PropertyBorrowed::new(&one), PropertyBorrowed::new(&two)).expect("matching elements"));
+    assert!(!item_eq(PropertyBorrowed::new(&one), PropertyBorrowed::new(&other)).expect("different elements"));
     assert!(matches!(
-        item_eq(ReflectedRef::new(&one), ReflectedRef::new(&42_i32)),
+        item_eq(PropertyBorrowed::new(&one), PropertyBorrowed::new(&42_i32)),
         Err(PropertyAccessError::ValueTypeMismatch(_))
     ));
 }
@@ -134,7 +134,7 @@ fn test_array_slice_getter_generates_item_equality() {
     let array = ArrayWithSliceGetter {
         items: [String::from("same"), String::from("same")],
     };
-    let value = property.get(ReflectedRef::new(&array)).expect("slice getter");
+    let value = property.get(&array).expect("slice getter");
     assert!(matches!(value, PropertyValue::BorrowedSlice(ref values) if values.len() == 2));
     let ops = model
         .field("items")
@@ -144,7 +144,7 @@ fn test_array_slice_getter_generates_item_equality() {
     let item_eq = ops.item_eq().expect("array element equality");
     let left = String::from("same");
     let right = String::from("same");
-    assert!(item_eq(ReflectedRef::new(&left), ReflectedRef::new(&right)).expect("matching elements"));
+    assert!(item_eq(PropertyBorrowed::new(&left), PropertyBorrowed::new(&right)).expect("matching elements"));
 }
 
 /// Without a slice getter, array uniqueness remains unsupported at binding.

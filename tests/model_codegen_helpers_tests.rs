@@ -34,14 +34,14 @@ use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::identity::FragmentIdentity;
 
-#[derive(Reflect)]
+#[Reflect]
 #[reflect(definition_provider_v2 = first_definition)]
 #[allow(dead_code, reason = "the reflection derive registers this definition-only fixture")]
 struct FirstGeneric<T> {
     value: T,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 #[reflect(definition_provider_v2 = second_definition)]
 #[allow(dead_code, reason = "the reflection derive registers this definition-only fixture")]
 enum SecondGeneric<T> {

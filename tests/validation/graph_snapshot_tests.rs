@@ -23,7 +23,6 @@ use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::Reflect;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeDescriptor;
 use qubit_validator::ValidatorRegistry;
 
@@ -85,10 +84,7 @@ fn test_plan_uses_the_graphs_canonical_root_declarations() {
     assert_eq!(plan.binding_count(), 1);
     assert!(std::ptr::eq(plan.root(), declared));
     let report = plan
-        .validate(
-            ReflectedRef::new(&Record { name: String::new() }),
-            &ValidationOptions::default(),
-        )
+        .validate(&Record { name: String::new() }, &ValidationOptions::default())
         .expect("execution");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "name");
@@ -125,12 +121,9 @@ fn test_plan_does_not_import_constraints_from_another_overlay() {
     assert_eq!(plan.binding_count(), 0);
     assert!(std::ptr::eq(plan.root(), stripped));
     assert!(
-        plan.validate(
-            ReflectedRef::new(&Record { name: String::new() }),
-            &ValidationOptions::default()
-        )
-        .expect("execution")
-        .is_valid()
+        plan.validate(&Record { name: String::new() }, &ValidationOptions::default())
+            .expect("execution")
+            .is_valid()
     );
 }
 

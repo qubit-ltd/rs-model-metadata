@@ -15,14 +15,14 @@ use qubit_model_metadata::__private::v7;
 use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
 use qubit_model_metadata::metadata::PropertyAccessError;
+use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::PropertyBuildErrorKind;
+use qubit_model_metadata::metadata::PropertyMutable;
+use qubit_model_metadata::metadata::PropertyOwned;
 use qubit_model_metadata::metadata::PropertySetFailure;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_reflect::ReflectedMut;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
 
 #[Model]
 struct Record {
@@ -96,6 +96,7 @@ fn test_property_errors_preserve_all_failures_in_deterministic_order() {
             ("z_missing", PropertyBuildErrorKind::MissingSource),
         ]
     );
+    assert!(errors.errors()[0].conflict().is_none());
     assert_eq!(
         errors.to_string(),
         concat!(
@@ -122,12 +123,12 @@ fn test_empty_property_retains_both_name_and_source_diagnostics() {
 }
 
 /// Static validation must never execute a getter to discover its signature.
-fn never_get(_: ReflectedRef<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
+fn never_get(_: PropertyBorrowed<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
     panic!("metadata validation invoked the getter");
 }
 
 /// Static validation must never execute a setter to discover its signature.
-fn never_set(_: ReflectedMut<'_>, _: ReflectedOwned) -> Result<(), PropertySetFailure> {
+fn never_set(_: PropertyMutable<'_>, _: PropertyOwned) -> Result<(), PropertySetFailure> {
     panic!("metadata validation invoked the setter");
 }
 

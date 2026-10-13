@@ -23,12 +23,12 @@ use qubit_model_metadata::metadata::SerdeFieldMetadata;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 
-#[derive(Reflect)]
+#[Reflect]
 struct EntityFixture {
     id: u64,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 enum EnumFixture {
     Ready,
 }

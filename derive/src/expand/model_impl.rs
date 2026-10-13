@@ -10,7 +10,6 @@
 
 // Groups private representations used by model implementation expansion.
 mod internal;
-mod specialization;
 
 use proc_macro2::TokenStream;
 use quote::format_ident;
@@ -29,6 +28,7 @@ use syn::Type;
 use syn::TypePath;
 use syn::TypeReference;
 use syn::Visibility;
+use syn::visit_mut::VisitMut;
 
 use self::internal::GetterIr;
 use self::internal::GetterReturn;
@@ -82,7 +82,7 @@ fn expand_inner(
             continue;
         }
         let mut candidate = method.clone();
-        specialization::replace_self(&mut candidate, &target);
+        replace_self(&mut candidate, &target);
         match parse_property_method(&candidate) {
             Ok(Some(PropertyMethod::Getter(value))) => getters.push(value),
             Ok(Some(PropertyMethod::Setter(value))) => setters.push(value),
@@ -91,7 +91,7 @@ fn expand_inner(
         }
     }
     let retained = if retain {
-        quote!(#[#runtime::__private::reflect_impl(#arguments)] #item)
+        quote!(#[#runtime::__private::ReflectImpl(#arguments)] #item)
     } else {
         TokenStream::new()
     };
@@ -99,12 +99,10 @@ fn expand_inner(
         return Ok(retained);
     }
     if !item.generics.params.is_empty() {
-        let options = specialization::options(arguments)?;
-        let mut providers = Vec::new();
-        for concrete in specialization::concrete_impls(&original, &options)? {
-            providers.push(expand_inner(concrete, runtime, TokenStream::new(), false)?);
-        }
-        return Ok(quote!(#retained #(#providers)*));
+        return Err(Error::new_spanned(
+            &original,
+            "generic ModelImpl property providers are unavailable until a call-site property binding API exists; declaration-level specialize(...) is not supported",
+        ));
     }
 
     let fragment_fingerprint = stable_fingerprint(&quote!(#item).to_string());
@@ -276,6 +274,21 @@ fn expand_inner(
         );
         };
     })
+}
+
+/// Replaces `Self` in a property signature with its concrete impl target.
+fn replace_self(method: &mut ImplItemFn, target: &Type) {
+    struct Replacer<'a>(&'a Type);
+    impl VisitMut for Replacer<'_> {
+        fn visit_type_mut(&mut self, ty: &mut Type) {
+            if matches!(ty, Type::Path(path) if path.qself.is_none() && path.path.is_ident("Self")) {
+                *ty = self.0.clone();
+            } else {
+                syn::visit_mut::visit_type_mut(self, ty);
+            }
+        }
+    }
+    Replacer(target).visit_signature_mut(&mut method.sig);
 }
 
 /// Generates compile-time compatibility proofs for paired property methods.
@@ -509,28 +522,28 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
     let presence = getter.presence.attribute();
     let value = match &getter.output {
         GetterReturn::Owned(_) => {
-            quote!(#runtime::metadata::PropertyValue::Owned(#runtime::__private::ReflectedOwned::new(target.#method())))
+            quote!(#runtime::metadata::PropertyValue::Owned(#runtime::metadata::PropertyOwned::new(target.#method())))
         }
         GetterReturn::Borrowed(_) => {
-            quote!(#runtime::metadata::PropertyValue::Borrowed(#runtime::__private::ReflectedRef::new(target.#method())))
+            quote!(#runtime::metadata::PropertyValue::Borrowed(#runtime::metadata::PropertyBorrowed::new(target.#method())))
         }
         GetterReturn::BorrowedStr => {
-            quote!(#runtime::metadata::PropertyValue::Borrowed(#runtime::__private::ReflectedRef::new_str(target.#method())))
+            quote!(#runtime::metadata::PropertyValue::Borrowed(#runtime::metadata::PropertyBorrowed::new_str(target.#method())))
         }
         GetterReturn::BorrowedSlice(_) => {
             quote!(#runtime::metadata::PropertyValue::BorrowedSlice(#runtime::metadata::BorrowedPropertySlice::new(target.#method())))
         }
         GetterReturn::OptionalBorrowed(_) => {
-            quote!(#runtime::metadata::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::__private::ReflectedRef::new)))
+            quote!(#runtime::metadata::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::metadata::PropertyBorrowed::new)))
         }
         GetterReturn::OptionalBorrowedStr => {
-            quote!(#runtime::metadata::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::__private::ReflectedRef::new_str)))
+            quote!(#runtime::metadata::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::metadata::PropertyBorrowed::new_str)))
         }
     };
     quote! {
         #presence
         #[doc(hidden)]
-        fn #adapter<'a>(target: #runtime::__private::ReflectedRef<'a>) -> ::core::result::Result<#runtime::metadata::PropertyValue<'a>, #runtime::metadata::PropertyAccessError> {
+        fn #adapter<'a>(target: #runtime::metadata::PropertyBorrowed<'a>) -> ::core::result::Result<#runtime::metadata::PropertyValue<'a>, #runtime::metadata::PropertyAccessError> {
             let target = target.downcast::<#target>().map_err(|_| #runtime::metadata::PropertyAccessError::user("property target was not prevalidated"))?;
             Ok(#value)
         }
@@ -550,7 +563,7 @@ fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime
     quote! {
         #presence
         #[doc(hidden)]
-        fn #adapter(target: #runtime::__private::ReflectedMut<'_>, value: #runtime::__private::ReflectedOwned) -> ::core::result::Result<(), #runtime::metadata::PropertySetFailure> {
+        fn #adapter(target: #runtime::metadata::PropertyMutable<'_>, value: #runtime::metadata::PropertyOwned) -> ::core::result::Result<(), #runtime::metadata::PropertySetFailure> {
             let target = target.downcast::<#target>().map_err(|_| #runtime::metadata::PropertySetFailure::after_execution(#runtime::metadata::PropertyAccessError::user("property target was not prevalidated")))?;
             let value = value.downcast::<#input>().map_err(|value| #runtime::metadata::PropertySetFailure::before_execution(#runtime::metadata::PropertyAccessError::user("property value was not prevalidated"), value))?;
             target.#method(value);

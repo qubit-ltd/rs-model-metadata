@@ -1,5 +1,30 @@
-error: unknown reflection helper `crate`
-  --> tests/ui_roles/fail/reflect_crate_helper.rs:13:11
+error: expected derive macro, found attribute macro `Reflect`
+  --> tests/ui_roles/fail/reflect_crate_helper.rs:12:10
+   |
+12 | #[derive(Reflect)]
+   |          ^^^^^^^ not a derive macro
+   |
+help: remove from the surrounding `derive()`
+  --> tests/ui_roles/fail/reflect_crate_helper.rs:12:10
+   |
+12 | #[derive(Reflect)]
+   |          ^^^^^^^
+   = help: add as non-Derive macro
+           `#[Reflect]`
+
+error: cannot find attribute `reflect` in this scope
+  --> tests/ui_roles/fail/reflect_crate_helper.rs:13:3
    |
 13 | #[reflect(crate = qubit_reflect)]
-   |           ^^^^^
+   |   ^^^^^^^
+   |
+  ::: $QUBIT_REFLECT/derive/src/lib.rs
+   |
+   | pub fn Reflect(attribute: TokenStream, item: TokenStream) -> TokenStream {
+   | ------------------------------------------------------------------------ similarly named attribute macro `Reflect` defined here
+   |
+help: an attribute macro with a similar name exists
+   |
+13 - #[reflect(crate = qubit_reflect)]
+13 + #[Reflect(crate = qubit_reflect)]
+   |

@@ -13,7 +13,6 @@ use std::collections::HashMap;
 
 use qubit_id::Id;
 use qubit_reflect::FieldAccessError;
-use qubit_reflect::ReflectedRef;
 use thiserror::Error;
 
 use super::internal::OwnedPropertyPath;
@@ -24,6 +23,7 @@ use crate::metadata::FieldReferenceMetadata;
 use crate::metadata::GetterMetadata;
 use crate::metadata::IndexingReasons;
 use crate::metadata::PropertyAccessError;
+use crate::metadata::PropertyBorrowed;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyPath;
 use crate::metadata::PropertyValue;
@@ -331,20 +331,23 @@ impl ResolvedProjectionProducer {
     ///
     /// The getter result when it is a borrowed or owned Projection with the
     /// same identifier as the source Entity.
-    pub fn project<'a>(&self, source: ReflectedRef<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
+    pub fn project<'a>(&self, source: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
         let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
-        let source_identifier = self
+        let source_field = self
             .source
             .as_entity()
             .ok_or(ProjectionExecutionError::InvalidProducer)?
             .identifier()
             .reflect()
-            .expect("resolved entity identifiers are concrete fields")
-            .get(source.clone())?
+            .expect("resolved entity identifiers are concrete fields");
+        // SAFETY: The resolver bound this field descriptor to the registered
+        // Entity metadata. Projection identity validation is a trusted
+        // framework operation that may inspect private identifier storage.
+        let source_identifier = unsafe { source_field.get_dynamic_unsafe(source.clone()) }?
             .downcast::<Id>()
             .map_err(|_| ProjectionExecutionError::InvalidIdentifierType)
             .copied()?;
-        let result = projector.get(source)?;
+        let result = projector.get_dynamic(source)?;
         let projection_identifier = match &result {
             PropertyValue::Borrowed(value) => self.projection_identifier(value.clone())?,
             PropertyValue::Owned(value) => self.projection_identifier(value.as_reflected_ref())?,
@@ -377,14 +380,18 @@ impl ResolvedProjectionProducer {
     ///
     /// Panics if resolved projection metadata refers to an identifier that is
     /// not a concrete reflected field. The resolver guarantees this invariant.
-    fn projection_identifier(&self, target: ReflectedRef<'_>) -> Result<Id, ProjectionExecutionError> {
-        self.projection
+    fn projection_identifier(&self, target: PropertyBorrowed<'_>) -> Result<Id, ProjectionExecutionError> {
+        let field = self
+            .projection
             .as_projection()
             .ok_or(ProjectionExecutionError::InvalidProducer)?
             .identifier()
             .reflect()
-            .expect("resolved projection identifiers are concrete fields")
-            .get(target)?
+            .expect("resolved projection identifiers are concrete fields");
+        // SAFETY: The resolver bound this field descriptor to the registered
+        // Projection metadata. Producer validation is a trusted framework
+        // operation that may inspect private identifier storage.
+        unsafe { field.get_dynamic_unsafe(target) }?
             .downcast::<Id>()
             .map_err(|_| ProjectionExecutionError::InvalidIdentifierType)
             .copied()

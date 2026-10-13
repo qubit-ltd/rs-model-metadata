@@ -27,13 +27,13 @@ use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 use uuid::Uuid;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Account;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Impostor;
 
-#[derive(Reflect)]
+#[Reflect]
 struct ExternalTypeFixture {
     id: Id,
     created_at: DateTime<Utc>,

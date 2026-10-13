@@ -142,7 +142,7 @@ fn test_installation_rejects_missing_direct_dependency() {
         manifest.line
     );
     assert!(
-        stderr(&output).contains("error[E0432]") && stderr(&output).contains("qubit_reflect"),
+        stderr(&output).contains("cannot resolve `qubit-reflect`") && stderr(&output).contains("qubit-reflect"),
         "wrong failure: {}",
         stderr(&output)
     );
@@ -193,9 +193,12 @@ fn guide_fences(root: &Path) -> Vec<Fence> {
 /// symlink spelling so direct and runtime dependencies share Cargo identities.
 fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str) {
     fs::create_dir_all(directory.join("src")).expect("consumer sources");
+    let reflect_root = env::var_os("QUBIT_REFLECT_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("../rs-reflect"));
     let replacements = [
         ("../rs-model-metadata", root.to_path_buf()),
-        ("../rs-reflect", root.join("../rs-reflect")),
+        ("../rs-reflect", reflect_root),
         ("../../rust-common", root.join("../../rust-common")),
     ];
     let mut dependencies = manifest.to_owned();

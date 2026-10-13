@@ -45,7 +45,7 @@ fn test_object_path_rejects_ambiguous_segments() {
 }
 
 #[cfg(feature = "generic")]
-#[derive(Reflect)]
+#[Reflect]
 #[reflect(definition_provider_v2 = anonymous_definition)]
 struct Anonymous<T> {
     value: T,

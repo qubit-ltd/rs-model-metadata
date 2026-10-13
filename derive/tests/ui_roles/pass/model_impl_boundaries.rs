@@ -11,12 +11,12 @@
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
-use qubit_reflect::reflect;
+use qubit_reflect::Reflect;
 
 #[Model]
 struct Account;
 
-#[reflect]
+#[Reflect]
 trait Named {
     // empty
 }
@@ -26,8 +26,5 @@ impl Named for Account {}
 
 #[Model]
 struct Generic<T> { value: T }
-
-#[ModelImpl]
-impl<T> Generic<T> {}
 
 fn main() {}

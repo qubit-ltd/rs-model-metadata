@@ -72,12 +72,12 @@ fn test_root_graph_lifetime_follows_registry() {
     assert!(graph.model(root.type_id()).is_some());
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct SnapshotGood {
     value: String,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct SnapshotBad {
     value: String,
 }

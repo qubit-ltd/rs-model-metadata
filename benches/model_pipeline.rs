@@ -25,6 +25,7 @@ use criterion::Criterion;
 use fixtures::Pipeline1;
 use fixtures::Pipeline8;
 use fixtures::Pipeline32;
+use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
@@ -35,7 +36,6 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::validation::ValidationSelection;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::ReflectRegistry;
 use qubit_validator::BoundValidationContext;
@@ -164,9 +164,9 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     let eight = Pipeline8::sample();
     let thirty_two = Pipeline32::sample();
     let values = [
-        ReflectedRef::new(&one),
-        ReflectedRef::new(&eight),
-        ReflectedRef::new(&thirty_two),
+        PropertyBorrowed::new(&one),
+        PropertyBorrowed::new(&eight),
+        PropertyBorrowed::new(&thirty_two),
     ];
 
     let mut properties = criterion.benchmark_group("model_properties_merge_warm");
@@ -264,12 +264,14 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
             },
         )
         .expect("plan outside execution timing");
-        let report = plan.validate(value.clone(), &options).expect("valid fixture execution");
+        let report = plan
+            .validate_dynamic(value.clone(), &options)
+            .expect("valid fixture execution");
         assert!(report.violations().is_empty());
         assert!(report.skipped().is_empty());
         assert!(!report.is_truncated());
         execution.bench_function(BenchmarkId::new("fields", size), |bencher| {
-            bencher.iter(|| black_box(plan.validate(black_box(value.clone()), black_box(&options))));
+            bencher.iter(|| black_box(plan.validate_dynamic(black_box(value.clone()), black_box(&options))));
         });
         let last_selected = ValidationOptions::builder()
             .selection(ValidationSelection::Fields(vec![FieldPath::new(format!(
@@ -278,7 +280,7 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
             ))]))
             .build();
         execution.bench_function(BenchmarkId::new("fields_last_selected", size), |bencher| {
-            bencher.iter(|| black_box(plan.validate(black_box(value.clone()), black_box(&last_selected))));
+            bencher.iter(|| black_box(plan.validate_dynamic(black_box(value.clone()), black_box(&last_selected))));
         });
     }
     execution.finish();

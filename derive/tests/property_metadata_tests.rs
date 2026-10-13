@@ -8,9 +8,9 @@
 
 //! Runtime coverage for generated model property adapters.
 
-use model_runtime::__private::ReflectedMut;
-use model_runtime::__private::ReflectedOwned;
-use model_runtime::__private::ReflectedRef;
+use model_runtime::metadata::PropertyBorrowed;
+use model_runtime::metadata::PropertyMutable;
+use model_runtime::metadata::PropertyOwned;
 use model_runtime::metadata::PropertyResolutionError;
 use model_runtime::metadata::PropertyStorageKind;
 use model_runtime::metadata::PropertyValue;
@@ -104,26 +104,41 @@ fn test_model_impl_merges_fields_getters_and_setters() {
         tags: vec!["one".to_owned(), "two".to_owned()],
     };
     profile.rename_with_prefix("");
-    let PropertyValue::Borrowed(value) = name.get(ReflectedRef::new(&profile)).expect("borrowed getter") else {
+    // SAFETY: The generated provider and profile type are from the same
+    // registered metadata snapshot.
+    let PropertyValue::Borrowed(value) =
+        unsafe { name.get_dynamic_unsafe(PropertyBorrowed::new(&profile)) }.expect("borrowed getter")
+    else {
         panic!("name getter must borrow");
     };
     assert_eq!(value.as_str(), Some("before"));
-    name.set(ReflectedMut::new(&mut profile), ReflectedOwned::new("after".to_owned()))
-        .expect("setter");
+    // SAFETY: The generated provider and mutable profile are type-matched.
+    unsafe {
+        name.set_dynamic_unsafe(
+            PropertyMutable::new(&mut profile),
+            PropertyOwned::new("after".to_owned()),
+        )
+    }
+    .expect("setter");
     assert_eq!(profile.name, "after");
 
-    let PropertyValue::Owned(value) = summary.get(ReflectedRef::new(&profile)).expect("owned getter") else {
+    let PropertyValue::Owned(value) =
+        unsafe { summary.get_dynamic_unsafe(PropertyBorrowed::new(&profile)) }.expect("owned getter")
+    else {
         panic!("summary getter must own");
     };
     assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("after:3"));
 
-    let PropertyValue::OptionalBorrowed(Some(value)) = alias.get(ReflectedRef::new(&profile)).expect("optional getter")
+    let PropertyValue::OptionalBorrowed(Some(value)) =
+        unsafe { alias.get_dynamic_unsafe(PropertyBorrowed::new(&profile)) }.expect("optional getter")
     else {
         panic!("alias getter must preserve optional borrowing");
     };
     assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("visible"));
 
-    let PropertyValue::BorrowedSlice(values) = tags.get(ReflectedRef::new(&profile)).expect("slice getter") else {
+    let PropertyValue::BorrowedSlice(values) =
+        unsafe { tags.get_dynamic_unsafe(PropertyBorrowed::new(&profile)) }.expect("slice getter")
+    else {
         panic!("tags getter must preserve slice borrowing");
     };
     assert_eq!(values.len(), 2);

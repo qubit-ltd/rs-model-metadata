@@ -43,11 +43,11 @@ fn second_conflict<T: 'static>() -> CapabilityDescriptor {
     conflict::<T>()
 }
 
-#[derive(Reflect)]
+#[Reflect]
 #[reflect(capabilities(conflict, second_conflict))]
 struct Invalid<const N: usize>;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Root {
     invalid: Invalid<1>,
     target: u64,

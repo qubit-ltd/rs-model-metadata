@@ -43,10 +43,10 @@ use qubit_reflect::registry::CapabilityTarget;
 use qubit_reflect::registry::ReflectRegistry;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
-#[derive(Reflect)]
+#[Reflect]
 struct DiagnosticsTarget;
 
-#[derive(Reflect)]
+#[Reflect]
 struct GlobalConflict;
 
 #[cfg(feature = "generic")]

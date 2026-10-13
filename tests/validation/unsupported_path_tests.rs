@@ -30,7 +30,6 @@ use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::Reflect;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistry;
@@ -114,15 +113,16 @@ struct Envelope {
     choice: Choice,
 }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 enum ReflectedChoice {
     First(Child),
     Second { child: Child },
 }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct ReflectedWrapper {
-    #[reflect(rename = "lookup_child")]
     child: Child,
     sibling: Child,
 }
@@ -132,7 +132,8 @@ struct ReflectedStructEnvelope {
     raw: ReflectedWrapper,
 }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct RawTuple(Child);
 
 #[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
@@ -140,13 +141,10 @@ struct ReflectedTupleEnvelope {
     wrapper: RawTuple,
 }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 enum AliasedChoice {
-    #[reflect(rename = "lookup_variant")]
-    Named {
-        #[reflect(rename = "lookup_child")]
-        child: Child,
-    },
+    Named { child: Child },
 }
 
 #[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
@@ -154,7 +152,8 @@ struct AliasedEnvelope {
     raw: AliasedChoice,
 }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct RecursiveWrapper {
     next: Option<Box<RecursiveWrapper>>,
     child: Child,
@@ -170,7 +169,8 @@ struct EmptyChild {
     name: String,
 }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct EmptyWrapper {
     child: EmptyChild,
 }
@@ -343,7 +343,7 @@ fn test_optional_text_value_executes_or_skips() {
 
     let missing = OptionalText { value: None };
     let report = plan
-        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .validate(&missing, &ValidationOptions::default())
         .expect("missing optional text");
     assert!(report.violations().is_empty());
 
@@ -351,7 +351,7 @@ fn test_optional_text_value_executes_or_skips() {
         value: Some(String::new()),
     };
     let report = plan
-        .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+        .validate(&invalid, &ValidationOptions::default())
         .expect("present optional text");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "value");
@@ -382,7 +382,7 @@ fn test_optional_text_borrowed_getter_is_lazy_and_reads_once() {
 
     let missing = OptionalTextGetter { value: None };
     let report = plan
-        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .validate(&missing, &ValidationOptions::default())
         .expect("missing optional getter value");
     assert!(report.violations().is_empty());
     OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
@@ -391,7 +391,7 @@ fn test_optional_text_borrowed_getter_is_lazy_and_reads_once() {
         value: Some(String::new()),
     };
     let report = plan
-        .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+        .validate(&invalid, &ValidationOptions::default())
         .expect("present optional getter value");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].code().as_str(), "text.blank");
@@ -570,7 +570,7 @@ fn test_unsupported_raw_struct_preserves_sibling_uses_and_query_alias() {
     assert_eq!(errors.len(), 2);
     assert_eq!(
         errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
-        [Some("raw.lookup_child.name"), Some("raw.sibling.name"),]
+        [Some("raw.child.name"), Some("raw.sibling.name"),]
     );
     for (ordinal, error) in errors.iter().enumerate() {
         assert_eq!(error.owner_type_id(), TypeId::of::<Child>());
@@ -611,7 +611,7 @@ fn test_unsupported_raw_positional_struct_preserves_numeric_suffix() {
 fn test_unsupported_raw_enum_preserves_variant_source_name_and_field_query_alias() {
     let errors = unsupported(TypeMetadata::of::<AliasedEnvelope>());
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].path(), Some("raw.Named.lookup_child.name"));
+    assert_eq!(errors[0].path(), Some("raw.Named.child.name"));
     assert_eq!(errors[0].owner_type_id(), TypeId::of::<Child>());
 }
 
@@ -705,7 +705,7 @@ fn test_unsupported_metadata_only_graph_does_not_import_reflection_capabilities(
     );
     assert_eq!(
         errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
-        [Some("raw.lookup_child.name"), Some("raw.sibling.name"),]
+        [Some("raw.child.name"), Some("raw.sibling.name"),]
     );
     let plan_errors = match ValidationPlan::build(
         root,

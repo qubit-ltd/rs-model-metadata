@@ -24,27 +24,22 @@ use crate::structure::StructuralEdgeKind;
 use crate::structure::children;
 
 #[allow(dead_code)]
-#[derive(Reflect)]
+#[Reflect]
 struct NamedRecord {
-    #[reflect(rename = "lookup_number")]
     number: u8,
     enabled: bool,
 }
 
 #[allow(dead_code)]
-#[derive(Reflect)]
+#[Reflect]
 struct PositionalRecord(u8, bool);
 
 #[allow(dead_code)]
-#[derive(Reflect)]
+#[Reflect]
 enum Event {
     Ready,
     Pair(u8, bool),
-    #[reflect(rename = "lookup_named")]
-    Named {
-        #[reflect(rename = "lookup_value")]
-        value: String,
-    },
+    Named { value: String },
 }
 
 static OPAQUE: OpaqueTypeDescriptor = descriptor::opaque_member::<String>();
@@ -101,7 +96,7 @@ fn test_structure_children_struct_names_and_positions() {
                 StructuralEdgeKind::StructField {
                     index: 0,
                     name: Some("number"),
-                    query_name: Some("lookup_number"),
+                    query_name: Some("number"),
                 },
                 TypeDescriptor::of::<u8>(),
             ),
@@ -169,7 +164,7 @@ fn test_structure_children_enum_variant_and_field_order() {
                     variant_name: "Named",
                     field_index: 0,
                     field_name: Some("value"),
-                    query_name: Some("lookup_value"),
+                    query_name: Some("value"),
                 },
                 TypeDescriptor::of::<String>(),
             ),

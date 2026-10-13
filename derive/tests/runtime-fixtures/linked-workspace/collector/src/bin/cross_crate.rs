@@ -17,7 +17,6 @@ use model_b::RULE;
 use model_b::Target;
 
 use qubit_codec::ValueStringCodecRegistry;
-use qubit_model_metadata::__private::ReflectedRef;
 use qubit_model_metadata::codec::CodecBindInputs;
 use qubit_model_metadata::codec::bind_codecs;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -75,7 +74,7 @@ fn main() {
         text: "cross-crate".to_owned(),
     };
     let report = plan
-        .validate(ReflectedRef::new(&value), &ValidationOptions::default())
+        .validate(&value, &ValidationOptions::default())
         .unwrap();
     assert!(report.is_valid());
     let codecs = ValueStringCodecRegistry::from_registrations([&CODEC]).unwrap();

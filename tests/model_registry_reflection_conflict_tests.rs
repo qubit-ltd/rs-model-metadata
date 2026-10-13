@@ -26,7 +26,7 @@ use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::register_reflected_type;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
-#[derive(Reflect)]
+#[Reflect]
 struct DuplicateReflectionSource;
 
 register_reflected_type!(DuplicateReflectionSource);

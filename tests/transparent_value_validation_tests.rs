@@ -22,7 +22,6 @@ use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
 use qubit_validator::SkipReason;
 use qubit_validator::ValidatorRegistry;
 
@@ -68,7 +67,7 @@ fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
         email: Some(Email(String::new())),
     };
     let report = plan
-        .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+        .validate(&invalid, &ValidationOptions::default())
         .expect("transparent field execution");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "email[0]");
@@ -76,7 +75,7 @@ fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
 
     let missing = Envelope { email: None };
     let report = plan
-        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .validate(&missing, &ValidationOptions::default())
         .expect("missing email skips the field");
     assert!(report.violations().is_empty());
     assert_eq!(report.skipped().len(), 1);
@@ -106,7 +105,7 @@ fn test_transparent_value_root_field_reports_numeric_path() {
     )
     .expect("transparent root field must bind");
     let report = plan
-        .validate(ReflectedRef::new(&Email(String::new())), &ValidationOptions::default())
+        .validate(&Email(String::new()), &ValidationOptions::default())
         .expect("transparent root execution");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "[0]");
@@ -136,7 +135,7 @@ fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
 
     let invalid = OptionalEmail(Some(String::new()));
     let report = plan
-        .validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+        .validate(&invalid, &ValidationOptions::default())
         .expect("present optional scalar execution");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "[0]");
@@ -144,7 +143,7 @@ fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
 
     let missing = OptionalEmail(None);
     let report = plan
-        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .validate(&missing, &ValidationOptions::default())
         .expect("missing optional scalar skips the field");
     assert!(report.violations().is_empty());
     assert_eq!(report.skipped().len(), 1);

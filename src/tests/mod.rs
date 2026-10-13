@@ -10,5 +10,6 @@
 
 mod local_property_set_tests;
 mod model_impl_metadata_tests;
+mod property_tests;
 mod structure_children_tests;
 mod transparent_descriptor_tests;

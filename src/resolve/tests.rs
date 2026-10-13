@@ -37,7 +37,7 @@ use crate::metadata::PropertyResolutionError;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
 
-#[derive(Reflect)]
+#[Reflect]
 #[reflect(capabilities(broken_overlay))]
 struct Broken<const N: usize>;
 

@@ -22,12 +22,12 @@ use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::PropertyAccessPath;
 use qubit_model_metadata::PropertyAccessPathError;
+use qubit_model_metadata::metadata::PropertyBorrowed;
+use qubit_model_metadata::metadata::PropertyMutable;
+use qubit_model_metadata::metadata::PropertyOwned;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_reflect::ReflectedMut;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
 
 thread_local! {
@@ -101,7 +101,6 @@ struct OptionalRoot {
 
 #[Model(id = "access.ReadOnlyRoot")]
 struct ReadOnlyRoot {
-    #[reflect(read_only)]
     middle: AccessMiddle,
 }
 
@@ -117,6 +116,11 @@ struct OwnedParent {
 
 #[Model(id = "access.SetterOnly")]
 struct SetterOnly {}
+
+#[Model(id = "access.PublicRoot")]
+struct PublicRoot {
+    pub value: String,
+}
 
 static SETTER_ONLY_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -150,6 +154,7 @@ fn test_registry() -> ModelRegistry<'static> {
     static READ_ONLY_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static SMART_POINTER_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     static SETTER_ONLY_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
+    static PUBLIC_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
     let leaf_source = LEAF_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 1, 1, "leaf", 1));
     let middle_source =
         MIDDLE_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 2, 1, "middle", 2));
@@ -162,6 +167,8 @@ fn test_registry() -> ModelRegistry<'static> {
         .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "smart-pointer-root", 6));
     let setter_only_source =
         SETTER_ONLY_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "setter-only", 6));
+    let public_root_source =
+        PUBLIC_ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 7, 1, "public-root", 7));
     ModelRegistry::from_static_metadata(&[
         (TypeMetadata::of::<AccessLeaf>(), leaf_source),
         (TypeMetadata::of::<AccessMiddle>(), middle_source),
@@ -170,6 +177,7 @@ fn test_registry() -> ModelRegistry<'static> {
         (TypeMetadata::of::<ReadOnlyRoot>(), read_only_root_source),
         (TypeMetadata::of::<SmartPointerRoot>(), smart_pointer_root_source),
         (TypeMetadata::of::<SetterOnly>(), setter_only_source),
+        (TypeMetadata::of::<PublicRoot>(), public_root_source),
     ])
     .expect("isolated model registry")
 }
@@ -332,7 +340,7 @@ fn test_compile_for_write_accepts_setter_only_leaf() {
     let mut root = SetterOnly {};
     SETTER_ONLY_CALLS.store(0, Ordering::Relaxed);
 
-    path.write(ReflectedMut::new(&mut root), ReflectedOwned::new("after".to_owned()))
+    path.write_dynamic(PropertyMutable::new(&mut root), PropertyOwned::new("after".to_owned()))
         .expect("setter-only leaf accepts replacement");
     assert_eq!(SETTER_ONLY_CALLS.load(Ordering::Relaxed), 1);
     assert!(matches!(
@@ -354,7 +362,9 @@ fn test_read_optional_intermediate_reports_missing_value() {
     let root = OptionalRoot { middle: None };
 
     assert!(matches!(
-        path.read(ReflectedRef::new(&root)),
+        // SAFETY: The test owns the root and the compiled path binds these
+        // private fields to their registered descriptors.
+        unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) },
         Err(PropertyAccessPathError::MissingIntermediate { index: 0, .. })
     ));
     assert!(matches!(
@@ -414,9 +424,9 @@ fn test_write_read_only_intermediate_reports_access_failure() {
     };
 
     let failure = path
-        .write(
-            ReflectedMut::new(&mut root),
-            ReflectedOwned::new("secret-value".to_owned()),
+        .write_dynamic(
+            PropertyMutable::new(&mut root),
+            PropertyOwned::new("secret-value".to_owned()),
         )
         .expect_err("reflection policy blocks mutable projection");
     assert!(matches!(
@@ -458,9 +468,9 @@ fn test_read_nested_property_from_root_instance() {
         },
     };
 
-    let value = path
-        .read(ReflectedRef::new(&root))
-        .expect("nested property is readable");
+    // SAFETY: This test owns the root and the path was compiled from its
+    // registered model metadata.
+    let value = unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }.expect("nested property is readable");
     let PropertyValue::Borrowed(value) = value else {
         panic!("string field should be returned as a borrow");
     };
@@ -487,9 +497,53 @@ fn test_write_nested_property_through_root_instance() {
         },
     };
 
-    path.write(ReflectedMut::new(&mut root), ReflectedOwned::new("after".to_owned()))
+    // SAFETY: This test owns the root and the path was compiled from its
+    // registered model metadata.
+    unsafe { path.write_dynamic_unsafe(PropertyMutable::new(&mut root), PropertyOwned::new("after".to_owned())) }
         .expect("nested property is writable");
     assert_eq!(root.middle.leaf.value, "after");
+}
+
+/// The typed convenience APIs read and write public fields without unsafe code.
+#[test]
+fn test_typed_access_path_apis_support_public_fields() {
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<PublicRoot>(), &["value"])
+        .expect("public field path compiles");
+    let mut root = PublicRoot {
+        value: "before".to_owned(),
+    };
+
+    {
+        let value = path.read(&root).expect("public field is readable");
+        let PropertyValue::Borrowed(value) = value else {
+            panic!("string field should be returned as a borrow");
+        };
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("before"));
+    }
+
+    path.write(&mut root, "after".to_owned())
+        .expect("public field is writable");
+    assert_eq!(root.value, "after");
+
+    let failure = path
+        .write(&mut root, 17_u32)
+        .expect_err("a replacement with the wrong type is rejected");
+    assert!(failure.property_failure().is_some());
+    assert_eq!(root.value, "after");
+}
+
+/// The typed read API reports a mismatched concrete root type.
+#[test]
+fn test_typed_read_reports_root_type_mismatch() {
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<PublicRoot>(), &["value"])
+        .expect("public field path compiles");
+    let error = match path.read(&"wrong root".to_owned()) {
+        Ok(_) => panic!("a different root type should be rejected"),
+        Err(error) => error,
+    };
+    assert!(matches!(error, PropertyAccessPathError::RootTypeMismatch { .. }));
 }
 
 /// Rejects empty, unknown, and root-mismatched path inputs structurally.
@@ -515,7 +569,7 @@ fn test_compile_and_read_report_structured_path_errors() {
     )
     .expect("valid property path");
     assert!(matches!(
-        path.read(ReflectedRef::new(&AccessLeaf {
+        path.read_dynamic(PropertyBorrowed::new(&AccessLeaf {
             value: "wrong root".to_owned(),
         })),
         Err(PropertyAccessPathError::RootTypeMismatch { .. })
@@ -536,9 +590,9 @@ fn test_write_root_mismatch_preserves_replacement() {
         value: "unchanged".to_owned(),
     };
     let failure = path
-        .write(
-            ReflectedMut::new(&mut wrong_root),
-            ReflectedOwned::new("replacement".to_owned()),
+        .write_dynamic(
+            PropertyMutable::new(&mut wrong_root),
+            PropertyOwned::new("replacement".to_owned()),
         )
         .expect_err("root type must match");
 
@@ -572,8 +626,9 @@ fn test_write_leaf_failure_preserves_replacement() {
             },
         },
     };
-    let failure = path
-        .write(ReflectedMut::new(&mut root), ReflectedOwned::new(17_u32))
+    // SAFETY: This test owns the root and the path was compiled from its
+    // registered model metadata.
+    let failure = unsafe { path.write_dynamic_unsafe(PropertyMutable::new(&mut root), PropertyOwned::new(17_u32)) }
         .expect_err("leaf value type must match");
 
     assert!(failure.property_failure().is_some());

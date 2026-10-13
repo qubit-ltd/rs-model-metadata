@@ -1,3 +1,17 @@
+error: expected derive macro, found attribute macro `Reflect`
+  --> tests/ui_roles/fail/model_impl_options.rs:15:10
+   |
+15 | #[derive(Reflect)]
+   |          ^^^^^^^ not a derive macro
+   |
+help: remove from the surrounding `derive()`
+  --> tests/ui_roles/fail/model_impl_options.rs:15:10
+   |
+15 | #[derive(Reflect)]
+   |          ^^^^^^^
+   = help: add as non-Derive macro
+           `#[Reflect]`
+
 error: unknown reflection helper `unexpected`
   --> tests/ui_roles/fail/model_impl_options.rs:18:13
    |
@@ -15,3 +29,30 @@ help: the trait `TypeMetadataProvider` is not implemented for `Account`
    |
 16 | struct Account;
    | ^^^^^^^^^^^^^^
+
+error[E0277]: the trait bound `Account: Reflect` is not satisfied
+  --> tests/ui_roles/fail/model_impl_options.rs:19:6
+   |
+19 | impl Account {}
+   |      ^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `Reflect` is not implemented for `Account`
+  --> tests/ui_roles/fail/model_impl_options.rs:16:1
+   |
+16 | struct Account;
+   | ^^^^^^^^^^^^^^
+   = help: the following other types implement trait `Reflect`:
+             &'static T
+             &'static mut T
+             ()
+             (A, B)
+             (A, B, C)
+             (A, B, C, D)
+             (A, B, C, D, E)
+             (A, B, C, D, E, F)
+           and $N others
+note: required by a bound in `TypeDescriptor::of`
+  --> $QUBIT_REFLECT/src/descriptor/type_descriptor.rs
+   |
+   |     pub fn of<T: Reflect + ?Sized>() -> &'static Self {
+   |                  ^^^^^^^ required by this bound in `TypeDescriptor::of`

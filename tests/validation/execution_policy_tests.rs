@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
+use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
@@ -28,14 +29,13 @@ use qubit_model_metadata::validation::ValidationMode;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::validation::ValidationSelection;
-use qubit_reflect::ReflectedRef;
+use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
 use qubit_validator::InputType;
-use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
@@ -112,9 +112,7 @@ fn assert_stopped(options: ValidationOptions, expected: usize) {
         Arc::new(Many),
     )
     .expect("prepared model shape")]);
-    let report = plan
-        .validate(ReflectedRef::new(&Root { value: String::new() }), &options)
-        .unwrap();
+    let report = plan.validate(&Root { value: String::new() }, &options).unwrap();
     assert_eq!(report.violations().len(), expected, "report must obey the hard limit");
     assert_eq!(
         GETTER_CALLS.with(Cell::get),
@@ -178,9 +176,7 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
         )]))
         .max_violations(NonZeroUsize::new(3).unwrap())
         .build();
-    let report = plan
-        .validate(ReflectedRef::new(&Root { value: "valid".into() }), &options)
-        .unwrap();
+    let report = plan.validate(&Root { value: "valid".into() }, &options).unwrap();
 
     assert_eq!(report.failure_count(), 3);
     assert!(!report.is_truncated());
@@ -227,10 +223,7 @@ fn test_model_empty_invalid_outcome_is_an_execution_error() {
     )
     .expect("prepared model shape")]);
     let error = plan
-        .validate(
-            ReflectedRef::new(&Root { value: "ok".into() }),
-            &ValidationOptions::default(),
-        )
+        .validate(&Root { value: "ok".into() }, &ValidationOptions::default())
         .unwrap_err();
     assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
 }
@@ -256,9 +249,7 @@ fn test_property_reads_and_rule_invocations_each_consume_a_node() {
     let options = ValidationOptions::builder()
         .max_nodes(NonZeroUsize::new(2).unwrap())
         .build();
-    let error = plan
-        .validate(ReflectedRef::new(&Root { value: String::new() }), &options)
-        .unwrap_err();
+    let error = plan.validate(&Root { value: String::new() }, &options).unwrap_err();
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert!(error.partial_report().violations().is_empty());
     assert_eq!(GETTER_CALLS.with(Cell::get), 1);
@@ -357,10 +348,10 @@ fn test_fields_and_selectors_prefix_relative_violation_paths() {
         values: vec!["invalid".into()],
     };
     for (root, value, occurrence_path) in [
-        (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields), "first"),
+        (TypeMetadata::of::<Fields>(), PropertyBorrowed::new(&fields), "first"),
         (
             TypeMetadata::of::<Elements>(),
-            ReflectedRef::new(&elements),
+            PropertyBorrowed::new(&elements),
             "values[0]",
         ),
     ] {
@@ -375,7 +366,7 @@ fn test_fields_and_selectors_prefix_relative_violation_paths() {
         );
     }
 }
-fn prepare_outcome(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_outcome(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(OutcomeRule))
 }
 static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_outcome)];
@@ -390,7 +381,7 @@ static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
 /// across threads.
 fn run(
     root: &'static TypeMetadata,
-    value: ReflectedRef<'_>,
+    value: PropertyBorrowed<'_>,
     options: &ValidationOptions,
 ) -> Result<ValidationReport, ModelValidationError> {
     GETTER_CALLS.with(|calls| calls.set(0));
@@ -412,7 +403,7 @@ fn run(
     )
     .unwrap();
     assert_eq!(GETTER_CALLS.with(Cell::get), 0);
-    plan.validate(value, options)
+    plan.validate_dynamic(value, options)
 }
 
 #[test]
@@ -425,8 +416,8 @@ fn test_fields_and_selectors_stop_globally_after_invalid_outcomes() {
         values: vec!["invalid".into(), "invalid".into()],
     };
     for (root, value) in [
-        (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields)),
-        (TypeMetadata::of::<Elements>(), ReflectedRef::new(&elements)),
+        (TypeMetadata::of::<Fields>(), PropertyBorrowed::new(&fields)),
+        (TypeMetadata::of::<Elements>(), PropertyBorrowed::new(&elements)),
     ] {
         let expected_path = if root.type_id() == TypeId::of::<Fields>() {
             "first.nested"
@@ -469,8 +460,8 @@ fn test_fields_and_selectors_reject_empty_invalid_outcomes() {
         values: vec!["empty-invalid".into()],
     };
     for (root, value) in [
-        (TypeMetadata::of::<Fields>(), ReflectedRef::new(&fields)),
-        (TypeMetadata::of::<Elements>(), ReflectedRef::new(&elements)),
+        (TypeMetadata::of::<Fields>(), PropertyBorrowed::new(&fields)),
+        (TypeMetadata::of::<Elements>(), PropertyBorrowed::new(&elements)),
     ] {
         let error = run(root, value, &ValidationOptions::default()).unwrap_err();
         assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
@@ -492,7 +483,7 @@ fn test_missing_optional_does_not_trigger_fail_fast_before_invalid_field() {
     };
     let report = run(
         TypeMetadata::of::<OptionalFields>(),
-        ReflectedRef::new(&fields),
+        PropertyBorrowed::new(&fields),
         &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
     )
     .unwrap();
@@ -516,7 +507,7 @@ fn test_execution_error_retains_partial_report_occurrence_without_source() {
     };
     let error = run(
         TypeMetadata::of::<Fields>(),
-        ReflectedRef::new(&value),
+        PropertyBorrowed::new(&value),
         &ValidationOptions::default(),
     )
     .unwrap_err();
@@ -540,7 +531,7 @@ fn test_execution_error_retains_partial_report_occurrence_without_source() {
 fn test_model_validation_error_without_field_context_exposes_empty_accessors() {
     let error = run(
         TypeMetadata::of::<Fields>(),
-        ReflectedRef::new(&42_u32),
+        PropertyBorrowed::new(&42_u32),
         &ValidationOptions::default(),
     )
     .unwrap_err();
@@ -563,7 +554,7 @@ fn test_owned_getter_value_is_executed_without_borrowing() {
     assert!(TypeMetadata::try_of::<OwnedField>().is_ok());
     let report = run(
         TypeMetadata::of::<OwnedField>(),
-        ReflectedRef::new(&value),
+        PropertyBorrowed::new(&value),
         &ValidationOptions::default(),
     )
     .expect("owned getter should produce a valid value");
@@ -583,7 +574,7 @@ fn test_selector_budgets_preserve_partial_report_and_stop_before_next_rule() {
             .max_comparisons(NonZeroUsize::new(1).unwrap())
             .build(),
     ] {
-        let error = run(TypeMetadata::of::<Elements>(), ReflectedRef::new(&value), &options).unwrap_err();
+        let error = run(TypeMetadata::of::<Elements>(), PropertyBorrowed::new(&value), &options).unwrap_err();
         assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
         assert_eq!(error.partial_report().violations().len(), 3);
         assert!(!error.partial_report().is_truncated());
@@ -593,7 +584,7 @@ fn test_selector_budgets_preserve_partial_report_and_stop_before_next_rule() {
     let options = ValidationOptions::builder()
         .max_depth(NonZeroUsize::new(1).unwrap())
         .build();
-    let error = run(TypeMetadata::of::<Elements>(), ReflectedRef::new(&value), &options).unwrap_err();
+    let error = run(TypeMetadata::of::<Elements>(), PropertyBorrowed::new(&value), &options).unwrap_err();
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert_eq!(RULE_CALLS.with(Cell::get), 0);
     assert!(error.partial_report().violations().is_empty());
@@ -608,7 +599,7 @@ fn test_node_budget_boundary_preserves_completed_field_results() {
     let options = ValidationOptions::builder()
         .max_nodes(NonZeroUsize::new(4).unwrap())
         .build();
-    let error = run(TypeMetadata::of::<Fields>(), ReflectedRef::new(&value), &options).unwrap_err();
+    let error = run(TypeMetadata::of::<Fields>(), PropertyBorrowed::new(&value), &options).unwrap_err();
     assert_eq!(error.partial_report().violations().len(), 3);
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert_eq!(RULE_CALLS.with(Cell::get), 1);
@@ -617,7 +608,7 @@ fn test_node_budget_boundary_preserves_completed_field_results() {
         .max_nodes(NonZeroUsize::new(5).unwrap())
         .build();
     assert_eq!(
-        run(TypeMetadata::of::<Fields>(), ReflectedRef::new(&value), &options)
+        run(TypeMetadata::of::<Fields>(), PropertyBorrowed::new(&value), &options)
             .unwrap()
             .violations()
             .len(),
@@ -651,7 +642,7 @@ impl OptionalFields {
 fn test_missing_optional_occurrences_are_unique_without_triggering_fail_fast() {
     let report = run(
         TypeMetadata::of::<OptionalFields>(),
-        ReflectedRef::new(&OptionalFields {
+        PropertyBorrowed::new(&OptionalFields {
             first: None,
             second: None,
             third: None,
@@ -712,7 +703,7 @@ impl PreparedValidator for ParentRule {
         Ok(PreparedOutcome::Valid)
     }
 }
-fn prepare_parent(_: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_parent(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(ParentRule))
 }
 static PARENT_SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(
@@ -771,7 +762,7 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
         ] {
             PARENT_READS.with(|calls| calls.set(0));
             let error = plan
-                .validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&containing)], &options)
+                .validate_with_context(&value, &[PropertyBorrowed::new(&containing)], &options)
                 .unwrap_err();
             assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
             assert_eq!(PARENT_READS.with(Cell::get), 0);
@@ -785,13 +776,11 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
             .max_nodes(NonZeroUsize::new(4).unwrap())
             .build();
         assert!(
-            plan.validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&containing)], &options)
+            plan.validate_with_context(&value, &[PropertyBorrowed::new(&containing)], &options)
                 .unwrap()
                 .is_valid()
         );
-        let error = plan
-            .validate(ReflectedRef::new(&value), &ValidationOptions::default())
-            .unwrap_err();
+        let error = plan.validate(&value, &ValidationOptions::default()).unwrap_err();
         assert_eq!(error.error().kind(), ExecutionErrorKind::MissingRequiredDependencyValue);
         assert_eq!(error.dependency_object_path().unwrap().to_string(), "..");
     }

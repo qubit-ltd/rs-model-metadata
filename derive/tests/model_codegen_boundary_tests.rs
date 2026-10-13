@@ -8,10 +8,10 @@
 
 //! Boundary coverage for model-owned reflection code generation.
 
-use model_runtime::__private::ReflectedMut;
-use model_runtime::__private::ReflectedOwned;
-use model_runtime::__private::ReflectedRef;
 use model_runtime::__private::TypeExpression;
+use model_runtime::metadata::PropertyBorrowed;
+use model_runtime::metadata::PropertyMutable;
+use model_runtime::metadata::PropertyOwned;
 use model_runtime::metadata::PropertyValue;
 use model_runtime::metadata::TypeMetadata;
 use model_runtime::registry::ModelRegistry;
@@ -121,26 +121,32 @@ fn test_model_impl_preserves_borrowed_and_mutable_property_shapes() {
         tags: vec!["first".to_owned(), "second".to_owned()],
     };
 
-    let PropertyValue::Borrowed(borrowed) = name.get(ReflectedRef::new(&value)).expect("borrowed str getter") else {
+    let PropertyValue::Borrowed(borrowed) = name
+        .get_dynamic(PropertyBorrowed::new(&value))
+        .expect("borrowed str getter")
+    else {
         panic!("name must remain a borrowed property");
     };
     assert_eq!(borrowed.as_str(), Some("before"));
 
-    let PropertyValue::OptionalBorrowed(Some(borrowed)) =
-        alias.get(ReflectedRef::new(&value)).expect("optional borrowed getter")
+    let PropertyValue::OptionalBorrowed(Some(borrowed)) = alias
+        .get_dynamic(PropertyBorrowed::new(&value))
+        .expect("optional borrowed getter")
     else {
         panic!("alias must preserve optional borrowing");
     };
     assert_eq!(borrowed.downcast_ref::<String>().map(String::as_str), Some("visible"));
 
-    let PropertyValue::BorrowedSlice(borrowed) = tags.get(ReflectedRef::new(&value)).expect("borrowed slice getter")
+    let PropertyValue::BorrowedSlice(borrowed) = tags
+        .get_dynamic(PropertyBorrowed::new(&value))
+        .expect("borrowed slice getter")
     else {
         panic!("tags must remain a borrowed slice property");
     };
     assert_eq!(borrowed.len(), 2);
     drop(borrowed);
 
-    name.set(ReflectedMut::new(&mut value), ReflectedOwned::new("after".to_owned()))
+    name.set_dynamic(PropertyMutable::new(&mut value), PropertyOwned::new("after".to_owned()))
         .expect("string setter");
     assert_eq!(value.name, "after");
 }

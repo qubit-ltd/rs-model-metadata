@@ -525,8 +525,8 @@ fn expand_collection_ops(
             fn assert_item_eq<T: ::core::cmp::PartialEq + 'static>() {}
             assert_item_eq::<#element_type>();
             fn item_eq(
-                left: #runtime::__private::ReflectedRef<'_>,
-                right: #runtime::__private::ReflectedRef<'_>,
+                left: #runtime::metadata::PropertyBorrowed<'_>,
+                right: #runtime::metadata::PropertyBorrowed<'_>,
             ) -> ::core::result::Result<bool, #runtime::metadata::PropertyAccessError> {
                 let left = left.downcast_ref::<#element_type>().ok_or_else(||
                     #runtime::metadata::PropertyAccessError::value_type_mismatch::<#element_type>(&left)

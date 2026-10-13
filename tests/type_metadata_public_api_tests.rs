@@ -54,6 +54,13 @@ fn test_type_metadata_delegates_structure_to_reflection() {
 }
 
 #[test]
+fn test_type_metadata_validation_rejects_a_different_rust_root() {
+    let metadata = TypeMetadata::of::<NamedFixture>();
+
+    assert!(metadata.validate_for::<String>().is_err());
+}
+
+#[test]
 fn test_missing_property_lookup_returns_none_for_static_metadata() {
     let metadata = TypeMetadata::of::<MissingPropertyFixture>();
 
