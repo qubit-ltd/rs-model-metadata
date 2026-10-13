@@ -8,6 +8,7 @@
 
 //! Independent consumer builds for actual accessor feature combinations.
 
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -21,7 +22,8 @@ use temporary_target_dir::TemporaryTargetDir;
 /// Checks all declared presence axes and the intersecting failure cases.
 #[test]
 fn test_cfg_accessor_feature_matrix() {
-    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/runtime-fixtures/cfg-accessors/Cargo.toml");
+    let scratch = TemporaryTargetDir::new("qubit-model-cfg-fixture");
+    let fixture = prepare_cfg_fixture(scratch.path());
     let fetched = Command::new(env!("CARGO"))
         .args(["fetch", "--locked", "--manifest-path"])
         .arg(&fixture)
@@ -69,6 +71,40 @@ fn test_cfg_accessor_feature_matrix() {
             "cfg diagnostic needs source position: {stderr}"
         );
     }
+}
+
+/// Copies the standalone fixture and points its reflect dependency at the
+/// explicitly selected integration checkout when the test runs in a worktree.
+fn prepare_cfg_fixture(directory: &Path) -> PathBuf {
+    let package_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source = package_root.join("tests/runtime-fixtures/cfg-accessors");
+    let destination = directory.join("cfg-accessors");
+    fs::create_dir_all(destination.join("src")).expect("fixture sources");
+    fs::copy(source.join("src/lib.rs"), destination.join("src/lib.rs")).expect("fixture library");
+    fs::copy(source.join("Cargo.lock"), destination.join("Cargo.lock")).expect("fixture lockfile");
+
+    let reflect_root = std::env::var_os("QUBIT_REFLECT_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| package_root.join("../../rs-reflect"));
+    let manifest = fs::read_to_string(source.join("Cargo.toml")).expect("fixture manifest");
+    let manifest = manifest
+        .replace(
+            "qubit-model-derive = { path = \"../../../\" }",
+            &format!("qubit-model-derive = {{ path = \"{}\" }}", package_root.display()),
+        )
+        .replace(
+            "model_runtime = { package = \"qubit-model-metadata\", path = \"../../../..\", features = [\"generic\"] }",
+            &format!(
+                "model_runtime = {{ package = \"qubit-model-metadata\", path = \"{}\", features = [\"generic\"] }}",
+                package_root.join("..").display()
+            ),
+        )
+        .replace(
+            "qubit-reflect = { path = \"../../../../../rs-reflect\" }",
+            &format!("qubit-reflect = {{ path = \"{}\" }}", reflect_root.display()),
+        );
+    fs::write(destination.join("Cargo.toml"), manifest).expect("fixture manifest copy");
+    destination.join("Cargo.toml")
 }
 
 /// Runs one standalone consumer command, using a child target directory to

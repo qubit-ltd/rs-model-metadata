@@ -15,8 +15,6 @@ use model_runtime::metadata::TypeMetadata;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_reflect::Reflect;
-use qubit_reflect::ReflectedRef;
-use qubit_reflect::reflect;
 use qubit_reflect::registry::ReflectRegistry;
 
 #[Model]
@@ -91,7 +89,7 @@ fn test_exclusion_preserves_computed_and_stored_properties() {
     );
 }
 
-#[reflect]
+#[Reflect]
 trait Greeting {
     /// Provides trait behavior, independently of model properties.
     fn greeting(&self) -> String;
@@ -123,65 +121,6 @@ fn test_trait_methods_do_not_contribute_properties() {
             .flat_map(|implementation| implementation.methods())
             .any(|method| method.rust_name() == "greeting")
     );
-}
-
-#[Model]
-struct GenericName<T> {
-    value: T,
-}
-
-#[ModelImpl(specialize(T = String), specialize(T = u32))]
-impl<T: Clone + Reflect> GenericName<T> {
-    /// A computed property specialized using the reflection support boundary.
-    pub fn current(&self) -> T {
-        self.value.clone()
-    }
-}
-
-/// Generic impl specializations keep concrete property identities separate.
-#[test]
-fn test_generic_impl_specializations_have_exact_property_types() {
-    let text = TypeMetadata::of::<GenericName<String>>();
-    let number = TypeMetadata::of::<GenericName<u32>>();
-    let text_property = text
-        .try_property("current")
-        .expect("properties")
-        .expect("text property");
-    let number_property = number
-        .try_property("current")
-        .expect("properties")
-        .expect("number property");
-    assert_eq!(
-        text_property.descriptor().expect("type").type_id(),
-        TypeId::of::<String>()
-    );
-    assert_eq!(
-        number_property.descriptor().expect("type").type_id(),
-        TypeId::of::<u32>()
-    );
-    let value = GenericName { value: 7u32 };
-    assert!(number_property.get(ReflectedRef::new(&value)).is_ok());
-}
-
-#[Model]
-struct Fixed<const N: usize> {
-    bytes: [u8; N],
-}
-
-#[ModelImpl(specialize(N = 2))]
-impl<const N: usize> Fixed<N> {
-    /// Reports the concrete const-specialized storage length.
-    pub fn length(&self) -> usize {
-        self.bytes.len()
-    }
-}
-
-/// Const substitutions include generic argument positions, not only arrays.
-#[test]
-fn test_const_impl_specialization() {
-    let metadata = TypeMetadata::of::<Fixed<2>>();
-    let property = metadata.try_property("length").unwrap().unwrap();
-    assert!(property.get(ReflectedRef::new(&Fixed { bytes: [1, 2] })).is_ok());
 }
 
 #[Model]

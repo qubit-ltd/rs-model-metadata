@@ -51,10 +51,10 @@ impl StaticPropertyFixture {
     }
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct RegistryFixture;
 
-#[derive(Reflect)]
+#[Reflect]
 struct StaticRegistryAbiFixture {
     value: String,
 }
@@ -64,19 +64,19 @@ struct StaticRegistryAbiValidFixture {
     value: String,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 #[cfg(feature = "generic")]
 struct StaticRegistryAbiWithGenericsFixture {
     value: String,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 #[cfg(feature = "generic")]
 struct GenericFixture<T> {
     value: T,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 #[cfg(feature = "generic")]
 struct OtherGenericFixture<T> {
     value: T,
@@ -88,7 +88,7 @@ struct AnonymousGenericFixture<T> {
     value: T,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct ProjectedFixture;
 
 impl ModelTypeSeal for ProjectedFixture {}
@@ -113,7 +113,7 @@ register_model_capability!(ProjectedFixture, ProjectedFixture::__type_metadata);
 
 static COUNTED_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Reflect)]
+#[Reflect]
 struct CountedProviderFixture;
 
 impl ModelTypeSeal for CountedProviderFixture {}
@@ -136,7 +136,7 @@ impl TypeMetadataProvider for CountedProviderFixture {
 
 static NAMED_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Reflect)]
+#[Reflect]
 struct CountedNamedProviderFixture;
 
 impl ModelTypeSeal for CountedNamedProviderFixture {}
@@ -157,7 +157,7 @@ impl TypeMetadataProvider for CountedNamedProviderFixture {
     }
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct SnapshotIsolatedFixture;
 
 impl ModelTypeSeal for SnapshotIsolatedFixture {}

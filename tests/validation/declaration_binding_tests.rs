@@ -29,7 +29,6 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
 use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
@@ -316,9 +315,7 @@ fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() 
             values: vec!["b".into()],
         },
     };
-    let report = plan
-        .validate(ReflectedRef::new(&pair), &ValidationOptions::default())
-        .unwrap();
+    let report = plan.validate(&pair, &ValidationOptions::default()).unwrap();
     assert_eq!(
         report
             .violations()
@@ -336,18 +333,14 @@ fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() 
     )
     .unwrap();
     let missing = OptionalParent { child: None };
-    let report = plan
-        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
-        .unwrap();
+    let report = plan.validate(&missing, &ValidationOptions::default()).unwrap();
     assert!(report.violations().is_empty());
     let present = OptionalParent {
         child: Some(Child {
             values: vec!["a".into(), "b".into()],
         }),
     };
-    let report = plan
-        .validate(ReflectedRef::new(&present), &ValidationOptions::default())
-        .unwrap();
+    let report = plan.validate(&present, &ValidationOptions::default()).unwrap();
     assert_eq!(
         report
             .violations()
@@ -575,19 +568,16 @@ fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
     OPTIONAL_PARENT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 0));
 
     let report = plan
-        .validate(
-            ReflectedRef::new(&BorrowedOption { child: None }),
-            &ValidationOptions::default(),
-        )
+        .validate(&BorrowedOption { child: None }, &ValidationOptions::default())
         .expect("None should skip nested validation");
     assert!(report.violations().is_empty());
     OPTIONAL_PARENT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
 
     let report = plan
         .validate(
-            ReflectedRef::new(&BorrowedOption {
+            &BorrowedOption {
                 child: Some(OptionalChild { value: String::new() }),
-            }),
+            },
             &ValidationOptions::default(),
         )
         .expect("Some should execute nested validation");
@@ -631,10 +621,7 @@ fn test_duplicate_rule_ids_remain_distinct_occurrences() {
     .unwrap();
     assert_eq!(plan.binding_count(), 2);
     let report = plan
-        .validate(
-            ReflectedRef::new(&Repeated { name: "a".into() }),
-            &ValidationOptions::default(),
-        )
+        .validate(&Repeated { name: "a".into() }, &ValidationOptions::default())
         .unwrap();
     assert_eq!(report.violations().len(), 2);
 }
@@ -752,10 +739,7 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_exp
     )
     .unwrap();
     let report = plan
-        .validate(
-            ReflectedRef::new(&Counted { values: vec![] }),
-            &ValidationOptions::default(),
-        )
+        .validate(&Counted { values: vec![] }, &ValidationOptions::default())
         .unwrap();
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "values");
@@ -817,7 +801,7 @@ fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
         value: "value".into(),
     };
     let report = plan
-        .validate(ReflectedRef::new(&missing), &ValidationOptions::default())
+        .validate(&missing, &ValidationOptions::default())
         .expect("missing optional dependency is passed through to the validator");
     assert!(report.violations().is_empty());
 }

@@ -114,7 +114,6 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
 use qubit_validator::ValidatorRegistry;
 
 #[Entity(id = "guide.iam.User")]
@@ -145,7 +144,7 @@ fn main() {
         username: "a".to_owned(),
         display_name: "Alice".to_owned(),
     };
-    let report = plan.validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+    let report = plan.validate(&invalid, &ValidationOptions::default())
         .expect("validation executed");
     assert!(!report.is_valid());
     assert_eq!(report.violations()[0].path().render(), "username");
@@ -284,8 +283,8 @@ let plan = ValidationPlan::build_with_context(
     &[parent],
 )?;
 let report = plan.validate_with_context(
-    ReflectedRef::new(&child_value),
-    &[ReflectedRef::new(&parent_value)],
+    &child_value,
+    &[qubit_model_metadata::metadata::PropertyBorrowed::new(&parent_value)],
     &ValidationOptions::default(),
 )?;
 ```
@@ -431,7 +430,8 @@ use qubit_validator::ValidatorRegistry;
 #[Model(eq, hash)]
 struct Child { #[text(non_blank)] name: String }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct Raw { child: Child }
 
 #[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
@@ -440,7 +440,8 @@ struct Root { raw: Raw }
 #[Model(eq, hash)]
 struct EmptyChild { name: String }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct EmptyRaw { child: EmptyChild }
 
 #[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
@@ -498,7 +499,7 @@ let options = ValidationOptions::builder()
         FieldPath::from_segments(["contact", "name"]),
     ]))
     .build();
-let report = plan.validate(ReflectedRef::new(&profile), &options)?;
+let report = plan.validate(&profile, &options)?;
 ```
 
 这里的 `plan` 是前文已构建的计划，`profile` 是 `Profile` 实例。只选择完整路径

@@ -109,12 +109,14 @@ struct ProjectionEntity {
     inner: (View,),
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
 struct RawWrapper {
     inner: Inner,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
 enum RawChoice {
     Empty,
     Child { inner: Inner },
@@ -134,7 +136,8 @@ struct RawEnumEntity {
     inner: RawChoice,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
 struct RecursiveRaw {
     next: Option<Box<RecursiveRaw>>,
     child: Inner,
@@ -211,18 +214,21 @@ struct Child {
     number: u8,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
 struct RawChild {
     value: Child,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
 enum RawChildChoice {
     Empty,
     Child(Child),
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
 struct RecursiveChild {
     next: Option<Box<RecursiveChild>>,
     value: Child,
@@ -290,12 +296,14 @@ struct UnresolvedValue(#[reflect(opaque)] Plain);
 #[Value]
 struct RawValue(RawChild);
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
 struct PrimitiveRaw {
     number: u8,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
 struct EmptyRaw;
 
 #[Value]
@@ -336,7 +344,8 @@ fn second<T: 'static>() -> CapabilityDescriptor {
     CapabilityDescriptor::with_adapter(conflict_key(), 2)
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
 #[reflect(capabilities(first, second))]
 struct Invalid<const N: usize>;
 

@@ -23,15 +23,15 @@ use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
 use qubit_model_metadata::metadata::ModelImplMetadata;
 use qubit_model_metadata::metadata::PropertyAccessError;
+use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::PropertyFragmentSource;
+use qubit_model_metadata::metadata::PropertyMutable;
+use qubit_model_metadata::metadata::PropertyOwned;
 use qubit_model_metadata::metadata::PropertySetFailure;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_reflect::ReflectedMut;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::identity::CapabilityId;
@@ -144,14 +144,14 @@ struct ResolutionPathFiftyOne {
     f50: ResolutionPathMiddle,
 }
 
-fn read_name(target: ReflectedRef<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
+fn read_name(target: PropertyBorrowed<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
     let target = target
         .downcast::<ResolutionFixture>()
         .map_err(|_| PropertyAccessError::user("wrong owner"))?;
-    Ok(PropertyValue::Borrowed(ReflectedRef::new(&target.name)))
+    Ok(PropertyValue::Borrowed(PropertyBorrowed::new(&target.name)))
 }
 
-fn write_name(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
+fn write_name(target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
     let target = target
         .downcast::<ResolutionFixture>()
         .unwrap_or_else(|_| panic!("validated owner"));
@@ -313,9 +313,12 @@ fn property_resolution(criterion: &mut Criterion) {
         name: "before".to_owned(),
     };
     property
-        .set(ReflectedMut::new(&mut value), ReflectedOwned::new("after".to_owned()))
+        .set_dynamic(PropertyMutable::new(&mut value), PropertyOwned::new("after".to_owned()))
         .expect("merged setter works");
-    let PropertyValue::Borrowed(read) = property.get(ReflectedRef::new(&value)).expect("merged getter works") else {
+    let PropertyValue::Borrowed(read) = property
+        .get_dynamic(PropertyBorrowed::new(&value))
+        .expect("merged getter works")
+    else {
         panic!("expected borrowed name");
     };
     assert_eq!(read.downcast_ref::<String>().expect("String getter"), "after");

@@ -35,40 +35,40 @@ fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]
     ModelRegistry::from_static_metadata(entries).expect("valid isolated model registry")
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct TargetFixture {
     id: u64,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct SourceFixture {
     target_id: u64,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct NestedQueryFixture {
     b: u64,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct RootQueryFixture {
     id: u64,
     nested: NestedQueryFixture,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct ConflictingQueryFixture {
     id: u64,
     a_b: u64,
     a: NestedQueryFixture,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct PlainModelFixture {
     value: u64,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct InvalidValueFixture {
     model: PlainModelFixture,
 }

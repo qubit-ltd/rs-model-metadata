@@ -17,7 +17,7 @@ use qubit_reflect::TypeDefinitionId;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::VariantDefinitionDescriptor;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Generic<T> {
     value: T,
 }

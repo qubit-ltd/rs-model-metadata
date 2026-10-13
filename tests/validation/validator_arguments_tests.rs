@@ -18,7 +18,6 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
 use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
@@ -97,6 +96,7 @@ fn prepare(reader: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>
         .iter()
         .map(|(name, _)| Ok((*name, reader.required_argument(name)?)))
         .collect::<Result<_, BindError>>()?;
+    reader.finish()?;
     assert_eq!(
         received, expected,
         "all names, types, bounds, and list order must survive binding"
@@ -144,7 +144,7 @@ fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
             token: token.to_owned(),
         };
         let report = plan
-            .validate(ReflectedRef::new(&value), &ValidationOptions::default())
+            .validate(&value, &ValidationOptions::default())
             .expect("configured rule executes");
         assert_eq!(report.violations().len(), expected_failures);
         assert!(!report.is_truncated());

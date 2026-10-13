@@ -20,6 +20,7 @@ use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
 use qubit_model_metadata::metadata::IndexingReasons;
 use qubit_model_metadata::metadata::PropertyAccessError;
+use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::SelectorMetadata;
 use qubit_model_metadata::metadata::SelectorPosition;
@@ -27,21 +28,20 @@ use qubit_model_metadata::metadata::SequenceConstraint;
 use qubit_model_metadata::metadata::SerdeFieldMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_reflect::Reflect;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeDescriptor;
 
-#[derive(Reflect)]
+#[Reflect]
 struct OneField {
     value: String,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct TwoFields {
     first: String,
     second: String,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct WrongTarget;
 
 impl ModelTypeSeal for WrongTarget {}
@@ -56,7 +56,7 @@ impl TypeMetadataProvider for WrongTarget {
     }
 }
 
-#[derive(Reflect)]
+#[Reflect]
 enum OneVariant {
     Ready,
 }
@@ -70,7 +70,7 @@ fn panic_message(action: impl FnOnce() + std::panic::UnwindSafe) -> String {
         .expect("ABI panic payload must be text")
 }
 
-fn unavailable_getter(_: ReflectedRef<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
+fn unavailable_getter(_: PropertyBorrowed<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
     Err(PropertyAccessError::AdapterUnavailable)
 }
 

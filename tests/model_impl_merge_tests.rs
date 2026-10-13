@@ -24,8 +24,11 @@ use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
 use qubit_model_metadata::metadata::ModelImplMetadata;
 use qubit_model_metadata::metadata::PropertyAccessError;
+use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::PropertyBuildErrorKind;
 use qubit_model_metadata::metadata::PropertyFragmentSource;
+use qubit_model_metadata::metadata::PropertyMutable;
+use qubit_model_metadata::metadata::PropertyOwned;
 use qubit_model_metadata::metadata::PropertyResolutionError;
 use qubit_model_metadata::metadata::PropertySetFailure;
 use qubit_model_metadata::metadata::PropertyValue;
@@ -34,9 +37,6 @@ use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::ReflectRegistry;
-use qubit_reflect::ReflectedMut;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::capability::CapabilityKey;
 use qubit_reflect::capability::CapabilityOrigin;
@@ -50,14 +50,14 @@ struct Record {
     count: u32,
 }
 
-fn read_name(target: ReflectedRef<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
+fn read_name(target: PropertyBorrowed<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
     let target = target
         .downcast::<Record>()
         .map_err(|_| PropertyAccessError::user("wrong owner"))?;
-    Ok(PropertyValue::Borrowed(ReflectedRef::new(&target.name)))
+    Ok(PropertyValue::Borrowed(PropertyBorrowed::new(&target.name)))
 }
 
-fn write_name(target: ReflectedMut<'_>, value: ReflectedOwned) -> Result<(), PropertySetFailure> {
+fn write_name(target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
     let target = target
         .downcast::<Record>()
         .unwrap_or_else(|_| panic!("validated owner"));
@@ -282,9 +282,8 @@ fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
         name: "before".to_owned(),
         count: 7,
     };
-    name.set(ReflectedMut::new(&mut value), ReflectedOwned::new("after".to_owned()))
-        .expect("merged setter");
-    let PropertyValue::Borrowed(read) = name.get(ReflectedRef::new(&value)).expect("merged getter") else {
+    name.set(&mut value, "after".to_owned()).expect("merged setter");
+    let PropertyValue::Borrowed(read) = name.get(&value).expect("merged getter") else {
         panic!("borrowed getter");
     };
     assert!(eq(read.downcast_ref::<String>().expect("String output"), &value.name));

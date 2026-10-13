@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ContextRequirement;
@@ -24,7 +25,6 @@ use qubit_model_metadata::validation::ValidationBuildErrors;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
@@ -224,14 +224,14 @@ fn test_parent_dependency_uses_explicit_context() {
         nickname: "parent".into(),
     };
     let options = ValidationOptions::default();
-    assert!(plan.validate(ReflectedRef::new(&value), &options).is_err());
-    assert!(deferred.validate(ReflectedRef::new(&value), &options).is_err());
+    assert!(plan.validate(&value, &options).is_err());
+    assert!(deferred.validate(&value, &options).is_err());
     let deferred_report = deferred
-        .validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&parent_value)], &options)
+        .validate_with_context(&value, &[PropertyBorrowed::new(&parent_value)], &options)
         .expect("deferred parent execution");
     assert!(deferred_report.is_valid());
     let plan_report = plan
-        .validate_with_context(ReflectedRef::new(&value), &[ReflectedRef::new(&parent_value)], &options)
+        .validate_with_context(&value, &[PropertyBorrowed::new(&parent_value)], &options)
         .expect("parent execution");
     assert!(plan_report.is_valid());
 }
@@ -311,11 +311,7 @@ fn test_same_type_dependencies_follow_signature_order() {
         second: "second value".into(),
         value: "input".into(),
     };
-    assert!(
-        plan.validate(ReflectedRef::new(&value), &ValidationOptions::default())
-            .unwrap()
-            .is_valid()
-    );
+    assert!(plan.validate(&value, &ValidationOptions::default()).unwrap().is_valid());
 }
 #[Model]
 struct RepeatedRules {
@@ -384,9 +380,9 @@ fn test_repeated_validator_ids_execute_every_occurrence() {
     EXECUTION_ORDER.lock().expect("execution log").clear();
     let report = plan
         .validate(
-            ReflectedRef::new(&RepeatedRules {
+            &RepeatedRules {
                 value: "text".to_owned(),
-            }),
+            },
             &ValidationOptions::default(),
         )
         .expect("execution");

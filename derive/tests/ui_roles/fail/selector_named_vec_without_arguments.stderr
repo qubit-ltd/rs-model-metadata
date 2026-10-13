@@ -1,3 +1,44 @@
+error: expected derive macro, found attribute macro `Reflect`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:22:5
+   |
+22 |     Reflect,
+   |     ^^^^^^^ not a derive macro
+   |
+help: remove from the surrounding `derive()`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:22:5
+   |
+22 |     Reflect,
+   |     ^^^^^^^
+   = help: add as non-Derive macro
+           `#[Reflect]`
+
+error[E0277]: the trait bound `Vec: Reflect` is not satisfied
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:31:12
+   |
+31 |     value: Vec,
+   |            ^^^ unsatisfied trait bound
+   |
+help: the trait `Reflect` is not implemented for `Vec`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
+   |
+26 | struct Vec;
+   | ^^^^^^^^^^
+   = help: the following other types implement trait `Reflect`:
+             &'static T
+             &'static mut T
+             ()
+             (A, B)
+             (A, B, C)
+             (A, B, C, D)
+             (A, B, C, D, E)
+             (A, B, C, D, E, F)
+           and $N others
+note: required by a bound in `lazy_type_ref`
+  --> $QUBIT_REFLECT/src/private/descriptor.rs
+   |
+   | pub fn lazy_type_ref<T: Reflect + ?Sized>() -> &'static LazyTypeRef {
+   |                         ^^^^^^^ required by this bound in `lazy_type_ref`
+
 error[E0277]: the trait bound `Vec: SequenceConstraintTarget` is not satisfied
   --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:31:12
    |

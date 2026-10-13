@@ -24,7 +24,7 @@ use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Invalid {
     value: String,
 }

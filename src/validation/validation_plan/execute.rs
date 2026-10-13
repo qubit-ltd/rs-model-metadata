@@ -9,8 +9,6 @@
 //! Execution APIs sharing one report accumulator and one work budget.
 
 use qubit_reflect::OptionalProjectionError;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeDescriptor;
 use qubit_validation_rules::collection::UniquePairs;
 use qubit_validator::BoundValidationContext;
@@ -28,6 +26,8 @@ use qubit_validator::ViolationParam;
 
 use super::ValidationPlan;
 use crate::metadata::OnNone;
+use crate::metadata::PropertyBorrowed;
+use crate::metadata::PropertyOwned;
 use crate::metadata::PropertyValue;
 use crate::metadata::SelectorPosition;
 use crate::property::ItemEqAdapter;
@@ -142,12 +142,30 @@ impl<'a> ValidationPlan<'a> {
     ///
     /// # Errors
     /// Returns the original infrastructure failure and the partial report.
-    pub fn validate(
+    pub fn validate<T: 'static>(
         &self,
-        value: ReflectedRef<'_>,
+        value: &T,
         options: &ValidationOptions,
     ) -> Result<ValidationReport, ModelValidationError> {
         self.validate_with_context(value, &[], options)
+    }
+
+    /// Executes validation for a root value whose concrete type is erased.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Borrowed root instance whose type must match this plan.
+    /// * `options` - Selection, stopping policy and execution budgets for this
+    ///   validation call.
+    ///
+    /// # Errors
+    /// Returns the original infrastructure failure and the partial report.
+    pub fn validate_dynamic(
+        &self,
+        value: PropertyBorrowed<'_>,
+        options: &ValidationOptions,
+    ) -> Result<ValidationReport, ModelValidationError> {
+        self.validate_dynamic_with_context(value, &[], options)
     }
 
     /// Executes with nearest-parent-first containing-object borrows.
@@ -168,10 +186,19 @@ impl<'a> ValidationPlan<'a> {
     /// # Errors
     /// Returns typed source context for failed reads or rule invocations, or a
     /// traversal-limit error before the operation that would exceed its budget.
-    pub fn validate_with_context<'value>(
+    pub fn validate_with_context<'value, T: 'static>(
         &self,
-        value: ReflectedRef<'value>,
-        ancestors: &[ReflectedRef<'value>],
+        value: &'value T,
+        ancestors: &[PropertyBorrowed<'value>],
+        options: &ValidationOptions,
+    ) -> Result<ValidationReport, ModelValidationError> {
+        self.validate_dynamic_with_context(PropertyBorrowed::new(value), ancestors, options)
+    }
+
+    fn validate_dynamic_with_context<'value>(
+        &self,
+        value: PropertyBorrowed<'value>,
+        ancestors: &[PropertyBorrowed<'value>],
         options: &ValidationOptions,
     ) -> Result<ValidationReport, ModelValidationError> {
         if value.value_type_id() != self.root().type_id() {
@@ -289,8 +316,8 @@ fn unmatched_selection(
 fn execute_field<'value>(
     binding: &FieldRuleBinding,
     occurrence: usize,
-    root: ReflectedRef<'value>,
-    ancestors: &[ReflectedRef<'value>],
+    root: PropertyBorrowed<'value>,
+    ancestors: &[PropertyBorrowed<'value>],
     graph: &ModelGraph<'_>,
     budget: &mut ExecutionBudget<'_>,
     report: &mut ReportAccumulator<'_>,
@@ -580,7 +607,7 @@ fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionErro
 }
 
 /// Converts a reflected borrow into the validator input abstraction.
-fn reflected_value<'a>(value: &'a ReflectedRef<'_>) -> ValidationValue<'a> {
+fn reflected_value<'a>(value: &'a PropertyBorrowed<'_>) -> ValidationValue<'a> {
     if let Some(text) = value.as_str() {
         return ValidationValue::Text(text);
     }
@@ -607,18 +634,18 @@ fn property_value<'a>(value: &'a PropertyValue<'_>) -> ValidationValue<'a> {
 fn optional_scalar_value<'a>(
     value: &PropertyValue<'a>,
     descriptor: &'static TypeDescriptor,
-) -> Result<Option<ReflectedRef<'a>>, OptionalProjectionError> {
+) -> Result<Option<PropertyBorrowed<'a>>, OptionalProjectionError> {
     let PropertyValue::Borrowed(value) = value else {
         return Err(OptionalProjectionError::Unavailable);
     };
     descriptor
         .as_optional()
         .ok_or(OptionalProjectionError::Unavailable)?
-        .project_ref(value.clone())
+        .project_dynamic_ref(value.clone())
 }
 
 /// Converts an owned reflected value into a validator input abstraction.
-fn owned_value<'a>(value: &'a ReflectedOwned) -> ValidationValue<'a> {
+fn owned_value<'a>(value: &'a PropertyOwned) -> ValidationValue<'a> {
     if let Some(text) = value.downcast_ref::<String>() {
         return ValidationValue::Text(text.as_str());
     }
