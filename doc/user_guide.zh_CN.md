@@ -22,6 +22,12 @@
 这里的 Field 是存储字段；Property 是字段与合格访问器合并后的可访问属性；
 `TypeMetadata` 是不依赖实例的静态描述。只有当任务涉及多个模型的关系时才需要结构图。
 
+当前 checkout 使用 rs-reflect codegen v3。运行时值通过
+`DynamicRef<'a, Local>`、`DynamicMut<'a, Local>`、`DynamicOwned<Local>`
+进行受检访问；derive 生成的能力使用 `#[ReflectImpl]`。生成代码用的
+`__private::v8` 是内部接口，应用应使用本指南展示的公开 API，并保持
+runtime 与 derive 版本一致。
+
 ## 实战场景：从声明到结构检查与验证
 
 沿用[声明指南中的 `User` 与 `PersonInfo`](../derive/doc/user_guide.zh_CN.md#实战场景声明用户与人员资料的业务关系)：`User.username` 有长度与唯一性要求，`PersonInfo.user_id` 引用 `User.id`。消费者要做两件事：先确认关系声明在最终链接的模型集合中能解析，再把可执行的字段约束绑定为验证计划。随机测试生成器也会从相同元数据得知用户名应满足什么约束、`user_id` 应从哪个已存在用户取得。
@@ -114,7 +120,7 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
+use qubit_reflect::value::{DynamicRef, Local};
 use qubit_validator::ValidatorRegistry;
 
 #[Entity(id = "guide.iam.User")]
@@ -145,7 +151,7 @@ fn main() {
         username: "a".to_owned(),
         display_name: "Alice".to_owned(),
     };
-    let report = plan.validate(ReflectedRef::new(&invalid), &ValidationOptions::default())
+    let report = plan.validate(DynamicRef::<Local>::new(&invalid), &ValidationOptions::default())
         .expect("validation executed");
     assert!(!report.is_valid());
     assert_eq!(report.violations()[0].path().render(), "username");
@@ -211,6 +217,110 @@ fn main() {
     println!("已审计 {} 个已链接模型", graph.models().len());
 }
 ```
+
+## Codec 绑定
+
+启用 `codec` feature 并注册 codec 实现后，再绑定已解析的结构图。
+`bind_codecs` 会遍历图中的 codec 声明，为每个声明选择实现并返回绑定结果。选择顺序是字段显式
+codec、Value canonical codec、无 codec；Rust 类型形式的 codec 声明也要求对应注册项存在。
+occurrence 身份包含准确的 TypeId、可选 ModelId、Property 路径和声明来源。绑定不会调用
+`encode` 或 `decode`、持久化数据，也不会执行应用策略。注册项缺失或值类型不匹配时会返回错误。
+
+<!-- example: codec -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["codec"] }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-codec = { version = "0.16", features = ["registry"] }
+```
+
+下面的完整程序先绑定已注册的 codec，再观察另一个模型引用缺失 codec ID 时返回的错误：
+
+<!-- example: codec/binding -->
+```rust
+use core::convert::Infallible;
+use qubit_codec::ValueCodecId;
+use qubit_codec::ValueCodecRegistrationSource;
+use qubit_codec::ValueDecoder;
+use qubit_codec::ValueEncoder;
+use qubit_codec::ValueStringCodecDescriptor;
+use qubit_codec::ValueStringCodecRegistration;
+use qubit_codec::ValueStringCodecRegistry;
+use qubit_model_derive::Model;
+use qubit_model_metadata::codec::bind_codecs;
+use qubit_model_metadata::codec::CodecBindErrorKind;
+use qubit_model_metadata::codec::CodecBindInputs;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+
+#[derive(Default)]
+struct StringCodec;
+
+impl ValueEncoder<String> for StringCodec {
+    type Output = String;
+    type Error = Infallible;
+
+    fn encode(&mut self, input: &String) -> Result<Self::Output, Self::Error> {
+        Ok(input.clone())
+    }
+}
+
+impl ValueDecoder<str> for StringCodec {
+    type Output = String;
+    type Error = Infallible;
+
+    fn decode(&mut self, input: &str) -> Result<Self::Output, Self::Error> {
+        Ok(input.to_owned())
+    }
+}
+
+#[Model]
+struct SavedName {
+    #[codec(id = "guide.string")]
+    value: String,
+}
+
+#[Model]
+struct MissingName {
+    #[codec(id = "guide.missing")]
+    value: String,
+}
+
+static DESCRIPTOR: ValueStringCodecDescriptor =
+    ValueStringCodecDescriptor::of::<StringCodec, String>();
+static REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
+    ValueCodecId::new("guide.string"),
+    &DESCRIPTOR,
+    ValueCodecRegistrationSource::new("guide", "example", file!(), line!()),
+);
+
+fn main() {
+    let models = ModelRegistry::from_static_metadata(&[]).expect("model registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&REGISTRATION])
+        .expect("codec registry");
+
+    let saved_roots = [TypeMetadata::of::<SavedName>()];
+    let saved_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &saved_roots })
+        .resolve()
+        .expect("saved-name graph");
+    let bindings = bind_codecs(CodecBindInputs { graph: &saved_graph, codecs: &codecs })
+        .expect("registered codec binds");
+    assert_eq!(bindings.bindings().len(), 1);
+
+    let missing_roots = [TypeMetadata::of::<MissingName>()];
+    let missing_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &missing_roots })
+        .resolve()
+        .expect("missing-name graph");
+    let error = bind_codecs(CodecBindInputs { graph: &missing_graph, codecs: &codecs })
+        .expect_err("missing codec registration is reported");
+    assert_eq!(error.errors()[0].kind(), CodecBindErrorKind::Missing);
+}
+```
+
+绑定结果指出应用可以选用哪个实现。codec 调用、持久化及外围策略由应用负责。
 
 ## 速查：字段身份与 Property 访问
 
@@ -278,14 +388,16 @@ metadata 保存借用的声明参数，并在绑定每条规则时将其转换�
 例如某个 `Child` 规则通过 `path = ".."` 读取 `Parent` 属性时，应用在建立计划和执行时分别提供：
 
 ```rust,ignore
+use qubit_reflect::value::{DynamicRef, Local};
+
 let plan = ValidationPlan::build_with_context(
     child,
     ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators },
     &[parent],
 )?;
 let report = plan.validate_with_context(
-    ReflectedRef::new(&child_value),
-    &[ReflectedRef::new(&parent_value)],
+    DynamicRef::<Local>::new(&child_value),
+    &[DynamicRef::<Local>::new(&parent_value)],
     &ValidationOptions::default(),
 )?;
 ```
@@ -299,10 +411,11 @@ let report = plan.validate_with_context(
 `&Option<T>` 的 getter；遇到 `None` 时跳过该分支，遇到 `Some` 则沿编译好的路径继续访问。
 终端字段若为 `Option<String>`，也能执行 text 规则：`None` 不执行规则，`Some(value)` 按文本校验。
 违规 occurrence 保留完整 Property 路径，例如 `mobile.country_area`。这些路径要求借用访问；返回
-owned 中间对象的 getter 无法继续遍历。借用切片 getter 支持显式 element validator；生成的集合适配器
-还可在受支持的具体类型上执行外层 sequence 去重和 map entry 数量约束。selector 内的标准约束及
-MapKey/MapValue 遍历仍会明确返回构建错误。选择后端前检查 ValidationCapabilities，不应把“能够声明”
-理解成“所有后端都能执行”。
+owned 中间对象的 getter 无法继续遍历。借用切片 getter 支持显式 element validator；生成适配器还可遍历
+`Vec<T>`、`[T; N]`、`HashMap<K, V>`、`BTreeMap<K, V>` 的借用成员，以执行 selector 规则，
+并支持外层 sequence 去重和 map entry 数量约束。selector 规则不能绑定依赖。未知或自定义容器、返回
+owned 集合的 getter、需要隐式解包的集合成员仍会在构建阶段拒绝。选择后端前检查
+`ValidationCapabilities`，不应把“能够声明”理解成“所有后端都能执行”。
 
 ### 批量追加模型级规则
 
@@ -319,25 +432,6 @@ let plan = plan.with_model_rules(prepared_model_rules);
 API 允许分批追加，但每次调用都会重新构造拥有型规则数组；通常应先收集本次要追加的规则，再调用一次。
 被选中的模型级规则先于字段规则执行，详见[停止条件与执行预算](#进阶用法停止条件与执行预算)。
 
-启用 codec 后，在结构解析完成后使用 CodecBindInputs 与显式 codec registry 调用 `codec::bind_codecs`。
-选择顺序为字段显式 codec、Value canonical codec、无 codec。Rust 类型形式也要求相应注册项存在；
-显式指定同一个 canonical codec 合法。occurrence 身份包含准确 TypeId、可选 ModelId、Property 路径和来源。
-
-```rust,ignore
-let bindings = qubit_model_metadata::codec::bind_codecs(
-    qubit_model_metadata::codec::CodecBindInputs {
-        graph: &graph,
-        codecs: &codecs,
-    },
-)?;
-for binding in bindings.bindings() {
-    // 应用在此把绑定结果交给自己的编解码流程。
-}
-```
-
-此片段假定 `codecs` 是应用已建立的 `ValueStringCodecRegistry`，`graph` 是解析成功的图。
-缺少注册项或值类型不匹配时，绑定返回错误；声明 `#[codec(...)]` 本身不会执行编码。
-
 ## 验证消费者：按声明和访问形状绑定
 
 验证计划在构建时检查声明、字段访问能力和规则实现；执行时检查一个具体值。对业务代码最重要的是区分这两个结果：构建失败意味着规则无法安全绑定，执行成功但 `report.is_valid() == false` 意味着实例违反了规则。
@@ -347,6 +441,8 @@ for binding in bindings.bindings() {
 | `#[text(...)]` | 按字符数、非空白或格式检查字段值 | 可读取的文本属性 |
 | `#[decimal(...)]`、`#[money(...)]`、`#[time(...)]` | 对准确的数值或时间类型检查精度与范围 | 与声明匹配的具体 Rust 类型 |
 | `#[sequence(...)]`、`#[map(...)]` | 检查容器长度；`unique_items` 检查序列内部重复 | 可借用容器的访问器；去重需要元素相等性适配器 |
+| 枚举具名或位置 payload 上的直接值规则 | 只校验活动变体；非活动变体跳过，报告路径包含变体和字段 | 可反射读取的直接 payload 字段 |
+| `Vec<T>`、`[T; N]` 的 `Element`；`HashMap<K, V>`、`BTreeMap<K, V>` 的 `MapKey` / `MapValue` | 对实际借用到的成员逐个执行规则 | 生成的借用成员适配器和相符的 validator 输入类型 |
 | `#[validator(id = ...)]` | 调用按 ID 绑定的自定义规则 | 同 ID 的注册项；有依赖时还需可读依赖路径 |
 | `#[reference(...)]` | 检查保存引用的字段上显式声明的值约束 | 数据库存在性等跨对象检查由具备仓储能力的消费者完成 |
 | `#[opaque]` | 执行外层字段约束，停止内部遍历 | 在模型上标出交给其他组件处理的边界 |
@@ -384,21 +480,24 @@ let plan = ValidationPlan::build(
 | 具名字段上的 text 约束、自定义 validator | 可绑定并执行；自定义 validator 还需要匹配的注册项 |
 | 直接或 `Option` 包装的具名嵌套模型 | 可执行；`None` 跳过内部规则，继续访问要求实际的借用 getter |
 | 借用 slice getter 上的显式元素 validator（含嵌套路径） | 可绑定并执行，并检查元素输入类型 |
+| 枚举 payload 上直接字段的值规则 | 仅活动变体执行；非活动变体跳过，报告路径包含变体与字段 |
+| 枚举 payload 中的 selector 或嵌套模型规则 | `UnsupportedExecution`；仅支持直接 payload 值规则 |
+| 借用 `Vec<T>` / `[T; N]` 的 `Element`，借用 `HashMap<K, V>` / `BTreeMap<K, V>` 的 `MapKey` / `MapValue` | 对每个借用成员执行；路径带元素索引或 map entry/key/value 位置 |
 | 外层 sequence item count | 需要可读取借用 slice 的长度适配器 |
 | 外层 `#[sequence(unique_items)]` | 生成的 `Vec<T>` 或 `[T; N]` 配合借用 slice getter 可执行；要求 `T: PartialEq + 'static` 及元素相等性适配器。首次重复报告在 `field[second_index]`，并带有 `first_index` |
 | 外层 `#[map(min_entries = ..., max_entries = ...)]` | 生成的可读借用 getter 适配器可统计 `HashMap<K, V>` 或 `BTreeMap<K, V>`；违规位置是字段本身 |
 | `#[decimal(...)]` / `#[money(...)]` | 对准确的 `BigDecimal` 值或可选值执行；检查 scale、precision 与精确区间，不舍入 |
 | `#[time(precision = ...)]` | 支持 `DateTime<Utc>`、`NaiveDateTime`、`NaiveTime` 及其可选值，检查秒、毫秒、微秒或纳秒精度；`NaiveDate` 在构建时拒绝 |
-| selector 内的标准约束或依赖、`MapKey` / `MapValue` | `UnsupportedExecution` |
-| 缺少 map 长度或 sequence 相等性适配器、未知集合形状、不支持的时间类型、标量输入类型不匹配 | 在构建阶段返回 `UnsupportedExecution` |
+| 带依赖的 selector 规则、未知/自定义容器、owned 集合 getter 或缺少借用适配器 | 在构建阶段返回 `UnsupportedExecution` |
+| 缺少 map 长度或 sequence 相等性适配器、不支持的时间类型、标量输入类型不匹配 | 在构建阶段返回 `UnsupportedExecution` |
 | 透明单字段 tuple `Value` 内部约束 | 可穿过唯一字段绑定并执行；外层可选值为 `None` 时跳过 |
-| 含执行声明的 Enum payload、普通 tuple/newtype、容器元素模型内部规则 | `UnsupportedExecution` |
+| Enum payload 中的 selector 或嵌套模型规则、容器元素模型内部规则、普通 tuple/newtype | `UnsupportedExecution` |
 | 存在可达执行声明的递归实例路径 | `UnsupportedExecution`，不会无限展开 |
 | unit Enum，以及没有可达执行声明的 payload 或循环 | 可作为普通值通过 |
 | `reference` 字段 | 只执行存储字段上的显式规则，不读取被引用的完整 Entity 实例 |
 | `opaque` 字段 | 只执行外层声明，不继续遍历内部对象 |
 | 后续访问需要借用、但 getter 返回 owned 中间对象 | `UnsupportedExecution` |
-| `Option` 或智能指针解包 | 必须有实际适配器；slice 元素需要隐式解包时会拒绝 |
+| `Option` 或智能指针解包 | 必须有实际适配器；集合成员需要隐式解包时会拒绝 |
 
 `ValidationCapabilities::check(root, &graph)` 与 `ValidationPlan::build` 使用相同的声明和访问形状检查。能力检查只检查静态声明与可用访问能力，不调用 getter，也不绑定自定义 validator；因此它不能证明运行时访问一定成功，也不能证明注册表中有匹配规则。`ValidationPlan::build` 还会绑定支持的规则：缺少注册项或签名/参数不匹配会产生 `ValidatorBinding(...)` 诊断；缺少访问适配器、访问类型不匹配或某条可达声明落在不支持的路径上，则产生 `UnsupportedExecution`。结构路径可解析但其中有可达执行工作时，计划构建仍会拒绝；没有可达执行工作的包装可作为普通值通过。
 
@@ -431,7 +530,8 @@ use qubit_validator::ValidatorRegistry;
 #[Model(eq, hash)]
 struct Child { #[text(non_blank)] name: String }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct Raw { child: Child }
 
 #[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
@@ -440,7 +540,8 @@ struct Root { raw: Raw }
 #[Model(eq, hash)]
 struct EmptyChild { name: String }
 
-#[derive(Clone, Eq, Hash, PartialEq, Reflect)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[Reflect]
 struct EmptyRaw { child: EmptyChild }
 
 #[Model(no_redact, no_debug, no_display, no_serialize, no_deserialize)]
@@ -492,13 +593,14 @@ fn main() {
 
 ```rust,ignore
 use qubit_model_metadata::validation::{FieldPath, ValidationSelection};
+use qubit_reflect::value::{DynamicRef, Local};
 
 let options = ValidationOptions::builder()
     .selection(ValidationSelection::Fields(vec![
         FieldPath::from_segments(["contact", "name"]),
     ]))
     .build();
-let report = plan.validate(ReflectedRef::new(&profile), &options)?;
+let report = plan.validate(DynamicRef::<Local>::new(&profile), &options)?;
 ```
 
 这里的 `plan` 是前文已构建的计划，`profile` 是 `Profile` 实例。只选择完整路径

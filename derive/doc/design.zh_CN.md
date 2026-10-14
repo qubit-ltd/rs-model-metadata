@@ -12,7 +12,7 @@ Rust 字段类型无法表达全部业务规则。`#[text(...)]`、`#[unique(...
 
 公开属性宏包括 `Entity`、`Projection`、`Model`、`Enum`、`Value` 和 `ModelImpl`。前五者声明类型角色，`ModelImpl` 从 impl 块添加属性访问器。入口将每个宏送入共同流水线：解析 Rust 和属性、规范化声明、检查局部语义与冲突、展开反射和模型能力。源码由 `parse`、`ir`、`normalize`、`validate`、`compiler`、`expand` 分担。非法的局部声明直接形成编译诊断，不生成不完整元数据。
 
-宏输出静态 `TypeMetadata`、字段与变体声明、反射能力和注册片段。具体类型的元数据从冻结反射快照投影；泛型模型定义保留模型层自己的注册片段。生成代码通过 `__private::v7` 调用受检运行时构造器，因此 derive 与运行时 ABI 必须同步。
+宏输出静态 `TypeMetadata`、字段与变体声明、反射能力和注册片段。具体类型的元数据从冻结反射快照投影；泛型模型定义保留模型层自己的注册片段。生成代码通过 `__private::v8` 调用受检运行时构造器，因此 derive 与运行时 ABI 必须同步。
 
 ## 角色与身份
 
@@ -55,7 +55,7 @@ Rust 字段类型无法表达全部业务规则。`#[text(...)]`、`#[unique(...
 2. 拒绝与宏将生成的 Reflect 实现重复的显式 derive，解析字段、变体、Serde、角色参数和声明位置，形成内部 IR。具名与位置字段保留索引，Enum payload 保留所属 variant。
 3. 规范化声明：将简写整理成一致的 IR，补充符合条件的 Option/集合缺失默认值与空值省略语义，记录索引原因、依赖路径和 selector 的位置。
 4. 校验 IR：角色选项、identifier 数量、variant 名、字段属性冲突、逻辑键顺序、类型形状和约束组合等。独立局部错误通过 `syn::Error::combine` 收集后报告。
-5. 准备默认输出能力，把模型字段 helper 改写为 Reflect/Serde/Redact 可消费的属性，然后给类型加入反射 derive、`definition_provider_v2`（泛型时）和 `__private::v7::model_capability`。
+5. 准备默认输出能力，把模型字段 helper 改写为 Reflect/Serde/Redact 可消费的属性，然后给类型加入反射 derive、`definition_provider_v2`（泛型时）和 `__private::v8::model_capability`。
 6. 输出原类型、静态 metadata provider、注册片段和 trait/输出实现。泛型输出包在运行时的 feature 门面中；若没有启用对应 feature，编译时明确拒绝。
 
 `ModelImpl` 走独立分支：先解析 `ItemImpl`，保留原 impl 及 `reflect_impl` 能力，扫描方法并按目标类型生成访问器适配器和 provider。宏剥离 `#[model_property(skip)]` 这一仅用于属性选择的标记；被排除的方法仍属于普通方法反射。局部非法声明、缺失依赖、trait bound 和跨模型关系分别在不同阶段报告，调用方不应期待一次宏展开完成全项目验证。
@@ -84,4 +84,4 @@ Rust 字段类型无法表达全部业务规则。`#[text(...)]`、`#[unique(...
 
 ## 跨组件验收与迁移
 
-开发或升级宏时，应分别确认：合法声明的 Rust 能力与元数据、非法声明的编译诊断、跨 crate 与运行时重命名、独立 `ModelImpl` provider、泛型/匿名模型、真实平台领域声明，以及运行时 v7 ABI。`derive/tests` 的 UI 与运行 fixture、根 crate 的元数据测试、`rs-platform` 的实际模型消费者分别覆盖这些边界。本文解释当前实现；可运行声明教程和已知执行限制见[用户手册](user_guide.zh_CN.md)。
+开发或升级宏时，应分别确认：合法声明的 Rust 能力与元数据、非法声明的编译诊断、跨 crate 与运行时重命名、独立 `ModelImpl` provider、泛型/匿名模型、真实平台领域声明，以及运行时 v8 ABI。`derive/tests` 的 UI 与运行 fixture、根 crate 的元数据测试、`rs-platform` 的实际模型消费者分别覆盖这些边界。本文解释当前实现；可运行声明教程和已知执行限制见[用户手册](user_guide.zh_CN.md)。

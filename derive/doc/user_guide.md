@@ -223,7 +223,7 @@ and [complete validation program](../../doc/user_guide.md#core-workflow-validate
 for report limits, partial errors, and the real `rs-platform` integration boundary.
 Do not remove a model constraint or add `opaque` just to make a backend accept it.
 
-Generated model code uses checked `__private::v7`; update the runtime and macro
+Generated model code uses checked `__private::v8`; update the runtime and macro
 crate together. There is no v5/v6 compatibility facade. Concrete field identities
 use owner TypeId, variant index, and field index; model IDs remain the stable
 external naming mechanism. `rs-reflect` retains its independent protocol version.

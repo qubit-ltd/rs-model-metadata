@@ -28,6 +28,12 @@ ReflectRegistry 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
 
 `TypeMetadata` 无需实例即可描述一个 Rust 类型的角色、字段、声明和本地属性。`FieldMetadata` 对应存储字段；`PropertyMetadata` 组合字段与符合条件的 `ModelImpl` 访问器，也可表示计算属性。读取属性时，能借用实例就保留借用。`FieldLocation` 用所属 `TypeId`、可选枚举变体和字段序号定位具体字段；泛型定义的字段尚无具体位置。外部持久身份使用 `ModelId`，`TypeId` 与 `FieldLocation` 仅在进程内有效。
 
+反射边界采用 `rs-reflect` codegen v3：运行时和生成代码通过
+`DynamicRef<'a, Local>`、`DynamicMut<'a, Local>`、`DynamicOwned<Local>`
+进行受检动态访问，并用 `#[ReflectImpl]` 注册生成的能力。`__private::v8`
+是 runtime 与 derive 间的内部 ABI，不是应用 API。枚举 payload 执行前会调用反射
+`VariantDescriptor::is_active_dynamic`；动态根类型不匹配会作为执行错误返回。
+
 公开功能分别放在 `metadata`、`registry`、`resolve`、`access_path`；`generic`、`validation`、`codec` 是独立可选 feature，默认均不启用。稳定 ID 协议还可单独通过 `qubit-model-id` 使用。
 
 ## 快照与模型图
@@ -44,7 +50,7 @@ ReflectRegistry 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
 
 ## 错误与兼容契约
 
-宏语法错误在编译时诊断。受检元数据构造与 registry 初始化报告 ABI 或注册错误；模型图报告结构错误；执行适配器报告绑定或运行错误。查无对象与查找失败是不同结果。生成代码使用同步的 `__private::v7` ABI 和反射 provider 契约，因此运行时与 derive 版本应保持一致。持久化时保存 `ModelId`，不要保存进程内的 `TypeId` 或 `FieldLocation`。
+宏语法错误在编译时诊断。受检元数据构造与 registry 初始化报告 ABI 或注册错误；模型图报告结构错误；执行适配器报告绑定或运行错误。查无对象与查找失败是不同结果。生成代码使用同步的 `__private::v8` ABI 和反射 provider 契约，因此运行时与 derive 版本应保持一致。持久化时保存 `ModelId`，不要保存进程内的 `TypeId` 或 `FieldLocation`。
 
 平台中的生产接入见 [rs-platform 设计文档](../../rs-platform/doc/design.zh_CN.md)。历史需求及迁移台账可供追溯，当前行为以本设计和代码为准。
 
@@ -108,13 +114,22 @@ ReflectRegistry 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
 
 1. `ValidationCapabilities::check(root, &graph)` 检查图内根的声明发现与访问形状；它不绑定自定义规则，也不调用 getter。
 2. `ValidationPlan::build(root, ValidationBuildInputs { graph, validators })` 对每个可执行 occurrence 绑定内置规则或传入的 `ValidatorRegistry`。构建时聚合独立的缺失注册、类型不匹配和 `UnsupportedExecution` 等错误。根以图内同一 `TypeId` 的规范元数据为准，调用方另传的 overlay 不能篡改图内声明。
-3. `plan.validate(ReflectedRef::new(&value), &options)` 核对实例根类型，按模型规则、字段及 selector 的声明次序读取并执行。规则违例返回 `Ok(ValidationReport)`；访问器、依赖、预算等基础设施故障返回 `Err(ModelValidationError)`，并保留已经产生的部分报告。
+3. `plan.validate(DynamicRef::<Local>::new(&value), &options)` 核对实例根类型，按模型规则、字段及 selector 的声明次序读取并执行。规则违例返回 `Ok(ValidationReport)`；访问器、依赖、预算等基础设施故障返回 `Err(ModelValidationError)`，并保留已经产生的部分报告。
 
-遍历会发现每条实际使用路径上的声明，例如两个不同字段都指向同一种子类型时保留两个 occurrence。没有执行工作的递归形状可以终止；含执行工作的递归路径、受约束的 Enum payload 或当前无适配器的集合内部路径会明确拒绝，不会生成遗漏规则的“成功空计划”。Reference 停在存储字段，`opaque` 停在内部结构，但两者的外层显式规则仍保留。具体支持形状见[用户手册](user_guide.zh_CN.md#验证消费者按声明和访问形状绑定)。
+遍历会发现每条实际使用路径上的声明，例如两个不同字段都指向同一种子类型时保留两个 occurrence。执行边界如下：
 
-`ValidationOptions::default()` 采用 `CollectAll`、全部字段，以及深度 64、节点 100,000、违例 100、比较 1,000,000 的非零上限。`FailFast` 或达到违例上限属于成功执行后的截断报告；深度、节点、比较等遍历预算耗尽属于执行错误并附部分报告。预算计算覆盖本库的读取、元素访问和规则调用，不约束外部自定义 validator 内部自行分配或执行的工作。字段选择匹配完整字段路径，不代表自动展开某个路径前缀。
+| 形状 | 执行约定 |
+| --- | --- |
+| Enum 具名或位置 payload 字段上的直接值规则 | 仅活动变体执行；非活动变体跳过，违例路径包含变体和字段位置。 |
+| Enum payload 中的 selector 或嵌套模型规则 | 拒绝；payload 目前只支持直接值规则。 |
+| `Vec<T>` / `[T; N]` 的 `Element`；`HashMap<K, V>` / `BTreeMap<K, V>` 的 `MapKey`、`MapValue` | 通过生成的借用适配器逐个执行；借用 slice getter 也能提供元素。`Option` 包装的集合为 `None` 时跳过 selector。 |
+| 带依赖的 selector 规则、未知/自定义容器、owned 集合 getter、隐式解包成员、集合成员内部的模型规则 | 能力检查和计划构建阶段拒绝。 |
 
-启用 `codec` 时，声明中的稳定 codec ID 或 Rust codec 类型仍要经显式传入的 registry 绑定。选择优先级是字段显式 codec、Value 的 canonical codec、无 codec；元数据本身不含 codec 实例，不承担数据持久化或编码流程。
+没有执行工作的递归形状可以终止；含执行工作的递归路径会拒绝，不会生成遗漏规则的“成功空计划”。Reference 停在存储字段，`opaque` 停在内部结构，但两者的外层显式规则仍保留。具体支持形状见[用户手册](user_guide.zh_CN.md#验证消费者按声明和访问形状绑定)。
+
+`ValidationOptions::default()` 采用 `CollectAll`、全部字段，以及深度 64、节点 100,000、违例 100、比较 1,000,000 的非零上限。`FailFast` 或达到违例上限属于成功执行后的截断报告；深度、节点、比较等遍历预算耗尽属于执行错误并附部分报告。共享预算覆盖根、属性、依赖和集合成员的读取及规则调用；selector 元素规则调用和外层 sequence 去重的每一对比较都会消耗比较预算。预算不约束外部自定义 validator 内部自行分配或执行的工作。Map entry 路径序号沿容器迭代顺序，`HashMap` 的顺序不稳定。字段选择匹配完整字段路径，不代表自动展开某个路径前缀。
+
+启用 `codec` 时，声明中的稳定 codec ID 或 Rust codec 类型仍要经显式传入的 registry 绑定。选择优先级是字段显式 codec、Value 的 canonical codec、无 codec。`bind_codecs` 解析声明并返回已选实现的绑定结果；它不会调用 `encode` 或 `decode`、保存数据或执行应用策略。元数据本身不含 codec 实例，不承担持久化流程。
 
 ## 错误分期与集成约束
 
@@ -126,7 +141,7 @@ ReflectRegistry 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
 | plan/codec 绑定 | 缺少注册项、类型不匹配、当前执行器不支持形状 | 补充适配器或调整消费者，不应删去真实业务约束换取通过 |
 | 实例执行 | `ValidationReport` 中的违例，或带部分报告的执行错误 | 违例交给业务决策；错误保留原因与部分结果，避免误判为有效 |
 
-`__private::v7` 只供生成代码和运行时协同使用，应用应依赖公开 `metadata`、`registry`、`resolve`、`validation`、`codec` API。未来改动如影响生成 ABI，必须同步更新 runtime 与 derive；历史私有门面没有兼容保证。
+`__private::v8` 只供生成代码和运行时协同使用，应用应依赖公开 `metadata`、`registry`、`resolve`、`validation`、`codec` API。未来改动如影响生成 ABI，必须同步更新 runtime 与 derive；历史私有门面没有兼容保证。
 
 ## 源码与验收入口
 
