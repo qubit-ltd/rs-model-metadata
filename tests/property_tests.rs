@@ -38,6 +38,20 @@ struct PrivatePropertyFixture {
     value: String,
 }
 
+#[test]
+fn borrowed_slice_exposes_length_and_borrowed_values() {
+    let values = [17_u32, 23_u32];
+    let slice = BorrowedPropertySlice::new(&values);
+
+    assert!(!slice.is_empty());
+    assert_eq!(slice.len(), 2);
+    assert_eq!(
+        slice.get(1).and_then(|value| value.downcast_ref::<u32>().copied()),
+        Some(23)
+    );
+    assert!(slice.get(2).is_none());
+}
+
 fn borrowed_name<'a>(target: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
     let target = target
         .downcast::<PropertyFixture>()
