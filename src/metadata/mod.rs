@@ -64,6 +64,7 @@ pub use crate::metadata_vocabulary::SerdeFieldMetadata;
 pub use crate::metadata_vocabulary::UniqueMetadata as FieldUniqueMetadata;
 pub use crate::model_impl_metadata::ModelImplMetadata;
 pub use crate::model_metadata_error::ModelMetadataError;
+pub use crate::property::BorrowedCollection;
 pub use crate::property::BorrowedPropertySlice;
 pub use crate::property::CollectionOps;
 pub use crate::property::GetterAdapter;

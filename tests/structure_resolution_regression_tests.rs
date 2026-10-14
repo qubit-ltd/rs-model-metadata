@@ -17,7 +17,7 @@ use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
-use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::ModelMetadataError;
 use qubit_model_metadata::metadata::ModelRole;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -358,11 +358,11 @@ struct BrokenValue(Invalid<1>);
 fn conflict_root_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v7::GeneratedTypeMetadataBuilder::new(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<Invalid<1>>(),
             None,
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish::<Invalid<1>>()
     })
@@ -832,12 +832,12 @@ fn test_explicit_opaque_root_does_not_discover_hidden_model() {
 fn test_explicit_roots_fallback_validates_descriptor_abi() {
     // Omitting the reflected field overlay deliberately creates a malformed
     // explicit input through the same unchecked ABI used by generated code.
-    let malformed = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let malformed = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<PrimitiveRaw>(),
             None,
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish_unchecked(),
     );
@@ -938,8 +938,8 @@ fn test_for_roots_rejects_malformed_overlay_even_when_registry_has_canonical_met
     let source = FragmentIdentity::new("structure", "canonical-root", 1, 1, "model", 0);
     let registered = TypeMetadata::of::<Plain>();
     let models = ModelRegistry::from_static_metadata(&[(registered, &source)]).expect("valid canonical model metadata");
-    let malformed = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Plain>(), None, &[], v7::leak(v7::model_role()))
+    let malformed = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Plain>(), None, &[], v8::leak(v8::model_role()))
             .finish_unchecked(),
     );
     let roots = [malformed];
@@ -982,17 +982,17 @@ fn test_for_roots_deduplicates_repeated_roots() {
 
 #[test]
 fn test_for_roots_reports_all_malformed_roots_in_deterministic_order() {
-    let malformed_primitive = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let malformed_primitive = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<PrimitiveRaw>(),
             None,
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish_unchecked(),
     );
-    let malformed_plain = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Plain>(), None, &[], v7::leak(v7::model_role()))
+    let malformed_plain = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Plain>(), None, &[], v8::leak(v8::model_role()))
             .finish_unchecked(),
     );
     let roots = [malformed_primitive, malformed_plain];

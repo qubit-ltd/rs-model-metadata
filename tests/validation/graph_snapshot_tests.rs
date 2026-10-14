@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use qubit_model_derive::Model;
-use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::FieldMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -24,6 +24,8 @@ use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validator::ValidatorRegistry;
 
 #[Model]
@@ -47,8 +49,8 @@ fn unconstrained<T: Reflect>() -> &'static TypeMetadata {
         .iter()
         .map(|field| FieldMetadata::from_reflect(descriptor.type_id(), field))
         .collect();
-    v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(descriptor, None, v7::leak_slice(fields), v7::leak(v7::model_role()))
+    v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(descriptor, None, v8::leak_slice(fields), v8::leak(v8::model_role()))
             .finish::<T>(),
     )
 }
@@ -84,7 +86,10 @@ fn test_plan_uses_the_graphs_canonical_root_declarations() {
     assert_eq!(plan.binding_count(), 1);
     assert!(std::ptr::eq(plan.root(), declared));
     let report = plan
-        .validate(&Record { name: String::new() }, &ValidationOptions::default())
+        .validate_dynamic(
+            DynamicRef::<Local>::new(&Record { name: String::new() }),
+            &ValidationOptions::default(),
+        )
         .expect("execution");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "name");
@@ -121,9 +126,12 @@ fn test_plan_does_not_import_constraints_from_another_overlay() {
     assert_eq!(plan.binding_count(), 0);
     assert!(std::ptr::eq(plan.root(), stripped));
     assert!(
-        plan.validate(&Record { name: String::new() }, &ValidationOptions::default())
-            .expect("execution")
-            .is_valid()
+        plan.validate_dynamic(
+            DynamicRef::<Local>::new(&Record { name: String::new() }),
+            &ValidationOptions::default()
+        )
+        .expect("execution")
+        .is_valid()
     );
 }
 

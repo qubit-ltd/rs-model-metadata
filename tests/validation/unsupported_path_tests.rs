@@ -31,6 +31,8 @@ use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::Reflect;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistry;
 
@@ -96,21 +98,14 @@ struct TupleUses {
 }
 
 #[Enum]
-enum Choice {
-    First {
-        #[text(non_blank)]
-        name: String,
-    },
-    Second {
-        #[text(non_blank)]
-        name: String,
-    },
-    Tuple(#[text(non_blank)] String),
+enum NestedChoice {
+    First { child: Child },
+    Second { child: Child },
 }
 
 #[Model]
-struct Envelope {
-    choice: Choice,
+struct NestedEnvelope {
+    choice: NestedChoice,
 }
 
 #[derive(Clone, Eq, Hash, PartialEq)]
@@ -234,23 +229,12 @@ enum MappedConstraints {
     },
 }
 
-/// Unsupported shapes retain every mapped rule without fabricating a binding.
+/// Remaining unsupported collection shapes retain every mapped rule.
 #[test]
 fn test_unsupported_constraints_retain_complete_rule_mappings() {
     let errors = unsupported(TypeMetadata::of::<MappedConstraints>());
-    assert_eq!(errors.len(), 3);
-    let text_rules = errors[0].constraint_rules();
-    assert_eq!(
-        text_rules,
-        [
-            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.non_blank")),
-            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.char_length")),
-            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.byte_length")),
-            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.allowed_chars")),
-            ConstraintRuleRef::Registry(ValidatorId::new("qubit.rules.text.email_ascii")),
-        ]
-    );
-    let sequence_rules = errors[1].constraint_rules();
+    assert_eq!(errors.len(), 2);
+    let sequence_rules = errors[0].constraint_rules();
     assert_eq!(
         sequence_rules,
         [
@@ -258,7 +242,7 @@ fn test_unsupported_constraints_retain_complete_rule_mappings() {
             ConstraintRuleRef::ModelIntrinsic(ValidatorId::new("qubit.rules.collection.unique")),
         ]
     );
-    let map_rules = errors[2].constraint_rules();
+    let map_rules = errors[1].constraint_rules();
     assert_eq!(
         map_rules,
         [ConstraintRuleRef::Registry(ValidatorId::new(
@@ -343,7 +327,7 @@ fn test_optional_text_value_executes_or_skips() {
 
     let missing = OptionalText { value: None };
     let report = plan
-        .validate(&missing, &ValidationOptions::default())
+        .validate_dynamic(DynamicRef::<Local>::new(&missing), &ValidationOptions::default())
         .expect("missing optional text");
     assert!(report.violations().is_empty());
 
@@ -351,7 +335,7 @@ fn test_optional_text_value_executes_or_skips() {
         value: Some(String::new()),
     };
     let report = plan
-        .validate(&invalid, &ValidationOptions::default())
+        .validate_dynamic(DynamicRef::<Local>::new(&invalid), &ValidationOptions::default())
         .expect("present optional text");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "value");
@@ -382,7 +366,7 @@ fn test_optional_text_borrowed_getter_is_lazy_and_reads_once() {
 
     let missing = OptionalTextGetter { value: None };
     let report = plan
-        .validate(&missing, &ValidationOptions::default())
+        .validate_dynamic(DynamicRef::<Local>::new(&missing), &ValidationOptions::default())
         .expect("missing optional getter value");
     assert!(report.violations().is_empty());
     OPTIONAL_TEXT_GETTER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
@@ -391,7 +375,7 @@ fn test_optional_text_borrowed_getter_is_lazy_and_reads_once() {
         value: Some(String::new()),
     };
     let report = plan
-        .validate(&invalid, &ValidationOptions::default())
+        .validate_dynamic(DynamicRef::<Local>::new(&invalid), &ValidationOptions::default())
         .expect("present optional getter value");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].code().as_str(), "text.blank");
@@ -406,8 +390,8 @@ fn test_unadapted_paths_still_fail_during_plan_construction() {
             vec!["pair.0.name", "pair.1.0.name", "pair.1.1.name"],
         ),
         (
-            TypeMetadata::of::<Envelope>(),
-            vec!["choice.First.name", "choice.Second.name", "choice.Tuple.0"],
+            TypeMetadata::of::<NestedEnvelope>(),
+            vec!["choice.First.child.name", "choice.Second.child.name"],
         ),
         (TypeMetadata::of::<SelectorPayload>(), vec!["values"]),
     ] {
@@ -466,20 +450,13 @@ fn test_repeated_tuple_models_keep_each_position_in_source_order() {
 
 #[test]
 fn test_enum_paths_distinguish_variants_and_unnamed_fields() {
-    let errors = unsupported(TypeMetadata::of::<Envelope>());
+    let errors = unsupported(TypeMetadata::of::<NestedEnvelope>());
     assert_eq!(
         errors.iter().map(|error| error.path()).collect::<Vec<_>>(),
-        [
-            Some("choice.First.name"),
-            Some("choice.Second.name"),
-            Some("choice.Tuple.0")
-        ]
+        [Some("choice.First.child.name"), Some("choice.Second.child.name")]
     );
-    for (variant, error) in errors.iter().enumerate() {
-        let location = error.field_location().expect("concrete enum payload field");
-        assert_eq!(location.variant(), Some(variant));
-        assert_eq!(location.index(), 0);
-        assert_eq!(error.owner_type_id(), TypeId::of::<Choice>());
+    for error in &errors {
+        assert_eq!(error.owner_type_id(), TypeId::of::<Child>());
     }
 }
 

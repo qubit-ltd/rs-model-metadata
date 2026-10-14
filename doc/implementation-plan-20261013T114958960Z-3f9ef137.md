@@ -77,7 +77,7 @@ flowchart TD
 
 - [ ] 在 `derive/tests/model_impl_contract_tests.rs`、`derive/tests/model_codegen_boundary_tests.rs` 和现有 trybuild 组中建立 `#[ModelImpl]` getter/setter、可选借用、owned 返回、跨 crate 生成代码的失败前/成功后回归。
 - [ ] 将 `derive/src/expand/model_impl.rs` 生成的反射标注改用 `#[ReflectImpl]`；检查 v3 宏实际接受的参数，按现行 parser 生成属性。同步 `derive/src/expand/fields.rs` 的 adapter 输入输出及 `src/__private.rs` 门面。必要时更新 `derive/src/expand/pipeline.rs` 与精确受影响的 fixture、基准。
-- [ ] 检查 `__private::v7` 的签名是否仍匹配；若更改则同步 ABI 标识和编译期失配测试，不保留误导性的旧 ABI 版本。更新对应 trybuild `.stderr`，只接受本次契约变化造成的诊断差异。
+- [ ] 检查 `__private::v8` 的签名是否仍匹配；若更改则同步 ABI 标识和编译期失配测试，不保留误导性的旧 ABI 版本。更新对应 trybuild `.stderr`，只接受本次契约变化造成的诊断差异。
 - [ ] 运行 `cargo test -p qubit-model-derive --locked` 和 `cargo test -p qubit-model-metadata --test model_impl_merge_tests --locked`；预期宏展开、链接和错误边界通过。
 
 ### T3：使枚举载荷约束可执行

@@ -8,7 +8,9 @@
 
 //! Integration tests for explicit model graph resolution.
 
-use qubit_model_metadata::__private::v7;
+use std::any::TypeId;
+
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::DeclaredEntityTarget;
 use qubit_model_metadata::metadata::FieldAttributeMetadata;
 use qubit_model_metadata::metadata::FieldMetadata;
@@ -29,7 +31,14 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_reflect::FieldDescriptor;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::TypeMismatch;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
+
+fn unavailable_identifier<'a>(_: DynamicRef<'a, Local>) -> Result<&'a qubit_id::Id, TypeMismatch> {
+    Err(TypeMismatch::new(TypeId::of::<()>(), TypeId::of::<()>()))
+}
 
 fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]) -> ModelRegistry<'static> {
     ModelRegistry::from_static_metadata(entries).expect("valid isolated model registry")
@@ -96,7 +105,7 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         .into_boxed_slice(),
     );
     let target_fields = Box::leak(
-        vec![v7::field_metadata(
+        vec![v8::field_metadata(
             (target_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
             target_descriptor.field_at(0).unwrap(),
             target_attributes,
@@ -106,9 +115,9 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         )]
         .into_boxed_slice(),
     );
-    let target_role = v7::leak(v7::entity_role(&target_fields[0]));
+    let target_role = v8::leak(v8::entity_role(&target_fields[0], unavailable_identifier));
     let target_properties = Box::leak(
-        vec![v7::property_metadata(
+        vec![v8::property_metadata(
             "id",
             target_fields[0].type_ref(),
             Some(&target_fields[0]),
@@ -118,7 +127,7 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         .into_boxed_slice(),
     );
     let target_metadata = Box::leak(Box::new(
-        v7::GeneratedTypeMetadataBuilder::new(
+        v8::GeneratedTypeMetadataBuilder::new(
             target_descriptor,
             Some(ModelId::new("example.Target")),
             target_fields,
@@ -139,7 +148,7 @@ fn test_resolver_resolves_reference_targets_and_properties() {
     let attributes = Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
     let source_descriptor = TypeDescriptor::of::<SourceFixture>();
     let source_fields = Box::leak(
-        vec![v7::field_metadata(
+        vec![v8::field_metadata(
             (source_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
             source_descriptor.field_at(0).unwrap(),
             attributes,
@@ -149,9 +158,9 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         )]
         .into_boxed_slice(),
     );
-    let source_role = v7::leak(v7::model_role());
-    let source_metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let source_role = v8::leak(v8::model_role());
+    let source_metadata = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             source_descriptor,
             Some(ModelId::new("example.Source")),
             source_fields,
@@ -189,7 +198,7 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
     let reference = Box::leak(Box::new(FieldReferenceMetadata::new(target, selection, true, None)));
     let attributes = Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
     let fields = Box::leak(
-        vec![v7::field_metadata(
+        vec![v8::field_metadata(
             (descriptor.field_at(0).unwrap()).declaring_type().type_id(),
             descriptor.field_at(0).unwrap(),
             attributes,
@@ -199,9 +208,9 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
         )]
         .into_boxed_slice(),
     );
-    let role = v7::leak(v7::model_role());
-    let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.SourceMissing")), fields, role)
+    let role = v8::leak(v8::model_role());
+    let metadata = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.SourceMissing")), fields, role)
             .finish::<SourceFixture>(),
     );
     let registry = model_registry(&[(metadata, source_identity(3))]);
@@ -219,7 +228,7 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
 
 fn indexed_field(reflect: &'static FieldDescriptor) -> FieldMetadata {
     let attributes = Box::leak(vec![FieldAttributeMetadata::Indexed(IndexingReasons::EXPLICIT)].into_boxed_slice());
-    v7::field_metadata(
+    v8::field_metadata(
         (reflect).declaring_type().type_id(),
         reflect,
         attributes,
@@ -234,17 +243,17 @@ fn entity_metadata<T: 'static>(
     id: &'static str,
     fields: &'static [FieldMetadata],
 ) -> &'static TypeMetadata {
-    let role = v7::leak(v7::entity_role(&fields[0]));
-    v7::leak(v7::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new(id)), fields, role).finish::<T>())
+    let role = v8::leak(v8::entity_role(&fields[0], unavailable_identifier));
+    v8::leak(v8::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new(id)), fields, role).finish::<T>())
 }
 
 #[test]
 fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     let nested_descriptor = TypeDescriptor::of::<NestedQueryFixture>();
     let nested_fields = Box::leak(vec![indexed_field(nested_descriptor.field_at(0).unwrap())].into_boxed_slice());
-    let nested_role = v7::leak(v7::value_role(None, None));
-    let nested = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let nested_role = v8::leak(v8::value_role(None, None));
+    let nested = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             nested_descriptor,
             Some(ModelId::new("query.Nested")),
             nested_fields,
@@ -264,7 +273,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     );
     let root_fields = Box::leak(
         vec![
-            v7::field_metadata(
+            v8::field_metadata(
                 (root_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
                 root_descriptor.field_at(0).unwrap(),
                 identifier_attributes,
@@ -299,7 +308,7 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     let conflict_descriptor = TypeDescriptor::of::<ConflictingQueryFixture>();
     let conflict_fields = Box::leak(
         vec![
-            v7::field_metadata(
+            v8::field_metadata(
                 (conflict_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
                 conflict_descriptor.field_at(0).unwrap(),
                 identifier_attributes,
@@ -333,9 +342,9 @@ fn test_resolver_rejects_value_closure_over_model_role() {
         )]
         .into_boxed_slice(),
     );
-    let model_role = v7::leak(v7::model_role());
-    let model = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let model_role = v8::leak(v8::model_role());
+    let model = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             model_descriptor,
             Some(ModelId::new("closure.Model")),
             model_fields,
@@ -351,9 +360,9 @@ fn test_resolver_rejects_value_closure_over_model_role() {
         )]
         .into_boxed_slice(),
     );
-    let value_role = v7::leak(v7::value_role(None, None));
-    let value = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let value_role = v8::leak(v8::value_role(None, None));
+    let value = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             value_descriptor,
             Some(ModelId::new("closure.Value")),
             value_fields,

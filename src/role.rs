@@ -8,6 +8,12 @@
 
 //! The five supported model roles and their role-specific payloads.
 
+use qubit_id::Id;
+use qubit_reflect::TypeMismatch;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
+
+use crate::__private::IdentifierAccessor;
 use crate::metadata::CodecMetadata;
 use crate::metadata::DeclaredEntityTarget;
 use crate::metadata::EnumMetadata;
@@ -63,6 +69,7 @@ pub enum ModelRole {
 pub struct EntityMetadata {
     /// The field that supplies the entity identifier.
     identifier: &'static FieldMetadata,
+    identifier_accessor: IdentifierAccessor,
 }
 
 impl EntityMetadata {
@@ -77,8 +84,11 @@ impl EntityMetadata {
     /// Entity metadata retaining the process-lifetime identifier field.
     #[must_use]
     #[inline]
-    pub(crate) const fn new(identifier: &'static FieldMetadata) -> Self {
-        Self { identifier }
+    pub(crate) const fn new(identifier: &'static FieldMetadata, identifier_accessor: IdentifierAccessor) -> Self {
+        Self {
+            identifier,
+            identifier_accessor,
+        }
     }
 
     /// Returns the entity identifier field.
@@ -90,6 +100,12 @@ impl EntityMetadata {
     #[inline]
     pub const fn identifier(&self) -> &'static FieldMetadata {
         self.identifier
+    }
+
+    /// Reads this entity's identifier through its generated typed accessor.
+    #[inline]
+    pub(crate) fn read_identifier<'a>(&self, value: DynamicRef<'a, Local>) -> Result<&'a Id, TypeMismatch> {
+        (self.identifier_accessor)(value)
     }
 }
 
@@ -128,6 +144,7 @@ pub struct ProjectionMetadata {
     identifier: &'static FieldMetadata,
     /// The optional entity target from which projection fields originate.
     source: Option<&'static DeclaredEntityTarget>,
+    identifier_accessor: IdentifierAccessor,
 }
 
 impl ProjectionMetadata {
@@ -144,8 +161,16 @@ impl ProjectionMetadata {
     /// Projection metadata retaining its identifier and source declaration.
     #[must_use]
     #[inline]
-    pub(crate) const fn new(identifier: &'static FieldMetadata, source: Option<&'static DeclaredEntityTarget>) -> Self {
-        Self { identifier, source }
+    pub(crate) const fn new(
+        identifier: &'static FieldMetadata,
+        source: Option<&'static DeclaredEntityTarget>,
+        identifier_accessor: IdentifierAccessor,
+    ) -> Self {
+        Self {
+            identifier,
+            source,
+            identifier_accessor,
+        }
     }
 
     /// Returns the projection identifier field.
@@ -158,6 +183,12 @@ impl ProjectionMetadata {
     #[inline]
     pub const fn identifier(&self) -> &'static FieldMetadata {
         self.identifier
+    }
+
+    /// Reads this projection's identifier through its generated typed accessor.
+    #[inline]
+    pub(crate) fn read_identifier<'a>(&self, value: DynamicRef<'a, Local>) -> Result<&'a Id, TypeMismatch> {
+        (self.identifier_accessor)(value)
     }
 
     /// Returns the optional declared source without consulting a registry.

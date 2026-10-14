@@ -26,6 +26,14 @@ ReflectRegistry snapshot ----> ModelRegistry ----> StructureResolver ----> Model
 
 The public vocabulary lives in `metadata`, `registry`, `resolve`, and `access_path`. `generic`, `validation`, and `codec` are separate optional features; the default feature set is empty. The independent `qubit-model-id` crate carries the stable model ID protocol.
 
+The reflection boundary follows `rs-reflect` codegen v3: runtime and generated
+code use `DynamicRef<'a, Local>`, `DynamicMut<'a, Local>`, and
+`DynamicOwned<Local>` for checked dynamic access, while `#[ReflectImpl]`
+registers generated capabilities. The crate's `__private::v8` facade is an
+internal runtime/derive ABI, not an application API. Enum payload execution
+uses the reflected `VariantDescriptor::is_active_dynamic` check before reading
+a payload field; a mismatched dynamic root is an execution error.
+
 ## Core objects and ownership
 
 These objects describe declarations and resolved structure; they do not represent persisted records or own application values.
@@ -81,13 +89,22 @@ With `validation`, a validation operation has three distinct stages:
 
 1. `ValidationCapabilities::check(root, &graph)` checks whether declarations and access shapes found from the graph root are discoverable. It does not bind custom rules or invoke getters.
 2. `ValidationPlan::build(root, ValidationBuildInputs { graph, validators })` binds executable occurrences to built-in rules and the supplied `ValidatorRegistry`. It aggregates independent unsupported-shape, missing-rule, and type-mismatch errors. The graph's canonical metadata for the root type is authoritative; an overlay with the same `TypeId` cannot replace its declarations.
-3. `plan.validate(ReflectedRef::new(&value), &options)` checks the instance root type, then reads and executes rules in declaration order. Rule violations are returned in `Ok(ValidationReport)`. Accessor, dependency, and traversal-budget failures return `Err(ModelValidationError)` with the report accumulated before execution stopped.
+3. `plan.validate(DynamicRef::<Local>::new(&value), &options)` checks the instance root type, then reads and executes rules in declaration order. Rule violations are returned in `Ok(ValidationReport)`. Accessor, dependency, and traversal-budget failures return `Err(ModelValidationError)` with the report accumulated before execution stopped.
 
-The walker preserves each actual use path as a separate occurrence, even when several fields lead to the same child type. Recursive shapes with no execution work can terminate; recursive paths with executable work, constrained enum payloads, and unsupported collection-internal paths are rejected rather than silently producing incomplete plans. `Reference` traversal stops at the stored field, and `opaque` traversal stops inside the opaque structure; explicit rules on the outer value remain available.
+The walker preserves each actual use path as a separate occurrence, even when several fields lead to the same child type. Its current shape boundary is:
 
-`ValidationOptions::default()` selects all fields and `CollectAll`, with maximum depth 64, 100,000 visited nodes, 100 violations, and 1,000,000 comparisons. `FailFast` and the violation limit produce a successful report that may be truncated. Exhausting depth, node, or comparison budgets is an execution error with a partial report. These budgets cover the runtime's reads, element visits, and rule calls; they do not limit work or allocations inside a custom validator. Field selection matches complete field paths, not path prefixes.
+| Shape | Execution contract |
+| --- | --- |
+| Direct named or tuple enum payload value rule | Executes only for the active variant; inactive variants are skipped, and report paths include variant and field. |
+| Enum payload selector or nested model rule | Rejected; payload support is limited to direct value rules. |
+| `Vec<T>` / `[T; N]` `Element`; `HashMap<K, V>` / `BTreeMap<K, V>` `MapKey` and `MapValue` | Executes each member through a generated borrowing adapter; borrowed-slice getters also expose elements. `Option`-wrapped collections skip selectors when absent. |
+| Selector rule with dependencies; unknown/custom collection; owned collection getter; implicit member unwrapping; model rules inside collection members | Rejected during capability checking and plan construction. |
 
-With `codec`, stable codec IDs or Rust codec types in declarations must be bound through an explicitly supplied codec registry. The binding priority is field-specific codec, the Value's canonical codec, then no codec. Metadata contains no codec instances and does not implement persistence or an encoding workflow. See the [user guide](user_guide.md) for supported shapes and runnable usage.
+Recursive shapes with no execution work can terminate; recursive paths with executable work are rejected rather than silently producing incomplete plans. `Reference` traversal stops at the stored field, and `opaque` traversal stops inside the opaque structure; explicit rules on the outer value remain available.
+
+`ValidationOptions::default()` selects all fields and `CollectAll`, with maximum depth 64, 100,000 visited nodes, 100 violations, and 1,000,000 comparisons. `FailFast` and the violation limit produce a successful report that may be truncated. Exhausting depth, node, or comparison budgets is an execution error with a partial report. These shared budgets cover root/property/dependency/member reads and rule calls; selector element rule calls and each pair checked by outer sequence uniqueness consume comparison budget. They do not limit work or allocations inside a custom validator. Map entry path indices follow the collection iterator order (which is not stable for `HashMap`). Field selection matches complete field paths, not path prefixes.
+
+With `codec`, stable codec IDs or Rust codec types in declarations must be bound through an explicitly supplied codec registry. The binding priority is field-specific codec, the Value's canonical codec, then no codec. `bind_codecs` resolves declarations to registered implementations and returns bindings; it does not call `encode` or `decode`, persist data, or apply application policy. Metadata contains no codec instances and does not implement a persistence workflow. See the [user guide](user_guide.md) for supported shapes and runnable usage.
 
 ## Error phases and integration
 
@@ -99,7 +116,7 @@ With `codec`, stable codec IDs or Rust codec types in declarations must be bound
 | Validation or codec binding | Missing registration, type mismatch, or unsupported execution shape. | Supply an adapter or adjust the consumer; do not remove a real model constraint merely to pass binding. |
 | Instance execution | A `ValidationReport` with violations or an execution error with a partial report. | Apply business policy to violations; preserve execution errors and their partial results rather than treating them as valid data. |
 
-Generated constructors use the synchronized `__private::v7` ABI and reflection provider contract. Keep runtime and derive versions aligned. Applications should depend on the public `metadata`, `registry`, `resolve`, `validation`, and `codec` APIs rather than the generated-code ABI. The platform's production integration is described in the [rs-platform design](../../rs-platform/doc/design.md). Historical requirements and migration ledgers are background records, not substitutes for current contracts.
+Generated constructors use the synchronized `__private::v8` ABI and reflection provider contract. Keep runtime and derive versions aligned. Applications should depend on the public `metadata`, `registry`, `resolve`, `validation`, and `codec` APIs rather than the generated-code ABI. The platform's production integration is described in the [rs-platform design](../../rs-platform/doc/design.md). Historical requirements and migration ledgers are background records, not substitutes for current contracts.
 
 A missing lookup is distinct from a failed lookup: absence is an ordinary result, while registry, property, and resolution failures carry errors that should retain their diagnostic context.
 

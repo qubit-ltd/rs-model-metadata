@@ -19,10 +19,11 @@ use qubit_id::Id;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
+use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
 use qubit_model_metadata::__private::ModelMetadataProvider;
 use qubit_model_metadata::__private::model_metadata_key;
-use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::DependencyBindingMetadata;
 use qubit_model_metadata::metadata::FieldAttributeMetadata;
 use qubit_model_metadata::metadata::ModelId;
@@ -88,7 +89,7 @@ fn snapshot_good_metadata() -> &'static TypeMetadata {
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<SnapshotGood>();
         let reflected = descriptor.field_at(0).expect("good value field");
-        let fields = v7::leak_slice(vec![v7::field_metadata(
+        let fields = v8::leak_slice(vec![v8::field_metadata(
             reflected.declaring_type().type_id(),
             reflected,
             &[],
@@ -96,18 +97,18 @@ fn snapshot_good_metadata() -> &'static TypeMetadata {
             &[],
             &SerdeFieldMetadata::DEFAULT,
         )]);
-        let properties = v7::leak_slice(vec![v7::property_metadata(
+        let properties = v8::leak_slice(vec![v8::property_metadata(
             "value",
             fields[0].type_ref(),
             Some(&fields[0]),
             None,
             None,
         )]);
-        v7::GeneratedTypeMetadataBuilder::new(
+        v8::GeneratedTypeMetadataBuilder::new(
             descriptor,
             Some(ModelId::new("roots.SnapshotGood")),
             fields,
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .properties(properties)
         .finish::<SnapshotGood>()
@@ -121,9 +122,9 @@ fn snapshot_bad_metadata() -> &'static TypeMetadata {
         let descriptor = TypeDescriptor::of::<SnapshotBad>();
         let reflected = descriptor.field_at(0).expect("bad value field");
         let missing = PropertyPath::new(&["missing"]);
-        let dependencies = v7::leak_slice(vec![missing]);
-        let bindings = v7::leak_slice(vec![DependencyBindingMetadata::new("expected", missing)]);
-        let validators = v7::leak_slice(vec![ValidatorMetadata::new_bound(
+        let dependencies = v8::leak_slice(vec![missing]);
+        let bindings = v8::leak_slice(vec![DependencyBindingMetadata::new("expected", missing)]);
+        let validators = v8::leak_slice(vec![ValidatorMetadata::new_bound(
             "roots.rule",
             &[],
             dependencies,
@@ -131,8 +132,8 @@ fn snapshot_bad_metadata() -> &'static TypeMetadata {
             TargetMode::Value,
             OnNone::Skip,
         )]);
-        let attributes = v7::leak_slice(vec![FieldAttributeMetadata::Validator(&validators[0])]);
-        let fields = v7::leak_slice(vec![v7::field_metadata(
+        let attributes = v8::leak_slice(vec![FieldAttributeMetadata::Validator(&validators[0])]);
+        let fields = v8::leak_slice(vec![v8::field_metadata(
             reflected.declaring_type().type_id(),
             reflected,
             attributes,
@@ -140,18 +141,18 @@ fn snapshot_bad_metadata() -> &'static TypeMetadata {
             validators,
             &SerdeFieldMetadata::DEFAULT,
         )]);
-        let properties = v7::leak_slice(vec![v7::property_metadata(
+        let properties = v8::leak_slice(vec![v8::property_metadata(
             "value",
             fields[0].type_ref(),
             Some(&fields[0]),
             None,
             None,
         )]);
-        v7::GeneratedTypeMetadataBuilder::new(
+        v8::GeneratedTypeMetadataBuilder::new(
             descriptor,
             Some(ModelId::new("roots.SnapshotBad")),
             fields,
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .properties(properties)
         .finish::<SnapshotBad>()
@@ -549,4 +550,122 @@ fn test_unique_scope_error_retains_declaration_location() {
     assert_eq!(error.kind(), ResolveErrorKind::MissingProperty);
     assert_eq!(error.path().unwrap().to_string(), "missing");
     assert_eq!(error.declaration().unwrap().field, Some(0));
+}
+
+#[Model]
+struct NationDetails {
+    code: String,
+}
+
+#[Entity(id = "roots.NestedNation")]
+struct NestedNation {
+    #[identifier]
+    id: Id,
+    details: NationDetails,
+}
+
+#[Projection(source = NestedNation)]
+struct NestedNationProjection {
+    #[identifier]
+    id: Id,
+    details: NationDetails,
+}
+
+#[Model]
+struct NestedNationSlot {
+    nation: NestedNation,
+    projection: NestedNationProjection,
+}
+
+#[Model]
+struct NestedRelationRoot {
+    subject: NestedNationSlot,
+    #[reference(entity = NestedNation, property = id, path = "subject/nation")]
+    nation_id: Id,
+    #[validator(
+        id = "roots.nested_dependency",
+        depends_on(expected(path = "subject/nation", property = details.code))
+    )]
+    digest: String,
+}
+
+/// Nested model traversal resolves Entity references, Projection identifiers,
+/// and validator dependencies through the same root graph.
+#[test]
+fn test_nested_entity_projection_and_dependency_paths_resolve() {
+    let metadata = TypeMetadata::of::<NestedRelationRoot>();
+    let roots = [metadata];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: ModelRegistry::global(),
+        roots: &roots,
+    })
+    .resolve()
+    .expect("nested relation graph resolves");
+
+    let reference = graph
+        .reference(metadata.field("nation_id").unwrap().location().unwrap())
+        .expect("nested Entity reference");
+    assert_eq!(
+        reference.target().type_id(),
+        TypeMetadata::of::<NestedNation>().type_id()
+    );
+    assert_eq!(reference.property().unwrap().name(), "id");
+
+    let projection = TypeMetadata::of::<NestedNationProjection>();
+    assert_eq!(
+        graph
+            .projection_source(projection.type_id())
+            .unwrap()
+            .target()
+            .type_id(),
+        TypeMetadata::of::<NestedNation>().type_id()
+    );
+
+    let dependency = &graph.dependencies()[0];
+    assert_eq!(dependency.declaration().object_path().to_string(), "subject/nation");
+    assert_eq!(dependency.declaration().property().to_string(), "details.code");
+}
+
+#[Model]
+struct InvalidNestedRelationRoot {
+    subject: NestedNationSlot,
+    #[reference(entity = NestedNation, property = id, path = "subject/missing")]
+    nation_id: Id,
+    #[validator(
+        id = "roots.invalid_nested_dependency",
+        depends_on(expected(path = "subject/nation", property = details.missing))
+    )]
+    digest: String,
+}
+
+/// Broken nested reference and dependency paths retain both path components
+/// and their declaring field locations.
+#[test]
+fn test_nested_relation_errors_retain_exact_object_and_property_paths() {
+    let metadata = TypeMetadata::of::<InvalidNestedRelationRoot>();
+    let roots = [metadata];
+    let errors = StructureResolver::new(ResolveInputs {
+        models: ModelRegistry::global(),
+        roots: &roots,
+    })
+    .resolve()
+    .expect_err("missing nested relation paths are rejected");
+
+    let reference_error = errors
+        .errors()
+        .iter()
+        .find(|error| error.declaration().is_some_and(|location| location.field == Some(1)))
+        .expect("reference path error");
+    assert_eq!(reference_error.kind(), ResolveErrorKind::MissingProperty);
+    assert_eq!(reference_error.object_path().unwrap().to_string(), "subject/missing");
+    assert_eq!(reference_error.path().unwrap().to_string(), "nation_id");
+
+    let dependency_error = errors
+        .errors()
+        .iter()
+        .find(|error| error.declaration().is_some_and(|location| location.field == Some(2)))
+        .expect("dependency path error");
+    assert_eq!(dependency_error.kind(), ResolveErrorKind::MissingProperty);
+    assert_eq!(dependency_error.object_path().unwrap().to_string(), "subject/nation");
+    assert_eq!(dependency_error.path().unwrap().to_string(), "details.missing");
 }

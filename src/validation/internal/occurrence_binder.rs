@@ -67,25 +67,25 @@ pub(crate) fn check_access(
         ExecutionDeclaration::Traversal => {
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         }
-        ExecutionDeclaration::Constraint(_) if occurrence.selector.is_some() => {
-            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
-        }
         ExecutionDeclaration::Constraint(
             ConstraintMetadata::Text(_)
             | ConstraintMetadata::Map(_)
             | ConstraintMetadata::Decimal(_)
             | ConstraintMetadata::Time(_),
         ) => false,
-        ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(_)) => true,
+        ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(_)) if occurrence.selector.is_none() => true,
+        ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(_)) => false,
         ExecutionDeclaration::Validator(value) => {
             if let Some(selector) = occurrence.selector {
-                if selector != SelectorPosition::Element
-                    || !value.depends_on().is_empty()
+                if !matches!(
+                    selector,
+                    SelectorPosition::Element | SelectorPosition::MapKey | SelectorPosition::MapValue
+                ) || !value.depends_on().is_empty()
                     || !value.dependency_bindings().is_empty()
                 {
                     return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
                 }
-                true
+                false
             } else {
                 false
             }
@@ -102,17 +102,20 @@ pub(crate) fn check_access(
         )
     );
     let compile = |target| -> Result<_, Box<ValidationBuildError>> {
-        CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&occurrence.segments), graph, target).map_err(
-            |error| {
-                Box::new(if error.kind() == BindErrorKind::UnsupportedConstraint {
-                    ValidationBuildError::unsupported(occurrence)
-                } else {
-                    ValidationBuildError::at_occurrence(occurrence, error)
-                })
-            },
-        )
+        let compiled = if occurrence.enum_variant.is_some() {
+            CompiledPropertyPath::compile_enum_payload(occurrence.root, occurrence, graph, target)
+        } else {
+            CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&occurrence.segments), graph, target)
+        };
+        compiled.map_err(|error| {
+            Box::new(if error.kind() == BindErrorKind::UnsupportedConstraint {
+                ValidationBuildError::unsupported(occurrence)
+            } else {
+                ValidationBuildError::at_occurrence(occurrence, error)
+            })
+        })
     };
-    let initial_target = if requires_slice {
+    let initial_target = if requires_slice || occurrence.selector.is_some() {
         TargetMode::Container
     } else {
         match occurrence.declaration {
@@ -148,7 +151,11 @@ pub(crate) fn check_access(
         return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
     }
     let direct_optional_scalar = optional_scalar_candidate;
-    let target = if requires_slice || is_map && !optional_map_getter || direct_optional_scalar {
+    let target = if requires_slice
+        || occurrence.selector.is_some()
+        || is_map && !optional_map_getter
+        || direct_optional_scalar
+    {
         TargetMode::Container
     } else {
         match occurrence.declaration {
@@ -176,8 +183,20 @@ pub(crate) fn check_access(
         .last()
         .and_then(|step| step.property().getter())
         .is_some_and(|getter| getter.output_kind() == GetterOutputKind::BorrowedSlice);
-    if slice != requires_slice {
+    if requires_slice && !slice {
         return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+    }
+    if let Some(selector) = occurrence.selector {
+        let items = occurrence.field.collection_ops().and_then(|ops| ops.collection_items());
+        let supported_type = selector_input_type(occurrence, &path, selector).is_some();
+        let borrowed_output = path
+            .steps()
+            .last()
+            .and_then(|step| step.property().getter())
+            .is_none_or(|getter| getter.output_kind() != GetterOutputKind::Owned);
+        if items.is_none() || !supported_type || !borrowed_output {
+            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+        }
     }
     if matches!(occurrence.declaration, ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(sequence)) if sequence.unique_items())
     {
@@ -222,15 +241,25 @@ pub(crate) fn check_access(
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         }
     }
+    let selected_type = occurrence
+        .selector
+        .and_then(|selector| selector_input_type(occurrence, &path, selector));
+    let selected_input = selected_type.map(|descriptor| {
+        if matches!(descriptor.kind(), TypeKind::Text(_)) {
+            InputType::Text
+        } else {
+            InputType::Typed(descriptor.type_id())
+        }
+    });
     if matches!(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(ConstraintMetadata::Text(_))
-    ) && path.input_type() != InputType::Text
+    ) && selected_input.unwrap_or_else(|| path.input_type()) != InputType::Text
     {
         return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
     }
     if let ExecutionDeclaration::Constraint(constraint) = occurrence.declaration {
-        let input = path.input_type();
+        let input = selected_input.unwrap_or_else(|| path.input_type());
         let accepted = match constraint {
             ConstraintMetadata::Decimal(_) => input == InputType::of::<BigDecimal>(),
             ConstraintMetadata::Time(_) => {
@@ -246,18 +275,11 @@ pub(crate) fn check_access(
     }
     if let ExecutionDeclaration::Validator(declaration) = occurrence.declaration {
         if occurrence.selector.is_some() {
-            let Some(descriptor) = path
-                .steps()
-                .last()
-                .and_then(|step| step.property().getter())
-                .and_then(|getter| getter.output_type().as_resolved())
-                .and_then(|descriptor| descriptor.as_slice())
-                .and_then(|slice| slice.element_type().as_resolved())
-            else {
+            let Some(descriptor) = selected_type else {
                 return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
             };
-            // Slice access borrows the element itself. It has no adapter to
-            // expose an optional value or a pointee with the promised lifetime.
+            // Selected members are direct borrows, so optional values and
+            // smart pointers need a separate projection adapter.
             if declaration.target() == TargetMode::Value
                 && (descriptor.as_optional().is_some() || descriptor.as_smart_pointer().is_some())
             {
@@ -331,6 +353,40 @@ fn access_error(occurrence: &ValidationOccurrence, error: BindError) -> Validati
     }
 }
 
+/// Resolves the selected member type from the exact collection descriptor.
+fn selector_input_type(
+    _occurrence: &ValidationOccurrence,
+    path: &CompiledPropertyPath,
+    position: SelectorPosition,
+) -> Option<&'static TypeDescriptor> {
+    let property = path.steps().last()?.property();
+    let mut descriptor = property
+        .getter()
+        .and_then(|getter| getter.output_type().as_resolved())
+        .or_else(|| property.descriptor())?;
+    if let Some(optional) = descriptor.as_optional() {
+        descriptor = optional.element_type().as_resolved()?;
+    }
+    let selected = match position {
+        SelectorPosition::Element => descriptor
+            .as_sequence()
+            .and_then(|sequence| sequence.element_type().as_resolved())
+            .or_else(|| {
+                descriptor
+                    .as_array()
+                    .and_then(|array| array.element_type().as_resolved())
+            })
+            .or_else(|| {
+                descriptor
+                    .as_slice()
+                    .and_then(|slice| slice.element_type().as_resolved())
+            }),
+        SelectorPosition::MapKey => descriptor.as_map().and_then(|map| map.key_type().as_resolved()),
+        SelectorPosition::MapValue => descriptor.as_map().and_then(|map| map.value_type().as_resolved()),
+    }?;
+    Some(selected)
+}
+
 /// Binds one occurrence using the same path and dependency rules at every
 /// depth.
 ///
@@ -366,13 +422,23 @@ pub(crate) fn bind(
     };
     match occurrence.declaration {
         ExecutionDeclaration::Constraint(constraint) => {
-            let standards =
-                standard_constraints::bind(constraint, validators, value.input_type()).map_err(|errors| {
-                    errors
-                        .into_iter()
-                        .map(|error| ValidationBuildError::at_occurrence(occurrence, error))
-                        .collect::<Vec<_>>()
-                })?;
+            let input = occurrence
+                .selector
+                .and_then(|selector| selector_input_type(occurrence, &value, selector))
+                .map(|descriptor| {
+                    if matches!(descriptor.kind(), TypeKind::Text(_)) {
+                        InputType::Text
+                    } else {
+                        InputType::Typed(descriptor.type_id())
+                    }
+                })
+                .unwrap_or_else(|| value.input_type());
+            let standards = standard_constraints::bind(constraint, validators, input).map_err(|errors| {
+                errors
+                    .into_iter()
+                    .map(|error| ValidationBuildError::at_occurrence(occurrence, error))
+                    .collect::<Vec<_>>()
+            })?;
             let mut bindings: Vec<_> = standards
                 .into_iter()
                 .map(|standard| FieldRuleBinding {
@@ -387,7 +453,14 @@ pub(crate) fn bind(
                         map_len,
                     },
                     on_none: OnNone::Skip,
-                    selector: None,
+                    selector: occurrence.selector.map(|position| SelectorBinding {
+                        position,
+                        items: occurrence
+                            .field
+                            .collection_ops()
+                            .and_then(|ops| ops.collection_items())
+                            .expect("selector adapters are checked before binding"),
+                    }),
                 })
                 .collect();
             if matches!(constraint, ConstraintMetadata::Sequence(sequence) if sequence.unique_items()) {
@@ -409,13 +482,9 @@ pub(crate) fn bind(
         }
         ExecutionDeclaration::Validator(declaration) => {
             let input = if occurrence.selector.is_some() {
-                let Some(descriptor) = value
-                    .steps()
-                    .last()
-                    .and_then(|step| step.property().getter())
-                    .and_then(|getter| getter.output_type().as_resolved())
-                    .and_then(|descriptor| descriptor.as_slice())
-                    .and_then(|slice| slice.element_type().as_resolved())
+                let Some(descriptor) = occurrence
+                    .selector
+                    .and_then(|selector| selector_input_type(occurrence, &value, selector))
                 else {
                     return Err(vec![ValidationBuildError::unsupported(occurrence)]);
                 };
@@ -453,7 +522,14 @@ pub(crate) fn bind(
                     map_len: None,
                 },
                 on_none: declaration.on_none(),
-                selector: occurrence.selector.map(|position| SelectorBinding { position }),
+                selector: occurrence.selector.map(|position| SelectorBinding {
+                    position,
+                    items: occurrence
+                        .field
+                        .collection_ops()
+                        .and_then(|ops| ops.collection_items())
+                        .expect("selector adapters are checked before binding"),
+                }),
             }])
         }
         ExecutionDeclaration::Traversal => Err(vec![ValidationBuildError::unsupported(occurrence)]),

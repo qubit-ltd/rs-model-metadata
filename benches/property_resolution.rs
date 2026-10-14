@@ -17,16 +17,13 @@ use criterion::criterion_main;
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::ModelImplProvider;
 use qubit_model_metadata::__private::model_impl_fragment_key;
-use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::PropertyAccessPath;
 use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
 use qubit_model_metadata::metadata::ModelImplMetadata;
 use qubit_model_metadata::metadata::PropertyAccessError;
-use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::PropertyFragmentSource;
-use qubit_model_metadata::metadata::PropertyMutable;
-use qubit_model_metadata::metadata::PropertyOwned;
 use qubit_model_metadata::metadata::PropertySetFailure;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::SetterMetadata;
@@ -38,6 +35,10 @@ use qubit_reflect::identity::CapabilityId;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::ReflectRegistry;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::value::DynamicMut;
+use qubit_reflect::value::DynamicOwned;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 
 #[Model]
 struct ResolutionFixture {
@@ -144,14 +145,14 @@ struct ResolutionPathFiftyOne {
     f50: ResolutionPathMiddle,
 }
 
-fn read_name(target: PropertyBorrowed<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
+fn read_name(target: DynamicRef<'_, Local>) -> Result<PropertyValue<'_>, PropertyAccessError> {
     let target = target
         .downcast::<ResolutionFixture>()
         .map_err(|_| PropertyAccessError::user("wrong owner"))?;
-    Ok(PropertyValue::Borrowed(PropertyBorrowed::new(&target.name)))
+    Ok(PropertyValue::Borrowed(DynamicRef::<Local>::new(&target.name)))
 }
 
-fn write_name(target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
+fn write_name(target: DynamicMut<'_, Local>, value: DynamicOwned<Local>) -> Result<(), PropertySetFailure> {
     let target = target
         .downcast::<ResolutionFixture>()
         .unwrap_or_else(|_| panic!("validated owner"));
@@ -165,7 +166,7 @@ fn overlay(getter: bool) -> ModelImplMetadata {
     let owner = TypeMetadata::of::<ResolutionFixture>();
     let field = &owner.fields()[0];
     let getter = getter.then(|| {
-        v7::leak(GetterMetadata::new::<ResolutionFixture>(
+        v8::leak(GetterMetadata::new::<ResolutionFixture>(
             "read_name",
             field.type_ref(),
             GetterOutputKind::Borrowed,
@@ -173,32 +174,32 @@ fn overlay(getter: bool) -> ModelImplMetadata {
         ))
     });
     let setter = getter.is_none().then(|| {
-        v7::leak(SetterMetadata::new::<ResolutionFixture, String>(
+        v8::leak(SetterMetadata::new::<ResolutionFixture, String>(
             "write_name",
             field.type_ref(),
             write_name,
         ))
     });
-    let mut fragments = vec![v7::property_fragment(
+    let mut fragments = vec![v8::property_fragment(
         "name",
         field.type_ref(),
         PropertyFragmentSource::Field(field),
     )];
     if let Some(getter) = getter {
-        fragments.push(v7::property_fragment(
+        fragments.push(v8::property_fragment(
             "name",
             field.type_ref(),
             PropertyFragmentSource::Getter(getter),
         ));
     }
     if let Some(setter) = setter {
-        fragments.push(v7::property_fragment(
+        fragments.push(v8::property_fragment(
             "name",
             field.type_ref(),
             PropertyFragmentSource::Setter(setter),
         ));
     }
-    let properties = v7::leak_slice(vec![v7::property_metadata(
+    let properties = v8::leak_slice(vec![v8::property_metadata(
         "name",
         field.type_ref(),
         Some(field),
@@ -206,9 +207,9 @@ fn overlay(getter: bool) -> ModelImplMetadata {
         setter,
     )]);
     owner.validate_properties(properties).expect("valid overlay");
-    v7::model_impl_metadata(
-        v7::leak_slice(fragments),
-        Ok(v7::leak(v7::local_property_set(properties))),
+    v8::model_impl_metadata(
+        v8::leak_slice(fragments),
+        Ok(v8::leak(v8::local_property_set(properties))),
     )
 }
 
@@ -313,10 +314,13 @@ fn property_resolution(criterion: &mut Criterion) {
         name: "before".to_owned(),
     };
     property
-        .set_dynamic(PropertyMutable::new(&mut value), PropertyOwned::new("after".to_owned()))
+        .set_dynamic(
+            DynamicMut::<Local>::new(&mut value),
+            DynamicOwned::<Local>::new("after".to_owned()),
+        )
         .expect("merged setter works");
     let PropertyValue::Borrowed(read) = property
-        .get_dynamic(PropertyBorrowed::new(&value))
+        .get_dynamic(DynamicRef::<Local>::new(&value))
         .expect("merged getter works")
     else {
         panic!("expected borrowed name");

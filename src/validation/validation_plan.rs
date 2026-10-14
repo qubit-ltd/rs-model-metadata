@@ -158,7 +158,7 @@ mod tests {
     use qubit_reflect::TypeDescriptor;
     use qubit_validator::ValidatorRegistry;
 
-    use crate::__private::v7;
+    use crate::__private::v8;
     use crate::metadata::TypeMetadata;
     use crate::registry::ModelRegistry;
     use crate::resolve::ResolveInputs;
@@ -173,12 +173,12 @@ mod tests {
     /// A plan retains the resolved graph after the caller releases its handle.
     #[test]
     fn test_plan_retains_graph_after_caller_drops_arc() {
-        let root: &'static TypeMetadata = v7::leak(
-            v7::GeneratedTypeMetadataBuilder::new(
+        let root: &'static TypeMetadata = v8::leak(
+            v8::GeneratedTypeMetadataBuilder::new(
                 TypeDescriptor::of::<Profile>(),
                 None,
                 &[],
-                v7::leak(v7::model_role()),
+                v8::leak(v8::model_role()),
             )
             .finish::<Profile>(),
         );

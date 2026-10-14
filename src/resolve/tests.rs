@@ -26,7 +26,7 @@ use super::ResolveInputs;
 use super::StructureResolver;
 use super::internal::ResolutionContext;
 use super::relations::resolve_property_path;
-use crate::__private::v7;
+use crate::__private::v8;
 use crate::metadata::ModelId;
 use crate::metadata::ModelImplMetadata;
 use crate::metadata::PropertyBuildError;
@@ -46,7 +46,7 @@ fn overlay() -> &'static ModelImplMetadata {
     static OVERLAY: OnceLock<ModelImplMetadata> = OnceLock::new();
     OVERLAY.get_or_init(|| {
         let error = PropertyBuildError::new(PropertyBuildErrorKind::GetterTypeMismatch, "value");
-        ModelImplMetadata::new(&[], Err(v7::leak(PropertyBuildErrors::new(vec![error]))))
+        ModelImplMetadata::new(&[], Err(v8::leak(PropertyBuildErrors::new(vec![error]))))
     })
 }
 
@@ -66,8 +66,8 @@ fn broken_overlay<T: 'static>() -> CapabilityDescriptor {
 fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
     let reflection = RegistrySnapshotBuilder::new().build().unwrap();
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
-    let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Broken<1>>(), None, &[], v7::leak(v7::model_role()))
+    let metadata = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Broken<1>>(), None, &[], v8::leak(v8::model_role()))
             .finish::<Broken<1>>(),
     );
     let empty_merge = ModelImplMetadata::merge(metadata, &[]);
@@ -95,18 +95,18 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
 fn registered_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v7::GeneratedTypeMetadataBuilder::new(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<Broken<2>>(),
             Some(ModelId::new("error.Assembly")),
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish::<Broken<2>>()
     })
 }
 
 register_reflected_type!(Broken<2>);
-v7::register_model_capability!(Broken<2>, registered_metadata);
+v8::register_model_capability!(Broken<2>, registered_metadata);
 
 #[test]
 fn test_assembly_diagnostics_keep_property_names_and_original_causes() {

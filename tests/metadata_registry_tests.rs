@@ -18,8 +18,8 @@ use qubit_model_metadata::__private::ModelMetadataProvider;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
 use qubit_model_metadata::__private::model_metadata_key;
-use qubit_model_metadata::__private::v7;
-use qubit_model_metadata::__private::v7::register_model_capability;
+use qubit_model_metadata::__private::v8;
+use qubit_model_metadata::__private::v8::register_model_capability;
 use qubit_model_metadata::metadata::ModelId;
 #[cfg(feature = "generic")]
 use qubit_model_metadata::metadata::ModelRole;
@@ -97,8 +97,8 @@ impl TypeMetadataProvider for ProjectedFixture {
     fn __type_metadata() -> &'static TypeMetadata {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
-            let role = v7::leak(v7::model_role());
-            v7::GeneratedTypeMetadataBuilder::new(
+            let role = v8::leak(v8::model_role());
+            v8::GeneratedTypeMetadataBuilder::new(
                 TypeDescriptor::of::<ProjectedFixture>(),
                 Some(ModelId::new("example.ProjectedFixture")),
                 &[],
@@ -123,11 +123,11 @@ impl TypeMetadataProvider for CountedProviderFixture {
         COUNTED_PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst);
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
-            v7::GeneratedTypeMetadataBuilder::new(
+            v8::GeneratedTypeMetadataBuilder::new(
                 TypeDescriptor::of::<CountedProviderFixture>(),
                 None,
                 &[],
-                v7::leak(v7::model_role()),
+                v8::leak(v8::model_role()),
             )
             .finish::<CountedProviderFixture>()
         })
@@ -146,11 +146,11 @@ impl TypeMetadataProvider for CountedNamedProviderFixture {
         NAMED_PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst);
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
-            v7::GeneratedTypeMetadataBuilder::new(
+            v8::GeneratedTypeMetadataBuilder::new(
                 TypeDescriptor::of::<CountedNamedProviderFixture>(),
                 Some(ModelId::new("example.CountedNamedProvider")),
                 &[],
-                v7::leak(v7::model_role()),
+                v8::leak(v8::model_role()),
             )
             .finish::<CountedNamedProviderFixture>()
         })
@@ -167,11 +167,11 @@ fn isolated_metadata(id: &'static str) -> &'static TypeMetadata {
     static SECOND: OnceLock<TypeMetadata> = OnceLock::new();
     let cell = if id == "example.SnapshotFirst" { &FIRST } else { &SECOND };
     cell.get_or_init(|| {
-        v7::GeneratedTypeMetadataBuilder::new(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<SnapshotIsolatedFixture>(),
             Some(ModelId::new(id)),
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish::<SnapshotIsolatedFixture>()
     })
@@ -186,9 +186,9 @@ fn second_snapshot_metadata() -> &'static TypeMetadata {
 }
 
 fn entry(id: &'static str, fingerprint: u64) -> (&'static TypeMetadata, &'static FragmentIdentity) {
-    let role = v7::leak(v7::model_role());
-    let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let role = v8::leak(v8::model_role());
+    let metadata = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<RegistryFixture>(),
             Some(ModelId::new(id)),
             &[],
@@ -210,8 +210,8 @@ fn entry(id: &'static str, fingerprint: u64) -> (&'static TypeMetadata, &'static
 fn local_provenance_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        let role = v7::leak(v7::model_role());
-        v7::GeneratedTypeMetadataBuilder::new(
+        let role = v8::leak(v8::model_role());
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<RegistryFixture>(),
             Some(ModelId::new("example.LocalProvenance")),
             &[],
@@ -277,9 +277,9 @@ fn test_static_registry_constructors_reject_invalid_concrete_abi() {
     let first_source = FragmentIdentity::new("fixture", "tests", line!(), 1, "model", 992);
     #[cfg(feature = "generic")]
     let second_source = FragmentIdentity::new("fixture", "tests", line!(), 1, "model", 993);
-    let role = v7::leak(v7::model_role());
-    let invalid = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let role = v8::leak(v8::model_role());
+    let invalid = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<StaticRegistryAbiFixture>(),
             Some(ModelId::new("example.StaticRegistryAbi")),
             &[],
@@ -288,8 +288,8 @@ fn test_static_registry_constructors_reject_invalid_concrete_abi() {
         .finish_unchecked(),
     );
     #[cfg(feature = "generic")]
-    let invalid_with_generics = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let invalid_with_generics = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<StaticRegistryAbiWithGenericsFixture>(),
             Some(ModelId::new("example.StaticRegistryAbiWithGenerics")),
             &[],
@@ -324,7 +324,7 @@ fn test_static_registry_constructors_reject_invalid_concrete_abi() {
 fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
     let concrete = TypeDescriptor::of::<GenericFixture<u8>>();
     let definition = concrete.type_definition().expect("generic definition");
-    let generic = v7::leak(v7::generic_model_metadata(
+    let generic = v8::leak(v8::generic_model_metadata(
         ModelId::new("example.GenericFixture"),
         ModelRole::Model,
         definition,
@@ -366,7 +366,7 @@ fn test_anonymous_generic_definition_is_queryable_but_not_an_id_entry() {
     let definition = TypeDescriptor::of::<GenericFixture<u8>>()
         .type_definition()
         .expect("generic definition");
-    let generic = v7::leak(v7::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
+    let generic = v8::leak(v8::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
     let source = FragmentIdentity::new("fixture", "tests", 41, 1, "generic-model", 41);
     let registry =
         ModelRegistry::from_static_metadata_with_generics(&[], &[(generic, &source)]).expect("anonymous registry");
@@ -420,14 +420,14 @@ fn test_generic_definitions_order_by_fragment_identity() {
     let second_definition = TypeDescriptor::of::<OtherGenericFixture<u8>>()
         .type_definition()
         .expect("second generic definition");
-    let first = v7::leak(v7::generic_model_metadata(
+    let first = v8::leak(v8::generic_model_metadata(
         None,
         ModelRole::Model,
         first_definition,
         &[],
         &[],
     ));
-    let second = v7::leak(v7::generic_model_metadata(
+    let second = v8::leak(v8::generic_model_metadata(
         None,
         ModelRole::Model,
         second_definition,
@@ -451,8 +451,8 @@ fn test_duplicate_anonymous_generic_definition_reports_both_sources() {
     let definition = TypeDescriptor::of::<GenericFixture<u8>>()
         .type_definition()
         .expect("generic definition");
-    let first = v7::leak(v7::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
-    let second = v7::leak(v7::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
+    let first = v8::leak(v8::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
+    let second = v8::leak(v8::generic_model_metadata(None, ModelRole::Model, definition, &[], &[]));
     let first_source = FragmentIdentity::new("fixture", "tests", 11, 1, "generic-model", 11);
     let second_source = FragmentIdentity::new("fixture", "tests", 12, 1, "generic-model", 12);
     let error =

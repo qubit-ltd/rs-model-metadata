@@ -1,4 +1,4 @@
-error: generic ModelImpl property providers are unavailable until a call-site property binding API exists; declaration-level specialize(...) is not supported
+error: generic ModelImpl property providers require at least one specialize(...) binding
   --> tests/ui_roles/fail/generic_model_impl_const.rs:19:1
    |
 19 | / impl<const N: usize> Fixed<N> {

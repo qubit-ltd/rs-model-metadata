@@ -33,7 +33,7 @@ use crate::ir::declaration::VariantIr;
 pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let ident = &item.ident;
     let fields = expand_field_vector(&declaration.fields, quote!(descriptor.fields()), runtime);
-    let role = expand_role(declaration, runtime);
+    let role = expand_role(declaration, item, runtime);
     let declared_model_id = declaration.options.id.as_ref().map_or_else(
         || quote!(None),
         |id| quote!(Some(#runtime::metadata::ModelId::new(#id))),
@@ -82,12 +82,12 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
     let build_metadata = quote! {
         let descriptor = #runtime::__private::TypeDescriptor::of::<Self>();
         #fields
-        let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v7::leak_slice(fields);
+        let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v8::leak_slice(fields);
         #role
         let properties: ::std::vec::Vec<_> = fields
             .iter()
             .filter_map(|field| field.name().map(|name| {
-                #runtime::__private::v7::property_metadata(
+                #runtime::__private::v8::property_metadata(
                     name,
                     field.type_ref(),
                     Some(field),
@@ -99,17 +99,17 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
         let property_fragments: ::std::vec::Vec<_> = fields
             .iter()
             .filter_map(|field| field.name().map(|name| {
-                #runtime::__private::v7::property_fragment(
+                #runtime::__private::v8::property_fragment(
                     name,
                     field.type_ref(),
                     #runtime::metadata::PropertyFragmentSource::Field(field),
                 )
             }))
             .collect();
-        let properties: &'static [#runtime::metadata::PropertyMetadata] = #runtime::__private::v7::leak_slice(properties);
+        let properties: &'static [#runtime::metadata::PropertyMetadata] = #runtime::__private::v8::leak_slice(properties);
         let property_fragments: &'static [#runtime::metadata::PropertyFragment] =
-            #runtime::__private::v7::leak_slice(property_fragments);
-        let metadata = #runtime::__private::v7::GeneratedTypeMetadataBuilder::new(
+            #runtime::__private::v8::leak_slice(property_fragments);
+        let metadata = #runtime::__private::v8::GeneratedTypeMetadataBuilder::new(
             descriptor, #model_id, fields, role,
         ).properties(properties).property_fragments(property_fragments);
         #generic_definition
@@ -126,7 +126,7 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
             let type_id = ::std::any::TypeId::of::<Self>();
             let cell = {
                 let mut guard = cache.lock().unwrap_or_else(|_| panic!("generic model metadata cache poisoned"));
-                *guard.entry(type_id).or_insert_with(|| #runtime::__private::v7::leak(::std::sync::OnceLock::new()))
+                *guard.entry(type_id).or_insert_with(|| #runtime::__private::v8::leak(::std::sync::OnceLock::new()))
             };
             cell.get_or_init(|| { #build_metadata })
         }
@@ -199,9 +199,9 @@ fn expand_generic_registration(
             METADATA.get_or_init(|| {
                 let definition = #definition_fn();
                 #template_fields
-                let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v7::leak_slice(fields);
+                let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v8::leak_slice(fields);
                 #template_variants
-                #runtime::__private::v7::generic_model_metadata(
+                #runtime::__private::v8::generic_model_metadata(
                     #model_id,
                     #role,
                     definition,
@@ -213,7 +213,7 @@ fn expand_generic_registration(
 
         #[doc(hidden)]
         mod #registration_module {
-            #runtime::__private::v7::register_generic_model_capability! {
+            #runtime::__private::v8::register_generic_model_capability! {
                 definition = super::#definition_fn,
                 metadata = super::#metadata_fn,
                 source = (env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(), #fingerprint),
@@ -240,8 +240,8 @@ fn expand_generic_variant_vector(variants: &[VariantIr], runtime: &TokenStream) 
             {
                 #fields
                 let fields: &'static [#runtime::metadata::FieldMetadata] =
-                    #runtime::__private::v7::leak_slice(fields);
-                variants.push(#runtime::__private::v7::generic_enum_variant_metadata(
+                    #runtime::__private::v8::leak_slice(fields);
+                variants.push(#runtime::__private::v8::generic_enum_variant_metadata(
                     &definition.variants().expect("generic enum variants")[#variant_index],
                     #canonical,
                     #serialized,
@@ -256,6 +256,6 @@ fn expand_generic_variant_vector(variants: &[VariantIr], runtime: &TokenStream) 
         let mut variants = ::std::vec::Vec::new();
         #(#bodies)*
         let variants: &'static [#runtime::metadata::EnumVariantMetadata] =
-            #runtime::__private::v7::leak_slice(variants);
+            #runtime::__private::v8::leak_slice(variants);
     }
 }

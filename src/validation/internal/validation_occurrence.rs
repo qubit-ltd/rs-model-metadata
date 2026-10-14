@@ -12,6 +12,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use super::execution_declaration::ExecutionDeclaration;
+use crate::metadata::EnumVariantMetadata;
 use crate::metadata::FieldMetadata;
 use crate::metadata::SelectorPosition;
 use crate::metadata::TypeMetadata;
@@ -25,6 +26,8 @@ pub(crate) struct ValidationOccurrence {
     pub(crate) owner: &'static TypeMetadata,
     /// Original field overlay, including its checked identity and source.
     pub(crate) field: &'static FieldMetadata,
+    /// Enum variant containing this payload field, when the owner is an enum.
+    pub(crate) enum_variant: Option<&'static EnumVariantMetadata>,
     /// Full property path from the root to this field.
     pub(crate) segments: Vec<&'static str>,
     /// Structural path for rejected shapes, including variant and tuple
@@ -62,9 +65,80 @@ impl Debug for ValidationOccurrence {
             .field("root", &self.root.type_name())
             .field("owner", &self.owner.type_name())
             .field("field", &self.field.location())
+            .field("enum_variant", &self.enum_variant.map(|variant| variant.rust_name()))
             .field("selector", &self.selector)
             .field("ordinal", &self.ordinal)
             .field("declared_rule_id", &self.declared_rule_id())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use qubit_reflect::Reflect;
+    use qubit_reflect::TypeDescriptor;
+
+    use super::ExecutionDeclaration;
+    use super::ValidationOccurrence;
+    use crate::__private::v8;
+    use crate::metadata::EnumVariantMetadata;
+    use crate::metadata::FieldMetadata;
+    use crate::metadata::TypeMetadata;
+    use crate::metadata::ValidatorMetadata;
+
+    #[Reflect]
+    struct OccurrenceFixture {
+        _value: String,
+    }
+
+    #[Reflect]
+    enum VariantFixture {
+        Ready,
+    }
+
+    static VALIDATOR: ValidatorMetadata = ValidatorMetadata::new("example.rule", &[], &[]);
+
+    fn fixture_metadata() -> &'static TypeMetadata {
+        let descriptor = TypeDescriptor::of::<OccurrenceFixture>();
+        let fields = v8::leak_slice(vec![FieldMetadata::from_reflect(
+            descriptor.type_id(),
+            descriptor.field_at(0).expect("fixture field descriptor"),
+        )]);
+        v8::leak(TypeMetadata::new(descriptor, None, fields, v8::leak(v8::model_role())))
+    }
+
+    fn fixture_variant() -> &'static EnumVariantMetadata {
+        let descriptor = TypeDescriptor::of::<VariantFixture>();
+        let reflect = descriptor.variants().first().expect("fixture enum variant");
+        v8::leak(v8::enum_variant_metadata(
+            reflect,
+            "READY",
+            "READY",
+            "READY",
+            &[],
+            false,
+        ))
+    }
+
+    #[test]
+    fn test_validator_occurrence_rule_id_and_debug_format() {
+        let metadata = fixture_metadata();
+        let occurrence = ValidationOccurrence {
+            root: metadata,
+            owner: metadata,
+            field: metadata.fields().first().expect("fixture field metadata"),
+            enum_variant: Some(fixture_variant()),
+            segments: vec!["_value"],
+            unsupported_path: None,
+            selector: None,
+            ordinal: 0,
+            declaration: ExecutionDeclaration::Validator(&VALIDATOR),
+        };
+
+        assert_eq!(occurrence.declared_rule_id(), Some("example.rule"));
+        let debug = format!("{occurrence:?}");
+        assert!(debug.contains("OccurrenceFixture"));
+        assert!(debug.contains("example.rule"));
+        assert!(debug.contains("Ready"));
     }
 }

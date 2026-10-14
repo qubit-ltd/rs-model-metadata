@@ -17,6 +17,12 @@ reuse rs-reflect descriptors. TypeMetadata is static and independent of any mode
 instance. Entity requires a stable ModelId. Other roles may be anonymous: they still have
 exact TypeId identity and can be supplied as roots.
 
+This checkout uses rs-reflect codegen v3. Runtime values use checked
+`DynamicRef<'a, Local>`, `DynamicMut<'a, Local>`, and `DynamicOwned<Local>`;
+derive-generated capabilities use `#[ReflectImpl]`. The generated-code facade
+`__private::v8` is internal; application code should use the public APIs shown
+here and keep the runtime and derive versions aligned.
+
 ## Scenario and minimal configuration
 
 The metadata, model ID, and derive packages set `publish = false`, so use local checkouts.
@@ -169,6 +175,225 @@ Rust type, that overlay cannot add or remove graph declarations.
 `ValidationPlan::root()` returns the graph metadata actually used by the plan;
 capability checks follow the same snapshot boundary.
 
+## Core workflow: validate a profile and keep partial results
+
+Enable `validation` in the runtime dependency. For the following **complete,
+independent programs**, declare execution API dependencies from the same checkouts as the runtime:
+
+<!-- example: validation -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+```
+
+The profile's label and optional contact name must be nonblank. Metadata discovery
+and graph resolution happen before validator binding. The explicit `Option<&Contact>`
+getter supplies a borrowed intermediate object. Field-backed `Option<Contact>`
+and a getter returning `&Option<Contact>` are also supported borrowed access shapes.
+
+<!-- example: validation/profile -->
+```rust
+use std::sync::Arc;
+use std::num::NonZeroUsize;
+use qubit_model_derive::Model;
+use qubit_model_derive::ModelImpl;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationCapabilities;
+use qubit_model_metadata::validation::ValidationMode;
+use qubit_model_metadata::validation::ValidationOptions;
+use qubit_model_metadata::validation::ValidationPlan;
+use qubit_validator::ExecutionErrorKind;
+use qubit_validator::ValidatorRegistry;
+
+#[Model]
+struct Contact {
+    #[text(non_blank)]
+    name: String,
+}
+
+#[Model]
+struct Profile {
+    #[text(non_blank)]
+    label: String,
+    contact: Option<Contact>,
+}
+
+#[ModelImpl]
+impl Profile {
+    pub fn contact(&self) -> Option<&Contact> { self.contact.as_ref() }
+}
+
+fn main() {
+    let root = TypeMetadata::of::<Profile>();
+    let roots = [root];
+    let models = ModelRegistry::try_global().expect("linked metadata and accessors");
+    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+        .resolve().expect("valid structure"));
+    ValidationCapabilities::check(root, graph.as_ref()).expect("supported access shapes");
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(root, ValidationBuildInputs {
+        graph: Arc::clone(&graph),
+        validators: &validators,
+    }).expect("built-in text constraints bind without custom registrations");
+
+    let invalid = Profile {
+        label: String::new(),
+        contact: Some(Contact { name: String::new() }),
+    };
+    let report = plan.validate(&invalid, &ValidationOptions::default())
+        .expect("validation executed");
+    assert!(!report.is_valid());
+    assert_eq!(report.violations().len(), 2);
+    assert_eq!(report.violations()[0].path().render(), "label");
+    assert_eq!(report.violations()[1].path().render(), "contact.name");
+
+    let absent = Profile { label: "personal".to_owned(), contact: None };
+    assert!(plan.validate(&absent, &ValidationOptions::default())
+        .expect("absent optional child is skipped").is_valid());
+
+    let fail_fast = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
+    let report = plan.validate(&invalid, &fail_fast)
+        .expect("policy stop is a successful, truncated execution");
+    assert_eq!(report.violations().len(), 1);
+    assert!(report.is_truncated());
+
+    let limited = ValidationOptions::builder()
+        .max_nodes(NonZeroUsize::new(3).expect("positive budget")).build();
+    let error = plan.validate(&invalid, &limited)
+        .expect_err("root, label read, and rule invocation consume all three nodes");
+    assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
+    assert_eq!(error.partial_report().violations().len(), 1);
+    assert_eq!(error.partial_report().violations()[0].path().render(), "label");
+}
+```
+
+The normal report preserves both paths. An absent contact is skipped. FailFast
+retains only the first violation and stops before reading the contact. The node
+budget example instead returns an infrastructure error while preserving the
+label violation already collected. Never treat `Err` as a valid empty report.
+
+The registry is empty only of **custom validators**: built-in standard constraints
+bind through the runtime adapter. A custom `#[validator(id = "...")]` requires a
+matching registration in the supplied validator registry. Capability checking
+only verifies declarations and access shapes; it never runs getters, binds custom
+registrations, or proves an instance valid.
+
+## Codec binding
+
+Enable the `codec` feature and register the codec implementation before binding.
+`bind_codecs` walks an already resolved graph and returns the selected implementation
+for each codec declaration. It prefers an explicit field codec, then a Value
+canonical codec, then no codec; Rust-type codec declarations also require a matching
+registration. Occurrence identity includes the exact TypeId, optional ModelId,
+Property path, and declaration source. Binding does not call `encode` or `decode`,
+persist data, or apply application policy. Missing registration and value-type
+mismatch are reported as binding errors.
+
+<!-- example: codec -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["codec"] }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-codec = { version = "0.16", features = ["registry"] }
+```
+
+This complete program binds a registered codec, then observes the error for a
+second model whose declared codec ID is absent from the registry:
+
+<!-- example: codec/binding -->
+```rust
+use core::convert::Infallible;
+use qubit_codec::ValueCodecId;
+use qubit_codec::ValueCodecRegistrationSource;
+use qubit_codec::ValueDecoder;
+use qubit_codec::ValueEncoder;
+use qubit_codec::ValueStringCodecDescriptor;
+use qubit_codec::ValueStringCodecRegistration;
+use qubit_codec::ValueStringCodecRegistry;
+use qubit_model_derive::Model;
+use qubit_model_metadata::codec::bind_codecs;
+use qubit_model_metadata::codec::CodecBindErrorKind;
+use qubit_model_metadata::codec::CodecBindInputs;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::ResolveInputs;
+use qubit_model_metadata::resolve::StructureResolver;
+
+#[derive(Default)]
+struct StringCodec;
+
+impl ValueEncoder<String> for StringCodec {
+    type Output = String;
+    type Error = Infallible;
+
+    fn encode(&mut self, input: &String) -> Result<Self::Output, Self::Error> {
+        Ok(input.clone())
+    }
+}
+
+impl ValueDecoder<str> for StringCodec {
+    type Output = String;
+    type Error = Infallible;
+
+    fn decode(&mut self, input: &str) -> Result<Self::Output, Self::Error> {
+        Ok(input.to_owned())
+    }
+}
+
+#[Model]
+struct SavedName {
+    #[codec(id = "guide.string")]
+    value: String,
+}
+
+#[Model]
+struct MissingName {
+    #[codec(id = "guide.missing")]
+    value: String,
+}
+
+static DESCRIPTOR: ValueStringCodecDescriptor =
+    ValueStringCodecDescriptor::of::<StringCodec, String>();
+static REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
+    ValueCodecId::new("guide.string"),
+    &DESCRIPTOR,
+    ValueCodecRegistrationSource::new("guide", "example", file!(), line!()),
+);
+
+fn main() {
+    let models = ModelRegistry::from_static_metadata(&[]).expect("model registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&REGISTRATION])
+        .expect("codec registry");
+
+    let saved_roots = [TypeMetadata::of::<SavedName>()];
+    let saved_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &saved_roots })
+        .resolve()
+        .expect("saved-name graph");
+    let bindings = bind_codecs(CodecBindInputs { graph: &saved_graph, codecs: &codecs })
+        .expect("registered codec binds");
+    assert_eq!(bindings.bindings().len(), 1);
+
+    let missing_roots = [TypeMetadata::of::<MissingName>()];
+    let missing_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &missing_roots })
+        .resolve()
+        .expect("missing-name graph");
+    let error = bind_codecs(CodecBindInputs { graph: &missing_graph, codecs: &codecs })
+        .expect_err("missing codec registration is reported");
+    assert_eq!(error.errors()[0].kind(), CodecBindErrorKind::Missing);
+}
+```
+
+The returned binding identifies which implementation the application may use.
+The application owns codec invocation, persistence, and any surrounding policy.
+
 ## Advanced usage: field identity and API migration
 
 A concrete field's `location()` is `Some(FieldLocation)`, containing the owner
@@ -189,10 +414,10 @@ when an external stable identifier is needed.
 | `capabilities.supports(position)` | `ValidationCapabilities::check(root, &graph)` |
 | Only the bound error's `rule()` | `declared_rule_id()` retains custom IDs even when registration is missing |
 
-The checked generated-code protocol is `__private::v7`. Upgrade runtime, derive,
+The checked generated-code protocol is `__private::v8`. Upgrade runtime, derive,
 and hand-written generated-code fixtures together; older private protocols have
-no compatibility shim. Application code should use the public APIs above.
-`rs-reflect` keeps its own independent code-generation protocol version.
+no compatibility shim. `rs-reflect` keeps its own independent code-generation
+protocol version.
 
 ### Snapshot-owned property views
 
@@ -278,11 +503,13 @@ the same compiled path. A terminal `Option<String>` text field is also supported
 keep their complete property path (for example, `mobile.country_area`). These
 contracts require borrowed access; a getter that returns an owned intermediate
 object cannot be followed. Borrowed-slice getters support explicit element
-validators; generated collection adapters also support outer sequence uniqueness
-and map entry counts for supported concrete shapes. Standard constraints inside
-selectors and MapKey/MapValue traversal still return explicit build errors. Consult
-ValidationCapabilities before selecting this adapter; metadata declarations do
-not imply that every execution backend supports them.
+validators. Generated adapters also expose members of `Vec<T>`, `[T; N]`,
+`HashMap<K, V>`, and `BTreeMap<K, V>` to selector rules, alongside outer sequence
+uniqueness and map entry counts. Selector rules cannot bind dependencies.
+Unknown/custom containers, owned collection getters, and implicit unwrapping of
+collection members still return build errors. Consult `ValidationCapabilities`
+before selecting this adapter; metadata declarations do not imply that every
+execution backend supports them.
 
 ### Appending prepared model-level rules
 
@@ -423,8 +650,10 @@ registrations, or proves an instance valid.
 ## Limitations: execution support and explicit refusal
 
 A structurally valid graph can contain declarations unsupported by this validation
-backend. For example, the following enum retains its payload constraint and source
-location, but plan construction must reject executing it:
+backend. Direct value rules on named and tuple payload fields are supported for the
+active enum variant. This example instead places an element selector inside an enum
+payload; that shape remains unsupported, and plan construction reports its variant,
+field, and selector rather than producing an incomplete plan:
 
 <!-- example: validation/refusal -->
 ```rust
@@ -438,11 +667,12 @@ use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ConstraintRuleRef;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_model_metadata::metadata::SelectorPosition;
 use qubit_validator::ValidatorRegistry;
 
 #[Enum]
 enum ContactMethod {
-    Named { #[text(non_blank)] name: String },
+    Named { #[element(text(non_blank))] names: Vec<String> },
 }
 
 fn main() {
@@ -457,7 +687,7 @@ fn main() {
         validators: &validators,
     }) {
         Err(errors) => errors,
-        Ok(_) => panic!("constrained enum payloads cannot produce an empty successful plan"),
+        Ok(_) => panic!("enum payload selectors cannot produce an empty successful plan"),
     };
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
@@ -465,6 +695,8 @@ fn main() {
     assert_eq!(location.owner(), root.type_id());
     assert_eq!(location.variant(), Some(0));
     assert_eq!(location.index(), 0);
+    assert_eq!(errors[0].path(), Some("Named.names"));
+    assert_eq!(errors[0].selector(), Some(SelectorPosition::Element));
     assert!(errors[0].constraint().is_some());
     let mapped = errors[0].constraint_rules();
     assert_eq!(mapped[0].id().as_str(), "qubit.rules.text.non_blank");
@@ -491,16 +723,19 @@ available through `rule.id().as_str()`.
 | --- | --- |
 | Existing text constraints and custom validators on named fields | Bind and execute |
 | Direct and optional nested named models | Same binder; absent optional intermediates skip; actual borrowed access required |
+| Direct named or tuple enum payload value rules | Execute only for the active variant; inactive variants are skipped and paths include the variant and field |
+| Enum payload selectors or nested model rules | `UnsupportedExecution`; only direct payload value rules are supported |
 | Explicit element validators via a borrowed-slice getter, including nested paths | Bind and execute; validate exact element input type |
+| `Element` selectors on borrowed `Vec<T>` or `[T; N]`; `MapKey`/`MapValue` on borrowed `HashMap<K, V>` or `BTreeMap<K, V>` | Bind and execute against each borrowed member; paths include element index or map entry/key/value position |
 | Outer sequence item count | Requires a readable borrowed slice |
 | Outer `#[sequence(unique_items)]` | Supported for generated `Vec<T>` or `[T; N]` with a borrowed-slice getter and `T: PartialEq + 'static`; requires an element equality adapter. First repeated element reports `field[second_index]` and `first_index`. |
 | Outer `#[map(min_entries = ..., max_entries = ...)]` | Counts a `HashMap<K, V>` or `BTreeMap<K, V>` through a generated, readable borrowed getter adapter; reports on the field path. |
 | `#[decimal(...)]` / `#[money(...)]` | Executes on an exact `BigDecimal` value or optional value; scale, precision, and exact range are checked without rounding. |
 | `#[time(precision = ...)]` | Executes on `DateTime<Utc>`, `NaiveDateTime`, or `NaiveTime`, including optional values; checks exact second, millisecond, microsecond, or nanosecond resolution. `NaiveDate` is rejected at build time. |
-| Standard constraints or dependencies inside a selector; MapKey/MapValue | `UnsupportedExecution` |
-| Missing map length or sequence equality adapter, unknown collection shape, unsupported temporal type, or mismatched scalar input | `UnsupportedExecution` at build time |
+| Selector rules with dependencies, unknown/custom collection shapes, owned collection getter, or unavailable borrowing adapter | `UnsupportedExecution` at build time |
+| Missing map length or sequence equality adapter, unsupported temporal type, or mismatched scalar input | `UnsupportedExecution` at build time |
 | Internal constraints on a transparent one-field tuple `Value` | Bind and execute through the sole field; an absent optional value skips it |
-| Constrained enum payloads, ordinary tuples/newtypes, and models inside container elements | `UnsupportedExecution` |
+| Nested model rules inside enum payloads or collection elements; selectors in enum payloads; ordinary tuples/newtypes | `UnsupportedExecution` |
 | Recursive instance paths with reachable execution declarations | `UnsupportedExecution`; no infinite expansion |
 | Unit enums, and payloads or cycles without reachable execution declarations | Accepted as ordinary values |
 | Reference fields | Only explicit rules on the stored field; no referenced Entity instance is fetched |
@@ -616,8 +851,9 @@ fn main() {
 | Time precision | `DateTime<Utc>`, `NaiveDateTime`, `NaiveTime`: second/millisecond/microsecond/nanosecond; `NaiveDate` is rejected |
 | Option | `None` skips inner constraints; `Some` executes; build still checks the concrete type |
 | Transparent one-field tuple `Value` | A supported constraint on its sole field executes; an absent optional value skips it |
-| Selector constraints/dependencies; MapKey/MapValue; container model interiors | `UnsupportedExecution`; outer support does not imply inner traversal |
-| Enum/raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
+| Selector dependencies; custom/unknown containers; collection model interiors; selectors in enum payloads | `UnsupportedExecution`; outer support does not imply deeper traversal |
+| Direct enum payload rules | Active variant only; inactive variant skipped; nested payload model rules remain unsupported |
+| Raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
 
 A reflection-backed registry discovers anonymous children reachable from the root,
 even through raw reflection wrappers. `for_roots` skips unrelated registered
@@ -629,7 +865,9 @@ panics when that validation fails. Invalid explicit roots are reported during
 resolution, while invalid static registry entries fail registry construction.
 One-field tuple `Value` declarations obey the same value-closure checks as named
 Values. With `transparent`, a supported constraint on the sole field can execute;
-other tuple positions and enum payloads remain unsupported.
+ordinary tuple positions remain unsupported. Direct enum payload fields can run
+value rules only when their variant is active; nested models and selector declarations
+inside those payloads remain unsupported.
 Entity role checks also traverse tuple fields: `(InnerEntity,)` without an
 explicit reference is rejected as `InvalidEntityNesting`. Newtype Values cannot
 hide a Model/Entity/Projection, reference, unresolved descriptor, or raw struct
@@ -744,7 +982,7 @@ metadata registration before projecting it.
 The graph borrows its immutable registry. Static metadata never borrows graph
 allocations or instances. Borrowed Property values cannot escape their source
 lifetimes and do not require Send. The new generated-code protocol is the private
-checked v7 facade over rs-reflect codegen v3; applications should use public APIs.
+checked v8 facade over rs-reflect codegen v3; applications should use public APIs.
 
 Database access, random object creation, physical indexes, filter generation,
 Unicode comparison execution, and missing-parent business fallback remain

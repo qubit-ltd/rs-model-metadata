@@ -12,7 +12,7 @@
 use qubit_model_derive::ModelImpl;
 use qubit_reflect::Reflect;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Account;
 
 #[ModelImpl(unexpected)]

@@ -11,18 +11,19 @@
 use std::error::Error;
 
 use qubit_model_derive::Model;
-use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
 use qubit_model_metadata::metadata::PropertyAccessError;
-use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::PropertyBuildErrorKind;
-use qubit_model_metadata::metadata::PropertyMutable;
-use qubit_model_metadata::metadata::PropertyOwned;
 use qubit_model_metadata::metadata::PropertySetFailure;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_reflect::value::DynamicMut;
+use qubit_reflect::value::DynamicOwned;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 
 #[Model]
 struct Record {
@@ -50,14 +51,14 @@ fn test_definition_only_property_field_returns_a_structured_error() {
         .generic_definition()
         .expect("generic definition");
     let fields = definition.fields();
-    let model = v7::GeneratedTypeMetadataBuilder::new(
+    let model = v8::GeneratedTypeMetadataBuilder::new(
         TypeMetadata::of::<Record>().descriptor(),
         None,
         fields,
-        v7::leak(v7::model_role()),
+        v8::leak(v8::model_role()),
     )
     .finish_unchecked();
-    let property = v7::property_metadata("value", fields[0].type_ref(), Some(&fields[0]), None, None);
+    let property = v8::property_metadata("value", fields[0].type_ref(), Some(&fields[0]), None, None);
     let errors = model
         .validate_properties(&[property])
         .expect_err("definition-only field");
@@ -74,10 +75,10 @@ fn test_property_errors_preserve_all_failures_in_deterministic_order() {
     let count = &model.fields()[1];
     let foreign = &TypeMetadata::of::<Other>().fields()[0];
     let properties = [
-        v7::property_metadata("z_missing", name.type_ref(), None, None, None),
-        v7::property_metadata("a_type", count.type_ref(), Some(name), None, None),
-        v7::property_metadata("m_foreign", name.type_ref(), Some(foreign), None, None),
-        v7::property_metadata("a_type", count.type_ref(), Some(count), None, None),
+        v8::property_metadata("z_missing", name.type_ref(), None, None, None),
+        v8::property_metadata("a_type", count.type_ref(), Some(name), None, None),
+        v8::property_metadata("m_foreign", name.type_ref(), Some(foreign), None, None),
+        v8::property_metadata("a_type", count.type_ref(), Some(count), None, None),
     ];
     let errors = model
         .validate_properties(&properties)
@@ -114,7 +115,7 @@ fn test_property_errors_preserve_all_failures_in_deterministic_order() {
 #[test]
 fn test_empty_property_retains_both_name_and_source_diagnostics() {
     let model = TypeMetadata::of::<Record>();
-    let property = v7::property_metadata("", model.fields()[0].type_ref(), None, None, None);
+    let property = v8::property_metadata("", model.fields()[0].type_ref(), None, None, None);
     let errors = model.validate_properties(&[property]).expect_err("empty property");
     assert_eq!(errors.errors().len(), 2);
     assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::InvalidName);
@@ -123,12 +124,12 @@ fn test_empty_property_retains_both_name_and_source_diagnostics() {
 }
 
 /// Static validation must never execute a getter to discover its signature.
-fn never_get(_: PropertyBorrowed<'_>) -> Result<PropertyValue<'_>, PropertyAccessError> {
+fn never_get(_: DynamicRef<'_, Local>) -> Result<PropertyValue<'_>, PropertyAccessError> {
     panic!("metadata validation invoked the getter");
 }
 
 /// Static validation must never execute a setter to discover its signature.
-fn never_set(_: PropertyMutable<'_>, _: PropertyOwned) -> Result<(), PropertySetFailure> {
+fn never_set(_: DynamicMut<'_, Local>, _: DynamicOwned<Local>) -> Result<(), PropertySetFailure> {
     panic!("metadata validation invoked the setter");
 }
 
@@ -138,25 +139,25 @@ fn test_accessor_signature_errors_are_aggregated_before_invocation() {
     let model = TypeMetadata::of::<Record>();
     let name_type = model.fields()[0].type_ref();
     let count_type = model.fields()[1].type_ref();
-    let wrong_getter_owner = v7::leak(GetterMetadata::new::<Other>(
+    let wrong_getter_owner = v8::leak(GetterMetadata::new::<Other>(
         "get",
         name_type,
         GetterOutputKind::Borrowed,
         never_get,
     ));
-    let wrong_getter_output = v7::leak(GetterMetadata::new::<Record>(
+    let wrong_getter_output = v8::leak(GetterMetadata::new::<Record>(
         "get",
         count_type,
         GetterOutputKind::Borrowed,
         never_get,
     ));
-    let wrong_setter_owner = v7::leak(SetterMetadata::new::<Other, String>("set", name_type, never_set));
-    let wrong_setter_input = v7::leak(SetterMetadata::new::<Record, u32>("set", count_type, never_set));
+    let wrong_setter_owner = v8::leak(SetterMetadata::new::<Other, String>("set", name_type, never_set));
+    let wrong_setter_input = v8::leak(SetterMetadata::new::<Record, u32>("set", count_type, never_set));
     let properties = [
-        v7::property_metadata("getter_owner", name_type, None, Some(wrong_getter_owner), None),
-        v7::property_metadata("getter_output", name_type, None, Some(wrong_getter_output), None),
-        v7::property_metadata("setter_owner", name_type, None, None, Some(wrong_setter_owner)),
-        v7::property_metadata("setter_input", name_type, None, None, Some(wrong_setter_input)),
+        v8::property_metadata("getter_owner", name_type, None, Some(wrong_getter_owner), None),
+        v8::property_metadata("getter_output", name_type, None, Some(wrong_getter_output), None),
+        v8::property_metadata("setter_owner", name_type, None, None, Some(wrong_setter_owner)),
+        v8::property_metadata("setter_input", name_type, None, None, Some(wrong_setter_input)),
     ];
     let errors = model.validate_properties(&properties).expect_err("accessor signatures");
     let details: Vec<_> = errors

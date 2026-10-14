@@ -138,6 +138,8 @@ trait PropertySlice<'a> {
     fn len(&self) -> usize;
     /// Returns the value at `index`, or `None` when it is out of bounds.
     fn get(&self, index: usize) -> Option<PropertyBorrowed<'a>>;
+    /// Iterates over borrowed elements without cloning them.
+    fn iter(&self) -> Box<dyn Iterator<Item = PropertyBorrowed<'a>> + 'a>;
 }
 
 /// Implements [`PropertySlice`] for a slice with one concrete element type.
@@ -155,6 +157,10 @@ impl<'a, T: 'static> PropertySlice<'a> for TypedPropertySlice<'a, T> {
     #[inline]
     fn get(&self, index: usize) -> Option<PropertyBorrowed<'a>> {
         self.values.get(index).map(PropertyBorrowed::new)
+    }
+
+    fn iter(&self) -> Box<dyn Iterator<Item = PropertyBorrowed<'a>> + 'a> {
+        Box::new(self.values.iter().map(PropertyBorrowed::new))
     }
 }
 
@@ -231,6 +237,12 @@ impl<'a> BorrowedPropertySlice<'a> {
     pub fn get(&self, index: usize) -> Option<PropertyBorrowed<'a>> {
         self.value.get(index)
     }
+
+    /// Returns a borrowing iterator over every element.
+    #[must_use]
+    pub fn iter(&self) -> Box<dyn Iterator<Item = PropertyBorrowed<'a>> + 'a> {
+        self.value.iter()
+    }
 }
 
 /// Distinguishes lifetime-preserving borrowed output from owned output.
@@ -263,6 +275,7 @@ pub enum GetterOutputKind {
 /// # Examples
 ///
 /// ```
+/// use qubit_reflect::value::Local;
 /// use qubit_model_metadata::metadata::GetterAdapter;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_model_metadata::metadata::PropertyBorrowed;
@@ -289,6 +302,7 @@ pub type GetterAdapter = for<'a> fn(PropertyBorrowed<'a>) -> Result<PropertyValu
 /// # Examples
 ///
 /// ```
+/// use qubit_reflect::value::Local;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_model_metadata::metadata::PropertyOwned;
 /// use qubit_model_metadata::metadata::PropertyValue;
@@ -309,6 +323,7 @@ pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>,
 /// # Examples
 ///
 /// ```
+/// use qubit_reflect::value::Local;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_model_metadata::metadata::PropertyBorrowed;
 ///
@@ -320,6 +335,43 @@ pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>,
 /// assert!(equal(PropertyBorrowed::new(&1_u32), PropertyBorrowed::new(&1_u32)).expect("comparison"));
 /// ```
 pub type ItemEqAdapter = for<'a> fn(PropertyBorrowed<'a>, PropertyBorrowed<'a>) -> Result<bool, PropertyAccessError>;
+
+/// A borrowed iterator over members selected from one collection value.
+#[must_use]
+pub struct BorrowedCollection<'a> {
+    values: Box<dyn Iterator<Item = PropertyBorrowed<'a>> + 'a>,
+}
+
+impl<'a> BorrowedCollection<'a> {
+    /// Erases an iterator while retaining the lifetime of its borrowed items.
+    #[doc(hidden)]
+    pub fn new(values: impl Iterator<Item = PropertyBorrowed<'a>> + 'a) -> Self {
+        Self {
+            values: Box::new(values),
+        }
+    }
+
+    /// Returns the iterator's exact remaining length when it is known.
+    #[must_use]
+    pub fn remaining_len(&self) -> Option<usize> {
+        let (lower, upper) = self.values.size_hint();
+        (upper == Some(lower)).then_some(lower)
+    }
+}
+
+impl<'a> Iterator for BorrowedCollection<'a> {
+    type Item = PropertyBorrowed<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.values.next()
+    }
+}
+
+/// Reads selected members without extending their borrow lifetime.
+pub type CollectionItemsAdapter = for<'a> fn(
+    &PropertyValue<'a>,
+    crate::metadata::SelectorPosition,
+) -> Result<Option<BorrowedCollection<'a>>, PropertyAccessError>;
 
 /// Safe, read-only operations available for a declared collection field.
 ///
@@ -335,6 +387,7 @@ pub type ItemEqAdapter = for<'a> fn(PropertyBorrowed<'a>, PropertyBorrowed<'a>) 
 pub struct CollectionOps {
     map_len: Option<MapLenAdapter>,
     item_eq: Option<ItemEqAdapter>,
+    collection_items: Option<CollectionItemsAdapter>,
 }
 
 impl CollectionOps {
@@ -352,7 +405,19 @@ impl CollectionOps {
     #[must_use]
     #[inline]
     pub const fn new(map_len: Option<MapLenAdapter>, item_eq: Option<ItemEqAdapter>) -> Self {
-        Self { map_len, item_eq }
+        Self {
+            map_len,
+            item_eq,
+            collection_items: None,
+        }
+    }
+
+    /// Adds the exact-type borrowing adapter used by executable selectors.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn with_items(mut self, collection_items: CollectionItemsAdapter) -> Self {
+        self.collection_items = Some(collection_items);
+        self
     }
 
     /// Returns the optional map length adapter.
@@ -377,6 +442,13 @@ impl CollectionOps {
     pub const fn item_eq(&self) -> Option<ItemEqAdapter> {
         self.item_eq
     }
+
+    /// Returns the exact-type borrowing adapter for sequence or map members.
+    #[must_use]
+    #[inline]
+    pub const fn collection_items(&self) -> Option<CollectionItemsAdapter> {
+        self.collection_items
+    }
 }
 
 /// A local setter adapter with recoverable pre-execution failure.
@@ -387,6 +459,7 @@ impl CollectionOps {
 /// # Examples
 ///
 /// ```
+/// use qubit_reflect::value::Local;
 /// use qubit_model_metadata::metadata::PropertySetFailure;
 /// use qubit_model_metadata::metadata::PropertyMutable;
 /// use qubit_model_metadata::metadata::PropertyOwned;
@@ -479,6 +552,7 @@ impl PropertyAccessError {
 /// # Examples
 ///
 /// ```
+/// use qubit_reflect::value::Local;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_model_metadata::metadata::PropertySetFailure;
 /// use qubit_model_metadata::metadata::PropertyOwned;
@@ -595,6 +669,7 @@ impl Error for PropertySetFailure {}
 /// # Examples
 ///
 /// ```
+/// use qubit_reflect::value::Local;
 /// use qubit_model_metadata::metadata::GetterMetadata;
 /// use qubit_model_metadata::metadata::GetterOutputKind;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
@@ -768,6 +843,7 @@ impl fmt::Debug for GetterMetadata {
 /// # Examples
 ///
 /// ```
+/// use qubit_reflect::value::Local;
 /// use qubit_model_metadata::metadata::SetterMetadata;
 /// use qubit_model_metadata::metadata::PropertyMutable;
 /// use qubit_model_metadata::metadata::PropertyOwned;

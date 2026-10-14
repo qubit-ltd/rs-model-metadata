@@ -22,6 +22,8 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::ReflectRegistry;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
@@ -95,10 +97,10 @@ fn assert_batches(batches: Vec<Vec<ModelRuleBinding>>, expected: &[&str]) {
         .fold(plan, |plan, bindings| plan.with_model_rules(bindings));
     assert_eq!(plan.binding_count(), expected.len());
     let report = plan
-        .validate(
-            &BatchModel {
+        .validate_dynamic(
+            DynamicRef::<Local>::new(&BatchModel {
                 value: "value".to_owned(),
-            },
+            }),
             &ValidationOptions::default(),
         )
         .expect("execution");

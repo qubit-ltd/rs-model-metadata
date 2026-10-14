@@ -10,7 +10,7 @@
 //! selection.
 
 #[cfg(feature = "generic")]
-use qubit_model_metadata::__private::v7::generic_model_metadata;
+use qubit_model_metadata::__private::v8::generic_model_metadata;
 #[cfg(feature = "generic")]
 use qubit_model_metadata::metadata::ModelRole;
 use qubit_model_metadata::metadata::NavigationStep;

@@ -69,12 +69,12 @@ pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Res
             .push(parse_quote!(#[reflect(definition_provider_v2 = #provider)]));
     }
     item.attrs
-        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v7::model_capability))]));
+        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v8::model_capability))]));
     let metadata = expand_metadata(&declaration, &item, &runtime);
     let expanded = quote!(#item #metadata #output);
     if item.generics.params.is_empty() {
         Ok(expanded)
     } else {
-        Ok(quote!(#runtime::__private::v7::with_generic_feature! { #expanded }))
+        Ok(quote!(#runtime::__private::v8::with_generic_feature! { #expanded }))
     }
 }

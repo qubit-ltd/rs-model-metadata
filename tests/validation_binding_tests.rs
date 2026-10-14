@@ -14,7 +14,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use qubit_model_derive::Model;
-use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ContextRequirement;
@@ -26,6 +25,8 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
@@ -224,14 +225,22 @@ fn test_parent_dependency_uses_explicit_context() {
         nickname: "parent".into(),
     };
     let options = ValidationOptions::default();
-    assert!(plan.validate(&value, &options).is_err());
-    assert!(deferred.validate(&value, &options).is_err());
+    assert!(plan.validate_dynamic(DynamicRef::<Local>::new(&value), &options).is_err());
+    assert!(deferred.validate_dynamic(DynamicRef::<Local>::new(&value), &options).is_err());
     let deferred_report = deferred
-        .validate_with_context(&value, &[PropertyBorrowed::new(&parent_value)], &options)
+        .validate_with_context(
+            &value,
+            &[DynamicRef::<Local>::new(&parent_value)],
+            &options,
+        )
         .expect("deferred parent execution");
     assert!(deferred_report.is_valid());
     let plan_report = plan
-        .validate_with_context(&value, &[PropertyBorrowed::new(&parent_value)], &options)
+        .validate_with_context(
+            &value,
+            &[DynamicRef::<Local>::new(&parent_value)],
+            &options,
+        )
         .expect("parent execution");
     assert!(plan_report.is_valid());
 }
@@ -311,7 +320,11 @@ fn test_same_type_dependencies_follow_signature_order() {
         second: "second value".into(),
         value: "input".into(),
     };
-    assert!(plan.validate(&value, &ValidationOptions::default()).unwrap().is_valid());
+    assert!(
+        plan.validate_dynamic(DynamicRef::<Local>::new(&value), &ValidationOptions::default())
+            .unwrap()
+            .is_valid()
+    );
 }
 #[Model]
 struct RepeatedRules {
@@ -379,10 +392,10 @@ fn test_repeated_validator_ids_execute_every_occurrence() {
     assert_eq!(plan.binding_count(), 2);
     EXECUTION_ORDER.lock().expect("execution log").clear();
     let report = plan
-        .validate(
-            &RepeatedRules {
+        .validate_dynamic(
+            DynamicRef::<Local>::new(&RepeatedRules {
                 value: "text".to_owned(),
-            },
+            }),
             &ValidationOptions::default(),
         )
         .expect("execution");

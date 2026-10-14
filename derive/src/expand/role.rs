@@ -12,7 +12,9 @@
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::DeriveInput;
 use syn::Error;
+use syn::Index;
 
 use super::fields::expand_field_vector;
 use crate::ir::MacroKind;
@@ -30,16 +32,20 @@ use crate::ir::declaration::VariantIr;
 /// when present. An unsupported `ModelImpl` declaration produces a compile
 /// error instead of a metadata binding.
 #[must_use]
-pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
+pub(super) fn expand_role(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     match declaration.kind {
         MacroKind::Entity => {
             let Some(index) = identifier_index(&declaration.fields) else {
                 return Error::new(Span::call_site(), "Entity requires exactly one identifier field")
                     .into_compile_error();
             };
+            let accessor = identifier_accessor(item, index, runtime);
             quote! {
+                let identifier_accessor: for<'a> fn(
+                    #runtime::__private::DynamicRef<'a, #runtime::__private::Local>,
+                ) -> ::std::result::Result<&'a #runtime::__private::qubit_id::Id, #runtime::__private::TypeMismatch> = #accessor;
                 let role: &'static #runtime::metadata::RoleMetadata =
-                    #runtime::__private::v7::leak(#runtime::__private::v7::entity_role(&fields[#index]));
+                    #runtime::__private::v8::leak(#runtime::__private::v8::entity_role(&fields[#index], identifier_accessor));
             }
         }
         MacroKind::Projection => {
@@ -48,25 +54,29 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
                     .into_compile_error();
             };
             let source = if let Some(source) = declaration.options.source.as_ref() {
-                quote!(Some(#runtime::__private::v7::leak(
+                quote!(Some(#runtime::__private::v8::leak(
                     #runtime::metadata::DeclaredEntityTarget::RustType(#runtime::metadata::TypeMetadata::of::<#source>),
                 ) as &'static #runtime::metadata::DeclaredEntityTarget))
             } else if let Some(id) = declaration.options.source_id.as_ref() {
-                quote!(Some(#runtime::__private::v7::leak(
+                quote!(Some(#runtime::__private::v8::leak(
                     #runtime::metadata::DeclaredEntityTarget::ModelId(#runtime::metadata::ModelId::new(#id)),
                 ) as &'static #runtime::metadata::DeclaredEntityTarget))
             } else {
                 quote!(None)
             };
+            let accessor = identifier_accessor(item, index, runtime);
             quote! {
                 let source = #source;
+                let identifier_accessor: for<'a> fn(
+                    #runtime::__private::DynamicRef<'a, #runtime::__private::Local>,
+                ) -> ::std::result::Result<&'a #runtime::__private::qubit_id::Id, #runtime::__private::TypeMismatch> = #accessor;
                 let role: &'static #runtime::metadata::RoleMetadata =
-                    #runtime::__private::v7::leak(#runtime::__private::v7::projection_role(&fields[#index], source));
+                    #runtime::__private::v8::leak(#runtime::__private::v8::projection_role(&fields[#index], source, identifier_accessor));
             }
         }
         MacroKind::Model => quote! {
             let role: &'static #runtime::metadata::RoleMetadata =
-                #runtime::__private::v7::leak(#runtime::__private::v7::model_role());
+                #runtime::__private::v8::leak(#runtime::__private::v8::model_role());
         },
         MacroKind::Value => {
             let transparent = if declaration.options.transparent {
@@ -78,12 +88,12 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
                 || quote!(None),
                 |codec_type| {
                     quote!({
-                        let reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v7::leak(
+                        let reference: &'static #runtime::metadata::CodecReference = #runtime::__private::v8::leak(
                             #runtime::metadata::CodecReference::RustType(
-                                #runtime::__private::v7::RustTypeReference::of::<#codec_type>(),
+                                #runtime::__private::v8::RustTypeReference::of::<#codec_type>(),
                             ),
                         );
-                        Some(#runtime::__private::v7::leak(
+                        Some(#runtime::__private::v8::leak(
                             #runtime::metadata::CodecMetadata::new(reference, #runtime::metadata::CodecSource::CanonicalValue),
                         ) as &'static #runtime::metadata::CodecMetadata)
                     })
@@ -91,14 +101,51 @@ pub(super) fn expand_role(declaration: &DeclarationIr, runtime: &TokenStream) ->
             );
             quote! {
                 let canonical_codec = #canonical_codec;
-                let role: &'static #runtime::metadata::RoleMetadata = #runtime::__private::v7::leak(
-                    #runtime::__private::v7::value_role(#transparent, canonical_codec),
+                let role: &'static #runtime::metadata::RoleMetadata = #runtime::__private::v8::leak(
+                    #runtime::__private::v8::value_role(#transparent, canonical_codec),
                 );
             }
         }
         MacroKind::Enum => expand_enum_role(&declaration.variants, runtime),
         MacroKind::ModelImpl => {
             Error::new(Span::call_site(), "ModelImpl does not produce role metadata").into_compile_error()
+        }
+    }
+}
+
+/// Generates a typed accessor for exactly the marked identifier field.
+fn identifier_accessor(item: &DeriveInput, index: usize, runtime: &TokenStream) -> TokenStream {
+    let member = match &item.data {
+        syn::Data::Struct(data) => data.fields.iter().nth(index).map(|field| {
+            field.ident.as_ref().map_or_else(
+                || {
+                    let index = Index::from(index);
+                    quote!(#index)
+                },
+                |ident| quote!(#ident),
+            )
+        }),
+        _ => None,
+    };
+    let Some(member) = member else {
+        return Error::new(Span::call_site(), "identifier accessor requires a struct field").into_compile_error();
+    };
+    quote! {
+        |value: #runtime::__private::DynamicRef<'_, #runtime::__private::Local>| {
+            let actual = value.value_type_id();
+            let expected = ::std::any::TypeId::of::<Self>();
+            let model = value.downcast::<Self>().map_err(|_| {
+                #runtime::__private::TypeMismatch::new(expected, actual)
+            })?;
+            let identifier: &dyn ::core::any::Any = &model.#member;
+            identifier
+                .downcast_ref::<#runtime::__private::qubit_id::Id>()
+                .ok_or_else(|| {
+                    #runtime::__private::TypeMismatch::new(
+                        ::std::any::TypeId::of::<#runtime::__private::qubit_id::Id>(),
+                        identifier.type_id(),
+                    )
+                })
         }
     }
 }
@@ -125,10 +172,10 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
         quote! {
             {
                 #fields
-                let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v7::leak_slice(fields);
+                let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v8::leak_slice(fields);
                 let reflect = &descriptor.variants()[#variant_index];
                 debug_assert_eq!(reflect.rust_name(), #rust_name);
-                variants.push(#runtime::__private::v7::enum_variant_metadata(
+                variants.push(#runtime::__private::v8::enum_variant_metadata(
                     reflect,
                     #canonical,
                     #serialized,
@@ -142,9 +189,9 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
     quote! {
         let mut variants = ::std::vec::Vec::new();
         #(#variants)*
-        let variants: &'static [#runtime::metadata::EnumVariantMetadata] = #runtime::__private::v7::leak_slice(variants);
+        let variants: &'static [#runtime::metadata::EnumVariantMetadata] = #runtime::__private::v8::leak_slice(variants);
         let role: &'static #runtime::metadata::RoleMetadata =
-            #runtime::__private::v7::leak(#runtime::__private::v7::enum_role(variants));
+            #runtime::__private::v8::leak(#runtime::__private::v8::enum_role(variants));
         let fields: &'static [#runtime::metadata::FieldMetadata] = &[];
     }
 }

@@ -417,12 +417,12 @@ impl Profile {
 | 验证计划报 `UnsupportedExecution` | 当前后端的形状矩阵、借用 getter、容器适配器 | 执行适配器或模型访问能力 |
 | 自定义规则或 codec 未绑定 | 精确 ID、Rust 类型、显式注册表和参数签名 | 应用注册入口 |
 
-宏生成的 `__private::v7` 是运行时握手层，应用代码应引用公开 API；runtime 与 derive 使用对应版本。诊断时优先保留错误中的 owner、字段身份和声明来源，再根据阶段判断是修改声明、链接范围还是执行注册。
+宏生成的 `__private::v8` 是运行时握手层，应用代码应引用公开 API；runtime 与 derive 使用对应版本。诊断时优先保留错误中的 owner、字段身份和声明来源，再根据阶段判断是修改声明、链接范围还是执行注册。
 
 ## 方法反射、错误与排查
 
-ModelImpl 转发 reflect_impl 支持的选项。trait 方法和不能充当 Property 的方法仍然保留反射。
-泛型运行时适配器沿用 rs-reflect 的显式 `specialize(T = String, ...)` 绑定。
+`ModelImpl` 为原 impl 保留反射支持。trait 方法和不能充当 Property 的方法仍然保留反射。
+泛型 impl 的 Property provider 必须通过 `specialize(T = String, ...)` 显式绑定；不支持或不完整的绑定会在编译时报告。
 只有公开、安全、同步且方法自身无泛型的固有访问器贡献 Property；借用 getter 保留生命周期，不强制 Send。
 
 本地形状、冗余和能力冲突在编译期报告；跨 crate 目标与完整结构关系由 StructureResolver 检查。

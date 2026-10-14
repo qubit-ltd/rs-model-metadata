@@ -26,7 +26,8 @@ use super::validation_build_error::ValidationBuildError;
 /// # Examples
 ///
 /// ```
-/// use qubit_model_derive::Enum;
+/// use chrono::NaiveDate;
+/// use qubit_model_derive::Model;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::ResolveInputs;
@@ -34,20 +35,23 @@ use super::validation_build_error::ValidationBuildError;
 /// use qubit_model_metadata::validation::ValidationBuildErrorKind;
 /// use qubit_model_metadata::validation::ValidationCapabilities;
 ///
-/// #[Enum]
-/// enum Choice { Named { #[text(non_blank)] name: String } }
+/// #[Model(no_serialize, no_deserialize)]
+/// struct Record {
+///     #[time(precision = second)] created: NaiveDate,
+///     #[time(precision = second)] updated: NaiveDate,
+/// }
 /// # fn main() {
-/// let root = TypeMetadata::of::<Choice>();
+/// let root = TypeMetadata::of::<Record>();
 /// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
 /// let roots = [root];
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
-///     .resolve().expect("valid enum structure");
+///     .resolve().expect("valid record structure");
 /// let errors = ValidationCapabilities::check(root, &graph)
-///     .expect_err("enum payload execution is unsupported");
-/// assert_eq!(errors.len(), 1);
+///     .expect_err("NaiveDate precision execution is unsupported");
+/// assert_eq!(errors.len(), 2);
 /// for diagnostic in &errors {
 ///     assert_eq!(diagnostic.kind(), ValidationBuildErrorKind::UnsupportedExecution);
-///     assert_eq!(diagnostic.field_location().expect("payload field").index(), 0);
+///     assert!(diagnostic.field_location().is_some());
 /// }
 /// # }
 /// ```

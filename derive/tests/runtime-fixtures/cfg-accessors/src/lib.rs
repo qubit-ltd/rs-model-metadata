@@ -106,9 +106,11 @@ impl MissingImplTarget {
 mod tests {
     use std::any::TypeId;
 
-    use model_runtime::metadata::PropertyMutable;
-    use model_runtime::metadata::PropertyOwned;
     use model_runtime::metadata::TypeMetadata;
+    use qubit_reflect::value::DynamicMut;
+    use qubit_reflect::value::DynamicOwned;
+    use qubit_reflect::value::DynamicRef;
+    use qubit_reflect::value::Local;
     use qubit_reflect::registry::ReflectRegistry;
 
     use super::Configured;
@@ -137,7 +139,7 @@ mod tests {
                 .any(|method| method.rust_name() == name);
             assert_eq!(method_present, enabled, "reflection method {name}");
             if let Some(property) = property {
-                assert!(property.get(&value).is_ok(), "adapter {name}");
+                assert!(property.get_dynamic(DynamicRef::<Local>::new(&value)).is_ok(), "adapter {name}");
             }
         }
         for (name, enabled) in [
@@ -157,16 +159,44 @@ mod tests {
         assert!(paired.setter().is_some());
         let mut changed = Configured { value: 0 };
         let replacement = if cfg!(feature = "alternate") {
-            PropertyOwned::new("23".to_owned())
+            DynamicOwned::<Local>::new("23".to_owned())
         } else {
-            PropertyOwned::new(23u32)
+            DynamicOwned::<Local>::new(23u32)
         };
-        paired.set_dynamic(PropertyMutable::new(&mut changed), replacement).expect("enabled paired setter adapter");
+        paired.set_dynamic(DynamicMut::<Local>::new(&mut changed), replacement).expect("enabled paired setter adapter");
         assert_eq!(changed.value, 23);
         if let Some(property) = metadata.try_property("feature_value").expect("feature property") {
-            property.set_dynamic(PropertyMutable::new(&mut changed), PropertyOwned::new(29u32)).expect("feature setter adapter");
+            property.set_dynamic(DynamicMut::<Local>::new(&mut changed), DynamicOwned::<Local>::new(29u32)).expect("feature setter adapter");
             assert_eq!(changed.value, 29);
         }
     }
 
+    /// Checks method and impl predicates on two concrete specializations.
+    #[test]
+    fn test_generic_specialization_presence() {
+        let reflection = ReflectRegistry::initialize().expect("generic fixture reflection");
+        for metadata in [
+            TypeMetadata::of::<GenericConfigured<String>>(),
+            TypeMetadata::of::<GenericConfigured<u32>>(),
+        ] {
+            assert_eq!(
+                metadata.try_property("current").expect("generic properties").is_some(),
+                cfg!(feature = "accessors")
+            );
+            assert_eq!(
+                metadata.try_property("impl_current").expect("generic impl properties").is_some(),
+                cfg!(feature = "impl-enabled")
+            );
+            assert!(metadata.try_property("missing").expect("generic properties").is_none());
+            for (name, enabled) in [
+                ("current", cfg!(feature = "accessors")),
+                ("impl_current", cfg!(feature = "impl-enabled")),
+                ("missing", false),
+            ] {
+                let present = reflection.impl_definitions().iter()
+                    .flat_map(|implementation| implementation.methods()).any(|method| method.rust_name() == name);
+                assert_eq!(present, enabled, "generic reflection method {name}");
+            }
+        }
+    }
 }

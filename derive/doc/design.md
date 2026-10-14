@@ -12,7 +12,7 @@ Rust field types cannot express every business rule. `#[text(...)]`, `#[unique(.
 
 The public attribute macros are `Entity`, `Projection`, `Model`, `Enum`, `Value`, and `ModelImpl`. The first five describe a type's role; `ModelImpl` adds property accessors from an impl block. One entry point dispatches to a shared pipeline: parse Rust and attributes, normalize declarations, validate local semantics and conflicts, then expand reflection and model capabilities. The implementation is divided among `parse`, `ir`, `normalize`, `validate`, `compiler`, and `expand`. Invalid local declarations produce compiler diagnostics rather than partial metadata.
 
-The macros emit static `TypeMetadata`, field and variant declarations, reflection capabilities and registration fragments. Concrete metadata is projected through the frozen reflection snapshot; generic model definitions retain their own registration fragments. Generated code calls checked runtime constructors through `__private::v7`. The runtime and derive ABI therefore change together.
+The macros emit static `TypeMetadata`, field and variant declarations, reflection capabilities and registration fragments. Concrete metadata is projected through the frozen reflection snapshot; generic model definitions retain their own registration fragments. Generated code calls checked runtime constructors through `__private::v8`. The runtime and derive ABI therefore change together.
 
 ## Input contract and role selection
 
@@ -39,7 +39,7 @@ The six public entry points in `derive/src/lib.rs` dispatch through `entry::expa
 2. Reject explicit derives that would duplicate generated `Reflect` implementations. Parse fields, variants, Serde settings, role options, and declaration locations into the internal IR. Field indices and Enum variant ownership are retained.
 3. Normalize shorthand into a consistent IR. This includes eligible defaults and empty-value omission for `Option` and collection fields, as well as selector positions and index reasons.
 4. Validate role options, identifier counts, variant names, field-attribute conflicts, logical-key order, type shapes, and constraint combinations. Independent local errors are combined into compiler diagnostics.
-5. Prepare default output capabilities and rewrite field helpers for reflection, Serde, and redaction. Add the reflection derive, `definition_provider_v2` for generic declarations, and the runtime `__private::v7::model_capability` support as applicable.
+5. Prepare default output capabilities and rewrite field helpers for reflection, Serde, and redaction. Add the reflection derive, `definition_provider_v2` for generic declarations, and the runtime `__private::v8::model_capability` support as applicable.
 6. Emit the original item, static metadata providers, registration fragments, and trait/output implementations. Generic output is guarded by the runtime feature facade and fails clearly when the required feature is disabled.
 
 `ModelImpl` follows a separate path: it parses the `ItemImpl`, preserves the original impl and its reflection support, scans methods, then creates accessor adapters and providers for the target type. `#[model_property(skip)]` controls property selection and is removed from the method; a skipped method remains an ordinary reflected method.
@@ -70,4 +70,4 @@ The accessor's `cfg` and nested `cfg_attr` conditions are applied to the provide
 
 ## Cross-component verification and migration
 
-When developing or upgrading the macros, verify Rust capabilities and metadata for valid declarations, diagnostics for invalid declarations, renamed runtime dependencies and cross-crate use, standalone `ModelImpl` providers, generic and anonymous models, real downstream declarations, and compatibility with runtime ABI `__private::v7`. Derive UI and runtime fixtures, root-crate metadata tests, and downstream consumers cover different parts of this contract. See the [user guide](user_guide.md) for declaration examples and [runtime design](../../doc/design.md) for snapshot and execution ownership.
+When developing or upgrading the macros, verify Rust capabilities and metadata for valid declarations, diagnostics for invalid declarations, renamed runtime dependencies and cross-crate use, standalone `ModelImpl` providers, generic and anonymous models, real downstream declarations, and compatibility with runtime ABI `__private::v8`. Derive UI and runtime fixtures, root-crate metadata tests, and downstream consumers cover different parts of this contract. See the [user guide](user_guide.md) for declaration examples and [runtime design](../../doc/design.md) for snapshot and execution ownership.

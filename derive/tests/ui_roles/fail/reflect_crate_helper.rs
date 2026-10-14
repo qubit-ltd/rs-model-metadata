@@ -9,7 +9,7 @@
 
 use qubit_reflect::Reflect;
 
-#[derive(Reflect)]
+#[Reflect]
 #[reflect(crate = qubit_reflect)]
 struct ObsoleteRuntimeHelper;
 

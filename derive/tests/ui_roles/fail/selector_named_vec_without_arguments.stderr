@@ -1,27 +1,13 @@
-error: expected derive macro, found attribute macro `Reflect`
-  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:22:5
-   |
-22 |     Reflect,
-   |     ^^^^^^^ not a derive macro
-   |
-help: remove from the surrounding `derive()`
-  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:22:5
-   |
-22 |     Reflect,
-   |     ^^^^^^^
-   = help: add as non-Derive macro
-           `#[Reflect]`
-
 error[E0277]: the trait bound `Vec: Reflect` is not satisfied
-  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:31:12
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:29:12
    |
-31 |     value: Vec,
+29 |     value: Vec,
    |            ^^^ unsatisfied trait bound
    |
 help: the trait `Reflect` is not implemented for `Vec`
-  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:24:1
    |
-26 | struct Vec;
+24 | struct Vec;
    | ^^^^^^^^^^
    = help: the following other types implement trait `Reflect`:
              &'static T
@@ -40,15 +26,15 @@ note: required by a bound in `lazy_type_ref`
    |                         ^^^^^^^ required by this bound in `lazy_type_ref`
 
 error[E0277]: the trait bound `Vec: SequenceConstraintTarget` is not satisfied
-  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:31:12
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:29:12
    |
-31 |     value: Vec,
+29 |     value: Vec,
    |            ^^^ unsatisfied trait bound
    |
 help: the trait `SequenceConstraintTarget` is not implemented for `Vec`
-  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:24:1
    |
-26 | struct Vec;
+24 | struct Vec;
    | ^^^^^^^^^^
    = help: the following other types implement trait `SequenceConstraintTarget`:
              BinaryHeap<T>
@@ -61,8 +47,8 @@ help: the trait `SequenceConstraintTarget` is not implemented for `Vec`
              std::collections::HashSet<T>
            and $N others
 note: required by a bound in `assert_sequence_target`
-  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:28:1
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
    |
-28 | #[Model]
+26 | #[Model]
    | ^^^^^^^^ required by this bound in `assert_sequence_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)

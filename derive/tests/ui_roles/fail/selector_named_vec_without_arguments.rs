@@ -8,7 +8,6 @@
 //! Trybuild compile-fail fixture: a named `Vec` selector must supply the required type arguments.
 
 use qubit_model_derive::Model;
-use qubit_reflect::Reflect;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -19,7 +18,6 @@ use serde::Serialize;
     Eq,
     Hash,
     PartialEq,
-    Reflect,
     Deserialize,
     Serialize,
 )]

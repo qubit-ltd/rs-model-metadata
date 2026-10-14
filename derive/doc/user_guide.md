@@ -223,7 +223,7 @@ and [complete validation program](../../doc/user_guide.md#core-workflow-validate
 for report limits, partial errors, and the real `rs-platform` integration boundary.
 Do not remove a model constraint or add `opaque` just to make a backend accept it.
 
-Generated model code uses checked `__private::v7`; update the runtime and macro
+Generated model code uses checked `__private::v8`; update the runtime and macro
 crate together. There is no v5/v6 compatibility facade. Concrete field identities
 use owner TypeId, variant index, and field index; model IDs remain the stable
 external naming mechanism. `rs-reflect` retains its independent protocol version.
@@ -332,9 +332,10 @@ fn main() {
 
 ## Reflection and diagnostics
 
-ModelImpl forwards supported reflect_impl options. Trait methods and methods
-that cannot act as Properties remain reflected. Generic runtime adapters require
-explicit `specialize(T = String, ...)` bindings, following rs-reflect's boundary.
+`ModelImpl` retains reflection support for the original impl. Trait methods and
+methods that cannot act as Properties remain reflected. Generic impl property
+providers require explicit `specialize(T = String, ...)` bindings; unsupported
+or incomplete bindings produce a compile-time diagnostic.
 Only public, safe, synchronous, nongeneric inherent accessor methods contribute
 Properties. Borrowed getters retain their lifetimes and do not require Send.
 

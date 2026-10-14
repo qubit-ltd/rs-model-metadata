@@ -1,5 +1,5 @@
-error: model macros generate Reflect; remove the duplicate derive
-  --> tests/ui_roles/fail/duplicate_reflect.rs:14:10
+error: model macros generate Reflect; remove the duplicate Reflect attribute
+  --> tests/ui_roles/fail/duplicate_reflect.rs:13:1
    |
-14 | #[derive(Reflect)]
-   |          ^^^^^^^
+13 | #[Reflect]
+   | ^^^^^^^^^^

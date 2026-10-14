@@ -18,6 +18,8 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
@@ -80,7 +82,7 @@ impl PreparedValidator for AllowToken {
     }
 }
 
-/// Checks the consumer-visible parameter contract before compiling the rule.
+/// Checks the typed consumer parameter contract before compiling the rule.
 fn prepare(reader: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     let expected = [
         ("enabled", ValidationArgument::Bool(true)),
@@ -144,7 +146,7 @@ fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
             token: token.to_owned(),
         };
         let report = plan
-            .validate(&value, &ValidationOptions::default())
+            .validate_dynamic(DynamicRef::<Local>::new(&value), &ValidationOptions::default())
             .expect("configured rule executes");
         assert_eq!(report.violations().len(), expected_failures);
         assert!(!report.is_truncated());

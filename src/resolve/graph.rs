@@ -13,6 +13,10 @@ use std::collections::HashMap;
 
 use qubit_id::Id;
 use qubit_reflect::FieldAccessError;
+use qubit_reflect::TypeMismatch;
+use qubit_reflect::access::FieldIdentity;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use thiserror::Error;
 
 use super::internal::OwnedPropertyPath;
@@ -23,7 +27,6 @@ use crate::metadata::FieldReferenceMetadata;
 use crate::metadata::GetterMetadata;
 use crate::metadata::IndexingReasons;
 use crate::metadata::PropertyAccessError;
-use crate::metadata::PropertyBorrowed;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyPath;
 use crate::metadata::PropertyValue;
@@ -331,23 +334,17 @@ impl ResolvedProjectionProducer {
     ///
     /// The getter result when it is a borrowed or owned Projection with the
     /// same identifier as the source Entity.
-    pub fn project<'a>(&self, source: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
+    pub fn project<'a>(&self, source: DynamicRef<'a, Local>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
         let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
-        let source_field = self
+        let source_identifier = self
             .source
             .as_entity()
             .ok_or(ProjectionExecutionError::InvalidProducer)?
-            .identifier()
-            .reflect()
-            .expect("resolved entity identifiers are concrete fields");
-        // SAFETY: The resolver bound this field descriptor to the registered
-        // Entity metadata. Projection identity validation is a trusted
-        // framework operation that may inspect private identifier storage.
-        let source_identifier = unsafe { source_field.get_dynamic_unsafe(source.clone()) }?
-            .downcast::<Id>()
-            .map_err(|_| ProjectionExecutionError::InvalidIdentifierType)
-            .copied()?;
-        let result = projector.get_dynamic(source)?;
+            .read_identifier(source.clone())
+            .map_err(|mismatch| {
+                identifier_target_mismatch(self.source.as_entity().expect("checked above").identifier(), mismatch)
+            })?;
+        let result = projector.get_dynamic(source.clone())?;
         let projection_identifier = match &result {
             PropertyValue::Borrowed(value) => self.projection_identifier(value.clone())?,
             PropertyValue::Owned(value) => self.projection_identifier(value.as_reflected_ref())?,
@@ -355,7 +352,7 @@ impl ResolvedProjectionProducer {
                 return Err(ProjectionExecutionError::InvalidProducer);
             }
         };
-        if source_identifier != projection_identifier {
+        if *source_identifier != projection_identifier {
             return Err(ProjectionExecutionError::IdentifierMismatch);
         }
         Ok(result)
@@ -380,21 +377,30 @@ impl ResolvedProjectionProducer {
     ///
     /// Panics if resolved projection metadata refers to an identifier that is
     /// not a concrete reflected field. The resolver guarantees this invariant.
-    fn projection_identifier(&self, target: PropertyBorrowed<'_>) -> Result<Id, ProjectionExecutionError> {
-        let field = self
+    fn projection_identifier(&self, target: DynamicRef<'_, Local>) -> Result<Id, ProjectionExecutionError> {
+        let projection = self
             .projection
             .as_projection()
-            .ok_or(ProjectionExecutionError::InvalidProducer)?
-            .identifier()
-            .reflect()
-            .expect("resolved projection identifiers are concrete fields");
-        // SAFETY: The resolver bound this field descriptor to the registered
-        // Projection metadata. Producer validation is a trusted framework
-        // operation that may inspect private identifier storage.
-        unsafe { field.get_dynamic_unsafe(target) }?
-            .downcast::<Id>()
-            .map_err(|_| ProjectionExecutionError::InvalidIdentifierType)
-            .copied()
+            .ok_or(ProjectionExecutionError::InvalidProducer)?;
+        let identifier = projection
+            .read_identifier(target)
+            .map_err(|mismatch| identifier_target_mismatch(projection.identifier(), mismatch))?;
+        Ok(*identifier)
+    }
+}
+
+fn identifier_target_mismatch(field: &crate::metadata::FieldMetadata, mismatch: TypeMismatch) -> FieldAccessError {
+    let reflected = field.reflect().expect("resolved role identifiers are concrete fields");
+    let declaring_type = reflected.declaring_type();
+    FieldAccessError::TargetTypeMismatch {
+        field: FieldIdentity::new_with_query_name(
+            declaring_type.type_id(),
+            declaring_type.type_name(),
+            reflected.index(),
+            reflected.rust_name(),
+            reflected.query_name(),
+        ),
+        mismatch: Box::new(mismatch),
     }
 }
 

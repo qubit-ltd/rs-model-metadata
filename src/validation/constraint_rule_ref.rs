@@ -60,3 +60,22 @@ impl ConstraintRuleRef {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use qubit_validator::ValidatorId;
+
+    use super::ConstraintRuleRef;
+
+    #[test]
+    fn test_rule_id_and_registry_eligibility() {
+        let id = ValidatorId::new("qubit.rules.text.non_blank");
+        let registry = ConstraintRuleRef::Registry(id);
+        let intrinsic = ConstraintRuleRef::ModelIntrinsic(id);
+
+        assert_eq!(registry.id(), id);
+        assert_eq!(registry.registry_id(), Some(id));
+        assert_eq!(intrinsic.id(), id);
+        assert_eq!(intrinsic.registry_id(), None);
+    }
+}
