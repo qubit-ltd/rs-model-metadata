@@ -54,6 +54,20 @@ fn expand_inner(
     arguments: TokenStream,
     retain: bool,
 ) -> Result<TokenStream> {
+    if item.generics.params.is_empty() && !arguments.is_empty() {
+        let options = specialization::options(arguments.clone())?;
+        if let Some(option) = options.first() {
+            let helper = option
+                .path()
+                .segments
+                .last()
+                .map_or_else(|| quote!(#option).to_string(), |segment| segment.ident.to_string());
+            return Err(Error::new_spanned(
+                option,
+                format!("unknown reflection helper `{helper}`"),
+            ));
+        }
+    }
     let original = item.clone();
     let target = (*item.self_ty).clone();
     let mut getters = Vec::new();
@@ -91,7 +105,7 @@ fn expand_inner(
         }
     }
     let retained = if retain {
-        quote!(#[#runtime::__private::reflect_impl(#arguments)] #item)
+        quote!(#[#runtime::__private::ReflectImpl] #item)
     } else {
         TokenStream::new()
     };
@@ -150,11 +164,11 @@ fn expand_inner(
             quote! {
                 #presence
                 {
-                    let output_type = #runtime::__private::v7::reflected_type_ref::<#ty>();
-                    let getter = #runtime::__private::v7::leak(
+                    let output_type = #runtime::__private::v8::reflected_type_ref::<#ty>();
+                    let getter = #runtime::__private::v8::leak(
                         #runtime::metadata::GetterMetadata::new::<#target>(#method, output_type, #kind, #adapter),
                     );
-                    fragments.push(#runtime::__private::v7::property_fragment(
+                    fragments.push(#runtime::__private::v8::property_fragment(
                         #property,
                         output_type,
                         #runtime::metadata::PropertyFragmentSource::Getter(getter),
@@ -176,11 +190,11 @@ fn expand_inner(
             quote! {
                 #presence
                 {
-                    let input_type = #runtime::__private::v7::reflected_type_ref::<#ty>();
-                    let setter = #runtime::__private::v7::leak(
+                    let input_type = #runtime::__private::v8::reflected_type_ref::<#ty>();
+                    let setter = #runtime::__private::v8::leak(
                         #runtime::metadata::SetterMetadata::new::<#target, #ty>(#method, input_type, #adapter),
                     );
-                    fragments.push(#runtime::__private::v7::property_fragment(
+                    fragments.push(#runtime::__private::v8::property_fragment(
                         #property,
                         input_type,
                         #runtime::metadata::PropertyFragmentSource::Setter(setter),
@@ -226,7 +240,7 @@ fn expand_inner(
                 let mut fragments: ::std::vec::Vec<#runtime::metadata::PropertyFragment> = ::std::vec::Vec::new();
                 for field in metadata.fields() {
                     if let Some(name) = field.name() {
-                        fragments.push(#runtime::__private::v7::property_fragment(
+                        fragments.push(#runtime::__private::v8::property_fragment(
                             name,
                             field.type_ref(),
                             #runtime::metadata::PropertyFragmentSource::Field(field),
@@ -253,23 +267,23 @@ fn expand_inner(
                     }
                 }
                 let properties: ::std::vec::Vec<_> = merged.into_iter().map(|entry| {
-                    #runtime::__private::v7::property_metadata(
+                    #runtime::__private::v8::property_metadata(
                         entry.name, entry.type_ref, entry.field, entry.getter, entry.setter,
                     )
                 }).collect();
-                let properties = #runtime::__private::v7::leak_slice(properties);
+                let properties = #runtime::__private::v8::leak_slice(properties);
                 let properties = match metadata.validate_properties(properties) {
-                    Ok(()) => Ok(#runtime::__private::v7::leak(
-                        #runtime::__private::v7::local_property_set(properties),
+                    Ok(()) => Ok(#runtime::__private::v8::leak(
+                        #runtime::__private::v8::local_property_set(properties),
                     )),
-                    Err(errors) => Err(#runtime::__private::v7::leak(errors)),
+                    Err(errors) => Err(#runtime::__private::v8::leak(errors)),
                 };
-                let fragments = #runtime::__private::v7::leak_slice(fragments);
-                #runtime::__private::v7::model_impl_metadata(fragments, properties)
+                let fragments = #runtime::__private::v8::leak_slice(fragments);
+                #runtime::__private::v8::model_impl_metadata(fragments, properties)
             })
         }
 
-        #runtime::__private::v7::register_model_impl_capability!(
+        #runtime::__private::v8::register_model_impl_capability!(
             #target,
             #provider as #runtime::__private::ModelImplProvider,
             #fragment_fingerprint,
@@ -302,7 +316,7 @@ fn expand_property_compatibility_assertions(
                         const _: () = {
                             fn assert_property_types_are_compatible()
                             where
-                                #output: #runtime::__private::v7::PropertyOutputCompatible<#input>,
+                                #output: #runtime::__private::v8::PropertyOutputCompatible<#input>,
                             {}
                         };
                     }
@@ -316,19 +330,19 @@ fn getter_output_type(output: &GetterReturn, runtime: &TokenStream) -> TokenStre
     match output {
         GetterReturn::Owned(ty) => quote!(#ty),
         GetterReturn::Borrowed(ty) => quote!(
-            #runtime::__private::v7::BorrowedPropertyOutput<#ty>
+            #runtime::__private::v8::BorrowedPropertyOutput<#ty>
         ),
         GetterReturn::BorrowedStr => quote!(
-            #runtime::__private::v7::BorrowedPropertyOutput<str>
+            #runtime::__private::v8::BorrowedPropertyOutput<str>
         ),
         GetterReturn::BorrowedSlice(element) => quote!(
-            #runtime::__private::v7::BorrowedPropertyOutput<[#element]>
+            #runtime::__private::v8::BorrowedPropertyOutput<[#element]>
         ),
         GetterReturn::OptionalBorrowed(ty) => quote!(
-            #runtime::__private::v7::OptionalBorrowedPropertyOutput<#ty>
+            #runtime::__private::v8::OptionalBorrowedPropertyOutput<#ty>
         ),
         GetterReturn::OptionalBorrowedStr => quote!(
-            #runtime::__private::v7::OptionalBorrowedPropertyOutput<str>
+            #runtime::__private::v8::OptionalBorrowedPropertyOutput<str>
         ),
     }
 }
@@ -509,28 +523,28 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
     let presence = getter.presence.attribute();
     let value = match &getter.output {
         GetterReturn::Owned(_) => {
-            quote!(#runtime::metadata::PropertyValue::Owned(#runtime::__private::ReflectedOwned::new(target.#method())))
+            quote!(#runtime::metadata::PropertyValue::Owned(#runtime::__private::DynamicOwned::<#runtime::__private::Local>::new(target.#method())))
         }
         GetterReturn::Borrowed(_) => {
-            quote!(#runtime::metadata::PropertyValue::Borrowed(#runtime::__private::ReflectedRef::new(target.#method())))
+            quote!(#runtime::metadata::PropertyValue::Borrowed(#runtime::__private::DynamicRef::<#runtime::__private::Local>::new(target.#method())))
         }
         GetterReturn::BorrowedStr => {
-            quote!(#runtime::metadata::PropertyValue::Borrowed(#runtime::__private::ReflectedRef::new_str(target.#method())))
+            quote!(#runtime::metadata::PropertyValue::Borrowed(#runtime::__private::DynamicRef::<#runtime::__private::Local>::new_str(target.#method())))
         }
         GetterReturn::BorrowedSlice(_) => {
             quote!(#runtime::metadata::PropertyValue::BorrowedSlice(#runtime::metadata::BorrowedPropertySlice::new(target.#method())))
         }
         GetterReturn::OptionalBorrowed(_) => {
-            quote!(#runtime::metadata::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::__private::ReflectedRef::new)))
+            quote!(#runtime::metadata::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::__private::DynamicRef::<#runtime::__private::Local>::new)))
         }
         GetterReturn::OptionalBorrowedStr => {
-            quote!(#runtime::metadata::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::__private::ReflectedRef::new_str)))
+            quote!(#runtime::metadata::PropertyValue::OptionalBorrowed(target.#method().map(#runtime::__private::DynamicRef::<#runtime::__private::Local>::new_str)))
         }
     };
     quote! {
         #presence
         #[doc(hidden)]
-        fn #adapter<'a>(target: #runtime::__private::ReflectedRef<'a>) -> ::core::result::Result<#runtime::metadata::PropertyValue<'a>, #runtime::metadata::PropertyAccessError> {
+        fn #adapter<'a>(target: #runtime::__private::DynamicRef<'a, #runtime::__private::Local>) -> ::core::result::Result<#runtime::metadata::PropertyValue<'a>, #runtime::metadata::PropertyAccessError> {
             let target = target.downcast::<#target>().map_err(|_| #runtime::metadata::PropertyAccessError::user("property target was not prevalidated"))?;
             Ok(#value)
         }
@@ -550,7 +564,7 @@ fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime
     quote! {
         #presence
         #[doc(hidden)]
-        fn #adapter(target: #runtime::__private::ReflectedMut<'_>, value: #runtime::__private::ReflectedOwned) -> ::core::result::Result<(), #runtime::metadata::PropertySetFailure> {
+        fn #adapter(target: #runtime::__private::DynamicMut<'_, #runtime::__private::Local>, value: #runtime::__private::DynamicOwned<#runtime::__private::Local>) -> ::core::result::Result<(), #runtime::metadata::PropertySetFailure> {
             let target = target.downcast::<#target>().map_err(|_| #runtime::metadata::PropertySetFailure::after_execution(#runtime::metadata::PropertyAccessError::user("property target was not prevalidated")))?;
             let value = value.downcast::<#input>().map_err(|value| #runtime::metadata::PropertySetFailure::before_execution(#runtime::metadata::PropertyAccessError::user("property value was not prevalidated"), value))?;
             target.#method(value);

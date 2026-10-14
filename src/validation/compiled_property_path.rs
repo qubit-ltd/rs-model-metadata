@@ -9,6 +9,7 @@
 //! Structural, getter-free compilation of property paths.
 
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::VariantDescriptor;
 use qubit_reflect::descriptor::TypeKind;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
@@ -34,6 +35,15 @@ pub(crate) struct PropertyStep {
     property: PropertyMetadata,
     /// Exact element type expected after projecting a borrowed `Option<T>`.
     optional_element: Option<std::any::TypeId>,
+}
+
+/// Active-variant check performed after the containing enum has been read.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct VariantGuard {
+    /// Number of owner-path properties to read before checking the enum.
+    pub(crate) after_steps: usize,
+    /// Reflected variant whose payload field is being validated.
+    pub(crate) variant: &'static VariantDescriptor,
 }
 
 impl PropertyStep {
@@ -81,9 +91,91 @@ pub(crate) struct CompiledPropertyPath {
     pub(super) input: InputType,
     /// Whether any read on the complete path may be absent.
     pub(super) optional: bool,
+    /// Optional enum payload guard inserted before the payload field step.
+    pub(super) variant_guard: Option<VariantGuard>,
+    /// Variant label used in reports for enum payload fields.
+    pub(super) variant_name: Option<&'static str>,
 }
 
 impl CompiledPropertyPath {
+    /// Compiles a direct enum payload field together with its active-variant
+    /// guard.
+    pub(crate) fn compile_enum_payload(
+        root: &'static TypeMetadata,
+        occurrence: &crate::validation::internal::validation_occurrence::ValidationOccurrence,
+        graph: &ModelGraph<'_>,
+        target: TargetMode,
+    ) -> Result<Self, BindError> {
+        if !matches!(target, TargetMode::Value) {
+            return Err(path_error(BindErrorKind::UnsupportedConstraint));
+        }
+        let variant = occurrence
+            .enum_variant
+            .and_then(|variant| variant.reflect())
+            .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+        let field_descriptor = occurrence
+            .field
+            .reflect()
+            .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+        let field_type = field_descriptor
+            .field_type()
+            .as_resolved()
+            .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
+        let prefix = &occurrence.segments[..occurrence.segments.len() - 1];
+        let mut path = if prefix.is_empty() {
+            Self {
+                context_depth: 0,
+                dependency: None,
+                deferred: Box::new([]),
+                steps: Box::new([]),
+                optional_steps: Box::new([]),
+                input: InputType::of::<()>(),
+                optional: false,
+                variant_guard: None,
+                variant_name: None,
+            }
+        } else {
+            Self::compile(root, &PropertyPath::new(prefix), graph, TargetMode::Value)?
+        };
+        let owner_type = path
+            .steps
+            .last()
+            .and_then(|step| step.property().descriptor())
+            .map_or(root.type_id(), TypeDescriptor::type_id);
+        if variant.declaring_type().type_id() != owner_type {
+            return Err(path_error(BindErrorKind::UnsupportedConstraint));
+        }
+        let property_name = occurrence.field.name().unwrap_or("0");
+        let property = crate::property::PropertyMetadata::new(
+            property_name,
+            occurrence.field.type_ref(),
+            Some(occurrence.field),
+            None,
+            None,
+        );
+        let after_steps = path.steps.len();
+        let mut steps = path.steps.into_vec();
+        steps.push(PropertyStep {
+            property,
+            optional_element: None,
+        });
+        path.steps = steps.into_boxed_slice();
+        path.input = if matches!(field_type.kind(), TypeKind::Text(_)) {
+            InputType::Text
+        } else {
+            InputType::Typed(field_type.type_id())
+        };
+        path.optional = false;
+        path.variant_guard = Some(VariantGuard { after_steps, variant });
+        path.variant_name = Some(
+            occurrence
+                .enum_variant
+                .expect("variant descriptor was resolved")
+                .rust_name(),
+        );
+        Ok(path)
+    }
+
     /// Checks and compiles a declaration path without invoking user adapters.
     ///
     /// Resolves properties from `root`, including a transparent value's field
@@ -253,6 +345,8 @@ impl CompiledPropertyPath {
             optional_steps: optional_steps.into_boxed_slice(),
             input,
             optional: path_optional,
+            variant_guard: None,
+            variant_name: None,
         })
     }
 
@@ -315,6 +409,8 @@ impl CompiledPropertyPath {
                 optional_steps: Box::new([]),
                 input: expected,
                 optional: false,
+                variant_guard: None,
+                variant_name: None,
             });
         };
         let mut path = Self::compile(owner, &PropertyPath::new(&segments), graph, TargetMode::Value)?;
@@ -371,6 +467,21 @@ impl CompiledPropertyPath {
     #[inline]
     pub(crate) fn steps(&self) -> &[PropertyStep] {
         &self.steps
+    }
+
+    /// Returns the enum payload guard, when this path addresses a variant
+    /// field.
+    #[must_use]
+    #[inline]
+    pub(crate) const fn variant_guard(&self) -> Option<VariantGuard> {
+        self.variant_guard
+    }
+
+    /// Returns the variant label used in reports for enum payload paths.
+    #[must_use]
+    #[inline]
+    pub(crate) const fn variant_name(&self) -> Option<&'static str> {
+        self.variant_name
     }
 
     /// Returns the input representation inferred from the final property's
@@ -505,9 +616,21 @@ fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDe
 
 #[cfg(test)]
 mod tests {
+    use qubit_reflect::Reflect;
+    use qubit_reflect::TypeDescriptor;
     use qubit_validator::InputType;
 
     use super::CompiledPropertyPath;
+    use super::PropertyStep;
+    use super::value_descriptor;
+    use crate::__private::v8;
+    use crate::field_metadata::FieldMetadata;
+    use crate::property::PropertyMetadata;
+
+    #[Reflect]
+    struct OptionalTerminalFixture {
+        value: Option<String>,
+    }
 
     #[test]
     fn test_compiled_path_accessors_expose_structural_state() {
@@ -519,6 +642,8 @@ mod tests {
             optional_steps: Box::new([]),
             input: InputType::of::<u8>(),
             optional: true,
+            variant_guard: None,
+            variant_name: None,
         };
 
         assert!(path.dependency().is_none());
@@ -527,5 +652,51 @@ mod tests {
         assert!(path.steps().is_empty());
         assert_eq!(path.input_type(), InputType::of::<u8>());
         assert!(path.is_optional());
+    }
+
+    #[test]
+    fn test_optional_terminal_projection_and_prefix_coverage() {
+        let descriptor = TypeDescriptor::of::<OptionalTerminalFixture>();
+        let field = v8::leak(FieldMetadata::from_reflect(
+            descriptor.type_id(),
+            descriptor.field_at(0).expect("optional terminal field"),
+        ));
+        let property = PropertyMetadata::new("value", field.type_ref(), Some(field), None, None);
+        let path = CompiledPropertyPath {
+            context_depth: 0,
+            dependency: None,
+            deferred: Box::new([]),
+            steps: vec![PropertyStep {
+                property,
+                optional_element: None,
+            }]
+            .into_boxed_slice(),
+            optional_steps: vec![0].into_boxed_slice(),
+            input: InputType::of::<Option<String>>(),
+            optional: false,
+            variant_guard: None,
+            variant_name: None,
+        }
+        .unwrap_terminal_optional()
+        .expect("Option<String> projects to its reflected text element");
+
+        assert_eq!(path.input_type(), InputType::Text);
+        assert!(path.is_optional());
+
+        let covered_target = CompiledPropertyPath {
+            optional: true,
+            ..path.clone()
+        };
+        assert!(path.optionality_covered_by(&covered_target));
+
+        let uncovered_target = CompiledPropertyPath {
+            optional_steps: Box::new([]),
+            ..covered_target
+        };
+        assert!(!path.optionality_covered_by(&uncovered_target));
+
+        let (element, optional) = value_descriptor(descriptor.field_at(0).unwrap().field_type().as_resolved().unwrap());
+        assert_eq!(element.type_id(), TypeDescriptor::of::<String>().type_id());
+        assert!(optional);
     }
 }

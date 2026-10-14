@@ -18,7 +18,7 @@ use qubit_model_metadata::__private::model_impl_key;
 use qubit_model_metadata::__private::model_metadata_key;
 use qubit_model_metadata::__private::register_type_capabilities;
 #[cfg(feature = "generic")]
-use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::registry::ModelRegistryErrorKind;
 use qubit_reflect::Reflect;
@@ -43,10 +43,10 @@ use qubit_reflect::registry::CapabilityTarget;
 use qubit_reflect::registry::ReflectRegistry;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
-#[derive(Reflect)]
+#[Reflect]
 struct DiagnosticsTarget;
 
-#[derive(Reflect)]
+#[Reflect]
 struct GlobalConflict;
 
 #[cfg(feature = "generic")]
@@ -122,7 +122,7 @@ fn test_model_registry_rejects_capability_only_generic_targets_before_provider_c
     builder.add_definition_capabilities(
         &GENERIC_ORPHAN_DEFINITION,
         vec![CapabilityDescriptor::with_adapter(
-            v7::generic_model_metadata_key(),
+            v8::generic_model_metadata_key(),
             unreachable_generic_metadata_provider
                 as fn() -> &'static qubit_model_metadata::generic::GenericModelMetadata,
         )],
@@ -135,7 +135,7 @@ fn test_model_registry_rejects_capability_only_generic_targets_before_provider_c
         error.capability_target(),
         Some(CapabilityTarget::TypeDefinition(GENERIC_ORPHAN_DEFINITION.id()))
     );
-    assert_eq!(error.capability_id(), Some(*v7::generic_model_metadata_key().id()));
+    assert_eq!(error.capability_id(), Some(*v8::generic_model_metadata_key().id()));
     assert_eq!(error.sources(), &[capability_source]);
 }
 
@@ -143,7 +143,7 @@ fn test_model_registry_rejects_capability_only_generic_targets_before_provider_c
 #[test]
 fn test_generic_provider_contract_errors_report_capability_sources() {
     for capability in [
-        CapabilityDescriptor::without_adapter(v7::generic_model_metadata_key()),
+        CapabilityDescriptor::without_adapter(v8::generic_model_metadata_key()),
         CapabilityDescriptor::with_adapter(key::<u32>("qubit.model.generic_metadata.v1"), 7_u32),
     ] {
         let declaration_source = source("generic-model-declaration", 71);

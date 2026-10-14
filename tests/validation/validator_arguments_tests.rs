@@ -18,17 +18,17 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
+use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
-use qubit_validator::NamedValidationArgument;
 use qubit_validator::PreparedOutcome;
 use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
-use qubit_validator::ValidationArgument;
 use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorDescriptor;
 use qubit_validator::ValidatorId;
@@ -42,16 +42,7 @@ use qubit_validator::ViolationDraft;
 struct ConfiguredToken {
     #[validator(
         id = "arguments.allow_token",
-        params(
-            enabled = true,
-            lower = -170141183460469231731687303715884105728,
-            upper = 340282366920938463463374607431768211455,
-            accepted = "accepted",
-            switches = [true, false],
-            signed = [-170141183460469231731687303715884105728, 170141183460469231731687303715884105727],
-            unsigned = [0, 340282366920938463463374607431768211455],
-            labels = ["first", "second"]
-        )
+        params(enabled = true, minimum = 7, accepted = "accepted")
     )]
     token: String,
 }
@@ -81,29 +72,12 @@ impl PreparedValidator for AllowToken {
     }
 }
 
-/// Checks the consumer-visible parameter contract before compiling the rule.
-fn prepare(arguments: &[NamedValidationArgument<'_>]) -> Result<Arc<dyn PreparedValidator>, BindError> {
-    let expected = [
-        ("enabled", ValidationArgument::Bool(true)),
-        ("lower", ValidationArgument::Integer(i128::MIN)),
-        ("upper", ValidationArgument::Unsigned(u128::MAX)),
-        ("accepted", ValidationArgument::String("accepted")),
-        ("switches", ValidationArgument::BoolList(&[true, false])),
-        ("signed", ValidationArgument::IntegerList(&[i128::MIN, i128::MAX])),
-        ("unsigned", ValidationArgument::UnsignedList(&[0, u128::MAX])),
-        ("labels", ValidationArgument::StringList(&["first", "second"])),
-    ];
-    let received: Vec<_> = arguments
-        .iter()
-        .map(|argument| (argument.name(), argument.value()))
-        .collect();
-    assert_eq!(
-        received, expected,
-        "all names, types, bounds, and list order must survive binding"
-    );
-    let ValidationArgument::String(accepted) = arguments[3].value() else {
-        unreachable!("the complete public argument contract was checked above");
-    };
+/// Checks the typed consumer parameter contract before compiling the rule.
+fn prepare(arguments: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
+    assert_eq!(arguments.optional_bool("enabled")?, Some(true));
+    assert_eq!(arguments.required_u32("minimum")?, 7);
+    let accepted = arguments.required_str("accepted")?;
+    arguments.finish()?;
     Ok(Arc::new(AllowToken(accepted.to_owned())))
 }
 
@@ -144,7 +118,7 @@ fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
             token: token.to_owned(),
         };
         let report = plan
-            .validate(ReflectedRef::new(&value), &ValidationOptions::default())
+            .validate(DynamicRef::<Local>::new(&value), &ValidationOptions::default())
             .expect("configured rule executes");
         assert_eq!(report.violations().len(), expected_failures);
         assert!(!report.is_truncated());

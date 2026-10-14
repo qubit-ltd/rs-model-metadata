@@ -16,7 +16,7 @@ use qubit_model_metadata::__private::ModelMetadataProvider;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider as TypeMetadataProviderTrait;
 use qubit_model_metadata::__private::model_metadata_key;
-use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::FieldMetadata;
 use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::ModelMetadataError;
@@ -55,7 +55,7 @@ fn first<T: 'static>() -> CapabilityDescriptor {
 fn second<T: 'static>() -> CapabilityDescriptor {
     CapabilityDescriptor::with_adapter(conflict_key(), 2)
 }
-#[derive(Reflect)]
+#[Reflect]
 #[reflect(capabilities(first, second))]
 struct Invalid<const N: usize>;
 
@@ -65,8 +65,8 @@ fn test_metadata_and_properties_preserve_intrinsic_conflicts() {
     let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
     let descriptor = TypeDescriptor::of::<Invalid<1>>();
     assert!(models.metadata_for(descriptor).is_err());
-    let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], v7::leak(v7::model_role())).finish::<Invalid<1>>(),
+    let metadata = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], v8::leak(v8::model_role())).finish::<Invalid<1>>(),
     );
     assert!(metadata.try_properties_in(&reflection).is_err());
     assert!(metadata.property_fragments_in(&reflection).is_err());
@@ -75,7 +75,7 @@ fn test_metadata_and_properties_preserve_intrinsic_conflicts() {
 }
 
 /// A value root with two independently invalid nested types.
-#[derive(Reflect)]
+#[Reflect]
 struct Root {
     first: Invalid<2>,
     second: Invalid<3>,
@@ -85,24 +85,24 @@ fn root_metadata() -> &'static TypeMetadata {
     static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
     METADATA.get_or_init(|| {
         let descriptor = TypeDescriptor::of::<Root>();
-        let fields = v7::leak_slice(
+        let fields = v8::leak_slice(
             descriptor
                 .fields()
                 .iter()
                 .map(|field| FieldMetadata::from_reflect(field.declaring_type().type_id(), field))
                 .collect(),
         );
-        v7::GeneratedTypeMetadataBuilder::new(
+        v8::GeneratedTypeMetadataBuilder::new(
             descriptor,
             Some(ModelId::new("error.Root")),
             fields,
-            v7::leak(v7::value_role(None, None)),
+            v8::leak(v8::value_role(None, None)),
         )
         .finish::<Root>()
     })
 }
 
-v7::register_model_capability!(Root, root_metadata);
+v8::register_model_capability!(Root, root_metadata);
 
 #[allow(
     clippy::extra_unused_type_parameters,
@@ -112,7 +112,7 @@ fn wrong_provider<T: 'static>() -> CapabilityDescriptor {
     CapabilityDescriptor::with_adapter(model_metadata_key(), root_metadata as fn() -> &'static TypeMetadata)
 }
 
-#[derive(Reflect)]
+#[Reflect]
 #[reflect(capabilities(wrong_provider))]
 struct Wrong<const N: usize>;
 
@@ -122,7 +122,7 @@ static ALTERNATE_WRONG_DESCRIPTOR: TypeDescriptor = qubit_reflect::__private::co
 
 static PANIC_ONCE_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Reflect)]
+#[Reflect]
 #[reflect(capabilities(panic_once_capability))]
 struct PanicOnce<const N: usize>;
 
@@ -145,11 +145,11 @@ fn panic_once_metadata() -> &'static TypeMetadata {
 fn panic_once_metadata_for_one() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v7::GeneratedTypeMetadataBuilder::new(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<PanicOnce<1>>(),
             None,
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish::<PanicOnce<1>>()
     })
@@ -158,11 +158,11 @@ fn panic_once_metadata_for_one() -> &'static TypeMetadata {
 fn panic_once_metadata_for_two() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v7::GeneratedTypeMetadataBuilder::new(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<PanicOnce<2>>(),
             None,
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish::<PanicOnce<2>>()
     })
@@ -235,12 +235,12 @@ fn test_metadata_for_caches_absence_and_structured_errors() {
 #[test]
 fn test_metadata_cache_separates_descriptors_with_the_same_type_id() {
     let descriptor = TypeDescriptor::of::<Wrong<2>>();
-    let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let metadata = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             descriptor,
             Some(ModelId::new("error.WrongDescriptor")),
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish::<Wrong<2>>(),
     );

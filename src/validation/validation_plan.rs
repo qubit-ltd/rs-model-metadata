@@ -39,6 +39,7 @@ use crate::validation::model_rule_binding::ModelRuleBinding;
 /// # Examples
 ///
 /// ```
+/// use qubit_reflect::value::Local;
 /// use qubit_model_derive::Model;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
@@ -47,7 +48,7 @@ use crate::validation::model_rule_binding::ModelRuleBinding;
 /// use qubit_model_metadata::validation::ValidationBuildInputs;
 /// use qubit_model_metadata::validation::ValidationOptions;
 /// use qubit_model_metadata::validation::ValidationPlan;
-/// use qubit_reflect::ReflectedRef;
+/// use qubit_reflect::value::DynamicRef;
 /// use qubit_validator::ValidatorRegistry;
 /// use std::sync::Arc;
 ///
@@ -63,7 +64,7 @@ use crate::validation::model_rule_binding::ModelRuleBinding;
 /// let plan = ValidationPlan::build(root, ValidationBuildInputs { graph, validators: &validators })
 ///     .expect("built-in text rules bind without custom registration");
 /// let profile = Profile { name: String::new() };
-/// let report = plan.validate(ReflectedRef::new(&profile), &ValidationOptions::default())
+/// let report = plan.validate(DynamicRef::<Local>::new(&profile), &ValidationOptions::default())
 ///     .expect("no infrastructure failure");
 /// assert_eq!(report.violations().len(), 1);
 /// assert_eq!(report.violations()[0].path().render(), "name");
@@ -156,11 +157,12 @@ mod tests {
     use std::sync::Arc;
 
     use qubit_reflect::Reflect;
-    use qubit_reflect::ReflectedRef;
     use qubit_reflect::TypeDescriptor;
+    use qubit_reflect::value::DynamicRef;
+    use qubit_reflect::value::Local;
     use qubit_validator::ValidatorRegistry;
 
-    use crate::__private::v7;
+    use crate::__private::v8;
     use crate::metadata::TypeMetadata;
     use crate::registry::ModelRegistry;
     use crate::resolve::ResolveInputs;
@@ -169,18 +171,18 @@ mod tests {
     use crate::validation::ValidationOptions;
     use crate::validation::ValidationPlan;
 
-    #[derive(Reflect)]
+    #[Reflect]
     struct Profile;
 
     /// A plan retains the resolved graph after the caller releases its handle.
     #[test]
     fn test_plan_retains_graph_after_caller_drops_arc() {
-        let root: &'static TypeMetadata = v7::leak(
-            v7::GeneratedTypeMetadataBuilder::new(
+        let root: &'static TypeMetadata = v8::leak(
+            v8::GeneratedTypeMetadataBuilder::new(
                 TypeDescriptor::of::<Profile>(),
                 None,
                 &[],
-                v7::leak(v7::model_role()),
+                v8::leak(v8::model_role()),
             )
             .finish::<Profile>(),
         );
@@ -211,7 +213,7 @@ mod tests {
         assert!(std::ptr::eq(plan.graph(), graph_ptr));
         let profile = Profile;
         let report = plan
-            .validate(ReflectedRef::new(&profile), &ValidationOptions::default())
+            .validate(DynamicRef::<Local>::new(&profile), &ValidationOptions::default())
             .expect("validation succeeds");
         assert!(report.is_valid());
         assert!(report.violations().is_empty());

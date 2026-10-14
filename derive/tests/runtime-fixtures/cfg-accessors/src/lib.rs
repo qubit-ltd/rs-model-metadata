@@ -129,9 +129,10 @@ mod tests {
     use std::any::TypeId;
 
     use model_runtime::metadata::TypeMetadata;
-    use qubit_reflect::ReflectedMut;
-    use qubit_reflect::ReflectedOwned;
-    use qubit_reflect::ReflectedRef;
+    use qubit_reflect::value::DynamicMut;
+    use qubit_reflect::value::DynamicOwned;
+    use qubit_reflect::value::DynamicRef;
+    use qubit_reflect::value::Local;
     use qubit_reflect::registry::ReflectRegistry;
 
     use super::Configured;
@@ -161,7 +162,7 @@ mod tests {
                 .any(|method| method.rust_name() == name);
             assert_eq!(method_present, enabled, "reflection method {name}");
             if let Some(property) = property {
-                assert!(property.get(ReflectedRef::new(&value)).is_ok(), "adapter {name}");
+                assert!(property.get(DynamicRef::<Local>::new(&value)).is_ok(), "adapter {name}");
             }
         }
         for (name, enabled) in [
@@ -181,14 +182,14 @@ mod tests {
         assert!(paired.setter().is_some());
         let mut changed = Configured { value: 0 };
         let replacement = if cfg!(feature = "alternate") {
-            ReflectedOwned::new("23".to_owned())
+            DynamicOwned::<Local>::new("23".to_owned())
         } else {
-            ReflectedOwned::new(23u32)
+            DynamicOwned::<Local>::new(23u32)
         };
-        paired.set(ReflectedMut::new(&mut changed), replacement).expect("enabled paired setter adapter");
+        paired.set(DynamicMut::<Local>::new(&mut changed), replacement).expect("enabled paired setter adapter");
         assert_eq!(changed.value, 23);
         if let Some(property) = metadata.try_property("feature_value").expect("feature property") {
-            property.set(ReflectedMut::new(&mut changed), ReflectedOwned::new(29u32)).expect("feature setter adapter");
+            property.set(DynamicMut::<Local>::new(&mut changed), DynamicOwned::<Local>::new(29u32)).expect("feature setter adapter");
             assert_eq!(changed.value, 29);
         }
     }
@@ -215,7 +216,7 @@ mod tests {
                 ("impl_current", cfg!(feature = "impl-enabled")),
                 ("missing", false),
             ] {
-                let present = reflection.implementations(metadata.descriptor().type_id()).iter()
+                let present = reflection.impl_definitions().iter()
                     .flat_map(|implementation| implementation.methods()).any(|method| method.rust_name() == name);
                 assert_eq!(present, enabled, "generic reflection method {name}");
             }

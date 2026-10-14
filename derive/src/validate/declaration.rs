@@ -119,6 +119,12 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
 /// Rejects user reflection derives that would duplicate generated metadata.
 pub(crate) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
     for attribute in attributes {
+        if attribute.path().is_ident("Reflect") {
+            return Err(Error::new_spanned(
+                attribute,
+                "model macros generate Reflect; remove the duplicate Reflect attribute",
+            ));
+        }
         if !attribute.path().is_ident("derive") {
             continue;
         }

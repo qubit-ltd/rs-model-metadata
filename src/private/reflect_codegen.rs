@@ -70,7 +70,7 @@ macro_rules! __qubit_model_register_generic_model_capability {
                 $crate::__private::codegen_v3::registration::FragmentPayload::Capability(
                     $crate::__private::codegen_v3::registration::CapabilityRegistration::for_definition(
                         $definition(),
-                        ::std::vec![$crate::__private::v7::generic_model_capability($metadata)],
+                        ::std::vec![$crate::__private::v8::generic_model_capability($metadata)],
                     ),
                 )
             }

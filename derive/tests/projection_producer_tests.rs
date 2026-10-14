@@ -10,7 +10,8 @@
 
 use std::sync::LazyLock;
 
-use model_runtime::__private::ReflectedRef;
+use model_runtime::__private::DynamicRef;
+use model_runtime::__private::Local;
 use model_runtime::__private::qubit_id::Id;
 use model_runtime::metadata::PropertyValue;
 use model_runtime::metadata::TypeMetadata;
@@ -98,10 +99,13 @@ fn test_resolver_discovers_and_executes_projection_producers() {
     assert_eq!(getter.rust_method_name(), "good");
     assert!(std::ptr::eq(getter, good.property().getter().expect("property getter")));
     assert!(matches!(
-        good.project(ReflectedRef::new(&7_u32)),
+        good.project(DynamicRef::<Local>::new(&7_u32)),
         Err(ProjectionExecutionError::Field(_))
     ));
-    let PropertyValue::Owned(value) = good.project(ReflectedRef::new(&source)).expect("matching identifier") else {
+    let PropertyValue::Owned(value) = good
+        .project(DynamicRef::<Local>::new(&source))
+        .expect("matching identifier")
+    else {
         panic!("owned getter must produce an owned projection");
     };
     assert_eq!(
@@ -122,7 +126,7 @@ fn test_resolver_discovers_and_executes_projection_producers() {
         })
         .expect("bad producer");
     assert!(matches!(
-        bad.project(ReflectedRef::new(&source)),
+        bad.project(DynamicRef::<Local>::new(&source)),
         Err(ProjectionExecutionError::IdentifierMismatch),
     ));
     let borrowed = graph
@@ -131,7 +135,7 @@ fn test_resolver_discovers_and_executes_projection_producers() {
         .find(|producer| producer.property().name() == "borrowed")
         .expect("borrowed producer");
     let PropertyValue::Borrowed(value) = borrowed
-        .project(ReflectedRef::new(&source))
+        .project(DynamicRef::<Local>::new(&source))
         .expect("matching borrowed identifier")
     else {
         panic!("borrowed projector must preserve the borrow");

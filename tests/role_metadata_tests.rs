@@ -8,7 +8,9 @@
 
 //! Integration tests for the five model-role metadata payloads.
 
-use qubit_model_metadata::__private::v7;
+use std::any::TypeId;
+
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::DeclaredEntityTarget;
 use qubit_model_metadata::metadata::EnumVariantMetadata;
 use qubit_model_metadata::metadata::FieldAttributeMetadata;
@@ -22,13 +24,20 @@ use qubit_model_metadata::metadata::RoleMetadata;
 use qubit_model_metadata::metadata::SerdeFieldMetadata;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::TypeMismatch;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 
-#[derive(Reflect)]
+fn unavailable_identifier<'a>(_: DynamicRef<'a, Local>) -> Result<&'a qubit_id::Id, TypeMismatch> {
+    Err(TypeMismatch::new(TypeId::of::<()>(), TypeId::of::<()>()))
+}
+
+#[Reflect]
 struct EntityFixture {
     id: u64,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 enum EnumFixture {
     Ready,
 }
@@ -44,21 +53,23 @@ fn test_five_role_payloads_expose_only_role_specific_facts() {
             .type_id(),
         descriptor.field_at(0).expect("identifier field"),
     )));
-    let RoleMetadata::Entity(entity) = v7::entity_role(identifier) else {
+    let RoleMetadata::Entity(entity) = v8::entity_role(identifier, unavailable_identifier) else {
         unreachable!()
     };
     let source = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new("example.Source"))));
-    let RoleMetadata::Projection(projection) = v7::projection_role(identifier, Some(source)) else {
+    let RoleMetadata::Projection(projection) = v8::projection_role(identifier, Some(source), unavailable_identifier)
+    else {
         unreachable!()
     };
-    let RoleMetadata::Projection(open_projection) = v7::projection_role(identifier, None) else {
+    let RoleMetadata::Projection(open_projection) = v8::projection_role(identifier, None, unavailable_identifier)
+    else {
         unreachable!()
     };
     let model = ModelMetadata;
-    let RoleMetadata::Value(value) = v7::value_role(Some(identifier), None) else {
+    let RoleMetadata::Value(value) = v8::value_role(Some(identifier), None) else {
         unreachable!()
     };
-    let RoleMetadata::Value(opaque_value) = v7::value_role(None, None) else {
+    let RoleMetadata::Value(opaque_value) = v8::value_role(None, None) else {
         unreachable!()
     };
 
@@ -97,9 +108,9 @@ fn test_five_role_payloads_expose_only_role_specific_facts() {
 fn test_enum_variant_keeps_rust_canonical_and_directional_serde_names() {
     let descriptor = TypeDescriptor::of::<EnumFixture>();
     let reflect = descriptor.variants().first().expect("enum variant");
-    let variant = v7::enum_variant_metadata(reflect, "READY", "ready-out", "ready-in", &[], true);
+    let variant = v8::enum_variant_metadata(reflect, "READY", "ready-out", "ready-in", &[], true);
     let variants = Box::leak(vec![variant].into_boxed_slice());
-    let RoleMetadata::Enum(metadata) = v7::enum_role(variants) else {
+    let RoleMetadata::Enum(metadata) = v8::enum_role(variants) else {
         unreachable!()
     };
 
@@ -129,7 +140,7 @@ fn test_type_metadata_navigates_fields_and_role_without_copying_reflection_facts
     let identifier = Box::leak(Box::new(IdentifierMetadata::new(IdentifierAssignment::Application)));
     let attributes = Box::leak(vec![FieldAttributeMetadata::Identifier(identifier)].into_boxed_slice());
     let fields = Box::leak(
-        vec![v7::field_metadata(
+        vec![v8::field_metadata(
             descriptor
                 .field_at(0)
                 .expect("identifier field")
@@ -143,9 +154,9 @@ fn test_type_metadata_navigates_fields_and_role_without_copying_reflection_facts
         )]
         .into_boxed_slice(),
     );
-    let role = Box::leak(Box::new(v7::entity_role(&fields[0])));
+    let role = Box::leak(Box::new(v8::entity_role(&fields[0], unavailable_identifier)));
     let metadata =
-        v7::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.Entity")), fields, role)
+        v8::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.Entity")), fields, role)
             .finish::<EntityFixture>();
 
     assert!(std::ptr::eq(metadata.descriptor(), descriptor));

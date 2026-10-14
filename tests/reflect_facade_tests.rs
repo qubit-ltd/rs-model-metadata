@@ -19,21 +19,21 @@ use qubit_id::Id;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
 use qubit_model_metadata::__private::model_impl_fragment_key;
-use qubit_model_metadata::__private::v7;
-use qubit_model_metadata::__private::v7::register_model_capability;
+use qubit_model_metadata::__private::v8;
+use qubit_model_metadata::__private::v8::register_model_capability;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
 use uuid::Uuid;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Account;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Impostor;
 
-#[derive(Reflect)]
+#[Reflect]
 struct ExternalTypeFixture {
     id: Id,
     created_at: DateTime<Utc>,
@@ -48,8 +48,8 @@ impl TypeMetadataProvider for Account {
     fn __type_metadata() -> &'static TypeMetadata {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
-            let role = v7::leak(v7::model_role());
-            v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
+            let role = v8::leak(v8::model_role());
+            v8::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
         })
     }
 }

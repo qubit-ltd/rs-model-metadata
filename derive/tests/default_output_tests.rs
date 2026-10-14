@@ -95,7 +95,7 @@ fn test_default_outputs_protect_secrets() {
     }
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct NoValueTraits;
 
 #[Model(eq, hash, no_redact, no_debug, no_display, no_serialize, no_deserialize)]

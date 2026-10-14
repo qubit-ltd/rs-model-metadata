@@ -8,10 +8,9 @@
 // The filename is part of a Cargo or trybuild fixture protocol.
 
 use qubit_model_derive::Model;
-use qubit_reflect::Reflect;
 
 #[Model]
-#[derive(Reflect)]
+#[Reflect]
 struct DuplicateReflect;
 
 fn main() {}

@@ -28,7 +28,8 @@ use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationOptionsBuilder;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::validation::ValidationSelection;
-use qubit_reflect::ReflectedRef;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
@@ -145,7 +146,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         },
     };
     let all = plan
-        .validate(ReflectedRef::new(&value), &ValidationOptions::default())
+        .validate(DynamicRef::<Local>::new(&value), &ValidationOptions::default())
         .expect("unselected execution");
     assert_eq!(
         all.violations()
@@ -156,7 +157,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
     );
     let explicitly_all = plan
         .validate(
-            ReflectedRef::new(&value),
+            DynamicRef::<Local>::new(&value),
             &ValidationOptions::builder().selection(ValidationSelection::All).build(),
         )
         .expect("All selection validates every bound occurrence");
@@ -165,7 +166,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         .selection(ValidationSelection::Fields(vec![selected.clone(), selected]))
         .build();
     let report = plan
-        .validate(ReflectedRef::new(&value), &options)
+        .validate(DynamicRef::<Local>::new(&value), &options)
         .expect("repeated selection executes one matching occurrence");
     let actual: Vec<_> = report
         .violations()
@@ -182,7 +183,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
             .selection(ValidationSelection::Fields(vec![unmatched.clone()]))
             .build();
         let error = plan
-            .validate(ReflectedRef::new(&value), &options)
+            .validate(DynamicRef::<Local>::new(&value), &options)
             .expect_err("non-matching path must be rejected");
         assert_eq!(error.error().kind(), ExecutionErrorKind::InvalidSelection);
         let retained_path = error
@@ -257,7 +258,7 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
             .selection(ValidationSelection::Fields(selection))
             .build();
         let error = plan
-            .validate(ReflectedRef::new(&value), &options)
+            .validate(DynamicRef::<Local>::new(&value), &options)
             .expect_err("unmatched selection must be rejected");
         assert_eq!(error.error().kind(), ExecutionErrorKind::InvalidSelection);
         assert!(error.error().path().as_segments().is_empty());
@@ -318,7 +319,7 @@ fn test_explicit_empty_path_selects_model_level_rule() {
         .build();
     let report = plan
         .validate(
-            ReflectedRef::new(&SelectedFields {
+            DynamicRef::<Local>::new(&SelectedFields {
                 first: String::new(),
                 second: String::new(),
                 plain: String::new(),
@@ -362,7 +363,7 @@ fn test_builder_field_selection_and_budget_execute_together() {
         .build();
     let report = plan
         .validate(
-            ReflectedRef::new(&SelectedFields {
+            DynamicRef::<Local>::new(&SelectedFields {
                 first: String::new(),
                 second: String::new(),
                 plain: String::new(),

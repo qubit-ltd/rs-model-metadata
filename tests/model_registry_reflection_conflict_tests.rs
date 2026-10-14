@@ -12,8 +12,8 @@ use std::error::Error as _;
 
 use qubit_model_metadata::__private::ModelImplProvider;
 use qubit_model_metadata::__private::model_impl_key;
-use qubit_model_metadata::__private::v7;
-use qubit_model_metadata::__private::v7::register_model_impl_capability;
+use qubit_model_metadata::__private::v8;
+use qubit_model_metadata::__private::v8::register_model_impl_capability;
 use qubit_model_metadata::metadata::ModelImplMetadata;
 use qubit_model_metadata::metadata::PropertyResolutionError;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -26,7 +26,7 @@ use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::register_reflected_type;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
-#[derive(Reflect)]
+#[Reflect]
 struct DuplicateReflectionSource;
 
 register_reflected_type!(DuplicateReflectionSource);
@@ -56,12 +56,12 @@ fn test_duplicate_concrete_source_is_reported_by_reflection_registry() {
 /// properties.
 #[test]
 fn test_property_lookup_preserves_reflection_initialization_failure() {
-    let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let metadata = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
             None,
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish::<DuplicateReflectionSource>(),
     );
@@ -102,9 +102,9 @@ fn test_property_lookup_preserves_reflection_initialization_failure() {
 fn overlay_provider() -> &'static ModelImplMetadata {
     static OVERLAY: std::sync::OnceLock<ModelImplMetadata> = std::sync::OnceLock::new();
     OVERLAY.get_or_init(|| {
-        let type_ref = v7::leak(TypeRef::Resolved(TypeDescriptor::of::<u32>()));
-        let properties = v7::leak_slice(vec![v7::property_metadata("computed", type_ref, None, None, None)]);
-        v7::model_impl_metadata(&[], Ok(v7::leak(v7::local_property_set(properties))))
+        let type_ref = v8::leak(TypeRef::Resolved(TypeDescriptor::of::<u32>()));
+        let properties = v8::leak_slice(vec![v8::property_metadata("computed", type_ref, None, None, None)]);
+        v8::model_impl_metadata(&[], Ok(v8::leak(v8::local_property_set(properties))))
     })
 }
 
@@ -125,12 +125,12 @@ fn test_isolated_snapshot_selects_its_own_property_overlay() {
     );
     let reflection = snapshot.build().expect("isolated capability snapshot");
     assert!(reflection.types().is_empty());
-    let metadata = v7::leak(
-        v7::GeneratedTypeMetadataBuilder::new(
+    let metadata = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new(
             TypeDescriptor::of::<DuplicateReflectionSource>(),
             None,
             &[],
-            v7::leak(v7::model_role()),
+            v8::leak(v8::model_role()),
         )
         .finish::<DuplicateReflectionSource>(),
     );

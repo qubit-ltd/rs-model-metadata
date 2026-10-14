@@ -938,21 +938,21 @@ mod tests {
     use qubit_reflect::identity::FragmentIdentity;
 
     use super::ModelRegistry;
-    use crate::__private::v7;
+    use crate::__private::v8;
     use crate::metadata::TypeMetadata;
     use crate::registry::ModelRegistryErrorKind;
 
-    #[derive(Reflect)]
+    #[Reflect]
     struct AnonymousMetadataFixture;
 
     /// Creates distinct ABI-valid anonymous metadata values for one descriptor.
     fn anonymous_metadata() -> &'static TypeMetadata {
-        v7::leak(
-            v7::GeneratedTypeMetadataBuilder::new(
+        v8::leak(
+            v8::GeneratedTypeMetadataBuilder::new(
                 TypeDescriptor::of::<AnonymousMetadataFixture>(),
                 None,
                 &[],
-                v7::leak(v7::model_role()),
+                v8::leak(v8::model_role()),
             )
             .finish::<AnonymousMetadataFixture>(),
         )

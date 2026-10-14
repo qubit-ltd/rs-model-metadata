@@ -12,18 +12,26 @@ pub use qubit_id;
 pub use qubit_redact as redact;
 pub use qubit_reflect::__private::codegen_v3;
 pub use qubit_reflect::Reflect;
-pub use qubit_reflect::ReflectedMut;
-pub use qubit_reflect::ReflectedOwned;
-pub use qubit_reflect::ReflectedRef;
+pub use qubit_reflect::ReflectImpl;
 pub use qubit_reflect::TypeDescriptor;
+pub use qubit_reflect::TypeMismatch;
 pub use qubit_reflect::capability::CapabilityDescriptor;
 pub use qubit_reflect::capability::TypeCapabilities as ReflectTypeCapabilities;
 pub use qubit_reflect::descriptor::TypeRef;
 pub use qubit_reflect::expression::ConstExpression;
 pub use qubit_reflect::expression::TypeExpression;
-pub use qubit_reflect::reflect_impl;
 pub use qubit_reflect::register_type_capabilities;
+pub use qubit_reflect::value::DynamicMut;
+pub use qubit_reflect::value::DynamicOwned;
+pub use qubit_reflect::value::DynamicRef;
+pub use qubit_reflect::value::Local;
 pub use serde;
+
+/// Typed accessor used only for the identifier field of Entity and Projection
+/// metadata.
+#[doc(hidden)]
+pub type IdentifierAccessor =
+    for<'a> fn(DynamicRef<'a, Local>) -> Result<&'a qubit_id::Id, qubit_reflect::TypeMismatch>;
 
 pub use crate::metadata::NamedValidationArgument;
 pub use crate::metadata::Sensitivity;
@@ -299,14 +307,16 @@ mod compile_assertions {
     }
 }
 
-/// Current generated-code ABI.
+/// Current generated-code ABI namespace. Role constructors now take an
+/// identifier accessor; generated code uses [`v8`] to make that signature
+/// change explicit at the runtime/derive boundary.
 ///
 /// All intentionally permanent allocations used by generic metadata are
 /// centralized here. Generated code must finish each aggregate through
-/// [`v7::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
+/// [`v8::GeneratedTypeMetadataBuilder::finish`] so malformed metadata fails at
 /// its construction boundary.
 #[doc(hidden)]
-pub mod v7 {
+pub mod v8 {
     use qubit_reflect::FieldDefinitionDescriptor;
     use qubit_reflect::FieldDescriptor;
     #[cfg(feature = "generic")]
@@ -450,8 +460,11 @@ pub mod v7 {
     /// Builds entity-role metadata for an identifier field.
     #[doc(hidden)]
     #[must_use]
-    pub const fn entity_role(identifier: &'static crate::metadata::FieldMetadata) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Entity(crate::metadata::EntityMetadata::new(identifier))
+    pub const fn entity_role(
+        identifier: &'static crate::metadata::FieldMetadata,
+        identifier_accessor: crate::__private::IdentifierAccessor,
+    ) -> crate::metadata::RoleMetadata {
+        crate::metadata::RoleMetadata::Entity(crate::metadata::EntityMetadata::new(identifier, identifier_accessor))
     }
 
     /// Builds projection-role metadata and its optional source target.
@@ -460,8 +473,13 @@ pub mod v7 {
     pub const fn projection_role(
         identifier: &'static crate::metadata::FieldMetadata,
         source: Option<&'static crate::metadata::DeclaredEntityTarget>,
+        identifier_accessor: crate::__private::IdentifierAccessor,
     ) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Projection(crate::metadata::ProjectionMetadata::new(identifier, source))
+        crate::metadata::RoleMetadata::Projection(crate::metadata::ProjectionMetadata::new(
+            identifier,
+            source,
+            identifier_accessor,
+        ))
     }
 
     /// Builds metadata for a general model role.

@@ -141,10 +141,11 @@ fn test_installation_rejects_missing_direct_dependency() {
         "doc/user_guide.md:{} validation/profile: missing direct reflect dependency must fail",
         manifest.line
     );
+    let diagnostic = stderr(&output);
     assert!(
-        stderr(&output).contains("error[E0432]") && stderr(&output).contains("qubit_reflect"),
-        "wrong failure: {}",
-        stderr(&output)
+        diagnostic.contains("cannot resolve `qubit-reflect`")
+            || diagnostic.contains("error[E0432]") && diagnostic.contains("qubit_reflect"),
+        "wrong failure: {diagnostic}"
     );
 }
 

@@ -9,9 +9,10 @@
 //! Execution APIs sharing one report accumulator and one work budget.
 
 use qubit_reflect::OptionalProjectionError;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::value::DynamicOwned;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validation_rules::collection::UniquePairs;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
@@ -144,7 +145,7 @@ impl<'a> ValidationPlan<'a> {
     /// Returns the original infrastructure failure and the partial report.
     pub fn validate(
         &self,
-        value: ReflectedRef<'_>,
+        value: DynamicRef<'_, Local>,
         options: &ValidationOptions,
     ) -> Result<ValidationReport, ModelValidationError> {
         self.validate_with_context(value, &[], options)
@@ -170,8 +171,8 @@ impl<'a> ValidationPlan<'a> {
     /// traversal-limit error before the operation that would exceed its budget.
     pub fn validate_with_context<'value>(
         &self,
-        value: ReflectedRef<'value>,
-        ancestors: &[ReflectedRef<'value>],
+        value: DynamicRef<'value, Local>,
+        ancestors: &[DynamicRef<'value, Local>],
         options: &ValidationOptions,
     ) -> Result<ValidationReport, ModelValidationError> {
         if value.value_type_id() != self.root().type_id() {
@@ -289,15 +290,17 @@ fn unmatched_selection(
 fn execute_field<'value>(
     binding: &FieldRuleBinding,
     occurrence: usize,
-    root: ReflectedRef<'value>,
-    ancestors: &[ReflectedRef<'value>],
+    root: DynamicRef<'value, Local>,
+    ancestors: &[DynamicRef<'value, Local>],
     graph: &ModelGraph<'_>,
     budget: &mut ExecutionBudget<'_>,
     report: &mut ReportAccumulator<'_>,
     has_more_work: bool,
 ) -> Result<(), ExecutionFailure> {
     let path = path_for(binding.value());
-    let value = path_reader::read(binding.value(), root.clone(), 0, budget)?;
+    let Some(value) = path_reader::read(binding.value(), root.clone(), 0, budget)? else {
+        return Ok(());
+    };
     let missing_optional_path = matches!(&value, PropertyValue::OptionalBorrowed(None));
     let direct_optional_scalar = binding.value().steps().last().is_some_and(|step| {
         let property = step.property();
@@ -359,10 +362,18 @@ fn execute_field<'value>(
         .map_err(Into::into);
     }
     if let Some(selector) = binding.selector() {
-        if selector.position() != SelectorPosition::Element {
-            return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
-        }
-        return execute_elements(binding, occurrence, value, &path, budget, report, has_more_work).map_err(Into::into);
+        return execute_selected_members(
+            binding,
+            occurrence,
+            value,
+            &path,
+            selector.position(),
+            selector.items(),
+            budget,
+            report,
+            has_more_work,
+        )
+        .map_err(Into::into);
     }
     let FieldExecution::Registry {
         validator,
@@ -513,50 +524,63 @@ fn execute_unique(
     Ok(())
 }
 
-/// Executes selected slice elements, checking stop and budgets before each
-/// operation.
-fn execute_elements(
+/// Executes selected sequence or map members, checking budgets before each
+/// member is exposed to the validator.
+#[allow(clippy::too_many_arguments)]
+fn execute_selected_members(
     binding: &FieldRuleBinding,
     occurrence: usize,
     value: PropertyValue<'_>,
     path: &ValidationPath,
+    position: SelectorPosition,
+    items: crate::property::CollectionItemsAdapter,
     budget: &mut ExecutionBudget<'_>,
     report: &mut ReportAccumulator<'_>,
     has_more_work: bool,
 ) -> Result<(), ExecutionError> {
-    let PropertyValue::BorrowedSlice(values) = value else {
-        return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
+    let mut values = items(&value, position).map_err(|error| {
+        ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+            .with_trusted_source(error)
+            .with_path(path.clone())
+    })?;
+    let Some(mut values) = values.take() else {
+        return Ok(());
     };
-    for index in 0..values.len() {
+    let FieldExecution::Registry { validator, .. } = binding.execution() else {
+        return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone()));
+    };
+    let context = BoundValidationContext::new_with_paths(&[], &[])?;
+    let mut index = 0_usize;
+    loop {
         if report.stopped() {
             break;
         }
-        let element_path = path.clone().with_index(index);
-        let depth = element_path.as_segments().len();
+        if values.remaining_len() == Some(0) {
+            break;
+        }
+        let member_path = match position {
+            SelectorPosition::Element => path.clone().with_index(index),
+            SelectorPosition::MapKey => path.clone().with_map_entry(index).with_map_key(),
+            SelectorPosition::MapValue => path.clone().with_map_entry(index).with_map_value(),
+        };
+        let depth = member_path.as_segments().len();
         budget
             .read(depth)
-            .map_err(|error| error.with_path(element_path.clone()))?;
-        let element = values.get(index).ok_or_else(|| {
-            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(element_path.clone())
-        })?;
-        let context = BoundValidationContext::new_with_paths(&[], &[])?;
+            .map_err(|error| error.with_path(member_path.clone()))?;
         budget
             .invoke(depth, true)
-            .map_err(|error| error.with_path(element_path.clone()))?;
-        let FieldExecution::Registry { validator, .. } = binding.execution() else {
-            return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(element_path));
+            .map_err(|error| error.with_path(member_path.clone()))?;
+        let Some(element) = values.next() else {
+            break;
         };
+        let member_has_more = values.remaining_len().is_none_or(|remaining| remaining > 0);
         let outcome = validator
             .validate(reflected_value(&element), &context)
-            .map_err(|error| prefix_error(error, &element_path))?;
+            .map_err(|error| prefix_error(error, &member_path))?;
         report
-            .accept(
-                occurrence,
-                &element_path,
-                outcome,
-                index + 1 < values.len() || has_more_work,
-            )
-            .map_err(|error| error.with_path(element_path))?;
+            .accept(occurrence, &member_path, outcome, member_has_more || has_more_work)
+            .map_err(|error| error.with_path(member_path))?;
+        index += 1;
     }
     Ok(())
 }
@@ -580,7 +604,7 @@ fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionErro
 }
 
 /// Converts a reflected borrow into the validator input abstraction.
-fn reflected_value<'a>(value: &'a ReflectedRef<'_>) -> ValidationValue<'a> {
+fn reflected_value<'a>(value: &'a DynamicRef<'_, Local>) -> ValidationValue<'a> {
     if let Some(text) = value.as_str() {
         return ValidationValue::Text(text);
     }
@@ -607,18 +631,18 @@ fn property_value<'a>(value: &'a PropertyValue<'_>) -> ValidationValue<'a> {
 fn optional_scalar_value<'a>(
     value: &PropertyValue<'a>,
     descriptor: &'static TypeDescriptor,
-) -> Result<Option<ReflectedRef<'a>>, OptionalProjectionError> {
+) -> Result<Option<DynamicRef<'a, Local>>, OptionalProjectionError> {
     let PropertyValue::Borrowed(value) = value else {
         return Err(OptionalProjectionError::Unavailable);
     };
     descriptor
         .as_optional()
         .ok_or(OptionalProjectionError::Unavailable)?
-        .project_ref(value.clone())
+        .project_dynamic_ref(value.clone())
 }
 
 /// Converts an owned reflected value into a validator input abstraction.
-fn owned_value<'a>(value: &'a ReflectedOwned) -> ValidationValue<'a> {
+fn owned_value<'a>(value: &'a DynamicOwned<Local>) -> ValidationValue<'a> {
     if let Some(text) = value.downcast_ref::<String>() {
         return ValidationValue::Text(text.as_str());
     }
@@ -649,8 +673,10 @@ fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
 mod tests {
     use qubit_validator::ValidationPath;
 
+    use super::SelectionMask;
     use super::field_matches;
     use crate::validation::validation_options::FieldPath;
+    use crate::validation::validation_options::ValidationSelection;
 
     #[test]
     fn test_field_matching_ignores_indices_without_allocating_a_field_list() {
@@ -668,5 +694,22 @@ mod tests {
                 .with_index(2)
                 .with_field("other"),
         ));
+    }
+
+    #[test]
+    fn test_selection_mask_tracks_all_and_explicit_root_selection() {
+        let mut all = SelectionMask::new(&ValidationSelection::All, 1, &[]);
+        assert!(all.selected(0));
+        assert!(!all.later_selected(0));
+        assert!(all.take_field_path(0).is_none());
+
+        let mut fields = SelectionMask::new(
+            &ValidationSelection::Fields(vec![FieldPath::from_segments([] as [&str; 0])]),
+            1,
+            &[],
+        );
+        assert!(fields.selected(0));
+        assert!(!fields.later_selected(0));
+        assert!(fields.take_field_path(0).is_none());
     }
 }

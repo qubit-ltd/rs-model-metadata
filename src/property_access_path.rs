@@ -17,9 +17,10 @@ use std::any::TypeId;
 
 pub use property_access_path_error::PropertyAccessPathError;
 pub use property_access_write_failure::PropertyAccessWriteFailure;
-use qubit_reflect::ReflectedMut;
-use qubit_reflect::ReflectedOwned;
-use qubit_reflect::ReflectedRef;
+use qubit_reflect::value::DynamicMut;
+use qubit_reflect::value::DynamicOwned;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 
 use crate::metadata::GetterOutputKind;
 use crate::metadata::PropertyAccessError;
@@ -232,7 +233,7 @@ impl PropertyAccessPath {
     /// Returns [`PropertyAccessPathError`] for a root type mismatch, missing
     /// optional intermediate value, or a property access failure. Intermediate
     /// owned and slice outputs are rejected rather than borrowed unsafely.
-    pub fn read<'a>(&self, root: ReflectedRef<'a>) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
+    pub fn read<'a>(&self, root: DynamicRef<'a, Local>) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
         if root.value_type_id() != self.root_type {
             return Err(PropertyAccessPathError::RootTypeMismatch {
                 expected: self.root_type,
@@ -269,7 +270,7 @@ impl PropertyAccessPath {
                             name: step.property.name().to_owned(),
                         })?;
                     optional
-                        .project_ref(value)
+                        .project_dynamic_ref(value)
                         .map_err(|_| PropertyAccessPathError::UnsupportedIntermediate {
                             index,
                             name: step.property.name().to_owned(),
@@ -348,7 +349,11 @@ impl PropertyAccessPath {
     /// whenever failure occurs before the leaf setter begins. A leaf setter
     /// failure preserves the underlying [`crate::metadata::PropertySetFailure`]
     /// recovery rules.
-    pub fn write(&self, root: ReflectedMut<'_>, replacement: ReflectedOwned) -> Result<(), PropertyAccessWriteFailure> {
+    pub fn write(
+        &self,
+        root: DynamicMut<'_, Local>,
+        replacement: DynamicOwned<Local>,
+    ) -> Result<(), PropertyAccessWriteFailure> {
         if let Err(error) = self.check_writable() {
             return Err(PropertyAccessWriteFailure::before_path(error, replacement));
         }
@@ -392,7 +397,7 @@ impl PropertyAccessPath {
                     replacement.take().expect("replacement remains unused before the leaf"),
                 ));
             };
-            current = field.get_mut(current).map_err(|source| {
+            current = field.get_mut_dynamic(current).map_err(|source| {
                 PropertyAccessWriteFailure::before_path(
                     PropertyAccessPathError::AccessFailure {
                         index,

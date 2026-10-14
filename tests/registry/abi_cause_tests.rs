@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 
 use qubit_model_metadata::__private::ModelMetadataProvider;
 use qubit_model_metadata::__private::model_metadata_key;
-use qubit_model_metadata::__private::v7;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::AbiViolation;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -24,7 +24,7 @@ use qubit_reflect::capability::CapabilityDescriptor;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::RegistrySnapshotBuilder;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Invalid {
     value: String,
 }
@@ -33,7 +33,7 @@ struct Invalid {
 fn invalid_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v7::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Invalid>(), None, &[], v7::leak(v7::model_role()))
+        v8::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Invalid>(), None, &[], v8::leak(v8::model_role()))
             .finish_unchecked()
     })
 }

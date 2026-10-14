@@ -35,9 +35,10 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::validation::ValidationSelection;
-use qubit_reflect::ReflectedRef;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_reflect::registry::ReflectRegistry;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
@@ -164,9 +165,9 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     let eight = Pipeline8::sample();
     let thirty_two = Pipeline32::sample();
     let values = [
-        ReflectedRef::new(&one),
-        ReflectedRef::new(&eight),
-        ReflectedRef::new(&thirty_two),
+        DynamicRef::<Local>::new(&one),
+        DynamicRef::<Local>::new(&eight),
+        DynamicRef::<Local>::new(&thirty_two),
     ];
 
     let mut properties = criterion.benchmark_group("model_properties_merge_warm");

@@ -1,0 +1,8 @@
+error[E0432]: unresolved import `qubit_model_metadata::__private::v7`
+ --> tests/ui/fail/stale_v7_role_signature.rs:9:5
+  |
+9 | use qubit_model_metadata::__private::v7;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^--
+  |     |                                |
+  |     |                                help: a similar name exists in the module: `v8`
+  |     no `v7` in `__private`

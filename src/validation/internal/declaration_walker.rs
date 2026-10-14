@@ -18,6 +18,7 @@ use super::execution_declaration::ExecutionDeclaration;
 use super::validation_occurrence::ValidationOccurrence;
 use crate::metadata::AllowedChars;
 use crate::metadata::ConstraintMetadata;
+use crate::metadata::EnumVariantMetadata;
 use crate::metadata::FieldMetadata;
 use crate::metadata::SelectorMetadata;
 use crate::metadata::SelectorPosition;
@@ -112,6 +113,7 @@ fn walk(
 ) {
     active.insert(owner.type_id());
     for field in fields(owner) {
+        let enum_variant = enum_variant_for_field(owner, field);
         let mut segments = prefix.to_vec();
         let transparent_unnamed = is_transparent_unnamed_field(owner, field);
         segments.push(
@@ -119,21 +121,13 @@ fn walk(
                 .name()
                 .unwrap_or(if transparent_unnamed { "0" } else { "<unnamed>" }),
         );
-        let unsupported =
-            inherited_unsupported || owner.as_enum().is_some() || field.name().is_none() && !transparent_unnamed;
-        let unsupported_path = unsupported.then(|| {
+        let unsupported = inherited_unsupported
+            || (owner.as_enum().is_some()
+                && (!enum_variant.is_some_and(|variant| variant.reflect().is_some()) || field.reflect().is_none()))
+            || (field.name().is_none() && !transparent_unnamed && enum_variant.is_none());
+        let unsupported_path = (unsupported || enum_variant.is_some()).then(|| {
             let mut path = diagnostic_prefix.map_or_else(|| prefix.join("."), str::to_owned);
-            if let Some(variant) = field
-                .location()
-                .and_then(|location| location.variant())
-                .and_then(|index| {
-                    owner
-                        .as_enum()?
-                        .variants()
-                        .iter()
-                        .find(|variant| variant.index() == index)
-                })
-            {
+            if let Some(variant) = enum_variant {
                 append_segment(&mut path, variant.rust_name());
             }
             append_segment(
@@ -147,6 +141,7 @@ fn walk(
                 root,
                 owner,
                 field,
+                enum_variant,
                 segments: segments.clone(),
                 unsupported_path: unsupported_path.clone(),
                 selector,
@@ -171,8 +166,18 @@ fn walk(
             // never an executable property access promised by the current backend.
             let direct = suffix.is_empty()
                 && direct_model(field.descriptor(), graph).is_some_and(|model| model.type_id() == target.type_id());
-            let nested_path = (unsupported || !direct).then(|| {
-                let mut path = unsupported_path.clone().unwrap_or_else(|| segments.join("."));
+            let nested_path = (unsupported || owner.as_enum().is_some() || !direct).then(|| {
+                let mut path = unsupported_path.clone().unwrap_or_else(|| {
+                    let mut path = diagnostic_prefix.map_or_else(|| prefix.join("."), str::to_owned);
+                    if let Some(variant) = enum_variant {
+                        append_segment(&mut path, variant.rust_name());
+                    }
+                    append_segment(
+                        &mut path,
+                        &field.name().map_or_else(|| field.index().to_string(), str::to_owned),
+                    );
+                    path
+                });
                 path.push_str(&suffix);
                 path
             });
@@ -181,6 +186,7 @@ fn walk(
                     root,
                     owner,
                     field,
+                    enum_variant: None,
                     segments: segments.clone(),
                     unsupported_path: nested_path,
                     selector: None,
@@ -199,7 +205,7 @@ fn walk(
                 graph,
                 work,
                 active,
-                unsupported || !direct,
+                unsupported || owner.as_enum().is_some() || !direct,
                 ordinal,
                 occurrences,
                 errors,
@@ -207,6 +213,19 @@ fn walk(
         }
     }
     active.remove(&owner.type_id());
+}
+
+/// Resolves the concrete enum variant associated with a payload field.
+fn enum_variant_for_field(
+    owner: &'static TypeMetadata,
+    field: &'static FieldMetadata,
+) -> Option<&'static EnumVariantMetadata> {
+    let variant_index = field.location()?.variant()?;
+    owner
+        .as_enum()?
+        .variants()
+        .iter()
+        .find(|variant| variant.index() == variant_index)
 }
 
 /// Accepts only the sole anonymous field declared by a transparent value.

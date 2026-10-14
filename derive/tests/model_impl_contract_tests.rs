@@ -15,9 +15,9 @@ use model_runtime::metadata::TypeMetadata;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_reflect::Reflect;
-use qubit_reflect::ReflectedRef;
-use qubit_reflect::reflect;
 use qubit_reflect::registry::ReflectRegistry;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 
 #[Model]
 struct Person {
@@ -91,7 +91,7 @@ fn test_exclusion_preserves_computed_and_stored_properties() {
     );
 }
 
-#[reflect]
+#[Reflect]
 trait Greeting {
     /// Provides trait behavior, independently of model properties.
     fn greeting(&self) -> String;
@@ -160,7 +160,7 @@ fn test_generic_impl_specializations_have_exact_property_types() {
         TypeId::of::<u32>()
     );
     let value = GenericName { value: 7u32 };
-    assert!(number_property.get(ReflectedRef::new(&value)).is_ok());
+    assert!(number_property.get(DynamicRef::<Local>::new(&value)).is_ok());
 }
 
 #[Model]
@@ -181,7 +181,7 @@ impl<const N: usize> Fixed<N> {
 fn test_const_impl_specialization() {
     let metadata = TypeMetadata::of::<Fixed<2>>();
     let property = metadata.try_property("length").unwrap().unwrap();
-    assert!(property.get(ReflectedRef::new(&Fixed { bytes: [1, 2] })).is_ok());
+    assert!(property.get(DynamicRef::<Local>::new(&Fixed { bytes: [1, 2] })).is_ok());
 }
 
 #[Model]

@@ -22,7 +22,8 @@ use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectedRef;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validation_rules::ids;
 use qubit_validation_rules::registrations;
 use qubit_validator::BindErrorKind;
@@ -124,7 +125,7 @@ impl HugeSequenceMinimum {
 }
 
 /// Builds through the same explicit graph/registry API used by consumers.
-fn validate(root: &'static TypeMetadata, value: ReflectedRef<'_>) -> ValidationReport {
+fn validate(root: &'static TypeMetadata, value: DynamicRef<'_, Local>) -> ValidationReport {
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -153,7 +154,7 @@ fn test_text_character_and_byte_bounds_are_independent() {
     let root = TypeMetadata::of::<TextUnits>();
     for text in ["é", "ab", "中"] {
         assert!(
-            validate(root, ReflectedRef::new(&TextUnits { value: text.to_owned() })).is_valid(),
+            validate(root, DynamicRef::<Local>::new(&TextUnits { value: text.to_owned() })).is_valid(),
             "{text}"
         );
     }
@@ -163,7 +164,7 @@ fn test_text_character_and_byte_bounds_are_independent() {
         ("abc", vec!["qubit.rules.text.char_length"]),
         ("", vec!["qubit.rules.text.char_length", "qubit.rules.text.byte_length"]),
     ] {
-        let report = validate(root, ReflectedRef::new(&TextUnits { value: text.to_owned() }));
+        let report = validate(root, DynamicRef::<Local>::new(&TextUnits { value: text.to_owned() }));
         let rules: Vec<_> = report.violations().iter().map(|item| item.rule_id().as_str()).collect();
         assert_eq!(rules, expected_rules, "{text:?}");
         assert!(report.violations().iter().all(|item| item.path().render() == "value"));
@@ -184,7 +185,7 @@ fn test_decimal_contract_narrow_window_executes() {
         let value = DecimalNarrowWindow {
             amount: text.parse().unwrap(),
         };
-        let report = validate(root, ReflectedRef::new(&value));
+        let report = validate(root, DynamicRef::<Local>::new(&value));
         assert_eq!(report.is_valid(), valid);
         if !valid {
             assert_eq!(report.violations()[0].rule_id().as_str(), ids::DECIMAL_VALUE);
@@ -237,7 +238,7 @@ fn test_character_policies_preserve_unicode_and_printability() {
         printable_ascii: "ASCII 7".to_owned(),
         code: "Account_7.example-name".to_owned(),
     };
-    assert!(validate(root, ReflectedRef::new(&valid)).is_valid());
+    assert!(validate(root, DynamicRef::<Local>::new(&valid)).is_valid());
     let invalid = CharacterPolicies {
         unicode: valid.unicode,
         printable_unicode: "\n".to_owned(),
@@ -245,7 +246,7 @@ fn test_character_policies_preserve_unicode_and_printability() {
         printable_ascii: "\n".to_owned(),
         code: "with space".to_owned(),
     };
-    let report = validate(root, ReflectedRef::new(&invalid));
+    let report = validate(root, DynamicRef::<Local>::new(&invalid));
     let paths: Vec<_> = report.violations().iter().map(|item| item.path().render()).collect();
     assert_eq!(paths, ["printable_unicode", "ascii", "printable_ascii", "code"]);
     assert!(
@@ -262,7 +263,7 @@ fn test_character_policies_preserve_unicode_and_printability() {
         printable_ascii: "ASCII".to_owned(),
         code: "Account_7.example-name".to_owned(),
     };
-    let report = validate(root, ReflectedRef::new(&zero_width));
+    let report = validate(root, DynamicRef::<Local>::new(&zero_width));
     assert_eq!(
         report
             .violations()
@@ -284,14 +285,14 @@ fn test_text_formats_bind_and_report_their_own_rule_identity() {
         uri: "https://example.com/profile".to_owned(),
         uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
     };
-    assert!(validate(root, ReflectedRef::new(&valid)).is_valid());
+    assert!(validate(root, DynamicRef::<Local>::new(&valid)).is_valid());
     let invalid = Formats {
         email: "invalid".to_owned(),
         mobile: "invalid".to_owned(),
         uri: "invalid".to_owned(),
         uuid: "invalid".to_owned(),
     };
-    let report = validate(root, ReflectedRef::new(&invalid));
+    let report = validate(root, DynamicRef::<Local>::new(&invalid));
     let failures: Vec<_> = report
         .violations()
         .iter()
@@ -326,13 +327,13 @@ fn test_uri_format_preserves_rfc3986_boundaries_and_rule_identity() {
         uri: "mailto:user@example.com".to_owned(),
         uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
     };
-    assert!(validate(root, ReflectedRef::new(&valid)).is_valid());
+    assert!(validate(root, DynamicRef::<Local>::new(&valid)).is_valid());
 
     let invalid = Formats {
         uri: "https://example.com/%GG".to_owned(),
         ..valid
     };
-    let report = validate(root, ReflectedRef::new(&invalid));
+    let report = validate(root, DynamicRef::<Local>::new(&invalid));
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "uri");
     assert_eq!(report.violations()[0].rule_id().as_str(), "qubit.rules.text.uri");
@@ -346,7 +347,7 @@ fn test_sequence_count_uses_the_actual_slice_length() {
         let value = SequenceCount {
             values: vec!["item".to_owned(); count],
         };
-        let report = validate(root, ReflectedRef::new(&value));
+        let report = validate(root, DynamicRef::<Local>::new(&value));
         assert_eq!(report.is_valid(), (1..=2).contains(&count));
         if !(1..=2).contains(&count) {
             assert_eq!(report.violations().len(), 1);
@@ -397,7 +398,7 @@ fn test_sequence_minimum_above_u32_max_binds_and_reports_empty_values() {
     .expect("large sequence minimum binding");
     assert_eq!(plan.binding_count(), 1);
 
-    let report = validate(root, ReflectedRef::new(&value));
+    let report = validate(root, DynamicRef::<Local>::new(&value));
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "values");
     assert_eq!(
@@ -508,20 +509,18 @@ fn test_builtin_collision_retains_independent_declaration_errors() {
     ) else {
         panic!("independent failures must reject the plan");
     };
-    assert_eq!(errors.len(), 3, "registry, unsupported payload, and missing rule");
+    assert_eq!(errors.len(), 2, "registry and missing rule");
     assert_eq!(
         errors[0].kind(),
         ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::InvalidDeclaration)
     );
     assert_eq!(errors[0].rule(), Some(builtin.id()));
     assert!(errors[0].constraint_rules().is_empty(), "registration-level error");
-    assert_eq!(errors[1].kind(), ValidationBuildErrorKind::UnsupportedExecution);
-    assert_eq!(errors[1].path(), Some("choice.Named.name"));
     assert_eq!(
-        errors[2].kind(),
+        errors[1].kind(),
         ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule)
     );
-    assert_eq!(errors[2].path(), Some("value"));
-    assert_eq!(errors[2].declared_rule_id(), Some("example.missing_independent_rule"));
-    assert!(errors[2].constraint_rules().is_empty(), "custom rule declaration");
+    assert_eq!(errors[1].path(), Some("value"));
+    assert_eq!(errors[1].declared_rule_id(), Some("example.missing_independent_rule"));
+    assert!(errors[1].constraint_rules().is_empty(), "custom rule declaration");
 }

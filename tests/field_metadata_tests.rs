@@ -25,14 +25,14 @@ use qubit_reflect::descriptor::TypeRef;
 use qubit_reflect::expression::TypeExpression;
 use qubit_reflect::identity::Visibility;
 
-#[derive(Reflect)]
+#[Reflect]
 struct Fields {
     value: String,
     #[reflect(opaque)]
     secret: Vec<u8>,
 }
 
-#[derive(Reflect)]
+#[Reflect]
 struct SymbolicOwner;
 
 static SYMBOLIC_FIELD: LazyLock<FieldDescriptor> = LazyLock::new(|| {

@@ -43,6 +43,7 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// # Examples
 ///
 /// ```
+/// use qubit_reflect::value::Local;
 /// use std::error::Error;
 /// use std::sync::Arc;
 /// use qubit_model_derive::Model;
@@ -53,7 +54,7 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// use qubit_model_metadata::validation::ValidationBuildInputs;
 /// use qubit_model_metadata::validation::ValidationOptions;
 /// use qubit_model_metadata::validation::ValidationPlan;
-/// use qubit_reflect::ReflectedRef;
+/// use qubit_reflect::value::DynamicRef;
 /// use qubit_validator::ExecutionError;
 /// use qubit_validator::ExecutionErrorKind;
 /// use qubit_validator::ValidatorRegistry;
@@ -69,7 +70,7 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// let validators = ValidatorRegistry::empty();
 /// let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators })
 ///     .expect("empty model plan");
-/// let error = plan.validate(ReflectedRef::new(&42_u32), &ValidationOptions::default())
+/// let error = plan.validate(DynamicRef::<Local>::new(&42_u32), &ValidationOptions::default())
 ///     .expect_err("the instance has the wrong root type");
 /// assert_eq!(error.error().kind(), ExecutionErrorKind::InputTypeMismatch);
 /// assert!(error.partial_report().violations().is_empty());

@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use qubit_model_derive::Model;
-use qubit_model_metadata::metadata::SelectorPosition;
+use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
@@ -26,28 +26,44 @@ use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::identity::FragmentIdentity;
 use qubit_validator::ValidatorRegistry;
 
-#[Model(id = "validation.UnsupportedMapKey")]
-struct UnsupportedMapKey {
-    #[map_key(validator(id = "test.text"))]
+#[Model(id = "validation.MapKeySelector")]
+struct MapKeySelector {
+    #[map_key(text(non_blank))]
     values: HashMap<String, String>,
 }
 
+#[Model(id = "validation.OwnedSelectorGetter")]
+struct OwnedSelectorGetter {
+    #[element(text(non_blank))]
+    values: Vec<String>,
+}
+
+#[Model(id = "validation.UnsupportedBoxedSliceSelector")]
+struct UnsupportedBoxedSliceSelector {
+    #[element(text(non_blank))]
+    values: Box<[String]>,
+}
+
+#[ModelImpl]
+impl OwnedSelectorGetter {
+    pub fn values(&self) -> Vec<String> {
+        self.values.clone()
+    }
+}
+
 #[test]
-fn test_capability_matrix_is_explicit() {
+fn test_capability_matrix_accepts_supported_map_key_selector() {
     let models = ModelRegistry::try_global().unwrap();
     let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
         .resolve()
         .unwrap();
-    let errors = ValidationCapabilities::check(TypeMetadata::of::<UnsupportedMapKey>(), &graph).unwrap_err();
-    assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
-    assert_eq!(errors[0].selector(), Some(SelectorPosition::MapKey));
+    assert!(ValidationCapabilities::check(TypeMetadata::of::<MapKeySelector>(), &graph).is_ok());
 }
 
 #[test]
-fn test_unsupported_map_selector_retains_model_path_and_position() {
+fn test_map_key_selector_violation_reports_map_key_path() {
     let source = FragmentIdentity::new("validation-tests", "fixture", line!(), 1, "model", 1);
-    let metadata = TypeMetadata::of::<UnsupportedMapKey>();
+    let metadata = TypeMetadata::of::<MapKeySelector>();
     let models = ModelRegistry::from_static_metadata(&[(metadata, &source)]).expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -66,13 +82,37 @@ fn test_unsupported_map_selector_retains_model_path_and_position() {
             validators: &validators,
         },
     );
-    let Err(errors) = result else {
-        panic!("map-key execution is unsupported")
-    };
-    assert_eq!(errors.len(), 1);
+    let plan = result.expect("map-key selector plan builds");
+    let report = plan
+        .validate(
+            qubit_reflect::value::DynamicRef::<qubit_reflect::value::Local>::new(&MapKeySelector {
+                values: HashMap::from([(String::new(), "value".to_owned())]),
+            }),
+            &qubit_model_metadata::validation::ValidationOptions::default(),
+        )
+        .expect("map-key validation executes");
+    assert_eq!(report.violations().len(), 1);
+    assert!(report.violations()[0].path().render().ends_with(".<map-key>"));
+}
+
+#[test]
+fn test_owned_collection_getter_is_rejected_at_build() {
+    let models = ModelRegistry::try_global().expect("model registry");
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
+        .resolve()
+        .expect("model graph");
+    let errors = ValidationCapabilities::check(TypeMetadata::of::<OwnedSelectorGetter>(), &graph)
+        .expect_err("owned collection output cannot provide member borrows");
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
-    assert_eq!(errors[0].model().unwrap().as_str(), "validation.UnsupportedMapKey");
-    assert_eq!(errors[0].path(), Some("values"));
-    assert_eq!(errors[0].selector(), Some(SelectorPosition::MapKey));
-    assert!(errors[0].source_error().is_none());
+}
+
+#[test]
+fn test_boxed_slice_selector_is_rejected_without_a_borrow_adapter() {
+    let models = ModelRegistry::try_global().expect("model registry");
+    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
+        .resolve()
+        .expect("model graph");
+    let errors = ValidationCapabilities::check(TypeMetadata::of::<UnsupportedBoxedSliceSelector>(), &graph)
+        .expect_err("unsupported collection shapes remain build errors");
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
 }
