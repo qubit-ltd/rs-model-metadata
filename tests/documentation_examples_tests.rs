@@ -112,6 +112,73 @@ fn test_bilingual_documentation_examples() {
     }
 }
 
+/// Resolves the published installation fences without rewriting any path.
+#[test]
+fn test_documented_installation_paths() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let parent = root.parent().expect("metadata checkout parent");
+    let mut configurations = Vec::new();
+    let mut installation_kinds = BTreeMap::new();
+    for document in DOCUMENTS {
+        let markdown = fs::read_to_string(root.join(document)).expect("read document");
+        for block in fences(&markdown, document) {
+            if ["core", "core/model-id", "validation", "codec"].contains(&block.example.as_str())
+                && block.language == "toml"
+            {
+                installation_kinds.insert(block.example.clone(), ());
+                configurations.push((block.example, (*document).to_owned(), block.line, block.source));
+            }
+        }
+    }
+
+    assert_eq!(
+        installation_kinds.len(),
+        4,
+        "expected core, model-id, validation, and codec installation fences"
+    );
+    for (index, (installation, document, line, dependencies)) in configurations.iter().enumerate() {
+        let directory = parent.join(format!("app-documentation-{}-{index}", std::process::id()));
+        let fixture = create_fixture_at(&directory);
+        write_raw_consumer(&fixture.directory, dependencies);
+        let output = metadata(&fixture.directory);
+        let context = format!("{document}:{line} {installation} raw installation");
+        assert!(
+            output.status.success(),
+            "{context}: cargo metadata failed:\n{}",
+            stderr(&output)
+        );
+        let metadata: Value = from_slice(&output.stdout)
+            .unwrap_or_else(|error| panic!("{context}: invalid Cargo metadata JSON: {error}"));
+        check_raw_installation_identity(&metadata, installation, root, parent, &context);
+    }
+
+    let core = configurations
+        .iter()
+        .find(|(installation, _, _, _)| installation == "core")
+        .map(|(_, _, _, dependencies)| dependencies)
+        .expect("core installation");
+    let negative_root = parent.join(format!("documentation-negative-{}", std::process::id()));
+    let fixture = create_fixture_at(&negative_root);
+    let directory = fixture.directory.join("rs-platform").join("app");
+    write_raw_consumer(&directory, core);
+    let output = metadata(&directory);
+    let expected_missing = directory
+        .parent()
+        .expect("negative app parent")
+        .join("rs-model-metadata");
+    let diagnostic = stderr(&output);
+    assert!(
+        !output.status.success(),
+        "rs-platform/app unexpectedly resolved raw paths"
+    );
+    assert!(
+        diagnostic.contains(&expected_missing.display().to_string())
+            && (diagnostic.contains("does not exist") || diagnostic.contains("failed to read")),
+        "rs-platform/app failure did not identify its incorrect rs-model-metadata path ({}): {diagnostic}",
+        expected_missing.display()
+    );
+}
+
 /// Removing a dependency must fail using the actual validation source. The old
 /// fixture silently injected this dependency into one shared manifest.
 #[test]
@@ -283,6 +350,73 @@ fn check_package_identity(metadata: &Value, installation: &str, context: &str) {
     }
 }
 
+fn check_raw_installation_identity(metadata: &Value, installation: &str, root: &Path, parent: &Path, context: &str) {
+    let documented_root = if root.file_name().is_some_and(|name| name == "rs-model-metadata") {
+        root.to_path_buf()
+    } else {
+        parent.join("rs-model-metadata")
+    };
+    let documented_root = documented_root.canonicalize().unwrap_or(documented_root);
+    let expected: &[(&str, PathBuf)] = match installation {
+        "core" | "validation" | "codec" => &[
+            ("qubit-model-metadata", documented_root.clone()),
+            ("qubit-model-derive", documented_root.join("derive")),
+            ("qubit-model-id", documented_root.join("model-id")),
+            ("qubit-reflect", parent.join("rs-reflect")),
+        ],
+        "core/model-id" => &[("qubit-model-id", documented_root.join("model-id"))],
+        other => panic!("{context}: unexpected installation {other}"),
+    };
+    let packages = metadata["packages"].as_array().expect("metadata packages");
+    for (name, directory) in expected {
+        let manifest = directory.join("Cargo.toml");
+        let package = packages.iter().find(|package| package["name"] == *name);
+        let package = package.unwrap_or_else(|| panic!("{context}: missing package {name}"));
+        assert_eq!(
+            package["manifest_path"].as_str(),
+            manifest.canonicalize().unwrap_or(manifest).to_str(),
+            "{context}: {name} checkout identity"
+        );
+    }
+    if installation == "validation" {
+        let manifest = parent
+            .parent()
+            .expect("checkout root")
+            .join("rust-common/rs-validator/Cargo.toml");
+        let package = packages
+            .iter()
+            .find(|package| package["name"] == "qubit-validator")
+            .expect("validation installation validator package");
+        assert_eq!(
+            package["manifest_path"].as_str(),
+            manifest.canonicalize().unwrap_or(manifest).to_str(),
+            "{context}: validator checkout identity"
+        );
+    }
+    if matches!(installation, "core" | "validation" | "codec") {
+        let nodes = metadata["resolve"]["nodes"].as_array().expect("resolved nodes");
+        let runtime = nodes
+            .iter()
+            .find(|node| {
+                node["id"]
+                    .as_str()
+                    .is_some_and(|id| id.contains("qubit-model-metadata"))
+            })
+            .expect("runtime resolve node");
+        let features = runtime["features"].as_array().expect("runtime features");
+        assert_eq!(
+            features.iter().any(|feature| feature == "validation"),
+            installation == "validation",
+            "{context}: validation feature"
+        );
+        assert_eq!(
+            features.iter().any(|feature| feature == "codec"),
+            installation == "codec",
+            "{context}: codec feature"
+        );
+    }
+}
+
 /// Looks up a resolved package ID by the consuming crate's dependency name,
 /// preserving Cargo's path identity instead of comparing package versions.
 fn dependency_id<'a>(node: &'a Value, name: &str) -> Option<&'a str> {
@@ -307,6 +441,34 @@ fn create_fixture() -> DocumentationFixture {
         }
     }
     panic!("fixture namespace exhausted");
+}
+
+/// Claims one exact path exclusively so its drop guard owns all cleanup.
+fn create_fixture_at(directory: &Path) -> DocumentationFixture {
+    fs::create_dir(directory).unwrap_or_else(|error| {
+        panic!(
+            "create exclusive documentation fixture {}: {error}",
+            directory.display()
+        )
+    });
+    DocumentationFixture {
+        directory: directory.to_path_buf(),
+    }
+}
+
+/// Writes only package scaffolding and the unmodified TOML dependency fence.
+fn write_raw_consumer(directory: &Path, dependencies: &str) {
+    fs::create_dir_all(directory.join("src")).expect("raw consumer sources");
+    let package = concat!(
+        "[package]\n",
+        "name = \"model-documentation-raw-consumer\"\n",
+        "version = \"0.0.0\"\n",
+        "edition = \"2024\"\n",
+        "publish = false\n\n",
+        "[workspace]\n\n",
+    );
+    fs::write(directory.join("Cargo.toml"), format!("{package}{dependencies}")).expect("raw documented dependencies");
+    fs::write(directory.join("src/main.rs"), "fn main() {}\n").expect("raw consumer source");
 }
 
 /// Stable markers map each complete program to a real installation fence.
