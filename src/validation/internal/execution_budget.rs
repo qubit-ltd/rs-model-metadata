@@ -101,7 +101,6 @@ impl<'options> ExecutionBudget<'options> {
     ///
     /// Returns `TraversalLimit` when the depth or comparison budget is
     /// exhausted.
-    #[allow(dead_code)] // T6 consumes this reservation when unique-items execution is wired.
     pub(crate) fn compare(&mut self, depth: usize) -> Result<(), ExecutionError> {
         self.check_depth(depth)?;
         if self.comparisons >= self.options.max_comparisons() {
