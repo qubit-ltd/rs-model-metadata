@@ -9,22 +9,37 @@ querying, or persistence. Rust 1.94 and edition 2024 are required. These manifes
 
 ## Installation and example context
 
-The examples use this checkout layout; run the application from `rs-platform/app`.
-Keep direct dependencies on the same checkout paths used by the runtime:
+Create an independent `app` crate beside `rs-model-metadata` and `rs-reflect`.
+CI uses `rust-platform/app`; the current local workspace uses `rust-common/app`.
+Neither checkout includes the application directory. Start with this minimal
+`app/Cargo.toml`, put complete programs in `app/src/main.rs`, and run `cargo run`
+from `app/`. Keep direct dependencies on the same checkout paths used by runtime:
+
+<!-- example: app/package -->
+```toml
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+```
 
 ```text
 checkout/
-  rs-platform/
-    app/                 # Cargo.toml and src/main.rs
+  rust-common/
+    app/                 # independent application: Cargo.toml and src/main.rs
     rs-model-metadata/   # runtime and derive/
     rs-reflect/
-  rust-common/
     rs-id/
     rs-validator/
     rs-validation-rules/
     rs-redact/
     rs-datatype/
 ```
+
+In CI, these siblings are rooted at `rust-platform/` (including
+`rust-platform/app`); `rs-validator` remains at `rust-common/rs-validator`.
 
 The `core` installation below serves examples marked `core/...`. Programs marked
 `validation/...` use the separate validation installation in the runtime guide. Copy each complete program

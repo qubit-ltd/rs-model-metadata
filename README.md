@@ -23,9 +23,23 @@ qubit-id = "0.7"
 qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 ```
 
-These checkout paths assume the application crate is `rs-platform/app`, beside
-`rs-model-metadata` and `rs-reflect`. Run the complete example from that app
-crate. The metadata, model-id, and derive manifests set `publish = false`;
+Create an independent application crate named `app` beside `rs-model-metadata`
+and `rs-reflect`. In CI this location is `rust-platform/app`; in the current
+local workspace it is `rust-common/app`. Neither directory is included here.
+Use this minimal `app/Cargo.toml` shape, put the example in `app/src/main.rs`,
+and run `cargo run` from `app/`:
+
+<!-- example: app/package -->
+```toml
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+```
+
+The metadata, model-id, and derive manifests set `publish = false`;
 the version fields identify package versions but do not select a source without
 the corresponding checkout paths. See the runtime guide for the full checkout
 layout and validation installation.

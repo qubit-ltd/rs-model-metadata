@@ -32,7 +32,19 @@ runtime 与 derive 版本一致。
 
 沿用[声明指南中的 `User` 与 `PersonInfo`](../derive/doc/user_guide.zh_CN.md#实战场景声明用户与人员资料的业务关系)：`User.username` 有长度与唯一性要求，`PersonInfo.user_id` 引用 `User.id`。消费者要做两件事：先确认关系声明在最终链接的模型集合中能解析，再把可执行的字段约束绑定为验证计划。随机测试生成器也会从相同元数据得知用户名应满足什么约束、`user_id` 应从哪个已存在用户取得。
 
-当前 checkout 中相关 manifest 均为 `publish = false`，示例因此使用本地路径依赖。路径假设应用位于 `rs-platform/app`，与 `rs-model-metadata`、`rs-reflect` 同属 `rs-platform`；版本字段不代表这些版本已发布。将完整程序放入应用的 `src/main.rs`，并从该应用目录运行 `cargo run`。
+当前 checkout 中相关 manifest 均为 `publish = false`，示例因此使用本地路径依赖。请在 `rs-model-metadata` 与 `rs-reflect` 的共同父目录新建独立的 `app` crate：CI 中对应 `rust-platform/app`，当前本地工作区对应 `rust-common/app`，仓库不会预先提供这个目录。`app/Cargo.toml` 可从以下最小配置开始；将完整程序保存为 `app/src/main.rs`，进入 `app/` 后运行 `cargo run`：
+
+<!-- example: app/package -->
+```toml
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+```
+
+版本字段不代表这些版本已发布。当前 checkout 的实际目录结构见下方运行时指南布局说明。
 
 <!-- example: core -->
 ```toml
@@ -104,7 +116,7 @@ qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
 ```
 
-验证执行依赖同一 checkout 的 `rs-validator`；添加该依赖后，从 `rs-platform/app` 运行完整示例。
+验证执行依赖同一 checkout 的 `rs-validator`；添加该依赖后，从新建的 `app/` 目录运行完整示例。
 
 沿用前述用户模型，这里只校验输入中的 `username` 文本约束。`#[unique]` 告诉需要访问数据源的消费者应检查什么，却不等于只凭当前对象就能判断数据库中是否重名。下列完整程序故意提供长度不合格的用户名，展示元数据如何变成可执行的验证报告。
 
@@ -502,7 +514,7 @@ let plan = ValidationPlan::build(
 
 ### 只给根模型时定位包装路径
 
-下面的完整示例沿用前文 `validation` manifest。把程序放入 `rs-platform/app/src/main.rs`，并在该应用目录运行 `cargo run`；示例依赖仍由应用按同一 checkout 布局提供。程序只把根模型放入 `ResolveInputs.roots`，反射快照会沿包装发现匿名子模型。
+下面的完整示例沿用前文 `validation` manifest。把程序放入新建的 `app/src/main.rs`，并在该应用目录运行 `cargo run`；示例依赖仍由应用按同一 checkout 布局提供。程序只把根模型放入 `ResolveInputs.roots`，反射快照会沿包装发现匿名子模型。
 
 先看有执行规则的情况：`Child.name` 带有非空文本约束，根模型可达 `raw.child.name`。图能发现 `Child`，但当前后端不能穿过这个 raw 访问路径，因此能力检查和计划构建都返回 `UnsupportedExecution`，并保留路径。接着看没有执行规则的 `EmptyChild`：它同样能从根被发现，能力检查通过，空计划的 `binding_count()` 为 0。
 

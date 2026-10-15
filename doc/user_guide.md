@@ -26,25 +26,41 @@ here and keep the runtime and derive versions aligned.
 ## Scenario and minimal configuration
 
 The metadata, model ID, and derive packages set `publish = false`, so use local checkouts.
-These paths assume an application crate beside `rs-model-metadata` under
-`rs-platform`. Add `validation` only when the application builds plans:
+Create an independent `app` crate beside `rs-model-metadata` and `rs-reflect`.
+CI uses `rust-platform/app`; the current local workspace uses `rust-common/app`.
+Neither checkout includes this application directory. Start with this minimal
+`app/Cargo.toml`; add `validation` only when the application builds plans:
 
-The examples use this checkout layout; run the application from `rs-platform/app`.
-Keep direct dependencies on the same checkout paths used by the runtime:
+<!-- example: app/package -->
+```toml
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+```
+
+The examples use this checkout layout. Put complete programs in `app/src/main.rs`
+and run `cargo run` from `app/`. Keep direct dependencies on these checkout paths:
 
 ```text
 checkout/
-  rs-platform/
-    app/                 # Cargo.toml and src/main.rs
+  rust-common/
+    app/                 # independent application: Cargo.toml and src/main.rs
     rs-model-metadata/   # runtime, model-id/, and derive/
     rs-reflect/
-  rust-common/
     rs-id/
     rs-validator/
     rs-validation-rules/
     rs-redact/
     rs-datatype/
 ```
+
+In CI, the same sibling application and checkout layout is rooted at
+`rust-platform/app`, `rust-platform/rs-model-metadata`, and
+`rust-platform/rs-reflect`; `rs-validator` remains at
+`rust-common/rs-validator`.
 
 The `core` installation below serves examples marked `core/...`. Programs marked
 `validation/...` use the separate validation installation in the runtime guide. Copy each complete program
@@ -536,116 +552,6 @@ codec registry after graph resolution. Selection order is explicit field codec,
 Value canonical codec, then no codec. Rust-type codec declarations also require
 registration. Explicitly naming the canonical codec is valid. Occurrence identity
 includes exact TypeId, optional stable ModelId, Property path, and source.
-
-## Core workflow: validate a profile and keep partial results
-
-Enable `validation` in the runtime dependency. For the following **complete,
-independent programs**, declare execution API dependencies from the same checkouts as the runtime:
-
-<!-- example: validation -->
-```toml
-[dependencies]
-qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
-qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
-qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
-```
-
-The profile's label and optional contact name must be nonblank. Metadata discovery
-and graph resolution happen before validator binding. The explicit `Option<&Contact>`
-getter supplies a borrowed intermediate object. Field-backed `Option<Contact>`
-and a getter returning `&Option<Contact>` are also supported borrowed access shapes.
-
-<!-- example: validation/profile -->
-```rust
-use std::sync::Arc;
-use std::num::NonZeroUsize;
-use qubit_model_derive::Model;
-use qubit_model_derive::ModelImpl;
-use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_model_metadata::registry::ModelRegistry;
-use qubit_model_metadata::resolve::ResolveInputs;
-use qubit_model_metadata::resolve::StructureResolver;
-use qubit_model_metadata::validation::ValidationBuildInputs;
-use qubit_model_metadata::validation::ValidationCapabilities;
-use qubit_model_metadata::validation::ValidationMode;
-use qubit_model_metadata::validation::ValidationOptions;
-use qubit_model_metadata::validation::ValidationPlan;
-use qubit_validator::ExecutionErrorKind;
-use qubit_validator::ValidatorRegistry;
-
-#[Model]
-struct Contact {
-    #[text(non_blank)]
-    name: String,
-}
-
-#[Model]
-struct Profile {
-    #[text(non_blank)]
-    label: String,
-    contact: Option<Contact>,
-}
-
-#[ModelImpl]
-impl Profile {
-    pub fn contact(&self) -> Option<&Contact> { self.contact.as_ref() }
-}
-
-fn main() {
-    let root = TypeMetadata::of::<Profile>();
-    let roots = [root];
-    let models = ModelRegistry::try_global().expect("linked metadata and accessors");
-    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
-        .resolve().expect("valid structure"));
-    ValidationCapabilities::check(root, graph.as_ref()).expect("supported access shapes");
-    let validators = ValidatorRegistry::empty();
-    let plan = ValidationPlan::build(root, ValidationBuildInputs {
-        graph: Arc::clone(&graph),
-        validators: &validators,
-    }).expect("built-in text constraints bind without custom registrations");
-
-    let invalid = Profile {
-        label: String::new(),
-        contact: Some(Contact { name: String::new() }),
-    };
-    let report = plan.validate(&invalid, &ValidationOptions::default())
-        .expect("validation executed");
-    assert!(!report.is_valid());
-    assert_eq!(report.violations().len(), 2);
-    assert_eq!(report.violations()[0].path().render(), "label");
-    assert_eq!(report.violations()[1].path().render(), "contact.name");
-
-    let absent = Profile { label: "personal".to_owned(), contact: None };
-    assert!(plan.validate(&absent, &ValidationOptions::default())
-        .expect("absent optional child is skipped").is_valid());
-
-    let fail_fast = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
-    let report = plan.validate(&invalid, &fail_fast)
-        .expect("policy stop is a successful, truncated execution");
-    assert_eq!(report.violations().len(), 1);
-    assert!(report.is_truncated());
-
-    let limited = ValidationOptions::builder()
-        .max_nodes(NonZeroUsize::new(3).expect("positive budget")).build();
-    let error = plan.validate(&invalid, &limited)
-        .expect_err("root, label read, and rule invocation consume all three nodes");
-    assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
-    assert_eq!(error.partial_report().violations().len(), 1);
-    assert_eq!(error.partial_report().violations()[0].path().render(), "label");
-}
-```
-
-The normal report preserves both paths. An absent contact is skipped. FailFast
-retains only the first violation and stops before reading the contact. The node
-budget example instead returns an infrastructure error while preserving the
-label violation already collected. Never treat `Err` as a valid empty report.
-
-The registry is empty only of **custom validators**: built-in standard constraints
-bind through the runtime adapter. A custom `#[validator(id = "...")]` requires a
-matching registration in the supplied validator registry. Capability checking
-only verifies declarations and access shapes; it never runs getters, binds custom
-registrations, or proves an instance valid.
 
 ## Limitations: execution support and explicit refusal
 

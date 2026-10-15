@@ -10,7 +10,19 @@
 
 其他库可以利用同一份语义：自动验证领域对象；生成满足长度、唯一性及引用关系的随机测试数据；依据 `indexed` 等声明检查 REST 查询参数、构造过滤器并交给数据库层执行。宏负责声明，不替这些消费者决定数据库查询、唯一性检查或随机生成策略。
 
-当前 checkout 中相关 manifest 均为 `publish = false`，示例因此使用本地路径依赖。路径假设应用位于 `rs-platform/app`，与 `rs-model-metadata`、`rs-reflect` 同属 `rs-platform`；版本字段不代表这些版本已发布。将完整程序放入应用的 `src/main.rs`，并从该应用目录运行 `cargo run`。
+当前 checkout 中相关 manifest 均为 `publish = false`，示例因此使用本地路径依赖。请在 `rs-model-metadata` 与 `rs-reflect` 的共同父目录新建独立的 `app` crate：CI 中对应 `rust-platform/app`，当前本地工作区对应 `rust-common/app`，仓库不会预先提供这个目录。`app/Cargo.toml` 可从以下最小配置开始；将完整程序保存为 `app/src/main.rs`，进入 `app/` 后运行 `cargo run`：
+
+<!-- example: app/package -->
+```toml
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+```
+
+版本字段不代表这些版本已发布。
 
 <!-- example: core -->
 ```toml

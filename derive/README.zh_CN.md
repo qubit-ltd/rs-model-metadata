@@ -21,8 +21,22 @@ qubit-id = "0.7"
 qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 ```
 
-示例假定应用 crate 位于 `rs-platform/app`，与 `rs-model-metadata`、`rs-reflect`
-同级；在该应用目录运行完整示例。metadata、model-id 和 derive 的 manifest 均设置了
+请在 `rs-model-metadata` 与 `rs-reflect` 的共同父目录下新建独立的应用 crate `app`。
+CI 中对应 `rust-platform/app`，当前本地工作区对应 `rust-common/app`；这两个位置都不是
+本仓库自带的目录。`app/Cargo.toml` 可从以下最小配置开始；将示例放入
+`app/src/main.rs`，再进入 `app/` 运行 `cargo run`：
+
+<!-- example: app/package -->
+```toml
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+```
+
+metadata、model-id 和 derive 的 manifest 均设置了
 `publish = false`。版本字段标识包版本，实际来源由对应的检出路径确定。完整目录布局和
 validation 安装方式见运行时指南。
 
