@@ -88,6 +88,32 @@ impl Configured {
     pub fn set_feature_value(&mut self, value: u32) { self.value = value; }
 }
 
+#[Model]
+struct GenericConfigured<T> {
+    value: T,
+}
+
+#[ModelImpl(specialize(T = String), specialize(T = u32))]
+impl<T: Clone + qubit_reflect::Reflect> GenericConfigured<T> {
+    #[cfg(feature = "accessors")]
+    pub fn current(&self) -> T {
+        self.value.clone()
+    }
+
+    #[cfg(any())]
+    pub fn missing(&self) -> MissingGenericType {
+        unreachable!()
+    }
+}
+
+#[ModelImpl(specialize(T = String), specialize(T = u32))]
+#[cfg(feature = "impl-enabled")]
+impl<T: Clone + qubit_reflect::Reflect> GenericConfigured<T> {
+    pub fn impl_current(&self) -> T {
+        self.value.clone()
+    }
+}
+
 #[ModelImpl]
 #[cfg_attr(not(feature = "impl-enabled"), cfg(any()))]
 impl Configured {
@@ -114,6 +140,7 @@ mod tests {
     use qubit_reflect::registry::ReflectRegistry;
 
     use super::Configured;
+    use super::GenericConfigured;
 
     /// Checks property presence, adapter execution, and reflected methods.
     #[test]

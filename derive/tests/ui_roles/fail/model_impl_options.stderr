@@ -1,17 +1,3 @@
-error: expected derive macro, found attribute macro `Reflect`
-  --> tests/ui_roles/fail/model_impl_options.rs:15:10
-   |
-15 | #[derive(Reflect)]
-   |          ^^^^^^^ not a derive macro
-   |
-help: remove from the surrounding `derive()`
-  --> tests/ui_roles/fail/model_impl_options.rs:15:10
-   |
-15 | #[derive(Reflect)]
-   |          ^^^^^^^
-   = help: add as non-Derive macro
-           `#[Reflect]`
-
 error: unknown reflection helper `unexpected`
   --> tests/ui_roles/fail/model_impl_options.rs:18:13
    |
