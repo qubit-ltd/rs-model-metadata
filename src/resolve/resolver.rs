@@ -721,14 +721,16 @@ impl<'a> StructureResolver<'a> {
                     .and_then(ProjectionMetadata::source)
                     .and_then(|target| self.resolve_target(target));
                 if fixed_source.is_some_and(|fixed| fixed.type_id() != source.type_id()) {
-                    errors.push(ResolveError::new(
+                    let mut error = ResolveError::new(
                         ResolveErrorKind::InvalidProjectionProducer,
                         projection.model_id().map(|id| id.as_str()),
                         None,
                         Some(ModelRole::Entity),
                         Some(source.role()),
                         fragment_source,
-                    ));
+                    );
+                    error.attach_owner(source);
+                    errors.push(error);
                     continue;
                 }
                 let source_id = source.as_entity().and_then(|entity| entity.identifier().descriptor());
@@ -739,14 +741,16 @@ impl<'a> StructureResolver<'a> {
                     .zip(projection_id)
                     .is_some_and(|(source, projection)| source.type_id() != projection.type_id())
                 {
-                    errors.push(ResolveError::new(
+                    let mut error = ResolveError::new(
                         ResolveErrorKind::InvalidProjectionProducer,
                         projection.model_id().map(|id| id.as_str()),
                         None,
                         Some(ModelRole::Projection),
                         Some(projection.role()),
                         fragment_source,
-                    ));
+                    );
+                    error.attach_owner(source);
+                    errors.push(error);
                     continue;
                 }
                 projection_producers.push(ResolvedProjectionProducer {
