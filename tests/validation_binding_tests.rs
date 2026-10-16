@@ -225,22 +225,21 @@ fn test_parent_dependency_uses_explicit_context() {
         nickname: "parent".into(),
     };
     let options = ValidationOptions::default();
-    assert!(plan.validate_dynamic(DynamicRef::<Local>::new(&value), &options).is_err());
-    assert!(deferred.validate_dynamic(DynamicRef::<Local>::new(&value), &options).is_err());
+    assert!(
+        plan.validate_dynamic(DynamicRef::<Local>::new(&value), &options)
+            .is_err()
+    );
+    assert!(
+        deferred
+            .validate_dynamic(DynamicRef::<Local>::new(&value), &options)
+            .is_err()
+    );
     let deferred_report = deferred
-        .validate_with_context(
-            &value,
-            &[DynamicRef::<Local>::new(&parent_value)],
-            &options,
-        )
+        .validate_with_context(&value, &[DynamicRef::<Local>::new(&parent_value)], &options)
         .expect("deferred parent execution");
     assert!(deferred_report.is_valid());
     let plan_report = plan
-        .validate_with_context(
-            &value,
-            &[DynamicRef::<Local>::new(&parent_value)],
-            &options,
-        )
+        .validate_with_context(&value, &[DynamicRef::<Local>::new(&parent_value)], &options)
         .expect("parent execution");
     assert!(plan_report.is_valid());
 }

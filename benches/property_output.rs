@@ -249,7 +249,9 @@ fn generated_getters(criterion: &mut Criterion) {
         slices.bench_with_input(
             BenchmarkId::new("property_get", length),
             &fixture,
-            |bencher, fixture| bencher.iter(|| black_box(values.get_dynamic(DynamicRef::<Local>::new(black_box(fixture))))),
+            |bencher, fixture| {
+                bencher.iter(|| black_box(values.get_dynamic(DynamicRef::<Local>::new(black_box(fixture)))))
+            },
         );
         slices.bench_with_input(
             BenchmarkId::new("property_get_and_convert", length),

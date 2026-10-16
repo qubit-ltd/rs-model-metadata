@@ -153,12 +153,17 @@ fn test_property_supports_borrowed_and_owned_getters() {
         count: 7,
     };
 
-    let PropertyValue::Borrowed(name_value) = name.get_dynamic(DynamicRef::<Local>::new(&value)).expect("borrowed getter")
+    let PropertyValue::Borrowed(name_value) = name
+        .get_dynamic(DynamicRef::<Local>::new(&value))
+        .expect("borrowed getter")
     else {
         panic!("name getter must borrow");
     };
     assert_eq!(name_value.as_str(), Some("alice"));
-    let PropertyValue::Owned(count_value) = count.get_dynamic(DynamicRef::<Local>::new(&value)).expect("owned getter") else {
+    let PropertyValue::Owned(count_value) = count
+        .get_dynamic(DynamicRef::<Local>::new(&value))
+        .expect("owned getter")
+    else {
         panic!("count getter must own");
     };
     assert_eq!(count_value.downcast_ref::<u32>(), Some(&7));
@@ -203,7 +208,10 @@ fn test_property_field_fallback_and_setter_recovery_are_safe() {
         count: 0,
     };
 
-    let PropertyValue::Borrowed(current) = property.get_dynamic(DynamicRef::<Local>::new(&value)).expect("field getter") else {
+    let PropertyValue::Borrowed(current) = property
+        .get_dynamic(DynamicRef::<Local>::new(&value))
+        .expect("field getter")
+    else {
         panic!("field fallback must borrow");
     };
     assert_eq!(current.downcast_ref::<String>().map(String::as_str), Some("before"));

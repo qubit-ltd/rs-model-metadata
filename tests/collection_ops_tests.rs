@@ -139,7 +139,9 @@ fn test_array_slice_getter_generates_item_equality() {
     let array = ArrayWithSliceGetter {
         items: [String::from("same"), String::from("same")],
     };
-    let value = property.get_dynamic(DynamicRef::<Local>::new(&array)).expect("slice getter");
+    let value = property
+        .get_dynamic(DynamicRef::<Local>::new(&array))
+        .expect("slice getter");
     assert!(matches!(value, PropertyValue::BorrowedSlice(ref values) if values.len() == 2));
     let ops = model
         .field("items")

@@ -180,9 +180,11 @@ fn test_enum_payload_constraint_is_not_silently_omitted() {
     let Err(errors) = result else {
         panic!("constrained enum payload must be bound or rejected");
     };
-    assert!(errors.iter().any(|error| {
-        error.kind() == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule)
-    }));
+    assert!(
+        errors
+            .iter()
+            .any(|error| { error.kind() == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule) })
+    );
     assert!(errors.iter().any(|error| error.path() == Some("Named.name")));
 }
 
@@ -870,7 +872,10 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_sup
     )
     .unwrap();
     let report = plan
-        .validate_dynamic(DynamicRef::<Local>::new(&Counted { values: vec![] }), &ValidationOptions::default())
+        .validate_dynamic(
+            DynamicRef::<Local>::new(&Counted { values: vec![] }),
+            &ValidationOptions::default(),
+        )
         .unwrap();
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "values");

@@ -122,7 +122,9 @@ fn test_model_impl_preserves_borrowed_and_mutable_property_shapes() {
         tags: vec!["first".to_owned(), "second".to_owned()],
     };
 
-    let PropertyValue::Borrowed(borrowed) = name.get_dynamic(DynamicRef::<Local>::new(&value)).expect("borrowed str getter")
+    let PropertyValue::Borrowed(borrowed) = name
+        .get_dynamic(DynamicRef::<Local>::new(&value))
+        .expect("borrowed str getter")
     else {
         panic!("name must remain a borrowed property");
     };

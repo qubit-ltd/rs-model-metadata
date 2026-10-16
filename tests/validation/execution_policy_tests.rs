@@ -782,11 +782,7 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
         ] {
             PARENT_READS.with(|calls| calls.set(0));
             let error = plan
-                .validate_with_context(
-                    &value,
-                    &[DynamicRef::<Local>::new(&containing)],
-                    &options,
-                )
+                .validate_with_context(&value, &[DynamicRef::<Local>::new(&containing)], &options)
                 .unwrap_err();
             assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
             assert_eq!(PARENT_READS.with(Cell::get), 0);
@@ -800,13 +796,9 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
             .max_nodes(NonZeroUsize::new(4).unwrap())
             .build();
         assert!(
-            plan.validate_with_context(
-                &value,
-                &[DynamicRef::<Local>::new(&containing)],
-                &options
-            )
-            .unwrap()
-            .is_valid()
+            plan.validate_with_context(&value, &[DynamicRef::<Local>::new(&containing)], &options)
+                .unwrap()
+                .is_valid()
         );
         let error = plan
             .validate_dynamic(DynamicRef::<Local>::new(&value), &ValidationOptions::default())

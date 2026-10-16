@@ -288,7 +288,10 @@ fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
         DynamicOwned::<Local>::new("after".to_owned()),
     )
     .expect("merged setter");
-    let PropertyValue::Borrowed(read) = name.get_dynamic(DynamicRef::<Local>::new(&value)).expect("merged getter") else {
+    let PropertyValue::Borrowed(read) = name
+        .get_dynamic(DynamicRef::<Local>::new(&value))
+        .expect("merged getter")
+    else {
         panic!("borrowed getter");
     };
     assert!(eq(read.downcast_ref::<String>().expect("String output"), &value.name));

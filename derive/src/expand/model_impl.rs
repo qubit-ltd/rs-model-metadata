@@ -120,9 +120,10 @@ fn expand_inner(
                 "generic ModelImpl property providers require at least one specialize(...) binding",
             ));
         }
-        if let Some(option) = options.iter().find(|option| {
-            !matches!(option, syn::Meta::List(list) if list.path.is_ident("specialize"))
-        }) {
+        if let Some(option) = options
+            .iter()
+            .find(|option| !matches!(option, syn::Meta::List(list) if list.path.is_ident("specialize")))
+        {
             return Err(Error::new_spanned(
                 option,
                 "only specialize(...) is supported for generic ModelImpl property providers",

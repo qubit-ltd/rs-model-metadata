@@ -181,7 +181,11 @@ impl<const N: usize> Fixed<N> {
 fn test_const_impl_specialization() {
     let metadata = TypeMetadata::of::<Fixed<2>>();
     let property = metadata.try_property("length").unwrap().unwrap();
-    assert!(property.get_dynamic(DynamicRef::<Local>::new(&Fixed { bytes: [1, 2] })).is_ok());
+    assert!(
+        property
+            .get_dynamic(DynamicRef::<Local>::new(&Fixed { bytes: [1, 2] }))
+            .is_ok()
+    );
 }
 
 #[Model]
