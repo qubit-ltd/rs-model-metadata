@@ -63,35 +63,55 @@ qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
 ```
 
-首先读取本地语义，再解析两个模型的关系。下例沿用声明指南的模型类型；完整程序需引用定义它们的 crate。
+下面从读取本地语义开始，解析两个模型的关系，并检查查询声明。把完整程序保存为 `app/src/main.rs`，在 `app/` 目录运行 `cargo run`。`User` 和 `PersonInfo` 在这个程序内声明，不需要先拼接声明指南中的代码。
 
-```rust,ignore
+<!-- example: core/relationship -->
+```rust
+use qubit_id::Id;
+use qubit_model_derive::{Entity, Model};
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
 
-let user_metadata = TypeMetadata::try_of::<User>()?;
-let person_metadata = TypeMetadata::try_of::<PersonInfo>()?;
-let username_field = user_metadata.field("username").expect("declared field");
-assert_eq!(username_field.text_constraint().unwrap().max_chars(), Some(64));
-assert!(username_field.is_unique());
+#[Entity(id = "guide.iam.User")]
+struct User {
+    #[identifier]
+    id: Id,
+    #[unique(ignore_case = true)]
+    #[text(non_blank, min_chars = 3, max_chars = 64, allowed_chars = ascii)]
+    username: String,
+    #[indexed]
+    display_name: String,
+}
 
-let models = ModelRegistry::try_global()?;
-let roots = [user_metadata, person_metadata];
-let graph = StructureResolver::for_roots(ResolveInputs {
-    models, roots: &roots,
-}).resolve()?;
-let field = person_metadata.field("user_id").unwrap();
-let relation = graph.reference(field.location().unwrap()).expect("resolved relation");
-assert_eq!(relation.target().type_id(), user_metadata.type_id());
+#[Model]
+struct PersonInfo {
+    #[reference(entity = User, property = id)]
+    user_id: Id,
+}
+
+fn main() {
+    let user = TypeMetadata::try_of::<User>().expect("User ABI");
+    let person = TypeMetadata::try_of::<PersonInfo>().expect("PersonInfo ABI");
+    assert!(user.field("username").expect("username").is_unique());
+    let models = ModelRegistry::try_global().expect("linked models");
+    let roots = [user, person];
+    let graph = StructureResolver::for_roots(ResolveInputs { models, roots: &roots })
+        .resolve().expect("valid model relations");
+    let location = person.field("user_id").expect("reference field")
+        .location().expect("field location");
+    assert_eq!(graph.reference(location).expect("resolved reference").target().type_id(), user.type_id());
+    let query = graph.query(user.type_id()).expect("Entity query declarations");
+    assert!(query.declarations().iter().any(|entry| entry.path().segments() == ["display_name"]));
+}
 ```
 
-`try_of` 读取具体类型的静态元数据并检查生成协议；`try_global` 投影最终二进制已链接的模型；`for_roots` 解析所选根及其可达关系。`reference()` 能查到结果，说明目标模型与属性已在**这一注册范围**中解析成功。字段上有 `#[reference]` 但图内查不到目标时，应先核对稳定 ID、链接范围和目标属性类型。`#[unique]` 的存在只说明规则已声明；是否与现存记录冲突仍由具备数据访问能力的消费者判断。
+`try_of` 读取具体类型的静态元数据并检查生成协议；`try_global` 投影最终二进制已链接的模型；`for_roots` 解析所选根及其可达关系。`reference()` 能查到结果，说明目标模型与属性已在**这一注册范围**中解析成功。字段上有 `#[reference]` 但图内查不到目标时，应先核对稳定 ID、链接范围和目标属性类型。`#[unique]` 的存在只说明规则已声明；是否与现存记录冲突仍由具备数据访问能力的消费者判断。`assert!` 和查询声明检查是这个最小示例的成功信号；它读取元数据并解析关系，不会检查数据库中的用户名重复情况。
 
-同一图还能提供查询声明。REST 层可以从 `graph.query(user_metadata.type_id())` 取得带索引原因的字段，建立可接受查询参数的白名单：
+同一图还能提供查询声明。上面的程序已确认 `display_name` 出现在 `User` 的查询声明中。REST 层可据此建立可接受查询参数的白名单；下面是独立的局部示意代码，假设 `graph` 和 `user` 已由前述程序取得：
 
 ```rust,ignore
-let query = graph.query(user_metadata.type_id()).expect("Entity query declarations");
+let query = graph.query(user.type_id()).expect("Entity query declarations");
 let requested_field = "display_name";
 let declared = query.declarations().iter().any(|entry| {
     entry.path().segments() == [requested_field]
@@ -338,12 +358,12 @@ fn main() {
 Field 是存储声明；Property 合并同名字段和合格的 getter/setter。需要读取业务语义时从 Field 开始；需要读取实例或沿嵌套路径执行规则时检查 Property 的访问能力。
 
 ```rust,ignore
-let field = person_metadata.field("user_id").expect("declared field");
+let field = person.field("user_id").expect("declared field");
 let location = field.location().expect("concrete field");
 let target = graph.reference(location).expect("resolved relation").target();
-assert_eq!(target.type_id(), user_metadata.type_id());
+assert_eq!(target.type_id(), user.type_id());
 
-let resolved = user_metadata.try_properties()?;
+let resolved = user.try_properties()?;
 let username_property = resolved.property("username").expect("readable property");
 ```
 
