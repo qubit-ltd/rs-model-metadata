@@ -33,8 +33,9 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// selection.
 ///
 /// Inspect [`Self::partial_report`] before discarding the error: earlier rules
-/// may already have reported violations or skips. An infrastructure failure
-/// does not mean the instance passed validation. [`std::error::Error::source`]
+/// may already have reported violations or skips. The report is marked
+/// truncated because execution did not complete, so it cannot prove that the
+/// instance passed validation. [`std::error::Error::source`]
 /// returns the [`ExecutionError`]; the standard source chain ends there.
 /// When the error retains an owned underlying cause, trusted diagnostic code
 /// can inspect it through [`ExecutionError::trusted_source`] without exposing
@@ -72,6 +73,8 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 ///     .expect_err("the instance has the wrong root type");
 /// assert_eq!(error.error().kind(), ExecutionErrorKind::InputTypeMismatch);
 /// assert!(error.partial_report().violations().is_empty());
+/// assert!(error.partial_report().is_truncated());
+/// assert!(!error.partial_report().is_valid());
 /// assert!(error.occurrence().is_none());
 /// assert!(error.source().expect("execution cause").is::<ExecutionError>());
 /// # }
@@ -81,7 +84,7 @@ pub struct ModelValidationError {
     /// Original execution failure, with an explicitly accessible trusted
     /// source; standard Error::source stops at this error.
     error: Box<ExecutionError>,
-    /// Report collected before execution stopped.
+    /// Truncated report collected before execution stopped.
     partial_report: Box<ValidationReport>,
     /// Root model identity, including for model-level failures.
     root_type_id: Option<TypeId>,
@@ -95,6 +98,7 @@ pub struct ModelValidationError {
 
 impl ModelValidationError {
     /// Retains an execution failure and all results collected before it.
+    /// The report is marked truncated because validation did not complete.
     ///
     /// # Parameters
     ///
@@ -105,7 +109,8 @@ impl ModelValidationError {
     ///
     /// Returns an error with no model or field context attached.
     #[must_use = "the validation error must be retained and handled"]
-    pub(crate) fn new(error: ExecutionError, partial_report: ValidationReport) -> Self {
+    pub(crate) fn new(error: ExecutionError, mut partial_report: ValidationReport) -> Self {
+        partial_report.mark_truncated();
         Self {
             error: Box::new(error),
             partial_report: Box::new(partial_report),
@@ -173,9 +178,13 @@ impl ModelValidationError {
 
     /// Returns the report collected before the failure.
     ///
+    /// The report is marked truncated because validation stopped with an
+    /// execution error. It preserves earlier results for diagnosis, but cannot
+    /// prove that validation passed.
+    ///
     /// # Returns
     ///
-    /// Returns the partial report accumulated before execution stopped.
+    /// Returns the truncated report accumulated before execution stopped.
     #[must_use = "the partial validation report should be inspected"]
     #[inline]
     pub const fn partial_report(&self) -> &ValidationReport {

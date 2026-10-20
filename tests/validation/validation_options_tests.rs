@@ -275,7 +275,8 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
         );
         assert!(error.partial_report().violations().is_empty());
         assert!(error.partial_report().skipped().is_empty());
-        assert!(!error.partial_report().is_truncated());
+        assert!(error.partial_report().is_truncated());
+        assert!(!error.partial_report().is_valid());
         assert_eq!(error.root_type_id(), Some(root.type_id()));
         assert_eq!(
             SELECTION_GETTER_CALLS.with(Cell::get),

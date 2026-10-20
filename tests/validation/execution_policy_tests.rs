@@ -522,6 +522,7 @@ fn test_execution_error_retains_partial_report_occurrence_without_source() {
     )
     .unwrap_err();
     assert_eq!(error.partial_report().violations().len(), 3);
+    assert!(error.partial_report().is_truncated());
     assert_eq!(error.occurrence(), Some(1));
     assert_eq!(error.field_location().unwrap().owner(), TypeId::of::<Fields>());
     assert_eq!(error.field_location().unwrap().index(), 1);
@@ -535,6 +536,8 @@ fn test_execution_error_retains_partial_report_occurrence_without_source() {
     let (execution_error, partial_report) = error.into_parts();
     assert_eq!(execution_error.path().render(), "second");
     assert_eq!(partial_report.violations().len(), 3);
+    assert!(partial_report.is_truncated());
+    assert!(!partial_report.is_valid());
 }
 
 #[test]
@@ -547,6 +550,9 @@ fn test_model_validation_error_without_field_context_exposes_empty_accessors() {
     .unwrap_err();
     assert_eq!(error.root_type_id(), Some(TypeId::of::<Fields>()));
     assert_eq!(error.owner_type_id(), Some(TypeId::of::<Fields>()));
+    assert!(error.partial_report().violations().is_empty());
+    assert!(error.partial_report().is_truncated());
+    assert!(!error.partial_report().is_valid());
     assert!(error.occurrence().is_none());
     assert!(error.field_location().is_none());
     assert!(error.declaration().is_none());
@@ -592,7 +598,8 @@ fn test_selector_budgets_preserve_partial_report_and_stop_before_next_rule() {
         .unwrap_err();
         assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
         assert_eq!(error.partial_report().violations().len(), 3);
-        assert!(!error.partial_report().is_truncated());
+        assert!(error.partial_report().is_truncated());
+        assert!(!error.partial_report().is_valid());
         assert_eq!(error.error().path().render(), "values[1]");
         assert_eq!(RULE_CALLS.with(Cell::get), 1);
     }
@@ -608,6 +615,8 @@ fn test_selector_budgets_preserve_partial_report_and_stop_before_next_rule() {
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert_eq!(RULE_CALLS.with(Cell::get), 0);
     assert!(error.partial_report().violations().is_empty());
+    assert!(error.partial_report().is_truncated());
+    assert!(!error.partial_report().is_valid());
 }
 
 #[test]
