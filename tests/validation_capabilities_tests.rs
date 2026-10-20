@@ -17,13 +17,14 @@ use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistryOrigin;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::ReflectionContext;
 use qubit_validator::ValidatorRegistry;
 
 #[Model(id = "validation.MapKeySelector")]
@@ -62,9 +63,17 @@ fn test_capability_matrix_accepts_supported_map_key_selector() {
 
 #[test]
 fn test_map_key_selector_violation_reports_map_key_path() {
-    let source = FragmentIdentity::new("validation-tests", "fixture", line!(), 1, "model", 1);
+    let source = ModelRegistryOrigin {
+        crate_name: "validation-tests",
+        crate_version: None,
+        module_path: module_path!(),
+        file: Some(file!()),
+        line: Some(line!()),
+        column: None,
+    };
     let metadata = TypeMetadata::of::<MapKeySelector>();
-    let models = ModelRegistry::from_static_metadata(&[(metadata, &source)]).expect("model registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, &source)])
+        .expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             roots: &[],

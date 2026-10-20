@@ -6,7 +6,7 @@ error[E0277]: the trait bound `u32: PropertyOutputCompatible<std::string::String
    |
    = help: the following other types implement trait `PropertyOutputCompatible<Setter>`:
              `BorrowedPropertyOutput<T>` implements `PropertyOutputCompatible<T>`
-             `BorrowedPropertyOutput<[T]>` implements `PropertyOutputCompatible<std::vec::Vec<T>>`
+             `BorrowedPropertyOutput<[T]>` implements `PropertyOutputCompatible<Vec<T>>`
              `BorrowedPropertyOutput<str>` implements `PropertyOutputCompatible<std::string::String>`
              `OptionalBorrowedPropertyOutput<T>` implements `PropertyOutputCompatible<std::option::Option<T>>`
              `OptionalBorrowedPropertyOutput<str>` implements `PropertyOutputCompatible<std::option::Option<std::string::String>>`

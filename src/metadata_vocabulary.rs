@@ -15,7 +15,8 @@ use core::hash::Hash;
 use core::hash::Hasher;
 
 use bitflags::bitflags;
-use qubit_reflect::descriptor::TypeRef;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::descriptor::TypeKind;
 
 use crate::constraint_metadata::ConstraintMetadata;
 use crate::metadata::ModelId;
@@ -427,19 +428,37 @@ impl UniqueMetadata {
     ///
     /// * `respect_to` - Scope paths that constrain the uniqueness key.
     /// * `ignore_case` - Explicit comparison policy, when provided.
-    /// * `ty` - Reflected field type used to infer a textual default.
     ///
     /// # Returns
     ///
     /// Concrete uniqueness metadata with the explicit or inferred policy.
     #[must_use]
-    pub fn for_type(respect_to: &'static [PropertyPath<'static>], ignore_case: Option<bool>, ty: &TypeRef) -> Self {
+    pub const fn for_type(respect_to: &'static [PropertyPath<'static>], ignore_case: Option<bool>) -> Self {
         Self {
             respect_to,
-            ignore_case: ignore_case.unwrap_or_else(|| text_reference(ty)),
+            ignore_case: match ignore_case {
+                Some(value) => value,
+                None => false,
+            },
             declared_ignore_case: ignore_case,
-            deferred: false,
+            deferred: ignore_case.is_none(),
         }
+    }
+
+    /// Binds the inferred comparison policy to the concrete field type in a
+    /// context.
+    #[must_use]
+    pub fn effective_ignore_case_in(
+        &self,
+        field: &crate::metadata::FieldMetadata,
+        context: &ReflectionContext,
+    ) -> bool {
+        self.declared_ignore_case.unwrap_or_else(|| {
+            field
+                .reflect_in(context)
+                .and_then(|field| field.find_concrete_type())
+                .is_some_and(is_textual_or_transparent)
+        })
     }
 
     /// Returns the explicit declaration independently of the effective default.
@@ -1821,26 +1840,23 @@ pub enum FieldAttributeMetadata {
     Opaque,
 }
 
-/// Recognizes text through supported optional and smart-pointer wrappers.
-///
-/// # Parameters
-///
-/// * `ty` - Reflected type whose resolved descriptor is inspected.
-///
-/// # Returns
-///
-/// `true` when the type is text or wraps a supported text type.
-#[must_use]
-pub(crate) fn text_reference(ty: &TypeRef) -> bool {
-    let Some(descriptor) = ty.as_resolved() else {
-        return false;
-    };
-    if descriptor.as_text().is_some() {
-        return true;
+fn is_textual_or_transparent(mut descriptor: qubit_reflect::TypeDescriptor<'_>) -> bool {
+    loop {
+        match descriptor.kind() {
+            TypeKind::Text(_) => return true,
+            TypeKind::Optional(_) | TypeKind::SmartPointer(_) => {
+                let Some(argument) = descriptor.generic_arguments().get_at(0) else {
+                    return false;
+                };
+                let Ok(argument) = argument.type_argument() else {
+                    return false;
+                };
+                let Some(inner) = argument.find_concrete_type() else {
+                    return false;
+                };
+                descriptor = inner;
+            }
+            _ => return false,
+        }
     }
-    descriptor
-        .as_optional()
-        .map(|value| value.element_type())
-        .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()))
-        .is_some_and(text_reference)
 }

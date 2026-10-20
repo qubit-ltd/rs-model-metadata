@@ -8,7 +8,7 @@
 
 //! A direct relationship to a reflected child type.
 
-use qubit_reflect::descriptor::TypeRef;
+use qubit_reflect::TypeDescriptor;
 
 use crate::structure::internal::StructuralEdgeKind;
 
@@ -16,10 +16,10 @@ use crate::structure::internal::StructuralEdgeKind;
 ///
 /// The target retains its resolved, opaque, or symbolic classification. The
 /// position describes the declaration, rather than an executable property path.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct StructuralEdge {
-    /// The original child relation, without requiring descriptor resolution.
-    pub(crate) target: &'static TypeRef,
+#[derive(Clone, Copy)]
+pub(crate) struct StructuralEdge<'ctx> {
+    /// A concrete child descriptor bound to the traversal context.
+    pub(crate) target: TypeDescriptor<'ctx>,
     /// The relationship and available source declaration position.
     /// Validation suffix rendering and internal contract tests read this fact.
     #[cfg_attr(

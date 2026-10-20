@@ -12,9 +12,8 @@ use std::any::TypeId;
 use std::collections::HashMap;
 
 use qubit_id::Id;
-use qubit_reflect::FieldAccessError;
-use qubit_reflect::TypeMismatch;
-use qubit_reflect::access::FieldIdentity;
+use qubit_reflect::descriptor::FieldAccessError;
+use qubit_reflect::error::TypeMismatch;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use thiserror::Error;
@@ -67,10 +66,9 @@ pub enum ContextRequirement {
 /// #[Model]
 /// struct Draft { title: String }
 /// # fn main() {
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::try_global().expect("model registry");
 /// let root = TypeMetadata::of::<Draft>();
-/// let roots = [root];
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let graph = StructureResolver::for_static_roots(&models, [root])
 ///     .resolve().expect("valid structure");
 /// let dependencies: &[ResolvedDependency] = graph.dependencies();
 /// assert!(dependencies.is_empty());
@@ -124,10 +122,9 @@ impl ResolvedDependency {
 /// #[Model]
 /// struct Draft { title: String }
 /// # fn main() {
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::try_global().expect("model registry");
 /// let root = TypeMetadata::of::<Draft>();
-/// let roots = [root];
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let graph = StructureResolver::for_static_roots(&models, [root])
 ///     .resolve().expect("valid structure");
 /// let location = root.fields()[0].location().expect("reflected field");
 /// let reference: Option<&ResolvedReference> = graph.reference(location);
@@ -211,10 +208,9 @@ impl ResolvedReference {
 /// #[Model]
 /// struct Draft { title: String }
 /// # fn main() {
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::try_global().expect("model registry");
 /// let root = TypeMetadata::of::<Draft>();
-/// let roots = [root];
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let graph = StructureResolver::for_static_roots(&models, [root])
 ///     .resolve().expect("valid structure");
 /// let source: Option<&ResolvedProjectionSource> = graph.projection_source(root.type_id());
 /// assert!(source.is_none());
@@ -241,10 +237,9 @@ pub struct ResolvedProjectionSource {
 /// #[Model]
 /// struct Draft { title: String }
 /// # fn main() {
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::try_global().expect("model registry");
 /// let root = TypeMetadata::of::<Draft>();
-/// let roots = [root];
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let graph = StructureResolver::for_static_roots(&models, [root])
 ///     .resolve().expect("valid structure");
 /// let producers: &[ResolvedProjectionProducer] = graph.projection_producers();
 /// assert!(producers.is_empty());
@@ -341,13 +336,11 @@ impl ResolvedProjectionProducer {
             .as_entity()
             .ok_or(ProjectionExecutionError::InvalidProducer)?
             .read_identifier(source.clone())
-            .map_err(|mismatch| {
-                identifier_target_mismatch(self.source.as_entity().expect("checked above").identifier(), mismatch)
-            })?;
+            .map_err(identifier_target_mismatch)?;
         let result = projector.get_dynamic(source.clone())?;
         let projection_identifier = match &result {
             PropertyValue::Borrowed(value) => self.projection_identifier(value.clone())?,
-            PropertyValue::Owned(value) => self.projection_identifier(value.as_reflected_ref())?,
+            PropertyValue::Owned(value) => self.projection_identifier(value.as_ref())?,
             PropertyValue::OptionalBorrowed(_) | PropertyValue::BorrowedSlice(_) => {
                 return Err(ProjectionExecutionError::InvalidProducer);
             }
@@ -382,26 +375,13 @@ impl ResolvedProjectionProducer {
             .projection
             .as_projection()
             .ok_or(ProjectionExecutionError::InvalidProducer)?;
-        let identifier = projection
-            .read_identifier(target)
-            .map_err(|mismatch| identifier_target_mismatch(projection.identifier(), mismatch))?;
+        let identifier = projection.read_identifier(target).map_err(identifier_target_mismatch)?;
         Ok(*identifier)
     }
 }
 
-fn identifier_target_mismatch(field: &crate::metadata::FieldMetadata, mismatch: TypeMismatch) -> FieldAccessError {
-    let reflected = field.reflect().expect("resolved role identifiers are concrete fields");
-    let declaring_type = reflected.declaring_type();
-    FieldAccessError::TargetTypeMismatch {
-        field: FieldIdentity::new_with_query_name(
-            declaring_type.type_id(),
-            declaring_type.type_name(),
-            reflected.index(),
-            reflected.rust_name(),
-            reflected.query_name(),
-        ),
-        mismatch: Box::new(mismatch),
-    }
+fn identifier_target_mismatch(mismatch: TypeMismatch) -> FieldAccessError {
+    FieldAccessError::TargetTypeMismatch(mismatch)
 }
 
 /// Failure while executing an automatic Projection producer.
@@ -470,10 +450,9 @@ impl ResolvedProjectionSource {
 /// #[Model]
 /// struct Draft { title: String }
 /// # fn main() {
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::try_global().expect("model registry");
 /// let root = TypeMetadata::of::<Draft>();
-/// let roots = [root];
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let graph = StructureResolver::for_static_roots(&models, [root])
 ///     .resolve().expect("valid structure");
 /// assert_eq!(graph.models().len(), 1);
 /// assert_eq!(graph.model(root.type_id()).expect("explicit root").type_id(), root.type_id());
@@ -649,10 +628,9 @@ impl<'a> ModelGraph<'a> {
 /// #[Model]
 /// struct Draft { title: String }
 /// # fn main() {
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::try_global().expect("model registry");
 /// let root = TypeMetadata::of::<Draft>();
-/// let roots = [root];
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let graph = StructureResolver::for_static_roots(&models, [root])
 ///     .resolve().expect("valid structure");
 /// let query: Option<&QueryMetadata> = graph.query(root.type_id());
 /// assert!(query.is_none());
@@ -695,10 +673,9 @@ impl QueryMetadata {
 /// #[Model]
 /// struct Draft { title: String }
 /// # fn main() {
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+/// let models = ModelRegistry::try_global().expect("model registry");
 /// let root = TypeMetadata::of::<Draft>();
-/// let roots = [root];
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let graph = StructureResolver::for_static_roots(&models, [root])
 ///     .resolve().expect("valid structure");
 /// let declarations: &[QueryDeclaration] = graph
 ///     .query(root.type_id())

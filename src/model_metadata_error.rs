@@ -10,7 +10,7 @@
 
 use std::any::TypeId;
 
-use qubit_reflect::capability::CapabilityAccessError;
+use qubit_reflect::capability::CapabilityError;
 
 use crate::metadata::AbiViolation;
 
@@ -19,20 +19,11 @@ use crate::metadata::AbiViolation;
 /// # Examples
 ///
 /// ```
-/// use std::any::TypeId;
 /// use qubit_model_metadata::metadata::ModelMetadataError;
-/// use qubit_reflect::capability::CapabilityAccessError;
-/// use qubit_reflect::identity::CapabilityId;
 ///
-/// let error = ModelMetadataError::Capability {
-///     type_id: TypeId::of::<u32>(),
-///     type_name: "u32",
-///     source: CapabilityAccessError::FactOnly {
-///         id: CapabilityId::new("example.fact").expect("valid capability ID"),
-///         adapter_type: TypeId::of::<u32>(),
-///     },
-/// };
-/// assert!(error.to_string().contains("capability resolution failed"));
+/// fn is_capability_error(error: &ModelMetadataError) -> bool {
+///     matches!(error, ModelMetadataError::Capability { .. })
+/// }
 /// ```
 #[must_use]
 #[derive(Clone, Debug, thiserror::Error)]
@@ -46,7 +37,7 @@ pub enum ModelMetadataError {
         type_name: &'static str,
         /// The complete intrinsic declaration conflict.
         #[source]
-        source: CapabilityAccessError,
+        source: Box<CapabilityError>,
     },
     /// A provider returned metadata belonging to a different descriptor.
     #[error("metadata ABI validation failed for {type_name}: {source}")]

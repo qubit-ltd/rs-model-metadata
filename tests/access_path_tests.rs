@@ -20,12 +20,18 @@ use std::sync::atomic::Ordering;
 
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
+use qubit_model_metadata::__private::v8::model_impl_registration;
+use qubit_model_metadata::__private::v8::model_metadata_registration;
 use qubit_model_metadata::PropertyAccessPath;
 use qubit_model_metadata::PropertyAccessPathError;
+use qubit_model_metadata::metadata::PropertyBorrowed;
+use qubit_model_metadata::metadata::PropertyMutable;
+use qubit_model_metadata::metadata::PropertyOwned;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_reflect::identity::FragmentIdentity;
+use qubit_model_metadata::registry::ModelRegistryOrigin;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicMut;
 use qubit_reflect::value::DynamicOwned;
 use qubit_reflect::value::DynamicRef;
@@ -88,6 +94,7 @@ pub struct AccessLeaf {
 #[Model(id = "access.Middle")]
 pub struct AccessMiddle {
     pub leaf: AccessLeaf,
+    pub value: String,
 }
 
 #[Model(id = "access.Root")]
@@ -148,38 +155,47 @@ impl OwnedParent {
 /// A static isolated registry keeps property compilation independent of
 /// globals.
 fn test_registry() -> ModelRegistry<'static> {
-    static LEAF_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
-    static MIDDLE_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
-    static ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
-    static OPTIONAL_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
-    static PRIVATE_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
-    static SMART_POINTER_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
-    static SETTER_ONLY_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
-    static PUBLIC_ROOT_SOURCE: OnceLock<FragmentIdentity> = OnceLock::new();
-    let leaf_source = LEAF_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 1, 1, "leaf", 1));
-    let middle_source =
-        MIDDLE_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 2, 1, "middle", 2));
-    let root_source = ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 3, 1, "root", 3));
-    let optional_root_source =
-        OPTIONAL_ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 4, 1, "optional-root", 4));
-    let private_root_source =
-        PRIVATE_ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 5, 1, "private-root", 5));
-    let smart_pointer_root_source = SMART_POINTER_ROOT_SOURCE
-        .get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "smart-pointer-root", 6));
-    let setter_only_source =
-        SETTER_ONLY_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 6, 1, "setter-only", 6));
-    let public_root_source =
-        PUBLIC_ROOT_SOURCE.get_or_init(|| FragmentIdentity::new("fixture", "access_path", 7, 1, "public-root", 7));
-    ModelRegistry::from_static_metadata(&[
-        (TypeMetadata::of::<AccessLeaf>(), leaf_source),
-        (TypeMetadata::of::<AccessMiddle>(), middle_source),
-        (TypeMetadata::of::<AccessRoot>(), root_source),
-        (TypeMetadata::of::<OptionalRoot>(), optional_root_source),
-        (TypeMetadata::of::<PrivateRoot>(), private_root_source),
-        (TypeMetadata::of::<SmartPointerRoot>(), smart_pointer_root_source),
-        (TypeMetadata::of::<SetterOnly>(), setter_only_source),
-        (TypeMetadata::of::<PublicRoot>(), public_root_source),
-    ])
+    static SOURCE: ModelRegistryOrigin = ModelRegistryOrigin {
+        crate_name: "fixture",
+        crate_version: None,
+        module_path: "access_path",
+        file: Some("tests/access_path_tests.rs"),
+        line: Some(1),
+        column: None,
+    };
+    static CONTEXT: OnceLock<ReflectionContext> = OnceLock::new();
+    let context = CONTEXT.get_or_init(|| {
+        ReflectionContext::builder()
+            .include_type::<AccessLeaf>()
+            .include_type::<AccessMiddle>()
+            .include_type::<AccessRoot>()
+            .include_type::<OptionalRoot>()
+            .include_type::<Option<AccessMiddle>>()
+            .include_type::<PrivateRoot>()
+            .include_type::<SmartPointerRoot>()
+            .include_type::<SetterOnly>()
+            .include_type::<PublicRoot>()
+            .include_type::<OwnedParent>()
+            .register(model_metadata_registration::<OwnedParent>())
+            .register(model_impl_registration::<SetterOnly>())
+            .register(model_impl_registration::<OwnedParent>())
+            .build()
+            .expect("reflection context builds")
+    });
+    ModelRegistry::from_static_metadata(
+        context,
+        &[
+            (TypeMetadata::of::<AccessLeaf>(), &SOURCE),
+            (TypeMetadata::of::<AccessMiddle>(), &SOURCE),
+            (TypeMetadata::of::<AccessRoot>(), &SOURCE),
+            (TypeMetadata::of::<OptionalRoot>(), &SOURCE),
+            (TypeMetadata::of::<PrivateRoot>(), &SOURCE),
+            (TypeMetadata::of::<SmartPointerRoot>(), &SOURCE),
+            (TypeMetadata::of::<SetterOnly>(), &SOURCE),
+            (TypeMetadata::of::<PublicRoot>(), &SOURCE),
+            (TypeMetadata::of::<OwnedParent>(), &SOURCE),
+        ],
+    )
     .expect("isolated model registry")
 }
 
@@ -334,8 +350,8 @@ fn test_cached_path_concurrent_initial_misses_return_valid_paths() {
 /// Compiles and writes a setter-only leaf without requiring a getter.
 #[test]
 fn test_compile_for_write_accepts_setter_only_leaf() {
-    let registry = ModelRegistry::try_global().expect("linked setter-only model registration");
-    let path = PropertyAccessPath::compile_for_write(registry, TypeMetadata::of::<SetterOnly>(), &["value"])
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<SetterOnly>(), &["value"])
         .expect("setter-only leaf compiles for writing");
     assert!(path.check_writable().is_ok());
     let mut root = SetterOnly {};
@@ -348,7 +364,7 @@ fn test_compile_for_write_accepts_setter_only_leaf() {
     .expect("setter-only leaf accepts replacement");
     assert_eq!(SETTER_ONLY_CALLS.load(Ordering::Relaxed), 1);
     assert!(matches!(
-        PropertyAccessPath::compile(registry, TypeMetadata::of::<SetterOnly>(), &["value"],),
+        PropertyAccessPath::compile(&registry, TypeMetadata::of::<SetterOnly>(), &["value"],),
         Err(PropertyAccessPathError::UnreadableIntermediate { index: 0, .. })
     ));
 }
@@ -357,35 +373,53 @@ fn test_compile_for_write_accepts_setter_only_leaf() {
 #[test]
 fn test_read_optional_intermediate_reports_missing_value() {
     let registry = test_registry();
-    let path = PropertyAccessPath::compile(
-        &registry,
-        TypeMetadata::of::<OptionalRoot>(),
-        &["middle", "leaf", "value"],
-    )
-    .expect("optional model path compiles");
+    let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<OptionalRoot>(), &["middle", "value"])
+        .expect("optional model path compiles");
     let root = OptionalRoot { middle: None };
 
+    let read = path.read_dynamic(DynamicRef::<Local>::new(&root));
     assert!(matches!(
-        path.read_dynamic(DynamicRef::<Local>::new(&root)),
+        read,
         Err(PropertyAccessPathError::MissingIntermediate { index: 0, .. })
     ));
-    assert!(matches!(
-        path.check_writable(),
-        Err(PropertyAccessPathError::UnwritableIntermediate { index: 0, .. })
-    ));
+    assert!(path.check_writable().is_ok());
+
+    let mut root = OptionalRoot {
+        middle: Some(AccessMiddle {
+            leaf: AccessLeaf {
+                value: "nested".to_owned(),
+            },
+            value: "before".to_owned(),
+        }),
+    };
+    let value = path.read(&root).expect("optional path reads present value");
+    assert!(match &value {
+        PropertyValue::Borrowed(value) => value.downcast_ref::<String>().is_some_and(|value| value == "before"),
+        _ => false,
+    });
+    drop(value);
+    path.write(&mut root, "after".to_owned())
+        .expect("optional path writes through present value");
+    assert_eq!(root.middle.expect("middle remains present").value, "after");
 }
 
 /// Rejects a getter that returns ownership before any getter invocation.
 #[test]
 fn test_compile_rejects_owned_intermediate_getter() {
-    let registry = ModelRegistry::try_global().expect("linked model registrations");
+    let registry = test_registry();
     OWNED_GETTER_CALLS.store(0, Ordering::Relaxed);
-    let result = PropertyAccessPath::compile(registry, TypeMetadata::of::<OwnedParent>(), &["owned_child", "value"]);
+    let result = PropertyAccessPath::compile(&registry, TypeMetadata::of::<OwnedParent>(), &["owned_child", "value"]);
 
-    assert!(matches!(
-        result,
-        Err(PropertyAccessPathError::UnsupportedIntermediate { index: 0, .. })
-    ));
+    assert!(
+        matches!(
+            &result,
+            Err(PropertyAccessPathError::UnsupportedIntermediate { index: 0, .. })
+        ),
+        "unexpected compile result: {}",
+        result
+            .err()
+            .map_or_else(|| "success".to_owned(), |error| format!("{error:?}"))
+    );
     assert_eq!(OWNED_GETTER_CALLS.load(Ordering::Relaxed), 0);
 }
 
@@ -422,6 +456,7 @@ fn test_write_private_intermediate_reports_access_failure() {
             leaf: AccessLeaf {
                 value: "unchanged".to_owned(),
             },
+            value: "middle".to_owned(),
         },
     };
 
@@ -452,6 +487,42 @@ fn test_write_private_intermediate_reports_access_failure() {
     assert_eq!(root.middle.leaf.value, "unchanged");
 }
 
+/// Authorized unsafe access can read and write through private intermediates.
+#[test]
+fn test_unsafe_dynamic_access_can_cross_private_intermediates() {
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<PrivateRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("private field remains a valid path shape");
+    let mut root = PrivateRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf {
+                value: "before".to_owned(),
+            },
+            value: "middle".to_owned(),
+        },
+    };
+
+    // SAFETY: this test explicitly authorizes access to `PrivateRoot::middle`
+    // and to the nested model fields used by the path.
+    {
+        let value =
+            unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }.expect("authorized unsafe read succeeds");
+        let PropertyValue::Borrowed(value) = value else {
+            panic!("string field should be returned as a borrow");
+        };
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("before"));
+    }
+
+    // SAFETY: this test explicitly authorizes mutation through the same path.
+    unsafe { path.write_dynamic_unsafe(PropertyMutable::new(&mut root), PropertyOwned::new("after".to_owned())) }
+        .expect("authorized unsafe write succeeds");
+    assert_eq!(root.middle.leaf.value, "after");
+}
+
 #[test]
 fn test_write_read_only_intermediate_reports_access_failure() {
     let registry = test_registry();
@@ -467,6 +538,7 @@ fn test_write_read_only_intermediate_reports_access_failure() {
             leaf: AccessLeaf {
                 value: "unchanged".to_owned(),
             },
+            value: "middle".to_owned(),
         },
     };
 
@@ -512,6 +584,7 @@ fn test_read_nested_property_from_root_instance() {
             leaf: AccessLeaf {
                 value: "nested".to_owned(),
             },
+            value: "middle".to_owned(),
         },
     };
 
@@ -541,6 +614,7 @@ fn test_write_nested_property_through_root_instance() {
             leaf: AccessLeaf {
                 value: "before".to_owned(),
             },
+            value: "middle".to_owned(),
         },
     };
 
@@ -672,6 +746,7 @@ fn test_write_leaf_failure_preserves_replacement() {
             leaf: AccessLeaf {
                 value: "unchanged".to_owned(),
             },
+            value: "middle".to_owned(),
         },
     };
     let failure = path

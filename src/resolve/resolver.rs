@@ -23,7 +23,6 @@ use super::queries::build_query;
 use super::reference_selection_ext::ReferenceSelectionExt;
 use super::relations::declared_target_id;
 use super::relations::forbidden_entity_nested_role;
-use super::relations::metadata_for_descriptor;
 use super::relations::push_field_error;
 use super::relations::reported_metadata;
 use super::relations::resolve_property_path;
@@ -48,7 +47,7 @@ use crate::structure::children;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::ResolveInputs;
 ///
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
+/// let models = ModelRegistry::try_global().expect("model registry");
 /// let roots: &[&'static TypeMetadata] = &[];
 /// let inputs = ResolveInputs { models: &models, roots };
 /// assert!(inputs.roots.is_empty());
@@ -88,7 +87,7 @@ pub struct ResolveInputs<'a> {
 /// use qubit_model_metadata::resolve::ResolveErrorKind;
 /// use qubit_model_metadata::resolve::ResolveInputs;
 /// use qubit_model_metadata::resolve::StructureResolver;
-/// use qubit_reflect::registry::RegistrySnapshotBuilder;
+/// use qubit_reflect::ReflectionContext;
 ///
 /// #[Model(eq, hash)]
 /// struct Note { title: String }
@@ -97,8 +96,8 @@ pub struct ResolveInputs<'a> {
 /// struct InvalidValue { note: Note }
 ///
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let reflection = RegistrySnapshotBuilder::new().build()?;
-/// let models = ModelRegistry::from_reflect_registry(&reflection)?;
+/// let reflection = ReflectionContext::builder().include_linked().build()?;
+/// let models = ModelRegistry::from_context(&reflection)?;
 /// let root = TypeMetadata::of::<Note>();
 /// let roots = [root];
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
@@ -263,7 +262,8 @@ impl<'a> StructureResolver<'a> {
         };
         let mut seen: HashSet<_> = nodes.iter().map(|(metadata, _)| metadata.type_id()).collect();
         for &root in self.roots() {
-            if let Err(source) = root.validate_descriptor(root.descriptor()) {
+            let root_descriptor = root.descriptor_in(context.reflection());
+            if let Err(source) = root.validate_descriptor(&root_descriptor) {
                 errors.push(ResolveError::resolution(
                     root,
                     None,
@@ -276,7 +276,7 @@ impl<'a> StructureResolver<'a> {
                 ));
                 continue;
             }
-            let metadata = match context.metadata_for(root.descriptor()) {
+            let metadata = match context.metadata_for(root_descriptor) {
                 Ok(Some(metadata)) => metadata,
                 Ok(None) => root,
                 Err(error) => {
@@ -312,7 +312,9 @@ impl<'a> StructureResolver<'a> {
                 .filter(|field| !field.is_opaque())
             {
                 if field.reference().is_none()
-                    && let Some(descriptor) = field.descriptor()
+                    && let Some(descriptor) = metadata
+                        .field_descriptor_in(field, context.reflection())
+                        .and_then(|field| field.find_concrete_type())
                 {
                     pending.push((descriptor, field));
                 }
@@ -328,6 +330,12 @@ impl<'a> StructureResolver<'a> {
             while let Some((descriptor, field)) = pending.pop() {
                 if !descriptors.insert(descriptor.type_id()) {
                     continue;
+                }
+                if let Some(nested) = metadata
+                    .nested_metadata()
+                    .find(|nested| nested.type_id() == descriptor.type_id())
+                {
+                    context.remember(nested);
                 }
                 match context.metadata_for(descriptor) {
                     Ok(Some(nested)) => {
@@ -348,9 +356,7 @@ impl<'a> StructureResolver<'a> {
                 }
                 let first_child = pending.len();
                 children(descriptor, |edge| {
-                    if let Some(child) = edge.target.as_resolved() {
-                        pending.push((child, field));
-                    }
+                    pending.push((edge.target, field));
                 });
                 pending[first_child..].reverse();
             }
@@ -420,22 +426,16 @@ impl<'a> StructureResolver<'a> {
                 let field_segments = field.name().map(|name| [name]);
                 let field_path = field_segments.as_ref().map(|segments| PropertyPath::new(segments));
                 if field.is_opaque() {
-                    let hidden = match field.type_ref().as_resolved() {
-                        Some(descriptor) => match metadata_for_descriptor(descriptor, &context) {
-                            Ok(metadata) => metadata,
-                            Err(error) => {
-                                errors.push(
-                                    (ResolveError::resolution(metadata, field_path, fragment_source, error))
-                                        .with_declaration(*field.declaration()),
-                                );
-                                None
-                            }
-                        },
-                        None => field
-                            .type_ref()
-                            .as_opaque()
-                            .and_then(|opaque| self.inputs.models.by_type_id(opaque.type_id())),
-                    };
+                    let hidden = field
+                        .opaque_type_id()
+                        .and_then(|type_id| context.reflection().find_type_by_id(type_id).ok().flatten())
+                        .and_then(|descriptor| context.metadata_for(descriptor).ok().flatten())
+                        .or_else(|| {
+                            metadata
+                                .field_descriptor_in(field, context.reflection())
+                                .and_then(|field| field.find_concrete_type())
+                                .and_then(|descriptor| context.metadata_for(descriptor).ok().flatten())
+                        });
                     if let Some(hidden) = hidden.filter(|hidden| {
                         matches!(
                             hidden.role(),
@@ -453,7 +453,9 @@ impl<'a> StructureResolver<'a> {
                     }
                 } else if matches!(metadata.role(), ModelRole::Entity | ModelRole::Enum)
                     && field.reference().is_none()
-                    && let Some(descriptor) = field.descriptor()
+                    && let Some(descriptor) = metadata
+                        .field_descriptor_in(field, context.reflection())
+                        .and_then(|field| field.find_concrete_type())
                 {
                     match forbidden_entity_nested_role(descriptor, &context) {
                         Ok(Some(role)) => push_field_error(
@@ -574,11 +576,15 @@ impl<'a> StructureResolver<'a> {
                                 }
                             };
                             let expected = match property {
-                                Some(property) => property.descriptor(),
-                                None => Some(target.descriptor()),
+                                Some(property) => property.descriptor_in(context.reflection()).ok().flatten(),
+                                None => Some(target.descriptor_in(context.reflection())),
                             };
-                            if let (Some(expected), Some(actual)) = (expected, field.descriptor())
-                                && !super::relations::reference_value_matches(expected, actual)
+                            if let (Some(expected), Some(actual)) = (
+                                expected,
+                                metadata
+                                    .field_descriptor_in(field, context.reflection())
+                                    .and_then(|field| field.find_concrete_type()),
+                            ) && !super::relations::reference_value_matches(expected, actual)
                             {
                                 errors.push(
                                     (ResolveError::new(
@@ -637,8 +643,15 @@ impl<'a> StructureResolver<'a> {
                 match self.resolve_target(source) {
                     Some(target) if target.role() == ModelRole::Entity => {
                         if let (Some(expected), Some(actual)) = (
-                            target.as_entity().and_then(|entity| entity.identifier().descriptor()),
-                            projection.identifier().descriptor(),
+                            target
+                                .as_entity()
+                                .and_then(|entity| {
+                                    target.field_descriptor_in(entity.identifier(), context.reflection())
+                                })
+                                .and_then(|field| field.find_concrete_type()),
+                            metadata
+                                .field_descriptor_in(projection.identifier(), context.reflection())
+                                .and_then(|field| field.find_concrete_type()),
                         ) && !super::relations::reference_value_matches(expected, actual)
                         {
                             errors.push(
@@ -701,7 +714,9 @@ impl<'a> StructureResolver<'a> {
                     continue;
                 };
                 let Some(projection) = property
-                    .descriptor()
+                    .descriptor_in(context.reflection())
+                    .ok()
+                    .flatten()
                     .and_then(|descriptor| {
                         reported_metadata(
                             descriptor,
@@ -733,10 +748,14 @@ impl<'a> StructureResolver<'a> {
                     errors.push(error);
                     continue;
                 }
-                let source_id = source.as_entity().and_then(|entity| entity.identifier().descriptor());
+                let source_id = source
+                    .as_entity()
+                    .and_then(|entity| source.field_descriptor_in(entity.identifier(), context.reflection()))
+                    .and_then(|field| field.find_concrete_type());
                 let projection_id = projection
                     .as_projection()
-                    .and_then(|projection| projection.identifier().descriptor());
+                    .and_then(|role| projection.field_descriptor_in(role.identifier(), context.reflection()))
+                    .and_then(|field| field.find_concrete_type());
                 if source_id
                     .zip(projection_id)
                     .is_some_and(|(source, projection)| source.type_id() != projection.type_id())

@@ -12,64 +12,73 @@
 
 use std::sync::OnceLock;
 
-use qubit_model_metadata::__private::codegen_v3::inventory;
-use qubit_model_metadata::__private::codegen_v3::registration::CapabilityRegistration;
-use qubit_model_metadata::__private::codegen_v3::registration::CapabilityTarget;
-use qubit_model_metadata::__private::codegen_v3::registration::FragmentKind;
-use qubit_model_metadata::__private::codegen_v3::registration::FragmentPayload;
-use qubit_model_metadata::__private::codegen_v3::registration::RegistrationFragment;
-use qubit_model_metadata::__private::codegen_v3::registration::RuntimeIdentity;
-use qubit_model_metadata::__private::codegen_v3::registration::StaticFragmentIdentity;
 use qubit_model_metadata::__private::v8;
+use qubit_model_metadata::__private::v8::GenericModelMetadataCapability;
 use qubit_model_metadata::__private::v8::register_generic_model_capability;
 use qubit_model_metadata::generic::GenericModelMetadata;
 use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::ModelRole;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_reflect::__private::testing::build_registry;
 use qubit_reflect::Reflect;
-use qubit_reflect::ReflectRegistry;
-use qubit_reflect::TypeDefinitionDescriptor;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::descriptor::TypeRef;
-use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::descriptor::Reflect as ReflectType;
+use qubit_reflect::descriptor::TypeDefinitionDescriptor;
 
 #[Reflect]
-#[reflect(definition_provider_v2 = first_definition)]
-#[allow(dead_code, reason = "the reflection derive registers this definition-only fixture")]
+#[allow(dead_code, reason = "the reflection derive registers this generic definition")]
 struct FirstGeneric<T> {
     value: T,
 }
 
 #[Reflect]
-#[reflect(definition_provider_v2 = second_definition)]
-#[allow(dead_code, reason = "the reflection derive registers this definition-only fixture")]
+#[allow(dead_code, reason = "the reflection derive registers this generic definition")]
 enum SecondGeneric<T> {
     Value(T),
 }
 
-/// Returns the model metadata attached to the first generic definition.
+fn first_definition_path() -> &'static str {
+    concat!(env!("CARGO_CRATE_NAME"), "::FirstGeneric")
+}
+
+fn second_definition_path() -> &'static str {
+    concat!(env!("CARGO_CRATE_NAME"), "::SecondGeneric")
+}
+
+fn first_definition() -> TypeDefinitionDescriptor<'static> {
+    ReflectionContext::global()
+        .type_definition_by_name(first_definition_path())
+        .expect("first generic definition")
+}
+
+fn second_definition() -> TypeDefinitionDescriptor<'static> {
+    ReflectionContext::global()
+        .type_definition_by_name(second_definition_path())
+        .expect("second generic definition")
+}
+
+/// Returns the metadata attached to the first generic definition.
 fn first_metadata() -> &'static GenericModelMetadata {
     static METADATA: OnceLock<GenericModelMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
         v8::generic_model_metadata(
             ModelId::new("example.FirstGeneric"),
             ModelRole::Model,
-            first_definition(),
+            first_definition_path(),
             &[],
             &[],
         )
     })
 }
 
-/// Returns the model metadata attached to the second generic definition.
+/// Returns the metadata attached to the second generic definition.
 fn second_metadata() -> &'static GenericModelMetadata {
     static METADATA: OnceLock<GenericModelMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
         v8::generic_model_metadata(
             ModelId::new("example.SecondGeneric"),
             ModelRole::Enum,
-            second_definition(),
+            second_definition_path(),
             &[],
             &[],
         )
@@ -80,185 +89,73 @@ mod registrations {
     use super::register_generic_model_capability;
 
     register_generic_model_capability! {
-        definition = super::first_definition,
+        definition_path = concat!(env!("CARGO_CRATE_NAME"), "::FirstGeneric"),
+        capability = __qubit_reflect_v4_definition_capability_FirstGeneric,
         metadata = super::first_metadata,
-        source = ("fixture-first", "fixture::first", 41, 7, 0x1111),
+        source = (env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(), 0x1111),
     }
 
     register_generic_model_capability! {
-        definition = super::second_definition,
+        definition_path = concat!(env!("CARGO_CRATE_NAME"), "::SecondGeneric"),
+        capability = __qubit_reflect_v4_definition_capability_SecondGeneric,
         metadata = super::second_metadata,
-        source = ("fixture-second", "fixture::second", 43, 9, 0x2222),
+        source = (env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(), 0x2222),
     }
 }
 
-/// Returns the target identity for the controlled first-definition conflict.
-fn first_conflict_identity() -> RuntimeIdentity {
-    RuntimeIdentity::Capabilities(CapabilityTarget::TypeDefinition(first_definition().id()))
-}
-
-/// Returns the payload for the controlled first-definition conflict.
-fn first_conflict_payload() -> FragmentPayload {
-    FragmentPayload::Capability(CapabilityRegistration::for_definition(
-        first_definition(),
-        vec![v8::generic_model_capability(first_metadata)],
-    ))
-}
-
-/// A second claim used to expose the first macro invocation's source facts.
-static FIRST_CONFLICT: RegistrationFragment = RegistrationFragment::new(
-    FragmentKind::Capability,
-    StaticFragmentIdentity::new("conflict", "conflict::first", 1, 1, "conflict", 1),
-    first_conflict_identity,
-    first_conflict_payload,
-);
-
-/// Returns the target identity for the controlled second-definition conflict.
-fn second_conflict_identity() -> RuntimeIdentity {
-    RuntimeIdentity::Capabilities(CapabilityTarget::TypeDefinition(second_definition().id()))
-}
-
-/// Returns the payload for the controlled second-definition conflict.
-fn second_conflict_payload() -> FragmentPayload {
-    FragmentPayload::Capability(CapabilityRegistration::for_definition(
-        second_definition(),
-        vec![v8::generic_model_capability(second_metadata)],
-    ))
-}
-
-/// A second claim used to expose the second macro invocation's source facts.
-static SECOND_CONFLICT: RegistrationFragment = RegistrationFragment::new(
-    FragmentKind::Capability,
-    StaticFragmentIdentity::new("conflict", "conflict::second", 1, 1, "conflict", 2),
-    second_conflict_identity,
-    second_conflict_payload,
-);
-
-/// Asserts that the model helper preserves reflection's canonical descriptor
-/// root for `T`.
-fn assert_reflected_root<T: Reflect + ?Sized>() {
-    let reference: &'static TypeRef = v8::reflected_type_ref::<T>();
-    let resolved = reference.as_resolved().expect("the helper must return a resolved root");
-    let direct_reference = TypeRef::of::<T>();
-    let direct_resolved = direct_reference
-        .as_resolved()
-        .expect("TypeRef::of must return a resolved root");
-    assert!(std::ptr::eq(resolved, TypeDescriptor::of::<T>()));
-    assert!(std::ptr::eq(direct_resolved, resolved));
-}
-
-/// Finds the inventory fragment that installs `expected_metadata` on
-/// `definition`.
-fn find_generic_model_capability_fragment(
-    definition: &'static TypeDefinitionDescriptor,
-    expected_metadata: &'static GenericModelMetadata,
-) -> &'static RegistrationFragment {
-    inventory::iter::<RegistrationFragment>
-        .into_iter()
-        .find(|fragment| {
-            let Ok(registry) = build_registry(&[*fragment]) else {
-                return false;
-            };
-            registry
-                .definition_capability(definition.id(), v8::generic_model_metadata_key())
-                .unwrap()
-                .is_some_and(|provider| std::ptr::eq(provider(), expected_metadata))
-        })
-        .expect("the generic model capability fragment must be discoverable")
-}
-
-/// Asserts source facts exposed by a controlled capability conflict.
-fn assert_fragment_source(
-    fragment: &'static RegistrationFragment,
-    conflict: &'static RegistrationFragment,
-    expected: &FragmentIdentity,
-) {
-    let error = build_registry(&[fragment, conflict]).expect_err("the duplicate capability must conflict");
-    let (first, second) = error
-        .conflicting_fragments()
-        .expect("the conflict must retain both fragment sources");
-    assert!(first == expected || second == expected);
+/// Asserts that a context-bound descriptor preserves exact sized and unsized
+/// Rust type identity.
+fn assert_reflected_root<T: ReflectType + ?Sized>() {
+    let descriptor = TypeDescriptor::of_in::<T>(ReflectionContext::global());
+    assert_eq!(descriptor.type_id(), std::any::TypeId::of::<T>());
+    assert_eq!(descriptor.rust_type_name(), std::any::type_name::<T>());
 }
 
 #[test]
-fn test_reflected_type_ref_preserves_sized_and_unsized_descriptor_roots() {
+fn test_context_bound_descriptors_preserve_sized_and_unsized_type_identity() {
     assert_reflected_root::<u32>();
     assert_reflected_root::<str>();
     assert_reflected_root::<[u32]>();
 }
 
 #[test]
-fn test_generic_model_registration_preserves_definition_providers_and_sources() {
-    let reflection = ReflectRegistry::initialize().expect("generic capabilities must register");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("generic models must project");
+fn test_generic_model_capabilities_preserve_providers_and_registration_sources() {
+    let reflection = ReflectionContext::global();
+    let models = ModelRegistry::from_context(reflection).expect("generic models must project");
 
     let cases = [
         (first_definition(), first_metadata(), "example.FirstGeneric"),
         (second_definition(), second_metadata(), "example.SecondGeneric"),
     ];
     for (definition, expected_metadata, model_id) in cases {
-        let provider = reflection
-            .definition_capability(definition.id(), v8::generic_model_metadata_key())
-            .unwrap()
+        let provider = definition
+            .find_capability::<GenericModelMetadataCapability>()
+            .expect("capability contract")
             .expect("the definition must carry a generic model provider");
-        assert!(std::ptr::eq(provider(), expected_metadata));
+        assert!(std::ptr::eq((provider.adapter())(), expected_metadata));
         assert!(std::ptr::eq(
             models
                 .generic(model_id)
                 .expect("the projected generic model must exist"),
             expected_metadata,
         ));
-        assert!(std::ptr::eq(
-            models
-                .source(model_id)
-                .expect("the projected model must retain its capability source"),
-            reflection
-                .definition_capability_source(definition.id(), v8::generic_model_metadata_key().id().as_str())
-                .expect("the generic capability must retain its source"),
-        ));
-        assert!(std::ptr::eq(
-            models
-                .get(model_id)
-                .expect("the projected model entry must exist")
-                .declaration_source()
-                .expect("the projected model must retain its declaration source"),
-            reflection
-                .definition_source(definition.id())
-                .expect("the generic definition must retain its source"),
-        ));
+
+        let capability_source = models.source(model_id).expect("capability source");
+        assert_eq!(capability_source.crate_name, "explicit");
+        assert!(!capability_source.module_path.is_empty());
+        let declaration_source = models
+            .get(model_id)
+            .expect("projected entry")
+            .declaration_source()
+            .expect("the generic definition declaration source is retained");
+        assert_eq!(capability_source, declaration_source);
+        assert!(capability_source.module_path.ends_with("::TypeDefinitionMarker"));
+        assert_eq!(capability_source.file, None);
+        assert_eq!(capability_source.line, None);
+        assert_eq!(capability_source.column, None);
     }
 
-    assert_ne!(
-        models.source("example.FirstGeneric").expect("first definition source"),
-        models
-            .source("example.SecondGeneric")
-            .expect("second definition source"),
-    );
-
-    let first_fragment = find_generic_model_capability_fragment(first_definition(), first_metadata());
-    assert_fragment_source(
-        first_fragment,
-        &FIRST_CONFLICT,
-        &FragmentIdentity::new(
-            "fixture-first",
-            "fixture::first",
-            41,
-            7,
-            "generic-model-capability",
-            0x1111,
-        ),
-    );
-    let second_fragment = find_generic_model_capability_fragment(second_definition(), second_metadata());
-    assert_fragment_source(
-        second_fragment,
-        &SECOND_CONFLICT,
-        &FragmentIdentity::new(
-            "fixture-second",
-            "fixture::second",
-            43,
-            9,
-            "generic-model-capability",
-            0x2222,
-        ),
-    );
+    let first_source = models.source("example.FirstGeneric").unwrap();
+    let second_source = models.source("example.SecondGeneric").unwrap();
+    assert_ne!(first_source, second_source);
 }

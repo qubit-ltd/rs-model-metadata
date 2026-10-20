@@ -1,8 +1,8 @@
 error[E0277]: the trait bound `Vec: Reflect` is not satisfied
-  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:29:12
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
    |
-29 |     value: Vec,
-   |            ^^^ unsatisfied trait bound
+26 | #[Model]
+   | ^^^^^^^^ unsatisfied trait bound
    |
 help: the trait `Reflect` is not implemented for `Vec`
   --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:24:1
@@ -19,11 +19,74 @@ help: the trait `Reflect` is not implemented for `Vec`
              (A, B, C, D, E)
              (A, B, C, D, E, F)
            and $N others
-note: required by a bound in `lazy_type_ref`
-  --> $QUBIT_REFLECT/src/private/descriptor.rs
+   = help: see issue #48214
+   = note: this error originates in the attribute macro `::model_runtime::__private::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Vec: Reflect` is not satisfied
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
    |
-   | pub fn lazy_type_ref<T: Reflect + ?Sized>() -> &'static LazyTypeRef {
-   |                         ^^^^^^^ required by this bound in `lazy_type_ref`
+26 | #[Model]
+   | ^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `Reflect` is not implemented for `Vec`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:24:1
+   |
+24 | struct Vec;
+   | ^^^^^^^^^^
+   = help: the following other types implement trait `Reflect`:
+             &'static T
+             &'static mut T
+             ()
+             (A, B)
+             (A, B, C)
+             (A, B, C, D)
+             (A, B, C, D, E)
+             (A, B, C, D, E, F)
+           and $N others
+note: required for `InvalidSelectorContainer` to implement `Reflect`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
+   |
+26 | #[Model]
+   | ^^^^^^^^ unsatisfied trait bound introduced here
+27 | struct InvalidSelectorContainer {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: see issue #48214
+   = note: this error originates in the attribute macro `Model` which comes from the expansion of the attribute macro `::model_runtime::__private::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Vec: Reflect` is not satisfied
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:27:8
+   |
+27 | struct InvalidSelectorContainer {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `Reflect` is not implemented for `Vec`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:24:1
+   |
+24 | struct Vec;
+   | ^^^^^^^^^^
+   = help: the following other types implement trait `Reflect`:
+             &'static T
+             &'static mut T
+             ()
+             (A, B)
+             (A, B, C)
+             (A, B, C, D)
+             (A, B, C, D, E)
+             (A, B, C, D, E, F)
+           and $N others
+note: required for `InvalidSelectorContainer` to implement `Reflect`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
+   |
+26 | #[Model]
+   | ^^^^^^^^ unsatisfied trait bound introduced here
+27 | struct InvalidSelectorContainer {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `RegistrationFragment::for_reflected_type`
+  --> $QUBIT_REFLECT/src/runtime/context/registration.rs
+   |
+   |     pub const fn for_reflected_type<T: Reflect>(label: &'static str) -> Self {
+   |                                        ^^^^^^^ required by this bound in `RegistrationFragment::for_reflected_type`
+   = note: this error originates in the attribute macro `::model_runtime::__private::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Vec: SequenceConstraintTarget` is not satisfied
   --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:29:12
@@ -37,14 +100,14 @@ help: the trait `SequenceConstraintTarget` is not implemented for `Vec`
 24 | struct Vec;
    | ^^^^^^^^^^
    = help: the following other types implement trait `SequenceConstraintTarget`:
+             Arc<T>
+             BTreeSet<T>
              BinaryHeap<T>
+             Box<T>
+             HashSet<T>
              LinkedList<T>
+             Rc<T>
              VecDeque<T>
-             [T; N]
-             [T]
-             std::boxed::Box<T>
-             std::collections::BTreeSet<T>
-             std::collections::HashSet<T>
            and $N others
 note: required by a bound in `assert_sequence_target`
   --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
@@ -52,3 +115,74 @@ note: required by a bound in `assert_sequence_target`
 26 | #[Model]
    | ^^^^^^^^ required by this bound in `assert_sequence_target`
    = note: this error originates in the attribute macro `Model` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Vec: Reflect` is not satisfied
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:27:8
+   |
+27 | struct InvalidSelectorContainer {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `Reflect` is not implemented for `Vec`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:24:1
+   |
+24 | struct Vec;
+   | ^^^^^^^^^^
+   = help: the following other types implement trait `Reflect`:
+             &'static T
+             &'static mut T
+             ()
+             (A, B)
+             (A, B, C)
+             (A, B, C, D)
+             (A, B, C, D, E)
+             (A, B, C, D, E, F)
+           and $N others
+note: required for `InvalidSelectorContainer` to implement `Reflect`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
+   |
+26 | #[Model]
+   | ^^^^^^^^ unsatisfied trait bound introduced here
+27 | struct InvalidSelectorContainer {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: required for `InvalidSelectorContainer` to implement `HasTypeMetadata`
+note: required by a bound in `model_capability`
+  --> $WORKSPACE/src/reflect_facade.rs
+   |
+   | pub fn model_capability<T: crate::metadata::HasTypeMetadata>() -> CapabilityRegistration {
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `model_capability`
+   = note: this error originates in the attribute macro `::model_runtime::__private::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Vec: Reflect` is not satisfied
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:27:8
+   |
+27 | struct InvalidSelectorContainer {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `Reflect` is not implemented for `Vec`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:24:1
+   |
+24 | struct Vec;
+   | ^^^^^^^^^^
+   = help: the following other types implement trait `Reflect`:
+             &'static T
+             &'static mut T
+             ()
+             (A, B)
+             (A, B, C)
+             (A, B, C, D)
+             (A, B, C, D, E)
+             (A, B, C, D, E, F)
+           and $N others
+note: required for `InvalidSelectorContainer` to implement `Reflect`
+  --> tests/ui_roles/fail/selector_named_vec_without_arguments.rs:26:1
+   |
+26 | #[Model]
+   | ^^^^^^^^ unsatisfied trait bound introduced here
+27 | struct InvalidSelectorContainer {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `model_impl_registration`
+  --> $WORKSPACE/src/reflect_facade.rs
+   |
+   | pub fn model_impl_registration<T: Reflect + 'static>() -> CapabilityRegistration {
+   |                                   ^^^^^^^ required by this bound in `model_impl_registration`
+   = note: this error originates in the attribute macro `::model_runtime::__private::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)

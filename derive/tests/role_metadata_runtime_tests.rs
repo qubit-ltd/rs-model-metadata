@@ -12,10 +12,8 @@ use core::convert::Infallible;
 use core::fmt::Debug;
 use std::collections::HashMap;
 
-use model_runtime::__private::ConstExpression;
 use model_runtime::__private::Reflect;
 use model_runtime::__private::TypeDescriptor;
-use model_runtime::__private::TypeExpression;
 use model_runtime::__private::qubit_id::Id;
 use model_runtime::metadata::CodecReference;
 use model_runtime::metadata::HasModelId;
@@ -34,6 +32,8 @@ use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
+use qubit_reflect::descriptor::ConstExpression;
+use qubit_reflect::descriptor::TypeExpressionKind;
 
 #[derive(Default)]
 struct EmailCodec;
@@ -185,13 +185,14 @@ fn test_role_macros_generate_metadata_capability_and_registration() {
     ];
 
     let registry = ModelRegistry::try_global().expect("generated registrations");
+    let reflection = registry.context().expect("global reflection context");
     for (metadata, role, id) in cases {
         assert_eq!(metadata.role(), role);
         assert_eq!(metadata.model_id().map(|value| value.as_str()), Some(id));
         assert!(std::ptr::eq(
             metadata,
             registry
-                .metadata_for(metadata.descriptor())
+                .metadata_for(&metadata.descriptor_in(reflection))
                 .expect("valid model capability")
                 .expect("model provider"),
         ));
@@ -306,48 +307,66 @@ fn test_generic_model_registers_only_its_definition() {
     let concrete = TypeMetadata::of::<Page<u64>>();
     assert_eq!(concrete.model_id(), None);
     let registry = ModelRegistry::try_global().expect("generic registration");
+    let reflection = registry.context().expect("global reflection context");
+    let descriptor = concrete.descriptor_in(reflection);
     assert!(
         registry
-            .metadata_for(concrete.descriptor())
-            .expect("valid concrete model capability")
-            .is_some()
+            .metadata_for(&descriptor)
+            .expect("valid absent concrete model capability")
+            .is_none()
     );
     let definition = concrete.generic_definition().expect("generic definition");
     assert_eq!(
         definition.model_id().expect("registered definition ID").as_str(),
         "runtime.Page"
     );
-    assert_eq!(definition.definition().generics().parameters().len(), 1);
+    assert_eq!(
+        definition
+            .definition_in(reflection)
+            .unwrap()
+            .generics()
+            .parameters()
+            .count(),
+        1
+    );
     assert_eq!(definition.fields().len(), 1);
     let template_field = &definition.fields()[0];
     assert_eq!(template_field.name(), Some("value"));
-    assert!(template_field.descriptor().is_none());
+    assert!(template_field.reflect_in(reflection).is_none());
     assert!(matches!(
-        template_field.type_ref().as_symbolic(),
-        Some(TypeExpression::Parameter(name)) if name.as_ref() == "T",
+        template_field.type_expression_in(reflection).map(|expression| expression.kind()),
+        Some(TypeExpressionKind::ParameterName(name)) if name == "T",
     ));
     assert!(std::ptr::eq(registry.generic("runtime.Page").unwrap(), definition));
     assert!(registry.metadata("runtime.Page").is_none());
 
     let buffer = TypeMetadata::of::<Buffer<4>>();
     let definition = buffer.generic_definition().expect("const generic definition");
-    assert_eq!(definition.definition().generics().parameters().len(), 1);
-    assert!(definition.fields()[0].type_ref().as_symbolic().is_some());
+    assert_eq!(
+        definition
+            .definition_in(reflection)
+            .unwrap()
+            .generics()
+            .parameters()
+            .count(),
+        1
+    );
+    assert!(definition.fields()[0].type_expression_in(reflection).is_some());
 
     let _ = TypeMetadata::of::<HTTPEnvelope<u8, 4>>();
     let definition = registry
         .generic("runtime.HTTPEnvelope")
         .expect("mixed-case generic registration");
     assert!(matches!(
-        definition.fields()[0].type_ref().as_symbolic(),
-        Some(TypeExpression::Associated(associated))
-            if associated.item() == "Item"
-                && matches!(associated.self_type(), TypeExpression::Parameter(name) if name.as_ref() == "T")
+        definition.fields()[0].type_expression_in(reflection).map(|expression| expression.kind()),
+        Some(TypeExpressionKind::AssociatedType(associated))
+            if associated.name() == "Item"
+                && matches!(associated.self_type().kind(), TypeExpressionKind::ParameterName(name) if name == "T")
     ));
     assert!(matches!(
-        definition.fields()[1].type_ref().as_symbolic(),
-        Some(TypeExpression::Array(array))
-            if matches!(array.length(), ConstExpression::Parameter(name) if name.as_ref() == "N")
+        definition.fields()[1].type_expression_in(reflection).map(|expression| expression.kind()),
+        Some(TypeExpressionKind::Array { length, .. })
+            if matches!(length, ConstExpression::Parameter(name) if name == "N")
     ));
 }
 

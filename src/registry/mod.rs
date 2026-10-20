@@ -16,4 +16,5 @@ mod model_registry;
 pub use self::error::ModelRegistryError;
 pub use self::error::ModelRegistryErrorKind;
 pub use self::model_entry::ModelEntry;
+pub use self::model_entry::ModelRegistryOrigin;
 pub use self::model_registry::ModelRegistry;

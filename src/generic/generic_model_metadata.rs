@@ -8,7 +8,9 @@
 
 //! Metadata for one registered generic model declaration.
 
-use qubit_reflect::TypeDefinitionDescriptor;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::descriptor::TypeDefinitionDescriptor;
+use qubit_reflect::error::LookupError;
 
 use crate::metadata::EnumVariantMetadata;
 use crate::metadata::FieldMetadata;
@@ -35,20 +37,18 @@ use crate::metadata::ModelRole;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::ResolveInputs;
 /// use qubit_model_metadata::resolve::StructureResolver;
-/// use qubit_reflect::identity::FragmentIdentity;
+/// use qubit_reflect::ReflectionContext;
 /// use std::error::Error;
 ///
 /// #[Model(id = "example.GenericEnvelope")]
 /// struct Envelope<T> { value: T }
 ///
 /// # fn main() -> Result<(), Box<dyn Error>> {
+/// let reflection = ReflectionContext::builder().include_linked().build()?;
 /// let root = TypeMetadata::of::<Envelope<String>>();
 /// let template: &GenericModelMetadata = root.generic_definition()
 ///     .expect("the Model macro emits a generic definition");
-/// let source = FragmentIdentity::new("example", "rustdoc", 1, 1, "generic-model", 0);
-/// let models = ModelRegistry::from_static_metadata_with_generics(
-///     &[], &[(template, &source)],
-/// )?;
+/// let models = ModelRegistry::from_context(&reflection)?;
 /// assert_eq!(models.generic("example.GenericEnvelope").map(|item| item.model_id()),
 ///     Some(template.model_id()));
 /// assert!(models.generic("example.Missing").is_none());
@@ -66,8 +66,8 @@ pub struct GenericModelMetadata {
     model_id: Option<ModelId>,
     /// The semantic role assigned to the model definition.
     role: ModelRole,
-    /// The reflection descriptor for the generic definition.
-    definition: &'static TypeDefinitionDescriptor,
+    /// The source path used to find this definition in a context.
+    definition_path: &'static str,
     /// Symbolic field overlays declared by the generic model.
     fields: &'static [FieldMetadata],
     /// Symbolic enum-variant overlays declared by the generic model.
@@ -83,26 +83,25 @@ impl GenericModelMetadata {
     /// - `model_id`: optional stable ID; `None` retains an anonymous
     ///   definition.
     /// - `role`: the semantic role assigned by the model macro.
-    /// - `definition`: shared reflection descriptor for the generic definition.
+    /// - `definition_path`: source path of the generic definition.
     /// - `fields`: symbolic overlays for struct fields.
     /// - `variants`: symbolic overlays for enum variants.
     ///
     /// # Returns
     ///
     /// Immutable metadata borrowing the supplied process-lifetime descriptors.
-    #[must_use]
     #[inline]
     pub(crate) const fn new(
         model_id: Option<ModelId>,
         role: ModelRole,
-        definition: &'static TypeDefinitionDescriptor,
+        definition_path: &'static str,
         fields: &'static [FieldMetadata],
         variants: &'static [EnumVariantMetadata],
     ) -> Self {
         Self {
             model_id,
             role,
-            definition,
+            definition_path,
             fields,
             variants,
         }
@@ -125,21 +124,28 @@ impl GenericModelMetadata {
     /// # Returns
     ///
     /// The role shared by all concrete specializations of this template.
-    #[must_use]
     #[inline]
     pub const fn role(&self) -> ModelRole {
         self.role
     }
 
-    /// Returns the shared reflection generic definition.
+    /// Finds the generic definition in the supplied reflection context.
     ///
     /// # Returns
     ///
-    /// The process-lifetime descriptor of the unspecialized type definition.
-    #[must_use]
+    /// The descriptor bound to `context`.
     #[inline]
-    pub const fn definition(&self) -> &'static TypeDefinitionDescriptor {
-        self.definition
+    pub fn definition_in<'ctx>(
+        &self,
+        context: &'ctx ReflectionContext,
+    ) -> Result<TypeDefinitionDescriptor<'ctx>, LookupError> {
+        context.type_definition_by_name(self.definition_path)
+    }
+
+    /// Returns the source path used to identify this generic definition.
+    #[must_use]
+    pub const fn definition_path(&self) -> &'static str {
+        self.definition_path
     }
 
     /// Returns symbolic field overlays for the template.

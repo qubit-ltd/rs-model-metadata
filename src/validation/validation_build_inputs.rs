@@ -40,9 +40,8 @@ use crate::resolve::ModelGraph;
 /// struct Profile;
 /// # fn main() {
 /// let root = TypeMetadata::of::<Profile>();
-/// let roots = [root];
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-/// let graph = Arc::new(StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let models = ModelRegistry::try_global().expect("model registry");
+/// let graph = Arc::new(StructureResolver::for_static_roots(models, [root])
 ///     .resolve().expect("valid structure"));
 /// let validators = ValidatorRegistry::empty();
 /// let inputs = ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators };

@@ -94,7 +94,7 @@ struct GenericConfigured<T> {
 }
 
 #[ModelImpl(specialize(T = String), specialize(T = u32))]
-impl<T: Clone + qubit_reflect::Reflect> GenericConfigured<T> {
+impl<T: Clone + qubit_reflect::descriptor::Reflect> GenericConfigured<T> {
     #[cfg(feature = "accessors")]
     pub fn current(&self) -> T {
         self.value.clone()
@@ -108,7 +108,7 @@ impl<T: Clone + qubit_reflect::Reflect> GenericConfigured<T> {
 
 #[ModelImpl(specialize(T = String), specialize(T = u32))]
 #[cfg(feature = "impl-enabled")]
-impl<T: Clone + qubit_reflect::Reflect> GenericConfigured<T> {
+impl<T: Clone + qubit_reflect::descriptor::Reflect> GenericConfigured<T> {
     pub fn impl_current(&self) -> T {
         self.value.clone()
     }
@@ -133,11 +133,13 @@ mod tests {
     use std::any::TypeId;
 
     use model_runtime::metadata::TypeMetadata;
+    use model_runtime::registry::ModelRegistry;
+    use qubit_reflect::ReflectionContext;
+    use qubit_reflect::TypeDescriptor;
     use qubit_reflect::value::DynamicMut;
     use qubit_reflect::value::DynamicOwned;
     use qubit_reflect::value::DynamicRef;
     use qubit_reflect::value::Local;
-    use qubit_reflect::registry::ReflectRegistry;
 
     use super::Configured;
     use super::GenericConfigured;
@@ -146,7 +148,13 @@ mod tests {
     #[test]
     fn test_real_feature_presence() {
         let metadata = TypeMetadata::of::<Configured>();
-        let reflection = ReflectRegistry::initialize().expect("fixture reflection registry");
+        let reflection = ReflectionContext::builder()
+            .include_linked()
+            .build()
+            .expect("fixture reflection context");
+        let models = ModelRegistry::from_context(&reflection).expect("fixture model registry");
+        let properties = models.properties_for(metadata).expect("fixture properties");
+        let descriptor = TypeDescriptor::of_in::<Configured>(&reflection);
         let expected = [
             ("absent", false),
             ("conditional", !cfg!(feature = "accessors")),
@@ -159,14 +167,21 @@ mod tests {
         ];
         let value = Configured { value: 17 };
         for (name, enabled) in expected {
-            let property = metadata.try_property(name).expect("valid property fragments");
+            let property = properties.property(name);
             assert_eq!(property.is_some(), enabled, "property {name}");
-            let method_present = reflection.implementations(TypeId::of::<Configured>()).iter()
-                .flat_map(|implementation| implementation.methods())
-                .any(|method| method.rust_name() == name);
+            let method_present = descriptor
+                .inherent_impls()
+                .expect("inherent impls")
+                .iter()
+                .any(|implementation| {
+                    implementation
+                        .methods()
+                        .iter()
+                        .any(|method| method.name() == name)
+                });
             assert_eq!(method_present, enabled, "reflection method {name}");
             if let Some(property) = property {
-                assert!(property.get_dynamic(DynamicRef::<Local>::new(&value)).is_ok(), "adapter {name}");
+                assert!(property.get_dynamic_in(&reflection, DynamicRef::<Local>::new(&value)).is_ok(), "adapter {name}");
             }
         }
         for (name, enabled) in [
@@ -174,15 +189,23 @@ mod tests {
             ("set_feature_value", cfg!(feature = "accessors")),
             ("set_paired", true),
         ] {
-            let count = reflection.implementations(TypeId::of::<Configured>()).iter()
-                .flat_map(|implementation| implementation.methods())
-                .filter(|method| method.rust_name() == name)
-                .count();
+            let count = descriptor
+                .inherent_impls()
+                .expect("inherent impls")
+                .iter()
+                .map(|implementation| {
+                    implementation
+                        .methods()
+                        .iter()
+                        .filter(|method| method.name() == name)
+                        .count()
+                })
+                .sum::<usize>();
             assert_eq!(count, usize::from(enabled), "reflection setter {name}");
         }
-        let paired = metadata.try_property("paired").expect("properties").expect("paired");
+        let paired = properties.property("paired").expect("paired");
         let expected_type = if cfg!(feature = "alternate") { TypeId::of::<String>() } else { TypeId::of::<u32>() };
-        assert_eq!(paired.descriptor().expect("paired descriptor").type_id(), expected_type);
+        assert_eq!(paired.descriptor_in(&reflection).expect("paired descriptor lookup").expect("paired descriptor").type_id(), expected_type);
         assert!(paired.setter().is_some());
         let mut changed = Configured { value: 0 };
         let replacement = if cfg!(feature = "alternate") {
@@ -190,10 +213,10 @@ mod tests {
         } else {
             DynamicOwned::<Local>::new(23u32)
         };
-        paired.set_dynamic(DynamicMut::<Local>::new(&mut changed), replacement).expect("enabled paired setter adapter");
+        paired.set_dynamic_in(&reflection, DynamicMut::<Local>::new(&mut changed), replacement).expect("enabled paired setter adapter");
         assert_eq!(changed.value, 23);
-        if let Some(property) = metadata.try_property("feature_value").expect("feature property") {
-            property.set_dynamic(DynamicMut::<Local>::new(&mut changed), DynamicOwned::<Local>::new(29u32)).expect("feature setter adapter");
+        if let Some(property) = properties.property("feature_value") {
+            property.set_dynamic_in(&reflection, DynamicMut::<Local>::new(&mut changed), DynamicOwned::<Local>::new(29u32)).expect("feature setter adapter");
             assert_eq!(changed.value, 29);
         }
     }
@@ -201,27 +224,40 @@ mod tests {
     /// Checks method and impl predicates on two concrete specializations.
     #[test]
     fn test_generic_specialization_presence() {
-        let reflection = ReflectRegistry::initialize().expect("generic fixture reflection");
+        let reflection = ReflectionContext::builder()
+            .include_linked()
+            .build()
+            .expect("generic fixture reflection");
+        let models = ModelRegistry::from_context(&reflection).expect("generic model registry");
         for metadata in [
             TypeMetadata::of::<GenericConfigured<String>>(),
             TypeMetadata::of::<GenericConfigured<u32>>(),
         ] {
+            let properties = models.properties_for(metadata).expect("generic properties");
             assert_eq!(
-                metadata.try_property("current").expect("generic properties").is_some(),
+                properties.property("current").is_some(),
                 cfg!(feature = "accessors")
             );
             assert_eq!(
-                metadata.try_property("impl_current").expect("generic impl properties").is_some(),
+                properties.property("impl_current").is_some(),
                 cfg!(feature = "impl-enabled")
             );
-            assert!(metadata.try_property("missing").expect("generic properties").is_none());
+            assert!(properties.property("missing").is_none());
+            let generic_impls = reflection
+                .impl_definitions()
+                .expect("generic source impl definitions");
             for (name, enabled) in [
                 ("current", cfg!(feature = "accessors")),
                 ("impl_current", cfg!(feature = "impl-enabled")),
                 ("missing", false),
             ] {
-                let present = reflection.impl_definitions().iter()
-                    .flat_map(|implementation| implementation.methods()).any(|method| method.rust_name() == name);
+                let present = generic_impls
+                    .iter()
+                    .any(|implementation| {
+                        let target = implementation.target().display().to_string();
+                        target.contains("GenericConfigured")
+                            && implementation.methods().get(name).is_some()
+                    });
                 assert_eq!(present, enabled, "generic reflection method {name}");
             }
         }

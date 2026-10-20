@@ -22,7 +22,7 @@
 这里的 Field 是存储字段；Property 是字段与合格访问器合并后的可访问属性；
 `TypeMetadata` 是不依赖实例的静态描述。只有当任务涉及多个模型的关系时才需要结构图。
 
-当前 checkout 使用 rs-reflect codegen v3。运行时值通过
+当前 checkout 使用 rs-reflect codegen v4。运行时值通过
 `DynamicRef<'a, Local>`、`DynamicMut<'a, Local>`、`DynamicOwned<Local>`
 进行受检访问；derive 生成的能力使用 `#[ReflectImpl]`。生成代码用的
 `__private::v8` 是内部接口，应用应使用本指南展示的公开 API，并保持
@@ -71,7 +71,7 @@ use qubit_id::Id;
 use qubit_model_derive::{Entity, Model};
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
+use qubit_model_metadata::resolve::StructureResolver;
 
 #[Entity(id = "guide.iam.User")]
 struct User {
@@ -95,8 +95,7 @@ fn main() {
     let person = TypeMetadata::try_of::<PersonInfo>().expect("PersonInfo ABI");
     assert!(user.field("username").expect("username").is_unique());
     let models = ModelRegistry::try_global().expect("linked models");
-    let roots = [user, person];
-    let graph = StructureResolver::for_roots(ResolveInputs { models, roots: &roots })
+    let graph = StructureResolver::for_static_roots(models, [user, person])
         .resolve().expect("valid model relations");
     let location = person.field("user_id").expect("reference field")
         .location().expect("field location");
@@ -147,7 +146,6 @@ use qubit_model_derive::Entity;
 use qubit_id::Id;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
@@ -167,9 +165,8 @@ struct User {
 
 fn main() {
     let root = TypeMetadata::of::<User>();
-    let roots = [root];
     let models = ModelRegistry::try_global().expect("linked models");
-    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+    let graph = Arc::new(StructureResolver::for_static_roots(&models, [root])
         .resolve().expect("valid structure"));
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(root, ValidationBuildInputs {
@@ -206,7 +203,7 @@ assert_eq!(user_metadata.type_id(), TypeMetadata::of::<User>().type_id());
 | 注册范围 | 入口 | 何时选用 |
 | --- | --- | --- |
 | 最终二进制已链接的模型 | `ModelRegistry::try_global()` | 应用启动时检查全部链接声明 |
-| 明确冻结的反射快照 | `from_reflect_registry(&reflection)` | 测试隔离、插件视图或需要独立注册的 `ModelImpl` 访问器 |
+| 显式反射上下文 | `ModelRegistry::from_context(&reflection)` | 测试隔离、插件视图或需要独立注册的 `ModelImpl` 访问器 |
 | 手头的一组静态元数据 | `from_static_metadata(...)` | 不需要反射快照能力的工具；子模型也须显式提供 |
 
 注册表不会从进程全局范围补入当前范围缺失的模型。快照可从根发现可达匿名子模型，
@@ -286,6 +283,7 @@ use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_reflect::ReflectionContext;
 
 #[derive(Default)]
 struct StringCodec;
@@ -329,7 +327,10 @@ static REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration
 );
 
 fn main() {
-    let models = ModelRegistry::from_static_metadata(&[]).expect("model registry");
+    let reflection = ReflectionContext::builder().include_linked().build()
+        .expect("reflection context");
+    let models = ModelRegistry::from_static_metadata(&reflection, &[])
+        .expect("model registry");
     let codecs = ValueStringCodecRegistry::from_registrations([&REGISTRATION])
         .expect("codec registry");
 
@@ -553,7 +554,7 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::Reflect;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
 use qubit_validator::ValidatorRegistry;
 
 #[Model(eq, hash)]
@@ -577,8 +578,11 @@ struct EmptyRaw { child: EmptyChild }
 struct EmptyRoot { raw: EmptyRaw }
 
 fn main() {
-    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot registry");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("context model registry");
     let validators = ValidatorRegistry::empty();
     let root = TypeMetadata::of::<Root>();
     let roots = [root];

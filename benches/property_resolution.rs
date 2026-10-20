@@ -15,8 +15,9 @@ use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use qubit_model_derive::Model;
+use qubit_model_metadata::__private::ModelImplFragment;
 use qubit_model_metadata::__private::ModelImplProvider;
-use qubit_model_metadata::__private::model_impl_fragment_key;
+use qubit_model_metadata::__private::ModelImplSource;
 use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::PropertyAccessPath;
 use qubit_model_metadata::metadata::GetterMetadata;
@@ -29,12 +30,7 @@ use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_reflect::capability::CapabilityDescriptor;
-use qubit_reflect::capability::CapabilityKey;
-use qubit_reflect::identity::CapabilityId;
-use qubit_reflect::identity::FragmentIdentity;
-use qubit_reflect::registry::ReflectRegistry;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicMut;
 use qubit_reflect::value::DynamicOwned;
 use qubit_reflect::value::DynamicRef;
@@ -165,10 +161,12 @@ fn write_name(target: DynamicMut<'_, Local>, value: DynamicOwned<Local>) -> Resu
 fn overlay(getter: bool) -> ModelImplMetadata {
     let owner = TypeMetadata::of::<ResolutionFixture>();
     let field = &owner.fields()[0];
+    let expression = field.type_expression_data().expect("field type expression");
     let getter = getter.then(|| {
         v8::leak(GetterMetadata::new::<ResolutionFixture>(
             "read_name",
-            field.type_ref(),
+            expression,
+            std::any::TypeId::of::<String>,
             GetterOutputKind::Borrowed,
             read_name,
         ))
@@ -176,37 +174,44 @@ fn overlay(getter: bool) -> ModelImplMetadata {
     let setter = getter.is_none().then(|| {
         v8::leak(SetterMetadata::new::<ResolutionFixture, String>(
             "write_name",
-            field.type_ref(),
+            expression,
             write_name,
         ))
     });
     let mut fragments = vec![v8::property_fragment(
         "name",
-        field.type_ref(),
+        Some(expression),
         PropertyFragmentSource::Field(field),
     )];
     if let Some(getter) = getter {
         fragments.push(v8::property_fragment(
             "name",
-            field.type_ref(),
+            Some(expression),
             PropertyFragmentSource::Getter(getter),
         ));
     }
     if let Some(setter) = setter {
         fragments.push(v8::property_fragment(
             "name",
-            field.type_ref(),
+            Some(expression),
             PropertyFragmentSource::Setter(setter),
         ));
     }
     let properties = v8::leak_slice(vec![v8::property_metadata(
         "name",
-        field.type_ref(),
+        Some(expression),
         Some(field),
         getter,
         setter,
     )]);
-    owner.validate_properties(properties).expect("valid overlay");
+    let reflection = ReflectionContext::builder()
+        .include_type::<ResolutionFixture>()
+        .include_type::<String>()
+        .build()
+        .expect("overlay reflection context");
+    owner
+        .validate_properties_in(&reflection, properties)
+        .expect("valid overlay");
     v8::model_impl_metadata(
         v8::leak_slice(fragments),
         Ok(v8::leak(v8::local_property_set(properties))),
@@ -223,89 +228,56 @@ fn setter_provider() -> &'static ModelImplMetadata {
     VALUE.get_or_init(|| overlay(false))
 }
 
-/// Creates one explicit snapshot with unique model and unrelated capability
-/// sources.
-fn snapshot(two_providers: bool, unrelated: bool) -> ReflectRegistry {
-    let owner = TypeMetadata::of::<ResolutionFixture>();
-    let mut builder = RegistrySnapshotBuilder::new();
-    builder.add_type(
-        owner.descriptor(),
-        FragmentIdentity::new("property-resolution-bench", "type", 1, 1, "type", 1),
-    );
+/// Builds a context with owner fragments and unrelated fragments to filter.
+fn snapshot(two_providers: bool, unrelated_count: usize) -> ReflectionContext {
     let providers = [
-        (
-            "qubit.model.impl.v1.fbench_getter",
-            getter_provider as ModelImplProvider,
-        ),
-        (
-            "qubit.model.impl.v1.fbench_setter",
-            setter_provider as ModelImplProvider,
-        ),
+        getter_provider as ModelImplProvider,
+        setter_provider as ModelImplProvider,
     ];
-    for (index, (id, provider)) in providers
+    let mut fragments: Vec<_> = providers
         .into_iter()
-        .enumerate()
         .take(if two_providers { 2 } else { 1 })
-    {
-        builder.add_type_capabilities(
-            owner.descriptor(),
-            vec![CapabilityDescriptor::with_adapter(
-                model_impl_fragment_key(id),
-                provider,
-            )],
-            FragmentIdentity::new("property-resolution-bench", id, 1, 1, "capability", index as u64 + 2),
-        );
-    }
-    if unrelated {
-        for index in 0..128_u64 {
-            let id = Box::leak(format!("qubit.bench.unrelated.v1.item_{index:03}").into_boxed_str());
-            builder.add_type_capabilities(
-                owner.descriptor(),
-                vec![CapabilityDescriptor::without_adapter(CapabilityKey::<()>::new(
-                    CapabilityId::new(id).expect("valid unrelated ID"),
-                ))],
-                FragmentIdentity::new("property-resolution-bench", id, 1, 1, "capability", index + 4),
-            );
-        }
-    }
-    builder.build().expect("valid explicit benchmark snapshot")
+        .enumerate()
+        .map(|(index, provider)| {
+            ModelImplFragment::for_type::<ResolutionFixture>(provider, model_impl_source(index as u64 + 1))
+        })
+        .collect();
+    fragments.extend(
+        (0..unrelated_count)
+            .map(|index| ModelImplFragment::for_type::<String>(getter_provider, model_impl_source(index as u64 + 3))),
+    );
+    let fragments = v8::leak_slice(fragments);
+    ReflectionContext::builder()
+        .include_linked()
+        .register(v8::model_impl_capability_registration::<ResolutionFixture>(fragments))
+        .build()
+        .expect("valid explicit benchmark context")
 }
 
-/// Builds one explicit registry for full three-segment compilation cases.
-fn path_snapshot() -> ReflectRegistry {
-    let mut builder = RegistrySnapshotBuilder::new();
-    for (index, descriptor) in [
-        TypeMetadata::of::<ResolutionPathLeaf>().descriptor(),
-        TypeMetadata::of::<ResolutionPathMiddle>().descriptor(),
-        TypeMetadata::of::<ResolutionPathNine>().descriptor(),
-        TypeMetadata::of::<ResolutionPathSeventeen>().descriptor(),
-        TypeMetadata::of::<ResolutionPathFiftyOne>().descriptor(),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        builder.add_type(
-            descriptor,
-            FragmentIdentity::new(
-                "property-resolution-bench",
-                Box::leak(format!("path-type-{index}").into_boxed_str()),
-                1,
-                1,
-                "type",
-                index as u64 + 1,
-            ),
-        );
+fn model_impl_source(fingerprint: u64) -> ModelImplSource {
+    ModelImplSource {
+        module_path: module_path!(),
+        file: file!(),
+        line: line!(),
+        fingerprint,
     }
-    builder.build().expect("valid path benchmark snapshot")
+}
+
+/// Builds a context for full three-segment compilation cases.
+fn path_snapshot() -> ReflectionContext {
+    ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("valid path benchmark context")
 }
 
 /// Checks the result before measurements and registers four resolution paths.
 fn property_resolution(criterion: &mut Criterion) {
     let owner = TypeMetadata::of::<ResolutionFixture>();
-    let one = snapshot(false, false);
-    let two = snapshot(true, false);
-    let many = snapshot(true, true);
-    let models = ModelRegistry::from_reflect_registry(&two).expect("model registry");
+    let one = snapshot(false, 0);
+    let two = snapshot(true, 0);
+    let many = snapshot(true, 128);
+    let models = ModelRegistry::from_context(&two).expect("model registry");
 
     let merged = owner.try_properties_in(&two).expect("two providers merge");
     let property = merged.property("name").expect("merged name property");
@@ -397,7 +369,7 @@ fn property_resolution(criterion: &mut Criterion) {
     paths.finish();
 
     let path_snapshot = path_snapshot();
-    let path_models = ModelRegistry::from_reflect_registry(&path_snapshot).expect("path model registry");
+    let path_models = ModelRegistry::from_context(&path_snapshot).expect("path model registry");
     let path_cases = [
         (9, TypeMetadata::of::<ResolutionPathNine>(), ["f08", "leaf", "value"]),
         (

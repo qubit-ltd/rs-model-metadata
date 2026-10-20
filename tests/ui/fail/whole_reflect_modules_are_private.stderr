@@ -9,9 +9,3 @@ error[E0432]: unresolved import `qubit_model_metadata::registry::ReflectRegistry
    |
 10 | use qubit_model_metadata::registry::ReflectRegistry;
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `ReflectRegistry` in `registry`
-   |
-help: consider importing this struct instead
-   |
-10 - use qubit_model_metadata::registry::ReflectRegistry;
-10 + use qubit_reflect::ReflectRegistry;
-   |

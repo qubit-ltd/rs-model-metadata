@@ -8,23 +8,6 @@
 
 //! Model-owned adapters over the reflection codegen protocol.
 
-use qubit_reflect::Reflect;
-use qubit_reflect::descriptor::TypeRef;
-
-/// Returns a static type reference for model-generated metadata.
-///
-/// # Returns
-/// A static reference to a resolved root type reference for `T`.
-///
-/// # Allocation
-/// Each call may allocate to provide the static reference required by
-/// model-generated metadata.
-#[doc(hidden)]
-#[must_use]
-pub fn reflected_type_ref<T: Reflect + ?Sized>() -> &'static TypeRef {
-    Box::leak(Box::new(TypeRef::of::<T>()))
-}
-
 /// Emits generic model expansion only when the runtime feature is enabled.
 #[doc(hidden)]
 #[macro_export]
@@ -49,7 +32,8 @@ macro_rules! __qubit_model_with_generic_feature {
 #[cfg(feature = "generic")]
 macro_rules! __qubit_model_register_generic_model_capability {
     (
-        definition = $definition:path,
+        definition_path = $definition_path:expr,
+        capability = $capability:ident,
         metadata = $metadata:path,
         source = (
             $declaring_crate:expr,
@@ -60,34 +44,95 @@ macro_rules! __qubit_model_register_generic_model_capability {
         ),
     ) => {
         const _: () = {
-            fn runtime_identity() -> $crate::__private::codegen_v3::registration::RuntimeIdentity {
-                $crate::__private::codegen_v3::registration::RuntimeIdentity::Capabilities(
-                    $crate::__private::codegen_v3::registration::CapabilityTarget::TypeDefinition($definition().id()),
+            fn registration() -> $crate::__private::codegen_v4::registration::Registration {
+                $crate::__private::codegen_v4::registration::Registration::from(super::$capability::<
+                    $crate::__private::v8::GenericModelMetadataCapability,
+                >($metadata))
+            }
+
+            $crate::__private::codegen_v4::registration::submit_linked_definition_capability!(
+                concat!($definition_path, "::generic-model-capability"),
+                registration
+            );
+
+            const _: (&str, &str, u32, u32, u64) = ($declaring_crate, $module_path, $line, $column, $fingerprint);
+        };
+    };
+}
+
+/// Registers the fixed model implementation capability on a generic definition.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "generic")]
+macro_rules! __qubit_model_register_generic_model_impl_capability {
+    (
+        definition_path = $definition_path:expr,
+        capability = $capability:ident,
+        source = (
+            $declaring_crate:expr,
+            $module_path:expr,
+            $line:expr,
+            $column:expr,
+            $fingerprint:expr
+        ),
+    ) => {
+        const _: () = {
+            fn registration() -> $crate::__private::codegen_v4::registration::Registration {
+                $crate::__private::codegen_v4::registration::Registration::from(super::$capability::<
+                    $crate::__private::v8::ModelImplCapability,
+                >(
+                    $crate::__private::v8::all_model_impl_fragments(),
+                ))
+            }
+
+            $crate::__private::codegen_v4::registration::submit_linked_definition_capability!(
+                concat!($definition_path, "::model-impl-capability"),
+                registration
+            );
+
+            const _: (&str, &str, u32, u32, u64) = ($declaring_crate, $module_path, $line, $column, $fingerprint);
+        };
+    };
+}
+
+/// Submits the generated concrete model metadata capability for `T`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __qubit_model_submit_metadata_capability {
+    ($ty:ty $(,)?) => {
+        const _: () = {
+            fn registration() -> $crate::__private::codegen_v4::registration::Registration {
+                $crate::__private::codegen_v4::registration::Registration::from(
+                    $crate::__private::v8::model_capability::<$ty>(),
                 )
             }
 
-            fn payload() -> $crate::__private::codegen_v3::registration::FragmentPayload {
-                $crate::__private::codegen_v3::registration::FragmentPayload::Capability(
-                    $crate::__private::codegen_v3::registration::CapabilityRegistration::for_definition(
-                        $definition(),
-                        ::std::vec![$crate::__private::v8::generic_model_capability($metadata)],
-                    ),
+            $crate::__private::__inventory::submit! {
+                $crate::__private::codegen_v4::registration::RegistrationFragment::for_global_registration(
+                    concat!(module_path!(), "::", stringify!($ty), "::model-metadata-capability"),
+                    registration,
+                )
+            }
+        };
+    };
+}
+
+/// Submits the aggregate `ModelImpl` capability for a concrete model type.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __qubit_model_submit_model_impl_capability {
+    ($ty:ty $(,)?) => {
+        const _: () = {
+            fn registration() -> $crate::__private::codegen_v4::registration::Registration {
+                $crate::__private::codegen_v4::registration::Registration::from(
+                    $crate::__private::v8::model_impl_registration::<$ty>(),
                 )
             }
 
-            $crate::__private::codegen_v3::inventory::submit! {
-                $crate::__private::codegen_v3::registration::RegistrationFragment::new(
-                    $crate::__private::codegen_v3::registration::FragmentKind::Capability,
-                    $crate::__private::codegen_v3::registration::StaticFragmentIdentity::new(
-                        $declaring_crate,
-                        $module_path,
-                        $line,
-                        $column,
-                        "generic-model-capability",
-                        $fingerprint,
-                    ),
-                    runtime_identity,
-                    payload,
+            $crate::__private::__inventory::submit! {
+                $crate::__private::codegen_v4::registration::RegistrationFragment::for_global_registration(
+                    concat!(module_path!(), "::", stringify!($ty), "::model-impl-capability"),
+                    registration,
                 )
             }
         };

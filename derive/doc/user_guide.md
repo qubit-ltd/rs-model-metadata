@@ -289,9 +289,8 @@ use qubit_model_derive::Value;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveErrorKind;
-use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
 
 #[Model(eq, hash)]
 struct Plain { name: String }
@@ -320,22 +319,24 @@ impl Configured {
 }
 
 fn main() {
-    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot registry");
+    let invalid_value = TypeMetadata::of::<InvalidValue>();
+    let outer = TypeMetadata::of::<Outer>();
+    let legal_value = TypeMetadata::of::<LegalValue>();
+    let reflection = ReflectionContext::builder().include_linked().build()
+        .expect("reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     for (root, kind, field) in [
-        (TypeMetadata::of::<InvalidValue>(), ResolveErrorKind::InvalidValueClosure, 0),
-        (TypeMetadata::of::<Outer>(), ResolveErrorKind::InvalidEntityNesting, 1),
+        (invalid_value, ResolveErrorKind::InvalidValueClosure, 0),
+        (outer, ResolveErrorKind::InvalidEntityNesting, 1),
     ] {
-        let roots = [root];
-        let errors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+        let errors = StructureResolver::for_static_roots(&models, [root])
             .resolve().expect_err("wrapping does not erase role constraints");
         let error = errors.errors().iter().find(|error| error.kind() == kind)
             .expect("specific role failure");
         assert_eq!(error.owner_type_id(), Some(root.type_id()));
         assert_eq!(error.declaration().expect("owning field").field, Some(field));
     }
-    let roots = [TypeMetadata::of::<LegalValue>()];
-    let _ = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+    let _ = StructureResolver::for_static_roots(&models, [legal_value])
         .resolve().expect("primitive Value is closed");
     let metadata = TypeMetadata::of::<Configured>();
     assert!(metadata.try_property("absent").expect("properties").is_none());

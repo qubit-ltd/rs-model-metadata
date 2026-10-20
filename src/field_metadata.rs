@@ -6,15 +6,16 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Immutable domain semantics over one reflected field descriptor.
+//! Immutable domain semantics over a reflected field's static source facts.
 
 use std::any::TypeId;
 
-use qubit_reflect::FieldDefinitionDescriptor;
+use qubit_reflect::__private::codegen_v4::expression::GenericExpressionArgument;
+use qubit_reflect::__private::codegen_v4::expression::TypeExpressionData;
 use qubit_reflect::FieldDescriptor;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::access::FieldVisibility;
-use qubit_reflect::descriptor::TypeRef;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::descriptor::TypeExpression;
+use qubit_reflect::descriptor::Visibility;
 
 use crate::metadata::CodecMetadata;
 use crate::metadata::CollectionOps;
@@ -35,6 +36,7 @@ use crate::metadata::SerdeFieldMetadata;
 use crate::metadata::TextConstraint;
 use crate::metadata::TimeConstraint;
 use crate::metadata::ValidatorMetadata;
+use crate::property::OptionalOps;
 
 /// Model semantics attached to one reflection-owned structural field.
 ///
@@ -62,19 +64,28 @@ use crate::metadata::ValidatorMetadata;
 /// assert_eq!(location.variant(), None);
 /// # }
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct FieldMetadata {
     /// Concrete declaration identity; absent for generic definitions.
     location: Option<FieldLocation>,
     /// Source position and owning object of this declaration.
     declaration: DeclarationLocation,
-    /// The concrete reflection descriptor, when this is a runtime overlay.
-    reflect: Option<&'static FieldDescriptor>,
-    /// The source-level descriptor, when this is a generic declaration
-    /// overlay.
-    definition: Option<&'static FieldDefinitionDescriptor>,
-    /// The symbolic type reference used by a generic declaration overlay.
-    symbolic_type: Option<&'static TypeRef>,
+    /// Concrete Rust type identity used to resolve the field in a context.
+    owner_type_id: Option<TypeId>,
+    /// Generic definition path that owns a symbolic field.
+    definition_path: Option<&'static str>,
+    /// Source field index within its struct or enum variant.
+    source_index: usize,
+    /// Source enum variant index, if applicable.
+    source_variant: Option<usize>,
+    /// Source field name; tuple fields have no name.
+    source_name: Option<&'static str>,
+    /// Visibility recorded from source syntax.
+    source_visibility: Visibility,
+    /// Static source type-expression facts.
+    expression: Option<&'static TypeExpressionData>,
+    /// Exact concrete type identity retained for eligible opaque fields.
+    opaque_type_id: Option<TypeId>,
     /// Whether a definition field inherits an enum variant's visibility.
     variant_inherited: bool,
     /// Source-order declarations attached to the field.
@@ -87,6 +98,26 @@ pub struct FieldMetadata {
     serde: &'static SerdeFieldMetadata,
     /// Exact-type read-only operations for supported collections.
     collection_ops: Option<CollectionOps>,
+    /// Exact-type projection operations for an `Option<T>` field.
+    optional_ops: Option<OptionalOps>,
+}
+
+impl core::fmt::Debug for FieldMetadata {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter
+            .debug_struct("FieldMetadata")
+            .field("location", &self.location)
+            .field("declaration", &self.declaration)
+            .field("owner_type_id", &self.owner_type_id)
+            .field("definition_path", &self.definition_path)
+            .field("source_index", &self.source_index)
+            .field("source_variant", &self.source_variant)
+            .field("source_name", &self.source_name)
+            .field("source_visibility", &self.source_visibility)
+            .field("has_expression", &self.expression.is_some())
+            .field("variant_inherited", &self.variant_inherited)
+            .finish_non_exhaustive()
+    }
 }
 
 impl FieldMetadata {
@@ -105,19 +136,29 @@ impl FieldMetadata {
     /// domain declarations, and default Serde metadata. This constructor does
     /// not infer domain markers from structural reflection facts.
     #[must_use]
-    pub const fn from_reflect(owner: TypeId, reflect: &'static FieldDescriptor) -> Self {
+    pub fn from_reflect(owner: TypeId, reflect: FieldDescriptor<'_>) -> Self {
         Self {
             declaration: DeclarationLocation::unknown(),
-            location: Some(FieldLocation::new(owner, reflect.variant_index(), reflect.index())),
-            reflect: Some(reflect),
-            definition: None,
-            symbolic_type: None,
-            variant_inherited: false,
+            location: Some(FieldLocation::new(
+                owner,
+                reflect.declaring_variant().map(|value| value.index()),
+                reflect.index(),
+            )),
+            owner_type_id: Some(owner),
+            definition_path: None,
+            source_index: reflect.index(),
+            source_variant: reflect.declaring_variant().map(|value| value.index()),
+            source_name: Some(reflect.name()),
+            source_visibility: reflect.visibility(),
+            expression: None,
+            opaque_type_id: None,
+            variant_inherited: reflect.declaring_variant().is_some(),
             attributes: &[],
             constraints: &[],
             validators: &[],
             serde: &SerdeFieldMetadata::DEFAULT,
             collection_ops: None,
+            optional_ops: None,
         }
     }
 
@@ -144,9 +185,15 @@ impl FieldMetadata {
     /// caller associates it separately.
     #[doc(hidden)]
     #[must_use]
-    pub(crate) const fn with_semantics(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn with_semantics(
         owner: TypeId,
-        reflect: &'static FieldDescriptor,
+        variant: Option<usize>,
+        index: usize,
+        name: Option<&'static str>,
+        visibility: Visibility,
+        expression: &'static TypeExpressionData,
+        opaque_type_id: Option<TypeId>,
         attributes: &'static [FieldAttributeMetadata],
         constraints: &'static [ConstraintMetadata],
         validators: &'static [ValidatorMetadata],
@@ -154,16 +201,22 @@ impl FieldMetadata {
     ) -> Self {
         Self {
             declaration: DeclarationLocation::unknown(),
-            location: Some(FieldLocation::new(owner, reflect.variant_index(), reflect.index())),
-            reflect: Some(reflect),
-            definition: None,
-            symbolic_type: None,
-            variant_inherited: false,
+            location: Some(FieldLocation::new(owner, variant, index)),
+            owner_type_id: Some(owner),
+            definition_path: None,
+            source_index: index,
+            source_variant: variant,
+            source_name: name,
+            source_visibility: visibility,
+            expression: Some(expression),
+            opaque_type_id,
+            variant_inherited: variant.is_some(),
             attributes,
             constraints,
             validators,
             serde,
             collection_ops: None,
+            optional_ops: None,
         }
     }
 
@@ -196,9 +249,14 @@ impl FieldMetadata {
     /// separately.
     #[doc(hidden)]
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) const fn with_definition_semantics(
-        definition: &'static FieldDefinitionDescriptor,
-        symbolic_type: &'static TypeRef,
+        definition_path: &'static str,
+        index: usize,
+        variant: Option<usize>,
+        name: Option<&'static str>,
+        visibility: Visibility,
+        expression: &'static TypeExpressionData,
         variant_inherited: bool,
         attributes: &'static [FieldAttributeMetadata],
         constraints: &'static [ConstraintMetadata],
@@ -208,15 +266,21 @@ impl FieldMetadata {
         Self {
             declaration: DeclarationLocation::unknown(),
             location: None,
-            reflect: None,
-            definition: Some(definition),
-            symbolic_type: Some(symbolic_type),
+            owner_type_id: None,
+            definition_path: Some(definition_path),
+            source_index: index,
+            source_variant: variant,
+            source_name: name,
+            source_visibility: visibility,
+            expression: Some(expression),
+            opaque_type_id: None,
             variant_inherited,
             attributes,
             constraints,
             validators,
             serde,
             collection_ops: None,
+            optional_ops: None,
         }
     }
 
@@ -261,6 +325,20 @@ impl FieldMetadata {
         self.collection_ops.as_ref()
     }
 
+    /// Associates exact-type optional projection operations.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn with_optional_ops(mut self, optional_ops: OptionalOps) -> Self {
+        self.optional_ops = Some(optional_ops);
+        self
+    }
+
+    /// Returns exact-type optional projection operations, when generated.
+    #[must_use]
+    pub const fn optional_ops(&self) -> Option<OptionalOps> {
+        self.optional_ops
+    }
+
     /// Returns this concrete field's process-local identity.
     ///
     /// Generic definition fields return `None` until instantiated. Copies of a
@@ -287,104 +365,92 @@ impl FieldMetadata {
         &self.declaration
     }
 
-    /// Returns the concrete reflection field descriptor, or `None` for an
-    /// uninstantiated generic definition field.
+    /// Resolves this field in the supplied reflection context.
     ///
-    /// # Returns
-    ///
-    /// `Some` for a concrete reflected field, or `None` for a generic
-    /// definition field.
-    #[inline]
-    pub const fn reflect(&self) -> Option<&'static FieldDescriptor> {
-        self.reflect
+    /// Generic declaration fields have no concrete reflected field and return
+    /// `None`.
+    #[must_use]
+    pub fn reflect_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<FieldDescriptor<'ctx>> {
+        let descriptor = context.find_type_by_id(self.owner_type_id?).ok().flatten()?;
+        if let Some(variant_index) = self.source_variant {
+            let variant = descriptor
+                .variants()
+                .iter()
+                .find(|value| value.index() == variant_index)?;
+            return variant.fields().iter().find(|value| value.index() == self.source_index);
+        }
+        descriptor
+            .fields()
+            .iter()
+            .find(|value| value.index() == self.source_index)
     }
 
-    /// Returns the source-level field for a generic declaration overlay, or
-    /// `None` for a concrete field, including a specialized generic field.
-    ///
-    /// # Returns
-    ///
-    /// `Some` for a generic declaration field, or `None` for a concrete
-    /// runtime field.
-    #[inline]
-    pub const fn definition(&self) -> Option<&'static FieldDefinitionDescriptor> {
-        self.definition
+    /// Binds the retained generic declaration expression to a reflection
+    /// context.
+    #[must_use]
+    pub fn type_expression_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<TypeExpression<'ctx>> {
+        if let Some(expression) = self.expression.filter(|expression| contains_self_type(expression)) {
+            return Some(qubit_reflect::__private::codegen_v4::expression::type_expression_in(
+                expression, context,
+            ));
+        }
+        if let Some(field) = self.reflect_in(context) {
+            return Some(field.type_expression());
+        }
+        self.expression
+            .map(|expression| qubit_reflect::__private::codegen_v4::expression::type_expression_in(expression, context))
     }
 
-    /// Returns the zero-based source field index, local to its struct or enum
-    /// variant. Generic definition and specialization preserve this index.
-    ///
-    /// # Returns
-    ///
-    /// The zero-based index within the containing struct or enum variant.
+    /// Returns the retained expression facts used to build context-bound views.
+    #[doc(hidden)]
     #[must_use]
     #[inline]
+    pub const fn type_expression_data(&self) -> Option<&'static TypeExpressionData> {
+        self.expression
+    }
+
+    /// Returns an exact concrete identity retained for an eligible opaque
+    /// field.
+    ///
+    /// The identity is available without requiring the field type to implement
+    /// reflection. `None` means the field has no retained concrete identity,
+    /// which includes symbolic generic declarations and opaque types with
+    /// non-static lifetimes.
+    #[must_use]
+    #[inline]
+    pub const fn opaque_type_id(&self) -> Option<TypeId> {
+        self.opaque_type_id
+    }
+
+    /// Returns the zero-based source field index.
+    #[must_use]
     pub const fn index(&self) -> usize {
-        match (self.reflect, self.definition) {
-            (Some(reflect), _) => reflect.index(),
-            (_, Some(definition)) => definition.index(),
-            _ => unreachable!(),
-        }
+        self.source_index
     }
 
     /// Returns the field query name, or `None` for an unnamed tuple payload.
-    /// This is independent of Serde serialization and deserialization names.
-    ///
-    /// # Returns
-    ///
-    /// `Some` with the query name, or `None` when the declaration is an
-    /// unnamed tuple payload.
-    #[inline]
+    #[must_use]
     pub const fn name(&self) -> Option<&'static str> {
-        match (self.reflect, self.definition) {
-            (Some(reflect), _) => reflect.query_name(),
-            (_, Some(definition)) => definition.query_name(),
-            _ => unreachable!(),
-        }
+        self.source_name
     }
 
-    /// Returns declared visibility for a struct field, or inherited variant
-    /// visibility for an enum payload. This also works for symbolic fields.
-    ///
-    /// # Returns
-    ///
-    /// The declared field visibility or the inherited variant visibility.
+    /// Returns the visibility recorded from source syntax.
     #[must_use]
-    #[inline]
-    pub const fn visibility(&self) -> FieldVisibility<'_> {
-        match (self.reflect, self.definition) {
-            (Some(reflect), _) => reflect.visibility(),
-            (_, Some(_)) if self.variant_inherited => FieldVisibility::VariantInherited,
-            (_, Some(definition)) => FieldVisibility::Declared(definition.visibility()),
-            _ => unreachable!(),
-        }
+    pub const fn visibility(&self) -> Visibility {
+        self.source_visibility
     }
 
-    /// Returns the exact resolved, opaque, or symbolic field type reference.
-    ///
-    /// # Returns
-    ///
-    /// The type reference retained by this concrete or generic overlay.
+    /// Returns whether the field belongs to a variant whose visibility is
+    /// inherited.
     #[must_use]
-    #[inline]
-    pub fn type_ref(&self) -> &'static TypeRef {
-        match (self.reflect, self.symbolic_type) {
-            (Some(reflect), _) => reflect.field_type(),
-            (_, Some(symbolic_type)) => symbolic_type,
-            _ => unreachable!(),
-        }
+    pub const fn variant_inherited(&self) -> bool {
+        self.variant_inherited
     }
 
-    /// Returns the resolved field type descriptor, or `None` for opaque and
-    /// symbolic type references.
-    ///
-    /// # Returns
-    ///
-    /// `Some` when the field type is resolved, or `None` when it is opaque or
-    /// symbolic.
-    #[inline]
-    pub fn descriptor(&self) -> Option<&'static TypeDescriptor> {
-        self.type_ref().as_resolved()
+    /// Returns the generic definition path for a symbolic declaration field.
+    #[must_use]
+    pub const fn definition_path(&self) -> Option<&'static str> {
+        self.definition_path
     }
 
     /// Returns all semantic occurrences in source order.
@@ -627,5 +693,41 @@ impl FieldMetadata {
         self.attributes
             .iter()
             .any(|attribute| matches!(attribute, FieldAttributeMetadata::Opaque))
+    }
+}
+
+fn contains_self_type(expression: &TypeExpressionData) -> bool {
+    use qubit_reflect::__private::codegen_v4::expression::ExpressionData;
+
+    fn argument_contains_self(argument: &GenericExpressionArgument) -> bool {
+        match argument {
+            GenericExpressionArgument::Type(expression)
+            | GenericExpressionArgument::AssociatedType { value: expression, .. } => contains_self_type(expression),
+            GenericExpressionArgument::Lifetime(_)
+            | GenericExpressionArgument::Const(_)
+            | GenericExpressionArgument::AssociatedTypeBound { .. } => false,
+        }
+    }
+
+    match expression {
+        ExpressionData::SelfType => true,
+        ExpressionData::Named { arguments, .. } => arguments.iter().any(argument_contains_self),
+        ExpressionData::AssociatedType {
+            self_type, arguments, ..
+        } => contains_self_type(self_type) || arguments.iter().any(argument_contains_self),
+        ExpressionData::Reference { target, .. }
+        | ExpressionData::RawPointer { target, .. }
+        | ExpressionData::Slice(target) => contains_self_type(target),
+        ExpressionData::Array { element, .. } => contains_self_type(element),
+        ExpressionData::Tuple(elements) => elements.iter().any(|element| contains_self_type(element)),
+        ExpressionData::FunctionPointer(function) => {
+            function.arguments.iter().any(|argument| contains_self_type(argument))
+                || function.result.is_some_and(contains_self_type)
+        }
+        ExpressionData::Parameter(_)
+        | ExpressionData::ParameterName(_)
+        | ExpressionData::TraitObject(_)
+        | ExpressionData::Opaque(_)
+        | ExpressionData::Never => false,
     }
 }

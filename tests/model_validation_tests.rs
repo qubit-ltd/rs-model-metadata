@@ -24,8 +24,11 @@ use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::metadata::PropertyAccessError;
+use qubit_model_metadata::metadata::PropertyBuildErrorKind;
+use qubit_model_metadata::metadata::PropertyResolutionError;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistryOrigin;
 use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
@@ -38,8 +41,7 @@ use qubit_model_metadata::validation::ValidationMode;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::validation::ValidationSelection;
-use qubit_reflect::ReflectRegistry;
-use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validation_rules::collection::UniqueItems;
@@ -252,30 +254,26 @@ static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     RegistrationSource::new("model-validation-tests", "test", file!(), line!()),
 );
 
-fn source() -> &'static FragmentIdentity {
-    Box::leak(Box::new(FragmentIdentity::new(
-        "model-validation-tests",
-        "test",
-        line!(),
-        1,
-        "test",
-        1,
-    )))
+fn source() -> &'static ModelRegistryOrigin {
+    Box::leak(Box::new(ModelRegistryOrigin {
+        crate_name: "model-validation-tests",
+        crate_version: None,
+        module_path: module_path!(),
+        file: Some(file!()),
+        line: Some(line!()),
+        column: None,
+    }))
 }
 
 #[test]
 fn test_executes_bound_rule_and_prefixes_field_path() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     assert!(models.by_type_id(TypeMetadata::of::<NestedModel>().type_id()).is_some());
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("structure"),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
@@ -288,7 +286,7 @@ fn test_executes_bound_rule_and_prefixes_field_path() {
     .expect("binding");
     let report = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new(&TestModel { name: "bad".to_owned() }),
+            DynamicRef::<Local>::new_any(&TestModel { name: "bad".to_owned() }),
             &ValidationOptions::default(),
         )
         .expect("execution");
@@ -300,15 +298,11 @@ fn test_executes_bound_rule_and_prefixes_field_path() {
 #[test]
 fn test_enum_named_payload_rule_runs_only_for_its_active_variant() {
     let metadata = TypeMetadata::of::<EnumPayloadRules>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("structure"),
     );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
@@ -342,15 +336,11 @@ fn test_enum_named_payload_rule_runs_only_for_its_active_variant() {
 #[test]
 fn test_enum_tuple_payload_rule_reports_variant_and_field_index() {
     let metadata = TypeMetadata::of::<EnumPayloadRules>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("structure"),
     );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
@@ -404,15 +394,11 @@ fn test_nested_enum_payload_paths_and_guard_budget_preserve_partial_report() {
 #[test]
 fn test_combined_enum_option_selector_unique_and_partial_budget_execution() {
     let metadata = TypeMetadata::of::<DenseValidationRoot>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("combined validation structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("combined validation structure"),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
@@ -469,15 +455,11 @@ fn test_combined_enum_option_selector_unique_and_partial_budget_execution() {
 #[test]
 fn test_executes_typed_model_rule_binding() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("structure"),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let binding =
@@ -500,7 +482,7 @@ fn test_executes_typed_model_rule_binding() {
     .with_model_rules([binding]);
     let report = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new(&TestModel { name: "bad".to_owned() }),
+            DynamicRef::<Local>::new_any(&TestModel { name: "bad".to_owned() }),
             &ValidationOptions::default(),
         )
         .expect("execution");
@@ -513,7 +495,7 @@ fn test_executes_typed_model_rule_binding() {
             .build();
         let selected = plan
             .validate_dynamic(
-                DynamicRef::<Local>::new(&TestModel { name: "bad".to_owned() }),
+                DynamicRef::<Local>::new_any(&TestModel { name: "bad".to_owned() }),
                 &options,
             )
             .expect("selected model or field rule");
@@ -525,15 +507,11 @@ fn test_executes_typed_model_rule_binding() {
 #[test]
 fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("structure"),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let binding =
@@ -551,7 +529,7 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
 
     let error = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new(&TestModel {
+            DynamicRef::<Local>::new_any(&TestModel {
                 name: "value".to_owned(),
             }),
             &ValidationOptions::default(),
@@ -572,15 +550,11 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
 #[test]
 fn test_executes_element_selector_for_borrowed_slice() {
     let metadata = TypeMetadata::of::<SelectorFixture>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("structure"),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
@@ -618,15 +592,11 @@ fn test_executes_element_selector_for_borrowed_slice() {
 #[test]
 fn test_executes_array_selector_and_skips_absent_optional_sequence() {
     let metadata = TypeMetadata::of::<SelectorShapes>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("structure"),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
@@ -668,15 +638,11 @@ fn test_executes_array_selector_and_skips_absent_optional_sequence() {
 #[test]
 fn test_executes_hash_and_btree_map_key_and_value_selectors() {
     let metadata = TypeMetadata::of::<MapSelectorShapes>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("structure"),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
@@ -729,16 +695,12 @@ fn test_executes_hash_and_btree_map_key_and_value_selectors() {
 #[test]
 fn test_executes_validators_declared_by_an_optional_nested_model() {
     let metadata = TypeMetadata::of::<NestedRoot>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let models = ModelRegistry::global();
     assert!(models.by_type_id(TypeMetadata::of::<NestedModel>().type_id()).is_some());
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            roots: &[],
-            models: &models,
-        })
-        .resolve()
-        .expect("structure"),
+        StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("structure"),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
@@ -773,11 +735,16 @@ fn test_executes_validators_declared_by_an_optional_nested_model() {
 
 #[test]
 fn test_optional_nested_model_executes_at_each_usage_path() {
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<OptionalPathRoot>();
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -830,9 +797,12 @@ fn test_optional_nested_model_executes_at_each_usage_path() {
 
 #[test]
 fn test_optional_intermediate_none_skips_terminal_optional_text() {
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<OptionalScalarRoot>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -892,7 +862,8 @@ fn test_optional_intermediate_none_skips_terminal_optional_text() {
 #[test]
 fn test_traversal_budgets_are_enforced_before_execution() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let models = ModelRegistry::from_static_metadata(&[(metadata, source())]).expect("model registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, source())])
+        .expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             roots: &[],
@@ -984,13 +955,9 @@ struct MapUnsupportedFixture {
 type MapAlias = HashMap<String, i32>;
 
 fn map_plan(root: &'static TypeMetadata) -> Result<ValidationPlan<'static>, ValidationBuildErrors> {
-    let roots = Box::leak(Box::new([root]));
-    let graph = StructureResolver::new(ResolveInputs {
-        roots,
-        models: ModelRegistry::global(),
-    })
-    .resolve()
-    .expect("map structure");
+    let graph = StructureResolver::for_static_roots(ModelRegistry::global(), [root])
+        .resolve()
+        .expect("map structure");
     let graph = Arc::new(graph);
     let validators = ValidatorRegistry::empty();
     ValidationPlan::build(
@@ -1134,11 +1101,16 @@ impl ConstrainedRoot {
 /// absence.
 #[test]
 fn test_nested_standard_constraints_are_executed() {
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let metadata = TypeMetadata::of::<ConstrainedRoot>();
     let roots = [metadata];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -1547,7 +1519,7 @@ fn test_scalar_time_resolutions_apply_to_utc_and_naive_getters() {
         local: "08:00:00.001001".parse().expect("naive time"),
     };
     let report = plan
-        .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
+        .validate_dynamic(DynamicRef::<Local>::new_any(&model), &ValidationOptions::default())
         .expect("time execution");
     let paths: Vec<_> = report.violations().iter().map(|v| v.path().render()).collect();
     assert_eq!(paths, ["instant", "local"]);
@@ -1574,7 +1546,7 @@ fn test_scalar_optional_none_skips_both_rules() {
         local: None,
     };
     let report = plan
-        .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
+        .validate_dynamic(DynamicRef::<Local>::new_any(&model), &ValidationOptions::default())
         .expect("optional scalar execution");
     assert!(report.is_valid());
     assert_eq!(report.violations().len(), 0);
@@ -1589,7 +1561,7 @@ fn test_scalar_optional_none_skips_both_rules() {
         local: Some(NaiveTime::from_hms_milli_opt(8, 0, 0, 1).expect("local time")),
     };
     let report = plan
-        .validate_dynamic(DynamicRef::<Local>::new(&present), &ValidationOptions::default())
+        .validate_dynamic(DynamicRef::<Local>::new_any(&present), &ValidationOptions::default())
         .expect("present scalar execution");
     let codes: Vec<_> = report.violations().iter().map(|v| v.code().as_str()).collect();
     assert_eq!(codes, ["decimal.scale", "time.precision", "time.precision"]);
@@ -1623,11 +1595,31 @@ fn test_scalar_unsupported_temporal_type_is_rejected_at_build() {
 
 #[test]
 fn test_unique_mismatched_getter_element_type_fails_at_build() {
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<UniqueWrongElementType>();
+    let reflected_field = root
+        .field("values")
+        .and_then(|field| field.reflect_in(&reflection))
+        .and_then(|field| field.find_concrete_type());
+    assert_eq!(
+        reflected_field.map(|descriptor| descriptor.type_id()),
+        Some(std::any::TypeId::of::<Vec<i32>>())
+    );
+    let property_errors = match models.properties_for(root) {
+        Err(PropertyResolutionError::Assembly(errors)) => errors,
+        result => panic!("expected getter type mismatch, got {result:?}"),
+    };
+    assert!(property_errors.errors().iter().any(|error| {
+        error.property_name() == "values" && error.kind() == PropertyBuildErrorKind::GetterTypeMismatch
+    }));
     let roots = [root];
     let errors = StructureResolver::new(ResolveInputs {
         roots: &roots,
-        models: ModelRegistry::global(),
+        models: &models,
     })
     .resolve()
     .expect_err("getter element type must match the declared sequence element");

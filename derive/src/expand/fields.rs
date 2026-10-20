@@ -10,15 +10,22 @@
 //! overlays.
 
 use proc_macro2::TokenStream;
+use proc_macro2::TokenTree;
 use quote::ToTokens;
 use quote::format_ident;
 use quote::quote;
 use quote::quote_spanned;
+use syn::Expr;
 use syn::GenericArgument;
 use syn::Ident;
+use syn::Lit;
 use syn::LitStr;
 use syn::PathArguments;
 use syn::Type;
+use syn::TypeArray;
+use syn::TypePtr;
+use syn::TypeReference;
+use syn::spanned::Spanned;
 
 use crate::ir::declaration::CodecIr;
 use crate::ir::declaration::ConstraintIr;
@@ -35,6 +42,333 @@ use crate::ir::declaration::SerdeIr;
 use crate::ir::declaration::StrategyArgumentIr;
 use crate::ir::declaration::ValidatorIr;
 
+/// Converts Rust type syntax to v4 static expression facts.
+///
+/// Unsupported syntax is emitted as a compile-time diagnostic so metadata
+/// never silently loses source type information.
+/// Converts type syntax while identifying declaration generic parameters.
+pub(super) fn type_expression_data_with_parameters(
+    ty: &Type,
+    runtime: &TokenStream,
+    generic_type_names: &[Ident],
+) -> TokenStream {
+    type_expression_data_for_owner(ty, runtime, generic_type_names, None)
+}
+
+fn type_expression_data_for_owner(
+    ty: &Type,
+    runtime: &TokenStream,
+    generic_type_names: &[Ident],
+    owner: Option<&Ident>,
+) -> TokenStream {
+    let expression = quote!(#runtime::__private::codegen_v4::expression::ExpressionData);
+    let leak = quote!(#runtime::__private::v8::leak);
+    match ty {
+        Type::Path(path) => {
+            if let Some(qself) = &path.qself {
+                let associated = path.path.segments.last().expect("qualified path has a final segment");
+                let name = LitStr::new(&associated.ident.to_string(), associated.ident.span());
+                let self_type = type_expression_data_for_owner(&qself.ty, runtime, generic_type_names, owner);
+                let arguments = trait_generic_arguments(&[associated], runtime, generic_type_names, owner);
+                let trait_ = if qself.position > 0 {
+                    let trait_segments = path.path.segments.iter().take(qself.position).collect::<Vec<_>>();
+                    let mut trait_name = trait_segments
+                        .iter()
+                        .map(|segment| segment.to_token_stream().to_string())
+                        .collect::<Vec<_>>()
+                        .join(" :: ");
+                    if path.path.leading_colon.is_some() {
+                        trait_name.insert_str(0, "::");
+                    }
+                    let trait_name = LitStr::new(&trait_name, path.path.span());
+                    let arguments = trait_generic_arguments(&trait_segments, runtime, generic_type_names, owner);
+                    let lifetimes = trait_generic_lifetimes(&trait_segments, runtime);
+                    let data = quote!(#runtime::__private::codegen_v4::expression::TraitExpressionData::new(
+                        #trait_name,
+                        #runtime::__private::v8::leak_slice(::std::vec![#(#arguments),*]),
+                        #runtime::__private::v8::leak_slice(::std::vec![#(#lifetimes),*]),
+                    ));
+                    quote!(Some(#leak(#data)))
+                } else {
+                    quote!(None)
+                };
+                return quote!(#leak(#expression::AssociatedType {
+                    self_type: #self_type,
+                    trait_: #trait_,
+                    name: #name,
+                    arguments: #runtime::__private::v8::leak_slice(::std::vec![#(#arguments),*]),
+                }));
+            }
+            if path.path.segments.len() == 1 && path.path.segments[0].ident == "Self" {
+                return quote!(#leak(#expression::SelfType));
+            }
+            if path.path.segments.len() == 1
+                && owner.is_some_and(|owner| path.path.segments[0].ident == *owner)
+                && path.path.segments[0].arguments.is_empty()
+            {
+                return quote!(#leak(#expression::SelfType));
+            }
+            if path.path.segments.len() == 1
+                && path.path.segments[0].arguments.is_empty()
+                && generic_type_names
+                    .iter()
+                    .any(|name| name == &path.path.segments[0].ident)
+            {
+                let name = LitStr::new(
+                    &path.path.segments[0].ident.to_string(),
+                    path.path.segments[0].ident.span(),
+                );
+                return quote!(#leak(#expression::ParameterName(#name)));
+            }
+            let first_segment = path.path.segments.first().expect("type path has at least one segment");
+            let is_projection = path.path.segments.len() > 1
+                && (first_segment.ident == "Self"
+                    || generic_type_names.iter().any(|name| name == &first_segment.ident))
+                && first_segment.arguments.is_empty();
+            if is_projection {
+                let associated = path.path.segments.last().expect("projection has a final segment");
+                let name = LitStr::new(&associated.ident.to_string(), associated.ident.span());
+                let mut self_path = path.path.clone();
+                self_path.segments.pop();
+                let self_type = type_expression_data_for_owner(
+                    &Type::Path(syn::TypePath {
+                        qself: None,
+                        path: self_path,
+                    }),
+                    runtime,
+                    generic_type_names,
+                    owner,
+                );
+                let arguments = trait_generic_arguments(&[associated], runtime, generic_type_names, owner);
+                return quote!(#leak(#expression::AssociatedType {
+                    self_type: #self_type,
+                    trait_: None,
+                    name: #name,
+                    arguments: #runtime::__private::v8::leak_slice(::std::vec![#(#arguments),*]),
+                }));
+            }
+            let mut path_name = path
+                .path
+                .segments
+                .iter()
+                .map(|segment| segment.ident.to_string())
+                .collect::<Vec<_>>()
+                .join("::");
+            if path.path.leading_colon.is_some() {
+                path_name.insert_str(0, "::");
+            }
+            let name = LitStr::new(&path_name, path.path.span());
+            if path
+                .path
+                .segments
+                .iter()
+                .any(|segment| matches!(segment.arguments, PathArguments::Parenthesized(_)))
+            {
+                return quote!(compile_error!(
+                    "parenthesized path arguments are unsupported in model metadata expressions"
+                ));
+            }
+            let values = path
+                .path
+                .segments
+                .iter()
+                .flat_map(|segment| match &segment.arguments {
+                    PathArguments::AngleBracketed(args) => args.args.iter().collect::<Vec<_>>(),
+                    PathArguments::None | PathArguments::Parenthesized(_) => Vec::new(),
+                })
+                .map(|arg| match arg {
+                    GenericArgument::Type(inner) => {
+                        let inner = type_expression_data_for_owner(inner, runtime, generic_type_names, owner);
+                        quote!(#runtime::__private::codegen_v4::expression::GenericExpressionArgument::Type(#inner))
+                    }
+                    GenericArgument::Lifetime(lifetime) => {
+                        let value = lifetime_expression(lifetime, runtime);
+                        quote!(#runtime::__private::codegen_v4::expression::GenericExpressionArgument::Lifetime(#value))
+                    }
+                    GenericArgument::Const(value) => {
+                        let value = const_expression(value, runtime, generic_type_names);
+                        quote!(#runtime::__private::codegen_v4::expression::GenericExpressionArgument::Const(
+                            #value
+                        ))
+                    }
+                    _ => quote!(compile_error!(
+                        "unsupported generic argument in model metadata expression"
+                    )),
+                })
+                .collect::<Vec<_>>();
+            let args = quote!(#runtime::__private::v8::leak_slice(::std::vec![#(#values),*]));
+            quote!(#leak(#expression::Named { path: #name, definition: None, arguments: #args }))
+        }
+        Type::Reference(TypeReference {
+            lifetime,
+            mutability,
+            elem,
+            ..
+        }) => {
+            let target = type_expression_data_for_owner(elem, runtime, generic_type_names, owner);
+            let lifetime = lifetime.as_ref().map_or_else(
+                || quote!(None),
+                |value| {
+                    let expression = lifetime_expression(value, runtime);
+                    quote!(Some(#expression))
+                },
+            );
+            let mutable = mutability.is_some();
+            quote!(#leak(#expression::Reference { lifetime: #lifetime, mutable: #mutable, target: #target }))
+        }
+        Type::Ptr(TypePtr { mutability, elem, .. }) => {
+            let target = type_expression_data_for_owner(elem, runtime, generic_type_names, owner);
+            let mutable = mutability.is_some();
+            quote!(#leak(#expression::RawPointer { mutable: #mutable, target: #target }))
+        }
+        Type::Slice(slice) => {
+            let element = type_expression_data_for_owner(&slice.elem, runtime, generic_type_names, owner);
+            quote!(#leak(#expression::Slice(#element)))
+        }
+        Type::Array(TypeArray { elem, len, .. }) => {
+            let element = type_expression_data_for_owner(elem, runtime, generic_type_names, owner);
+            let length = const_expression(len, runtime, generic_type_names);
+            quote!(#leak(#expression::Array { element: #element, length: #length }))
+        }
+        Type::Tuple(tuple) => {
+            let values = tuple
+                .elems
+                .iter()
+                .map(|item| type_expression_data_for_owner(item, runtime, generic_type_names, owner));
+            let values = quote!(#runtime::__private::v8::leak_slice(::std::vec![#(#values),*]));
+            quote!(#leak(#expression::Tuple(#values)))
+        }
+        Type::Never(_) => quote!(#leak(#expression::Never)),
+        Type::Paren(paren) => type_expression_data_for_owner(&paren.elem, runtime, generic_type_names, owner),
+        Type::Group(group) => type_expression_data_for_owner(&group.elem, runtime, generic_type_names, owner),
+        _ => {
+            let message = LitStr::new("unsupported Rust type syntax in model metadata expression", ty.span());
+            quote!(compile_error!(#message); #leak(#expression::Opaque(&#runtime::__private::codegen_v4::expression::OpaqueTypeData::new(&[]))))
+        }
+    }
+}
+
+fn type_expression_for_owner(
+    ty: &Type,
+    runtime: &TokenStream,
+    generic_type_names: &[Ident],
+    owner: Option<&Ident>,
+) -> TokenStream {
+    type_expression_data_for_owner(ty, runtime, generic_type_names, owner)
+}
+
+fn trait_generic_arguments(
+    segments: &[&syn::PathSegment],
+    runtime: &TokenStream,
+    generic_type_names: &[Ident],
+    owner: Option<&Ident>,
+) -> Vec<TokenStream> {
+    segments
+        .iter()
+        .flat_map(|segment| match &segment.arguments {
+            PathArguments::AngleBracketed(arguments) => arguments.args.iter().collect::<Vec<_>>(),
+            PathArguments::None | PathArguments::Parenthesized(_) => Vec::new(),
+        })
+        .map(|argument| match argument {
+            GenericArgument::Type(ty) => {
+                let ty = type_expression_data_for_owner(ty, runtime, generic_type_names, owner);
+                quote!(#runtime::__private::codegen_v4::expression::GenericExpressionArgument::Type(#ty))
+            }
+            GenericArgument::Lifetime(lifetime) => {
+                let lifetime = lifetime_expression(lifetime, runtime);
+                quote!(#runtime::__private::codegen_v4::expression::GenericExpressionArgument::Lifetime(#lifetime))
+            }
+            GenericArgument::Const(value) => {
+                let value = const_expression(value, runtime, generic_type_names);
+                quote!(#runtime::__private::codegen_v4::expression::GenericExpressionArgument::Const(#value))
+            }
+            _ => quote!(compile_error!(
+                "unsupported trait generic argument in associated type expression"
+            )),
+        })
+        .collect()
+}
+
+fn trait_generic_lifetimes(segments: &[&syn::PathSegment], runtime: &TokenStream) -> Vec<TokenStream> {
+    segments
+        .iter()
+        .flat_map(|segment| match &segment.arguments {
+            PathArguments::AngleBracketed(arguments) => arguments.args.iter().collect::<Vec<_>>(),
+            PathArguments::None | PathArguments::Parenthesized(_) => Vec::new(),
+        })
+        .filter_map(|argument| match argument {
+            GenericArgument::Lifetime(lifetime) => Some(lifetime_expression(lifetime, runtime)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn lifetime_expression(lifetime: &syn::Lifetime, runtime: &TokenStream) -> TokenStream {
+    match lifetime.ident.to_string().as_str() {
+        "static" => quote!(#runtime::__private::codegen_v4::expression::LifetimeExpression::Static),
+        "_" => quote!(#runtime::__private::codegen_v4::expression::LifetimeExpression::Placeholder),
+        name => {
+            let name = LitStr::new(name, lifetime.span());
+            quote!(#runtime::__private::codegen_v4::expression::LifetimeExpression::Named(#name))
+        }
+    }
+}
+
+fn const_expression(expression: &Expr, runtime: &TokenStream, generic_type_names: &[Ident]) -> TokenStream {
+    let path = |value: &Expr| {
+        let text = LitStr::new(&value.to_token_stream().to_string(), value.span());
+        quote!(#runtime::__private::codegen_v4::expression::ConstExpression::Path(#text))
+    };
+    let signed =
+        |value: i128| quote!(#runtime::__private::codegen_v4::expression::ConstExpression::SignedInteger(#value));
+    let unsigned =
+        |value: u128| quote!(#runtime::__private::codegen_v4::expression::ConstExpression::UnsignedInteger(#value));
+    match expression {
+        Expr::Block(value) if value.block.stmts.len() == 1 => {
+            if let syn::Stmt::Expr(inner, None) = &value.block.stmts[0] {
+                return const_expression(inner, runtime, generic_type_names);
+            }
+            path(expression)
+        }
+        Expr::Group(value) => const_expression(&value.expr, runtime, generic_type_names),
+        Expr::Paren(value) => const_expression(&value.expr, runtime, generic_type_names),
+        Expr::Lit(value) => match &value.lit {
+            Lit::Int(value) => value
+                .base10_parse::<u128>()
+                .map(unsigned)
+                .unwrap_or_else(|_| path(expression)),
+            Lit::Bool(value) => {
+                let value = value.value;
+                quote!(#runtime::__private::codegen_v4::expression::ConstExpression::Boolean(#value))
+            }
+            Lit::Char(value) => {
+                let value = value.value();
+                quote!(#runtime::__private::codegen_v4::expression::ConstExpression::Character(#value))
+            }
+            _ => path(expression),
+        },
+        Expr::Unary(value) if matches!(value.op, syn::UnOp::Neg(_)) => {
+            if let Expr::Lit(literal) = value.expr.as_ref()
+                && let Lit::Int(integer) = &literal.lit
+                && let Ok(number) = integer.base10_parse::<i128>()
+            {
+                return signed(-number);
+            }
+            path(expression)
+        }
+        Expr::Path(value)
+            if value.path.segments.len() == 1
+                && generic_type_names
+                    .iter()
+                    .any(|name| name == &value.path.segments[0].ident) =>
+        {
+            let name = LitStr::new(&value.path.segments[0].ident.to_string(), value.path.span());
+            quote!(#runtime::__private::codegen_v4::expression::ConstExpression::Parameter(#name))
+        }
+        _ => path(expression),
+    }
+}
+
 /// Generates the runtime field vector for a declaration.
 ///
 /// # Parameters
@@ -45,14 +379,10 @@ use crate::ir::declaration::ValidatorIr;
 /// # Returns
 /// Tokens that build the declaration's runtime field vector.
 #[must_use]
-pub(super) fn expand_field_vector(
-    fields: &[FieldIr],
-    descriptor_fields: TokenStream,
-    runtime: &TokenStream,
-) -> TokenStream {
+pub(super) fn expand_field_vector(fields: &[FieldIr], runtime: &TokenStream, owner: &Ident) -> TokenStream {
     let bodies = fields
         .iter()
-        .map(|field| expand_field(field, &descriptor_fields, runtime, None));
+        .map(|field| expand_field_with_parameters(field, runtime, None, None, &[], Some(owner)));
     quote! {
         let mut fields = ::std::vec::Vec::new();
         #(#bodies)*
@@ -72,13 +402,22 @@ pub(super) fn expand_field_vector(
 #[must_use]
 pub(super) fn expand_generic_field_vector(
     fields: &[FieldIr],
-    descriptor_fields: TokenStream,
+    definition_path: TokenStream,
     runtime: &TokenStream,
     variant_inherited: bool,
+    generic_type_names: &[Ident],
+    owner: &Ident,
 ) -> TokenStream {
-    let bodies = fields
-        .iter()
-        .map(|field| expand_field(field, &descriptor_fields, runtime, Some(variant_inherited)));
+    let bodies = fields.iter().map(|field| {
+        expand_field_with_parameters(
+            field,
+            runtime,
+            Some(variant_inherited),
+            Some(&definition_path),
+            generic_type_names,
+            Some(owner),
+        )
+    });
     quote! {
         let mut fields = ::std::vec::Vec::new();
         #(#bodies)*
@@ -97,29 +436,68 @@ pub(super) fn expand_generic_field_vector(
 /// # Returns
 /// Tokens that construct the field metadata and append it to the field vector.
 #[must_use]
+#[cfg(test)]
 fn expand_field(
     field: &FieldIr,
-    descriptor_fields: &TokenStream,
+    _descriptor_fields: &TokenStream,
     runtime: &TokenStream,
     generic_variant_inherited: Option<bool>,
+    definition_path: Option<&TokenStream>,
+) -> TokenStream {
+    expand_field_with_parameters(field, runtime, generic_variant_inherited, definition_path, &[], None)
+}
+
+fn expand_field_with_parameters(
+    field: &FieldIr,
+    runtime: &TokenStream,
+    generic_variant_inherited: Option<bool>,
+    definition_path: Option<&TokenStream>,
+    generic_type_names: &[Ident],
+    owner: Option<&Ident>,
 ) -> TokenStream {
     let index = *field.index.value();
     let variant = field
         .variant_index
         .map_or_else(|| quote!(None), |index| quote!(Some(#index)));
-    let owner = if generic_variant_inherited.is_some() {
-        quote!(definition.query_name())
-    } else {
-        quote!(#descriptor_fields[#index].declaring_type().type_name())
+    let source_name = field.rust_name.as_ref().map_or_else(
+        || quote!(None),
+        |name| {
+            let name = LitStr::new(&name.to_string(), name.span());
+            quote!(Some(#name))
+        },
+    );
+    let visibility = match &field.visibility {
+        syn::Visibility::Public(_) => quote!(#runtime::__private::v8::Visibility::Public),
+        syn::Visibility::Restricted(value) if value.path.is_ident("crate") => {
+            quote!(#runtime::__private::v8::Visibility::Crate)
+        }
+        syn::Visibility::Restricted(value) => {
+            let name = LitStr::new(&value.path.to_token_stream().to_string(), value.path.span());
+            quote!(#runtime::__private::v8::Visibility::Restricted(#name))
+        }
+        syn::Visibility::Inherited => quote!(#runtime::__private::v8::Visibility::Private),
     };
+    let declaration_owner = quote!(None);
     let span = field.index.span();
     let location = quote_spanned!(span=>
         let field_declaration = #runtime::__private::v8::leak(#runtime::metadata::DeclarationLocation {
-            file: Some(file!()), line: Some(line!()), column: Some(column!()), owner: Some(#owner),
+            file: Some(file!()), line: Some(line!()), column: Some(column!()), owner: #declaration_owner,
             variant: #variant, field: Some(#index), selector: None,
         });
     );
     let field_type = &field.ty;
+    let type_expression = type_expression_for_owner(field_type, runtime, generic_type_names, owner);
+    let opaque_type_id = if generic_variant_inherited.is_none()
+        && field
+            .occurrences
+            .iter()
+            .any(|occurrence| matches!(occurrence, FieldOccurrence::Opaque))
+        && type_is_static_concrete(field_type, generic_type_names)
+    {
+        quote!(Some(::std::any::TypeId::of::<#field_type>()))
+    } else {
+        quote!(None)
+    };
     let validator_irs: Vec<_> = field
         .occurrences
         .iter()
@@ -213,6 +591,7 @@ fn expand_field(
     });
     let constraint_assertions = expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
     let collection_ops = expand_collection_ops(field, &constraint_irs, runtime, generic_variant_inherited.is_some());
+    let optional_ops = expand_optional_ops(field, runtime, generic_variant_inherited.is_some());
     let requires_sequence = element_ir.is_some()
         || constraint_irs
             .iter()
@@ -260,7 +639,6 @@ fn expand_field(
             quote!(#runtime::metadata::FieldUniqueMetadata::for_type(
                 unique_paths,
                 #ignore_case,
-                #descriptor_fields[#index].field_type(),
             ))
         };
         let assertion = (unique.ignore_case.is_some() && generic_variant_inherited.is_none()).then(|| {
@@ -378,7 +756,12 @@ fn expand_field(
     let metadata = match generic_variant_inherited {
         Some(variant_inherited) => quote! {
             #runtime::__private::v8::generic_field_metadata(
-                &#descriptor_fields[#index],
+                #definition_path,
+                #index,
+                #variant,
+                #source_name,
+                #visibility,
+                _field_type_expression_data,
                 #variant_inherited,
                 attributes,
                 constraints,
@@ -387,9 +770,14 @@ fn expand_field(
             )
         },
         None => quote! {
-            #runtime::__private::v8::field_metadata(
+            #runtime::__private::v8::field_metadata_with_opaque_type_id(
                 ::std::any::TypeId::of::<Self>(),
-                &#descriptor_fields[#index],
+                #variant,
+                #index,
+                #source_name,
+                #visibility,
+                _field_type_expression_data,
+                opaque_type_id,
                 attributes,
                 constraints,
                 validators,
@@ -400,6 +788,8 @@ fn expand_field(
     quote! {
         {
             #location
+            let _field_type_expression_data = #type_expression;
+            let opaque_type_id: Option<::std::any::TypeId> = #opaque_type_id;
             #sequence_assertion
             #map_assertion
             #constraint_assertions
@@ -423,13 +813,50 @@ fn expand_field(
             let attributes: &'static [#runtime::metadata::FieldAttributeMetadata] =
                 #runtime::__private::v8::leak_slice(attributes);
             #collection_ops
+            #optional_ops
             let field_metadata = (#metadata).with_declaration(*field_declaration);
             let field_metadata = match collection_ops {
                 Some(ops) => field_metadata.with_collection_ops(ops),
                 None => field_metadata,
             };
+            let field_metadata = match optional_ops {
+                Some(ops) => field_metadata.with_optional_ops(ops),
+                None => field_metadata,
+            };
             fields.push(field_metadata);
         }
+    }
+}
+
+fn type_is_static_concrete(ty: &Type, generic_type_names: &[Ident]) -> bool {
+    fn is_eligible(stream: TokenStream, generic_type_names: &[Ident]) -> bool {
+        stream.into_iter().all(|token| match token {
+            TokenTree::Group(group) => is_eligible(group.stream(), generic_type_names),
+            TokenTree::Ident(ident) => !generic_type_names.iter().any(|name| name == &ident),
+            TokenTree::Punct(punct) => !matches!(punct.as_char(), '&' | '\''),
+            TokenTree::Literal(_) => true,
+        })
+    }
+
+    is_eligible(ty.to_token_stream(), generic_type_names)
+}
+
+/// Emits exact-type projections for a concrete `Option<T>` field.
+#[must_use]
+fn expand_optional_ops(field: &FieldIr, runtime: &TokenStream, generic_definition: bool) -> TokenStream {
+    if generic_definition
+        || field
+            .occurrences
+            .iter()
+            .any(|occurrence| matches!(occurrence, FieldOccurrence::Opaque))
+    {
+        return quote!(let optional_ops = None;);
+    }
+    let Some(element_type) = option_inner_type(&field.ty) else {
+        return quote!(let optional_ops = None;);
+    };
+    quote! {
+        let optional_ops = Some(#runtime::metadata::OptionalOps::for_element::<#element_type>());
     }
 }
 
@@ -481,14 +908,14 @@ fn expand_collection_ops(
                 match value {
                     #runtime::metadata::PropertyValue::Borrowed(value) => {
                         let map = value.downcast_ref::<#field_type>().ok_or_else(||
-                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>(value)
+                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>((*value).clone())
                         )?;
                         Ok(Some(map.len()))
                     }
                     #runtime::metadata::PropertyValue::OptionalBorrowed(value) => {
                         let Some(value) = value else { return Ok(None); };
                         let map = value.downcast_ref::<#field_type>().ok_or_else(||
-                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>(value)
+                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>((*value).clone())
                         )?;
                         Ok(Some(map.len()))
                     }
@@ -502,14 +929,14 @@ fn expand_collection_ops(
                 match value {
                     #runtime::metadata::PropertyValue::Borrowed(value) => {
                         let map = value.downcast_ref::<#field_type>().ok_or_else(||
-                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>(value)
+                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>((*value).clone())
                         )?;
                         Ok(map.as_ref().map(|map| map.len()))
                     }
                     #runtime::metadata::PropertyValue::OptionalBorrowed(value) => {
                         let Some(value) = value else { return Ok(None); };
                         let map = value.downcast_ref::<#inner_type>().ok_or_else(||
-                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#inner_type>(value)
+                            #runtime::metadata::PropertyAccessError::value_type_mismatch::<#inner_type>((*value).clone())
                         )?;
                         Ok(Some(map.len()))
                     }
@@ -533,10 +960,10 @@ fn expand_collection_ops(
                 right: #runtime::__private::DynamicRef<'_, #runtime::__private::Local>,
             ) -> ::core::result::Result<bool, #runtime::metadata::PropertyAccessError> {
                 let left = left.downcast_ref::<#element_type>().ok_or_else(||
-                    #runtime::metadata::PropertyAccessError::value_type_mismatch::<#element_type>(&left)
+                    #runtime::metadata::PropertyAccessError::value_type_mismatch::<#element_type>(left.clone())
                 )?;
                 let right = right.downcast_ref::<#element_type>().ok_or_else(||
-                    #runtime::metadata::PropertyAccessError::value_type_mismatch::<#element_type>(&right)
+                    #runtime::metadata::PropertyAccessError::value_type_mismatch::<#element_type>(right.clone())
                 )?;
                 Ok(left == right)
             }
@@ -609,23 +1036,38 @@ fn expand_collection_items(field_type: &Type, runtime: &TokenStream) -> TokenStr
     }
     let field_collection = if option_inner_type(field_type).is_some() {
         quote! {
-            let field = value.clone().downcast::<#field_type>().map_err(|actual|
-                #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>(&actual)
-            )?;
+            let field = value.clone().downcast::<#field_type>().map_err(|failure| {
+                let mismatch = failure.into_parts().0;
+                #runtime::metadata::PropertyAccessError::ValueTypeMismatch(
+                    #runtime::metadata::PropertyTypeMismatch {
+                        expected: mismatch.expected(), actual: mismatch.actual(),
+                    },
+                )
+            })?;
             let Some(collection) = field.as_ref() else { return Ok(None); };
         }
     } else {
         quote! {
-            let collection = value.clone().downcast::<#field_type>().map_err(|actual|
-                #runtime::metadata::PropertyAccessError::value_type_mismatch::<#field_type>(&actual)
-            )?;
+            let collection = value.clone().downcast::<#field_type>().map_err(|failure| {
+                let mismatch = failure.into_parts().0;
+                #runtime::metadata::PropertyAccessError::ValueTypeMismatch(
+                    #runtime::metadata::PropertyTypeMismatch {
+                        expected: mismatch.expected(), actual: mismatch.actual(),
+                    },
+                )
+            })?;
         }
     };
     let inner_collection = if option_inner_type(field_type).is_some() {
         quote! {
-            let collection = value.clone().downcast::<#inner>().map_err(|actual|
-                #runtime::metadata::PropertyAccessError::value_type_mismatch::<#inner>(&actual)
-            )?;
+            let collection = value.clone().downcast::<#inner>().map_err(|failure| {
+                let mismatch = failure.into_parts().0;
+                #runtime::metadata::PropertyAccessError::ValueTypeMismatch(
+                    #runtime::metadata::PropertyTypeMismatch {
+                        expected: mismatch.expected(), actual: mismatch.actual(),
+                    },
+                )
+            })?;
         }
     } else {
         field_collection.clone()
@@ -1379,6 +1821,8 @@ mod tests {
     use proc_macro2::Span;
     use proc_macro2::TokenStream;
     use proc_macro2::TokenTree;
+    use quote::ToTokens;
+    use quote::format_ident;
     use quote::quote;
     use syn::LitStr;
     use syn::Type;
@@ -1387,18 +1831,206 @@ mod tests {
     use super::codec_reference_expression;
     use super::expand_collection_ops;
     use super::expand_constraint;
+    use super::expand_field;
+    use super::expand_field_with_parameters;
     use super::expand_redact;
     use super::expand_reference;
     use super::expand_serde;
     use super::expand_strategy_argument;
     use super::expand_validator;
     use super::rounding_tokens;
+    use super::type_expression_data_with_parameters;
+    use super::type_expression_for_owner;
+    use super::type_is_static_concrete;
     use crate::ir::Located;
     use crate::ir::declaration::CodecIr;
     use crate::ir::declaration::ConstraintIr;
     use crate::ir::declaration::DecimalConstraintIr;
     use crate::ir::declaration::FieldIr;
+    use crate::ir::declaration::FieldOccurrence;
     use crate::ir::declaration::RedactIr;
+
+    #[test]
+    fn type_expression_data_preserves_nested_paths_and_references() {
+        let ty: Type = parse_quote!(std::option::Option<&'static crate::model::Value<u32>>);
+        let tokens = type_expression_data_with_parameters(&ty, &quote!(runtime), &[]).to_string();
+        assert!(tokens.contains("ExpressionData :: Named"), "{tokens}");
+        assert!(tokens.contains("GenericExpressionArgument :: Type"), "{tokens}");
+        assert!(tokens.contains("ExpressionData :: Reference"), "{tokens}");
+        assert!(!tokens.contains("ExpressionData :: Opaque"), "{tokens}");
+    }
+
+    #[test]
+    fn type_expression_data_preserves_const_paths_and_special_types() {
+        let runtime = quote!(runtime);
+        for (ty, expected) in [
+            (
+                parse_quote!(::std::option::Option<u8>),
+                "path : \"::std::option::Option\"",
+            ),
+            (parse_quote!(Self), "ExpressionData :: SelfType"),
+            (parse_quote!(&'_ str), "LifetimeExpression :: Placeholder"),
+            (parse_quote!([u8; 4]), "ConstExpression :: UnsignedInteger (4u128)"),
+            (parse_quote!([u8; N]), "ConstExpression :: Path (\"N\")"),
+            (parse_quote!(Container<4>), "ConstExpression :: UnsignedInteger (4u128)"),
+            (parse_quote!(Container<{ true }>), "ConstExpression :: Boolean (true)"),
+            (parse_quote!(Container<{ 'x' }>), "ConstExpression :: Character ('x')"),
+            (parse_quote!(<T as Iterator>::Item), "ExpressionData :: AssociatedType"),
+        ] {
+            let tokens = type_expression_data_with_parameters(&ty, &runtime, &[]).to_string();
+            assert!(
+                tokens.contains(expected),
+                "{}: expected `{expected}` in `{tokens}`",
+                ty.to_token_stream()
+            );
+        }
+    }
+
+    #[test]
+    fn type_expression_data_links_declared_type_and_const_parameters_by_name() {
+        let runtime = quote!(runtime);
+        let parameters = [format_ident!("T"), format_ident!("N")];
+        let type_parameter = type_expression_data_with_parameters(&parse_quote!(T), &runtime, &parameters).to_string();
+        let const_parameter =
+            type_expression_data_with_parameters(&parse_quote!([u8; N]), &runtime, &parameters).to_string();
+        assert!(
+            type_parameter.contains("ExpressionData :: ParameterName (\"T\")"),
+            "{type_parameter}"
+        );
+        assert!(!type_parameter.contains("ExpressionData :: Named"), "{type_parameter}");
+        assert!(
+            const_parameter.contains("ConstExpression :: Parameter (\"N\")"),
+            "{const_parameter}"
+        );
+        let projection =
+            type_expression_data_with_parameters(&parse_quote!(<T as Iterator<u8>>::Item), &runtime, &parameters)
+                .to_string();
+        assert!(projection.contains("ExpressionData :: AssociatedType"), "{projection}");
+        assert!(projection.contains("ParameterName (\"T\")"), "{projection}");
+        assert!(projection.contains("TraitExpressionData :: new"), "{projection}");
+        assert!(projection.contains("GenericExpressionArgument :: Type"), "{projection}");
+        assert!(projection.contains("Iterator < u8 >"), "{projection}");
+        let absolute_projection = type_expression_data_with_parameters(
+            &parse_quote!(<T as ::crate::api::Trait<u8>>::Assoc),
+            &runtime,
+            &parameters,
+        )
+        .to_string();
+        assert!(
+            absolute_projection.contains("::crate :: api :: Trait < u8 >"),
+            "{absolute_projection}"
+        );
+        let associated_arguments =
+            type_expression_data_with_parameters(&parse_quote!(<T as Iterator<u8>>::Item<'a>), &runtime, &parameters)
+                .to_string();
+        assert!(
+            associated_arguments.contains("arguments : runtime :: __private :: v8 :: leak_slice"),
+            "{associated_arguments}"
+        );
+        assert!(
+            associated_arguments.contains("GenericExpressionArgument :: Lifetime"),
+            "{associated_arguments}"
+        );
+        assert!(
+            associated_arguments.contains("LifetimeExpression :: Named (\"a\")"),
+            "{associated_arguments}"
+        );
+        let unqualified_projection =
+            type_expression_data_with_parameters(&parse_quote!(T::Assoc<'a>), &runtime, &parameters).to_string();
+        assert!(
+            unqualified_projection.contains("ExpressionData :: AssociatedType"),
+            "{unqualified_projection}"
+        );
+        assert!(
+            unqualified_projection.contains("ParameterName (\"T\")"),
+            "{unqualified_projection}"
+        );
+        assert!(
+            unqualified_projection.contains("LifetimeExpression :: Named (\"a\")"),
+            "{unqualified_projection}"
+        );
+    }
+
+    #[test]
+    fn type_expression_data_marks_only_exact_owner_paths_as_self() {
+        let owner = format_ident!("RecursiveValue");
+        let runtime = quote!(runtime);
+        let recursive =
+            type_expression_for_owner(&parse_quote!(Option<Box<RecursiveValue>>), &runtime, &[], Some(&owner))
+                .to_string();
+        assert_eq!(recursive.matches("ExpressionData :: SelfType").count(), 1);
+
+        let qualified_other =
+            type_expression_for_owner(&parse_quote!(other::RecursiveValue), &runtime, &[], Some(&owner)).to_string();
+        assert!(qualified_other.contains("ExpressionData :: Named"));
+        assert!(!qualified_other.contains("ExpressionData :: SelfType"));
+    }
+
+    #[test]
+    fn opaque_type_identity_skips_lifetimes_and_generic_parameters() {
+        let generic_names = [format_ident!("T")];
+        assert!(type_is_static_concrete(&parse_quote!(Option<Inner>), &[]));
+        assert!(!type_is_static_concrete(&parse_quote!(&'a Inner), &[]));
+        assert!(!type_is_static_concrete(&parse_quote!(Option<T>), &generic_names));
+    }
+
+    #[test]
+    fn opaque_field_codegen_retains_only_concrete_static_type_ids() {
+        let mut opaque = FieldIr {
+            variant_index: None,
+            index: Located::new(0, Span::call_site()),
+            ty: parse_quote!(Inner),
+            occurrences: vec![FieldOccurrence::Opaque],
+            keep_serializing: true,
+            named: true,
+            rust_name: Some(format_ident!("hidden")),
+            visibility: syn::Visibility::Inherited,
+        };
+        let concrete = expand_field_with_parameters(&opaque, &quote!(runtime), None, None, &[], None).to_string();
+        assert!(
+            concrete.contains("opaque_type_id : Option < :: std :: any :: TypeId > = Some")
+                && concrete.contains("TypeId :: of :: < Inner >"),
+            "monomorphic opaque fields retain exact TypeId: {concrete}"
+        );
+
+        opaque.ty = parse_quote!(&'a Inner);
+        let borrowed = expand_field_with_parameters(&opaque, &quote!(runtime), None, None, &[], None).to_string();
+        assert!(borrowed.contains("let opaque_type_id : Option < :: std :: any :: TypeId > = None"));
+
+        opaque.ty = parse_quote!(T);
+        let generic_parameter = format_ident!("T");
+        let generic = expand_field_with_parameters(
+            &opaque,
+            &quote!(runtime),
+            Some(false),
+            Some(&quote!("fixture::Generic")),
+            &[generic_parameter],
+            None,
+        )
+        .to_string();
+        assert!(generic.contains("let opaque_type_id : Option < :: std :: any :: TypeId > = None"));
+    }
+
+    #[test]
+    fn generated_field_metadata_uses_v4_expression_facts_without_legacy_handles() {
+        let field = FieldIr {
+            variant_index: None,
+            index: Located::new(0, Span::call_site()),
+            ty: parse_quote!(Option<&'static crate::model::Value<u32>>),
+            occurrences: vec![],
+            keep_serializing: true,
+            named: true,
+            rust_name: Some(syn::Ident::new("value", Span::call_site())),
+            visibility: syn::Visibility::Inherited,
+        };
+        let generated = expand_field(&field, &quote!(descriptor_fields), &quote!(runtime), None, None).to_string();
+        assert!(
+            generated.contains("codegen_v4 :: expression :: ExpressionData"),
+            "{generated}"
+        );
+        assert!(!generated.contains("TypeRef"), "{generated}");
+        assert!(!generated.contains("codegen_v3"), "{generated}");
+    }
     use crate::ir::declaration::RedactModeIr;
     use crate::ir::declaration::ReferenceIr;
     use crate::ir::declaration::ReferenceTargetIr;
@@ -1471,6 +2103,8 @@ mod tests {
             occurrences: vec![],
             keep_serializing: true,
             named: true,
+            rust_name: Some(format_ident!("field")),
+            visibility: syn::Visibility::Inherited,
         };
         let constraint = ConstraintIr::Sequence {
             min: None,

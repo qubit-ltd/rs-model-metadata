@@ -17,7 +17,9 @@ use std::collections::BTreeMap;
 use qubit_codec::ValueStringCodecDescriptor;
 use qubit_codec::ValueStringCodecRegistration;
 use qubit_codec::ValueStringCodecRegistry;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::descriptor::TypeKind;
 
 use super::CodecBindError;
 use super::CodecBindErrorKind;
@@ -49,9 +51,11 @@ use crate::transparent_descriptor::transparent_descriptor;
 /// use qubit_model_metadata::codec::{CodecBindInputs, bind_codecs};
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
+/// use qubit_reflect::ReflectionContext;
 ///
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let models = ModelRegistry::from_static_metadata(&[])?;
+/// let context = ReflectionContext::builder().build()?;
+/// let models = ModelRegistry::from_static_metadata(&context, &[])?;
 /// let roots: &[&'static qubit_model_metadata::metadata::TypeMetadata] = &[];
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots }).resolve()?;
 /// let codecs = ValueStringCodecRegistry::empty();
@@ -271,9 +275,11 @@ impl<'a> CodecBinding<'a> {
 /// use qubit_model_metadata::codec::{CodecBindInputs, bind_codecs};
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
+/// use qubit_reflect::ReflectionContext;
 ///
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let models = ModelRegistry::from_static_metadata(&[])?;
+/// let reflection = ReflectionContext::builder().build()?;
+/// let models = ModelRegistry::from_static_metadata(&reflection, &[])?;
 /// let roots: &[&'static qubit_model_metadata::metadata::TypeMetadata] = &[];
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots }).resolve()?;
 /// let codecs = ValueStringCodecRegistry::empty();
@@ -332,12 +338,18 @@ impl<'a> CodecBindings<'a> {
 pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<CodecBindings<'graph>, CodecBindErrors> {
     let mut bindings = BTreeMap::new();
     let mut errors = Vec::new();
+    let context = inputs
+        .graph
+        .registry()
+        .context()
+        .expect("resolved model graphs retain their reflection context");
     for &metadata in inputs.graph.models() {
         let model = metadata;
         for field in metadata.fields() {
             bind_field(
                 model,
                 field,
+                context,
                 inputs.graph.models(),
                 inputs.codecs,
                 &mut bindings,
@@ -352,6 +364,7 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
                     model,
                     path.into(),
                     field,
+                    context,
                     inputs.graph.models(),
                     inputs.codecs,
                     &mut bindings,
@@ -384,6 +397,7 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
 fn bind_field<'a>(
     model: &'static TypeMetadata,
     field: &'static FieldMetadata,
+    context: &ReflectionContext,
     models: &[&'static TypeMetadata],
     codecs: &'a ValueStringCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
@@ -393,6 +407,7 @@ fn bind_field<'a>(
         model,
         field.name().unwrap_or("<unnamed>").into(),
         field,
+        context,
         models,
         codecs,
         bindings,
@@ -401,22 +416,30 @@ fn bind_field<'a>(
 }
 
 /// Binds codecs for a field using the supplied canonical property path.
+#[allow(clippy::too_many_arguments)]
 fn bind_field_at<'a>(
     model: &'static TypeMetadata,
     path: Box<str>,
     field: &'static FieldMetadata,
+    context: &ReflectionContext,
     models: &[&'static TypeMetadata],
     codecs: &'a ValueStringCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
 ) {
-    let Some(descriptor) = field.descriptor() else {
+    let Some(descriptor) = field.reflect_in(context).and_then(|field| field.find_concrete_type()) else {
         return;
     };
-    let expected = descriptor
-        .as_optional()
-        .and_then(|value| value.element_type().concrete_type_id())
-        .unwrap_or_else(|| descriptor.type_id());
+    let expected = match descriptor.kind() {
+        TypeKind::Optional(_) => descriptor
+            .generic_arguments()
+            .get_at(0)
+            .and_then(|argument| argument.type_argument().ok())
+            .and_then(|argument| argument.find_concrete_type())
+            .map(TypeDescriptor::type_id)
+            .unwrap_or_else(|| descriptor.type_id()),
+        _ => descriptor.type_id(),
+    };
     let effective = field.codec().or_else(|| canonical_codec(expected, models));
     if let Some(codec) = effective {
         bind_one(
@@ -531,17 +554,22 @@ fn bind_one<'a>(
 }
 
 /// Resolves the runtime value type at one nested selector position.
-fn selector_type_id(descriptor: &'static TypeDescriptor, position: SelectorPosition) -> Option<TypeId> {
+fn selector_type_id(descriptor: TypeDescriptor<'_>, position: SelectorPosition) -> Option<TypeId> {
     let descriptor = transparent_descriptor(descriptor)?;
-    let type_ref = match position {
-        SelectorPosition::Element => descriptor
-            .as_sequence()
-            .map(|value| value.element_type())
-            .or_else(|| descriptor.as_set().map(|value| value.element_type()))
-            .or_else(|| descriptor.as_array().map(|value| value.element_type()))
-            .or_else(|| descriptor.as_slice().map(|value| value.element_type())),
-        SelectorPosition::MapKey => descriptor.as_map().map(|value| value.key_type()),
-        SelectorPosition::MapValue => descriptor.as_map().map(|value| value.value_type()),
-    }?;
-    type_ref.concrete_type_id()
+    let argument_index = match (descriptor.kind(), position) {
+        (
+            TypeKind::Sequence(_) | TypeKind::Set(_) | TypeKind::Array(_) | TypeKind::Slice(_),
+            SelectorPosition::Element,
+        ) => 0,
+        (TypeKind::Map(_), SelectorPosition::MapKey) => 0,
+        (TypeKind::Map(_), SelectorPosition::MapValue) => 1,
+        _ => return None,
+    };
+    descriptor
+        .generic_arguments()
+        .get_at(argument_index)?
+        .type_argument()
+        .ok()?
+        .find_concrete_type()
+        .map(TypeDescriptor::type_id)
 }

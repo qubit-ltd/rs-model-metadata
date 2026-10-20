@@ -6,154 +6,45 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Verifies model initialization preserves reflection registration failures.
+//! Verifies model registry failures retain context-bound capability causes.
 
-use std::error::Error as _;
-
-use qubit_model_metadata::__private::ModelImplProvider;
-use qubit_model_metadata::__private::model_impl_key;
-use qubit_model_metadata::__private::v8;
-use qubit_model_metadata::__private::v8::register_model_impl_capability;
-use qubit_model_metadata::metadata::ModelImplMetadata;
-use qubit_model_metadata::metadata::PropertyResolutionError;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::registry::ModelRegistryErrorKind;
 use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::capability::CapabilityDescriptor;
-use qubit_reflect::descriptor::TypeRef;
-use qubit_reflect::identity::FragmentIdentity;
-use qubit_reflect::register_reflected_type;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::capability::CapabilityError;
+use qubit_reflect::capability::CapabilityRegistration;
+use qubit_reflect::capability::CapabilitySpec;
 
 #[Reflect]
-struct DuplicateReflectionSource;
+struct ConflictingMetadataCapability;
 
-register_reflected_type!(DuplicateReflectionSource);
+struct WrongModelMetadataCapability;
 
-/// The infallible convenience API preserves its documented panic boundary.
-#[test]
-#[should_panic(expected = "invalid global model registry:")]
-fn test_global_registry_panics_on_linked_registration_conflict() {
-    let _ = ModelRegistry::global();
+impl CapabilitySpec for WrongModelMetadataCapability {
+    type Adapter = u32;
+
+    const ID: &'static str = "qubit.model.metadata.v1";
 }
 
 #[test]
-fn test_duplicate_concrete_source_is_reported_by_reflection_registry() {
-    let error =
-        ModelRegistry::try_global().expect_err("duplicate reflection roots must invalidate model initialization");
-
-    assert_eq!(error.kind(), ModelRegistryErrorKind::ReflectionRegistry);
-    assert_eq!(error.sources().len(), 2);
-    assert!(
-        error.source().is_some(),
-        "model registry errors must preserve the reflection cause"
-    );
-    assert!(error.to_string().contains("reflection registry error"));
-}
-
-/// A global reflection error must not silently remove model implementation
-/// properties.
-#[test]
-fn test_property_lookup_preserves_reflection_initialization_failure() {
-    let metadata = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(
-            TypeDescriptor::of::<DuplicateReflectionSource>(),
-            None,
-            &[],
-            v8::leak(v8::model_role()),
-        )
-        .finish::<DuplicateReflectionSource>(),
-    );
-    assert!(
-        matches!(metadata.try_properties(), Err(PropertyResolutionError::Reflection(_))),
-        "registry failure must not become an empty property set"
-    );
-    assert!(metadata.property_fragments().is_err());
-    let isolated = RegistrySnapshotBuilder::new()
+fn test_registry_error_preserves_context_capability_mismatch() {
+    let context = ReflectionContext::builder()
+        .include_type::<ConflictingMetadataCapability>()
+        .register(CapabilityRegistration::for_type::<
+            ConflictingMetadataCapability,
+            WrongModelMetadataCapability,
+        >(7_u32))
         .build()
-        .expect("empty isolated reflection");
-    assert!(
-        metadata
-            .try_properties_in(&isolated)
-            .expect("isolated properties")
-            .properties()
-            .is_empty()
-    );
-    assert!(
-        metadata
-            .property_fragments_in(&isolated)
-            .expect("valid isolated capabilities")
-            .fragments()
-            .is_empty()
-    );
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated model registry");
-    assert!(
-        models
-            .properties_for(metadata)
-            .expect("isolated model properties")
-            .properties()
-            .is_empty()
-    );
-}
+        .expect("a typed registration with a colliding ID is valid until queried");
 
-/// Supplies a method overlay distinguishable from the declaration's empty
-/// properties.
-fn overlay_provider() -> &'static ModelImplMetadata {
-    static OVERLAY: std::sync::OnceLock<ModelImplMetadata> = std::sync::OnceLock::new();
-    OVERLAY.get_or_init(|| {
-        let type_ref = v8::leak(TypeRef::Resolved(TypeDescriptor::of::<u32>()));
-        let properties = v8::leak_slice(vec![v8::property_metadata("computed", type_ref, None, None, None)]);
-        v8::model_impl_metadata(&[], Ok(v8::leak(v8::local_property_set(properties))))
-    })
-}
+    let error = ModelRegistry::from_context(&context).expect_err("adapter contract mismatch must be reported");
 
-register_model_impl_capability!(DuplicateReflectionSource, overlay_provider);
-
-/// Explicit snapshots select their own overlay even when global initialization
-/// fails.
-#[test]
-fn test_isolated_snapshot_selects_its_own_property_overlay() {
-    let mut snapshot = RegistrySnapshotBuilder::new();
-    snapshot.add_type_capabilities(
-        TypeDescriptor::of::<DuplicateReflectionSource>(),
-        vec![CapabilityDescriptor::with_adapter(
-            model_impl_key(),
-            overlay_provider as ModelImplProvider,
-        )],
-        FragmentIdentity::new("model-test", "isolated", 1, 1, "capability", 1),
-    );
-    let reflection = snapshot.build().expect("isolated capability snapshot");
-    assert!(reflection.types().is_empty());
-    let metadata = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(
-            TypeDescriptor::of::<DuplicateReflectionSource>(),
-            None,
-            &[],
-            v8::leak(v8::model_role()),
-        )
-        .finish::<DuplicateReflectionSource>(),
-    );
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("isolated model projection");
+    assert_eq!(error.kind(), ModelRegistryErrorKind::Capability);
+    assert!(error.sources().is_empty());
     assert!(
-        models
-            .properties_for(metadata)
-            .expect("overlay properties")
-            .property("computed")
-            .is_some()
-    );
-    let empty = RegistrySnapshotBuilder::new().build().expect("empty snapshot");
-    assert!(
-        metadata
-            .try_property_in(&empty, "computed")
-            .expect("no overlay")
-            .is_none()
-    );
-    assert!(metadata.try_properties().is_err(), "global conflict remains visible");
-    assert!(
-        metadata
-            .try_property_in(&reflection, "computed")
-            .expect("overlay still visible")
+        std::error::Error::source(&error)
+            .and_then(|cause| cause.downcast_ref::<CapabilityError>())
             .is_some()
     );
 }

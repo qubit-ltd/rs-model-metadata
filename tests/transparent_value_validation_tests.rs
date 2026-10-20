@@ -22,6 +22,7 @@ use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validator::SkipReason;
@@ -32,6 +33,28 @@ struct Email(#[text(min_chars = 1)] String);
 
 #[Value(transparent)]
 struct OptionalEmail(#[text(min_chars = 1)] Option<String>);
+
+#[cfg(feature = "generic")]
+#[Value(transparent)]
+#[derive(Default)]
+struct WrappedText(#[text(min_chars = 1)] String);
+
+#[cfg(feature = "generic")]
+#[Model(
+    no_redact,
+    no_serialize,
+    no_deserialize,
+    id = "qubit_model_metadata.validation.GenericOptionalWrapper"
+)]
+struct GenericOptionalWrapper<T> {
+    value: Option<T>,
+}
+
+#[cfg(feature = "generic")]
+#[Model(no_redact, no_serialize, no_deserialize)]
+struct GenericWrapperEnvelope {
+    wrapped: GenericOptionalWrapper<WrappedText>,
+}
 
 #[Model]
 struct Envelope {
@@ -47,9 +70,10 @@ struct TupleContainer {
 fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
     let root = TypeMetadata::of::<Envelope>();
     let roots = [root];
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -89,9 +113,10 @@ fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
 fn test_transparent_value_root_field_reports_numeric_path() {
     let root = TypeMetadata::of::<Email>();
     let roots = [root];
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -120,9 +145,10 @@ fn test_transparent_value_root_field_reports_numeric_path() {
 fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
     let root = TypeMetadata::of::<OptionalEmail>();
     let roots = [root];
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -156,13 +182,61 @@ fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
     assert_eq!(report.skipped()[0].reason(), SkipReason::MissingOptional);
 }
 
+#[cfg(feature = "generic")]
+#[test]
+fn test_transparent_value_validation_through_generic_optional_wrapper() {
+    let root = TypeMetadata::of::<GenericWrapperEnvelope>();
+    let roots = [root];
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("model registry");
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("generic wrapper structure"),
+    );
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+    )
+    .expect("transparent constraint must bind through generic wrapper");
+
+    let present = GenericWrapperEnvelope {
+        wrapped: GenericOptionalWrapper {
+            value: Some(WrappedText(String::new())),
+        },
+    };
+    let report = plan
+        .validate_dynamic(DynamicRef::<Local>::new(&present), &ValidationOptions::default())
+        .expect("present wrapped value execution");
+    assert_eq!(report.violations().len(), 1);
+    assert_eq!(report.violations()[0].path().render(), "wrapped.value[0]");
+
+    let absent = GenericWrapperEnvelope {
+        wrapped: GenericOptionalWrapper { value: None },
+    };
+    let report = plan
+        .validate_dynamic(DynamicRef::<Local>::new(&absent), &ValidationOptions::default())
+        .expect("absent wrapped value execution");
+    assert!(report.violations().is_empty());
+    assert_eq!(report.skipped().len(), 1);
+    assert_eq!(report.skipped()[0].path().render(), "wrapped.value[0]");
+    assert_eq!(report.skipped()[0].reason(), SkipReason::MissingOptional);
+}
+
 #[test]
 fn test_ordinary_tuple_field_remains_unsupported() {
     let root = TypeMetadata::of::<TupleContainer>();
     let roots = [root];
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()

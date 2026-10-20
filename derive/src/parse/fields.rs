@@ -154,6 +154,8 @@ pub(crate) fn parse_field(index: usize, ty: &Type, attributes: &[Attribute], nam
         variant_index: None,
         keep_serializing,
         named,
+        rust_name: None,
+        visibility: syn::Visibility::Inherited,
     })
 }
 

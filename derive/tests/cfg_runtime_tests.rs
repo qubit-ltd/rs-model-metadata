@@ -47,8 +47,9 @@ fn test_cfg_accessor_feature_matrix() {
             let output = run_fixture(&fixture, &target, action, &features.join(","));
             assert!(
                 output.status.success(),
-                "cfg fixture {action} features {features:?}: {}",
-                String::from_utf8_lossy(&output.stderr)
+                "cfg fixture {action} features {features:?}:\nstdout: {}\nstderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
             );
         }
     }

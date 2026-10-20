@@ -21,6 +21,18 @@ pub enum PropertyAccessPathError {
     /// No property segments were supplied.
     #[error("property access path is empty")]
     EmptyPath,
+    /// Registry has no reflection context for dynamic access.
+    #[error("property access path requires a reflection context")]
+    ReflectionContextUnavailable,
+    /// Resolving a context-bound intermediate type failed.
+    #[error("reflection context lookup failed at path segment {index}: {source}")]
+    ContextLookup {
+        /// Zero-based path position.
+        index: usize,
+        /// Context lookup failure.
+        #[source]
+        source: qubit_reflect::error::ContextError,
+    },
     /// A supplied property name is empty.
     #[error("property access path segment {index} is empty")]
     EmptySegment {
@@ -98,7 +110,7 @@ pub enum PropertyAccessPathError {
         index: usize,
         /// Property resolution failure for the declaring model.
         #[source]
-        source: PropertyResolutionError,
+        source: Box<PropertyResolutionError>,
     },
     /// Looking up metadata for a child descriptor failed.
     #[error("model metadata lookup failed at path segment {index}: {source}")]
@@ -107,7 +119,7 @@ pub enum PropertyAccessPathError {
         index: usize,
         /// Metadata lookup failure for the next model type.
         #[source]
-        source: ModelMetadataError,
+        source: Box<ModelMetadataError>,
     },
     /// Reading or mutably projecting a property failed at runtime.
     #[error("property access failed for `{name}` at path segment {index}: {source}")]

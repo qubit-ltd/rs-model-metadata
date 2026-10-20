@@ -13,7 +13,6 @@
 use std::any::TypeId;
 #[cfg(feature = "validation")]
 use std::sync::Arc;
-use std::sync::OnceLock;
 
 use qubit_id::Id;
 use qubit_model_derive::Entity;
@@ -21,19 +20,8 @@ use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
-use qubit_model_metadata::__private::ModelMetadataProvider;
-use qubit_model_metadata::__private::model_metadata_key;
-use qubit_model_metadata::__private::v8;
-use qubit_model_metadata::metadata::DependencyBindingMetadata;
-use qubit_model_metadata::metadata::FieldAttributeMetadata;
-use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::ModelRole;
-use qubit_model_metadata::metadata::OnNone;
-use qubit_model_metadata::metadata::PropertyPath;
-use qubit_model_metadata::metadata::SerdeFieldMetadata;
-use qubit_model_metadata::metadata::TargetMode;
 use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_model_metadata::metadata::ValidatorMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ModelGraph;
 use qubit_model_metadata::resolve::ResolveErrorKind;
@@ -43,13 +31,17 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 #[cfg(feature = "validation")]
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::capability::CapabilityDescriptor;
-use qubit_reflect::identity::FragmentIdentity;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::descriptor::TypeKind;
 #[cfg(feature = "validation")]
 use qubit_validator::ValidatorRegistry;
+
+fn linked_reflection_context() -> ReflectionContext {
+    ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context")
+}
 
 #[Model]
 struct Page<T> {
@@ -73,139 +65,6 @@ fn test_root_graph_lifetime_follows_registry() {
     assert!(graph.model(root.type_id()).is_some());
 }
 
-#[Reflect]
-struct SnapshotGood {
-    value: String,
-}
-
-#[Reflect]
-struct SnapshotBad {
-    value: String,
-}
-
-/// Supplies metadata for the valid snapshot member.
-fn snapshot_good_metadata() -> &'static TypeMetadata {
-    static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
-    METADATA.get_or_init(|| {
-        let descriptor = TypeDescriptor::of::<SnapshotGood>();
-        let reflected = descriptor.field_at(0).expect("good value field");
-        let fields = v8::leak_slice(vec![v8::field_metadata(
-            reflected.declaring_type().type_id(),
-            reflected,
-            &[],
-            &[],
-            &[],
-            &SerdeFieldMetadata::DEFAULT,
-        )]);
-        let properties = v8::leak_slice(vec![v8::property_metadata(
-            "value",
-            fields[0].type_ref(),
-            Some(&fields[0]),
-            None,
-            None,
-        )]);
-        v8::GeneratedTypeMetadataBuilder::new(
-            descriptor,
-            Some(ModelId::new("roots.SnapshotGood")),
-            fields,
-            v8::leak(v8::model_role()),
-        )
-        .properties(properties)
-        .finish::<SnapshotGood>()
-    })
-}
-
-/// Supplies metadata for the invalid snapshot member.
-fn snapshot_bad_metadata() -> &'static TypeMetadata {
-    static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
-    METADATA.get_or_init(|| {
-        let descriptor = TypeDescriptor::of::<SnapshotBad>();
-        let reflected = descriptor.field_at(0).expect("bad value field");
-        let missing = PropertyPath::new(&["missing"]);
-        let dependencies = v8::leak_slice(vec![missing]);
-        let bindings = v8::leak_slice(vec![DependencyBindingMetadata::new("expected", missing)]);
-        let validators = v8::leak_slice(vec![ValidatorMetadata::new_bound(
-            "roots.rule",
-            &[],
-            dependencies,
-            bindings,
-            TargetMode::Value,
-            OnNone::Skip,
-        )]);
-        let attributes = v8::leak_slice(vec![FieldAttributeMetadata::Validator(&validators[0])]);
-        let fields = v8::leak_slice(vec![v8::field_metadata(
-            reflected.declaring_type().type_id(),
-            reflected,
-            attributes,
-            &[],
-            validators,
-            &SerdeFieldMetadata::DEFAULT,
-        )]);
-        let properties = v8::leak_slice(vec![v8::property_metadata(
-            "value",
-            fields[0].type_ref(),
-            Some(&fields[0]),
-            None,
-            None,
-        )]);
-        v8::GeneratedTypeMetadataBuilder::new(
-            descriptor,
-            Some(ModelId::new("roots.SnapshotBad")),
-            fields,
-            v8::leak(v8::model_role()),
-        )
-        .properties(properties)
-        .finish::<SnapshotBad>()
-    })
-}
-
-/// A frozen reflection snapshot isolates valid roots from unrelated defects.
-#[test]
-fn test_for_roots_ignores_unrelated_invalid_snapshot_member() {
-    let mut builder = RegistrySnapshotBuilder::new();
-    for (metadata, provider, member) in [
-        (
-            snapshot_good_metadata(),
-            snapshot_good_metadata as ModelMetadataProvider,
-            "good",
-        ),
-        (
-            snapshot_bad_metadata(),
-            snapshot_bad_metadata as ModelMetadataProvider,
-            "bad",
-        ),
-    ] {
-        builder.add_type_with_capabilities(
-            metadata.descriptor(),
-            vec![CapabilityDescriptor::with_adapter(model_metadata_key(), provider)],
-            FragmentIdentity::new("roots-test", member, 1, 1, "type", 0),
-            FragmentIdentity::new("roots-test", member, 1, 2, "capability", 0),
-        );
-    }
-    let reflection = builder.build().expect("isolated reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model projection");
-    let root = snapshot_good_metadata();
-    let roots = [root];
-    let inputs = ResolveInputs {
-        models: &models,
-        roots: &roots,
-    };
-
-    let full_errors = StructureResolver::new(inputs)
-        .resolve()
-        .expect_err("complete audit visits the unrelated bad model");
-    assert!(full_errors.errors().iter().any(|error| {
-        error.kind() == ResolveErrorKind::MissingProperty
-            && error.owner_type_id() == Some(snapshot_bad_metadata().type_id())
-    }));
-
-    let graph = StructureResolver::for_roots(inputs)
-        .resolve()
-        .expect("root-scoped resolution ignores the bad model");
-    assert!(graph.model(root.type_id()).is_some());
-    assert!(graph.model(snapshot_bad_metadata().type_id()).is_none());
-}
-
 /// Registration identity is independent from generic model capability.
 #[test]
 fn test_anonymous_generic_has_definition() {
@@ -223,11 +82,12 @@ fn test_anonymous_generic_has_definition() {
 /// Explicit anonymous roots participate without acquiring fabricated IDs.
 #[test]
 fn test_anonymous_root_is_resolved() {
-    let registry = ModelRegistry::global();
+    let reflection = linked_reflection_context();
+    let registry = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<Page<String>>();
     let roots = [root];
     let graph = StructureResolver::new(ResolveInputs {
-        models: registry,
+        models: &registry,
         roots: &roots,
     })
     .resolve()
@@ -239,12 +99,13 @@ fn test_anonymous_root_is_resolved() {
 #[cfg(feature = "validation")]
 #[test]
 fn test_anonymous_root_validation_binds() {
-    let registry = ModelRegistry::global();
+    let reflection = linked_reflection_context();
+    let registry = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<Page<String>>();
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: registry,
+            models: &registry,
             roots: &roots,
         })
         .resolve()
@@ -280,10 +141,14 @@ struct Record {
 /// Metadata retains direct declarations without imposing flattened filters.
 #[test]
 fn test_query_declarations_do_not_apply_product_filter_policy() {
-    let models = ModelRegistry::global();
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .expect("indexed model is a valid declaration");
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &[],
+    })
+    .resolve()
+    .expect("indexed model is a valid declaration");
     let root = TypeMetadata::of::<Record>();
     let declarations = graph.query(root.type_id()).expect("query declarations").declarations();
     let names: Vec<_> = declarations
@@ -302,20 +167,24 @@ struct References {
 /// Reference compatibility unwraps supported containers while retaining shape.
 #[test]
 fn test_optional_sequence_reference_resolves() {
-    let models = ModelRegistry::global();
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<References>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .expect("wrapped reference");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("wrapped reference");
     assert!(graph.reference(root.fields()[0].location().unwrap()).is_some());
-    assert!(
-        root.fields()[0]
-            .descriptor()
-            .expect("outer shape")
-            .as_optional()
-            .is_some()
-    );
+    let reflected = root.fields()[0]
+        .reflect_in(&reflection)
+        .expect("concrete reference field");
+    assert!(matches!(
+        reflected.find_concrete_type().expect("outer field type").kind(),
+        TypeKind::Optional(_)
+    ));
 }
 
 #[Enum]
@@ -331,9 +200,14 @@ struct ClosedValue {
 /// A Value cannot conceal an entity reference inside an Enum payload.
 #[test]
 fn test_value_closure_rejects_enum_payload_references() {
-    let models = ModelRegistry::global();
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let roots = [TypeMetadata::of::<ClosedValue>()];
-    let result = StructureResolver::new(ResolveInputs { models, roots: &roots }).resolve();
+    let result = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve();
     let errors = result.expect_err("Value closure must reject hidden references");
     let error = errors
         .errors()
@@ -371,12 +245,16 @@ struct BoundAddress {
 /// Binding paths traverse referenced entities even when fields only store IDs.
 #[test]
 fn test_binding_path_navigates_entity_behind_saved_id() {
-    let models = ModelRegistry::global();
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<BoundAddress>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .expect("binding navigation follows Entity metadata");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("binding navigation follows Entity metadata");
     assert_eq!(
         graph
             .reference(root.fields()[1].location().unwrap())
@@ -396,9 +274,15 @@ struct InvalidDependency {
 /// Known local dependency paths are checked without an execution registry.
 #[test]
 fn test_missing_local_dependency_is_a_structure_error() {
-    let models = ModelRegistry::global();
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let roots = [TypeMetadata::of::<InvalidDependency>()];
-    let errors = match StructureResolver::new(ResolveInputs { models, roots: &roots }).resolve() {
+    let errors = match StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    {
         Err(errors) => errors,
         Ok(_) => panic!("missing dependency must fail structural resolution"),
     };
@@ -420,10 +304,12 @@ enum UnboundEntityPayload {
 /// Entity payloads need a reference declaration even inside an Enum.
 #[test]
 fn test_enum_entity_payload_requires_reference() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let metadata = TypeMetadata::of::<UnboundEntityPayload>();
     let roots = [metadata];
     let result = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
+        models: &models,
         roots: &roots,
     })
     .resolve();
@@ -452,10 +338,12 @@ struct SavedIdDependency {
 /// Entity.
 #[test]
 fn test_validator_navigation_does_not_follow_entity_bindings() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let metadata = TypeMetadata::of::<SavedIdDependency>();
     let roots = [metadata];
     let result = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
+        models: &models,
         roots: &roots,
     })
     .resolve();
@@ -488,9 +376,11 @@ struct DependencyChild {
 /// referenced Entities or traversing collection elements implicitly.
 #[test]
 fn test_dependency_property_selection_unwraps_storage() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let roots = [TypeMetadata::of::<NestedDependency>()];
     let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
+        models: &models,
         roots: &roots,
     })
     .resolve()
@@ -508,10 +398,12 @@ struct WrongReferenceType {
 /// coordinates for consumers of structured diagnostics.
 #[test]
 fn test_reference_type_mismatch_retains_machine_readable_context() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let owner = TypeMetadata::of::<WrongReferenceType>();
     let roots = [owner];
     let errors = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
+        models: &models,
         roots: &roots,
     })
     .resolve()
@@ -539,9 +431,11 @@ struct MissingUniqueScope {
 /// A missing uniqueness scope identifies the field that declared it.
 #[test]
 fn test_unique_scope_error_retains_declaration_location() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let roots = [TypeMetadata::of::<MissingUniqueScope>()];
     let errors = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
+        models: &models,
         roots: &roots,
     })
     .resolve()
@@ -593,10 +487,12 @@ struct NestedRelationRoot {
 /// and validator dependencies through the same root graph.
 #[test]
 fn test_nested_entity_projection_and_dependency_paths_resolve() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let metadata = TypeMetadata::of::<NestedRelationRoot>();
     let roots = [metadata];
     let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
+        models: &models,
         roots: &roots,
     })
     .resolve()
@@ -642,10 +538,12 @@ struct InvalidNestedRelationRoot {
 /// and their declaring field locations.
 #[test]
 fn test_nested_relation_errors_retain_exact_object_and_property_paths() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let metadata = TypeMetadata::of::<InvalidNestedRelationRoot>();
     let roots = [metadata];
     let errors = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
+        models: &models,
         roots: &roots,
     })
     .resolve()

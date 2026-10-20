@@ -9,7 +9,7 @@
 //! The five supported model roles and their role-specific payloads.
 
 use qubit_id::Id;
-use qubit_reflect::TypeMismatch;
+use qubit_reflect::error::TypeMismatch;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 

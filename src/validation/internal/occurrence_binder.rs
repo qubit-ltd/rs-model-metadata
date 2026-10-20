@@ -15,6 +15,7 @@ use chrono::DateTime;
 use chrono::NaiveDateTime;
 use chrono::NaiveTime;
 use chrono::Utc;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeKind;
 use qubit_validator::BindError;
@@ -63,6 +64,10 @@ pub(crate) fn check_access(
     occurrence: &ValidationOccurrence,
     graph: &ModelGraph<'_>,
 ) -> Result<CompiledPropertyPath, Box<ValidationBuildError>> {
+    let context = graph
+        .registry()
+        .context()
+        .ok_or_else(|| Box::new(ValidationBuildError::unsupported(occurrence)))?;
     let requires_slice = match occurrence.declaration {
         ExecutionDeclaration::Traversal => {
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
@@ -91,6 +96,16 @@ pub(crate) fn check_access(
             }
         }
     };
+    if occurrence.selector.is_some()
+        && occurrence
+            .field
+            .name()
+            .and_then(|name| graph.properties(occurrence.owner)?.property(name))
+            .and_then(|property| property.getter())
+            .is_some_and(|getter| getter.output_kind() == GetterOutputKind::Owned)
+    {
+        return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+    }
     let is_map = matches!(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(ConstraintMetadata::Map(_))
@@ -103,9 +118,15 @@ pub(crate) fn check_access(
     );
     let compile = |target| -> Result<_, Box<ValidationBuildError>> {
         let compiled = if occurrence.enum_variant.is_some() {
-            CompiledPropertyPath::compile_enum_payload(occurrence.root, occurrence, graph, target)
+            CompiledPropertyPath::compile_enum_payload(context, occurrence.root, occurrence, graph, target)
         } else {
-            CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&occurrence.segments), graph, target)
+            CompiledPropertyPath::compile(
+                context,
+                occurrence.root,
+                &PropertyPath::new(&occurrence.segments),
+                graph,
+                target,
+            )
         };
         compiled.map_err(|error| {
             Box::new(if error.kind() == BindErrorKind::UnsupportedConstraint {
@@ -141,12 +162,11 @@ pub(crate) fn check_access(
     let optional_scalar_candidate = scalar_constraint
         && property.getter().is_none()
         && property
-            .descriptor()
-            .is_some_and(|descriptor| descriptor.as_optional().is_some());
-    let optional_projection_available = property
-        .descriptor()
-        .and_then(|descriptor| descriptor.as_optional())
-        .is_some_and(|optional| optional.has_ref_projection());
+            .descriptor_in_owner(occurrence.owner, context)
+            .ok()
+            .flatten()
+            .is_some_and(|descriptor| matches!(descriptor.kind(), TypeKind::Optional(_)));
+    let optional_projection_available = property.optional_ops().is_some();
     if optional_scalar_candidate && !optional_projection_available {
         return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
     }
@@ -169,7 +189,13 @@ pub(crate) fn check_access(
         compile(target)?
     };
     let path = if direct_optional_scalar {
-        match path.unwrap_terminal_optional() {
+        let element = property
+            .descriptor_in_owner(occurrence.owner, context)
+            .ok()
+            .flatten()
+            .and_then(|descriptor| generic_type_argument(descriptor, 0))
+            .ok_or_else(|| Box::new(ValidationBuildError::unsupported(occurrence)))?;
+        match path.unwrap_terminal_optional(element) {
             Ok(path) => path,
             Err(error) => {
                 return Err(Box::new(ValidationBuildError::at_occurrence(occurrence, error)));
@@ -188,7 +214,7 @@ pub(crate) fn check_access(
     }
     if let Some(selector) = occurrence.selector {
         let items = occurrence.field.collection_ops().and_then(|ops| ops.collection_items());
-        let supported_type = selector_input_type(occurrence, &path, selector).is_some();
+        let supported_type = selector_input_type(context, &path, selector).is_some();
         let borrowed_output = path
             .steps()
             .last()
@@ -202,15 +228,17 @@ pub(crate) fn check_access(
     {
         let item_eq = occurrence.field.collection_ops().and_then(|ops| ops.item_eq());
         let elements_match = occurrence
-            .field
-            .descriptor()
+            .owner
+            .field_descriptor_in(occurrence.field, context)
+            .and_then(|field| field.find_concrete_type())
+            .and_then(|declared| generic_type_argument(declared, 0))
             .zip(
                 path.steps()
                     .last()
                     .and_then(|step| step.property().getter())
-                    .and_then(|getter| getter.output_type().as_resolved()),
+                    .and_then(|getter| getter.output_element_type_id()),
             )
-            .is_some_and(|(declared, output)| sequence_element_matches(declared, output));
+            .is_some_and(|(declared, output)| declared.type_id() == output);
         if item_eq.is_none() || !elements_match {
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         }
@@ -219,13 +247,20 @@ pub(crate) fn check_access(
         let Some(property) = path.steps().last().map(|step| step.property()) else {
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         };
-        let map_type = property.descriptor().is_some_and(|descriptor| {
-            matches!(descriptor.kind(), TypeKind::Map)
-                || descriptor
-                    .as_optional()
-                    .and_then(|optional| optional.element_type().as_resolved())
-                    .is_some_and(|inner| matches!(inner.kind(), TypeKind::Map))
-        });
+        let map_type = property
+            .descriptor_in_owner(occurrence.owner, context)
+            .ok()
+            .flatten()
+            .is_some_and(|descriptor| {
+                if matches!(descriptor.kind(), TypeKind::Map(_)) {
+                    return true;
+                }
+                property.optional_ops().is_some_and(|ops| {
+                    generic_type_argument(descriptor, 0).is_some_and(|inner| {
+                        inner.type_id() == ops.element_type_id() && matches!(inner.kind(), TypeKind::Map(_))
+                    })
+                })
+            });
         let borrowed_output = property.getter().is_none_or(|getter| {
             matches!(
                 getter.output_kind(),
@@ -243,7 +278,7 @@ pub(crate) fn check_access(
     }
     let selected_type = occurrence
         .selector
-        .and_then(|selector| selector_input_type(occurrence, &path, selector));
+        .and_then(|selector| selector_input_type(context, &path, selector));
     let selected_input = selected_type.map(|descriptor| {
         if matches!(descriptor.kind(), TypeKind::Text(_)) {
             InputType::Text
@@ -281,7 +316,7 @@ pub(crate) fn check_access(
             // Selected members are direct borrows, so optional values and
             // smart pointers need a separate projection adapter.
             if declaration.target() == TargetMode::Value
-                && (descriptor.as_optional().is_some() || descriptor.as_smart_pointer().is_some())
+                && matches!(descriptor.kind(), TypeKind::Optional(_) | TypeKind::SmartPointer(_))
             {
                 return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
             }
@@ -289,6 +324,7 @@ pub(crate) fn check_access(
         let prefix = &occurrence.segments[..occurrence.segments.len() - 1];
         for binding in declaration.dependency_bindings() {
             CompiledPropertyPath::compile_dependency(
+                context,
                 occurrence.root,
                 prefix,
                 binding,
@@ -301,8 +337,14 @@ pub(crate) fn check_access(
         if declaration.dependency_bindings().is_empty() {
             for dependency in declaration.depends_on() {
                 let segments: Vec<_> = prefix.iter().chain(dependency.segments()).copied().collect();
-                CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&segments), graph, TargetMode::Value)
-                    .map_err(|error| access_error(occurrence, error))?;
+                CompiledPropertyPath::compile(
+                    context,
+                    occurrence.root,
+                    &PropertyPath::new(&segments),
+                    graph,
+                    TargetMode::Value,
+                )
+                .map_err(|error| access_error(occurrence, error))?;
             }
         }
     }
@@ -321,17 +363,23 @@ pub(crate) fn check_access(
 ///
 /// Returns `true` only when both descriptors resolve to the same element type.
 #[must_use]
-fn sequence_element_matches(declared: &TypeDescriptor, output: &TypeDescriptor) -> bool {
-    let declared_element = declared
-        .as_sequence()
-        .map(|sequence| sequence.element_type())
-        .or_else(|| declared.as_array().map(|array| array.element_type()))
-        .or_else(|| declared.as_slice().map(|slice| slice.element_type()))
-        .and_then(|element| element.as_resolved());
-    let output_element = output.as_slice().and_then(|slice| slice.element_type().as_resolved());
+#[cfg(test)]
+fn sequence_element_matches(declared: TypeDescriptor<'_>, output: TypeDescriptor<'_>) -> bool {
+    let declared_element = generic_type_argument(declared, 0);
+    let output_element = generic_type_argument(output, 0);
     declared_element
         .zip(output_element)
         .is_some_and(|(declared, output)| declared.type_id() == output.type_id())
+}
+
+fn generic_type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option<TypeDescriptor<'ctx>> {
+    descriptor
+        .generic_arguments()
+        .iter()
+        .nth(index)?
+        .type_argument()
+        .ok()?
+        .find_concrete_type()
 }
 
 /// Distinguishes an unsupported access adapter from a malformed declaration.
@@ -354,35 +402,27 @@ fn access_error(occurrence: &ValidationOccurrence, error: BindError) -> Validati
 }
 
 /// Resolves the selected member type from the exact collection descriptor.
-fn selector_input_type(
-    _occurrence: &ValidationOccurrence,
+fn selector_input_type<'ctx>(
+    context: &'ctx ReflectionContext,
     path: &CompiledPropertyPath,
     position: SelectorPosition,
-) -> Option<&'static TypeDescriptor> {
+) -> Option<TypeDescriptor<'ctx>> {
     let property = path.steps().last()?.property();
     let mut descriptor = property
         .getter()
-        .and_then(|getter| getter.output_type().as_resolved())
-        .or_else(|| property.descriptor())?;
-    if let Some(optional) = descriptor.as_optional() {
-        descriptor = optional.element_type().as_resolved()?;
+        .filter(|getter| getter.output_kind() != GetterOutputKind::OptionalBorrowed)
+        .and_then(|getter| context.find_type_by_id(getter.output_type_id()).ok().flatten())
+        .or_else(|| property.descriptor_in(context).ok().flatten())?;
+    if let Some(optional) = property.optional_ops() {
+        descriptor = generic_type_argument(descriptor, 0)?;
+        if descriptor.type_id() != optional.element_type_id() {
+            return None;
+        }
     }
     let selected = match position {
-        SelectorPosition::Element => descriptor
-            .as_sequence()
-            .and_then(|sequence| sequence.element_type().as_resolved())
-            .or_else(|| {
-                descriptor
-                    .as_array()
-                    .and_then(|array| array.element_type().as_resolved())
-            })
-            .or_else(|| {
-                descriptor
-                    .as_slice()
-                    .and_then(|slice| slice.element_type().as_resolved())
-            }),
-        SelectorPosition::MapKey => descriptor.as_map().and_then(|map| map.key_type().as_resolved()),
-        SelectorPosition::MapValue => descriptor.as_map().and_then(|map| map.value_type().as_resolved()),
+        SelectorPosition::Element => generic_type_argument(descriptor, 0),
+        SelectorPosition::MapKey => generic_type_argument(descriptor, 0),
+        SelectorPosition::MapValue => generic_type_argument(descriptor, 1),
     }?;
     Some(selected)
 }
@@ -411,6 +451,9 @@ pub(crate) fn bind(
     validators: &ValidatorRegistry,
     ancestors: &[&'static TypeMetadata],
 ) -> Result<Vec<FieldRuleBinding>, Vec<ValidationBuildError>> {
+    let Some(context) = graph.registry().context() else {
+        return Err(vec![ValidationBuildError::unsupported(occurrence)]);
+    };
     let value = check_access(occurrence, graph).map_err(|error| vec![*error])?;
     let map_len: Option<MapLenAdapter> = if matches!(
         occurrence.declaration,
@@ -424,7 +467,7 @@ pub(crate) fn bind(
         ExecutionDeclaration::Constraint(constraint) => {
             let input = occurrence
                 .selector
-                .and_then(|selector| selector_input_type(occurrence, &value, selector))
+                .and_then(|selector| selector_input_type(context, &value, selector))
                 .map(|descriptor| {
                     if matches!(descriptor.kind(), TypeKind::Text(_)) {
                         InputType::Text
@@ -484,7 +527,7 @@ pub(crate) fn bind(
             let input = if occurrence.selector.is_some() {
                 let Some(descriptor) = occurrence
                     .selector
-                    .and_then(|selector| selector_input_type(occurrence, &value, selector))
+                    .and_then(|selector| selector_input_type(context, &value, selector))
                 else {
                     return Err(vec![ValidationBuildError::unsupported(occurrence)]);
                 };
@@ -563,6 +606,9 @@ fn bind_dependencies(
     graph: &ModelGraph<'_>,
     ancestors: &[&'static TypeMetadata],
 ) -> Result<Box<[CompiledPropertyPath]>, Vec<BindError>> {
+    let Some(context) = graph.registry().context() else {
+        return Err(vec![BindError::new(BindErrorKind::UnsupportedInput)]);
+    };
     let declared = declaration.dependency_bindings();
     let legacy = declaration.depends_on();
     let specs = validator.dependency_specs();
@@ -598,7 +644,13 @@ fn bind_dependencies(
                 continue;
             }
             let segments: Vec<_> = prefix.iter().chain(dependency.segments()).copied().collect();
-            CompiledPropertyPath::compile(occurrence.root, &PropertyPath::new(&segments), graph, TargetMode::Value)
+            CompiledPropertyPath::compile(
+                context,
+                occurrence.root,
+                &PropertyPath::new(&segments),
+                graph,
+                TargetMode::Value,
+            )
         } else {
             let Some(binding) = declared_by_name
                 .as_ref()
@@ -612,7 +664,15 @@ fn bind_dependencies(
                 );
                 continue;
             };
-            CompiledPropertyPath::compile_dependency(occurrence.root, prefix, binding, graph, ancestors, spec.input())
+            CompiledPropertyPath::compile_dependency(
+                context,
+                occurrence.root,
+                prefix,
+                binding,
+                graph,
+                ancestors,
+                spec.input(),
+            )
         };
         match path {
             Ok(path)
@@ -620,7 +680,7 @@ fn bind_dependencies(
                     && path.deferred().is_empty()
                     && path.is_optional()
                     && !spec.optional()
-                    && !path.optionality_covered_by(target) =>
+                    && !path.optionality_covered_by(target, context) =>
             {
                 errors.push(
                     BindError::new(BindErrorKind::DependencyOptionalityMismatch)
@@ -666,6 +726,7 @@ fn index_declared_bindings(declared: &[DependencyBindingMetadata]) -> HashMap<&s
 
 #[cfg(test)]
 mod tests {
+    use qubit_reflect::ReflectionContext;
     use qubit_reflect::TypeDescriptor;
 
     use super::index_declared_bindings;
@@ -687,17 +748,18 @@ mod tests {
 
     #[test]
     fn test_unique_element_shape_requires_matching_type_ids() {
+        let context = ReflectionContext::global();
         assert!(sequence_element_matches(
-            TypeDescriptor::of::<Vec<i32>>(),
-            TypeDescriptor::of::<[i32]>(),
+            TypeDescriptor::of_in::<Vec<i32>>(context),
+            TypeDescriptor::of_in::<[i32]>(context),
         ));
         assert!(sequence_element_matches(
-            TypeDescriptor::of::<[i32; 2]>(),
-            TypeDescriptor::of::<[i32]>(),
+            TypeDescriptor::of_in::<[i32; 2]>(context),
+            TypeDescriptor::of_in::<[i32]>(context),
         ));
         assert!(!sequence_element_matches(
-            TypeDescriptor::of::<Vec<i32>>(),
-            TypeDescriptor::of::<[u8]>(),
+            TypeDescriptor::of_in::<Vec<i32>>(context),
+            TypeDescriptor::of_in::<[u8]>(context),
         ));
     }
 }

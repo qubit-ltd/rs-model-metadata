@@ -8,215 +8,123 @@
 
 //! Integration tests for explicit model graph resolution.
 
-use std::any::TypeId;
-
-use qubit_model_metadata::__private::v8;
-use qubit_model_metadata::metadata::DeclaredEntityTarget;
-use qubit_model_metadata::metadata::FieldAttributeMetadata;
-use qubit_model_metadata::metadata::FieldMetadata;
-use qubit_model_metadata::metadata::FieldReferenceMetadata;
-use qubit_model_metadata::metadata::IdentifierAssignment;
-use qubit_model_metadata::metadata::IdentifierMetadata;
-use qubit_model_metadata::metadata::IndexingReasons;
-use qubit_model_metadata::metadata::ModelId;
-use qubit_model_metadata::metadata::PropertyMetadata;
-use qubit_model_metadata::metadata::PropertyPath;
-use qubit_model_metadata::metadata::ReferenceSelection;
-use qubit_model_metadata::metadata::SerdeFieldMetadata;
+use qubit_id::Id;
+use qubit_model_derive::Entity;
+use qubit_model_derive::Model;
+use qubit_model_derive::Value;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistryOrigin;
 use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
-use qubit_reflect::FieldDescriptor;
-use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::TypeMismatch;
-use qubit_reflect::identity::FragmentIdentity;
-use qubit_reflect::value::DynamicRef;
-use qubit_reflect::value::Local;
+use qubit_reflect::ReflectionContext;
 
-fn unavailable_identifier<'a>(_: DynamicRef<'a, Local>) -> Result<&'a qubit_id::Id, TypeMismatch> {
-    Err(TypeMismatch::new(TypeId::of::<()>(), TypeId::of::<()>()))
-}
-
-fn model_registry(entries: &[(&'static TypeMetadata, &'static FragmentIdentity)]) -> ModelRegistry<'static> {
-    ModelRegistry::from_static_metadata(entries).expect("valid isolated model registry")
-}
-
-#[Reflect]
+#[Entity(id = "example.Target")]
 struct TargetFixture {
-    id: u64,
+    #[identifier]
+    id: Id,
 }
 
-#[Reflect]
+#[Model(id = "example.Source")]
 struct SourceFixture {
-    target_id: u64,
+    #[reference(entity = TargetFixture, property = id, existing = true)]
+    target_id: Id,
 }
 
-#[Reflect]
+#[Model(id = "example.SourceMissing")]
+struct SourceMissingFixture {
+    #[reference(entity = "missing.Target")]
+    target: Id,
+}
+
+#[Value(id = "query.Nested")]
 struct NestedQueryFixture {
+    #[indexed]
     b: u64,
 }
 
-#[Reflect]
+#[Entity(id = "query.Root")]
 struct RootQueryFixture {
-    id: u64,
+    #[identifier]
+    id: Id,
+    #[indexed]
     nested: NestedQueryFixture,
 }
 
-#[Reflect]
+#[Entity(id = "query.Conflict")]
 struct ConflictingQueryFixture {
-    id: u64,
+    #[identifier]
+    id: Id,
+    #[indexed]
     a_b: u64,
+    #[indexed]
     a: NestedQueryFixture,
 }
 
-#[Reflect]
+#[Model(id = "closure.Model", eq, hash)]
 struct PlainModelFixture {
     value: u64,
 }
 
-#[Reflect]
+#[Value(id = "closure.Value")]
 struct InvalidValueFixture {
     model: PlainModelFixture,
 }
 
-fn source_identity(line: u32) -> &'static FragmentIdentity {
-    Box::leak(Box::new(FragmentIdentity::new(
-        "fixture",
-        "tests",
-        line,
-        1,
-        "model",
-        line as u64,
-    )))
+fn source_identity(module_path: &'static str, line: u32) -> &'static ModelRegistryOrigin {
+    Box::leak(Box::new(ModelRegistryOrigin {
+        crate_name: "fixture",
+        crate_version: Some("1.0.0"),
+        module_path,
+        file: Some(file!()),
+        line: Some(line),
+        column: Some(1),
+    }))
+}
+
+fn model_registry(
+    entries: &[(&'static TypeMetadata, &'static ModelRegistryOrigin)],
+) -> &'static ModelRegistry<'static> {
+    Box::leak(Box::new(
+        ModelRegistry::from_static_metadata(ReflectionContext::global(), entries)
+            .expect("valid isolated model registry"),
+    ))
 }
 
 #[test]
 fn test_resolver_resolves_reference_targets_and_properties() {
-    let target_descriptor = TypeDescriptor::of::<TargetFixture>();
-    let identifier = Box::leak(Box::new(IdentifierMetadata::new(IdentifierAssignment::Application)));
-    let target_attributes = Box::leak(
-        vec![
-            FieldAttributeMetadata::Identifier(identifier),
-            FieldAttributeMetadata::Indexed(IndexingReasons::IDENTIFIER),
-        ]
-        .into_boxed_slice(),
-    );
-    let target_fields = Box::leak(
-        vec![v8::field_metadata(
-            (target_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
-            target_descriptor.field_at(0).unwrap(),
-            target_attributes,
-            &[],
-            &[],
-            &SerdeFieldMetadata::DEFAULT,
-        )]
-        .into_boxed_slice(),
-    );
-    let target_role = v8::leak(v8::entity_role(&target_fields[0], unavailable_identifier));
-    let target_properties = Box::leak(
-        vec![v8::property_metadata(
-            "id",
-            target_fields[0].type_ref(),
-            Some(&target_fields[0]),
-            None,
-            None,
-        )]
-        .into_boxed_slice(),
-    );
-    let target_metadata = Box::leak(Box::new(
-        v8::GeneratedTypeMetadataBuilder::new(
-            target_descriptor,
-            Some(ModelId::new("example.Target")),
-            target_fields,
-            target_role,
-        )
-        .properties(target_properties)
-        .finish::<TargetFixture>(),
-    ));
-
-    let declared_target = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new("example.Target"))));
-    let selection = Box::leak(Box::new(ReferenceSelection::Property(PropertyPath::new(&["id"]))));
-    let reference = Box::leak(Box::new(FieldReferenceMetadata::new(
-        declared_target,
-        selection,
-        true,
-        None,
-    )));
-    let attributes = Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
-    let source_descriptor = TypeDescriptor::of::<SourceFixture>();
-    let source_fields = Box::leak(
-        vec![v8::field_metadata(
-            (source_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
-            source_descriptor.field_at(0).unwrap(),
-            attributes,
-            &[],
-            &[],
-            &SerdeFieldMetadata::DEFAULT,
-        )]
-        .into_boxed_slice(),
-    );
-    let source_role = v8::leak(v8::model_role());
-    let source_metadata = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(
-            source_descriptor,
-            Some(ModelId::new("example.Source")),
-            source_fields,
-            source_role,
-        )
-        .finish::<SourceFixture>(),
-    );
-
+    let target = TypeMetadata::of::<TargetFixture>();
+    let source = TypeMetadata::of::<SourceFixture>();
     let registry = model_registry(&[
-        (target_metadata, source_identity(1)),
-        (source_metadata, source_identity(2)),
+        (target, source_identity("fixture::target", 1)),
+        (source, source_identity("fixture::source", 2)),
     ]);
     let graph = StructureResolver::new(ResolveInputs {
         roots: &[],
-        models: &registry,
+        models: registry,
     })
     .resolve()
-    .unwrap();
-    let resolved = graph
-        .reference(source_fields[0].location().unwrap())
-        .expect("resolved reference");
+    .expect("complete source and target registry");
 
-    assert!(std::ptr::eq(resolved.target(), target_metadata));
-    assert_eq!(resolved.property().map(PropertyMetadata::name), Some("id"));
-    let query = graph.query(target_metadata.type_id()).expect("entity query");
+    let reference_field = source.field("target_id").unwrap();
+    let resolved = graph
+        .reference(reference_field.location().unwrap())
+        .expect("resolved reference");
+    assert!(std::ptr::eq(resolved.target(), target));
+    assert_eq!(resolved.property().map(|property| property.name()), Some("id"));
+    let query = graph.query(target.type_id()).expect("entity query");
     assert_eq!(query.declarations().len(), 1);
     assert_eq!(query.declarations()[0].path().segments(), &["id"]);
 }
 
 #[test]
 fn test_resolver_aggregates_missing_targets_deterministically() {
-    let descriptor = TypeDescriptor::of::<SourceFixture>();
-    let target = Box::leak(Box::new(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))));
-    let selection = Box::leak(Box::new(ReferenceSelection::Entity));
-    let reference = Box::leak(Box::new(FieldReferenceMetadata::new(target, selection, true, None)));
-    let attributes = Box::leak(vec![FieldAttributeMetadata::Reference(reference)].into_boxed_slice());
-    let fields = Box::leak(
-        vec![v8::field_metadata(
-            (descriptor.field_at(0).unwrap()).declaring_type().type_id(),
-            descriptor.field_at(0).unwrap(),
-            attributes,
-            &[],
-            &[],
-            &SerdeFieldMetadata::DEFAULT,
-        )]
-        .into_boxed_slice(),
-    );
-    let role = v8::leak(v8::model_role());
-    let metadata = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new("example.SourceMissing")), fields, role)
-            .finish::<SourceFixture>(),
-    );
-    let registry = model_registry(&[(metadata, source_identity(3))]);
+    let source = TypeMetadata::of::<SourceMissingFixture>();
+    let registry = model_registry(&[(source, source_identity("fixture::source_missing", 3))]);
     let errors = StructureResolver::new(ResolveInputs {
         roots: &[],
-        models: &registry,
+        models: registry,
     })
     .resolve()
     .expect_err("missing targets must prevent graph publication");
@@ -226,73 +134,20 @@ fn test_resolver_aggregates_missing_targets_deterministically() {
     assert_eq!(errors.errors()[0].model_id(), Some("missing.Target"));
 }
 
-fn indexed_field(reflect: &'static FieldDescriptor) -> FieldMetadata {
-    let attributes = Box::leak(vec![FieldAttributeMetadata::Indexed(IndexingReasons::EXPLICIT)].into_boxed_slice());
-    v8::field_metadata(
-        (reflect).declaring_type().type_id(),
-        reflect,
-        attributes,
-        &[],
-        &[],
-        &SerdeFieldMetadata::DEFAULT,
-    )
-}
-
-fn entity_metadata<T: 'static>(
-    descriptor: &'static TypeDescriptor,
-    id: &'static str,
-    fields: &'static [FieldMetadata],
-) -> &'static TypeMetadata {
-    let role = v8::leak(v8::entity_role(&fields[0], unavailable_identifier));
-    v8::leak(v8::GeneratedTypeMetadataBuilder::new(descriptor, Some(ModelId::new(id)), fields, role).finish::<T>())
-}
-
 #[test]
 fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
-    let nested_descriptor = TypeDescriptor::of::<NestedQueryFixture>();
-    let nested_fields = Box::leak(vec![indexed_field(nested_descriptor.field_at(0).unwrap())].into_boxed_slice());
-    let nested_role = v8::leak(v8::value_role(None, None));
-    let nested = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(
-            nested_descriptor,
-            Some(ModelId::new("query.Nested")),
-            nested_fields,
-            nested_role,
-        )
-        .finish::<NestedQueryFixture>(),
-    );
-
-    let root_descriptor = TypeDescriptor::of::<RootQueryFixture>();
-    let identifier = Box::leak(Box::new(IdentifierMetadata::new(IdentifierAssignment::Application)));
-    let identifier_attributes = Box::leak(
-        vec![
-            FieldAttributeMetadata::Identifier(identifier),
-            FieldAttributeMetadata::Indexed(IndexingReasons::IDENTIFIER),
-        ]
-        .into_boxed_slice(),
-    );
-    let root_fields = Box::leak(
-        vec![
-            v8::field_metadata(
-                (root_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
-                root_descriptor.field_at(0).unwrap(),
-                identifier_attributes,
-                &[],
-                &[],
-                &SerdeFieldMetadata::DEFAULT,
-            ),
-            indexed_field(root_descriptor.field_at(1).unwrap()),
-        ]
-        .into_boxed_slice(),
-    );
-    let root = entity_metadata::<RootQueryFixture>(root_descriptor, "query.Root", root_fields);
-    let registry = model_registry(&[(nested, source_identity(10)), (root, source_identity(11))]);
+    let nested = TypeMetadata::of::<NestedQueryFixture>();
+    let root = TypeMetadata::of::<RootQueryFixture>();
+    let registry = model_registry(&[
+        (nested, source_identity("fixture::nested", 10)),
+        (root, source_identity("fixture::root", 11)),
+    ]);
     let graph = StructureResolver::new(ResolveInputs {
         roots: &[],
-        models: &registry,
+        models: registry,
     })
     .resolve()
-    .unwrap();
+    .expect("indexed value field is a valid declaration");
     let query = graph.query(root.type_id()).unwrap();
     assert_eq!(
         query
@@ -305,27 +160,14 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
         &["nested"]
     );
 
-    let conflict_descriptor = TypeDescriptor::of::<ConflictingQueryFixture>();
-    let conflict_fields = Box::leak(
-        vec![
-            v8::field_metadata(
-                (conflict_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
-                conflict_descriptor.field_at(0).unwrap(),
-                identifier_attributes,
-                &[],
-                &[],
-                &SerdeFieldMetadata::DEFAULT,
-            ),
-            indexed_field(conflict_descriptor.field_at(1).unwrap()),
-            indexed_field(conflict_descriptor.field_at(2).unwrap()),
-        ]
-        .into_boxed_slice(),
-    );
-    let conflict = entity_metadata::<ConflictingQueryFixture>(conflict_descriptor, "query.Conflict", conflict_fields);
-    let registry = model_registry(&[(nested, source_identity(10)), (conflict, source_identity(12))]);
+    let conflict = TypeMetadata::of::<ConflictingQueryFixture>();
+    let registry = model_registry(&[
+        (nested, source_identity("fixture::nested", 10)),
+        (conflict, source_identity("fixture::conflict", 12)),
+    ]);
     let graph = StructureResolver::new(ResolveInputs {
         roots: &[],
-        models: &registry,
+        models: registry,
     })
     .resolve()
     .expect("flat-name policy belongs to downstream consumers");
@@ -334,49 +176,18 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
 
 #[test]
 fn test_resolver_rejects_value_closure_over_model_role() {
-    let model_descriptor = TypeDescriptor::of::<PlainModelFixture>();
-    let model_fields = Box::leak(
-        vec![FieldMetadata::from_reflect(
-            (model_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
-            model_descriptor.field_at(0).unwrap(),
-        )]
-        .into_boxed_slice(),
-    );
-    let model_role = v8::leak(v8::model_role());
-    let model = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(
-            model_descriptor,
-            Some(ModelId::new("closure.Model")),
-            model_fields,
-            model_role,
-        )
-        .finish::<PlainModelFixture>(),
-    );
-    let value_descriptor = TypeDescriptor::of::<InvalidValueFixture>();
-    let value_fields = Box::leak(
-        vec![FieldMetadata::from_reflect(
-            (value_descriptor.field_at(0).unwrap()).declaring_type().type_id(),
-            value_descriptor.field_at(0).unwrap(),
-        )]
-        .into_boxed_slice(),
-    );
-    let value_role = v8::leak(v8::value_role(None, None));
-    let value = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(
-            value_descriptor,
-            Some(ModelId::new("closure.Value")),
-            value_fields,
-            value_role,
-        )
-        .finish::<InvalidValueFixture>(),
-    );
-    let registry = model_registry(&[(model, source_identity(20)), (value, source_identity(21))]);
+    let model = TypeMetadata::of::<PlainModelFixture>();
+    let value = TypeMetadata::of::<InvalidValueFixture>();
+    let registry = model_registry(&[
+        (model, source_identity("fixture::model", 20)),
+        (value, source_identity("fixture::value", 21)),
+    ]);
     let errors = StructureResolver::new(ResolveInputs {
         roots: &[],
-        models: &registry,
+        models: registry,
     })
     .resolve()
-    .unwrap_err();
+    .expect_err("a Value cannot contain a Model role");
     assert!(
         errors
             .errors()

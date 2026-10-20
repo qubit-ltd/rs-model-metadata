@@ -22,6 +22,7 @@ use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validation_rules::ids;
@@ -126,10 +127,15 @@ impl HugeSequenceMinimum {
 
 /// Builds through the same explicit graph/registry API used by consumers.
 fn validate(root: &'static TypeMetadata, value: DynamicRef<'_, Local>) -> ValidationReport {
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -197,11 +203,16 @@ fn test_decimal_contract_narrow_window_executes() {
 
 #[test]
 fn test_decimal_contract_impossible_capacity_fails_build() {
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<DecimalImpossibleCapacity>();
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -376,12 +387,17 @@ fn test_sequence_count_uses_the_actual_slice_length() {
 #[cfg(target_pointer_width = "64")]
 #[test]
 fn test_sequence_minimum_above_u32_max_binds_and_reports_empty_values() {
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let value = HugeSequenceMinimum { values: Vec::new() };
     let root = TypeMetadata::of::<HugeSequenceMinimum>();
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -411,11 +427,16 @@ fn test_sequence_minimum_above_u32_max_binds_and_reports_empty_values() {
 /// A supplied registration cannot override the meaning of a standard rule ID.
 #[test]
 fn test_custom_registry_cannot_override_a_builtin_rule() {
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<TextUnits>();
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -444,11 +465,16 @@ fn test_custom_registry_cannot_override_a_builtin_rule() {
 /// A caller cannot register an ID reserved for a model-intrinsic rule.
 #[test]
 fn test_custom_registry_cannot_claim_intrinsic_unique_id() {
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let root = TypeMetadata::of::<TextUnits>();
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -484,7 +510,7 @@ fn test_custom_registry_cannot_claim_intrinsic_unique_id() {
 fn test_builtin_collision_retains_independent_declaration_errors() {
     let root = TypeMetadata::of::<IndependentFailures>();
     let roots = [root, TypeMetadata::of::<UnsupportedChoice>()];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             models: &models,

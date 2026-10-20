@@ -105,13 +105,15 @@ fn test_model_impl_merges_fields_getters_and_setters() {
         tags: vec!["one".to_owned(), "two".to_owned()],
     };
     profile.rename_with_prefix("");
-    let PropertyValue::Borrowed(value) = name
-        .get_dynamic(DynamicRef::<Local>::new(&profile))
-        .expect("borrowed getter")
-    else {
-        panic!("name getter must borrow");
-    };
-    assert_eq!(value.as_str(), Some("before"));
+    {
+        let PropertyValue::Borrowed(value) = name
+            .get_dynamic(DynamicRef::<Local>::new(&profile))
+            .expect("borrowed getter")
+        else {
+            panic!("name getter must borrow");
+        };
+        assert_eq!(value.downcast_ref::<str>(), Some("before"));
+    }
     name.set_dynamic(
         DynamicMut::<Local>::new(&mut profile),
         DynamicOwned::<Local>::new("after".to_owned()),

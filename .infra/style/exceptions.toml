@@ -87,6 +87,16 @@ reason = "Property values, adapters, metadata, and failures form one safe access
 
 [[exceptions]]
 rule = "public-type-layout"
+path = "src/reflect_facade.rs"
+reason = "Context-bound model metadata provider capabilities and their adapter contracts form one reflection facade"
+
+[[exceptions]]
+rule = "public-type-layout"
+path = "src/registry/model_entry.rs"
+reason = "A registry entry and its origin are returned together as the context-bound registry lookup result"
+
+[[exceptions]]
+rule = "public-type-layout"
 path = "src/registry/error.rs"
 reason = "Registry error kind and payload form one diagnostic contract"
 

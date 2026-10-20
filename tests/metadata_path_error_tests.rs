@@ -5,15 +5,16 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-
 //! A failed property path must not suppress independent relationship failures.
 
+use std::any::TypeId;
 use std::sync::OnceLock;
 
+use qubit_model_derive::Model;
+use qubit_model_metadata::__private::ModelMetadataCapability;
 use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::DeclaredEntityTarget;
 use qubit_model_metadata::metadata::FieldAttributeMetadata;
-use qubit_model_metadata::metadata::FieldMetadata;
 use qubit_model_metadata::metadata::FieldReferenceMetadata;
 use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::NavigationStep;
@@ -22,29 +23,41 @@ use qubit_model_metadata::metadata::ReferenceSelection;
 use qubit_model_metadata::metadata::SerdeFieldMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistryOrigin;
 use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_reflect::__private::codegen_v4::expression::ExpressionData;
+use qubit_reflect::__private::codegen_v4::expression::GenericExpressionArgument;
+use qubit_reflect::__private::codegen_v4::expression::TypeExpressionData;
 use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::capability::CapabilityDescriptor;
-use qubit_reflect::capability::CapabilityKey;
-use qubit_reflect::identity::CapabilityId;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::capability::CapabilityRegistration;
+use qubit_reflect::descriptor::Visibility;
 
-#[allow(
-    clippy::extra_unused_type_parameters,
-    reason = "derive capability providers receive the concrete type parameter"
-)]
-fn conflict<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(CapabilityKey::new(CapabilityId::new("error.path").unwrap()), 1_usize)
+#[Model(id = "error.WrongMetadata")]
+struct WrongMetadataFixture {
+    value: String,
 }
 
-fn second_conflict<T: 'static>() -> CapabilityDescriptor {
-    conflict::<T>()
+fn wrong_metadata() -> &'static TypeMetadata {
+    TypeMetadata::of::<WrongMetadataFixture>()
 }
+
+static INVALID_EXPRESSION: TypeExpressionData = ExpressionData::Named {
+    path: "Invalid",
+    definition: None,
+    arguments: &[GenericExpressionArgument::Const(
+        qubit_reflect::__private::codegen_v4::expression::ConstExpression::UnsignedInteger(1),
+    )],
+};
+static U64_EXPRESSION: TypeExpressionData = ExpressionData::Named {
+    path: "u64",
+    definition: None,
+    arguments: &[],
+};
 
 #[Reflect]
-#[reflect(capabilities(conflict, second_conflict))]
 struct Invalid<const N: usize>;
 
 #[Reflect]
@@ -53,10 +66,23 @@ struct Root {
     target: u64,
 }
 
+fn reflection() -> ReflectionContext {
+    ReflectionContext::builder()
+        .include_type::<Root>()
+        .include_type::<Invalid<1>>()
+        .include_type::<u64>()
+        .include_type::<WrongMetadataFixture>()
+        .include_type::<String>()
+        .register(CapabilityRegistration::for_type::<Invalid<1>, ModelMetadataCapability>(
+            wrong_metadata,
+        ))
+        .build()
+        .expect("the typed provider is valid until its metadata is checked against Invalid")
+}
+
 fn metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        let descriptor = TypeDescriptor::of::<Root>();
         let reference = v8::leak(FieldReferenceMetadata::new(
             v8::leak(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))),
             v8::leak(ReferenceSelection::Entity),
@@ -66,13 +92,25 @@ fn metadata() -> &'static TypeMetadata {
             )),
         ));
         let fields = v8::leak_slice(vec![
-            FieldMetadata::from_reflect(
-                (descriptor.field_at(0).unwrap()).declaring_type().type_id(),
-                descriptor.field_at(0).unwrap(),
+            v8::field_metadata(
+                TypeId::of::<Root>(),
+                None,
+                0,
+                Some("invalid"),
+                Visibility::Private,
+                &INVALID_EXPRESSION,
+                &[],
+                &[],
+                &[],
+                &SerdeFieldMetadata::DEFAULT,
             ),
             v8::field_metadata(
-                (descriptor.field_at(1).unwrap()).declaring_type().type_id(),
-                descriptor.field_at(1).unwrap(),
+                TypeId::of::<Root>(),
+                None,
+                1,
+                Some("target"),
+                Visibility::Private,
+                &U64_EXPRESSION,
                 v8::leak_slice(vec![FieldAttributeMetadata::Reference(reference)]),
                 &[],
                 &[],
@@ -82,30 +120,45 @@ fn metadata() -> &'static TypeMetadata {
         let properties = v8::leak_slice(
             fields
                 .iter()
-                .map(|field| v8::property_metadata(field.name().unwrap(), field.type_ref(), Some(field), None, None))
+                .zip([&INVALID_EXPRESSION, &U64_EXPRESSION])
+                .map(|(field, expression)| {
+                    v8::property_metadata(field.name().unwrap(), Some(expression), Some(field), None, None)
+                })
                 .collect(),
         );
-        v8::GeneratedTypeMetadataBuilder::new(
-            descriptor,
+        v8::GeneratedTypeMetadataBuilder::new::<Root>(
             Some(ModelId::new("error.PathRoot")),
             fields,
             v8::leak(v8::model_role()),
         )
         .properties(properties)
-        .finish::<Root>()
+        .finish_unchecked()
     })
 }
 
-v8::register_model_capability!(Root, metadata);
+fn source() -> &'static ModelRegistryOrigin {
+    static SOURCE: OnceLock<ModelRegistryOrigin> = OnceLock::new();
+    SOURCE.get_or_init(|| ModelRegistryOrigin {
+        crate_name: "metadata-path-tests",
+        crate_version: None,
+        module_path: module_path!(),
+        file: Some(file!()),
+        line: Some(line!()),
+        column: Some(1),
+    })
+}
 
 #[test]
 fn test_path_conflict_and_missing_target_are_both_reported() {
-    let models = ModelRegistry::try_global().unwrap();
-    let errors = StructureResolver::new(ResolveInputs { roots: &[], models })
-        .resolve()
-        .unwrap_err();
-    // Reachability validation also reports the invalid descriptor
-    // independently.
+    let context = reflection();
+    let models = ModelRegistry::from_static_metadata(&context, &[(metadata(), source())]).unwrap();
+    let errors = StructureResolver::new(ResolveInputs {
+        roots: &[],
+        models: &models,
+    })
+    .resolve()
+    .unwrap_err();
+
     assert_eq!(errors.errors().len(), 3);
     let cause = errors
         .errors()

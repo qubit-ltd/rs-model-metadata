@@ -23,6 +23,7 @@ use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationCapabilities;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 
@@ -123,10 +124,15 @@ fn test_generated_sequence_adapter_checks_exact_element_type() {
 /// An array with a borrowed slice getter has an exact element comparator.
 #[test]
 fn test_array_slice_getter_generates_item_equality() {
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let model = TypeMetadata::of::<ArrayWithSliceGetter>();
     let roots = [model];
     let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::global(),
+        models: &models,
         roots: &roots,
     })
     .resolve()
@@ -157,9 +163,10 @@ fn test_array_slice_getter_generates_item_equality() {
 /// Without a slice getter, array uniqueness remains unsupported at binding.
 #[test]
 fn test_array_without_getter_is_rejected_by_capability_check() {
+    let reflection = ReflectionContext::builder().build().expect("empty reflection context");
     let root = TypeMetadata::of::<ArrayWithoutGetter>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(&reflection, &[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,

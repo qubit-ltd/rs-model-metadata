@@ -29,6 +29,7 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validator::ArgumentReader;
@@ -75,7 +76,7 @@ struct Parent {
 #[Enum(id = "binding.Choice")]
 enum Choice {
     Named {
-        #[text(non_blank)]
+        #[validator(id = "binding.missing")]
         name: String,
     },
 }
@@ -90,11 +91,18 @@ enum UnsupportedSelectorChoice {
 
 /// Checks the same missing rule from an arbitrary concrete root.
 fn assert_missing_rule(root: &'static TypeMetadata) {
-    let models = ModelRegistry::try_global().expect("valid registrations");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("valid registrations");
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &[] })
-            .resolve()
-            .expect("valid structure"),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &[],
+        })
+        .resolve()
+        .expect("valid structure"),
     );
     let validators = ValidatorRegistry::empty();
     let Err(errors) = ValidationPlan::build(
@@ -163,11 +171,18 @@ fn test_nested_selector_requires_registered_rule() {
 
 #[test]
 fn test_enum_payload_constraint_is_not_silently_omitted() {
-    let models = ModelRegistry::try_global().expect("valid registrations");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("valid registrations");
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &[] })
-            .resolve()
-            .expect("valid structure"),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &[],
+        })
+        .resolve()
+        .expect("valid structure"),
     );
     let validators = ValidatorRegistry::empty();
     let result = ValidationPlan::build(
@@ -190,11 +205,18 @@ fn test_enum_payload_constraint_is_not_silently_omitted() {
 
 #[test]
 fn test_enum_payload_constraint_is_supported_by_capability_check() {
-    let models = ModelRegistry::try_global().expect("valid registrations");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("valid registrations");
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &[] })
-            .resolve()
-            .expect("valid structure"),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &[],
+        })
+        .resolve()
+        .expect("valid structure"),
     );
     ValidationCapabilities::check(TypeMetadata::of::<Choice>(), &graph)
         .expect("constrained enum payload has a supported execution path");
@@ -202,10 +224,17 @@ fn test_enum_payload_constraint_is_supported_by_capability_check() {
 
 #[test]
 fn test_enum_payload_collection_selector_is_rejected_with_its_path() {
-    let models = ModelRegistry::try_global().expect("valid registrations");
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .expect("valid structure");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("valid registrations");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &[],
+    })
+    .resolve()
+    .expect("valid structure");
     let errors = ValidationCapabilities::check(TypeMetadata::of::<UnsupportedSelectorChoice>(), &graph)
         .expect_err("selectors inside enum payloads remain unsupported");
 
@@ -335,11 +364,15 @@ struct Pair {
 
 #[test]
 fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() {
-    let models = ModelRegistry::try_global().unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &[] })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &[],
+        })
+        .resolve()
+        .unwrap(),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).unwrap();
     let plan = ValidationPlan::build(
@@ -402,10 +435,14 @@ fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() 
 
 #[test]
 fn test_capability_check_does_not_require_a_registered_validator() {
-    let models = ModelRegistry::try_global().unwrap();
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &[],
+    })
+    .resolve()
+    .unwrap();
     ValidationCapabilities::check(TypeMetadata::of::<Parent>(), &graph).unwrap();
     ValidationCapabilities::check(TypeMetadata::of::<Choice>(), &graph)
         .expect("active enum payload can be checked without binding a validator");
@@ -413,7 +450,7 @@ fn test_capability_check_does_not_require_a_registered_validator() {
 
 #[test]
 fn test_explicit_root_not_in_graph_is_rejected() {
-    let models = ModelRegistry::from_static_metadata(&[]).unwrap();
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).unwrap();
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &[],
@@ -482,8 +519,13 @@ impl PointerElements {
 fn test_tuple_contained_declarations_are_discovered_and_rejected() {
     let root = TypeMetadata::of::<TupleContainer>();
     let roots = [root];
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("registered declarations");
     let graph = StructureResolver::new(ResolveInputs {
-        models: ModelRegistry::try_global().expect("registered declarations"),
+        models: &models,
         roots: &roots,
     })
     .resolve()
@@ -502,9 +544,14 @@ fn test_selector_value_targets_require_an_actual_element_unwrap_adapter() {
         TypeMetadata::of::<OptionalElements>(),
         TypeMetadata::of::<PointerElements>(),
     ] {
+        let reflection = ReflectionContext::builder()
+            .include_linked()
+            .build()
+            .expect("linked reflection context");
+        let models = ModelRegistry::from_context(&reflection).expect("registered declarations");
         let roots = [root];
         let graph = StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::try_global().expect("registered declarations"),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -557,30 +604,40 @@ struct Repeated {
 
 #[test]
 fn test_cycles_and_payloads_without_executable_work_are_allowed() {
-    let models = ModelRegistry::try_global().unwrap();
     for root in [TypeMetadata::of::<QuietCycle>(), TypeMetadata::of::<QuietChoice>()] {
+        let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+        let models = ModelRegistry::from_context(&reflection).unwrap();
         let roots = [root];
-        let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap();
+        let graph = StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap();
         ValidationCapabilities::check(root, &graph).unwrap();
     }
 }
 
 #[test]
 fn test_unsupported_recursive_container_and_adapter_paths_fail_before_execution() {
-    let models = ModelRegistry::try_global().unwrap();
     for root in [
         TypeMetadata::of::<LoudCycle>(),
         TypeMetadata::of::<Container>(),
-        TypeMetadata::of::<WithoutSlice>(),
         TypeMetadata::of::<OwnedParent>(),
     ] {
+        let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+        let models = ModelRegistry::from_context(&reflection).unwrap();
         let roots = [root];
-        let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap();
-        let errors = ValidationCapabilities::check(root, &graph).expect_err("unsupported execution shape");
+        let graph = StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap();
+        let errors = match ValidationCapabilities::check(root, &graph) {
+            Err(errors) => errors,
+            Ok(()) => panic!("{} unexpectedly has supported execution", root.type_name()),
+        };
         assert!(
             errors
                 .iter()
@@ -594,12 +651,16 @@ fn test_unsupported_recursive_container_and_adapter_paths_fail_before_execution(
 
 #[test]
 fn test_generated_collection_adapters_and_unsupported_recursive_paths() {
-    let models = ModelRegistry::try_global().unwrap();
     let without_slice = TypeMetadata::of::<WithoutSlice>();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let roots = [without_slice];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .unwrap();
     ValidationCapabilities::check(without_slice, &graph)
         .expect("generated field adapters expose concrete Vec elements");
     for root in [
@@ -607,10 +668,15 @@ fn test_generated_collection_adapters_and_unsupported_recursive_paths() {
         TypeMetadata::of::<Container>(),
         TypeMetadata::of::<OwnedParent>(),
     ] {
+        let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+        let models = ModelRegistry::from_context(&reflection).unwrap();
         let roots = [root];
-        let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap();
+        let graph = StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap();
         let errors = match ValidationCapabilities::check(root, &graph) {
             Ok(()) => panic!("{} unexpectedly has supported execution", root.type_name()),
             Err(errors) => errors,
@@ -630,12 +696,16 @@ fn test_generated_collection_adapters_and_unsupported_recursive_paths() {
 fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
     OPTIONAL_PARENT_GETTER_CALLS.with(|calls| calls.set(0));
     let root = TypeMetadata::of::<BorrowedOption>();
-    let models = ModelRegistry::try_global().unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
@@ -673,13 +743,17 @@ fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
 
 #[test]
 fn test_duplicate_rule_ids_remain_distinct_occurrences() {
-    let models = ModelRegistry::try_global().unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let root = TypeMetadata::of::<Repeated>();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     let validators = ValidatorRegistry::empty();
     let Err(errors) = ValidationPlan::build(
@@ -750,13 +824,17 @@ impl SelectorConstraint {
 
 #[test]
 fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
-    let models = ModelRegistry::try_global().unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let root = TypeMetadata::of::<Mixed>();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     let validators = ValidatorRegistry::empty();
     let Err(errors) = ValidationPlan::build(
@@ -793,28 +871,40 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
 
 #[test]
 fn test_count_constraints_require_slice_adapter_and_element_selectors_are_supported() {
-    let models = ModelRegistry::try_global().unwrap();
     let root = TypeMetadata::of::<UnreadableCount>();
     {
+        let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+        let models = ModelRegistry::from_context(&reflection).unwrap();
         let roots = [root];
-        let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap();
+        let graph = StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap();
         let errors = ValidationCapabilities::check(root, &graph).unwrap_err();
         assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     }
     let selector = TypeMetadata::of::<SelectorConstraint>();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let roots = [selector];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .unwrap();
     ValidationCapabilities::check(selector, &graph).expect("element selector has a generated Vec adapter");
     let root = TypeMetadata::of::<Counted>();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     ValidationCapabilities::check(root, graph.as_ref()).unwrap();
     let validators = ValidatorRegistry::empty();
@@ -838,28 +928,38 @@ fn test_count_constraints_require_slice_adapter_and_element_selectors_are_suppor
 
 #[test]
 fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_supported() {
-    let models = ModelRegistry::try_global().unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let root = TypeMetadata::of::<UnreadableCount>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .unwrap();
     let errors = ValidationCapabilities::check(root, &graph).unwrap_err();
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
 
     let selector = TypeMetadata::of::<SelectorConstraint>();
     let roots = [selector];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .unwrap();
     ValidationCapabilities::check(selector, &graph).expect("generated selector adapter");
 
     let root = TypeMetadata::of::<Counted>();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     ValidationCapabilities::check(root, graph.as_ref()).unwrap();
     let validators = ValidatorRegistry::empty();
@@ -883,12 +983,16 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_sup
 
 #[test]
 fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_explicitly_rejected() {
-    let models = ModelRegistry::try_global().unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let root = TypeMetadata::of::<UnsupportedSelectorChoice>();
     let roots = [root];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .unwrap();
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .unwrap();
     let errors = ValidationCapabilities::check(root, &graph)
         .expect_err("collection selectors in enum payloads remain unsupported");
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
@@ -897,11 +1001,18 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_exp
 
 #[test]
 fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
-    let models = ModelRegistry::try_global().expect("valid registrations");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("valid registrations");
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &[] })
-            .resolve()
-            .expect("valid structure"),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &[],
+        })
+        .resolve()
+        .expect("valid structure"),
     );
     let validators =
         ValidatorRegistry::from_registrations(OPTIONAL_VALIDATORS.iter().copied()).expect("rules register");

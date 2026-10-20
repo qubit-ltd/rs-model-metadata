@@ -25,7 +25,7 @@ use criterion::criterion_main;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_reflect::registry::ReflectRegistry;
+use qubit_reflect::ReflectionContext;
 
 struct CountingAllocator;
 
@@ -135,18 +135,16 @@ impl RepeatedAccessors {
 }
 
 fn repeated_accessors(criterion: &mut Criterion) {
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("reflection context");
     let metadata = TypeMetadata::of::<RepeatedAccessors>();
     assert_eq!(metadata.fields().len(), 8);
-    let getter_count = 8;
-    let setter_count = 8;
-    let reflected_type_ref_calls = getter_count + setter_count;
     let distinct_type_ids = [TypeId::of::<String>(), TypeId::of::<str>()];
     println!(
-        "fixture/repeated_accessors: fields=8 getters=8 setters=8 reflected_type_ref_call_upper_bound={} distinct_type_ids={} upper_bound_bytes={}",
-        reflected_type_ref_calls,
+        "fixture/repeated_accessors: fields=8 getters=8 setters=8 distinct_type_ids={}",
         distinct_type_ids.len(),
-        reflected_type_ref_calls * std::mem::size_of::<qubit_reflect::descriptor::TypeRef>(),
     );
 
     let before_alloc = ALLOCATED.load(Ordering::Relaxed);
@@ -155,7 +153,7 @@ fn repeated_accessors(criterion: &mut Criterion) {
     MEASURE.store(true, Ordering::SeqCst);
     let properties = black_box(
         metadata
-            .try_properties_in(black_box(reflection))
+            .try_properties_in(black_box(&reflection))
             .expect("generated getter and setter properties"),
     );
     MEASURE.store(false, Ordering::SeqCst);
@@ -170,10 +168,10 @@ fn repeated_accessors(criterion: &mut Criterion) {
         allocated as i128 - deallocated as i128,
     );
 
-    let mut group = criterion.benchmark_group("typeref_baseline/repeated_accessors");
+    let mut group = criterion.benchmark_group("contextual_metadata/repeated_accessors");
     group.sample_size(30);
     group.bench_function("warm_properties", |bencher| {
-        bencher.iter(|| black_box(metadata.try_properties_in(black_box(reflection))));
+        bencher.iter(|| black_box(metadata.try_properties_in(black_box(&reflection))));
     });
     group.finish();
 }

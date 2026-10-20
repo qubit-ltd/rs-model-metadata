@@ -8,14 +8,17 @@
 
 //! Model-specific access to the shared reflection descriptor root.
 
+use std::any::TypeId;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::OnceLock;
 
 pub(crate) use internal::ModelImplResolution;
-use qubit_reflect::capability::CapabilityAccessError;
-use qubit_reflect::capability::CapabilityDescriptor;
-use qubit_reflect::capability::CapabilityKey;
-use qubit_reflect::identity::CapabilityId;
-use qubit_reflect::registry::ReflectRegistry;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::capability::CapabilityRegistration;
+use qubit_reflect::capability::CapabilitySpec;
+use qubit_reflect::descriptor::Reflect;
 
 #[cfg(feature = "generic")]
 use crate::generic::GenericModelMetadata;
@@ -27,38 +30,6 @@ use crate::metadata::TypeMetadata;
 mod internal;
 
 const MODEL_IMPL_BASE_ID: &str = "qubit.model.impl.v1";
-const MODEL_IMPL_FRAGMENT_PREFIX: &str = "qubit.model.impl.v1.f";
-
-/// Reports whether an ID belongs to the base or a nonempty fragment slot.
-///
-/// # Parameters
-///
-/// - `id`: capability ID to classify.
-///
-/// # Returns
-///
-/// `true` for the base model implementation ID or a valid fragment ID.
-#[must_use]
-#[inline]
-fn is_model_impl_capability(id: &str) -> bool {
-    id == MODEL_IMPL_BASE_ID || is_model_impl_fragment_capability(id)
-}
-
-/// Reports whether an ID has the required nonempty fragment suffix.
-///
-/// # Parameters
-///
-/// - `id`: capability ID to inspect.
-///
-/// # Returns
-///
-/// `true` when the fragment prefix is followed by at least one character.
-#[must_use]
-#[inline]
-fn is_model_impl_fragment_capability(id: &str) -> bool {
-    id.strip_prefix(MODEL_IMPL_FRAGMENT_PREFIX)
-        .is_some_and(|suffix| !suffix.is_empty())
-}
 
 /// The typed capability adapter supplied by generated model declarations.
 ///
@@ -73,6 +44,14 @@ fn is_model_impl_fragment_capability(id: &str) -> bool {
 /// ```
 #[doc(hidden)]
 pub type ModelMetadataProvider = fn() -> &'static TypeMetadata;
+
+/// Typed capability contract for generated concrete model metadata.
+pub struct ModelMetadataCapability;
+
+impl CapabilitySpec for ModelMetadataCapability {
+    type Adapter = ModelMetadataProvider;
+    const ID: &'static str = "qubit.model.metadata.v1";
+}
 
 /// The typed capability adapter supplied by `ModelImpl`.
 ///
@@ -90,6 +69,110 @@ pub type ModelMetadataProvider = fn() -> &'static TypeMetadata;
 #[doc(hidden)]
 pub type ModelImplProvider = fn() -> &'static ModelImplMetadata;
 
+/// Stable source coordinates for one independently declared model impl.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ModelImplSource {
+    /// Rust module containing the declaration.
+    pub module_path: &'static str,
+    /// Source file containing the declaration.
+    pub file: &'static str,
+    /// One-based source line of the declaration.
+    pub line: u32,
+    /// Stable fingerprint distinguishing declarations on the same line.
+    pub fingerprint: u64,
+}
+
+/// Inventory record for one independently declared model implementation.
+#[derive(Clone, Copy)]
+pub struct ModelImplFragment {
+    target_type_id: fn() -> TypeId,
+    provider: ModelImplProvider,
+    source: ModelImplSource,
+}
+
+impl ModelImplFragment {
+    /// Creates a source-attributed fragment for target type `T`.
+    #[doc(hidden)]
+    pub const fn for_type<T: Reflect + 'static>(provider: ModelImplProvider, source: ModelImplSource) -> Self {
+        fn type_id<T: 'static>() -> TypeId {
+            TypeId::of::<T>()
+        }
+        Self {
+            target_type_id: type_id::<T>,
+            provider,
+            source,
+        }
+    }
+
+    /// Returns the provider function for this fragment.
+    pub const fn provider(self) -> ModelImplProvider {
+        self.provider
+    }
+
+    /// Returns the source coordinates retained for diagnostics.
+    pub const fn source(self) -> ModelImplSource {
+        self.source
+    }
+}
+
+qubit_reflect::__private::__inventory::collect!(ModelImplFragment);
+
+/// Submits one source-attributed `ModelImpl` provider to the model inventory.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __qubit_model_submit_model_impl_fragment {
+    ($target:ty, $provider:expr, $fingerprint:expr $(,)?) => {
+        $crate::__private::__inventory::submit! {
+            $crate::__private::ModelImplFragment::for_type::<$target>(
+                $provider,
+                $crate::__private::ModelImplSource {
+                    module_path: module_path!(),
+                    file: file!(),
+                    line: line!(),
+                    fingerprint: $fingerprint,
+                },
+            )
+        }
+    };
+}
+
+/// Returns the linked implementation fragments for `T` in inventory order.
+#[doc(hidden)]
+pub fn model_impl_fragments<T: Reflect + 'static>() -> &'static [ModelImplFragment] {
+    static FRAGMENTS: OnceLock<Mutex<HashMap<TypeId, &'static [ModelImplFragment]>>> = OnceLock::new();
+    let fragments = FRAGMENTS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut fragments = fragments.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    fragments.entry(TypeId::of::<T>()).or_insert_with(|| {
+        let selected: Vec<_> = all_model_impl_fragments()
+            .iter()
+            .copied()
+            .filter(|fragment| (fragment.target_type_id)() == TypeId::of::<T>())
+            .collect();
+        Box::leak(selected.into_boxed_slice())
+    })
+}
+
+/// Returns all linked model implementation source fragments.
+#[must_use]
+pub fn all_model_impl_fragments() -> &'static [ModelImplFragment] {
+    static FRAGMENTS: OnceLock<&'static [ModelImplFragment]> = OnceLock::new();
+    FRAGMENTS.get_or_init(|| {
+        let fragments = qubit_reflect::__private::__inventory::iter::<ModelImplFragment>
+            .into_iter()
+            .copied()
+            .collect::<Vec<_>>();
+        Box::leak(fragments.into_boxed_slice())
+    })
+}
+
+/// Typed capability contract for generated model implementation overlays.
+pub struct ModelImplCapability;
+
+impl CapabilitySpec for ModelImplCapability {
+    type Adapter = &'static [ModelImplFragment];
+    const ID: &'static str = MODEL_IMPL_BASE_ID;
+}
+
 /// The typed capability adapter supplied by generic model declarations.
 ///
 /// # Examples
@@ -105,42 +188,55 @@ pub type ModelImplProvider = fn() -> &'static ModelImplMetadata;
 #[cfg(feature = "generic")]
 pub type GenericModelMetadataProvider = fn() -> &'static GenericModelMetadata;
 
-/// Returns the stable key used to retrieve a model metadata provider.
-///
-/// # Returns
-///
-/// The key used by generated concrete model capabilities.
+/// Typed capability contract for generic model definition metadata.
 #[doc(hidden)]
-#[must_use]
-pub fn model_metadata_key() -> CapabilityKey<ModelMetadataProvider> {
-    let id = CapabilityId::new("qubit.model.metadata.v1").expect("the model metadata capability ID must be valid");
-    CapabilityKey::new(id)
+#[cfg(feature = "generic")]
+pub struct GenericModelMetadataCapability;
+
+#[cfg(feature = "generic")]
+impl CapabilitySpec for GenericModelMetadataCapability {
+    type Adapter = GenericModelMetadataProvider;
+    const ID: &'static str = "qubit.model.generic_metadata.v1";
 }
 
-/// Returns the stable key used to retrieve generated property metadata.
-///
-/// # Returns
-///
-/// The key used by generated `ModelImpl` capabilities.
+/// Creates the typed registration for a generated concrete model.
 #[doc(hidden)]
 #[must_use]
-pub fn model_impl_key() -> CapabilityKey<ModelImplProvider> {
-    let id = CapabilityId::new("qubit.model.impl.v1").expect("the model implementation capability ID must be valid");
-    CapabilityKey::new(id)
+pub fn model_metadata_registration<T: crate::metadata::HasTypeMetadata>() -> CapabilityRegistration {
+    fn provide<T: crate::metadata::HasTypeMetadata>() -> &'static TypeMetadata {
+        let metadata = <T as crate::__private::TypeMetadataProvider>::__type_metadata();
+        metadata.assert_valid_for::<T>();
+        metadata
+    }
+    CapabilityRegistration::for_type::<T, ModelMetadataCapability>(provide::<T> as ModelMetadataProvider)
 }
 
-/// Returns the stable key used to retrieve generic model metadata.
-///
-/// # Returns
-///
-/// The key used by generic model declaration capabilities.
+/// Creates the typed registration for generated `ModelImpl` metadata.
+#[doc(hidden)]
+#[must_use]
+pub fn model_impl_registration<T: Reflect + 'static>() -> CapabilityRegistration {
+    model_impl_capability_registration::<T>(model_impl_fragments::<T>())
+}
+
+/// Creates the fixed model implementation capability for a supplied fragment
+/// aggregate.
+#[doc(hidden)]
+#[must_use]
+pub fn model_impl_capability_registration<T: Reflect + 'static>(
+    fragments: &'static [ModelImplFragment],
+) -> CapabilityRegistration {
+    CapabilityRegistration::for_type::<T, ModelImplCapability>(fragments)
+}
+
+/// Creates the typed registration for generic model metadata.
 #[doc(hidden)]
 #[must_use]
 #[cfg(feature = "generic")]
-pub fn generic_model_metadata_key() -> CapabilityKey<GenericModelMetadataProvider> {
-    let id = CapabilityId::new("qubit.model.generic_metadata.v1")
-        .expect("the generic model metadata capability ID must be valid");
-    CapabilityKey::new(id)
+pub fn generic_model_metadata_registration(
+    definition: qubit_reflect::descriptor::TypeDefinitionId,
+    provider: GenericModelMetadataProvider,
+) -> CapabilityRegistration {
+    CapabilityRegistration::for_definition::<GenericModelMetadataCapability>(definition, provider)
 }
 
 /// Builds a capability for one generic model declaration.
@@ -156,8 +252,11 @@ pub fn generic_model_metadata_key() -> CapabilityKey<GenericModelMetadataProvide
 #[doc(hidden)]
 #[must_use]
 #[cfg(feature = "generic")]
-pub fn generic_model_capability(provider: GenericModelMetadataProvider) -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(generic_model_metadata_key(), provider)
+pub fn generic_model_capability(
+    definition: qubit_reflect::descriptor::TypeDefinitionId,
+    provider: GenericModelMetadataProvider,
+) -> CapabilityRegistration {
+    generic_model_metadata_registration(definition, provider)
 }
 
 /// Builds an inline model capability for one concrete reflection monomorph.
@@ -171,26 +270,17 @@ pub fn generic_model_capability(provider: GenericModelMetadataProvider) -> Capab
 /// A capability descriptor whose adapter validates and returns `T`'s metadata.
 #[doc(hidden)]
 #[must_use]
-pub fn model_capability<T: crate::metadata::HasTypeMetadata>() -> CapabilityDescriptor {
-    /// Returns the metadata supplied by `T` after descriptor validation.
-    ///
-    /// # Type Parameters
-    ///
-    /// - `T`: concrete type whose generated metadata is validated.
-    ///
-    /// # Returns
-    ///
-    /// The validated static metadata for `T`.
-    fn provide<T: crate::metadata::HasTypeMetadata>() -> &'static TypeMetadata {
-        let metadata = <T as crate::__private::TypeMetadataProvider>::__type_metadata();
-        metadata.assert_valid_for::<T>();
-        metadata
-    }
-    CapabilityDescriptor::with_adapter(model_metadata_key(), provide::<T> as ModelMetadataProvider)
+pub fn model_capability<T: crate::metadata::HasTypeMetadata>() -> CapabilityRegistration {
+    model_metadata_registration::<T>()
 }
 
 /// Returns the generated model-implementation overlay attached to an exact
 /// descriptor root in the frozen reflection snapshot.
+///
+/// A concrete type capability takes precedence over its generic definition
+/// capability, including when its fragment aggregate has no entry for this
+/// exact type. Generic definition providers are used only when the concrete
+/// descriptor has no `ModelImplCapability` registration.
 ///
 /// # Parameters
 ///
@@ -212,66 +302,41 @@ pub fn model_capability<T: crate::metadata::HasTypeMetadata>() -> CapabilityDesc
 ///
 /// Panics if a resolved model implementation capability has no retained
 /// registration origin.
+// Keep the reflected runtime's complete typed capability error intact at
+// this internal boundary; callers wrap it in their own domain error.
+#[allow(clippy::result_large_err)]
 pub(crate) fn model_impl_metadata(
     metadata: &TypeMetadata,
-    registry: &ReflectRegistry,
-) -> Result<Option<ModelImplResolution>, CapabilityAccessError> {
-    let descriptor = metadata.descriptor();
-    let capabilities = registry
-        .capabilities(descriptor)
-        .map_err(CapabilityAccessError::IntrinsicConflict)?;
-    let descriptors = capabilities.descriptors();
-    let base_pos = descriptors.partition_point(|item| item.id().as_str() < MODEL_IMPL_BASE_ID);
-    let base = descriptors
-        .get(base_pos)
-        .filter(|item| item.id().as_str() == MODEL_IMPL_BASE_ID);
-    let start = descriptors.partition_point(|item| item.id().as_str() < MODEL_IMPL_FRAGMENT_PREFIX);
-    let fragments = descriptors[start..]
-        .iter()
-        .take_while(|item| item.id().as_str().starts_with(MODEL_IMPL_FRAGMENT_PREFIX));
+    context: &ReflectionContext,
+) -> Result<Option<ModelImplResolution>, qubit_reflect::capability::CapabilityError> {
+    let descriptor = metadata.descriptor_in(context);
     let mut providers = Vec::new();
-    for capability in base
-        .into_iter()
-        .chain(fragments)
-        .filter(|item| is_model_impl_capability(item.id().as_str()))
-    {
-        let id = capability.id();
-        if let Some(provider) = registry.capability(descriptor, CapabilityKey::<ModelImplProvider>::new(*id))? {
-            let origin = registry
-                .capability_origin(descriptor, id.as_str())
-                .map_err(CapabilityAccessError::IntrinsicConflict)?
-                .expect("a resolved model implementation capability retains its origin");
-            providers.push((*provider, origin));
+    let concrete_capability = descriptor.find_capability::<ModelImplCapability>()?;
+    if let Some(capability) = &concrete_capability {
+        for fragment in capability
+            .adapter()
+            .iter()
+            .filter(|fragment| (fragment.target_type_id)() == metadata.type_id())
+        {
+            providers.push((fragment.provider(), fragment.source()));
         }
     }
-    match providers.as_slice() {
-        [] => Ok(None),
-        [(provider, _)] => Ok(Some(ModelImplResolution::Static(provider()))),
-        _ => Ok(Some(ModelImplResolution::Merged(Arc::new(ModelImplMetadata::merge(
-            metadata, &providers,
-        ))))),
+    if concrete_capability.is_none()
+        && let Some(definition) = descriptor.find_definition()
+        && let Some(capability) = definition.find_capability::<ModelImplCapability>()?
+    {
+        for fragment in capability
+            .adapter()
+            .iter()
+            .filter(|fragment| (fragment.target_type_id)() == metadata.type_id())
+        {
+            providers.push((fragment.provider(), fragment.source()));
+        }
     }
-}
-
-/// Returns the checked key for an independently registered impl fragment.
-///
-/// # Parameters
-///
-/// - `name`: capability ID with a nonempty generated fragment suffix.
-///
-/// # Returns
-///
-/// A typed key for resolving the fragment's model implementation provider.
-///
-/// # Panics
-///
-/// Panics if `name` is not a ModelImpl fragment ID with a nonempty suffix.
-#[doc(hidden)]
-#[must_use]
-pub fn model_impl_fragment_key(name: &'static str) -> CapabilityKey<ModelImplProvider> {
-    assert!(
-        is_model_impl_fragment_capability(name),
-        "invalid ModelImpl fragment capability ID: {name}",
-    );
-    CapabilityKey::new(CapabilityId::new(name).expect("valid generated impl capability ID"))
+    if providers.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(ModelImplResolution::Merged(Arc::new(ModelImplMetadata::merge(
+        metadata, &providers, context,
+    )))))
 }

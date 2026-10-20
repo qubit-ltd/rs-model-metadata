@@ -33,9 +33,8 @@ use crate::validation::internal::occurrence_binder;
 /// struct Profile { #[validator(id = "application.check_name")] name: String }
 /// # fn main() {
 /// let root = TypeMetadata::of::<Profile>();
-/// let roots = [root];
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let models = ModelRegistry::try_global().expect("model registry");
+/// let graph = StructureResolver::for_static_roots(models, [root])
 ///     .resolve().expect("readable field structure");
 /// // No custom rule registry is needed to check the access shape.
 /// ValidationCapabilities::check(root, &graph).expect("supported shape");

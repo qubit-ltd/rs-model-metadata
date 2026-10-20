@@ -28,6 +28,7 @@ use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationOptionsBuilder;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::validation::ValidationSelection;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validator::BoundValidationContext;
@@ -112,7 +113,7 @@ fn test_object_path_contract_covers_current_parent_and_rendering() {
 #[test]
 fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
     let root = TypeMetadata::of::<SelectedEnvelope>();
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root, TypeMetadata::of::<SelectedFields>()];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -215,7 +216,7 @@ fn test_builder_preserves_default_options() {
 #[test]
 fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
     let root = TypeMetadata::of::<SelectedFields>();
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -289,7 +290,7 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
 #[test]
 fn test_explicit_empty_path_selects_model_level_rule() {
     let root = TypeMetadata::of::<SelectedFields>();
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -320,7 +321,7 @@ fn test_explicit_empty_path_selects_model_level_rule() {
         .build();
     let report = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new(&SelectedFields {
+            DynamicRef::<Local>::new_any(&SelectedFields {
                 first: String::new(),
                 second: String::new(),
                 plain: String::new(),
@@ -335,7 +336,7 @@ fn test_explicit_empty_path_selects_model_level_rule() {
 #[test]
 fn test_builder_field_selection_and_budget_execute_together() {
     let root = TypeMetadata::of::<SelectedFields>();
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {

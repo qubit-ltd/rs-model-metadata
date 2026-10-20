@@ -12,8 +12,7 @@ use std::any::TypeId;
 use std::collections::HashSet;
 
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::descriptor::TypeRef;
-use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::descriptor::TypeKind;
 
 use super::error::ModelResolutionCause;
 use super::error::ResolveError;
@@ -31,6 +30,7 @@ use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyPath;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
+use crate::registry::ModelRegistryOrigin;
 use crate::structure::children;
 
 /// Records an error anchored to one direct field path.
@@ -49,7 +49,7 @@ pub(super) fn push_field_error(
     metadata: &'static TypeMetadata,
     field: &'static FieldMetadata,
     actual_role: Option<ModelRole>,
-    source: Option<&FragmentIdentity>,
+    source: Option<&ModelRegistryOrigin>,
 ) {
     let path = field.name().map(|name| {
         let segments = [name];
@@ -85,9 +85,9 @@ pub(super) fn push_field_error(
 ///
 /// Propagates the model metadata lookup or descriptor compatibility failure.
 #[inline]
-pub(super) fn metadata_for_descriptor(
-    descriptor: &'static TypeDescriptor,
-    context: &ResolutionContext,
+pub(super) fn metadata_for_descriptor<'ctx>(
+    descriptor: TypeDescriptor<'ctx>,
+    context: &ResolutionContext<'ctx>,
 ) -> Result<Option<&'static TypeMetadata>, ModelMetadataError> {
     context.metadata_for(descriptor)
 }
@@ -109,12 +109,12 @@ pub(super) fn metadata_for_descriptor(
 /// `Some(metadata)` when lookup succeeds with metadata, or `None` when the
 /// descriptor is unknown or lookup failed. Lookup failures are also appended
 /// to `errors`.
-pub(super) fn reported_metadata(
-    descriptor: &'static TypeDescriptor,
-    context: &ResolutionContext,
+pub(super) fn reported_metadata<'ctx>(
+    descriptor: TypeDescriptor<'ctx>,
+    context: &ResolutionContext<'ctx>,
     root: &'static TypeMetadata,
     path: Option<PropertyPath<'_>>,
-    source: Option<&FragmentIdentity>,
+    source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
 ) -> Option<&'static TypeMetadata> {
     match metadata_for_descriptor(descriptor, context) {
@@ -168,9 +168,9 @@ pub(super) fn resolve_declared_target(
 /// # Errors
 ///
 /// Propagates metadata lookup or descriptor validation failures.
-pub(super) fn forbidden_entity_nested_role(
-    descriptor: &'static TypeDescriptor,
-    context: &ResolutionContext,
+pub(super) fn forbidden_entity_nested_role<'ctx>(
+    descriptor: TypeDescriptor<'ctx>,
+    context: &ResolutionContext<'ctx>,
 ) -> Result<Option<ModelRole>, ModelMetadataError> {
     let mut ancestors = HashSet::new();
     let mut pending = vec![(descriptor, false)];
@@ -196,16 +196,16 @@ pub(super) fn forbidden_entity_nested_role(
             for field in metadata.fields().iter().chain(variants) {
                 if !field.is_opaque()
                     && field.reference().is_none()
-                    && let Some(child) = field.descriptor()
+                    && let Some(child) = metadata
+                        .field_descriptor_in(field, context.reflection())
+                        .and_then(|field| field.find_concrete_type())
                 {
                     pending.push((child, false));
                 }
             }
         } else {
             children(current, |edge| {
-                if let Some(child) = edge.target.as_resolved() {
-                    pending.push((child, false));
-                }
+                pending.push((edge.target, false));
             });
         }
         pending[first_child..].reverse();
@@ -242,7 +242,7 @@ pub(super) fn validate_value_closure(
     metadata: &'static TypeMetadata,
     context: &ResolutionContext,
     visited: &mut HashSet<TypeId>,
-    source: Option<&FragmentIdentity>,
+    source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
 ) {
     // Root callers consume the diagnostic collection; recursive callers use the
@@ -275,7 +275,7 @@ fn validate_nested_value(
     prefix: &[&'static str],
     context: &ResolutionContext,
     visited: &mut HashSet<TypeId>,
-    source: Option<&FragmentIdentity>,
+    source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
 ) -> bool {
     if !visited.insert(metadata.type_id()) {
@@ -291,7 +291,7 @@ fn validate_nested_value(
         if let Some(name) = field.name() {
             path.push(name);
         }
-        closed &= validate_value_field(field, root, &path, context, visited, source, errors);
+        closed &= validate_value_field(metadata, field, root, &path, context, visited, source, errors);
     }
     visited.remove(&metadata.type_id());
     closed && errors.len() == initial
@@ -321,20 +321,32 @@ fn validate_nested_value(
 #[allow(clippy::too_many_arguments)]
 #[must_use]
 fn validate_value_field(
+    owner: &'static TypeMetadata,
     field: &'static FieldMetadata,
     root: &'static TypeMetadata,
     path: &[&'static str],
     context: &ResolutionContext,
     visited: &mut HashSet<TypeId>,
-    source: Option<&FragmentIdentity>,
+    source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
 ) -> bool {
     let before = errors.len();
-    let closed = value_type_ref_is_closed(field.type_ref(), context, visited, root, source, errors, path);
+    let concrete = owner
+        .field_descriptor_in(field, context.reflection())
+        .and_then(|field| field.find_concrete_type());
+    let closed = concrete.map_or_else(
+        || {
+            field
+                .type_expression_in(context.reflection())
+                .is_some_and(self_recursive_expression)
+        },
+        |descriptor| value_descriptor_is_closed(descriptor, context, visited, root, source, errors, path),
+    );
     let property_path = (!path.is_empty()).then(|| PropertyPath::new(path));
     if !closed && errors.len() == before {
-        let actual_role = field
-            .descriptor()
+        let actual_role = owner
+            .field_descriptor_in(field, context.reflection())
+            .and_then(|field| field.find_concrete_type())
             .and_then(|descriptor| reported_metadata(descriptor, context, root, property_path, source, errors))
             .map(TypeMetadata::role);
         if errors.len() == before {
@@ -357,36 +369,53 @@ fn validate_value_field(
     closed
 }
 
-/// Checks one nested reference while preserving diagnostic context.
-///
-/// # Parameters
-///
-/// - `type_ref`: Reflected type reference to check.
-/// - `context`: Resolution context for nested descriptors.
-/// - `visited`: Active type identities used to terminate recursive cycles.
-/// - `root`: Original value model owning the closure check.
-/// - `source`: Originating metadata fragment, when available.
-/// - `errors`: Collection receiving diagnostics for invalid nested types.
-/// - `path`: Property path to the nested reference.
-///
-/// # Returns
-///
-/// `true` when the resolved nested type is closed, or `false` when it is
-/// unresolved, invalid, or introduces a forbidden model role.
-#[allow(clippy::too_many_arguments)]
-#[must_use]
-fn value_type_ref_is_closed(
-    type_ref: &'static TypeRef,
-    context: &ResolutionContext,
-    visited: &mut HashSet<TypeId>,
-    root: &'static TypeMetadata,
-    source: Option<&FragmentIdentity>,
-    errors: &mut Vec<ResolveError>,
-    path: &[&'static str],
-) -> bool {
-    type_ref
-        .as_resolved()
-        .is_some_and(|descriptor| value_descriptor_is_closed(descriptor, context, visited, root, source, errors, path))
+fn self_recursive_expression(expression: qubit_reflect::descriptor::TypeExpression<'_>) -> bool {
+    use qubit_reflect::descriptor::GenericExpressionArgumentKind;
+    use qubit_reflect::descriptor::TypeExpressionKind;
+
+    match expression.kind() {
+        TypeExpressionKind::SelfType => true,
+        TypeExpressionKind::Named(named) => {
+            let name = named.path().rsplit("::").next().unwrap_or(named.path());
+            if !matches!(
+                name,
+                "Option" | "Box" | "Vec" | "VecDeque" | "HashSet" | "BTreeSet" | "BinaryHeap" | "HashMap" | "BTreeMap"
+            ) {
+                return false;
+            }
+            let mut nested = None;
+            let mut invalid_argument = false;
+            for argument in named.arguments().iter() {
+                match argument.kind() {
+                    GenericExpressionArgumentKind::Type(expression) if nested.is_none() => {
+                        nested = Some(expression);
+                    }
+                    GenericExpressionArgumentKind::Lifetime(_) => {}
+                    GenericExpressionArgumentKind::Type(_)
+                    | GenericExpressionArgumentKind::Const(_)
+                    | GenericExpressionArgumentKind::AssociatedType { .. }
+                    | GenericExpressionArgumentKind::AssociatedTypeBound { .. } => {
+                        invalid_argument = true;
+                    }
+                }
+            }
+            !invalid_argument && nested.is_some_and(self_recursive_expression)
+        }
+        TypeExpressionKind::Reference { target, .. }
+        | TypeExpressionKind::RawPointer { target, .. }
+        | TypeExpressionKind::Slice(target) => self_recursive_expression(target),
+        TypeExpressionKind::Array { element, .. } => self_recursive_expression(element),
+        TypeExpressionKind::Tuple(elements) => {
+            !elements.is_empty() && elements.iter().copied().all(self_recursive_expression)
+        }
+        TypeExpressionKind::Parameter(_)
+        | TypeExpressionKind::ParameterName(_)
+        | TypeExpressionKind::AssociatedType(_)
+        | TypeExpressionKind::FunctionPointer(_)
+        | TypeExpressionKind::TraitObject(_)
+        | TypeExpressionKind::Opaque(_)
+        | TypeExpressionKind::Never => false,
+    }
 }
 
 /// Checks a descriptor without turning lookup failures into role violations.
@@ -407,12 +436,12 @@ fn value_type_ref_is_closed(
 /// `false` when a role violation or metadata lookup failure is found.
 #[allow(clippy::too_many_arguments)]
 #[must_use]
-fn value_descriptor_is_closed(
-    descriptor: &'static TypeDescriptor,
-    context: &ResolutionContext,
+fn value_descriptor_is_closed<'ctx>(
+    descriptor: TypeDescriptor<'ctx>,
+    context: &ResolutionContext<'ctx>,
     visited: &mut HashSet<TypeId>,
     root: &'static TypeMetadata,
-    source: Option<&FragmentIdentity>,
+    source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
     path: &[&'static str],
 ) -> bool {
@@ -464,7 +493,8 @@ fn value_descriptor_is_closed(
                             closed = false;
                             continue;
                         }
-                        closed &= validate_value_field(field, root, &nested, context, visited, source, errors);
+                        closed &=
+                            validate_value_field(metadata, field, root, &nested, context, visited, source, errors);
                     }
                 }
                 visited.remove(&metadata.type_id());
@@ -485,17 +515,19 @@ fn value_descriptor_is_closed(
             }
         };
     }
-    if descriptor.as_primitive().is_some() || descriptor.as_text().is_some() {
+    if matches!(descriptor.kind(), TypeKind::Primitive(_) | TypeKind::Text(_)) {
         return true;
     }
-    if descriptor.as_optional().is_none()
-        && descriptor.as_sequence().is_none()
-        && descriptor.as_set().is_none()
-        && descriptor.as_array().is_none()
-        && descriptor.as_smart_pointer().is_none()
-        && descriptor.as_map().is_none()
-        && descriptor.as_tuple().is_none()
-    {
+    if !matches!(
+        descriptor.kind(),
+        TypeKind::Optional(_)
+            | TypeKind::Sequence(_)
+            | TypeKind::Set(_)
+            | TypeKind::Array(_)
+            | TypeKind::SmartPointer(_)
+            | TypeKind::Map(_)
+            | TypeKind::Tuple(_)
+    ) {
         return false;
     }
     if !visited.insert(descriptor.type_id()) {
@@ -503,7 +535,7 @@ fn value_descriptor_is_closed(
     }
     let mut closed = true;
     children(descriptor, |edge| {
-        closed &= value_type_ref_is_closed(edge.target, context, visited, root, source, errors, path);
+        closed &= value_descriptor_is_closed(edge.target, context, visited, root, source, errors, path);
     });
     visited.remove(&descriptor.type_id());
     closed
@@ -543,19 +575,20 @@ pub(super) fn resolve_property_path(
             return Ok(result);
         }
         if index + 1 < path.segments().len() {
-            let Some(mut descriptor) = property.descriptor() else {
+            let Some(mut descriptor) = property.descriptor_in(context.reflection()).ok().flatten() else {
                 return Ok(None);
             };
             let mut visited = HashSet::new();
             while visited.insert(descriptor.type_id()) {
-                let inner = descriptor
-                    .as_optional()
-                    .map(|value| value.element_type())
-                    .or_else(|| descriptor.as_smart_pointer().map(|value| value.pointee_type()));
-                let Some(inner) = inner else {
+                if !matches!(descriptor.kind(), TypeKind::Optional(_) | TypeKind::SmartPointer(_)) {
                     break;
-                };
-                let Some(resolved) = inner.as_resolved() else {
+                }
+                let Some(resolved) = descriptor
+                    .generic_arguments()
+                    .get_at(0)
+                    .and_then(|argument| argument.type_argument().ok())
+                    .and_then(|argument| argument.find_concrete_type())
+                else {
                     return Ok(None);
                 };
                 descriptor = resolved;
@@ -596,7 +629,7 @@ pub(super) fn validate_unique_scope(
     metadata: &'static TypeMetadata,
     field: &'static FieldMetadata,
     context: &ResolutionContext,
-    source: Option<&FragmentIdentity>,
+    source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
 ) {
     let Some(unique) = field.unique() else {
@@ -642,23 +675,31 @@ pub(super) fn validate_unique_scope(
 /// `true` when unwrapping allowed containers reaches the expected type, or
 /// `false` for mismatches, maps, unresolved wrappers, or cycles.
 #[must_use]
-pub(super) fn reference_value_matches(expected: &TypeDescriptor, mut actual: &'static TypeDescriptor) -> bool {
+pub(super) fn reference_value_matches(expected: TypeDescriptor<'_>, mut actual: TypeDescriptor<'_>) -> bool {
     let mut visited = HashSet::new();
     while visited.insert(actual.type_id()) {
-        if actual.as_map().is_some() {
+        if matches!(actual.kind(), TypeKind::Map(_)) {
             return false;
         }
         if expected.type_id() == actual.type_id() {
             return true;
         }
-        let inner = actual
-            .as_optional()
-            .map(|value| value.element_type())
-            .or_else(|| actual.as_sequence().map(|value| value.element_type()))
-            .or_else(|| actual.as_set().map(|value| value.element_type()))
-            .or_else(|| actual.as_array().map(|value| value.element_type()))
-            .or_else(|| actual.as_smart_pointer().map(|value| value.pointee_type()));
-        let Some(inner) = inner.and_then(|value| value.as_resolved()) else {
+        if !matches!(
+            actual.kind(),
+            TypeKind::Optional(_)
+                | TypeKind::Sequence(_)
+                | TypeKind::Set(_)
+                | TypeKind::Array(_)
+                | TypeKind::SmartPointer(_)
+        ) {
+            return false;
+        }
+        let Some(inner) = actual
+            .generic_arguments()
+            .get_at(0)
+            .and_then(|argument| argument.type_argument().ok())
+            .and_then(|argument| argument.find_concrete_type())
+        else {
             return false;
         };
         actual = inner;
@@ -738,14 +779,14 @@ fn resolve_object_path(
                 {
                     resolve_declared_target(reference.target(), context.registry())
                 } else {
-                    let mut descriptor = property.descriptor();
+                    let mut descriptor = property.descriptor_in(context.reflection()).ok().flatten();
                     while let Some(value) = descriptor {
-                        let inner = value
-                            .as_optional()
-                            .map(|value| value.element_type())
-                            .or_else(|| value.as_smart_pointer().map(|value| value.pointee_type()));
-                        if let Some(inner) = inner {
-                            descriptor = inner.as_resolved();
+                        if matches!(value.kind(), TypeKind::Optional(_) | TypeKind::SmartPointer(_)) {
+                            descriptor = value
+                                .generic_arguments()
+                                .get_at(0)
+                                .and_then(|argument| argument.type_argument().ok())
+                                .and_then(|argument| argument.find_concrete_type());
                         } else {
                             break;
                         }
@@ -780,7 +821,7 @@ pub(super) fn validate_dependency(
     owner: &'static TypeMetadata,
     dependency: &DependencyBindingMetadata,
     context: &ResolutionContext,
-    source: Option<&FragmentIdentity>,
+    source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
 ) {
     let resolved = resolve_object_path(owner, &dependency.object_path(), context, false);

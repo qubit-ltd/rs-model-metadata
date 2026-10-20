@@ -114,7 +114,7 @@ fn assert_stopped(options: ValidationOptions, expected: usize) {
     )
     .expect("prepared model shape")]);
     let report = plan
-        .validate_dynamic(DynamicRef::<Local>::new(&Root { value: String::new() }), &options)
+        .validate_dynamic(DynamicRef::<Local>::new_any(&Root { value: String::new() }), &options)
         .unwrap();
     assert_eq!(report.violations().len(), expected, "report must obey the hard limit");
     assert_eq!(
@@ -180,7 +180,7 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
         .max_violations(NonZeroUsize::new(3).unwrap())
         .build();
     let report = plan
-        .validate_dynamic(DynamicRef::<Local>::new(&Root { value: "valid".into() }), &options)
+        .validate_dynamic(DynamicRef::<Local>::new_any(&Root { value: "valid".into() }), &options)
         .unwrap();
 
     assert_eq!(report.failure_count(), 3);
@@ -229,7 +229,7 @@ fn test_model_empty_invalid_outcome_is_an_execution_error() {
     .expect("prepared model shape")]);
     let error = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new(&Root { value: "ok".into() }),
+            DynamicRef::<Local>::new_any(&Root { value: "ok".into() }),
             &ValidationOptions::default(),
         )
         .unwrap_err();
@@ -396,12 +396,19 @@ fn run(
 ) -> Result<ValidationReport, ModelValidationError> {
     GETTER_CALLS.with(|calls| calls.set(0));
     RULE_CALLS.with(|calls| calls.set(0));
-    let models = ModelRegistry::try_global().unwrap();
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     let validators = ValidatorRegistry::from_registrations([REGISTRATION]).unwrap();
     let plan = ValidationPlan::build(
@@ -751,12 +758,19 @@ static PARENT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
 fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation_context() {
     let root = TypeMetadata::of::<Dependent>();
     let parent = TypeMetadata::of::<Parent>();
-    let models = ModelRegistry::try_global().unwrap();
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
     let roots = [root, parent];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .unwrap(),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
     );
     let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).unwrap();
     let known = ValidationPlan::build_with_context(

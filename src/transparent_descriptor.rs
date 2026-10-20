@@ -9,29 +9,18 @@
 //! Shared traversal of transparent model descriptor wrappers.
 
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::descriptor::TypeKind;
 
 /// Returns the first descriptor outside optional and smart-pointer layers.
-///
-/// # Parameters
-///
-/// - `descriptor`: the descriptor to inspect, including any optional or
-///   smart-pointer wrapper layers.
-///
-/// # Returns
-///
-/// Returns the first resolved descriptor outside those wrappers. Returns
-/// `None` when a traversed layer is opaque or symbolic. Semantic containers
-/// such as sequences and maps remain intact.
 #[must_use]
-pub(crate) fn transparent_descriptor(mut descriptor: &'static TypeDescriptor) -> Option<&'static TypeDescriptor> {
+pub(crate) fn transparent_descriptor<'ctx>(mut descriptor: TypeDescriptor<'ctx>) -> Option<TypeDescriptor<'ctx>> {
     loop {
-        let element = descriptor
-            .as_optional()
-            .map(|view| view.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()));
-        let Some(element) = element else {
-            return Some(descriptor);
-        };
-        descriptor = element.as_resolved()?;
+        match descriptor.kind() {
+            TypeKind::Optional(_) | TypeKind::SmartPointer(_) => {
+                let argument = descriptor.generic_arguments().get_at(0)?;
+                descriptor = argument.type_argument().ok()?.find_concrete_type()?;
+            }
+            _ => return Some(descriptor),
+        }
     }
 }

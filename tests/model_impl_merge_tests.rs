@@ -16,9 +16,9 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use qubit_model_derive::Model;
+use qubit_model_metadata::__private::ModelImplFragment;
 use qubit_model_metadata::__private::ModelImplProvider;
-use qubit_model_metadata::__private::model_impl_fragment_key;
-use qubit_model_metadata::__private::model_impl_key;
+use qubit_model_metadata::__private::ModelImplSource;
 use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
@@ -33,13 +33,7 @@ use qubit_model_metadata::metadata::ResolvedProperties;
 use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_reflect::ReflectRegistry;
-use qubit_reflect::capability::CapabilityDescriptor;
-use qubit_reflect::capability::CapabilityKey;
-use qubit_reflect::capability::CapabilityOrigin;
-use qubit_reflect::identity::CapabilityId;
-use qubit_reflect::identity::FragmentIdentity;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicMut;
 use qubit_reflect::value::DynamicOwned;
 use qubit_reflect::value::DynamicRef;
@@ -66,6 +60,18 @@ fn write_name(target: DynamicMut<'_, Local>, value: DynamicOwned<Local>) -> Resu
     Ok(())
 }
 
+const SOURCE_A: ModelImplSource = ModelImplSource {
+    module_path: "model_impl_merge_tests",
+    file: file!(),
+    line: 1,
+    fingerprint: 0xA001,
+};
+const SOURCE_B: ModelImplSource = ModelImplSource {
+    module_path: "model_impl_merge_tests",
+    file: file!(),
+    line: 2,
+    fingerprint: 0xB002,
+};
 // ModelImpl code generation repeats the declaration's backing fields in each
 // overlay. These fixtures reproduce that ABI shape with independently owned
 // getter/setter descriptors, without exposing an internal merge test hook.
@@ -73,10 +79,13 @@ fn overlay(getter_name: Option<&'static str>, setter_name: Option<&'static str>)
     let owner = TypeMetadata::of::<Record>();
     let name = &owner.fields()[0];
     let count = &owner.fields()[1];
+    let name_expression = name.type_expression_data().expect("name expression");
+    let count_expression = count.type_expression_data().expect("count expression");
     let getter = getter_name.map(|method| {
         v8::leak(GetterMetadata::new::<Record>(
             method,
-            name.type_ref(),
+            name_expression,
+            std::any::TypeId::of::<String>,
             GetterOutputKind::Borrowed,
             read_name,
         ))
@@ -84,34 +93,34 @@ fn overlay(getter_name: Option<&'static str>, setter_name: Option<&'static str>)
     let setter = setter_name.map(|method| {
         v8::leak(SetterMetadata::new::<Record, String>(
             method,
-            name.type_ref(),
+            name_expression,
             write_name,
         ))
     });
     let mut fragments = vec![
-        v8::property_fragment("name", name.type_ref(), PropertyFragmentSource::Field(name)),
-        v8::property_fragment("count", count.type_ref(), PropertyFragmentSource::Field(count)),
+        v8::property_fragment("name", Some(name_expression), PropertyFragmentSource::Field(name)),
+        v8::property_fragment("count", Some(count_expression), PropertyFragmentSource::Field(count)),
     ];
     if let Some(getter) = getter {
         fragments.push(v8::property_fragment(
             "name",
-            name.type_ref(),
+            Some(name_expression),
             PropertyFragmentSource::Getter(getter),
         ));
     }
     if let Some(setter) = setter {
         fragments.push(v8::property_fragment(
             "name",
-            name.type_ref(),
+            Some(name_expression),
             PropertyFragmentSource::Setter(setter),
         ));
     }
     let properties = v8::leak_slice(vec![
-        v8::property_metadata("name", name.type_ref(), Some(name), getter, setter),
-        v8::property_metadata("count", count.type_ref(), Some(count), None, None),
+        v8::property_metadata("name", Some(name_expression), Some(name), getter, setter),
+        v8::property_metadata("count", Some(count_expression), Some(count), None, None),
     ]);
     owner
-        .validate_properties(properties)
+        .validate_properties_in(ReflectionContext::global(), properties)
         .expect("each overlay is individually valid");
     v8::model_impl_metadata(
         v8::leak_slice(fragments),
@@ -163,100 +172,37 @@ fn panic_once_getter() -> &'static ModelImplMetadata {
     getter_a()
 }
 
-fn snapshot(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegistry {
-    let mut builder = RegistrySnapshotBuilder::new();
-    builder.add_type(
-        TypeMetadata::of::<Record>().descriptor(),
-        FragmentIdentity::new("model-impl-test", "record", 1, 1, "type", 1),
-    );
-    for (key, provider) in [
-        ("qubit.model.impl.v1.fmerge_a", first),
-        ("qubit.model.impl.v1.fmerge_b", second),
-    ] {
-        builder.add_type_capabilities(
-            TypeMetadata::of::<Record>().descriptor(),
-            vec![CapabilityDescriptor::with_adapter(
-                model_impl_fragment_key(key),
-                provider,
-            )],
-            FragmentIdentity::new("model-impl-test", key, 1, 1, "capability", 1),
-        );
-    }
-    builder.build().expect("distinct capability slots")
+fn source_at(source: ModelImplSource, provider: ModelImplProvider) -> ModelImplFragment {
+    ModelImplFragment::for_type::<Record>(provider, source)
 }
 
-fn snapshot_with_unrelated_capabilities(first: ModelImplProvider, second: ModelImplProvider) -> ReflectRegistry {
-    let mut builder = RegistrySnapshotBuilder::new();
-    builder.add_type(
-        TypeMetadata::of::<Record>().descriptor(),
-        FragmentIdentity::new("model-impl-test", "record", 1, 1, "type", 1),
+fn snapshot_with(providers: &[(ModelImplProvider, ModelImplSource)]) -> ReflectionContext {
+    let fragments = v8::leak_slice(
+        providers
+            .iter()
+            .map(|(provider, source)| source_at(*source, *provider))
+            .collect(),
     );
-    for (key, provider) in [
-        ("qubit.model.impl.v1.fmerge_a", first),
-        ("qubit.model.impl.v1.fmerge_b", second),
-        ("qubit.model.impl.v1.other", getter_b),
-    ] {
-        builder.add_type_capabilities(
-            TypeMetadata::of::<Record>().descriptor(),
-            vec![CapabilityDescriptor::with_adapter(
-                CapabilityKey::new(CapabilityId::new(key).expect("fixture capability ID")),
-                provider,
-            )],
-            FragmentIdentity::new("model-impl-test", key, 1, 1, "capability", 1),
-        );
-    }
-    for index in 0..128 {
-        let key = if index < 64 {
-            format!("qubit.model.impl.v1.e{index:03}")
-        } else {
-            format!("qubit.model.impl.v1.g{index:03}")
-        };
-        builder.add_type_capabilities(
-            TypeMetadata::of::<Record>().descriptor(),
-            vec![CapabilityDescriptor::with_adapter(
-                CapabilityKey::new(CapabilityId::new(Box::leak(key.into_boxed_str())).expect("fixture capability ID")),
-                getter_b,
-            )],
-            FragmentIdentity::new(
-                "model-impl-test",
-                "unrelated-capability",
-                index,
-                1,
-                "capability",
-                index as u64,
-            ),
-        );
-    }
-    builder.build().expect("distinct capability slots")
+    ReflectionContext::builder()
+        .include_type::<Record>()
+        .include_type::<String>()
+        .include_type::<u32>()
+        .register(v8::model_impl_capability_registration::<Record>(fragments))
+        .build()
+        .expect("typed model implementation registration")
+}
+
+fn snapshot(first: ModelImplProvider, second: ModelImplProvider) -> ReflectionContext {
+    snapshot_with(&[(first, SOURCE_A), (second, SOURCE_B)])
 }
 
 #[test]
-fn test_model_impl_family_selects_base_and_nonempty_fragment_only() {
+fn test_model_impl_aggregate_registers_each_source_fragment() {
     let owner = TypeMetadata::of::<Record>();
-    let mut builder = RegistrySnapshotBuilder::new();
-    for (id, provider) in [
-        ("qubit.model.impl.v1", getter_a as ModelImplProvider),
-        ("qubit.model.impl.v1.fmerge_a", setter_a),
-        ("qubit.model.impl.v1.f", getter_b),
-        ("qubit.model.impl.v1.other", getter_b),
-        ("qubit.model.impl.v1.ezz", getter_b),
-        ("qubit.model.impl.v1.g00", getter_b),
-    ] {
-        let key = if id == "qubit.model.impl.v1" {
-            model_impl_key()
-        } else {
-            CapabilityKey::new(CapabilityId::new(id).expect("fixture capability ID"))
-        };
-        builder.add_type_capabilities(
-            owner.descriptor(),
-            vec![CapabilityDescriptor::with_adapter(key, provider)],
-            FragmentIdentity::new("model-impl-family-test", id, 1, 1, "capability", 1),
-        );
-    }
-    let registry = builder.build().expect("distinct capability slots");
+    let registry = snapshot_with(&[(getter_a as ModelImplProvider, SOURCE_A), (setter_a, SOURCE_B)]);
     let properties = owner
         .try_properties_in(&registry)
-        .expect("only base and nonempty fragment selected");
+        .expect("aggregate capability selects each registered source fragment");
     let name = properties.property("name").expect("name property");
     assert_eq!(name.getter().expect("base getter").rust_method_name(), "get_name");
     assert_eq!(name.setter().expect("fragment setter").rust_method_name(), "set_name");
@@ -298,6 +244,7 @@ fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
     assert_eq!(value.name, "after");
     assert_eq!(value.count, 7);
     let fragments = owner.property_fragments_in(&registry).expect("raw fragments");
+    let reflection = &registry;
     let fragments = fragments.fragments();
     assert_eq!(fragments.len(), 4);
     assert_eq!(
@@ -308,13 +255,14 @@ fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
         2
     );
     for fragment in fragments {
-        assert!(std::ptr::eq(
-            fragment.type_ref(),
+        assert!(fragment.type_expression_in(reflection).is_some());
+        assert!(
             properties
                 .property(fragment.name())
                 .expect("fragment property")
-                .type_ref()
-        ));
+                .type_expression_in(reflection)
+                .is_some()
+        );
     }
 }
 
@@ -351,22 +299,12 @@ fn test_distinct_accessors_conflict_without_poisoning_other_snapshots() {
         let conflict = error.conflict().expect("accessor conflict details");
         assert_eq!(conflict.first_method(), first_method);
         assert_eq!(conflict.second_method(), second_method);
-        assert_eq!(
-            conflict.first_origin(),
-            &CapabilityOrigin::Registered {
-                source: FragmentIdentity::new("model-impl-test", "qubit.model.impl.v1.fmerge_a", 1, 1, "capability", 1),
-            }
-        );
-        assert_eq!(
-            conflict.second_origin(),
-            &CapabilityOrigin::Registered {
-                source: FragmentIdentity::new("model-impl-test", "qubit.model.impl.v1.fmerge_b", 1, 1, "capability", 1),
-            }
-        );
+        assert_eq!(conflict.first_origin(), &SOURCE_A);
+        assert_eq!(conflict.second_origin(), &SOURCE_B);
         let display = error.to_string();
         assert!(display.contains(first_method));
         assert!(display.contains(second_method));
-        assert!(display.contains("model-impl-test"));
+        assert!(display.contains("model_impl_merge_tests"));
         let PropertyResolutionError::Assembly(repeated) =
             owner.try_properties_in(&registry).expect_err("cached conflict")
         else {
@@ -421,7 +359,7 @@ fn test_repeated_identity_is_not_a_distinct_accessor_conflict() {
 fn test_registry_cache_owns_dynamic_results_and_releases_them_with_the_registry() {
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(getter_a, setter_a);
-    let registry = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model registry");
+    let registry = ModelRegistry::from_context(&reflection).expect("snapshot model registry");
     let first = registry.properties_for(owner).expect("first merge");
     let second = registry.properties_for(owner).expect("cached merge");
     let weak = match (&first, &second) {
@@ -454,8 +392,8 @@ fn test_distinct_model_registries_do_not_share_their_property_cache() {
     let owner = TypeMetadata::of::<Record>();
     let first_reflection = snapshot(getter_a, setter_a);
     let second_reflection = snapshot(getter_a, setter_a);
-    let first_registry = ModelRegistry::from_reflect_registry(&first_reflection).expect("first model registry");
-    let second_registry = ModelRegistry::from_reflect_registry(&second_reflection).expect("second model registry");
+    let first_registry = ModelRegistry::from_context(&first_reflection).expect("first model registry");
+    let second_registry = ModelRegistry::from_context(&second_reflection).expect("second model registry");
     let first = first_registry.properties_for(owner).expect("first merge");
     let second = second_registry.properties_for(owner).expect("second merge");
     let (ResolvedProperties::Merged(first), ResolvedProperties::Merged(second)) = (&first, &second) else {
@@ -469,7 +407,7 @@ fn test_registry_cache_initializes_once_for_concurrent_queries() {
     PROVIDER_CALLS.store(0, Ordering::SeqCst);
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(counting_getter, setter_a);
-    let registry = ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let registry = ModelRegistry::from_context(&reflection).expect("model registry");
     std::thread::scope(|scope| {
         for _ in 0..8 {
             scope.spawn(|| {
@@ -487,17 +425,17 @@ fn test_registry_cache_initializes_once_for_concurrent_queries() {
 }
 
 #[test]
-fn test_capability_range_ignores_unrelated_ids_and_preserves_conflict_errors() {
+fn test_fixed_capability_aggregates_sources_and_preserves_conflicts() {
     let owner = TypeMetadata::of::<Record>();
-    let registry = snapshot_with_unrelated_capabilities(getter_a, setter_a);
+    let registry = snapshot(getter_a, setter_a);
     let properties = owner
         .try_properties_in(&registry)
-        .expect("only the two fragments are merged");
+        .expect("all registered source fragments are merged");
     let name = properties.property("name").expect("name property");
     assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
     assert_eq!(name.setter().expect("setter").rust_method_name(), "set_name");
 
-    let conflicting = snapshot_with_unrelated_capabilities(getter_a, getter_b);
+    let conflicting = snapshot(getter_a, getter_b);
     let PropertyResolutionError::Assembly(errors) = owner
         .try_properties_in(&conflicting)
         .expect_err("conflicting provider accessors remain an assembly error")
@@ -514,7 +452,7 @@ fn test_provider_panic_does_not_poison_registry_cache() {
     PANIC_ONCE.store(true, Ordering::SeqCst);
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(panic_once_getter, setter_a);
-    let registry = ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let registry = ModelRegistry::from_context(&reflection).expect("model registry");
     let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| registry.properties_for(owner)));
     assert!(panic.is_err());
     assert!(registry.properties_for(owner).is_ok());
@@ -524,7 +462,7 @@ fn test_provider_panic_does_not_poison_registry_cache() {
 fn test_registry_cache_releases_failed_assembly_diagnostics_on_drop() {
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(getter_a, getter_b);
-    let registry = ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let registry = ModelRegistry::from_context(&reflection).expect("model registry");
     let first = registry.properties_for(owner).expect_err("conflicting getters");
     let second = registry.properties_for(owner).expect_err("cached diagnostic");
     let (PropertyResolutionError::Assembly(first), PropertyResolutionError::Assembly(second)) = (first, second) else {
