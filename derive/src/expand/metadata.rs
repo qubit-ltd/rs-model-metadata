@@ -11,12 +11,16 @@
 use heck::ToSnakeCase;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
+use quote::ToTokens;
 use quote::format_ident;
 use quote::quote;
 use syn::DeriveInput;
 use syn::Error;
 use syn::Ident;
 use syn::LitStr;
+use syn::ReturnType;
+use syn::Type;
+use syn::TypePath;
 use syn::parse_quote;
 
 use super::fields::expand_field_vector;
@@ -32,16 +36,28 @@ use crate::ir::declaration::VariantIr;
 #[must_use]
 pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let ident = &item.ident;
-    let fields = expand_field_vector(&declaration.fields, quote!(descriptor.fields()), runtime);
+    let fields = expand_field_vector(&declaration.fields, runtime, ident);
+    let nested_metadata = expand_nested_metadata_providers(declaration, runtime);
     let role = expand_role(declaration, item, runtime);
     let declared_model_id = declaration.options.id.as_ref().map_or_else(
         || quote!(None),
         |id| quote!(Some(#runtime::metadata::ModelId::new(#id))),
     );
     let has_generics = !item.generics.params.is_empty();
+    let generic_type_names: Vec<Ident> = item
+        .generics
+        .params
+        .iter()
+        .filter_map(|parameter| match parameter {
+            syn::GenericParam::Type(parameter) => Some(parameter.ident.clone()),
+            syn::GenericParam::Const(parameter) => Some(parameter.ident.clone()),
+            syn::GenericParam::Lifetime(_) => None,
+        })
+        .collect();
     let mut impl_generics_source = item.generics.clone();
     for parameter in impl_generics_source.type_params_mut() {
         parameter.bounds.push(parse_quote!('static));
+        parameter.bounds.push(parse_quote!(#runtime::__private::Reflect));
     }
     impl_generics_source
         .make_where_clause()
@@ -58,9 +74,19 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
             &generic_metadata,
             &declaration.fields,
             &declaration.variants,
+            &generic_type_names,
+            ident,
             runtime,
         ),
         (None, false) => TokenStream::new(),
+    };
+    let metadata_capability = if has_generics {
+        TokenStream::new()
+    } else {
+        quote! {
+            #runtime::__private::v8::submit_model_metadata_capability!(#ident);
+            #runtime::__private::v8::submit_model_impl_capability!(#ident);
+        }
     };
     let model_id = if has_generics {
         quote!(None)
@@ -89,7 +115,7 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
             .filter_map(|field| field.name().map(|name| {
                 #runtime::__private::v8::property_metadata(
                     name,
-                    field.type_ref(),
+                    field.type_expression_data(),
                     Some(field),
                     None,
                     None,
@@ -101,7 +127,7 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
             .filter_map(|field| field.name().map(|name| {
                 #runtime::__private::v8::property_fragment(
                     name,
-                    field.type_ref(),
+                    field.type_expression_data(),
                     #runtime::metadata::PropertyFragmentSource::Field(field),
                 )
             }))
@@ -109,9 +135,12 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
         let properties: &'static [#runtime::metadata::PropertyMetadata] = #runtime::__private::v8::leak_slice(properties);
         let property_fragments: &'static [#runtime::metadata::PropertyFragment] =
             #runtime::__private::v8::leak_slice(property_fragments);
-        let metadata = #runtime::__private::v8::GeneratedTypeMetadataBuilder::new(
-            descriptor, #model_id, fields, role,
-        ).properties(properties).property_fragments(property_fragments);
+        #nested_metadata
+        let metadata = #runtime::__private::v8::GeneratedTypeMetadataBuilder::new::<Self>(
+            #model_id, fields, role,
+        ).properties(properties)
+            .property_fragments(property_fragments)
+            .nested_metadata_providers(nested_metadata_providers);
         #generic_definition
         metadata.finish_unchecked()
     };
@@ -149,6 +178,95 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
         #has_model_id
 
         #registration
+        #metadata_capability
+    }
+}
+
+/// Emits lazy providers for model metadata on concrete nested field types.
+fn expand_nested_metadata_providers(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
+    let mut candidates = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for field in declaration
+        .fields
+        .iter()
+        .chain(declaration.variants.iter().flat_map(|variant| variant.fields.iter()))
+    {
+        collect_nested_type_candidates(&field.ty, &mut candidates, &mut seen);
+    }
+    let providers = candidates.iter().enumerate().map(|(index, ty)| {
+        let provider = format_ident!("__qubit_nested_type_metadata_{index}");
+        quote! {
+            let #provider: fn() -> Option<&'static #runtime::metadata::TypeMetadata> = || {
+                use #runtime::__private::v8::NestedTypeMetadataProbe as _;
+                let marker = ::std::marker::PhantomData::<#ty>;
+                (&&marker).nested_type_metadata()
+            };
+            nested_metadata_providers.push(#provider);
+        }
+    });
+    quote! {
+        let mut nested_metadata_providers = ::std::vec::Vec::new();
+        #(#providers)*
+        let nested_metadata_providers: &'static [fn() -> Option<&'static #runtime::metadata::TypeMetadata>] =
+            #runtime::__private::v8::leak_slice(nested_metadata_providers);
+    }
+}
+
+/// Retains every concrete type expression node once, including nested generic
+/// arguments and container elements.
+fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut std::collections::HashSet<String>) {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if path.segments.last().is_some_and(|segment| segment.ident == "str") {
+                return;
+            }
+            if path
+                .segments
+                .iter()
+                .any(|segment| matches!(&segment.arguments, syn::PathArguments::AngleBracketed(_)))
+            {
+                push_type_candidate(ty, output, seen);
+            }
+            for segment in &path.segments {
+                match &segment.arguments {
+                    syn::PathArguments::AngleBracketed(arguments) => {
+                        for argument in &arguments.args {
+                            if let syn::GenericArgument::Type(nested) = argument {
+                                collect_nested_type_candidates(nested, output, seen);
+                            }
+                        }
+                    }
+                    syn::PathArguments::Parenthesized(arguments) => {
+                        for nested in &arguments.inputs {
+                            collect_nested_type_candidates(nested, output, seen);
+                        }
+                        if let ReturnType::Type(_, nested) = &arguments.output {
+                            collect_nested_type_candidates(nested, output, seen);
+                        }
+                    }
+                    syn::PathArguments::None => {}
+                }
+            }
+        }
+        Type::Array(value) => collect_nested_type_candidates(&value.elem, output, seen),
+        Type::Group(value) => collect_nested_type_candidates(&value.elem, output, seen),
+        Type::Paren(value) => collect_nested_type_candidates(&value.elem, output, seen),
+        Type::Ptr(value) => collect_nested_type_candidates(&value.elem, output, seen),
+        Type::Reference(value) => collect_nested_type_candidates(&value.elem, output, seen),
+        Type::Slice(value) => collect_nested_type_candidates(&value.elem, output, seen),
+        Type::Tuple(value) => {
+            for nested in &value.elems {
+                collect_nested_type_candidates(nested, output, seen);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn push_type_candidate(ty: &Type, output: &mut Vec<Type>, seen: &mut std::collections::HashSet<String>) {
+    let key = ty.to_token_stream().to_string();
+    if seen.insert(key) {
+        output.push(ty.clone());
     }
 }
 
@@ -162,6 +280,8 @@ fn expand_generic_registration(
     metadata_fn: &Ident,
     fields: &[FieldIr],
     variants: &[VariantIr],
+    generic_type_names: &[Ident],
+    owner: &Ident,
     runtime: &TokenStream,
 ) -> TokenStream {
     let model_id = id.map_or_else(
@@ -169,7 +289,6 @@ fn expand_generic_registration(
         |id| quote!(Some(#runtime::metadata::ModelId::new(#id))),
     );
     let snake_name = ident.to_string().to_snake_case();
-    let definition_fn = format_ident!("__qubit_model_reflect_definition_{}", ident);
     let registration_module = format_ident!("__qubit_model_generic_capability_{}", snake_name);
     let role = match kind {
         MacroKind::Model => quote!(#runtime::metadata::ModelRole::Model),
@@ -184,27 +303,39 @@ fn expand_generic_registration(
         }
     };
     let fingerprint = stable_fingerprint(&ident.to_string());
+    let capability_fn = format_ident!("__qubit_reflect_v4_definition_capability_{}", ident);
+    let definition_path = quote!(concat!(module_path!(), "::", stringify!(#ident)));
+    let model_impl_capability = quote! {
+        #runtime::__private::v8::register_generic_model_impl_capability! {
+            definition_path = concat!(module_path!(), "::", stringify!(#ident)),
+            capability = #capability_fn,
+            source = (env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(), #fingerprint),
+        }
+    };
     let template_fields = expand_generic_field_vector(
         fields,
-        quote!(definition.fields().expect("generic struct fields")),
+        definition_path.clone(),
         runtime,
         false,
+        generic_type_names,
+        ident,
     );
-    let template_variants = expand_generic_variant_vector(variants, runtime);
+    let template_variants =
+        expand_generic_variant_vector(variants, &definition_path, runtime, generic_type_names, owner);
     quote! {
         #[doc(hidden)]
         fn #metadata_fn() -> &'static #runtime::generic::GenericModelMetadata {
             static METADATA: ::std::sync::OnceLock<#runtime::generic::GenericModelMetadata> =
                 ::std::sync::OnceLock::new();
             METADATA.get_or_init(|| {
-                let definition = #definition_fn();
                 #template_fields
                 let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v8::leak_slice(fields);
                 #template_variants
+                let definition_path: &'static str = #definition_path;
                 #runtime::__private::v8::generic_model_metadata(
                     #model_id,
                     #role,
-                    definition,
+                    definition_path,
                     fields,
                     variants,
                 )
@@ -214,35 +345,48 @@ fn expand_generic_registration(
         #[doc(hidden)]
         mod #registration_module {
             #runtime::__private::v8::register_generic_model_capability! {
-                definition = super::#definition_fn,
+                definition_path = concat!(module_path!(), "::", stringify!(#ident)),
+                capability = #capability_fn,
                 metadata = super::#metadata_fn,
                 source = (env!("CARGO_PKG_NAME"), module_path!(), line!(), column!(), #fingerprint),
             }
+            #model_impl_capability
         }
     }
 }
 
 /// Generates complete symbolic overlays for generic enum variants.
 #[must_use]
-fn expand_generic_variant_vector(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
+fn expand_generic_variant_vector(
+    variants: &[VariantIr],
+    definition_path: &TokenStream,
+    runtime: &TokenStream,
+    generic_type_names: &[Ident],
+    owner: &Ident,
+) -> TokenStream {
     let bodies = variants.iter().enumerate().map(|(variant_index, variant)| {
         let fields = expand_generic_field_vector(
             &variant.fields,
-            quote!(definition.variants().expect("generic enum variants")[#variant_index].fields()),
+            definition_path.clone(),
             runtime,
             true,
+            generic_type_names,
+            owner,
         );
         let canonical = &variant.canonical_name;
         let serialized = &variant.serialized_name;
         let deserialized = &variant.deserialized_name;
         let default = variant.default;
+        let rust_name = &variant.rust_name;
         quote! {
             {
                 #fields
                 let fields: &'static [#runtime::metadata::FieldMetadata] =
                     #runtime::__private::v8::leak_slice(fields);
                 variants.push(#runtime::__private::v8::generic_enum_variant_metadata(
-                    &definition.variants().expect("generic enum variants")[#variant_index],
+                    #definition_path,
+                    #variant_index,
+                    #rust_name,
                     #canonical,
                     #serialized,
                     #deserialized,

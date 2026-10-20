@@ -27,6 +27,7 @@ use fixtures::Pipeline8;
 use fixtures::Pipeline32;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistryOrigin;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::FieldPath;
@@ -35,8 +36,7 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::validation::ValidationSelection;
-use qubit_reflect::identity::FragmentIdentity;
-use qubit_reflect::registry::ReflectRegistry;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validator::BoundValidationContext;
@@ -71,22 +71,18 @@ impl PreparedValidator for AcceptModel {
 
 /// Measures plan construction plus model-rule attachment at fixed sample
 /// counts.
-fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistry) {
+fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectionContext) {
     const SAMPLES: usize = 30;
     println!(
         "model_rule_batch_build: samples={SAMPLES}, profile={}",
         if cfg!(debug_assertions) { "debug" } else { "release" }
     );
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
+    let models = ModelRegistry::from_context(reflection).expect("valid benchmark registrations");
     let root = TypeMetadata::of::<Pipeline1>();
-    let roots = [root];
     let graph = Arc::new(
-        StructureResolver::for_roots(ResolveInputs {
-            models: &models,
-            roots: &roots,
-        })
-        .resolve()
-        .expect("benchmark graph"),
+        StructureResolver::for_static_roots(&models, [root])
+            .resolve()
+            .expect("benchmark graph"),
     );
     let validators = ValidatorRegistry::empty();
     let prepared: Arc<dyn PreparedValidator> = Arc::new(AcceptModel);
@@ -141,7 +137,7 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectRegistr
 
 /// Records the first property-provider initialization and assembly separately
 /// from both reflection startup and the later statistical warm benchmarks.
-fn cold_properties(roots: &[(&'static TypeMetadata, usize)], reflection: &ReflectRegistry) {
+fn cold_properties(roots: &[(&'static TypeMetadata, usize)], reflection: &ReflectionContext) {
     for &(root, size) in roots {
         let started = Instant::now();
         let properties =
@@ -157,8 +153,8 @@ fn cold_properties(roots: &[(&'static TypeMetadata, usize)], reflection: &Reflec
 }
 
 /// Measures each stable pipeline stage without recreating business inputs.
-fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&'static TypeMetadata, usize)]) {
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("valid benchmark registrations");
+fn pipeline(criterion: &mut Criterion, reflection: &ReflectionContext, roots: &[(&'static TypeMetadata, usize)]) {
+    let models = ModelRegistry::from_context(reflection).expect("valid benchmark registrations");
     let validators = ValidatorRegistry::empty();
     let options = ValidationOptions::default();
     let one = Pipeline1::sample();
@@ -193,38 +189,23 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
     let mut graphs = criterion.benchmark_group("model_graph_build");
     for &(root, size) in roots {
         let root_set = [root];
-        let graph = StructureResolver::for_roots(ResolveInputs {
-            models: &models,
-            roots: &root_set,
-        })
-        .resolve()
-        .expect("valid benchmark graph");
+        let graph = StructureResolver::for_static_roots(&models, [root])
+            .resolve()
+            .expect("valid benchmark graph");
         assert_eq!(graph.models().len(), 1);
         assert_eq!(graph.models()[0].type_id(), root.type_id());
         graphs.bench_with_input(BenchmarkId::new("fields", size), &root_set, |bencher, roots| {
-            bencher.iter(|| {
-                black_box(
-                    StructureResolver::for_roots(ResolveInputs {
-                        models: &models,
-                        roots: black_box(roots),
-                    })
-                    .resolve(),
-                )
-            });
+            bencher.iter(|| black_box(StructureResolver::for_static_roots(&models, [black_box(roots)[0]]).resolve()));
         });
     }
     graphs.finish();
 
     let mut plans = criterion.benchmark_group("validation_plan_build");
     for &(root, size) in roots {
-        let root_set = [root];
         let graph = Arc::new(
-            StructureResolver::for_roots(ResolveInputs {
-                models: &models,
-                roots: &root_set,
-            })
-            .resolve()
-            .expect("graph outside plan timing"),
+            StructureResolver::for_static_roots(&models, [root])
+                .resolve()
+                .expect("graph outside plan timing"),
         );
         let inputs = ValidationBuildInputs {
             graph: Arc::clone(&graph),
@@ -248,14 +229,10 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
 
     let mut execution = criterion.benchmark_group("validation_plan_execute");
     for (&(root, size), value) in roots.iter().zip(values) {
-        let root_set = [root];
         let graph = Arc::new(
-            StructureResolver::for_roots(ResolveInputs {
-                models: &models,
-                roots: &root_set,
-            })
-            .resolve()
-            .expect("graph outside execution timing"),
+            StructureResolver::for_static_roots(&models, [root])
+                .resolve()
+                .expect("graph outside execution timing"),
         );
         let plan = ValidationPlan::build(
             root,
@@ -289,18 +266,17 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectRegistry, roots: &[(&
 
 /// Measures registration, full and reachable graph construction, and plan
 /// binding while keeping metadata, provenance, and validators outside loops.
-fn model_count_pipeline(criterion: &mut Criterion) {
+fn model_count_pipeline(criterion: &mut Criterion, reflection: &ReflectionContext) {
     let metadata = fixtures::all_metadata();
-    let sources: Vec<_> = (0..metadata.len())
-        .map(|index| {
-            FragmentIdentity::new(
-                "model-pipeline-bench",
-                "static-metadata",
-                1,
-                1,
-                "model",
-                index as u64 + 1,
-            )
+    let sources: Vec<_> = metadata
+        .iter()
+        .map(|_| ModelRegistryOrigin {
+            crate_name: "model-pipeline-bench",
+            crate_version: None,
+            module_path: "static-metadata",
+            file: None,
+            line: None,
+            column: None,
         })
         .collect();
     let registrations: Vec<_> = metadata.iter().copied().zip(&sources).collect();
@@ -309,13 +285,14 @@ fn model_count_pipeline(criterion: &mut Criterion) {
 
     for model_count in counts {
         let entries = &registrations[..model_count];
-        let models = ModelRegistry::from_static_metadata(entries).expect("valid static registrations");
+        let models = ModelRegistry::from_static_metadata(reflection, entries).expect("valid static registrations");
         criterion.bench_function(
             &format!("model_registry_construction_models/{model_count}/static_entries"),
             |bencher| {
                 bencher.iter(|| {
                     black_box(
-                        ModelRegistry::from_static_metadata(black_box(entries)).expect("valid static registrations"),
+                        ModelRegistry::from_static_metadata(black_box(reflection), black_box(entries))
+                            .expect("valid static registrations"),
                     )
                 })
             },
@@ -336,14 +313,10 @@ fn model_count_pipeline(criterion: &mut Criterion) {
             full.models().iter().map(|model| model.model_id()).collect::<Vec<_>>(),
         );
         let root = roots[0];
-        let root_set = [root];
         let reachable = Arc::new(
-            StructureResolver::for_roots(ResolveInputs {
-                models: &models,
-                roots: &root_set,
-            })
-            .resolve()
-            .expect("single-root fixture graph"),
+            StructureResolver::for_static_roots(&models, [root])
+                .resolve()
+                .expect("single-root fixture graph"),
         );
         assert_eq!(reachable.models().len(), 1);
 
@@ -366,13 +339,7 @@ fn model_count_pipeline(criterion: &mut Criterion) {
             &format!("model_graph_reachable_models/{model_count}/one_root"),
             |bencher| {
                 bencher.iter(|| {
-                    black_box(
-                        StructureResolver::for_roots(ResolveInputs {
-                            models: black_box(&models),
-                            roots: black_box(&root_set),
-                        })
-                        .resolve(),
-                    )
+                    black_box(StructureResolver::for_static_roots(black_box(&models), [black_box(root)]).resolve())
                 });
             },
         );
@@ -405,19 +372,22 @@ fn model_count_pipeline(criterion: &mut Criterion) {
 
 /// Keeps cold probes ahead of any code that could initialize property caches.
 fn main() {
-    let reflection = ReflectRegistry::initialize().expect("reflection startup outside property timing");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("reflection startup outside property timing");
     let roots = [
         (TypeMetadata::of::<Pipeline1>(), 1),
         (TypeMetadata::of::<Pipeline8>(), 8),
         (TypeMetadata::of::<Pipeline32>(), 32),
     ];
-    cold_properties(&roots, reflection);
+    cold_properties(&roots, &reflection);
     if std::env::args().any(|argument| argument == "--cold-properties") {
         return;
     }
     let mut criterion = Criterion::default().configure_from_args();
-    pipeline(&mut criterion, reflection, &roots);
-    model_count_pipeline(&mut criterion);
-    model_rule_batch_build(&mut criterion, reflection);
+    pipeline(&mut criterion, &reflection, &roots);
+    model_count_pipeline(&mut criterion, &reflection);
+    model_rule_batch_build(&mut criterion, &reflection);
     criterion.final_summary();
 }

@@ -14,6 +14,7 @@ use model_runtime::metadata::ValidationArgument;
 use qubit_id::Id;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
+use qubit_reflect::ReflectionContext;
 
 #[Model]
 struct Member {
@@ -103,8 +104,23 @@ struct UniqueFields {
 #[test]
 fn test_unique_defaults_follow_field_capabilities() {
     let metadata = TypeMetadata::of::<UniqueFields>();
-    assert!(!metadata.fields()[0].unique().expect("numeric unique").ignore_case());
-    assert!(metadata.fields()[1].unique().expect("text unique").ignore_case());
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let numeric = &metadata.fields()[0];
+    let text = &metadata.fields()[1];
+    assert!(
+        !numeric
+            .unique()
+            .expect("numeric unique")
+            .effective_ignore_case_in(numeric, &reflection)
+    );
+    assert!(
+        text.unique()
+            .expect("text unique")
+            .effective_ignore_case_in(text, &reflection)
+    );
 }
 
 #[Model]
@@ -118,9 +134,16 @@ struct UniqueGeneric<T> {
 #[test]
 fn test_generic_unique_retains_deferred_default() {
     let metadata = TypeMetadata::of::<UniqueGeneric<Title>>();
-    assert_eq!(
-        metadata.fields()[0].unique().unwrap().effective_ignore_case(),
-        Some(true)
+    let reflection = ReflectionContext::builder()
+        .include_type::<UniqueGeneric<Title>>()
+        .include_type::<String>()
+        .build()
+        .expect("concrete generic reflection context");
+    assert!(
+        metadata.fields()[0]
+            .unique()
+            .unwrap()
+            .effective_ignore_case_in(&metadata.fields()[0], &reflection)
     );
     assert_eq!(
         metadata.generic_definition().unwrap().fields()[0]

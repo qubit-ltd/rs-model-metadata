@@ -12,7 +12,11 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::descriptor::GenericExpressionArgumentKind;
+use qubit_reflect::descriptor::TypeExpression;
+use qubit_reflect::descriptor::TypeExpressionKind;
 
 use super::execution_declaration::ExecutionDeclaration;
 use super::validation_occurrence::ValidationOccurrence;
@@ -44,10 +48,14 @@ pub(crate) fn collect(
     root: &'static TypeMetadata,
     graph: &ModelGraph<'_>,
 ) -> (Vec<ValidationOccurrence>, Vec<ValidationBuildError>) {
+    let context = graph
+        .registry()
+        .context()
+        .expect("resolved validation graphs retain their reflection context");
     let Some(root) = graph.model(root.type_id()) else {
         return (Vec::new(), vec![ValidationBuildError::missing_root(root)]);
     };
-    let work = reachable_work(graph);
+    let work = reachable_work(graph, context);
     let mut occurrences = Vec::new();
     let mut errors = Vec::new();
     let mut ordinal = 0;
@@ -56,6 +64,7 @@ pub(crate) fn collect(
         root,
         &[],
         None,
+        context,
         graph,
         &work,
         &mut HashSet::new(),
@@ -69,7 +78,7 @@ pub(crate) fn collect(
 
 /// Computes executable-work reachability by monotone propagation, including
 /// cycles.
-fn reachable_work(graph: &ModelGraph<'_>) -> HashSet<TypeId> {
+fn reachable_work(graph: &ModelGraph<'_>, context: &ReflectionContext) -> HashSet<TypeId> {
     let mut work = HashSet::new();
     let mut predecessors: HashMap<TypeId, Vec<TypeId>> = HashMap::new();
     for model in graph.models() {
@@ -80,7 +89,14 @@ fn reachable_work(graph: &ModelGraph<'_>) -> HashSet<TypeId> {
             if field.is_opaque() || field.reference().is_some() {
                 continue;
             }
-            for (target, _) in nested_models(field.descriptor(), graph) {
+            for (target, _, _) in nested_models(
+                model
+                    .field_descriptor_in(field, context)
+                    .and_then(|field| field.find_concrete_type()),
+                field.type_expression_in(context),
+                model,
+                graph,
+            ) {
                 predecessors.entry(target.type_id()).or_default().push(model.type_id());
             }
         }
@@ -103,6 +119,7 @@ fn walk(
     owner: &'static TypeMetadata,
     prefix: &[&'static str],
     diagnostic_prefix: Option<&str>,
+    context: &ReflectionContext,
     graph: &ModelGraph<'_>,
     work: &HashSet<TypeId>,
     active: &mut HashSet<TypeId>,
@@ -123,7 +140,13 @@ fn walk(
         );
         let unsupported = inherited_unsupported
             || (owner.as_enum().is_some()
-                && (!enum_variant.is_some_and(|variant| variant.reflect().is_some()) || field.reflect().is_none()))
+                && (!enum_variant.is_some_and(|variant| {
+                    owner
+                        .descriptor_in(context)
+                        .variants()
+                        .iter()
+                        .any(|actual| actual.index() == variant.index())
+                }) || owner.field_descriptor_in(field, context).is_none()))
             || (field.name().is_none() && !transparent_unnamed && enum_variant.is_none());
         let unsupported_path = (unsupported || enum_variant.is_some()).then(|| {
             let mut path = diagnostic_prefix.map_or_else(|| prefix.join("."), str::to_owned);
@@ -158,14 +181,21 @@ fn walk(
         if field.is_opaque() || field.reference().is_some() {
             continue;
         }
-        for (target, suffix) in nested_models(field.descriptor(), graph) {
+        let field_descriptor = owner
+            .field_descriptor_in(field, context)
+            .and_then(|field| field.find_concrete_type());
+        for (target, suffix, access_segments) in
+            nested_models(field_descriptor, field.type_expression_in(context), owner, graph)
+        {
             if !work.contains(&target.type_id()) {
                 continue;
             }
-            // A structural suffix identifies a container, tuple or raw field use,
-            // never an executable property access promised by the current backend.
             let direct = suffix.is_empty()
-                && direct_model(field.descriptor(), graph).is_some_and(|model| model.type_id() == target.type_id());
+                && direct_model(field_descriptor, graph).is_some_and(|model| model.type_id() == target.type_id());
+            let mut nested_segments = segments.clone();
+            if let Some(access_segments) = access_segments {
+                nested_segments.extend(access_segments);
+            }
             let nested_path = (unsupported || owner.as_enum().is_some() || !direct).then(|| {
                 let mut path = unsupported_path.clone().unwrap_or_else(|| {
                     let mut path = diagnostic_prefix.map_or_else(|| prefix.join("."), str::to_owned);
@@ -187,7 +217,7 @@ fn walk(
                     owner,
                     field,
                     enum_variant: None,
-                    segments: segments.clone(),
+                    segments: nested_segments.clone(),
                     unsupported_path: nested_path,
                     selector: None,
                     ordinal: *ordinal,
@@ -200,8 +230,9 @@ fn walk(
             walk(
                 root,
                 target,
-                &segments,
+                &nested_segments,
                 nested_path.as_deref(),
+                context,
                 graph,
                 work,
                 active,
@@ -309,19 +340,28 @@ fn constraint_has_work(constraint: &ConstraintMetadata) -> bool {
 }
 
 /// Resolves a model through optional or smart-pointer wrappers only.
-fn direct_model(
-    mut descriptor: Option<&'static TypeDescriptor>,
+fn direct_model<'ctx>(
+    mut descriptor: Option<TypeDescriptor<'ctx>>,
     graph: &ModelGraph<'_>,
 ) -> Option<&'static TypeMetadata> {
     while let Some(current) = descriptor {
         if let Some(model) = graph.model(current.type_id()) {
             return Some(model);
         }
-        descriptor = current
-            .as_optional()
-            .map(|value| value.element_type())
-            .or_else(|| current.as_smart_pointer().map(|value| value.pointee_type()))
-            .and_then(|value| value.as_resolved());
+        let is_wrapper = matches!(
+            current.kind(),
+            qubit_reflect::descriptor::TypeKind::Optional(_) | qubit_reflect::descriptor::TypeKind::SmartPointer(_)
+        );
+        descriptor = is_wrapper
+            .then(|| {
+                current
+                    .generic_arguments()
+                    .get_at(0)?
+                    .type_argument()
+                    .ok()?
+                    .find_concrete_type()
+            })
+            .flatten();
     }
     None
 }
@@ -378,18 +418,20 @@ fn structural_suffix(kind: StructuralEdgeKind) -> String {
 /// Finds every model usage behind structural wrappers without expanding model
 /// bodies. Returned suffixes distinguish static uses of the same target type.
 /// Only active ancestors suppress cycles; siblings are never deduplicated.
-fn nested_models(
-    descriptor: Option<&'static TypeDescriptor>,
+fn nested_models<'ctx>(
+    descriptor: Option<TypeDescriptor<'ctx>>,
+    expression: Option<TypeExpression<'ctx>>,
+    owner: &'static TypeMetadata,
     graph: &ModelGraph<'_>,
-) -> Vec<(&'static TypeMetadata, String)> {
+) -> Vec<(&'static TypeMetadata, String, Option<Vec<&'static str>>)> {
     // Enter/leave frames keep traversal finite without recursive Rust calls.
     let mut pending: Vec<_> = descriptor
         .into_iter()
-        .map(|value| (value, String::new(), true))
+        .map(|value| (value, String::new(), Some(Vec::new()), true))
         .collect();
     let mut active = HashSet::new();
     let mut targets = Vec::new();
-    while let Some((current, path, entering)) = pending.pop() {
+    while let Some((current, path, access_segments, entering)) = pending.pop() {
         if !entering {
             active.remove(&current.type_id());
             continue;
@@ -398,19 +440,117 @@ fn nested_models(
             continue;
         }
         if let Some(model) = graph.model(current.type_id()) {
-            targets.push((model, path));
+            targets.push((model, path, access_segments));
             active.remove(&current.type_id());
             continue;
         }
-        pending.push((current, String::new(), false));
+        pending.push((current, String::new(), None, false));
         let first_child = pending.len();
         children(current, |edge| {
-            if let Some(child) = edge.target.as_resolved() {
-                let suffix = structural_suffix(edge.kind);
-                pending.push((child, format!("{path}{suffix}"), true));
-            }
+            let suffix = structural_suffix(edge.kind);
+            let access_segments = match (access_segments.as_ref(), edge.kind) {
+                (Some(segments), StructuralEdgeKind::StructField { name, query_name, .. }) => {
+                    query_name.or(name).map(|name| {
+                        let mut next = segments.clone();
+                        next.push(name);
+                        next
+                    })
+                }
+                (Some(segments), StructuralEdgeKind::OptionalElement | StructuralEdgeKind::PointerPointee) => {
+                    Some(segments.clone())
+                }
+                _ => None,
+            };
+            pending.push((edge.target, format!("{path}{suffix}"), access_segments, true));
         });
         pending[first_child..].reverse();
     }
+    // Descriptor traversal is authoritative when it discovers a nested model:
+    // its edges carry the exact source shape and suffix. Expression traversal
+    // fills gaps only when this context cannot resolve any model child.
+    // Running both unconditionally can mistake generic arguments inside an
+    // already-resolved wrapper for additional paths and emit duplicate or
+    // malformed declarations.
+    if targets.is_empty()
+        && let Some(expression) = expression
+    {
+        expression_models(expression, owner, graph, "", &mut targets);
+    }
+    targets.sort_by_key(|(metadata, suffix, _)| (metadata.type_id(), suffix.clone()));
+    targets.dedup_by(|left, right| left.0.type_id() == right.0.type_id() && left.1 == right.1);
     targets
+}
+
+/// Retains model usages found in source expressions when a context has no
+/// registered concrete field descriptor for the owning type.
+fn expression_models(
+    expression: TypeExpression<'_>,
+    owner: &'static TypeMetadata,
+    graph: &ModelGraph<'_>,
+    suffix: &str,
+    output: &mut Vec<(&'static TypeMetadata, String, Option<Vec<&'static str>>)>,
+) {
+    match expression.kind() {
+        TypeExpressionKind::SelfType => {
+            if let Some(model) = graph.model(owner.type_id()) {
+                output.push((model, suffix.to_owned(), None));
+            }
+        }
+        TypeExpressionKind::Named(named) => {
+            let path = named.path().trim();
+            let owner_name = owner.type_name();
+            let owner_short_name = owner_name.rsplit("::").next().unwrap_or(owner_name);
+            if (path == owner_name || path == owner_short_name)
+                && let Some(model) = graph.model(owner.type_id())
+            {
+                output.push((model, suffix.to_owned(), None));
+                return;
+            }
+            let matches = graph
+                .models()
+                .iter()
+                .filter(|model| model.type_name() == path)
+                .collect::<Vec<_>>();
+            if let [model] = matches.as_slice() {
+                output.push((model, suffix.to_owned(), None));
+                return;
+            }
+            let tail = path.rsplit("::").next().unwrap_or(path);
+            for (position, argument) in named.arguments().iter().enumerate() {
+                let GenericExpressionArgumentKind::Type(nested) = argument.kind() else {
+                    continue;
+                };
+                let nested_suffix = match tail {
+                    "Vec" | "VecDeque" | "HashSet" | "BTreeSet" | "BinaryHeap" => {
+                        format!("{suffix}[]")
+                    }
+                    "HashMap" | "BTreeMap" => {
+                        format!("{suffix}{}", if position == 0 { "[key]" } else { "[value]" })
+                    }
+                    _ => suffix.to_owned(),
+                };
+                expression_models(nested, owner, graph, &nested_suffix, output);
+            }
+        }
+        TypeExpressionKind::Tuple(elements) => {
+            for (index, nested) in elements.iter().enumerate() {
+                expression_models(*nested, owner, graph, &format!("{suffix}.{index}"), output);
+            }
+        }
+        TypeExpressionKind::Array { element, .. } | TypeExpressionKind::Slice(element) => {
+            expression_models(element, owner, graph, &format!("{suffix}[]"), output);
+        }
+        TypeExpressionKind::Reference { target, .. } | TypeExpressionKind::RawPointer { target, .. } => {
+            expression_models(target, owner, graph, suffix, output);
+        }
+        TypeExpressionKind::AssociatedType(value) => {
+            expression_models(value.self_type(), owner, graph, suffix, output);
+        }
+        TypeExpressionKind::Parameter(_)
+        | TypeExpressionKind::ParameterName(_)
+        | TypeExpressionKind::FunctionPointer(_)
+        | TypeExpressionKind::TraitObject(_)
+        | TypeExpressionKind::Opaque(_)
+        | TypeExpressionKind::Never => {}
+    }
 }

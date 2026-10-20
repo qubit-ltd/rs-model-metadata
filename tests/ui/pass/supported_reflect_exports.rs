@@ -6,16 +6,18 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use qubit_reflect::descriptor::TypeRef;
-use qubit_reflect::expression::TypeExpression;
-use qubit_reflect::identity::FragmentIdentity;
-use qubit_reflect::FieldDefinitionDescriptor;
+use qubit_reflect::context::ReflectionContext;
+use qubit_reflect::context::ReflectionContextId;
+use qubit_reflect::descriptor::ConstExpression;
+use qubit_reflect::descriptor::FieldDescriptor;
+use qubit_reflect::descriptor::Reflect as ReflectTrait;
+use qubit_reflect::descriptor::TypeDefinitionDescriptor;
+use qubit_reflect::descriptor::TypeDefinitionId;
+use qubit_reflect::descriptor::TypeDescriptor;
+use qubit_reflect::descriptor::TypeExpression;
+use qubit_reflect::descriptor::VariantDescriptor;
+use qubit_reflect::error::RegistrationOrigin;
 use qubit_reflect::Reflect;
-use qubit_reflect::ReflectRegistry;
-use qubit_reflect::TypeDefinitionDescriptor;
-use qubit_reflect::TypeDefinitionId;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::VariantDefinitionDescriptor;
 
 #[Reflect]
 struct Generic<T> {
@@ -23,14 +25,20 @@ struct Generic<T> {
 }
 
 fn main() {
-    let descriptor = TypeDescriptor::of::<Generic<u8>>();
-    let _: Option<TypeDefinitionId> = descriptor.definition_id();
-    let _: Option<&TypeDefinitionDescriptor> = descriptor.type_definition();
-    let _: Option<&FieldDefinitionDescriptor> = descriptor.type_definition().and_then(|value| value.fields()?.first());
-    let _: Option<&VariantDefinitionDescriptor> = None;
-    let _: Option<&TypeExpression> = None;
-    let _: Option<&TypeRef> = None;
-    let _: Option<&FragmentIdentity> = ReflectRegistry::initialize()
-        .expect("registry")
-        .definition_source(descriptor.definition_id().expect("definition"));
+    fn assert_reflect<T: ReflectTrait>() {}
+
+    assert_reflect::<Generic<u8>>();
+    let context = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let descriptor = TypeDescriptor::of_in::<Generic<u8>>(&context);
+    let _: TypeDefinitionDescriptor<'_> = descriptor.definition().expect("definition");
+    let _: Option<TypeDefinitionId> = None;
+    let _: Option<FieldDescriptor<'_>> = None;
+    let _: Option<VariantDescriptor<'_>> = None;
+    let _: Option<TypeExpression> = None;
+    let _: Option<ConstExpression> = None;
+    let _: Option<RegistrationOrigin> = None;
+    let _: Option<ReflectionContextId> = None;
 }

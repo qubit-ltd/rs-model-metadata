@@ -8,7 +8,7 @@
 
 //! Static metadata contract implemented by generated model declarations.
 
-use qubit_reflect::Reflect;
+use qubit_reflect::descriptor::Reflect;
 
 use crate::__private::ModelTypeSeal;
 use crate::__private::TypeMetadataProvider;

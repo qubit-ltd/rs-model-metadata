@@ -18,6 +18,7 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validator::ArgumentReader;
@@ -120,7 +121,8 @@ static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
 /// Typed parameters reach preparation, then influence real plan execution.
 #[test]
 fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated model registry");
+    let models =
+        ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated model registry");
     let root = TypeMetadata::of::<ConfiguredToken>();
     let roots = [root];
     let graph = Arc::new(

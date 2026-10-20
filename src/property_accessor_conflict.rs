@@ -8,7 +8,7 @@
 
 //! Both accessor methods and their provider origins in a property conflict.
 
-use qubit_reflect::capability::CapabilityOrigin;
+use crate::reflect_facade::ModelImplSource;
 
 /// Identifies both methods and provider origins in an accessor conflict.
 ///
@@ -33,9 +33,9 @@ pub struct PropertyAccessorConflict {
     /// Name of the conflicting method from the later provider.
     second_method: &'static str,
     /// Provider origin associated with the first selected method.
-    first_origin: CapabilityOrigin,
+    first_origin: ModelImplSource,
     /// Provider origin associated with the later conflicting method.
-    second_origin: CapabilityOrigin,
+    second_origin: ModelImplSource,
 }
 
 impl PropertyAccessorConflict {
@@ -55,8 +55,8 @@ impl PropertyAccessorConflict {
     pub(crate) const fn new(
         first_method: &'static str,
         second_method: &'static str,
-        first_origin: CapabilityOrigin,
-        second_origin: CapabilityOrigin,
+        first_origin: ModelImplSource,
+        second_origin: ModelImplSource,
     ) -> Self {
         Self {
             first_method,
@@ -95,7 +95,7 @@ impl PropertyAccessorConflict {
     /// A shared reference to the first provider's origin.
     #[must_use]
     #[inline]
-    pub const fn first_origin(&self) -> &CapabilityOrigin {
+    pub const fn first_origin(&self) -> &ModelImplSource {
         &self.first_origin
     }
 
@@ -106,7 +106,7 @@ impl PropertyAccessorConflict {
     /// A shared reference to the later provider's origin.
     #[must_use]
     #[inline]
-    pub const fn second_origin(&self) -> &CapabilityOrigin {
+    pub const fn second_origin(&self) -> &ModelImplSource {
         &self.second_origin
     }
 }

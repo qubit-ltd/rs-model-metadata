@@ -6,308 +6,175 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Metadata and property lookup distinguish invalid capabilities from absence.
+//! Metadata registration failures retain typed causes at vNext boundaries.
 
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
+use qubit_model_derive::Model;
+use qubit_model_metadata::__private::ModelMetadataCapability;
 use qubit_model_metadata::__private::ModelMetadataProvider;
-use qubit_model_metadata::__private::ModelTypeSeal;
-use qubit_model_metadata::__private::TypeMetadataProvider as TypeMetadataProviderTrait;
-use qubit_model_metadata::__private::model_metadata_key;
 use qubit_model_metadata::__private::v8;
-use qubit_model_metadata::metadata::FieldMetadata;
-use qubit_model_metadata::metadata::ModelId;
-use qubit_model_metadata::metadata::ModelMetadataError;
+use qubit_model_metadata::__private::v8::model_metadata_registration;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_model_metadata::resolve::ModelResolutionCause;
+use qubit_model_metadata::registry::ModelRegistryErrorKind;
+use qubit_model_metadata::registry::ModelRegistryOrigin;
 use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::capability::CapabilityDescriptor;
-use qubit_reflect::capability::CapabilityKey;
-use qubit_reflect::descriptor::StructKind;
-use qubit_reflect::identity::CapabilityId;
-use qubit_reflect::registry::ReflectRegistry;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::capability::CapabilityRegistration;
+use qubit_reflect::error::ContextIssue;
 
-/// The conflicting intrinsic contract used on unregistered const instances.
-fn conflict_key() -> CapabilityKey<usize> {
-    CapabilityKey::new(CapabilityId::new("example.metadata_conflict").unwrap())
+#[Model(id = "error.DuplicateCapability")]
+struct DuplicateCapabilityFixture {
+    value: String,
 }
-/// First conflicting fact.
-#[allow(
-    clippy::extra_unused_type_parameters,
-    reason = "derive capability providers receive the concrete type parameter"
-)]
-fn first<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(conflict_key(), 1)
-}
-/// Second conflicting fact.
-#[allow(
-    clippy::extra_unused_type_parameters,
-    reason = "derive capability providers receive the concrete type parameter"
-)]
-fn second<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(conflict_key(), 2)
-}
+
 #[Reflect]
-#[reflect(capabilities(first, second))]
-struct Invalid<const N: usize>;
-
-#[test]
-fn test_metadata_and_properties_preserve_intrinsic_conflicts() {
-    let reflection = RegistrySnapshotBuilder::new().build().unwrap();
-    let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
-    let descriptor = TypeDescriptor::of::<Invalid<1>>();
-    assert!(models.metadata_for(descriptor).is_err());
-    let metadata = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(descriptor, None, &[], v8::leak(v8::model_role())).finish::<Invalid<1>>(),
-    );
-    assert!(metadata.try_properties_in(&reflection).is_err());
-    assert!(metadata.property_fragments_in(&reflection).is_err());
-    assert!(metadata.try_property_in(&reflection, "absent").is_err());
-    assert!(models.properties_for(metadata).is_err());
+struct WrongMetadataFixture<const N: usize> {
+    value: String,
 }
 
-/// A value root with two independently invalid nested types.
-#[Reflect]
-struct Root {
-    first: Invalid<2>,
-    second: Invalid<3>,
-}
-
-fn root_metadata() -> &'static TypeMetadata {
-    static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
+fn wrong_metadata() -> &'static TypeMetadata {
+    static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        let descriptor = TypeDescriptor::of::<Root>();
-        let fields = v8::leak_slice(
-            descriptor
-                .fields()
-                .iter()
-                .map(|field| FieldMetadata::from_reflect(field.declaring_type().type_id(), field))
-                .collect(),
-        );
-        v8::GeneratedTypeMetadataBuilder::new(
-            descriptor,
-            Some(ModelId::new("error.Root")),
-            fields,
-            v8::leak(v8::value_role(None, None)),
-        )
-        .finish::<Root>()
+        v8::GeneratedTypeMetadataBuilder::new::<WrongMetadataFixture<2>>(None, &[], v8::leak(v8::model_role()))
+            .finish_unchecked()
     })
 }
 
-v8::register_model_capability!(Root, root_metadata);
+static PANIC_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-#[allow(
-    clippy::extra_unused_type_parameters,
-    reason = "derive capability providers receive the concrete type parameter"
-)]
-fn wrong_provider<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(model_metadata_key(), root_metadata as fn() -> &'static TypeMetadata)
-}
-
-#[Reflect]
-#[reflect(capabilities(wrong_provider))]
-struct Wrong<const N: usize>;
-
-static ALTERNATE_WRONG_DESCRIPTOR: TypeDescriptor = qubit_reflect::__private::codegen_v3::descriptor::struct_type::<
-    Wrong<2>,
->("WrongAlternateShape", StructKind::Tuple, &[]);
-
-static PANIC_ONCE_CALLS: AtomicUsize = AtomicUsize::new(0);
-
-#[Reflect]
-#[reflect(capabilities(panic_once_capability))]
-struct PanicOnce<const N: usize>;
-
-#[allow(
-    clippy::extra_unused_type_parameters,
-    reason = "derive capability providers receive the concrete type parameter"
-)]
-fn panic_once_capability<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(model_metadata_key(), panic_once_metadata as ModelMetadataProvider)
+#[Model(id = "error.PanicProvider")]
+struct PanicProviderFixture {
+    value: String,
 }
 
 fn panic_once_metadata() -> &'static TypeMetadata {
-    match PANIC_ONCE_CALLS.fetch_add(1, Ordering::SeqCst) {
-        0 => panic_once_metadata_for_one(),
-        1 => panic!("intentional provider panic on first lookup"),
-        _ => panic_once_metadata_for_two(),
+    if PANIC_PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst) == 0 {
+        panic!("intentional provider panic on the first projection");
     }
+    TypeMetadata::of::<PanicProviderFixture>()
 }
 
-fn panic_once_metadata_for_one() -> &'static TypeMetadata {
-    static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
-    METADATA.get_or_init(|| {
-        v8::GeneratedTypeMetadataBuilder::new(
-            TypeDescriptor::of::<PanicOnce<1>>(),
-            None,
-            &[],
-            v8::leak(v8::model_role()),
-        )
-        .finish::<PanicOnce<1>>()
+#[Model(id = "error.SourceMissingTarget")]
+struct SourceMissingTargetFixture {
+    #[reference(entity_id = "error.MissingTarget")]
+    target: qubit_id::Id,
+}
+
+fn source() -> &'static ModelRegistryOrigin {
+    static SOURCE: OnceLock<ModelRegistryOrigin> = OnceLock::new();
+    SOURCE.get_or_init(|| ModelRegistryOrigin {
+        crate_name: "metadata-resolution-errors",
+        crate_version: None,
+        module_path: module_path!(),
+        file: Some(file!()),
+        line: Some(line!()),
+        column: Some(1),
     })
 }
 
-fn panic_once_metadata_for_two() -> &'static TypeMetadata {
-    static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
-    METADATA.get_or_init(|| {
-        v8::GeneratedTypeMetadataBuilder::new(
-            TypeDescriptor::of::<PanicOnce<2>>(),
-            None,
-            &[],
-            v8::leak(v8::model_role()),
-        )
-        .finish::<PanicOnce<2>>()
-    })
-}
-
-impl ModelTypeSeal for PanicOnce<1> {}
-impl TypeMetadataProviderTrait for PanicOnce<1> {
-    fn __type_metadata() -> &'static TypeMetadata {
-        panic_once_metadata_for_one()
-    }
-}
-
-impl ModelTypeSeal for PanicOnce<2> {}
-impl TypeMetadataProviderTrait for PanicOnce<2> {
-    fn __type_metadata() -> &'static TypeMetadata {
-        panic_once_metadata_for_two()
-    }
-}
-
 #[test]
-fn test_metadata_abi_failure_is_distinct_from_absence() {
-    let reflection = RegistrySnapshotBuilder::new().build().unwrap();
-    let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
-    let error = models.metadata_for(TypeDescriptor::of::<Wrong<1>>()).unwrap_err();
-    assert!(matches!(error, ModelMetadataError::Abi { .. }));
-    assert!(std::error::Error::source(&error).is_some());
-    assert!(models.metadata_for(TypeDescriptor::of::<u8>()).unwrap().is_none());
-}
-
-#[test]
-fn test_metadata_for_caches_absence_and_structured_errors() {
-    let reflection = RegistrySnapshotBuilder::new().build().unwrap();
-    let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
-
-    let missing = TypeDescriptor::of::<u8>();
-    assert!(models.metadata_for(missing).unwrap().is_none());
-    assert!(models.metadata_for(missing).unwrap().is_none());
-
-    let conflict = TypeDescriptor::of::<Invalid<4>>();
-    for _ in 0..2 {
-        let error = models.metadata_for(conflict).unwrap_err();
-        assert!(matches!(error, ModelMetadataError::Capability { .. }));
-    }
-
-    let wrong = TypeDescriptor::of::<Wrong<1>>();
-    let first = models.metadata_for(wrong).unwrap_err();
-    let second = models.metadata_for(wrong).unwrap_err();
-    assert!(matches!(first, ModelMetadataError::Abi { .. }));
-    assert!(matches!(second, ModelMetadataError::Abi { .. }));
-    match (first, second) {
-        (
-            ModelMetadataError::Abi {
-                type_id: first_id,
-                source: first_source,
-                ..
-            },
-            ModelMetadataError::Abi {
-                type_id: second_id,
-                source: second_source,
-                ..
-            },
-        ) => {
-            assert_eq!(first_id, second_id);
-            assert_eq!(first_source.code(), second_source.code());
-        }
-        _ => unreachable!("both lookups preserve ABI errors"),
-    }
-}
-
-#[test]
-fn test_metadata_cache_separates_descriptors_with_the_same_type_id() {
-    let descriptor = TypeDescriptor::of::<Wrong<2>>();
-    let metadata = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(
-            descriptor,
-            Some(ModelId::new("error.WrongDescriptor")),
-            &[],
-            v8::leak(v8::model_role()),
-        )
-        .finish::<Wrong<2>>(),
-    );
-    let source = qubit_reflect::identity::FragmentIdentity::new("fixture", "alternate", 1, 1, "model", 1);
-    let models = ModelRegistry::from_static_metadata(&[(metadata, &source)]).unwrap();
-    assert!(models.metadata_for(descriptor).unwrap().is_some());
-
-    assert_eq!(ALTERNATE_WRONG_DESCRIPTOR.type_id(), descriptor.type_id());
-    assert_ne!(
-        &ALTERNATE_WRONG_DESCRIPTOR as *const TypeDescriptor,
-        descriptor as *const TypeDescriptor,
-    );
+fn test_duplicate_typed_metadata_capability_fails_context_construction() {
+    let result = ReflectionContext::builder()
+        .include_type::<DuplicateCapabilityFixture>()
+        .register(model_metadata_registration::<DuplicateCapabilityFixture>())
+        .register(model_metadata_registration::<DuplicateCapabilityFixture>())
+        .build();
+    let error = match result {
+        Err(error) => error,
+        Ok(_) => panic!("one target cannot receive duplicate typed capabilities"),
+    };
     assert!(matches!(
-        models.metadata_for(&ALTERNATE_WRONG_DESCRIPTOR),
-        Err(ModelMetadataError::Abi { .. })
+        error.primary_issue(),
+        ContextIssue::ConflictingCapability { .. }
     ));
+    assert_eq!(error.issues().len(), 1);
 }
 
 #[test]
-fn test_metadata_provider_panic_does_not_initialize_cache_cell() {
-    PANIC_ONCE_CALLS.store(0, Ordering::SeqCst);
-    let descriptor = TypeDescriptor::of::<PanicOnce<1>>();
-    let mut builder = RegistrySnapshotBuilder::new();
-    builder.add_type(
-        descriptor,
-        qubit_reflect::identity::FragmentIdentity::new("fixture", "panic", 1, 1, "type", 1),
-    );
-    let reflection = builder.build().unwrap();
-    let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
+fn test_registry_projection_distinguishes_absence_from_metadata_abi_failure() {
+    let context = ReflectionContext::builder()
+        .include_type::<WrongMetadataFixture<1>>()
+        .include_type::<String>()
+        .register(CapabilityRegistration::for_type::<
+            WrongMetadataFixture<1>,
+            ModelMetadataCapability,
+        >(wrong_metadata as ModelMetadataProvider))
+        .build()
+        .expect("typed capability registration is structurally valid");
 
-    let queried = TypeDescriptor::of::<PanicOnce<2>>();
-    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| models.metadata_for(queried)));
+    let error = ModelRegistry::from_context(&context)
+        .expect_err("metadata for a different const instance must fail ABI validation");
+    assert_eq!(error.kind(), ModelRegistryErrorKind::InvalidMetadata);
+    assert!(error.abi_cause().is_some());
+    assert!(std::error::Error::source(&error).is_some());
+}
+
+#[test]
+fn test_registry_caches_absent_metadata_in_a_valid_context() {
+    let context = ReflectionContext::builder()
+        .include_type::<String>()
+        .include_type::<u8>()
+        .build()
+        .expect("reflection-only context");
+    let registry = ModelRegistry::from_context(&context).expect("valid empty model projection");
+    let missing = context
+        .type_by_id(std::any::TypeId::of::<u8>())
+        .expect("included descriptor");
+
+    assert!(registry.metadata_for(&missing).expect("first lookup").is_none());
+    assert!(registry.metadata_for(&missing).expect("cached lookup").is_none());
+}
+
+#[test]
+fn test_panicking_metadata_provider_can_be_retried_during_registry_projection() {
+    PANIC_PROVIDER_CALLS.store(0, Ordering::SeqCst);
+    let context = ReflectionContext::builder()
+        .include_type::<PanicProviderFixture>()
+        .include_type::<String>()
+        .register(CapabilityRegistration::for_type::<
+            PanicProviderFixture,
+            ModelMetadataCapability,
+        >(panic_once_metadata))
+        .build()
+        .expect("typed metadata capability registration");
+
+    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = ModelRegistry::from_context(&context);
+    }));
     assert!(panic.is_err());
-    let metadata = models
-        .metadata_for(queried)
-        .expect("retry after provider panic")
-        .expect("provider metadata");
-    assert!(std::ptr::eq(metadata, panic_once_metadata_for_two()));
-    assert_eq!(PANIC_ONCE_CALLS.load(Ordering::SeqCst), 3);
+    let registry = ModelRegistry::from_context(&context).expect("retry after provider panic");
+    assert!(std::ptr::eq(
+        registry.metadata("error.PanicProvider").expect("registered model"),
+        TypeMetadata::of::<PanicProviderFixture>()
+    ));
+    assert_eq!(PANIC_PROVIDER_CALLS.load(Ordering::SeqCst), 2);
 }
 
 #[test]
-fn test_resolver_aggregates_real_causes_without_false_role_errors() {
-    let reflection = ReflectRegistry::initialize().unwrap();
-    let models = ModelRegistry::from_reflect_registry(reflection).unwrap();
+fn test_resolver_reports_missing_target_after_valid_metadata_projection() {
+    let source_metadata = TypeMetadata::of::<SourceMissingTargetFixture>();
+    let context = ReflectionContext::builder()
+        .include_type::<SourceMissingTargetFixture>()
+        .include_type::<qubit_id::Id>()
+        .build()
+        .expect("local context contains both reflected types without linked metadata");
+    let registry = ModelRegistry::from_static_metadata(&context, &[(source_metadata, source())])
+        .expect("source metadata matches its descriptor");
     let errors = StructureResolver::new(ResolveInputs {
         roots: &[],
-        models: &models,
+        models: &registry,
     })
     .resolve()
-    .unwrap_err();
-    // Closure discovery and field traversal retain their distinct contexts.
-    assert_eq!(errors.errors().len(), 4);
-    let paths: Vec<_> = errors
-        .errors()
-        .iter()
-        .map(|error| {
-            assert_eq!(error.kind(), ResolveErrorKind::MetadataResolution);
-            assert_eq!(error.model_id(), Some("error.Root"));
-            assert!(!error.sources().is_empty());
-            assert!(matches!(
-                error.cause(),
-                Some(ModelResolutionCause::Metadata(ModelMetadataError::Capability { .. }))
-            ));
-            error.path().map(|path| path.to_string())
-        })
-        .collect();
-    assert_eq!(paths.iter().filter(|path| path.is_none()).count(), 2);
-    assert_eq!(paths.into_iter().flatten().collect::<Vec<_>>(), ["first", "second"]);
+    .expect_err("missing targets must prevent graph publication");
+
+    assert_eq!(errors.errors().len(), 1);
+    assert_eq!(errors.errors()[0].kind(), ResolveErrorKind::MissingModelId);
+    assert_eq!(errors.errors()[0].model_id(), Some("error.MissingTarget"));
 }

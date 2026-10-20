@@ -22,8 +22,9 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::Reflect;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::descriptor::Reflect;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validator::ValidatorRegistry;
@@ -50,7 +51,7 @@ fn unconstrained<T: Reflect>() -> &'static TypeMetadata {
         .map(|field| FieldMetadata::from_reflect(descriptor.type_id(), field))
         .collect();
     v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(descriptor, None, v8::leak_slice(fields), v8::leak(v8::model_role()))
+        v8::GeneratedTypeMetadataBuilder::new::<T>(None, v8::leak_slice(fields), v8::leak(v8::model_role()))
             .finish::<T>(),
     )
 }
@@ -61,7 +62,11 @@ fn test_plan_uses_the_graphs_canonical_root_declarations() {
     let declared = TypeMetadata::of::<Record>();
     let stripped = unconstrained::<Record>();
     let roots = [declared];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked context");
+    let models = ModelRegistry::from_static_metadata(&reflection, &[]).expect("isolated registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             models: &models,
@@ -101,7 +106,7 @@ fn test_plan_does_not_import_constraints_from_another_overlay() {
     let declared = TypeMetadata::of::<Record>();
     let stripped = unconstrained::<Record>();
     let roots = [stripped];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             models: &models,
@@ -142,7 +147,7 @@ fn test_capabilities_check_graph_declarations_for_the_requested_type() {
     let declared = TypeMetadata::of::<UniqueValues>();
     let stripped = unconstrained::<UniqueValues>();
     let roots = [declared];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,

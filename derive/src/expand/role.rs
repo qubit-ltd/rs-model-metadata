@@ -14,6 +14,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::DeriveInput;
 use syn::Error;
+use syn::Ident;
 use syn::Index;
 
 use super::fields::expand_field_vector;
@@ -106,7 +107,7 @@ pub(super) fn expand_role(declaration: &DeclarationIr, item: &DeriveInput, runti
                 );
             }
         }
-        MacroKind::Enum => expand_enum_role(&declaration.variants, runtime),
+        MacroKind::Enum => expand_enum_role(&declaration.variants, &item.ident, runtime),
         MacroKind::ModelImpl => {
             Error::new(Span::call_site(), "ModelImpl does not produce role metadata").into_compile_error()
         }
@@ -132,20 +133,10 @@ fn identifier_accessor(item: &DeriveInput, index: usize, runtime: &TokenStream) 
     };
     quote! {
         |value: #runtime::__private::DynamicRef<'_, #runtime::__private::Local>| {
-            let actual = value.value_type_id();
-            let expected = ::std::any::TypeId::of::<Self>();
-            let model = value.downcast::<Self>().map_err(|_| {
-                #runtime::__private::TypeMismatch::new(expected, actual)
-            })?;
-            let identifier: &dyn ::core::any::Any = &model.#member;
-            identifier
-                .downcast_ref::<#runtime::__private::qubit_id::Id>()
-                .ok_or_else(|| {
-                    #runtime::__private::TypeMismatch::new(
-                        ::std::any::TypeId::of::<#runtime::__private::qubit_id::Id>(),
-                        identifier.type_id(),
-                    )
-                })
+            let model = value
+                .downcast::<Self>()
+                .map_err(|failure| failure.into_parts().0)?;
+            Ok(&model.#member)
         }
     }
 }
@@ -157,13 +148,9 @@ fn identifier_accessor(item: &DeriveInput, index: usize, runtime: &TokenStream) 
 /// The generated binding also includes an empty declaration-level field slice,
 /// since enum fields belong to individual variants.
 #[must_use]
-fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStream {
+fn expand_enum_role(variants: &[VariantIr], owner: &Ident, runtime: &TokenStream) -> TokenStream {
     let variants = variants.iter().enumerate().map(|(variant_index, variant)| {
-        let fields = expand_field_vector(
-            &variant.fields,
-            quote!(descriptor.variants()[#variant_index].fields()),
-            runtime,
-        );
+        let fields = expand_field_vector(&variant.fields, runtime, owner);
         let canonical = &variant.canonical_name;
         let serialized = &variant.serialized_name;
         let deserialized = &variant.deserialized_name;
@@ -173,10 +160,10 @@ fn expand_enum_role(variants: &[VariantIr], runtime: &TokenStream) -> TokenStrea
             {
                 #fields
                 let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v8::leak_slice(fields);
-                let reflect = &descriptor.variants()[#variant_index];
-                debug_assert_eq!(reflect.rust_name(), #rust_name);
                 variants.push(#runtime::__private::v8::enum_variant_metadata(
-                    reflect,
+                    ::std::any::TypeId::of::<Self>(),
+                    #variant_index,
+                    #rust_name,
                     #canonical,
                     #serialized,
                     #deserialized,

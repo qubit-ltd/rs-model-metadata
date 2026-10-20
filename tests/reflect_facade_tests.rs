@@ -18,12 +18,12 @@ use qubit_datatype::DataType;
 use qubit_id::Id;
 use qubit_model_metadata::__private::ModelTypeSeal;
 use qubit_model_metadata::__private::TypeMetadataProvider;
-use qubit_model_metadata::__private::model_impl_fragment_key;
 use qubit_model_metadata::__private::v8;
-use qubit_model_metadata::__private::v8::register_model_capability;
+use qubit_model_metadata::__private::v8::model_metadata_registration;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::Reflect;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
 use uuid::Uuid;
 
@@ -49,7 +49,7 @@ impl TypeMetadataProvider for Account {
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
             let role = v8::leak(v8::model_role());
-            v8::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Account>(), None, &[], role).finish::<Account>()
+            v8::GeneratedTypeMetadataBuilder::new::<Account>(None, &[], role).finish::<Account>()
         })
     }
 }
@@ -62,24 +62,32 @@ impl TypeMetadataProvider for Impostor {
     }
 }
 
-register_model_capability!(Account, Account::__type_metadata);
-
 #[test]
 fn test_model_metadata_reuses_the_reflect_descriptor_root() {
+    let context = ReflectionContext::builder()
+        .include_linked()
+        .register(model_metadata_registration::<Account>())
+        .build()
+        .expect("explicit context must initialize model registrations");
     let metadata = TypeMetadata::of::<Account>();
-    let descriptor = TypeDescriptor::of::<Account>();
+    let descriptor = metadata.descriptor_in(&context);
 
-    assert!(std::ptr::eq(metadata.descriptor(), descriptor));
-    let registry = ModelRegistry::try_global().expect("model registry must initialize");
+    assert_eq!(metadata.descriptor_in(&context).type_id(), descriptor.type_id());
+    assert!(std::ptr::eq(descriptor.context(), &context));
+    let registry = ModelRegistry::from_context(&context).expect("model registry must initialize");
+    assert!(std::ptr::eq(
+        registry.context().expect("context-bound registry"),
+        &context
+    ));
     assert!(std::ptr::eq(
         registry
-            .metadata_for(descriptor)
+            .metadata_for(&descriptor)
             .expect("model capability must resolve")
             .expect("model capability must exist"),
         metadata
     ));
     assert_eq!(metadata.type_id(), descriptor.type_id());
-    assert_eq!(metadata.type_name(), descriptor.type_name());
+    assert_eq!(metadata.type_name(), descriptor.rust_type_name());
 }
 
 #[test]
@@ -87,10 +95,14 @@ fn test_public_metadata_entry_points_reject_cross_type_providers() {
     let direct = std::panic::catch_unwind(TypeMetadata::of::<Impostor>).expect_err("cross-type provider must fail");
     assert!(panic_message(direct).starts_with("QMM-ABI-001:"));
 
-    let registry = ModelRegistry::try_global().expect("model registry must initialize");
+    let context = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("explicit context must initialize model registrations");
+    let registry = ModelRegistry::from_context(&context).expect("model registry must initialize");
     assert!(
         registry
-            .metadata_for(TypeDescriptor::of::<Impostor>())
+            .metadata_for(&TypeDescriptor::of_in::<Impostor>(&context))
             .expect("valid absent capability")
             .is_none()
     );
@@ -98,27 +110,15 @@ fn test_public_metadata_entry_points_reject_cross_type_providers() {
 
 #[test]
 fn test_reflect_facade_supports_enabled_ecosystem_and_qubit_types() {
-    let descriptor = TypeDescriptor::of::<ExternalTypeFixture>();
+    let context = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("external type reflection context");
+    let descriptor = TypeDescriptor::of_in::<ExternalTypeFixture>(&context);
 
     for field in ["id", "created_at", "amount", "request_id", "data_type"] {
-        assert!(descriptor.field(field).is_some(), "missing reflected field {field}");
+        assert!(descriptor.field(field).is_ok(), "missing reflected field {field}");
     }
-}
-
-#[test]
-fn test_model_impl_fragment_key_rejects_empty_suffix() {
-    assert!(std::panic::catch_unwind(|| model_impl_fragment_key("qubit.model.impl.v1.f")).is_err());
-}
-
-#[test]
-fn test_model_impl_fragment_key_rejects_other_capability() {
-    assert!(std::panic::catch_unwind(|| model_impl_fragment_key("qubit.model.impl.v1.other")).is_err());
-}
-
-#[test]
-fn test_model_impl_fragment_key_preserves_valid_id() {
-    let id = "qubit.model.impl.v1.falpha";
-    assert_eq!(model_impl_fragment_key(id).id().as_str(), id);
 }
 
 fn panic_message(payload: Box<dyn Any + Send>) -> String {

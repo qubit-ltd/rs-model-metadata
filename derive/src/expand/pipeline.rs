@@ -9,7 +9,6 @@
 //! Runs the parse, normalization, validation, and token-expansion pipeline.
 
 use proc_macro2::TokenStream;
-use quote::format_ident;
 use quote::quote;
 use syn::DeriveInput;
 use syn::ItemImpl;
@@ -63,13 +62,6 @@ pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Res
     let output = super::output::prepare(&mut item, &declaration, &runtime)?;
     rewrite_field_helpers(&mut item.data, &declaration);
     item.attrs.push(parse_quote!(#[#runtime::__private::Reflect]));
-    if !item.generics.params.is_empty() {
-        let provider = format_ident!("__qubit_model_reflect_definition_{}", item.ident);
-        item.attrs
-            .push(parse_quote!(#[reflect(definition_provider_v2 = #provider)]));
-    }
-    item.attrs
-        .push(parse_quote!(#[reflect(capabilities(#runtime::__private::v8::model_capability))]));
     let metadata = expand_metadata(&declaration, &item, &runtime);
     let expanded = quote!(#item #metadata #output);
     if item.generics.params.is_empty() {

@@ -50,9 +50,8 @@ use crate::validation::standard_constraints;
 /// struct Record { #[time(precision = second)] created: NaiveDate }
 /// # fn main() {
 /// let root = TypeMetadata::of::<Record>();
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-/// let roots = [root];
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let models = ModelRegistry::try_global().expect("model registry");
+/// let graph = StructureResolver::for_static_roots(models, [root])
 ///     .resolve().expect("record metadata is structurally valid");
 /// let errors = ValidationCapabilities::check(root, &graph)
 ///     .expect_err("NaiveDate precision execution is not supported");

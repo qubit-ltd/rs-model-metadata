@@ -11,6 +11,7 @@
 use std::any::TypeId;
 use std::collections::HashMap;
 
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
 
 use crate::metadata::ModelMetadataError;
@@ -19,10 +20,12 @@ use crate::registry::ModelRegistry;
 
 /// Retains explicit and discovered metadata without changing the registry.
 pub(in crate::resolve) struct ResolutionContext<'a> {
-    /// The caller's registry, always queried before resolution-local facts.
+    /// The caller's registry, queried after explicit root overrides.
     registry: &'a ModelRegistry<'a>,
     /// Concrete metadata supplied or discovered during this attempt only.
     known: HashMap<TypeId, &'static TypeMetadata>,
+    /// Explicit graph roots override registry metadata for the same Rust type.
+    explicit_roots: HashMap<TypeId, &'static TypeMetadata>,
 }
 
 impl<'a> ResolutionContext<'a> {
@@ -44,12 +47,14 @@ impl<'a> ResolutionContext<'a> {
         let mut context = Self {
             registry,
             known: HashMap::new(),
+            explicit_roots: HashMap::new(),
         };
         for (metadata, _) in registry.concrete_entries() {
             context.remember(metadata);
         }
         for &root in roots {
             context.remember(root);
+            context.explicit_roots.insert(root.type_id(), root);
         }
         context
     }
@@ -65,7 +70,14 @@ impl<'a> ResolutionContext<'a> {
         self.registry
     }
 
-    /// Resolves one descriptor, preferring registry results over local facts.
+    /// Returns the reflection context retained by this registry.
+    pub(in crate::resolve) fn reflection(&self) -> &'a ReflectionContext {
+        self.registry
+            .context()
+            .expect("resolution registries retain a reflection context")
+    }
+
+    /// Resolves one descriptor, preferring explicit roots, then registry facts.
     ///
     /// Returns `Some` only for descriptor-checked metadata, or `None` when
     /// neither source knows the model. Capability errors propagate unchanged;
@@ -93,18 +105,28 @@ impl<'a> ResolutionContext<'a> {
     #[must_use = "handle descriptor metadata failures"]
     pub(in crate::resolve) fn metadata_for(
         &self,
-        descriptor: &'static TypeDescriptor,
+        descriptor: TypeDescriptor<'a>,
     ) -> Result<Option<&'static TypeMetadata>, ModelMetadataError> {
-        if let Some(metadata) = self.registry.metadata_for(descriptor)? {
+        if let Some(metadata) = self.explicit_roots.get(&descriptor.type_id()).copied() {
+            metadata
+                .validate_descriptor(&descriptor)
+                .map_err(|source| ModelMetadataError::Abi {
+                    type_id: descriptor.type_id(),
+                    type_name: descriptor.rust_type_name(),
+                    source,
+                })?;
+            return Ok(Some(metadata));
+        }
+        if let Some(metadata) = self.registry.metadata_for(&descriptor)? {
             return Ok(Some(metadata));
         }
         let metadata = self.known.get(&descriptor.type_id()).copied();
         if let Some(metadata) = metadata {
             metadata
-                .validate_descriptor(descriptor)
+                .validate_descriptor(&descriptor)
                 .map_err(|source| ModelMetadataError::Abi {
                     type_id: descriptor.type_id(),
-                    type_name: descriptor.type_name(),
+                    type_name: descriptor.rust_type_name(),
                     source,
                 })?;
         }

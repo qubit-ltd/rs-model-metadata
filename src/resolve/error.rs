@@ -15,7 +15,6 @@ use std::any::TypeId;
 use std::cmp::Ordering;
 use std::error::Error;
 
-use qubit_reflect::identity::FragmentIdentity;
 use thiserror::Error as ThisError;
 
 use super::internal::OwnedPropertyPath;
@@ -26,6 +25,7 @@ use crate::metadata::ObjectPath;
 use crate::metadata::PropertyPath;
 use crate::metadata::PropertyResolutionError;
 use crate::metadata::TypeMetadata;
+use crate::registry::ModelRegistryOrigin;
 
 /// Machine-readable model resolution error class.
 ///
@@ -76,19 +76,11 @@ pub enum ResolveErrorKind {
 /// # Examples
 ///
 /// ```
-/// use std::any::TypeId;
-///
 /// use qubit_model_metadata::metadata::PropertyResolutionError;
 /// use qubit_model_metadata::resolve::ModelResolutionCause;
-/// use qubit_reflect::capability::CapabilityAccessError;
-/// use qubit_reflect::identity::CapabilityId;
-///
-/// let property_error = PropertyResolutionError::Capability(CapabilityAccessError::FactOnly {
-///     id: CapabilityId::new("example.fact").expect("valid capability ID"),
-///     adapter_type: TypeId::of::<u32>(),
-/// });
-/// let cause = ModelResolutionCause::from(property_error);
-/// assert!(matches!(cause, ModelResolutionCause::Properties(_)));
+/// fn is_property_cause(cause: &ModelResolutionCause) -> bool {
+///     matches!(cause, ModelResolutionCause::Properties(_))
+/// }
 /// ```
 #[must_use]
 #[derive(Clone, Debug, ThisError)]
@@ -109,7 +101,7 @@ pub enum ModelResolutionCause {
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveError, ResolveErrorKind, ResolveInputs, StructureResolver};
-/// use qubit_reflect::registry::RegistrySnapshotBuilder;
+/// use qubit_reflect::ReflectionContext;
 ///
 /// # mod example {
 /// use qubit_model_derive::{Model, Value};
@@ -120,8 +112,8 @@ pub enum ModelResolutionCause {
 /// pub struct PlainModel;
 /// # }
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let reflection = RegistrySnapshotBuilder::new().build()?;
-/// let models = ModelRegistry::from_reflect_registry(&reflection)?;
+/// let reflection = ReflectionContext::builder().include_linked().build()?;
+/// let models = ModelRegistry::from_context(&reflection)?;
 /// let roots = [TypeMetadata::of::<example::InvalidValue>()];
 /// let errors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
 ///     .resolve()
@@ -156,7 +148,7 @@ pub struct ResolveError {
     /// The type actually observed by the resolution step, when applicable.
     actual_type: Option<TypeId>,
     /// Fragment identities involved in the failure.
-    sources: Vec<FragmentIdentity>,
+    sources: Vec<ModelRegistryOrigin>,
     /// Original structured failure, if this error crosses a fallible boundary.
     cause: Option<ModelResolutionCause>,
 }
@@ -182,7 +174,7 @@ impl ResolveError {
         path: Option<PropertyPath<'_>>,
         expected_role: Option<ModelRole>,
         actual_role: Option<ModelRole>,
-        source: Option<&FragmentIdentity>,
+        source: Option<&ModelRegistryOrigin>,
     ) -> Self {
         Self {
             kind,
@@ -215,7 +207,7 @@ impl ResolveError {
     pub(super) fn resolution(
         root: &'static TypeMetadata,
         path: Option<PropertyPath<'_>>,
-        source: Option<&FragmentIdentity>,
+        source: Option<&ModelRegistryOrigin>,
         cause: impl Into<ModelResolutionCause>,
     ) -> Self {
         let cause = cause.into();
@@ -384,7 +376,7 @@ impl ResolveError {
     /// the diagnostic has no fragment source.
     #[inline]
     #[must_use]
-    pub fn sources(&self) -> &[FragmentIdentity] {
+    pub fn sources(&self) -> &[ModelRegistryOrigin] {
         &self.sources
     }
 
@@ -509,7 +501,7 @@ impl Display for ResolveError {
 /// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveError, ResolveErrorKind, ResolveErrors, ResolveInputs, StructureResolver};
-/// use qubit_reflect::registry::RegistrySnapshotBuilder;
+/// use qubit_reflect::ReflectionContext;
 ///
 /// # mod example {
 /// use qubit_model_derive::{Model, Value};
@@ -520,8 +512,8 @@ impl Display for ResolveError {
 /// pub struct PlainModel;
 /// # }
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let reflection = RegistrySnapshotBuilder::new().build()?;
-/// let models = ModelRegistry::from_reflect_registry(&reflection)?;
+/// let reflection = ReflectionContext::builder().include_linked().build()?;
+/// let models = ModelRegistry::from_context(&reflection)?;
 /// let roots = [TypeMetadata::of::<example::InvalidValue>()];
 /// let errors: ResolveErrors = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
 ///     .resolve()

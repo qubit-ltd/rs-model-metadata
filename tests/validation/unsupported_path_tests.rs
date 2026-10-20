@@ -30,7 +30,7 @@ use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::Reflect;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::context::ReflectionContextBuilder;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validator::ValidatorId;
@@ -258,10 +258,11 @@ fn test_unsupported_constraints_retain_complete_rule_mappings() {
 /// Checks only the explicit root graph and returns its unsupported
 /// declarations.
 fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
-    let reflection = RegistrySnapshotBuilder::new()
+    let reflection = ReflectionContextBuilder::new()
+        .include_linked()
         .build()
-        .expect("fresh reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("explicit reflection model registry");
+        .expect("linked validation fixture context");
+    let models = ModelRegistry::from_context(&reflection).expect("explicit reflection model registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -302,10 +303,10 @@ fn unsupported(root: &'static TypeMetadata) -> ValidationBuildErrors {
 #[test]
 fn test_optional_text_value_executes_or_skips() {
     let root = TypeMetadata::of::<OptionalText>();
-    let reflection = RegistrySnapshotBuilder::new()
+    let reflection = ReflectionContextBuilder::new()
         .build()
         .expect("fresh reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("model registry");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -346,12 +347,19 @@ fn test_optional_text_value_executes_or_skips() {
 fn test_optional_text_borrowed_getter_is_lazy_and_reads_once() {
     OPTIONAL_TEXT_GETTER_CALLS.with(|calls| calls.set(0));
     let root = TypeMetadata::of::<OptionalTextGetter>();
-    let models = ModelRegistry::global();
+    let reflection = ReflectionContextBuilder::new()
+        .include_linked()
+        .build()
+        .expect("linked context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let roots = [root];
     let graph = Arc::new(
-        StructureResolver::new(ResolveInputs { models, roots: &roots })
-            .resolve()
-            .expect("optional getter structure"),
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("optional getter structure"),
     );
     let validators = ValidatorRegistry::empty();
     let plan = ValidationPlan::build(
@@ -403,10 +411,15 @@ fn test_unadapted_paths_still_fail_during_plan_construction() {
     }
 
     let root = TypeMetadata::of::<OwnedChild>();
+    let reflection = ReflectionContextBuilder::new()
+        .include_linked()
+        .build()
+        .expect("linked context");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
-            models: ModelRegistry::global(),
+            models: &models,
             roots: &roots,
         })
         .resolve()
@@ -602,12 +615,12 @@ fn test_unsupported_recursive_raw_wrapper_terminates_without_losing_work() {
 
 #[test]
 fn test_unsupported_shapes_without_execution_work_remain_acceptable() {
-    let reflection = RegistrySnapshotBuilder::new()
+    let reflection = ReflectionContextBuilder::new()
         .build()
         .expect("fresh reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("explicit reflection model registry");
+    let models = ModelRegistry::from_context(&reflection).expect("explicit reflection model registry");
     let root = TypeMetadata::of::<EmptyEnvelope>();
-    let roots = [root];
+    let roots = [root, TypeMetadata::of::<EmptyChild>()];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             models: &models,
@@ -635,7 +648,10 @@ fn test_unsupported_shapes_without_execution_work_remain_acceptable() {
 
 #[test]
 fn test_unsupported_metadata_only_graph_does_not_import_reflection_capabilities() {
-    let models = ModelRegistry::from_static_metadata(&[]).expect("metadata-only registry has no reflection snapshot");
+    let reflection = ReflectionContextBuilder::new()
+        .build()
+        .expect("empty metadata-only reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("metadata-only registry has no model capabilities");
     let root = TypeMetadata::of::<ReflectedStructEnvelope>();
     let roots = [root];
     let graph = Arc::new(

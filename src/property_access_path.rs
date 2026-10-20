@@ -17,8 +17,10 @@ use std::any::TypeId;
 
 pub use property_access_path_error::PropertyAccessPathError;
 pub use property_access_write_failure::PropertyAccessWriteFailure;
+use qubit_reflect::ReflectionContext;
 
 use crate::metadata::GetterOutputKind;
+use crate::metadata::OptionalOps;
 use crate::metadata::PropertyAccessError;
 use crate::metadata::PropertyBorrowed;
 use crate::metadata::PropertyMetadata;
@@ -35,8 +37,8 @@ struct PropertyStep {
     owner: &'static TypeMetadata,
     /// Resolved property to read or write.
     property: PropertyMetadata,
-    /// Whether the next reflected value is an `Option<T>` wrapper.
-    optional: bool,
+    /// Generated projection for a field-backed `Option<T>`.
+    optional_ops: Option<OptionalOps>,
 }
 
 /// A dynamic property path compiled against a registry snapshot.
@@ -45,14 +47,16 @@ struct PropertyStep {
 /// supplied registry. The path retains copied property metadata and never
 /// consults a process-global registry after compilation.
 #[derive(Clone)]
-pub struct PropertyAccessPath {
+pub struct PropertyAccessPath<'ctx> {
+    /// Snapshot used to bind all static property facts for this path.
+    context: &'ctx ReflectionContext,
     /// Exact root Rust type expected by this path.
     root_type: TypeId,
     /// Resolved property steps in caller-supplied path order.
     steps: Box<[PropertyStep]>,
 }
 
-impl PropertyAccessPath {
+impl<'ctx> PropertyAccessPath<'ctx> {
     /// Compiles property names into a checked path for the supplied root model.
     ///
     /// # Parameters
@@ -74,7 +78,7 @@ impl PropertyAccessPath {
     /// This direct constructor does not cache its result; use
     /// [`ModelRegistry::compile_read_path_cached`] for snapshot-local reuse.
     pub fn compile(
-        registry: &ModelRegistry<'_>,
+        registry: &ModelRegistry<'ctx>,
         root: &'static TypeMetadata,
         segments: &[&str],
     ) -> Result<Self, PropertyAccessPathError> {
@@ -89,7 +93,7 @@ impl PropertyAccessPath {
     /// This direct constructor does not cache its result; use
     /// [`ModelRegistry::compile_write_path_cached`] for snapshot-local reuse.
     pub fn compile_for_write(
-        registry: &ModelRegistry<'_>,
+        registry: &ModelRegistry<'ctx>,
         root: &'static TypeMetadata,
         segments: &[&str],
     ) -> Result<Self, PropertyAccessPathError> {
@@ -102,11 +106,14 @@ impl PropertyAccessPath {
     /// inspect their values. The `require_readable_leaf` flag distinguishes
     /// read paths from write paths, whose leaf can be setter-only.
     fn compile_with_leaf_readability(
-        registry: &ModelRegistry<'_>,
+        registry: &ModelRegistry<'ctx>,
         root: &'static TypeMetadata,
         segments: &[&str],
         require_readable_leaf: bool,
     ) -> Result<Self, PropertyAccessPathError> {
+        let context = registry
+            .context()
+            .ok_or(PropertyAccessPathError::ReflectionContextUnavailable)?;
         if segments.is_empty() {
             return Err(PropertyAccessPathError::EmptyPath);
         }
@@ -116,9 +123,13 @@ impl PropertyAccessPath {
             if segment.is_empty() {
                 return Err(PropertyAccessPathError::EmptySegment { index });
             }
-            let properties = registry
-                .properties_for(owner)
-                .map_err(|source| PropertyAccessPathError::PropertyResolution { index, source })?;
+            let properties =
+                registry
+                    .properties_for(owner)
+                    .map_err(|source| PropertyAccessPathError::PropertyResolution {
+                        index,
+                        source: Box::new(source),
+                    })?;
             let property = properties
                 .property(segment)
                 .copied()
@@ -133,7 +144,10 @@ impl PropertyAccessPath {
                     name: segment.to_owned(),
                 });
             }
-            if property.field().is_some_and(|field| field.reflect().is_none()) {
+            if property
+                .field()
+                .is_some_and(|field| field.reflect_in(context).is_none())
+            {
                 return Err(PropertyAccessPathError::AdapterUnavailable {
                     index,
                     name: segment.to_owned(),
@@ -141,28 +155,46 @@ impl PropertyAccessPath {
             }
             let declaring_type = owner;
             let mut optional = false;
+            let mut optional_ops = None;
             let mut next_owner = None;
             if !is_last {
-                let descriptor = property
-                    .descriptor()
-                    .ok_or(PropertyAccessPathError::UnsupportedIntermediate {
+                let descriptor = property.descriptor_in(context).ok().flatten().ok_or(
+                    PropertyAccessPathError::UnsupportedIntermediate {
                         index,
                         name: segment.to_owned(),
-                    })?;
-                let next_descriptor = if let Some(optional_type) = descriptor.as_optional() {
-                    if !optional_type.has_ref_projection() {
+                    },
+                )?;
+                let is_optional = matches!(descriptor.kind(), qubit_reflect::descriptor::TypeKind::Optional(_));
+                let next_descriptor = if is_optional {
+                    optional = true;
+                    optional_ops = property.optional_ops();
+                    if let Some(ops) = optional_ops {
+                        context
+                            .find_type_by_id(ops.element_type_id())
+                            .map_err(|source| PropertyAccessPathError::ContextLookup { index, source })?
+                            .ok_or(PropertyAccessPathError::UnsupportedIntermediate {
+                                index,
+                                name: segment.to_owned(),
+                            })?
+                    } else if property
+                        .getter()
+                        .is_some_and(|getter| getter.output_kind() == GetterOutputKind::OptionalBorrowed)
+                    {
+                        descriptor
+                            .generic_arguments()
+                            .get_at(0)
+                            .and_then(|argument| argument.type_argument().ok())
+                            .and_then(|argument| argument.find_concrete_type())
+                            .ok_or(PropertyAccessPathError::UnsupportedIntermediate {
+                                index,
+                                name: segment.to_owned(),
+                            })?
+                    } else {
                         return Err(PropertyAccessPathError::UnsupportedIntermediate {
                             index,
                             name: segment.to_owned(),
                         });
                     }
-                    optional = true;
-                    optional_type.element_type().as_resolved().ok_or(
-                        PropertyAccessPathError::UnsupportedIntermediate {
-                            index,
-                            name: segment.to_owned(),
-                        },
-                    )?
                 } else {
                     descriptor
                 };
@@ -180,8 +212,11 @@ impl PropertyAccessPath {
                 }
                 next_owner = Some(
                     registry
-                        .metadata_for(next_descriptor)
-                        .map_err(|source| PropertyAccessPathError::MetadataLookup { index, source })?
+                        .metadata_for(&next_descriptor)
+                        .map_err(|source| PropertyAccessPathError::MetadataLookup {
+                            index,
+                            source: Box::new(source),
+                        })?
                         .ok_or(PropertyAccessPathError::UnsupportedIntermediate {
                             index,
                             name: segment.to_owned(),
@@ -191,11 +226,12 @@ impl PropertyAccessPath {
             steps.push(PropertyStep {
                 owner: declaring_type,
                 property,
-                optional,
+                optional_ops,
             });
             owner = next_owner.unwrap_or(owner);
         }
         Ok(Self {
+            context,
             root_type: root.type_id(),
             steps: steps.into_boxed_slice(),
         })
@@ -232,7 +268,10 @@ impl PropertyAccessPath {
     /// Returns [`PropertyAccessPathError`] for a root type mismatch, missing
     /// optional intermediate value, or a property access failure. Intermediate
     /// owned and slice outputs are rejected rather than borrowed unsafely.
-    pub fn read<'a, T: 'static>(&self, root: &'a T) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
+    pub fn read<'a, T: qubit_reflect::descriptor::Reflect>(
+        &self,
+        root: &'a T,
+    ) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
         self.read_dynamic(PropertyBorrowed::new(root))
     }
 
@@ -264,24 +303,19 @@ impl PropertyAccessPath {
         root: PropertyBorrowed<'a>,
         bypass_visibility: bool,
     ) -> Result<PropertyValue<'a>, PropertyAccessPathError> {
-        if root.value_type_id() != self.root_type {
-            return Err(PropertyAccessPathError::RootTypeMismatch {
-                expected: self.root_type,
-                actual: root.value_type_id(),
-            });
-        }
         let mut current = root;
         for (index, step) in self.steps.iter().enumerate() {
-            if current.value_type_id() != step.owner.type_id() {
+            let actual = current.clone().type_id();
+            if actual != step.owner.type_id() {
                 return Err(PropertyAccessPathError::RootTypeMismatch {
                     expected: step.owner.type_id(),
-                    actual: current.value_type_id(),
+                    actual,
                 });
             }
             let value = (if bypass_visibility {
-                unsafe { step.property.get_dynamic_unsafe(current) }
+                unsafe { step.property.get_dynamic_unsafe_in(self.context, current) }
             } else {
-                step.property.get_dynamic(current)
+                step.property.get_dynamic_in(self.context, current)
             })
             .map_err(|source| PropertyAccessPathError::AccessFailure {
                 index,
@@ -292,26 +326,19 @@ impl PropertyAccessPath {
                 return Ok(value);
             }
             current = match value {
-                PropertyValue::Borrowed(value) if step.optional => {
-                    let optional = step
-                        .property
-                        .descriptor()
-                        .and_then(|descriptor| descriptor.as_optional())
-                        .ok_or(PropertyAccessPathError::UnsupportedIntermediate {
-                            index,
-                            name: step.property.name().to_owned(),
-                        })?;
-                    optional
-                        .project_dynamic_ref(value)
-                        .map_err(|_| PropertyAccessPathError::UnsupportedIntermediate {
-                            index,
-                            name: step.property.name().to_owned(),
-                        })?
-                        .ok_or(PropertyAccessPathError::MissingIntermediate {
-                            index,
-                            name: step.property.name().to_owned(),
-                        })?
-                }
+                PropertyValue::Borrowed(value) if step.optional_ops.is_some() => step
+                    .optional_ops
+                    .expect("checked above")
+                    .project_ref(value)
+                    .map_err(|source| PropertyAccessPathError::AccessFailure {
+                        index,
+                        name: step.property.name().to_owned(),
+                        source: Box::new(PropertyAccessError::ValueTypeMismatch(source)),
+                    })?
+                    .ok_or(PropertyAccessPathError::MissingIntermediate {
+                        index,
+                        name: step.property.name().to_owned(),
+                    })?,
                 PropertyValue::Borrowed(value) => value,
                 PropertyValue::OptionalBorrowed(Some(value)) => value,
                 PropertyValue::OptionalBorrowed(None) => {
@@ -354,7 +381,7 @@ impl PropertyAccessPath {
                         name: step.property.name().to_owned(),
                     });
                 }
-            } else if !step.property.is_field() || step.property.getter().is_some() || step.optional {
+            } else if !step.property.is_field() || step.property.getter().is_some() {
                 return Err(PropertyAccessPathError::UnwritableIntermediate {
                     index,
                     name: step.property.name().to_owned(),
@@ -381,7 +408,7 @@ impl PropertyAccessPath {
     /// whenever failure occurs before the leaf setter begins. A leaf setter
     /// failure preserves the underlying [`crate::metadata::PropertySetFailure`]
     /// recovery rules.
-    pub fn write<T: 'static, V: 'static>(
+    pub fn write<T: qubit_reflect::descriptor::Reflect, V: qubit_reflect::descriptor::Reflect>(
         &self,
         root: &mut T,
         replacement: V,
@@ -427,11 +454,11 @@ impl PropertyAccessPath {
         if let Err(error) = self.check_writable() {
             return Err(PropertyAccessWriteFailure::before_path(error, replacement));
         }
-        if root.value_type_id() != self.root_type {
+        if root.type_id() != self.root_type {
             return Err(PropertyAccessWriteFailure::before_path(
                 PropertyAccessPathError::RootTypeMismatch {
                     expected: self.root_type,
-                    actual: root.value_type_id(),
+                    actual: root.type_id(),
                 },
                 replacement,
             ));
@@ -439,32 +466,27 @@ impl PropertyAccessPath {
         let mut current = root;
         let mut replacement = Some(replacement);
         for (index, step) in self.steps.iter().enumerate() {
-            if current.value_type_id() != step.owner.type_id() {
+            if current.type_id() != step.owner.type_id() {
                 return Err(PropertyAccessWriteFailure::before_path(
                     PropertyAccessPathError::RootTypeMismatch {
                         expected: step.owner.type_id(),
-                        actual: current.value_type_id(),
+                        actual: current.type_id(),
                     },
                     replacement.take().expect("replacement remains unused before the leaf"),
                 ));
             }
             if index + 1 == self.steps.len() {
+                let value = replacement.take().expect("replacement remains unused before the leaf");
                 return (if bypass_visibility {
-                    unsafe {
-                        step.property.set_dynamic_unsafe(
-                            current,
-                            replacement.take().expect("replacement remains unused before the leaf"),
-                        )
-                    }
+                    // SAFETY: `write_dynamic_unsafe` requires its caller to authorize
+                    // mutation through every private field in the compiled path.
+                    unsafe { step.property.set_dynamic_unsafe_in(self.context, current, value) }
                 } else {
-                    step.property.set_dynamic(
-                        current,
-                        replacement.take().expect("replacement remains unused before the leaf"),
-                    )
+                    step.property.set_dynamic_in(self.context, current, value)
                 })
                 .map_err(PropertyAccessWriteFailure::from_property_set);
             }
-            let Some(field) = step.property.field().and_then(|field| field.reflect()) else {
+            let Some(field) = step.property.field().and_then(|field| field.reflect_in(self.context)) else {
                 return Err(PropertyAccessWriteFailure::before_path(
                     PropertyAccessPathError::AccessFailure {
                         index,
@@ -474,12 +496,14 @@ impl PropertyAccessPath {
                     replacement.take().expect("replacement remains unused before the leaf"),
                 ));
             };
-            current = (if bypass_visibility {
-                unsafe { field.get_mut_dynamic_unsafe(current) }
+            let projected = if bypass_visibility {
+                // SAFETY: `write_dynamic_unsafe` requires its caller to authorize
+                // mutation through every private field in the compiled path.
+                unsafe { field.get_dynamic_mut_unsafe(current) }
             } else {
-                field.get_mut_dynamic(current)
-            })
-            .map_err(|source| {
+                field.get_dynamic_mut(current)
+            };
+            current = projected.map_err(|source| {
                 PropertyAccessWriteFailure::before_path(
                     PropertyAccessPathError::AccessFailure {
                         index,
@@ -489,6 +513,29 @@ impl PropertyAccessPath {
                     replacement.take().expect("replacement remains unused before the leaf"),
                 )
             })?;
+            if let Some(ops) = step.optional_ops {
+                current = ops
+                    .project_mut(current)
+                    .map_err(|source| {
+                        PropertyAccessWriteFailure::before_path(
+                            PropertyAccessPathError::AccessFailure {
+                                index,
+                                name: step.property.name().to_owned(),
+                                source: Box::new(PropertyAccessError::ValueTypeMismatch(source)),
+                            },
+                            replacement.take().expect("replacement remains unused before the leaf"),
+                        )
+                    })?
+                    .ok_or_else(|| {
+                        PropertyAccessWriteFailure::before_path(
+                            PropertyAccessPathError::MissingIntermediate {
+                                index,
+                                name: step.property.name().to_owned(),
+                            },
+                            replacement.take().expect("replacement remains unused before the leaf"),
+                        )
+                    })?;
+            }
         }
         unreachable!("compiled access paths always contain at least one step")
     }

@@ -54,9 +54,8 @@ use crate::validation::model_rule_binding::ModelRuleBinding;
 /// struct Profile { #[text(non_blank)] name: String }
 /// # fn main() {
 /// let root = TypeMetadata::of::<Profile>();
-/// let roots = [root];
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-/// let graph = Arc::new(StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let models = ModelRegistry::try_global().expect("model registry");
+/// let graph = Arc::new(StructureResolver::for_static_roots(models, [root])
 ///     .resolve().expect("valid structure"));
 /// let validators = ValidatorRegistry::empty();
 /// let plan = ValidationPlan::build(root, ValidationBuildInputs { graph, validators: &validators })
@@ -155,7 +154,7 @@ mod tests {
     use std::sync::Arc;
 
     use qubit_reflect::Reflect;
-    use qubit_reflect::TypeDescriptor;
+    use qubit_reflect::ReflectionContext;
     use qubit_validator::ValidatorRegistry;
 
     use crate::__private::v8;
@@ -174,16 +173,10 @@ mod tests {
     #[test]
     fn test_plan_retains_graph_after_caller_drops_arc() {
         let root: &'static TypeMetadata = v8::leak(
-            v8::GeneratedTypeMetadataBuilder::new(
-                TypeDescriptor::of::<Profile>(),
-                None,
-                &[],
-                v8::leak(v8::model_role()),
-            )
-            .finish::<Profile>(),
+            v8::GeneratedTypeMetadataBuilder::new::<Profile>(None, &[], v8::leak(v8::model_role())).finish::<Profile>(),
         );
         let roots = [root];
-        let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+        let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
         let graph = Arc::new(
             StructureResolver::new(ResolveInputs {
                 models: &models,

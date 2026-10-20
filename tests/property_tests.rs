@@ -19,8 +19,11 @@ use qubit_model_metadata::metadata::PropertyAccessError;
 use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::PropertySetFailure;
 use qubit_model_metadata::metadata::PropertyStorageKind;
+use qubit_model_metadata::metadata::PropertyTypeMismatch;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::SetterMetadata;
+use qubit_reflect::__private::codegen_v4::expression::ExpressionData;
+use qubit_reflect::__private::codegen_v4::expression::TypeExpressionData;
 use qubit_reflect::InvocationOutput;
 use qubit_reflect::Reflect;
 use qubit_reflect::TypeDescriptor;
@@ -28,6 +31,25 @@ use qubit_reflect::value::DynamicMut;
 use qubit_reflect::value::DynamicOwned;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
+
+static STRING_EXPRESSION: TypeExpressionData = ExpressionData::Named {
+    path: "String",
+    definition: None,
+    arguments: &[],
+};
+static U32_EXPRESSION: TypeExpressionData = ExpressionData::Named {
+    path: "u32",
+    definition: None,
+    arguments: &[],
+};
+
+fn string_type_id() -> TypeId {
+    TypeId::of::<String>()
+}
+
+fn u32_type_id() -> TypeId {
+    TypeId::of::<u32>()
+}
 
 #[Reflect]
 struct PropertyFixture {
@@ -41,10 +63,14 @@ struct PrivatePropertyFixture {
 }
 
 fn borrowed_name<'a>(target: DynamicRef<'a, Local>) -> Result<PropertyValue<'a>, PropertyAccessError> {
-    let target = target
-        .downcast::<PropertyFixture>()
-        .map_err(|_| PropertyAccessError::user("getter target was not prevalidated"))?;
-    Ok(PropertyValue::Borrowed(DynamicRef::<Local>::new_str(&target.name)))
+    let target = target.downcast::<PropertyFixture>().map_err(|failure| {
+        let mismatch = failure.into_parts().0;
+        PropertyAccessError::TargetTypeMismatch(PropertyTypeMismatch {
+            expected: mismatch.expected(),
+            actual: mismatch.actual(),
+        })
+    })?;
+    Ok(PropertyValue::Borrowed(DynamicRef::<Local>::new(&target.name)))
 }
 
 fn owned_count<'a>(target: DynamicRef<'a, Local>) -> Result<PropertyValue<'a>, PropertyAccessError> {
@@ -58,8 +84,15 @@ fn set_name(target: DynamicMut<'_, Local>, value: DynamicOwned<Local>) -> Result
     let target = target.downcast::<PropertyFixture>().map_err(|_| {
         PropertySetFailure::after_execution(PropertyAccessError::user("setter target was not prevalidated"))
     })?;
-    let value = value.downcast::<String>().map_err(|value| {
-        PropertySetFailure::before_execution(PropertyAccessError::user("setter value was not prevalidated"), value)
+    let value = value.downcast::<String>().map_err(|failure| {
+        let (mismatch, recovery) = failure.into_parts();
+        PropertySetFailure::before_execution(
+            PropertyAccessError::ValueTypeMismatch(PropertyTypeMismatch {
+                expected: mismatch.expected(),
+                actual: mismatch.actual(),
+            }),
+            recovery,
+        )
     })?;
     target.name = value;
     Ok(())
@@ -67,54 +100,66 @@ fn set_name(target: DynamicMut<'_, Local>, value: DynamicOwned<Local>) -> Result
 
 #[test]
 fn test_property_adapters_validate_exact_dynamic_value_identity() {
-    let descriptor = TypeDescriptor::of::<PropertyFixture>();
-    let name_type = descriptor.field_at(0).expect("name field").field_type();
-    let getter = GetterMetadata::new::<PropertyFixture>("name", name_type, GetterOutputKind::Borrowed, borrowed_name);
+    let name_type = &STRING_EXPRESSION;
+    let getter = GetterMetadata::new::<PropertyFixture>(
+        "name",
+        name_type,
+        string_type_id,
+        GetterOutputKind::Borrowed,
+        borrowed_name,
+    );
     let setter = SetterMetadata::new::<PropertyFixture, String>("set_name", name_type, set_name);
     let mut target = PropertyFixture {
         name: "before".to_owned(),
         count: 0,
     };
 
-    let borrowed = DynamicRef::<Local>::new(&target);
-    assert_eq!(borrowed.value_type_id(), TypeId::of::<PropertyFixture>());
-    assert!(matches!(getter.get_dynamic(borrowed), Ok(PropertyValue::Borrowed(_))));
+    let borrowed_type = DynamicRef::<Local>::new(&target).type_id();
+    assert_eq!(borrowed_type, TypeId::of::<PropertyFixture>());
+    assert!(matches!(
+        getter.get_dynamic(DynamicRef::<Local>::new(&target)),
+        Ok(PropertyValue::Borrowed(_))
+    ));
 
-    let text = DynamicRef::<Local>::new_str("text");
-    assert_eq!(text.value_type_id(), TypeId::of::<str>());
+    let text = DynamicRef::<Local>::new("text");
+    assert_eq!(text.type_id(), TypeId::of::<str>());
+    let text = DynamicRef::<Local>::new("text");
     assert!(text.as_any().is_none());
-    let error = getter.get_dynamic(text).err().expect("str target must be rejected");
+    let error = getter
+        .get_dynamic(DynamicRef::<Local>::new("text"))
+        .err()
+        .expect("str target must be rejected");
     let PropertyAccessError::TargetTypeMismatch(mismatch) = error else {
         panic!("exact target mismatch")
     };
-    assert_eq!(mismatch.expected(), TypeId::of::<PropertyFixture>());
-    assert_eq!(mismatch.actual(), TypeId::of::<str>());
+    assert_eq!(mismatch.expected, TypeId::of::<PropertyFixture>());
+    assert_eq!(mismatch.actual, TypeId::of::<str>());
 
     let wrong = DynamicMut::<Local>::new(&mut target.count);
-    assert_eq!(wrong.value_type_id(), TypeId::of::<u32>());
+    assert_eq!(wrong.type_id(), TypeId::of::<u32>());
     let failure = setter
         .set_dynamic(wrong, DynamicOwned::<Local>::new("retry".to_owned()))
         .expect_err("wrong target");
     let PropertyAccessError::TargetTypeMismatch(mismatch) = failure.error() else {
         panic!("exact target mismatch")
     };
-    assert_eq!(mismatch.expected(), TypeId::of::<PropertyFixture>());
-    assert_eq!(mismatch.actual(), TypeId::of::<u32>());
+    assert_eq!(mismatch.expected, TypeId::of::<PropertyFixture>());
+    assert_eq!(mismatch.actual, TypeId::of::<u32>());
     assert_eq!(
         failure.replacement().and_then(|value| value.downcast_ref::<String>()),
         Some(&"retry".to_owned())
     );
 
     let replacement = DynamicOwned::<Local>::new(7_u32);
-    assert_eq!(replacement.value_type_id(), TypeId::of::<u32>());
+    assert_eq!(replacement.type_id(), TypeId::of::<u32>());
     let failure = setter
         .set_dynamic(DynamicMut::<Local>::new(&mut target), replacement)
         .expect_err("wrong replacement");
     let PropertyAccessError::ValueTypeMismatch(mismatch) = failure.error() else {
         panic!("exact value mismatch")
     };
-    assert_eq!(mismatch.expected(), TypeId::of::<String>());
-    assert_eq!(mismatch.actual(), TypeId::of::<u32>());
+    assert_eq!(mismatch.expected, TypeId::of::<String>());
+    assert_eq!(mismatch.actual, TypeId::of::<u32>());
     assert_eq!(
         failure.replacement().and_then(|value| value.downcast_ref::<u32>()),
         Some(&7)
@@ -131,23 +176,24 @@ fn test_property_adapters_validate_exact_dynamic_value_identity() {
 
 #[test]
 fn test_property_supports_borrowed_and_owned_getters() {
-    let descriptor = TypeDescriptor::of::<PropertyFixture>();
-    let name_type = descriptor.field_at(0).expect("name field").field_type();
-    let count_type = descriptor.field_at(1).expect("count field").field_type();
+    let name_type = &STRING_EXPRESSION;
+    let count_type = &U32_EXPRESSION;
     let name_getter = Box::leak(Box::new(GetterMetadata::new::<PropertyFixture>(
         "name",
         name_type,
+        string_type_id,
         GetterOutputKind::Borrowed,
         borrowed_name,
     )));
     let count_getter = Box::leak(Box::new(GetterMetadata::new::<PropertyFixture>(
         "count",
         count_type,
+        u32_type_id,
         GetterOutputKind::Owned,
         owned_count,
     )));
-    let name = v8::property_metadata("name", name_type, None, Some(name_getter), None);
-    let count = v8::property_metadata("count", count_type, None, Some(count_getter), None);
+    let name = v8::property_metadata("name", Some(name_type), None, Some(name_getter), None);
+    let count = v8::property_metadata("count", Some(count_type), None, Some(count_getter), None);
     let value = PropertyFixture {
         name: "alice".to_owned(),
         count: 7,
@@ -159,7 +205,7 @@ fn test_property_supports_borrowed_and_owned_getters() {
     else {
         panic!("name getter must borrow");
     };
-    assert_eq!(name_value.as_str(), Some("alice"));
+    assert_eq!(name_value.downcast_ref::<String>().map(String::as_str), Some("alice"));
     let PropertyValue::Owned(count_value) = count
         .get_dynamic(DynamicRef::<Local>::new(&value))
         .expect("owned getter")
@@ -193,28 +239,28 @@ fn test_property_optional_borrow_and_slice_bridge_to_reflection_output() {
 #[test]
 fn test_property_field_fallback_and_setter_recovery_are_safe() {
     let descriptor = TypeDescriptor::of::<PropertyFixture>();
-    let field = Box::leak(Box::new(FieldMetadata::from_reflect(
-        (descriptor.field_at(0).expect("name field")).declaring_type().type_id(),
-        descriptor.field_at(0).expect("name field"),
-    )));
+    let reflected = descriptor.fields().get("name").expect("name field");
+    let field = Box::leak(Box::new(FieldMetadata::from_reflect(descriptor.type_id(), reflected)));
     let setter = Box::leak(Box::new(SetterMetadata::new::<PropertyFixture, String>(
         "set_name",
-        field.type_ref(),
+        &STRING_EXPRESSION,
         set_name,
     )));
-    let property = v8::property_metadata("name", field.type_ref(), Some(field), None, Some(setter));
+    let property = v8::property_metadata("name", Some(&STRING_EXPRESSION), Some(field), None, Some(setter));
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,
     };
 
-    let PropertyValue::Borrowed(current) = property
-        .get_dynamic(DynamicRef::<Local>::new(&value))
-        .expect("field getter")
-    else {
-        panic!("field fallback must borrow");
-    };
-    assert_eq!(current.downcast_ref::<String>().map(String::as_str), Some("before"));
+    {
+        let PropertyValue::Borrowed(current) = property
+            .get_dynamic(DynamicRef::<Local>::new(&value))
+            .expect("field getter")
+        else {
+            panic!("field fallback must borrow");
+        };
+        assert_eq!(current.downcast_ref::<String>().map(String::as_str), Some("before"));
+    }
     property
         .set_dynamic(
             DynamicMut::<Local>::new(&mut value),
@@ -237,12 +283,12 @@ fn test_property_field_fallback_and_setter_recovery_are_safe() {
 #[test]
 fn test_safe_property_field_fallback_rejects_private_fields() {
     let descriptor = TypeDescriptor::of::<PrivatePropertyFixture>();
-    let reflected = descriptor.field_at(0).expect("value field");
+    let reflected = descriptor.fields().get("value").expect("value field");
     let field = Box::leak(Box::new(FieldMetadata::from_reflect(
         reflected.declaring_type().type_id(),
         reflected,
     )));
-    let property = v8::property_metadata("value", field.type_ref(), Some(field), None, None);
+    let property = v8::property_metadata("value", None, Some(field), None, None);
     let value = PrivatePropertyFixture {
         value: "secret".to_owned(),
     };
@@ -261,23 +307,22 @@ fn test_safe_property_field_fallback_rejects_private_fields() {
 #[test]
 fn test_property_rejects_wrong_targets_and_field_fallback_can_write() {
     let descriptor = TypeDescriptor::of::<PropertyFixture>();
-    let field = Box::leak(Box::new(FieldMetadata::from_reflect(
-        (descriptor.field_at(0).expect("name field")).declaring_type().type_id(),
-        descriptor.field_at(0).expect("name field"),
-    )));
+    let reflected = descriptor.fields().get("name").expect("name field");
+    let field = Box::leak(Box::new(FieldMetadata::from_reflect(descriptor.type_id(), reflected)));
     let getter = Box::leak(Box::new(GetterMetadata::new::<PropertyFixture>(
         "name",
-        field.type_ref(),
+        &STRING_EXPRESSION,
+        string_type_id,
         GetterOutputKind::Borrowed,
         borrowed_name,
     )));
-    let computed = v8::property_metadata("name", field.type_ref(), None, Some(getter), None);
+    let computed = v8::property_metadata("name", Some(&STRING_EXPRESSION), None, Some(getter), None);
     assert!(matches!(
         computed.get_dynamic(DynamicRef::<Local>::new(&7_u32)),
         Err(PropertyAccessError::TargetTypeMismatch(_)),
     ));
 
-    let fallback = v8::property_metadata("name", field.type_ref(), Some(field), None, None);
+    let fallback = v8::property_metadata("name", None, Some(field), None, None);
     let mut value = PropertyFixture {
         name: "before".to_owned(),
         count: 0,
@@ -325,11 +370,11 @@ fn test_borrowed_slice_preserves_element_identity_and_checks_bounds() {
 
 #[test]
 fn test_virtual_and_computed_properties_enforce_access_direction() {
-    let descriptor = TypeDescriptor::of::<PropertyFixture>();
-    let name_type = descriptor.field_at(0).expect("name field").field_type();
+    let name_type = &STRING_EXPRESSION;
     let getter = Box::leak(Box::new(GetterMetadata::new::<PropertyFixture>(
         "name",
         name_type,
+        string_type_id,
         GetterOutputKind::Borrowed,
         borrowed_name,
     )));
@@ -337,13 +382,13 @@ fn test_virtual_and_computed_properties_enforce_access_direction() {
         "set_name", name_type, set_name,
     )));
     assert_eq!(getter.rust_method_name(), "name");
-    assert!(std::ptr::eq(getter.output_type(), name_type));
+    assert!(std::ptr::eq(getter.output_type_data(), name_type));
     assert_eq!(setter.rust_method_name(), "set_name");
-    assert!(std::ptr::eq(setter.input_type(), name_type));
+    assert!(std::ptr::eq(setter.input_type_data(), name_type));
     assert!(format!("{getter:?}").contains("Borrowed"));
     assert!(format!("{setter:?}").contains("set_name"));
-    let computed = v8::property_metadata("name", name_type, None, Some(getter), None);
-    let virtual_property = v8::property_metadata("name", name_type, None, None, Some(setter));
+    let computed = v8::property_metadata("name", Some(name_type), None, Some(getter), None);
+    let virtual_property = v8::property_metadata("name", Some(name_type), None, None, Some(setter));
     assert!(computed.is_readable());
     assert!(!computed.is_writable());
     assert!(computed.is_computed());
@@ -385,8 +430,7 @@ fn test_setter_validation_preserves_replacement_before_adapter_execution() {
     fn must_not_run(_: DynamicMut<'_, Local>, _: DynamicOwned<Local>) -> Result<(), PropertySetFailure> {
         panic!("type validation must precede adapter execution");
     }
-    let descriptor = TypeDescriptor::of::<PropertyFixture>();
-    let name_type = descriptor.field_at(0).expect("name field").field_type();
+    let name_type = &STRING_EXPRESSION;
     let setter = SetterMetadata::new::<PropertyFixture, String>("set_name", name_type, must_not_run);
     let mut wrong_target = 7_u32;
     let failure = setter
@@ -441,8 +485,7 @@ fn test_setter_failure_after_execution_does_not_claim_replacement_recovery() {
             "post-write failure",
         )))
     }
-    let descriptor = TypeDescriptor::of::<PropertyFixture>();
-    let name_type = descriptor.field_at(0).expect("name field").field_type();
+    let name_type = &STRING_EXPRESSION;
     let setter = SetterMetadata::new::<PropertyFixture, String>("set_name", name_type, consume_then_fail);
     let mut target = PropertyFixture {
         name: "before".to_owned(),
@@ -466,12 +509,12 @@ fn test_setter_failure_after_execution_does_not_claim_replacement_recovery() {
 #[test]
 fn test_field_fallback_failure_retains_replacement_for_retry() {
     let descriptor = TypeDescriptor::of::<PropertyFixture>();
-    let reflected = descriptor.field_at(0).expect("name field");
+    let reflected = descriptor.fields().get("name").expect("name field");
     let field = Box::leak(Box::new(FieldMetadata::from_reflect(
         reflected.declaring_type().type_id(),
         reflected,
     )));
-    let property = v8::property_metadata("name", field.type_ref(), Some(field), None, None);
+    let property = v8::property_metadata("name", None, Some(field), None, None);
     let mut wrong_target = 7_u32;
     let failure = property
         .set_dynamic(
@@ -479,7 +522,7 @@ fn test_field_fallback_failure_retains_replacement_for_retry() {
             DynamicOwned::<Local>::new("recovered".to_owned()),
         )
         .expect_err("field target type mismatch");
-    assert!(matches!(failure.error(), PropertyAccessError::Field(_)));
+    assert!(matches!(failure.error(), PropertyAccessError::FieldSet(_)));
     let (_, replacement) = failure.into_parts();
     let mut target = PropertyFixture {
         name: "before".to_owned(),

@@ -22,6 +22,7 @@ use qubit_model_metadata::resolve::ContextRequirement;
 use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_reflect::ReflectionContext;
 
 #[Entity(id = "identity.Target")]
 struct Target {
@@ -37,10 +38,13 @@ struct Root {
 
 #[test]
 fn test_reference_lookup_preserves_copied_field_identity() {
-    let models = ModelRegistry::try_global().expect("valid registry");
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
-        .resolve()
-        .expect("valid graph");
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("valid registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &[],
+    })
+    .resolve()
+    .expect("valid graph");
     let field = TypeMetadata::of::<Root>().field("target").expect("reference field");
     let copy = *field;
     assert!(
@@ -57,7 +61,7 @@ fn test_reference_lookup_preserves_copied_field_identity() {
         reference.declaration(),
         field.reference().expect("original declaration")
     ));
-    assert!(std::ptr::eq(graph.registry(), models));
+    assert!(std::ptr::eq(graph.registry(), &models));
 }
 
 #[Model]
@@ -82,13 +86,16 @@ struct WrongWholeEntityReference {
 /// selection.
 #[test]
 fn test_reference_context_and_selection_are_independent() {
-    let models = ModelRegistry::try_global().expect("valid registry");
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("valid registry");
     let parent = TypeMetadata::of::<ParentBoundReference>();
     let whole = TypeMetadata::of::<WholeEntityReference>();
     let roots = [parent, whole];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .expect("valid references");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("valid references");
     let parent_reference = graph
         .reference(parent.fields()[0].location().expect("parent field"))
         .expect("parent reference");
@@ -110,9 +117,12 @@ fn test_reference_context_and_selection_are_independent() {
 
     let wrong = TypeMetadata::of::<WrongWholeEntityReference>();
     let roots = [wrong];
-    let errors = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .expect_err("Id cannot hold the complete Entity");
+    let errors = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect_err("Id cannot hold the complete Entity");
     let error = errors
         .errors()
         .iter()
@@ -142,11 +152,14 @@ struct TargetView {
 
 #[test]
 fn test_anonymous_roots_and_role_queries_use_concrete_type_identity() {
-    let models = ModelRegistry::try_global().expect("valid registry");
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("valid registry");
     let roots = [TypeMetadata::of::<Anonymous>(), TypeMetadata::of::<TargetView>()];
-    let graph = StructureResolver::new(ResolveInputs { models, roots: &roots })
-        .resolve()
-        .expect("valid graph");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("valid graph");
     assert_eq!(
         graph.model(TypeId::of::<Anonymous>()).unwrap().type_id(),
         TypeId::of::<Anonymous>()

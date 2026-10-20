@@ -11,7 +11,7 @@
 use std::ptr::eq;
 use std::sync::Arc;
 
-use qubit_reflect::capability::CapabilityOrigin;
+use qubit_reflect::ReflectionContext;
 
 use crate::metadata::LocalPropertySet;
 use crate::metadata::PropertyBuildError;
@@ -24,6 +24,7 @@ use crate::metadata::ResolvedProperties;
 use crate::metadata::ResolvedPropertyFragments;
 use crate::metadata::TypeMetadata;
 use crate::reflect_facade::ModelImplProvider;
+use crate::reflect_facade::ModelImplSource;
 
 // Owns snapshot-specific merged property storage.
 mod internal;
@@ -119,13 +120,17 @@ impl ModelImplMetadata {
     ///
     /// Propagates provider panics.
     #[must_use]
-    pub(crate) fn merge(owner: &TypeMetadata, providers: &[(ModelImplProvider, CapabilityOrigin)]) -> MergedModelImpl {
+    pub(crate) fn merge(
+        owner: &TypeMetadata,
+        providers: &[(ModelImplProvider, ModelImplSource)],
+        context: &ReflectionContext,
+    ) -> MergedModelImpl {
         let overlays: Vec<_> = providers
             .iter()
             .map(|(provider, origin)| (provider(), origin))
             .collect();
         let mut fragments = Vec::new();
-        let mut properties: Vec<(PropertyMetadata, Option<CapabilityOrigin>, Option<CapabilityOrigin>)> = Vec::new();
+        let mut properties: Vec<(PropertyMetadata, Option<ModelImplSource>, Option<ModelImplSource>)> = Vec::new();
         let mut errors = Vec::new();
         for (overlay, origin) in overlays {
             for fragment in overlay.fragments() {
@@ -142,9 +147,6 @@ impl ModelImplMetadata {
             match overlay.try_properties() {
                 Err(error) => errors.extend_from_slice(error.errors()),
                 Ok(local) => {
-                    if let Err(error) = owner.validate_properties(local.properties()) {
-                        errors.extend_from_slice(error.errors());
-                    }
                     for property in local.properties() {
                         if let Some((current, getter_origin, setter_origin)) = properties
                             .iter_mut()
@@ -158,8 +160,8 @@ impl ModelImplMetadata {
                                     current.name(),
                                     first.rust_method_name(),
                                     second.rust_method_name(),
-                                    getter_origin.clone().expect("selected getter retains its origin"),
-                                    origin.clone(),
+                                    (*getter_origin).expect("selected getter retains its origin"),
+                                    *origin,
                                 ));
                             }
                             if let Some((first, second)) = current.setter().zip(property.setter())
@@ -170,15 +172,15 @@ impl ModelImplMetadata {
                                     current.name(),
                                     first.rust_method_name(),
                                     second.rust_method_name(),
-                                    setter_origin.clone().expect("selected setter retains its origin"),
-                                    origin.clone(),
+                                    (*setter_origin).expect("selected setter retains its origin"),
+                                    *origin,
                                 ));
                             }
                             if getter_origin.is_none() && property.getter().is_some() {
-                                *getter_origin = Some(origin.clone());
+                                *getter_origin = Some(*origin);
                             }
                             if setter_origin.is_none() && property.setter().is_some() {
-                                *setter_origin = Some(origin.clone());
+                                *setter_origin = Some(*origin);
                             }
                             let selected = if current.field().is_some() || current.getter().is_some() {
                                 *current
@@ -187,7 +189,7 @@ impl ModelImplMetadata {
                             };
                             *current = PropertyMetadata::new(
                                 current.name(),
-                                selected.type_ref(),
+                                selected.type_expression_data(),
                                 current.field().or(property.field()),
                                 current.getter().or(property.getter()),
                                 current.setter().or(property.setter()),
@@ -195,8 +197,8 @@ impl ModelImplMetadata {
                         } else {
                             properties.push((
                                 *property,
-                                property.getter().map(|_| origin.clone()),
-                                property.setter().map(|_| origin.clone()),
+                                property.getter().map(|_| *origin),
+                                property.setter().map(|_| *origin),
                             ));
                         }
                     }
@@ -204,7 +206,7 @@ impl ModelImplMetadata {
             }
         }
         let properties: Vec<_> = properties.into_iter().map(|(property, _, _)| property).collect();
-        if let Err(error) = owner.validate_properties(&properties) {
+        if let Err(error) = owner.validate_properties_in(context, &properties) {
             errors.extend_from_slice(error.errors());
         }
         let properties = if errors.is_empty() {

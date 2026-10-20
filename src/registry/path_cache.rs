@@ -16,12 +16,15 @@ use std::hash::Hasher;
 use std::hash::RandomState;
 use std::sync::Arc;
 
+use qubit_reflect::context::ReflectionContextId;
+
 /// Maximum number of successful compiled paths retained by one registry.
 const CACHE_CAPACITY: usize = 256;
 
 /// Distinguishes root metadata allocations, path segments, and access modes.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(super) struct PathCacheKey {
+    context_id: ReflectionContextId,
     type_id: TypeId,
     metadata_address: usize,
     segments: Vec<String>,
@@ -30,8 +33,15 @@ pub(super) struct PathCacheKey {
 
 impl PathCacheKey {
     /// Copies the path inputs into a key for this registry's cache.
-    pub(super) fn new(type_id: TypeId, metadata_address: usize, segments: &[&str], write: bool) -> Self {
+    pub(super) fn new(
+        context_id: ReflectionContextId,
+        type_id: TypeId,
+        metadata_address: usize,
+        segments: &[&str],
+        write: bool,
+    ) -> Self {
         Self {
+            context_id,
             type_id,
             metadata_address,
             segments: segments.iter().map(|segment| (*segment).to_owned()).collect(),
@@ -40,8 +50,16 @@ impl PathCacheKey {
     }
 
     /// Compares an owned key against caller-borrowed path segments.
-    fn matches_borrowed(&self, type_id: TypeId, metadata_address: usize, segments: &[&str], write: bool) -> bool {
-        self.type_id == type_id
+    fn matches_borrowed(
+        &self,
+        context_id: ReflectionContextId,
+        type_id: TypeId,
+        metadata_address: usize,
+        segments: &[&str],
+        write: bool,
+    ) -> bool {
+        self.context_id == context_id
+            && self.type_id == type_id
             && self.metadata_address == metadata_address
             && self.write == write
             && self.segments.len() == segments.len()
@@ -120,12 +138,20 @@ impl<T> PathCache<T> {
     }
 
     /// Hashes borrowed fields in the same order as their owned counterpart.
-    fn hash_borrowed(&self, type_id: TypeId, metadata_address: usize, segments: &[&str], write: bool) -> u64 {
+    fn hash_borrowed(
+        &self,
+        context_id: ReflectionContextId,
+        type_id: TypeId,
+        metadata_address: usize,
+        segments: &[&str],
+        write: bool,
+    ) -> u64 {
         #[cfg(test)]
         if let Some(hash) = self.forced_hash {
             return hash;
         }
         let mut hasher = self.hash_builder.build_hasher();
+        context_id.hash(&mut hasher);
         type_id.hash(&mut hasher);
         metadata_address.hash(&mut hasher);
         write.hash(&mut hasher);
@@ -143,6 +169,7 @@ impl<T> PathCache<T> {
             return hash;
         }
         let mut hasher = self.hash_builder.build_hasher();
+        key.context_id.hash(&mut hasher);
         key.type_id.hash(&mut hasher);
         key.metadata_address.hash(&mut hasher);
         key.write.hash(&mut hasher);
@@ -157,18 +184,19 @@ impl<T> PathCache<T> {
     /// A miss returns `None` without changing any retained entry's recency.
     pub(super) fn get_borrowed(
         &mut self,
+        context_id: ReflectionContextId,
         type_id: TypeId,
         metadata_address: usize,
         segments: &[&str],
         write: bool,
     ) -> Option<Arc<T>> {
-        let hash = self.hash_borrowed(type_id, metadata_address, segments, write);
+        let hash = self.hash_borrowed(context_id, type_id, metadata_address, segments, write);
         self.ensure_access_stamp();
-        let entry = self
-            .entries
-            .get_mut(&hash)?
-            .iter_mut()
-            .find(|entry| entry.key.matches_borrowed(type_id, metadata_address, segments, write))?;
+        let entry = self.entries.get_mut(&hash)?.iter_mut().find(|entry| {
+            entry
+                .key
+                .matches_borrowed(context_id, type_id, metadata_address, segments, write)
+        })?;
         entry.last_access = self.next_access;
         self.next_access += 1;
         Some(Arc::clone(&entry.compiled))
@@ -240,32 +268,73 @@ impl<T> PathCache<T> {
 mod tests {
     use std::any::TypeId;
     use std::sync::Arc;
+    use std::sync::OnceLock;
+
+    use qubit_reflect::ReflectionContext;
+    use qubit_reflect::context::ReflectionContextId;
 
     use super::CACHE_CAPACITY;
     use super::PathCache;
     use super::PathCacheKey;
+
+    fn test_context_id() -> ReflectionContextId {
+        static CONTEXT: OnceLock<ReflectionContext> = OnceLock::new();
+        CONTEXT
+            .get_or_init(|| ReflectionContext::builder().build().expect("empty context"))
+            .id()
+    }
+
+    #[test]
+    fn test_context_is_part_of_path_cache_identity() {
+        let first_context = test_context_id();
+        let second_context = ReflectionContext::builder().build().expect("second empty context").id();
+        let mut cache = PathCache::default();
+        let key = PathCacheKey::new(first_context, TypeId::of::<usize>(), 1, &["value"], false);
+        cache.insert_or_existing(key, Arc::new(42));
+
+        assert!(
+            cache
+                .get_borrowed(second_context, TypeId::of::<usize>(), 1, &["value"], false)
+                .is_none()
+        );
+    }
 
     /// A borrowed lookup returns the retained allocation for the exact path.
     #[test]
     fn test_path_cache_borrowed_lookup_reuses_value() {
         let mut cache = PathCache::default();
         let type_id = TypeId::of::<usize>();
-        let value = cache.insert_or_existing(PathCacheKey::new(type_id, 7, &["middle", "leaf"], false), Arc::new(42));
+        let value = cache.insert_or_existing(
+            PathCacheKey::new(test_context_id(), type_id, 7, &["middle", "leaf"], false),
+            Arc::new(42),
+        );
 
         let hit = cache
-            .get_borrowed(type_id, 7, &["middle", "leaf"], false)
+            .get_borrowed(test_context_id(), type_id, 7, &["middle", "leaf"], false)
             .expect("borrowed path should hit");
         assert!(Arc::ptr_eq(&value, &hit));
-        assert!(cache.get_borrowed(type_id, 7, &["middle", "other"], false).is_none());
-        assert!(cache.get_borrowed(type_id, 8, &["middle", "leaf"], false).is_none());
-        assert!(cache.get_borrowed(type_id, 7, &["middle", "leaf"], true).is_none());
+        assert!(
+            cache
+                .get_borrowed(test_context_id(), type_id, 7, &["middle", "other"], false)
+                .is_none()
+        );
+        assert!(
+            cache
+                .get_borrowed(test_context_id(), type_id, 8, &["middle", "leaf"], false)
+                .is_none()
+        );
+        assert!(
+            cache
+                .get_borrowed(test_context_id(), type_id, 7, &["middle", "leaf"], true)
+                .is_none()
+        );
     }
 
     /// A second insertion of the same key keeps the first compiled Arc.
     #[test]
     fn test_path_cache_duplicate_insert_keeps_existing_value() {
         let mut cache = PathCache::default();
-        let key = PathCacheKey::new(TypeId::of::<usize>(), 7, &["middle", "leaf"], false);
+        let key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 7, &["middle", "leaf"], false);
         let first = cache.insert_or_existing(key.clone(), Arc::new(42));
         let competing = Arc::new(99);
 
@@ -288,13 +357,24 @@ mod tests {
             ..PathCache::default()
         };
         let type_id = TypeId::of::<usize>();
-        let first = cache.insert_or_existing(PathCacheKey::new(type_id, 7, &["a", "b"], false), Arc::new(1));
-        let second = cache.insert_or_existing(PathCacheKey::new(type_id, 7, &["a", "c"], false), Arc::new(2));
-        let read = cache.insert_or_existing(PathCacheKey::new(type_id, 7, &["a", "b"], true), Arc::new(3));
-        let alternate_metadata =
-            cache.insert_or_existing(PathCacheKey::new(type_id, 8, &["a", "b"], false), Arc::new(4));
+        let first = cache.insert_or_existing(
+            PathCacheKey::new(test_context_id(), type_id, 7, &["a", "b"], false),
+            Arc::new(1),
+        );
+        let second = cache.insert_or_existing(
+            PathCacheKey::new(test_context_id(), type_id, 7, &["a", "c"], false),
+            Arc::new(2),
+        );
+        let read = cache.insert_or_existing(
+            PathCacheKey::new(test_context_id(), type_id, 7, &["a", "b"], true),
+            Arc::new(3),
+        );
+        let alternate_metadata = cache.insert_or_existing(
+            PathCacheKey::new(test_context_id(), type_id, 8, &["a", "b"], false),
+            Arc::new(4),
+        );
         let alternate_type = cache.insert_or_existing(
-            PathCacheKey::new(TypeId::of::<u8>(), 7, &["a", "b"], false),
+            PathCacheKey::new(test_context_id(), TypeId::of::<u8>(), 7, &["a", "b"], false),
             Arc::new(5),
         );
 
@@ -306,7 +386,7 @@ mod tests {
             (TypeId::of::<u8>(), 7, &["a", "b"][..].as_ref(), false, &alternate_type),
         ] {
             let actual = cache
-                .get_borrowed(lookup_type, address, segments, write)
+                .get_borrowed(test_context_id(), lookup_type, address, segments, write)
                 .expect("exact colliding key");
             assert!(Arc::ptr_eq(&actual, expected));
         }
@@ -321,15 +401,15 @@ mod tests {
             forced_hash: Some(1),
             ..PathCache::default()
         };
-        let first_key = PathCacheKey::new(TypeId::of::<usize>(), 1, &["path-0"], false);
+        let first_key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &["path-0"], false);
         let first = cache.insert_or_existing(first_key.clone(), Arc::new(0));
-        let second_key = PathCacheKey::new(TypeId::of::<usize>(), 1, &["path-1"], false);
+        let second_key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &["path-1"], false);
         let second = cache.insert_or_existing(second_key.clone(), Arc::new(1));
 
         let mut newest = None;
         for index in 2..=CACHE_CAPACITY {
             let segment = format!("path-{index}");
-            let key = PathCacheKey::new(TypeId::of::<usize>(), 1, &[&segment], false);
+            let key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &[&segment], false);
             let retained = cache.insert_or_existing(key, Arc::new(index));
             if index == CACHE_CAPACITY {
                 newest = Some(retained);
@@ -342,7 +422,7 @@ mod tests {
             &second,
             &cache.get(&second_key).expect("second colliding key remains")
         ));
-        let newest_key = PathCacheKey::new(TypeId::of::<usize>(), 1, &["path-256"], false);
+        let newest_key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &["path-256"], false);
         assert!(Arc::ptr_eq(
             &newest.expect("257th insertion is retained"),
             &cache.get(&newest_key).expect("newest colliding key remains")
@@ -358,18 +438,21 @@ mod tests {
     fn test_path_cache_retains_recently_read_hot_path() {
         let mut cache = PathCache::default();
         let type_id = TypeId::of::<usize>();
-        let hot_key = PathCacheKey::new(type_id, 1, &["hot"], false);
+        let hot_key = PathCacheKey::new(test_context_id(), type_id, 1, &["hot"], false);
         let hot = cache.insert_or_existing(hot_key.clone(), Arc::new(0));
         for address in 2..=CACHE_CAPACITY {
-            cache.insert_or_existing(PathCacheKey::new(type_id, address, &["cold"], false), Arc::new(address));
+            cache.insert_or_existing(
+                PathCacheKey::new(test_context_id(), type_id, address, &["cold"], false),
+                Arc::new(address),
+            );
         }
 
         let hit = cache
-            .get_borrowed(type_id, 1, &["hot"], false)
+            .get_borrowed(test_context_id(), type_id, 1, &["hot"], false)
             .expect("hot path remains cached before eviction");
         assert!(Arc::ptr_eq(&hot, &hit));
         cache.insert_or_existing(
-            PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false),
+            PathCacheKey::new(test_context_id(), type_id, CACHE_CAPACITY + 1, &["cold"], false),
             Arc::new(CACHE_CAPACITY + 1),
         );
 
@@ -377,7 +460,11 @@ mod tests {
             &hot,
             &cache.get(&hot_key).expect("recent hot path remains cached")
         ));
-        assert!(cache.get_borrowed(type_id, 2, &["cold"], false).is_none());
+        assert!(
+            cache
+                .get_borrowed(test_context_id(), type_id, 2, &["cold"], false)
+                .is_none()
+        );
         assert_eq!(cache.len(), CACHE_CAPACITY);
     }
 
@@ -386,14 +473,17 @@ mod tests {
     fn test_path_cache_owned_lookup_refreshes_recency() {
         let mut cache = PathCache::default();
         let type_id = TypeId::of::<usize>();
-        let hot_key = PathCacheKey::new(type_id, 1, &["hot"], false);
+        let hot_key = PathCacheKey::new(test_context_id(), type_id, 1, &["hot"], false);
         let hot = cache.insert_or_existing(hot_key.clone(), Arc::new(0));
         for address in 2..=CACHE_CAPACITY {
-            cache.insert_or_existing(PathCacheKey::new(type_id, address, &["cold"], false), Arc::new(address));
+            cache.insert_or_existing(
+                PathCacheKey::new(test_context_id(), type_id, address, &["cold"], false),
+                Arc::new(address),
+            );
         }
         assert!(Arc::ptr_eq(&hot, &cache.get(&hot_key).expect("owned-key hit")));
         cache.insert_or_existing(
-            PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false),
+            PathCacheKey::new(test_context_id(), type_id, CACHE_CAPACITY + 1, &["cold"], false),
             Arc::new(0),
         );
         assert!(Arc::ptr_eq(
@@ -407,17 +497,20 @@ mod tests {
     fn test_path_cache_duplicate_insert_refreshes_recency() {
         let mut cache = PathCache::default();
         let type_id = TypeId::of::<usize>();
-        let hot_key = PathCacheKey::new(type_id, 1, &["hot"], false);
+        let hot_key = PathCacheKey::new(test_context_id(), type_id, 1, &["hot"], false);
         let hot = cache.insert_or_existing(hot_key.clone(), Arc::new(0));
         for address in 2..=CACHE_CAPACITY {
-            cache.insert_or_existing(PathCacheKey::new(type_id, address, &["cold"], false), Arc::new(address));
+            cache.insert_or_existing(
+                PathCacheKey::new(test_context_id(), type_id, address, &["cold"], false),
+                Arc::new(address),
+            );
         }
         assert!(Arc::ptr_eq(
             &hot,
             &cache.insert_or_existing(hot_key.clone(), Arc::new(999))
         ));
         cache.insert_or_existing(
-            PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false),
+            PathCacheKey::new(test_context_id(), type_id, CACHE_CAPACITY + 1, &["cold"], false),
             Arc::new(0),
         );
         assert!(Arc::ptr_eq(&hot, &cache.get(&hot_key).expect("duplicate hit remains")));
@@ -428,18 +521,23 @@ mod tests {
     fn test_path_cache_access_counter_overflow_preserves_recency() {
         let mut cache = PathCache::default();
         let type_id = TypeId::of::<usize>();
-        let hot_key = PathCacheKey::new(type_id, 1, &["hot"], false);
+        let hot_key = PathCacheKey::new(test_context_id(), type_id, 1, &["hot"], false);
         let hot = cache.insert_or_existing(hot_key.clone(), Arc::new(0));
         for address in 2..=CACHE_CAPACITY {
-            cache.insert_or_existing(PathCacheKey::new(type_id, address, &["cold"], false), Arc::new(address));
+            cache.insert_or_existing(
+                PathCacheKey::new(test_context_id(), type_id, address, &["cold"], false),
+                Arc::new(address),
+            );
         }
         cache.next_access = u64::MAX;
         assert!(Arc::ptr_eq(
             &hot,
-            &cache.get_borrowed(type_id, 1, &["hot"], false).expect("hot hit")
+            &cache
+                .get_borrowed(test_context_id(), type_id, 1, &["hot"], false)
+                .expect("hot hit")
         ));
         cache.insert_or_existing(
-            PathCacheKey::new(type_id, CACHE_CAPACITY + 1, &["cold"], false),
+            PathCacheKey::new(test_context_id(), type_id, CACHE_CAPACITY + 1, &["cold"], false),
             Arc::new(0),
         );
 
@@ -447,7 +545,11 @@ mod tests {
             &hot,
             &cache.get(&hot_key).expect("hot path survives overflow")
         ));
-        assert!(cache.get_borrowed(type_id, 2, &["cold"], false).is_none());
+        assert!(
+            cache
+                .get_borrowed(test_context_id(), type_id, 2, &["cold"], false)
+                .is_none()
+        );
         assert_eq!(cache.len(), CACHE_CAPACITY);
     }
 }

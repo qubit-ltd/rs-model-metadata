@@ -15,3 +15,26 @@ note: required by a bound in `assert_identifier_type`
 13 | #[Entity(id = "example.InvalidIdentifier")]
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_identifier_type`
    = note: this error originates in the attribute macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> tests/ui_roles/fail/identifier_type.rs:13:1
+   |
+13 | #[Entity(id = "example.InvalidIdentifier")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | expected `&Id`, found `&u64`
+   | arguments to this enum variant are incorrect
+   |
+   = note: expected reference `&Id`
+              found reference `&u64`
+help: the type constructed contains `&u64` due to the type of the argument passed
+  --> tests/ui_roles/fail/identifier_type.rs:13:1
+   |
+13 | #[Entity(id = "example.InvalidIdentifier")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this argument influences the type of `Ok`
+note: tuple variant defined here
+  --> $RUST/core/src/result.rs
+   |
+   |     Ok(#[stable(feature = "rust1", since = "1.0.0")] T),
+   |     ^^
+   = note: this error originates in the attribute macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)

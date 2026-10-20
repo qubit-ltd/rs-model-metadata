@@ -8,7 +8,7 @@
 
 //! Read-only concrete and generic model entries.
 
-use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::error::RegistrationOrigin;
 
 use super::internal::model_entry_target::ModelEntryTarget;
 #[cfg(feature = "generic")]
@@ -41,7 +41,7 @@ use crate::metadata::TypeMetadata;
 /// assert!(registry.get("example.ModelEntryNote").is_some());
 /// # }
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct ModelEntry<'reflection> {
     /// Stable ID used to index this entry.
     pub(super) model_id: ModelId,
@@ -49,9 +49,41 @@ pub struct ModelEntry<'reflection> {
     target: ModelEntryTarget,
     /// Metadata capability fragment for snapshot projections, or the explicit
     /// caller-provided source for static entries.
-    pub(super) source: &'reflection FragmentIdentity,
+    pub(super) source: ModelRegistryOrigin,
     /// Reflected type or definition member that declared this entry.
-    declaration_source: Option<&'reflection FragmentIdentity>,
+    declaration_source: Option<ModelRegistryOrigin>,
+    /// Keeps the entry tied to its registry view lifetime.
+    lifetime: std::marker::PhantomData<&'reflection ()>,
+}
+
+/// Owned source coordinates retained from a vNext capability registration.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ModelRegistryOrigin {
+    /// Crate containing the registration.
+    pub crate_name: &'static str,
+    /// Crate version recorded for the registration.
+    pub crate_version: Option<&'static str>,
+    /// Module containing the registration.
+    pub module_path: &'static str,
+    /// Source file, when available.
+    pub file: Option<&'static str>,
+    /// One-based source line, when available.
+    pub line: Option<u32>,
+    /// One-based source column, when available.
+    pub column: Option<u32>,
+}
+
+impl From<&RegistrationOrigin> for ModelRegistryOrigin {
+    fn from(origin: &RegistrationOrigin) -> Self {
+        Self {
+            crate_name: origin.crate_name,
+            crate_version: origin.crate_version,
+            module_path: origin.module_path,
+            file: origin.file,
+            line: origin.line,
+            column: origin.column,
+        }
+    }
 }
 
 impl<'reflection> ModelEntry<'reflection> {
@@ -74,14 +106,15 @@ impl<'reflection> ModelEntry<'reflection> {
     #[inline]
     pub(super) fn concrete(
         metadata: &'static TypeMetadata,
-        source: &'reflection FragmentIdentity,
-        declaration_source: Option<&'reflection FragmentIdentity>,
+        source: ModelRegistryOrigin,
+        declaration_source: Option<ModelRegistryOrigin>,
     ) -> Option<Self> {
         Some(Self {
             model_id: metadata.model_id()?,
             target: ModelEntryTarget::Concrete(metadata),
             source,
             declaration_source,
+            lifetime: std::marker::PhantomData,
         })
     }
 
@@ -105,14 +138,15 @@ impl<'reflection> ModelEntry<'reflection> {
     #[cfg(feature = "generic")]
     pub(super) fn generic(
         metadata: &'static GenericModelMetadata,
-        source: &'reflection FragmentIdentity,
-        declaration_source: Option<&'reflection FragmentIdentity>,
+        source: ModelRegistryOrigin,
+        declaration_source: Option<ModelRegistryOrigin>,
     ) -> Option<Self> {
         Some(Self {
             model_id: metadata.model_id()?,
             target: ModelEntryTarget::Generic(metadata),
             source,
             declaration_source,
+            lifetime: std::marker::PhantomData,
         })
     }
 
@@ -135,8 +169,8 @@ impl<'reflection> ModelEntry<'reflection> {
     /// The registration fragment borrowed for this entry's lifetime.
     #[must_use]
     #[inline]
-    pub const fn source(&self) -> &'reflection FragmentIdentity {
-        self.source
+    pub fn source(&self) -> &ModelRegistryOrigin {
+        &self.source
     }
 
     /// Returns the reflected type or generic definition source for snapshot
@@ -148,8 +182,8 @@ impl<'reflection> ModelEntry<'reflection> {
     /// entry.
     #[must_use]
     #[inline]
-    pub const fn declaration_source(&self) -> Option<&'reflection FragmentIdentity> {
-        self.declaration_source
+    pub fn declaration_source(&self) -> Option<&ModelRegistryOrigin> {
+        self.declaration_source.as_ref()
     }
 
     /// Returns concrete metadata, or `None` for a generic declaration.
@@ -159,7 +193,7 @@ impl<'reflection> ModelEntry<'reflection> {
     /// The concrete type metadata, or `None` when this entry is generic.
     #[must_use]
     #[inline]
-    pub const fn metadata(self) -> Option<&'static TypeMetadata> {
+    pub const fn metadata(&self) -> Option<&'static TypeMetadata> {
         match self.target {
             ModelEntryTarget::Concrete(metadata) => Some(metadata),
             #[cfg(feature = "generic")]
@@ -175,7 +209,7 @@ impl<'reflection> ModelEntry<'reflection> {
     #[must_use]
     #[inline]
     #[cfg(feature = "generic")]
-    pub const fn generic_metadata(self) -> Option<&'static GenericModelMetadata> {
+    pub const fn generic_metadata(&self) -> Option<&'static GenericModelMetadata> {
         match self.target {
             ModelEntryTarget::Concrete(_) => None,
             ModelEntryTarget::Generic(metadata) => Some(metadata),

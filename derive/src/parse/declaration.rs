@@ -119,7 +119,11 @@ pub(crate) fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
     let mut errors = None;
     for (index, field) in fields.iter().enumerate() {
         match parse_field(index, &field.ty, &field.attrs, field.ident.is_some()) {
-            Ok(field) => parsed.push(field),
+            Ok(mut value) => {
+                value.rust_name = field.ident.clone();
+                value.visibility = field.vis.clone();
+                parsed.push(value);
+            }
             Err(error) => combine(&mut errors, error),
         }
     }
@@ -143,23 +147,28 @@ pub(crate) fn parse_fields(fields: &Fields) -> Result<Vec<FieldIr>> {
 pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
     let mut parsed = Vec::new();
     let mut errors = None;
-    for variant in &data.variants {
+    for (variant_index, variant) in data.variants.iter().enumerate() {
         let default_name = variant.ident.to_string().to_shouty_snake_case();
         let canonical_name = parse_variant_name(&variant.attrs, &default_name);
         let names = parse_variant_serde_names(&variant.attrs, canonical_name.as_deref().unwrap_or(&default_name));
         let fields = parse_fields(&variant.fields);
         match (canonical_name, names, fields) {
-            (Ok(canonical_name), Ok((serialized_name, deserialized_name)), Ok(fields)) => parsed.push(VariantIr {
-                rust_name: variant.ident.to_string(),
-                canonical_name,
-                serialized_name,
-                deserialized_name,
-                default: variant
-                    .attrs
-                    .iter()
-                    .any(|attribute| attribute.path().is_ident("default")),
-                fields,
-            }),
+            (Ok(canonical_name), Ok((serialized_name, deserialized_name)), Ok(mut fields)) => {
+                for field in &mut fields {
+                    field.variant_index = Some(variant_index);
+                }
+                parsed.push(VariantIr {
+                    rust_name: variant.ident.to_string(),
+                    canonical_name,
+                    serialized_name,
+                    deserialized_name,
+                    default: variant
+                        .attrs
+                        .iter()
+                        .any(|attribute| attribute.path().is_ident("default")),
+                    fields,
+                });
+            }
             (canonical_name, names, fields) => {
                 if let Err(error) = canonical_name {
                     combine(&mut errors, error);
@@ -239,4 +248,29 @@ fn parse_variant_serde_names(attributes: &[Attribute], canonical: &str) -> Resul
         }
     }
     Ok((serialize, deserialize))
+}
+
+#[cfg(test)]
+mod tests {
+    use syn::parse_quote;
+
+    use super::parse_variants;
+
+    #[test]
+    fn enum_field_ir_retains_its_variant_index() {
+        let item: syn::ItemEnum = parse_quote! {
+            enum Example {
+                First { value: u8 },
+                Second(u16),
+            }
+        };
+        let data = syn::DataEnum {
+            enum_token: item.enum_token,
+            brace_token: item.brace_token,
+            variants: item.variants,
+        };
+        let variants = parse_variants(&data).expect("enum fields should parse");
+        assert_eq!(variants[0].fields[0].variant_index, Some(0));
+        assert_eq!(variants[1].fields[0].variant_index, Some(1));
+    }
 }

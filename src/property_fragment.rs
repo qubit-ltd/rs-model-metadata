@@ -8,7 +8,11 @@
 
 //! One unmerged field, getter, or setter property declaration.
 
-use qubit_reflect::descriptor::TypeRef;
+use std::fmt;
+
+use qubit_reflect::__private::codegen_v4::expression::TypeExpressionData;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::descriptor::TypeExpression;
 
 use crate::metadata::PropertyFragmentSource;
 
@@ -42,14 +46,25 @@ use crate::metadata::PropertyFragmentSource;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct PropertyFragment {
     /// Canonical public property name.
     name: &'static str,
     /// Exact type declared by this fragment.
-    type_ref: &'static TypeRef,
+    type_expression: Option<&'static TypeExpressionData>,
     /// Field/getter/setter declaration source.
     source: PropertyFragmentSource,
+}
+
+impl fmt::Debug for PropertyFragment {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PropertyFragment")
+            .field("name", &self.name)
+            .field("has_type_expression", &self.type_expression.is_some())
+            .field("source", &self.source)
+            .finish()
+    }
 }
 
 impl PropertyFragment {
@@ -66,8 +81,16 @@ impl PropertyFragment {
     /// A fragment retaining the supplied static type and declaration metadata.
     #[must_use]
     #[inline]
-    pub(crate) const fn new(name: &'static str, type_ref: &'static TypeRef, source: PropertyFragmentSource) -> Self {
-        Self { name, type_ref, source }
+    pub(crate) const fn new(
+        name: &'static str,
+        type_expression: Option<&'static TypeExpressionData>,
+        source: PropertyFragmentSource,
+    ) -> Self {
+        Self {
+            name,
+            type_expression,
+            source,
+        }
     }
 
     /// Returns the canonical public property name.
@@ -81,15 +104,18 @@ impl PropertyFragment {
         self.name
     }
 
-    /// Returns the exact type declared by this source fragment.
-    ///
-    /// # Returns
-    ///
-    /// The reflected type descriptor borrowed from static metadata.
+    /// Binds this source fragment's type expression to `context`.
     #[must_use]
-    #[inline]
-    pub const fn type_ref(&self) -> &'static TypeRef {
-        self.type_ref
+    pub fn type_expression_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<TypeExpression<'ctx>> {
+        match self.source {
+            PropertyFragmentSource::Field(field) => field.type_expression_in(context),
+            PropertyFragmentSource::Getter(getter) => Some(getter.output_type_in(context)),
+            PropertyFragmentSource::Setter(setter) => Some(setter.input_type_in(context)),
+        }
+        .or_else(|| {
+            self.type_expression
+                .map(|data| qubit_reflect::__private::codegen_v4::expression::type_expression_in(data, context))
+        })
     }
 
     /// Returns the field, getter, or setter that declared this fragment.

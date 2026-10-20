@@ -8,8 +8,10 @@
 
 //! Domain metadata overlays for individual reflected enum variants.
 
-use qubit_reflect::VariantDefinitionDescriptor;
-use qubit_reflect::VariantDescriptor;
+use std::any::TypeId;
+
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::descriptor::VariantDescriptor as BoundVariantDescriptor;
 
 use crate::metadata::FieldMetadata;
 
@@ -43,10 +45,14 @@ use crate::metadata::FieldMetadata;
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct EnumVariantMetadata {
-    /// The reflection descriptor that defines the variant.
-    reflect: Option<&'static VariantDescriptor>,
-    /// The source declaration for a generic enum overlay.
-    definition: Option<&'static VariantDefinitionDescriptor>,
+    /// Concrete declaring type identity, absent for a generic definition.
+    owner_type_id: Option<TypeId>,
+    /// Generic definition path that owns a symbolic variant.
+    definition_path: Option<&'static str>,
+    /// Source variant index.
+    source_index: usize,
+    /// Source Rust variant name.
+    source_rust_name: &'static str,
     /// The model-level canonical variant name.
     canonical_name: &'static str,
     /// The name emitted while serializing the variant.
@@ -62,8 +68,11 @@ pub struct EnumVariantMetadata {
 impl EnumVariantMetadata {
     /// Creates an enum-variant overlay.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) const fn new(
-        reflect: &'static VariantDescriptor,
+        owner: TypeId,
+        index: usize,
+        rust_name: &'static str,
         canonical_name: &'static str,
         serialized_name: &'static str,
         deserialized_name: &'static str,
@@ -71,8 +80,10 @@ impl EnumVariantMetadata {
         default: bool,
     ) -> Self {
         Self {
-            reflect: Some(reflect),
-            definition: None,
+            owner_type_id: Some(owner),
+            definition_path: None,
+            source_index: index,
+            source_rust_name: rust_name,
             canonical_name,
             serialized_name,
             deserialized_name,
@@ -85,8 +96,11 @@ impl EnumVariantMetadata {
     #[doc(hidden)]
     #[must_use]
     #[cfg(feature = "generic")]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) const fn from_definition(
-        definition: &'static VariantDefinitionDescriptor,
+        definition_path: &'static str,
+        index: usize,
+        rust_name: &'static str,
         canonical_name: &'static str,
         serialized_name: &'static str,
         deserialized_name: &'static str,
@@ -94,8 +108,10 @@ impl EnumVariantMetadata {
         default: bool,
     ) -> Self {
         Self {
-            reflect: None,
-            definition: Some(definition),
+            owner_type_id: None,
+            definition_path: Some(definition_path),
+            source_index: index,
+            source_rust_name: rust_name,
             canonical_name,
             serialized_name,
             deserialized_name,
@@ -108,16 +124,17 @@ impl EnumVariantMetadata {
     /// definition variant that has not been specialized.
     #[must_use]
     #[inline]
-    pub const fn reflect(&self) -> Option<&'static VariantDescriptor> {
-        self.reflect
+    pub fn reflect_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<BoundVariantDescriptor<'ctx>> {
+        let ty = context.find_type_by_id(self.owner_type_id?).ok().flatten()?;
+        ty.variants()
+            .iter()
+            .find(|variant| variant.index() == self.source_index)
     }
 
-    /// Returns the symbolic declaration descriptor, or `None` for a concrete
-    /// variant, including a specialized generic variant.
+    /// Returns the generic definition path for a symbolic variant.
     #[must_use]
-    #[inline]
-    pub const fn definition(&self) -> Option<&'static VariantDefinitionDescriptor> {
-        self.definition
+    pub const fn definition_path(&self) -> Option<&'static str> {
+        self.definition_path
     }
 
     /// Returns the zero-based variant index in the source declaration.
@@ -127,22 +144,14 @@ impl EnumVariantMetadata {
     #[must_use]
     #[inline]
     pub const fn index(&self) -> usize {
-        match (self.reflect, self.definition) {
-            (Some(reflect), _) => reflect.index(),
-            (_, Some(definition)) => definition.index(),
-            _ => unreachable!(),
-        }
+        self.source_index
     }
 
     /// Returns the immutable Rust identifier.
     #[must_use]
     #[inline]
     pub const fn rust_name(&self) -> &'static str {
-        match (self.reflect, self.definition) {
-            (Some(reflect), _) => reflect.rust_name(),
-            (_, Some(definition)) => definition.rust_name(),
-            _ => unreachable!(),
-        }
+        self.source_rust_name
     }
 
     /// Returns the canonical model name.

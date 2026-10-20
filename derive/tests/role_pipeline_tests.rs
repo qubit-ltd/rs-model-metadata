@@ -8,6 +8,8 @@
 
 //! Runtime smoke coverage for all six shared macro entry points.
 
+use std::any::TypeId;
+
 use model_runtime::__private::TypeDescriptor;
 use model_runtime::__private::qubit_id::Id;
 use model_runtime::metadata::TypeMetadata;
@@ -18,6 +20,15 @@ use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::descriptor::Reflect as ReflectType;
+
+fn reflection_context() -> ReflectionContext {
+    ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("explicit reflection context builds")
+}
 
 #[Entity(id = "example.EntityFixture")]
 struct EntityFixture {
@@ -57,6 +68,39 @@ struct GenericModel<T> {
     value: T,
 }
 
+#[ModelImpl(specialize(T = u64))]
+impl<T: Clone + ReflectType> GenericModel<T> {
+    pub fn current(&self) -> T {
+        self.value.clone()
+    }
+}
+
+#[Enum]
+enum GenericEnum<T> {
+    Value(T),
+}
+
+#[ModelImpl(specialize(T = u64))]
+impl<T: Clone + ReflectType> GenericEnum<T> {
+    pub fn current(&self) -> T {
+        match self {
+            Self::Value(value) => value.clone(),
+        }
+    }
+}
+
+#[Value]
+struct GenericValue<T> {
+    value: T,
+}
+
+#[ModelImpl(specialize(T = u64))]
+impl<T: Clone + ReflectType> GenericValue<T> {
+    pub fn current(&self) -> T {
+        self.value.clone()
+    }
+}
+
 #[ModelImpl]
 impl ModelFixture {
     pub fn value(&self) -> &str {
@@ -67,7 +111,8 @@ impl ModelFixture {
 #[test]
 fn test_six_entry_points_share_reflection_expansion() {
     assert_eq!(TypeDescriptor::of::<EntityFixture>().fields().len(), 1);
-    assert_eq!(TypeDescriptor::of::<OpaqueIdentifierFixture>().fields().len(), 1);
+    assert_eq!(TypeDescriptor::of::<OpaqueIdentifierFixture>().fields().len(), 0);
+    assert_eq!(TypeMetadata::of::<OpaqueIdentifierFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<ProjectionFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<ModelFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<EnumFixture>().variants().len(), 2);
@@ -112,22 +157,63 @@ fn test_registry_generic_model_providers_preserve_concrete_type() {
     let definition = registry
         .generic("example.GenericModel")
         .expect("generic definition without instantiation");
-    let first = registry
-        .metadata_for(TypeDescriptor::of::<GenericModel<u64>>())
-        .expect("valid u64 model capability")
-        .expect("u64 model provider");
-    let second = registry
-        .metadata_for(TypeDescriptor::of::<GenericModel<String>>())
-        .expect("valid String model capability")
-        .expect("String model provider");
-    assert_eq!(first.type_id(), std::any::TypeId::of::<GenericModel<u64>>());
-    assert_eq!(second.type_id(), std::any::TypeId::of::<GenericModel<String>>());
+    let context = registry.context().expect("registry reflection context");
+    let definition_descriptor = definition
+        .definition_in(context)
+        .expect("generic definition binds in the registry context");
     assert!(std::ptr::eq(
-        first.generic_definition().expect("first definition"),
+        registry
+            .generic_metadata_for(definition_descriptor.id())
+            .expect("generic metadata indexed by definition identity"),
         definition
     ));
-    assert!(std::ptr::eq(
-        second.generic_definition().expect("second definition"),
-        definition
-    ));
+    assert!(
+        registry
+            .metadata_for(&TypeDescriptor::of::<GenericModel<u64>>())
+            .expect("u64 has no concrete model metadata capability")
+            .is_none()
+    );
+    assert!(
+        registry
+            .metadata_for(&TypeDescriptor::of::<GenericModel<String>>())
+            .expect("String has no concrete model metadata capability")
+            .is_none()
+    );
+}
+
+/// Generic providers are visible only in contexts that include their typed
+/// definition capability; descriptors returned by properties remain bound to
+/// the context that resolved them.
+#[test]
+fn test_generic_model_impl_capabilities_are_context_bound() {
+    let concrete_only = qubit_reflect::ReflectionContext::builder()
+        .include_type::<GenericModel<u64>>()
+        .build()
+        .expect("concrete-only context builds");
+    let concrete_registry = ModelRegistry::from_context(&concrete_only).expect("concrete-only model registry builds");
+    let concrete_properties = concrete_registry
+        .properties_for(TypeMetadata::of::<GenericModel<u64>>())
+        .expect("metadata remains available without generic capability");
+    assert!(concrete_properties.property("current").is_none());
+
+    let linked = reflection_context();
+    let linked_registry = ModelRegistry::from_context(&linked).expect("linked model registry");
+    for metadata in [
+        TypeMetadata::of::<GenericModel<u64>>(),
+        TypeMetadata::of::<GenericEnum<u64>>(),
+        TypeMetadata::of::<GenericValue<u64>>(),
+    ] {
+        let properties = linked_registry
+            .properties_for(metadata)
+            .expect("linked definition capability resolves");
+        let current = properties
+            .property("current")
+            .expect("generic ModelImpl property is present");
+        let descriptor = current
+            .descriptor_in(&linked)
+            .expect("property descriptor lookup")
+            .expect("u64 output descriptor");
+        assert_eq!(descriptor.type_id(), TypeId::of::<u64>());
+        assert!(std::ptr::eq(descriptor.context(), &linked));
+    }
 }

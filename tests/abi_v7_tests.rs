@@ -46,7 +46,6 @@ fn test_object_path_rejects_ambiguous_segments() {
 
 #[cfg(feature = "generic")]
 #[Reflect]
-#[reflect(definition_provider_v2 = anonymous_definition)]
 struct Anonymous<T> {
     value: T,
 }
@@ -57,7 +56,13 @@ struct Anonymous<T> {
 fn test_generic_model_definition_accepts_no_stable_id() {
     let Anonymous { value } = Anonymous { value: 7u8 };
     assert_eq!(value, 7);
-    let definition = generic_model_metadata(None, ModelRole::Model, anonymous_definition(), &[], &[]);
+    let definition = generic_model_metadata(
+        None,
+        ModelRole::Model,
+        concat!(env!("CARGO_CRATE_NAME"), "::Anonymous"),
+        &[],
+        &[],
+    );
     assert!(definition.model_id().is_none());
 }
 

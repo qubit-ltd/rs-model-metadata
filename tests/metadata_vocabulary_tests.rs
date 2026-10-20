@@ -36,6 +36,7 @@ use qubit_model_metadata::metadata::TargetMode;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::metadata::ValidationArgument;
 use qubit_model_metadata::metadata::ValidatorMetadata;
+use qubit_reflect::ReflectionContext;
 use serde_json::from_value;
 use serde_json::json;
 use serde_json::to_value;
@@ -271,14 +272,12 @@ fn test_redaction_metadata_matches_output_positions() {
 #[test]
 fn test_unique_policy_distinguishes_wrapped_text_from_explicit_scope() {
     let metadata = TypeMetadata::of::<WrappedUnique>();
+    let reflection = ReflectionContext::global();
     for (field, expected) in [("text", true), ("number", false)] {
-        let policy = metadata
-            .field(field)
-            .expect("wrapped field")
-            .unique()
-            .expect("unique policy");
+        let field = metadata.field(field).expect("wrapped field");
+        let policy = field.unique().expect("unique policy");
         assert_eq!(policy.declared_ignore_case(), None);
-        assert_eq!(policy.effective_ignore_case(), Some(expected));
+        assert_eq!(policy.effective_ignore_case_in(field, reflection), expected);
         assert!(!policy.is_scoped());
     }
     let scoped = TypeMetadata::of::<ScopedName>()

@@ -4,7 +4,7 @@ error[E0599]: no variant or associated item named `ValidateNested` found for enu
 13 |     let _ = FieldAttributeMetadata::ValidateNested;
    |                                     ^^^^^^^^^^^^^^ variant or associated item not found in `FieldAttributeMetadata`
 
-error[E0599]: no method named `validate_nested` found for reference `&FieldMetadata` in the current scope
+error[E0599]: no method named `validate_nested` found for reference `&qubit_model_metadata::metadata::FieldMetadata` in the current scope
   --> tests/ui/fail/removed_nested_validation_tests.rs:14:11
    |
 14 |     field.validate_nested()

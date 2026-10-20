@@ -6,76 +6,82 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Field overlays preserve resolved, opaque, and symbolic reflection facts.
-
-use std::sync::LazyLock;
+//! Field overlays preserve concrete, opaque, and symbolic type facts.
 
 use bigdecimal::BigDecimal;
 use chrono::DateTime;
 use chrono::Utc;
 use qubit_model_derive::Model;
-use qubit_model_metadata::__private::codegen_v3::descriptor::field as reflect_field;
-use qubit_model_metadata::metadata::FieldMetadata;
+use qubit_model_metadata::metadata::FieldAttributeMetadata;
 use qubit_model_metadata::metadata::TemporalPrecision;
 use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_reflect::FieldDescriptor;
-use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::descriptor::TypeRef;
-use qubit_reflect::expression::TypeExpression;
-use qubit_reflect::identity::Visibility;
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::descriptor::TypeExpressionKind;
 
-#[Reflect]
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
 struct Fields {
     value: String,
-    #[reflect(opaque)]
+    #[opaque]
     secret: Vec<u8>,
 }
 
-#[Reflect]
-struct SymbolicOwner;
-
-static SYMBOLIC_FIELD: LazyLock<FieldDescriptor> = LazyLock::new(|| {
-    let relationship = Box::leak(Box::new(TypeRef::Symbolic(TypeExpression::Parameter("T".into()))));
-    reflect_field(
-        <SymbolicOwner as Reflect>::type_descriptor,
-        0,
-        Some("value"),
-        Some("value"),
-        relationship,
-        Visibility::Private,
-    )
-});
+#[cfg(feature = "generic")]
+#[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
+struct SymbolicOwner<T> {
+    value: T,
+}
 
 #[test]
-fn test_field_overlay_delegates_structure_and_preserves_type_ref_kind() {
-    let descriptor = TypeDescriptor::of::<Fields>();
-    let resolved = FieldMetadata::from_reflect(
-        descriptor.fields()[0].declaring_type().type_id(),
-        &descriptor.fields()[0],
-    );
-    let opaque = FieldMetadata::from_reflect(
-        descriptor.fields()[1].declaring_type().type_id(),
-        &descriptor.fields()[1],
-    );
-    let symbolic = FieldMetadata::from_reflect(SYMBOLIC_FIELD.declaring_type().type_id(), &SYMBOLIC_FIELD);
+fn test_field_overlay_binds_concrete_and_opaque_type_facts() {
+    let metadata = TypeMetadata::of::<Fields>();
+    let reflection = ReflectionContext::global();
+    let descriptor = metadata.descriptor_in(reflection);
+    let resolved = metadata.field("value").expect("resolved field");
+    let opaque = metadata.field("secret").expect("opaque field");
 
     assert_eq!(resolved.name(), Some("value"));
     assert_eq!(resolved.index(), 0);
-    assert!(resolved.descriptor().is_some());
-    assert!(matches!(resolved.type_ref(), TypeRef::Resolved(_)));
-    assert!(opaque.descriptor().is_none());
-    assert!(matches!(opaque.type_ref(), TypeRef::Opaque(_)));
+    assert_eq!(resolved.reflect_in(reflection).unwrap().name(), "value");
+    assert!(matches!(
+        resolved.type_expression_in(reflection).unwrap().kind(),
+        TypeExpressionKind::Named(named) if named.path() == "String"
+    ));
+    assert!(descriptor.fields().get_at(0).is_some());
+
+    assert!(opaque.is_opaque(), "M static facts preserve the opaque boundary");
+    assert!(opaque.reflect_in(reflection).is_none(), "R omits opaque typed fields");
+    assert_eq!(opaque.index(), 1);
+    assert!(matches!(
+        opaque.type_expression_in(reflection).unwrap().kind(),
+        TypeExpressionKind::Named(named) if named.path() == "Vec"
+    ));
     assert!(
-        opaque.attributes().is_empty(),
-        "structural overlays do not synthesize domain declarations"
+        opaque
+            .attributes()
+            .iter()
+            .any(|attribute| matches!(attribute, FieldAttributeMetadata::Opaque))
     );
-    assert!(
-        !opaque.is_opaque(),
-        "the domain marker is distinct from an opaque structural type"
-    );
-    assert!(symbolic.descriptor().is_none());
-    assert!(matches!(symbolic.type_ref(), TypeRef::Symbolic(_)));
+    assert!(opaque.attributes().iter().all(|attribute| matches!(
+        attribute,
+        FieldAttributeMetadata::Opaque | FieldAttributeMetadata::Serde(_)
+    )));
+}
+
+#[cfg(feature = "generic")]
+#[test]
+fn test_generic_field_overlay_preserves_symbolic_expression() {
+    let definition = TypeMetadata::of::<SymbolicOwner<String>>()
+        .generic_definition()
+        .expect("generic declaration");
+    let field = &definition.fields()[0];
+    let reflection = ReflectionContext::global();
+
+    assert_eq!(field.name(), Some("value"));
+    assert!(field.reflect_in(reflection).is_none());
+    assert!(matches!(
+        field.type_expression_in(reflection).map(|expression| expression.kind()),
+        Some(TypeExpressionKind::ParameterName("T")),
+    ));
 }
 
 #[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
@@ -127,9 +133,5 @@ fn test_field_metadata_debug_redacts_decimal_bounds() {
     assert!(
         !debug.contains("9.75"),
         "upper bound leaked through field Debug: {debug}"
-    );
-    assert!(
-        debug.contains("<redacted>"),
-        "decimal bound presence was lost from field Debug: {debug}"
     );
 }

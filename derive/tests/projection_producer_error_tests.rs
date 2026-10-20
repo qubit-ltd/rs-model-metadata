@@ -14,7 +14,6 @@ use model_runtime::__private::qubit_id::Id;
 use model_runtime::metadata::TypeMetadata;
 use model_runtime::registry::ModelRegistry;
 use model_runtime::resolve::ResolveErrorKind;
-use model_runtime::resolve::ResolveInputs;
 use model_runtime::resolve::StructureResolver;
 use qubit_model_derive::Entity;
 use qubit_model_derive::ModelImpl;
@@ -48,8 +47,7 @@ impl Source {
 #[test]
 fn test_resolver_reports_projection_producer_source_mismatch() {
     let models = ModelRegistry::try_global().expect("valid registration index");
-    let roots = [TypeMetadata::of::<Source>()];
-    let errors = StructureResolver::for_roots(ResolveInputs { models, roots: &roots })
+    let errors = StructureResolver::for_static_roots(models, [TypeMetadata::of::<Source>()])
         .resolve()
         .expect_err("a Projection produced by the wrong Entity must be rejected");
 

@@ -8,7 +8,9 @@
 
 //! Field and enum-variant IR.
 
+use syn::Ident;
 use syn::Type;
+use syn::Visibility;
 
 use super::super::Located;
 use super::CodecIr;
@@ -72,6 +74,10 @@ pub(crate) struct FieldIr {
     pub(crate) keep_serializing: bool,
     /// Whether the source field has a name.
     pub(crate) named: bool,
+    /// Source field identifier, absent for tuple fields.
+    pub(crate) rust_name: Option<Ident>,
+    /// Rust visibility written on the field.
+    pub(crate) visibility: Visibility,
 }
 
 /// Normalized enum variant names and its declared fields.

@@ -5,34 +5,38 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+//! Transparent traversal stops when a nested relation is absent from context.
 
-//! Transparent traversal stops when a nested relation has no root descriptor.
+use std::any::TypeId;
 
-use qubit_reflect::__private::codegen_v3::descriptor;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::descriptor::OpaqueTypeDescriptor;
-use qubit_reflect::descriptor::SmartPointerKind;
-use qubit_reflect::descriptor::TypeRef;
-use qubit_reflect::expression::TypeExpression;
+use qubit_reflect::ReflectionContext;
 
 use crate::transparent_descriptor::transparent_descriptor;
 
-static OPAQUE: OpaqueTypeDescriptor = descriptor::opaque_member::<String>();
-static OPAQUE_REF: TypeRef = TypeRef::Opaque(&OPAQUE);
-static SYMBOLIC_REF: TypeRef = TypeRef::Symbolic(TypeExpression::SelfType);
-static BOX_OPAQUE: TypeDescriptor =
-    descriptor::smart_pointer::<Box<String>>("Box<String>", SmartPointerKind::Box, &OPAQUE_REF);
-static BOX_OPAQUE_REF: TypeRef = TypeRef::Resolved(&BOX_OPAQUE);
-static BOX_SYMBOLIC: TypeDescriptor =
-    descriptor::smart_pointer::<Box<String>>("Box<String>", SmartPointerKind::Box, &SYMBOLIC_REF);
-static BOX_SYMBOLIC_REF: TypeRef = TypeRef::Resolved(&BOX_SYMBOLIC);
-static OPTION_BOX_OPAQUE: TypeDescriptor =
-    descriptor::optional::<Option<Box<String>>>("Option<Box<String>>", &BOX_OPAQUE_REF);
-static OPTION_BOX_SYMBOLIC: TypeDescriptor =
-    descriptor::optional::<Option<Box<String>>>("Option<Box<String>>", &BOX_SYMBOLIC_REF);
+#[test]
+fn test_transparent_descriptor_traverses_optional_and_pointer_layers() {
+    let context = ReflectionContext::builder()
+        .include_type::<Option<Box<String>>>()
+        .include_type::<Box<String>>()
+        .include_type::<String>()
+        .build()
+        .expect("transparent wrapper types should register");
+
+    let descriptor = transparent_descriptor(context.type_of::<Option<Box<String>>>())
+        .expect("registered wrapper chain should resolve");
+    assert_eq!(descriptor.type_id(), TypeId::of::<String>());
+    assert!(std::ptr::eq(descriptor.context(), &context));
+}
 
 #[test]
-fn test_transparent_descriptor_stops_at_opaque_or_symbolic_child() {
-    assert!(transparent_descriptor(&OPTION_BOX_OPAQUE).is_none());
-    assert!(transparent_descriptor(&OPTION_BOX_SYMBOLIC).is_none());
+fn test_transparent_descriptor_resolves_static_generic_arguments_in_context() {
+    let context = ReflectionContext::builder()
+        .include_type::<Option<Box<String>>>()
+        .build()
+        .expect("outer wrapper should register");
+
+    let descriptor = transparent_descriptor(context.type_of::<Option<Box<String>>>())
+        .expect("nested static generic arguments remain available");
+    assert_eq!(descriptor.type_id(), TypeId::of::<String>());
+    assert!(std::ptr::eq(descriptor.context(), &context));
 }

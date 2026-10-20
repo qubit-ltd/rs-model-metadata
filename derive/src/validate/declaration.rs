@@ -214,7 +214,10 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
             field.attrs.push(parse_quote!(#[redact(level = #level)]));
         }
         if opaque {
-            field.attrs.push(parse_quote!(#[reflect(opaque)]));
+            // The M metadata keeps this field as an opaque traversal boundary,
+            // while R omits it because it cannot safely build a typed adapter
+            // for a field whose type is intentionally opaque.
+            field.attrs.push(parse_quote!(#[reflect(skip)]));
         }
     }
     if let Data::Enum(data) = data {

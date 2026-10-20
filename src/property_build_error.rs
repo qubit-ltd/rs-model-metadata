@@ -12,10 +12,9 @@ use core::fmt::Display;
 use core::fmt::Formatter;
 use core::fmt::Result;
 
-use qubit_reflect::capability::CapabilityOrigin;
-
 use crate::metadata::PropertyBuildErrorKind;
 use crate::property_accessor_conflict::PropertyAccessorConflict;
+use crate::reflect_facade::ModelImplSource;
 
 /// Describes one incompatible property fragment combination.
 ///
@@ -90,8 +89,8 @@ impl PropertyBuildError {
         property_name: &'static str,
         first_method: &'static str,
         second_method: &'static str,
-        first_origin: CapabilityOrigin,
-        second_origin: CapabilityOrigin,
+        first_origin: ModelImplSource,
+        second_origin: ModelImplSource,
     ) -> Self {
         Self {
             kind,

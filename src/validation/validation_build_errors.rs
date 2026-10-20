@@ -42,9 +42,8 @@ use super::validation_build_error::ValidationBuildError;
 /// }
 /// # fn main() {
 /// let root = TypeMetadata::of::<Record>();
-/// let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
-/// let roots = [root];
-/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+/// let models = ModelRegistry::try_global().expect("model registry");
+/// let graph = StructureResolver::for_static_roots(models, [root])
 ///     .resolve().expect("valid record structure");
 /// let errors = ValidationCapabilities::check(root, &graph)
 ///     .expect_err("NaiveDate precision execution is unsupported");

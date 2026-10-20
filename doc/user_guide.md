@@ -17,7 +17,7 @@ reuse rs-reflect descriptors. TypeMetadata is static and independent of any mode
 instance. Entity requires a stable ModelId. Other roles may be anonymous: they still have
 exact TypeId identity and can be supplied as roots.
 
-This checkout uses rs-reflect codegen v3. Runtime values use checked
+This checkout uses rs-reflect codegen v4. Runtime values use checked
 `DynamicRef<'a, Local>`, `DynamicMut<'a, Local>`, and `DynamicOwned<Local>`;
 derive-generated capabilities use `#[ReflectImpl]`. The generated-code facade
 `__private::v8` is internal; application code should use the public APIs shown
@@ -108,7 +108,7 @@ use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
 
 #[Model]
 struct Child { name: String }
@@ -125,8 +125,11 @@ struct User {
 fn main() {
     let root = TypeMetadata::of::<User>();
     assert_eq!(root.model_id().expect("Entity ID").as_str(), "guide.directory.User");
-    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot model registry");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("context model registry");
     let roots = [root];
     let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().unwrap();
@@ -165,12 +168,11 @@ and indexing reasons. A later filter crate may choose substring matching for
 nickname and min/max parameters for an ordered age or timestamp. Those choices
 are not metadata output contracts.
 
-For linked model crates, use `ModelRegistry::try_global()` or construct an
-explicit rs-reflect snapshot and project it with `ModelRegistry::from_reflect_registry`.
-That snapshot lets `properties_for` include independently registered `ModelImpl`
-accessors. `from_reflect_registry` projects only descriptors in the snapshot's
-`types()` membership; capability-only overlays remain queryable through reflection
-but do not become model roots. Link the participating crates before freezing the registry.
+For linked model crates, use `ModelRegistry::try_global()` or build a
+`ReflectionContext` and pass it to `ModelRegistry::from_context`. The context lets
+`properties_for` include independently registered `ModelImpl` accessors. Only
+capabilities registered in that context are visible to the model registry. Link
+the participating crates before building the context.
 Resolution
 traverses the registered models and explicit roots, deduplicates concrete TypeIds, and
 checks references, Projection sources, Property conflicts, and Value closure.
@@ -218,7 +220,6 @@ use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
-use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
@@ -248,9 +249,8 @@ impl Profile {
 
 fn main() {
     let root = TypeMetadata::of::<Profile>();
-    let roots = [root];
     let models = ModelRegistry::try_global().expect("linked metadata and accessors");
-    let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
+    let graph = Arc::new(StructureResolver::for_static_roots(&models, [root])
         .resolve().expect("valid structure"));
     ValidationCapabilities::check(root, graph.as_ref()).expect("supported access shapes");
     let validators = ValidatorRegistry::empty();
@@ -342,6 +342,7 @@ use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
+use qubit_reflect::ReflectionContext;
 
 #[derive(Default)]
 struct StringCodec;
@@ -385,7 +386,10 @@ static REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration
 );
 
 fn main() {
-    let models = ModelRegistry::from_static_metadata(&[]).expect("model registry");
+    let reflection = ReflectionContext::builder().include_linked().build()
+        .expect("reflection context");
+    let models = ModelRegistry::from_static_metadata(&reflection, &[])
+        .expect("model registry");
     let codecs = ValueStringCodecRegistry::from_registrations([&REGISTRATION])
         .expect("codec registry");
 
@@ -574,6 +578,7 @@ use qubit_model_metadata::validation::ConstraintRuleRef;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_model_metadata::metadata::SelectorPosition;
+use qubit_reflect::ReflectionContext;
 use qubit_validator::ValidatorRegistry;
 
 #[Enum]
@@ -584,7 +589,10 @@ enum ContactMethod {
 fn main() {
     let root = TypeMetadata::of::<ContactMethod>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let reflection = ReflectionContext::builder().include_linked().build()
+        .expect("reflection context");
+    let models = ModelRegistry::from_static_metadata(&reflection, &[])
+        .expect("isolated registry");
     let graph = Arc::new(StructureResolver::for_roots(ResolveInputs { models: &models, roots: &roots })
         .resolve().expect("enum declarations are structurally supported"));
     let validators = ValidatorRegistry::empty();
@@ -692,7 +700,7 @@ use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::Reflect;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
 use qubit_validator::ValidatorRegistry;
 
 #[Model(eq, hash)]
@@ -716,8 +724,11 @@ struct EmptyRaw { child: EmptyChild }
 struct EmptyRoot { raw: EmptyRaw }
 
 fn main() {
-    let reflection = RegistrySnapshotBuilder::new().build().expect("empty reflection snapshot");
-    let models = ModelRegistry::from_reflect_registry(&reflection).expect("snapshot registry");
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("context model registry");
     let validators = ValidatorRegistry::empty();
     let root = TypeMetadata::of::<Root>();
     let roots = [root];
@@ -888,7 +899,7 @@ metadata registration before projecting it.
 The graph borrows its immutable registry. Static metadata never borrows graph
 allocations or instances. Borrowed Property values cannot escape their source
 lifetimes and do not require Send. The new generated-code protocol is the private
-checked v8 facade over rs-reflect codegen v3; applications should use public APIs.
+checked v8 facade over rs-reflect codegen v4; applications should use public APIs.
 
 Database access, random object creation, physical indexes, filter generation,
 Unicode comparison execution, and missing-parent business fallback remain

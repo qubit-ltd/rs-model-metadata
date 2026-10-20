@@ -76,6 +76,7 @@ impl Debug for ValidationOccurrence {
 #[cfg(test)]
 mod tests {
     use qubit_reflect::Reflect;
+    use qubit_reflect::ReflectionContext;
     use qubit_reflect::TypeDescriptor;
 
     use super::ExecutionDeclaration;
@@ -99,19 +100,26 @@ mod tests {
     static VALIDATOR: ValidatorMetadata = ValidatorMetadata::new("example.rule", &[], &[]);
 
     fn fixture_metadata() -> &'static TypeMetadata {
-        let descriptor = TypeDescriptor::of::<OccurrenceFixture>();
+        let context = ReflectionContext::global();
+        let descriptor = TypeDescriptor::of_in::<OccurrenceFixture>(context);
         let fields = v8::leak_slice(vec![FieldMetadata::from_reflect(
             descriptor.type_id(),
-            descriptor.field_at(0).expect("fixture field descriptor"),
+            descriptor.fields().get_at(0).expect("fixture field descriptor"),
         )]);
-        v8::leak(TypeMetadata::new(descriptor, None, fields, v8::leak(v8::model_role())))
+        v8::leak(TypeMetadata::new::<OccurrenceFixture>(
+            None,
+            fields,
+            v8::leak(v8::model_role()),
+        ))
     }
 
     fn fixture_variant() -> &'static EnumVariantMetadata {
-        let descriptor = TypeDescriptor::of::<VariantFixture>();
-        let reflect = descriptor.variants().first().expect("fixture enum variant");
+        let descriptor = TypeDescriptor::of_in::<VariantFixture>(ReflectionContext::global());
+        let reflect = descriptor.variants().get_at(0).expect("fixture enum variant");
         v8::leak(v8::enum_variant_metadata(
-            reflect,
+            descriptor.type_id(),
+            reflect.index(),
+            "Ready",
             "READY",
             "READY",
             "READY",

@@ -8,8 +8,8 @@
 
 //! Execution APIs sharing one report accumulator and one work budget.
 
-use qubit_reflect::OptionalProjectionError;
-use qubit_reflect::TypeDescriptor;
+use qubit_reflect::value::Local;
+use qubit_reflect::value::ValueForRef;
 use qubit_validation_rules::collection::UniquePairs;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::ExecutionError;
@@ -31,6 +31,8 @@ use crate::metadata::PropertyOwned;
 use crate::metadata::PropertyValue;
 use crate::metadata::SelectorPosition;
 use crate::property::ItemEqAdapter;
+use crate::property::OptionalOps;
+use crate::property::PropertyTypeMismatch;
 use crate::resolve::ModelGraph;
 use crate::validation::ModelValidationError;
 use crate::validation::ValidationOptions;
@@ -142,7 +144,9 @@ impl<'a> ValidationPlan<'a> {
     ///
     /// # Errors
     /// Returns the original infrastructure failure and the partial report.
-    pub fn validate<T: 'static>(
+    /// The borrowed root must preserve its concrete `Any` view for typed
+    /// validators; otherwise execution reports an adapter contract violation.
+    pub fn validate<T: ValueForRef<Local> + std::any::Any>(
         &self,
         value: &T,
         options: &ValidationOptions,
@@ -160,6 +164,9 @@ impl<'a> ValidationPlan<'a> {
     ///
     /// # Errors
     /// Returns the original infrastructure failure and the partial report.
+    /// Non-text typed validation requires a dynamic borrow that preserves its
+    /// concrete `Any` view; a view without one produces an adapter contract
+    /// violation.
     pub fn validate_dynamic(
         &self,
         value: PropertyBorrowed<'_>,
@@ -186,13 +193,16 @@ impl<'a> ValidationPlan<'a> {
     /// # Errors
     /// Returns typed source context for failed reads or rule invocations, or a
     /// traversal-limit error before the operation that would exceed its budget.
-    pub fn validate_with_context<'value, T: 'static>(
+    /// Non-text typed validation requires a dynamic borrow that preserves its
+    /// concrete `Any` view; a view without one produces an adapter contract
+    /// violation.
+    pub fn validate_with_context<'value, T: ValueForRef<Local> + std::any::Any>(
         &self,
         value: &'value T,
         ancestors: &[PropertyBorrowed<'value>],
         options: &ValidationOptions,
     ) -> Result<ValidationReport, ModelValidationError> {
-        self.validate_dynamic_with_context(PropertyBorrowed::new(value), ancestors, options)
+        self.validate_dynamic_with_context(PropertyBorrowed::new_any(value), ancestors, options)
     }
 
     fn validate_dynamic_with_context<'value>(
@@ -201,7 +211,7 @@ impl<'a> ValidationPlan<'a> {
         ancestors: &[PropertyBorrowed<'value>],
         options: &ValidationOptions,
     ) -> Result<ValidationReport, ModelValidationError> {
-        if value.value_type_id() != self.root().type_id() {
+        if value.clone().type_id() != self.root().type_id() {
             return Err(ModelValidationError::new(
                 ExecutionError::new(ExecutionErrorKind::InputTypeMismatch),
                 ReportAccumulator::new(options).into_report(),
@@ -231,7 +241,7 @@ impl<'a> ValidationPlan<'a> {
                 continue;
             }
             let result = (|| {
-                let input = reflected_value(&value);
+                let input = reflected_value(&value)?;
                 let context = BoundValidationContext::new_with_paths(&[], &[])?;
                 budget.invoke(0, false)?;
                 let outcome = binding.validate(input, &context)?;
@@ -323,17 +333,18 @@ fn execute_field<'value>(
     report: &mut ReportAccumulator<'_>,
     has_more_work: bool,
 ) -> Result<(), ExecutionFailure> {
+    let context = graph
+        .registry()
+        .context()
+        .expect("validation plans require the graph's reflection context");
     let path = path_for(binding.value());
-    let Some(value) = path_reader::read(binding.value(), root.clone(), 0, budget)? else {
+    let Some(value) = path_reader::read(context, binding.value(), root.clone(), 0, budget)? else {
         return Ok(());
     };
     let missing_optional_path = matches!(&value, PropertyValue::OptionalBorrowed(None));
     let direct_optional_scalar = binding.value().steps().last().is_some_and(|step| {
         let property = step.property();
-        property.getter().is_none()
-            && property
-                .descriptor()
-                .is_some_and(|descriptor| descriptor.as_optional().is_some())
+        property.getter().is_none() && property.optional_ops().is_some()
     }) && matches!(
         binding.execution(),
         FieldExecution::Registry {
@@ -346,13 +357,13 @@ fn execute_field<'value>(
             .value()
             .steps()
             .last()
-            .and_then(|step| step.property().descriptor())
+            .and_then(|step| step.property().optional_ops())
             .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone()))?;
-        Some(optional_scalar_value(&value, descriptor).map_err(|error| {
-            ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
-                .with_trusted_source(error)
-                .with_path(path.clone())
-        })?)
+        Some(
+            optional_scalar_value(&value, descriptor).map_err(|_| {
+                ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone())
+            })?,
+        )
     } else {
         None
     };
@@ -410,7 +421,11 @@ fn execute_field<'value>(
         return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
     };
     let (dependencies, paths) = path_reader::dependencies(binding.dependencies(), root, ancestors, graph, budget)?;
-    let values: Vec<_> = dependencies.iter().map(property_value).collect();
+    let values: Vec<_> = dependencies
+        .iter()
+        .map(property_value)
+        .collect::<Result<_, _>>()
+        .map_err(|error: ExecutionError| error.with_path(path.clone()))?;
     // The plan binder matched dependencies by signature name, so this ordered
     // fast path receives values in the validator's declared order.
     let context = BoundValidationContext::new_with_paths(&values, &paths)?;
@@ -433,8 +448,8 @@ fn execute_field<'value>(
                     .value()
                     .steps()
                     .last()
-                    .and_then(|step| step.property().descriptor())
-                    .is_some_and(|descriptor| descriptor.as_optional().is_some());
+                    .and_then(|step| step.property().optional_ops())
+                    .is_some();
             if !declared_optional {
                 return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
                     .with_path(path)
@@ -476,7 +491,9 @@ fn execute_field<'value>(
             .as_ref()
             .and_then(Option::as_ref)
             .map(reflected_value)
-            .unwrap_or_else(|| property_value(&value)),
+            .transpose()
+            .map_err(|error| error.with_path(path.clone()))?
+            .map_or_else(|| property_value(&value), Ok)?,
     };
     budget.invoke(path.as_segments().len(), false)?;
     let outcome = validator
@@ -601,7 +618,10 @@ fn execute_selected_members(
         };
         let member_has_more = values.remaining_len().is_none_or(|remaining| remaining > 0);
         let outcome = validator
-            .validate(reflected_value(&element), &context)
+            .validate(
+                reflected_value(&element).map_err(|error| error.with_path(member_path.clone()))?,
+                &context,
+            )
             .map_err(|error| prefix_error(error, &member_path))?;
         report
             .accept(occurrence, &member_path, outcome, member_has_more || has_more_work)
@@ -630,24 +650,27 @@ fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionErro
 }
 
 /// Converts a reflected borrow into the validator input abstraction.
-fn reflected_value<'a>(value: &'a PropertyBorrowed<'_>) -> ValidationValue<'a> {
-    if let Some(text) = value.as_str() {
-        return ValidationValue::Text(text);
-    }
+fn reflected_value<'a>(value: &'a PropertyBorrowed<'_>) -> Result<ValidationValue<'a>, ExecutionError> {
     if let Some(text) = value.downcast_ref::<String>() {
-        return ValidationValue::Text(text.as_str());
+        return Ok(ValidationValue::Text(text.as_str()));
     }
-    ValidationValue::Typed(value.as_any().expect("non-text reflected value"))
+    if let Some(text) = value.downcast_ref::<str>() {
+        return Ok(ValidationValue::Text(text));
+    }
+    value
+        .as_any()
+        .map(ValidationValue::Typed)
+        .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::AdapterContractViolation))
 }
 
 /// Converts a property adapter result into a validator input abstraction.
-fn property_value<'a>(value: &'a PropertyValue<'_>) -> ValidationValue<'a> {
+fn property_value<'a>(value: &'a PropertyValue<'_>) -> Result<ValidationValue<'a>, ExecutionError> {
     match value {
         PropertyValue::Borrowed(value) => reflected_value(value),
         PropertyValue::OptionalBorrowed(Some(value)) => reflected_value(value),
-        PropertyValue::OptionalBorrowed(None) => ValidationValue::Missing,
+        PropertyValue::OptionalBorrowed(None) => Ok(ValidationValue::Missing),
         PropertyValue::Owned(value) => owned_value(value),
-        PropertyValue::BorrowedSlice(_) => ValidationValue::Missing,
+        PropertyValue::BorrowedSlice(_) => Ok(ValidationValue::Missing),
     }
 }
 
@@ -656,23 +679,30 @@ fn property_value<'a>(value: &'a PropertyValue<'_>) -> ValidationValue<'a> {
 /// means the optional field is absent. No value is cloned or formatted.
 fn optional_scalar_value<'a>(
     value: &PropertyValue<'a>,
-    descriptor: &'static TypeDescriptor,
-) -> Result<Option<PropertyBorrowed<'a>>, OptionalProjectionError> {
+    optional: OptionalOps,
+) -> Result<Option<PropertyBorrowed<'a>>, PropertyTypeMismatch> {
     let PropertyValue::Borrowed(value) = value else {
-        return Err(OptionalProjectionError::Unavailable);
+        return Err(PropertyTypeMismatch {
+            expected: optional.element_type_id(),
+            actual: match value {
+                PropertyValue::Borrowed(value) | PropertyValue::OptionalBorrowed(Some(value)) => {
+                    value.clone().type_id()
+                }
+                PropertyValue::OptionalBorrowed(None) => std::any::TypeId::of::<()>(),
+                PropertyValue::Owned(value) => value.type_id(),
+                PropertyValue::BorrowedSlice(_) => std::any::TypeId::of::<()>(),
+            },
+        });
     };
-    descriptor
-        .as_optional()
-        .ok_or(OptionalProjectionError::Unavailable)?
-        .project_dynamic_ref(value.clone())
+    optional.project_ref(value.clone())
 }
 
 /// Converts an owned reflected value into a validator input abstraction.
-fn owned_value<'a>(value: &'a PropertyOwned) -> ValidationValue<'a> {
+fn owned_value<'a>(value: &'a PropertyOwned) -> Result<ValidationValue<'a>, ExecutionError> {
     if let Some(text) = value.downcast_ref::<String>() {
-        return ValidationValue::Text(text.as_str());
+        return Ok(ValidationValue::Text(text.as_str()));
     }
-    ValidationValue::Typed(value.as_any().expect("owned values are Any-compatible"))
+    Ok(ValidationValue::Typed(value.as_any()))
 }
 
 /// Reports whether a validation path is selected by the caller.
@@ -693,6 +723,56 @@ fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
             PathSegment::Field(name) => Some(*name),
             _ => None,
         }))
+}
+
+#[cfg(test)]
+mod any_view_tests {
+    use qubit_reflect::Reflect;
+    use qubit_reflect::value::DynamicOwned;
+    use qubit_reflect::value::DynamicRef;
+    use qubit_reflect::value::Local;
+    use qubit_validator::ExecutionErrorKind;
+
+    use super::owned_value;
+    use super::reflected_value;
+
+    #[Reflect]
+    struct NonTextValue;
+
+    #[test]
+    fn test_reflected_value_rejects_dynamic_view_without_any() {
+        let value = NonTextValue;
+        let dynamic = DynamicRef::<Local>::new(&value);
+
+        let error = reflected_value(&dynamic).expect_err("the view has no concrete Any reference");
+
+        assert_eq!(error.kind(), ExecutionErrorKind::AdapterContractViolation);
+    }
+
+    #[test]
+    fn test_reflected_value_preserves_any_view_when_available() {
+        let value = NonTextValue;
+        let dynamic = DynamicRef::<Local>::new_any(&value);
+
+        let qubit_validator::ValidationValue::Typed(actual) =
+            reflected_value(&dynamic).expect("new_any retains the concrete value view")
+        else {
+            panic!("non-text values remain typed inputs");
+        };
+        assert!(actual.is::<NonTextValue>());
+    }
+
+    #[test]
+    fn test_owned_value_preserves_non_text_typed_input() {
+        let value = DynamicOwned::<Local>::new(NonTextValue);
+
+        let input = owned_value(&value).expect("owned reflected values expose their concrete Any view");
+
+        let qubit_validator::ValidationValue::Typed(actual) = input else {
+            panic!("non-text owned values remain typed inputs");
+        };
+        assert!(actual.is::<NonTextValue>());
+    }
 }
 
 #[cfg(test)]

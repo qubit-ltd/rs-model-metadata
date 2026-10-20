@@ -12,22 +12,18 @@ use model_runtime::__private::DynamicMut;
 use model_runtime::__private::DynamicOwned;
 use model_runtime::__private::DynamicRef;
 use model_runtime::__private::Local;
-use model_runtime::__private::TypeExpression;
 use model_runtime::metadata::PropertyValue;
 use model_runtime::metadata::TypeMetadata;
 use model_runtime::registry::ModelRegistry;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
-use qubit_reflect::ReflectRegistry;
-use qubit_reflect::TypeDescriptor;
+use qubit_reflect::ReflectionContext;
 
-const GENERIC_DECLARATION_START_LINE: u32 = line!();
 #[Model(id = "test.derive.CodegenBoundaryGeneric")]
 #[allow(dead_code, reason = "the registration must not require a concrete monomorph")]
 struct CodegenBoundaryGeneric<T> {
-    value: T,
+    value: Option<Vec<T>>,
 }
-const GENERIC_DECLARATION_END_LINE: u32 = line!();
 
 #[Model]
 struct CodegenBoundaryProperties {
@@ -68,45 +64,58 @@ fn test_generic_model_registration_preserves_definition_identity_and_source() {
     );
     assert_eq!(registry.generic_definitions().len(), 1);
     assert!(registry.metadata("test.derive.CodegenBoundaryGeneric").is_none());
-    assert_eq!(generic.definition().generics().parameters().len(), 1);
-    let concrete = TypeDescriptor::of::<CodegenBoundaryGeneric<u8>>();
-    assert!(std::ptr::eq(
-        concrete
-            .type_definition()
-            .expect("generic monomorph retains its source definition"),
-        generic.definition(),
-    ));
+    let context = ReflectionContext::builder()
+        .include_type::<CodegenBoundaryGeneric<u8>>()
+        .build()
+        .expect("generic definition context");
+    let definition = generic.definition_in(&context).expect("definition binds in context");
+    assert_eq!(definition.generics().parameters().len(), 1);
+    let concrete = context
+        .find_type_by_id(core::any::TypeId::of::<CodegenBoundaryGeneric<u8>>())
+        .expect("type lookup must succeed")
+        .expect("concrete generic instance must be in context");
+    assert_eq!(
+        concrete.definition().expect("generic source definition").path(),
+        definition.path()
+    );
     assert_eq!(generic.fields().len(), 1);
-    assert!(matches!(
-        generic.fields()[0].type_ref().as_symbolic(),
-        Some(TypeExpression::Parameter(name)) if name.as_ref() == "T",
-    ));
+    assert_eq!(
+        generic.fields()[0]
+            .type_expression_in(&context)
+            .expect("symbolic field expression")
+            .display()
+            .to_string(),
+        "Option<Vec<T>>"
+    );
 
     let source = registry
         .source("test.derive.CodegenBoundaryGeneric")
         .expect("generic model entry must retain its capability source");
-    assert_eq!(source.member_kind(), "generic-model-capability");
+    assert_eq!(source.crate_name, "explicit");
+    assert!(
+        source
+            .module_path
+            .starts_with("model_codegen_boundary_tests::__qubit_reflect_v4_struct_")
+    );
+    assert!(source.module_path.ends_with("::TypeDefinitionMarker"));
+    assert_eq!(source.file, None);
+    assert_eq!(source.line, None);
+    assert_eq!(source.column, None);
     let declaration_source = registry
         .get("test.derive.CodegenBoundaryGeneric")
         .expect("generic model entry")
         .declaration_source()
         .expect("generic definition must retain its declaration source");
-    assert_eq!(declaration_source.declaring_crate(), "qubit-model-derive");
+    assert_eq!(declaration_source.crate_name, "explicit");
     assert!(
         declaration_source
-            .module_path()
-            .starts_with("model_codegen_boundary_tests::__qubit_reflect_type_definition_registration_")
+            .module_path
+            .starts_with("model_codegen_boundary_tests::__qubit_reflect_v4_struct_")
     );
-    assert!(!declaration_source.module_path().contains("reflect_codegen"));
-    assert_eq!(declaration_source.member_kind(), "type-definition");
-    assert!((GENERIC_DECLARATION_START_LINE..=GENERIC_DECLARATION_END_LINE).contains(&declaration_source.line()));
-    assert!(declaration_source.column() > 0);
-
-    let reflection = ReflectRegistry::initialize().expect("reflection registrations must be valid");
-    assert_eq!(
-        reflection.definition_source(generic.definition().id()),
-        Some(declaration_source)
-    );
+    assert!(declaration_source.module_path.ends_with("::TypeDefinitionMarker"));
+    assert_eq!(declaration_source.file, None);
+    assert_eq!(declaration_source.line, None);
+    assert_eq!(declaration_source.column, None);
 }
 
 #[test]
@@ -122,30 +131,35 @@ fn test_model_impl_preserves_borrowed_and_mutable_property_shapes() {
         tags: vec!["first".to_owned(), "second".to_owned()],
     };
 
-    let PropertyValue::Borrowed(borrowed) = name
-        .get_dynamic(DynamicRef::<Local>::new(&value))
-        .expect("borrowed str getter")
-    else {
-        panic!("name must remain a borrowed property");
-    };
-    assert_eq!(borrowed.as_str(), Some("before"));
+    {
+        let PropertyValue::Borrowed(borrowed) = name
+            .get_dynamic(DynamicRef::<Local>::new(&value))
+            .expect("borrowed str getter")
+        else {
+            panic!("name must remain a borrowed property");
+        };
+        assert_eq!(borrowed.downcast_ref::<str>(), Some("before"));
+    }
 
-    let PropertyValue::OptionalBorrowed(Some(borrowed)) = alias
-        .get_dynamic(DynamicRef::<Local>::new(&value))
-        .expect("optional borrowed getter")
-    else {
-        panic!("alias must preserve optional borrowing");
-    };
-    assert_eq!(borrowed.downcast_ref::<String>().map(String::as_str), Some("visible"));
+    {
+        let PropertyValue::OptionalBorrowed(Some(borrowed)) = alias
+            .get_dynamic(DynamicRef::<Local>::new(&value))
+            .expect("optional borrowed getter")
+        else {
+            panic!("alias must preserve optional borrowing");
+        };
+        assert_eq!(borrowed.downcast_ref::<String>().map(String::as_str), Some("visible"));
+    }
 
-    let PropertyValue::BorrowedSlice(borrowed) = tags
-        .get_dynamic(DynamicRef::<Local>::new(&value))
-        .expect("borrowed slice getter")
-    else {
-        panic!("tags must remain a borrowed slice property");
-    };
-    assert_eq!(borrowed.len(), 2);
-    drop(borrowed);
+    {
+        let PropertyValue::BorrowedSlice(borrowed) = tags
+            .get_dynamic(DynamicRef::<Local>::new(&value))
+            .expect("borrowed slice getter")
+        else {
+            panic!("tags must remain a borrowed slice property");
+        };
+        assert_eq!(borrowed.len(), 2);
+    }
 
     name.set_dynamic(
         DynamicMut::<Local>::new(&mut value),
@@ -164,13 +178,21 @@ fn test_model_owned_expanders_use_only_the_model_codegen_facade() {
         "metadata expansion must not directly reference reflection codegen_v3",
     );
     assert!(
+        !metadata.contains("TypeRef"),
+        "metadata expansion must retain static type-expression facts instead of TypeRef handles",
+    );
+    assert!(
+        !metadata.contains("ReflectRegistry"),
+        "metadata expansion must bind facts through a context instead of a global registry",
+    );
+    assert!(
         !model_impl.contains("codegen_v3"),
         "ModelImpl expansion must not directly reference reflection codegen_v3",
     );
 
     let runtime_facade = include_str!("../../src/__private.rs");
     assert!(
-        runtime_facade.contains(concat!("pub use qubit_reflect", "::__private::codegen_v3;",)),
-        "the reflection derive facade must retain its codegen_v3 entry",
+        runtime_facade.contains(concat!("pub use qubit_reflect", "::__private::codegen_v4;",)),
+        "the reflection derive facade must expose its v4 expression entry",
     );
 }

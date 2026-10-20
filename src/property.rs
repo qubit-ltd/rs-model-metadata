@@ -12,13 +12,14 @@ use std::any::TypeId;
 use std::error::Error;
 use std::fmt;
 
-use qubit_reflect::FieldAccessError;
-use qubit_reflect::FieldSetRecovery;
+use qubit_reflect::__private::codegen_v4::expression::TypeExpressionData;
 use qubit_reflect::InvocationOutput;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::TypeMismatch;
-use qubit_reflect::descriptor::TypeRef;
-use qubit_reflect::invoke::BorrowOrigin;
+use qubit_reflect::descriptor::BorrowOrigin;
+use qubit_reflect::descriptor::FieldAccessError;
+use qubit_reflect::descriptor::FieldSetError;
+use qubit_reflect::descriptor::TypeExpression;
 use qubit_reflect::value::DynamicMut;
 use qubit_reflect::value::DynamicOwned;
 use qubit_reflect::value::DynamicRef;
@@ -26,6 +27,8 @@ use qubit_reflect::value::Local;
 use thiserror::Error;
 
 use crate::metadata::FieldMetadata;
+#[cfg(feature = "validation")]
+use crate::type_metadata::TypeMetadata;
 
 /// Local erased shared borrow owned by the metadata layer.
 pub type PropertyBorrowed<'a> = DynamicRef<'a, Local>;
@@ -35,6 +38,95 @@ pub type PropertyMutable<'a> = DynamicMut<'a, Local>;
 
 /// Local erased owned value owned by the metadata layer.
 pub type PropertyOwned = DynamicOwned<Local>;
+
+/// Exact Rust identities involved in a rejected property operation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PropertyTypeMismatch {
+    /// Expected Rust type identity.
+    pub expected: TypeId,
+    /// Actual Rust type identity.
+    pub actual: TypeId,
+}
+
+/// Generated exact type operations for traversing an `Option<T>` property.
+#[derive(Clone, Copy)]
+pub struct OptionalOps {
+    element_type_id: fn() -> TypeId,
+    project_ref: for<'a> fn(PropertyBorrowed<'a>) -> Result<Option<PropertyBorrowed<'a>>, PropertyTypeMismatch>,
+    project_mut: for<'a> fn(PropertyMutable<'a>) -> Result<Option<PropertyMutable<'a>>, PropertyTypeMismatch>,
+}
+
+impl OptionalOps {
+    /// Builds projection operations for one reflected element type.
+    #[doc(hidden)]
+    pub fn for_element<
+        T: qubit_reflect::descriptor::Reflect
+            + qubit_reflect::value::ValueForRef<Local>
+            + qubit_reflect::value::ValueForMut<Local>
+            + std::any::Any,
+    >() -> Self {
+        fn type_id<T: 'static>() -> TypeId {
+            TypeId::of::<T>()
+        }
+        fn project_ref<'a, T>(value: PropertyBorrowed<'a>) -> Result<Option<PropertyBorrowed<'a>>, PropertyTypeMismatch>
+        where
+            T: qubit_reflect::descriptor::Reflect + qubit_reflect::value::ValueForRef<Local> + std::any::Any,
+        {
+            match value.downcast::<Option<T>>() {
+                Ok(value) => Ok(value.as_ref().map(PropertyBorrowed::new_any)),
+                Err(failure) => {
+                    let (error, _) = failure.into_parts();
+                    Err(PropertyTypeMismatch {
+                        expected: error.expected(),
+                        actual: error.actual(),
+                    })
+                }
+            }
+        }
+        fn project_mut<'a, T>(value: PropertyMutable<'a>) -> Result<Option<PropertyMutable<'a>>, PropertyTypeMismatch>
+        where
+            T: qubit_reflect::descriptor::Reflect + qubit_reflect::value::ValueForMut<Local>,
+        {
+            match value.downcast::<Option<T>>() {
+                Ok(value) => Ok(value.as_mut().map(PropertyMutable::new)),
+                Err(failure) => {
+                    let (error, _) = failure.into_parts();
+                    Err(PropertyTypeMismatch {
+                        expected: error.expected(),
+                        actual: error.actual(),
+                    })
+                }
+            }
+        }
+        Self {
+            element_type_id: type_id::<T>,
+            project_ref: project_ref::<T>,
+            project_mut: project_mut::<T>,
+        }
+    }
+
+    /// Returns the exact Rust identity of `T`.
+    #[must_use]
+    pub fn element_type_id(self) -> TypeId {
+        (self.element_type_id)()
+    }
+
+    /// Projects `Some(T)` as a borrow, returning `None` for an absent value.
+    pub fn project_ref<'a>(
+        self,
+        value: PropertyBorrowed<'a>,
+    ) -> Result<Option<PropertyBorrowed<'a>>, PropertyTypeMismatch> {
+        (self.project_ref)(value)
+    }
+
+    /// Projects `Some(T)` as a mutable borrow, returning `None` if absent.
+    pub fn project_mut<'a>(
+        self,
+        value: PropertyMutable<'a>,
+    ) -> Result<Option<PropertyMutable<'a>>, PropertyTypeMismatch> {
+        (self.project_mut)(value)
+    }
+}
 
 /// Classifies how a property stores or computes its value.
 ///
@@ -148,7 +240,7 @@ struct TypedPropertySlice<'a, T> {
     values: &'a [T],
 }
 
-impl<'a, T: 'static> PropertySlice<'a> for TypedPropertySlice<'a, T> {
+impl<'a, T: qubit_reflect::value::ValueForRef<Local>> PropertySlice<'a> for TypedPropertySlice<'a, T> {
     #[inline]
     fn len(&self) -> usize {
         self.values.len()
@@ -194,7 +286,7 @@ impl<'a> BorrowedPropertySlice<'a> {
     ///
     /// A type-erased adapter that preserves the input slice's lifetime.
     #[doc(hidden)]
-    pub fn new<T: 'static>(value: &'a [T]) -> Self {
+    pub fn new<T: qubit_reflect::value::ValueForRef<Local>>(value: &'a [T]) -> Self {
         Self {
             value: Box::new(TypedPropertySlice { values: value }),
         }
@@ -491,10 +583,10 @@ pub type SetterAdapter = fn(PropertyMutable<'_>, PropertyOwned) -> Result<(), Pr
 pub enum PropertyAccessError {
     /// The target has a different concrete type.
     #[error("property target type mismatch")]
-    TargetTypeMismatch(TypeMismatch),
+    TargetTypeMismatch(PropertyTypeMismatch),
     /// The replacement has a different concrete type.
     #[error("property value type mismatch")]
-    ValueTypeMismatch(TypeMismatch),
+    ValueTypeMismatch(PropertyTypeMismatch),
     /// The property has no readable source.
     #[error("property is not readable")]
     NotReadable,
@@ -507,6 +599,9 @@ pub enum PropertyAccessError {
     /// The underlying reflection field operation failed.
     #[error("reflected field access failed: {0}")]
     Field(#[from] FieldAccessError),
+    /// The underlying reflection field replacement failed.
+    #[error("reflected field replacement failed: {0}")]
+    FieldSet(#[from] FieldSetError),
     /// An adapter reported a static user-facing error.
     #[error("property method failed: {0}")]
     User(&'static str),
@@ -542,8 +637,11 @@ impl PropertyAccessError {
     ///
     /// A type-mismatch error containing expected and actual type identities.
     #[doc(hidden)]
-    pub fn value_type_mismatch<T: 'static>(actual: &PropertyBorrowed<'_>) -> Self {
-        Self::ValueTypeMismatch(TypeMismatch::new(TypeId::of::<T>(), actual.value_type_id()))
+    pub fn value_type_mismatch<T: 'static>(actual: PropertyBorrowed<'_>) -> Self {
+        Self::ValueTypeMismatch(PropertyTypeMismatch {
+            expected: TypeId::of::<T>(),
+            actual: actual.type_id(),
+        })
     }
 }
 
@@ -670,6 +768,7 @@ impl Error for PropertySetFailure {}
 ///
 /// ```
 /// use qubit_reflect::value::Local;
+/// use qubit_model_derive::Model;
 /// use qubit_model_metadata::metadata::GetterMetadata;
 /// use qubit_model_metadata::metadata::GetterOutputKind;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
@@ -677,16 +776,15 @@ impl Error for PropertySetFailure {}
 /// use qubit_model_metadata::metadata::PropertyValue;
 /// use qubit_reflect::Reflect;
 ///
-/// use qubit_reflect::TypeDescriptor;
-///
 /// # mod example {
+/// use qubit_model_derive::Model;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_model_metadata::metadata::PropertyBorrowed;
 /// use qubit_model_metadata::metadata::PropertyValue;
 /// use qubit_reflect::Reflect;
 ///
 ///
-/// #[Reflect]
+/// #[Model]
 /// pub struct Item { pub value: u32 }
 ///
 /// pub fn get_value<'a>(target: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
@@ -695,9 +793,10 @@ impl Error for PropertySetFailure {}
 /// }
 /// # }
 ///
-/// let descriptor = TypeDescriptor::of::<example::Item>();
-/// let value_type = descriptor.field_at(0).expect("value field").field_type();
-/// let getter = GetterMetadata::new::<example::Item>("value", value_type, GetterOutputKind::Borrowed, example::get_value);
+/// let value_type = qubit_model_metadata::metadata::TypeMetadata::of::<example::Item>()
+///     .field("value").expect("value field").type_expression_data().expect("field type");
+/// let getter = GetterMetadata::new::<example::Item>("value", value_type,
+///     std::any::TypeId::of::<u32>, GetterOutputKind::Borrowed, example::get_value);
 /// assert_eq!(getter.rust_method_name(), "value");
 /// ```
 #[derive(Clone, Copy)]
@@ -705,7 +804,9 @@ pub struct GetterMetadata {
     /// The Rust identifier of the generated getter method.
     rust_method_name: &'static str,
     /// The declared type of the getter output.
-    output_type: &'static TypeRef,
+    output_type: &'static TypeExpressionData,
+    output_type_id: fn() -> TypeId,
+    output_element_type_id: Option<fn() -> TypeId>,
     /// Whether the getter result borrows from the target or owns its value.
     output_kind: GetterOutputKind,
     /// Produces the exact Rust type identity accepted by the getter.
@@ -735,17 +836,28 @@ impl GetterMetadata {
     #[inline]
     pub const fn new<Target: 'static>(
         rust_method_name: &'static str,
-        output_type: &'static TypeRef,
+        output_type: &'static TypeExpressionData,
+        output_type_id: fn() -> TypeId,
         output_kind: GetterOutputKind,
         adapter: GetterAdapter,
     ) -> Self {
         Self {
             rust_method_name,
             output_type,
+            output_type_id,
+            output_element_type_id: None,
             output_kind,
             target_type_id: TypeId::of::<Target>,
             adapter,
         }
+    }
+
+    /// Records the exact element identity for a borrowed-slice getter.
+    #[must_use]
+    #[inline]
+    pub fn with_output_element_type_id(mut self, output_element_type_id: fn() -> TypeId) -> Self {
+        self.output_element_type_id = Some(output_element_type_id);
+        self
     }
 
     /// Returns the Rust getter method name.
@@ -765,8 +877,23 @@ impl GetterMetadata {
     /// The reflection type declared for the getter result.
     #[must_use]
     #[inline]
-    pub const fn output_type(&self) -> &'static TypeRef {
+    pub const fn output_type_data(&self) -> &'static TypeExpressionData {
         self.output_type
+    }
+
+    /// Binds this getter's declared output expression to `context`.
+    pub fn output_type_in<'ctx>(&self, context: &'ctx ReflectionContext) -> TypeExpression<'ctx> {
+        qubit_reflect::__private::codegen_v4::expression::type_expression_in(self.output_type, context)
+    }
+
+    /// Returns the process-local identity of the declared output type.
+    pub fn output_type_id(&self) -> TypeId {
+        (self.output_type_id)()
+    }
+
+    /// Returns the exact element identity for a borrowed-slice getter.
+    pub fn output_element_type_id(&self) -> Option<TypeId> {
+        self.output_element_type_id.map(|type_id| type_id())
     }
     /// Returns whether the getter borrows or owns its output.
     ///
@@ -806,7 +933,10 @@ impl GetterMetadata {
     /// Returns [`PropertyAccessError::TargetTypeMismatch`] when `target` has
     /// a different concrete type, or propagates the generated adapter error.
     #[must_use = "handle property access failure"]
-    pub fn get<'a, T: 'static>(&self, target: &'a T) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a, T: qubit_reflect::value::ValueForRef<Local>>(
+        &self,
+        target: &'a T,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
         self.get_dynamic(PropertyBorrowed::new(target))
     }
 
@@ -817,13 +947,6 @@ impl GetterMetadata {
     /// the generated adapter error. The result preserves its borrowed or
     /// owned representation.
     pub fn get_dynamic<'a>(&self, target: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
-        let actual = target.value_type_id();
-        let expected = (self.target_type_id)();
-        if actual != expected {
-            return Err(PropertyAccessError::TargetTypeMismatch(TypeMismatch::new(
-                expected, actual,
-            )));
-        }
         (self.adapter)(target)
     }
 }
@@ -843,6 +966,7 @@ impl fmt::Debug for GetterMetadata {
 /// # Examples
 ///
 /// ```
+/// use qubit_model_derive::Model;
 /// use qubit_reflect::value::Local;
 /// use qubit_model_metadata::metadata::SetterMetadata;
 /// use qubit_model_metadata::metadata::PropertyMutable;
@@ -850,9 +974,8 @@ impl fmt::Debug for GetterMetadata {
 /// use qubit_reflect::Reflect;
 ///
 ///
-/// use qubit_reflect::TypeDescriptor;
-///
 /// # mod example {
+/// use qubit_model_derive::Model;
 /// use qubit_model_metadata::metadata::PropertySetFailure;
 /// use qubit_model_metadata::metadata::PropertyMutable;
 /// use qubit_model_metadata::metadata::PropertyOwned;
@@ -860,7 +983,7 @@ impl fmt::Debug for GetterMetadata {
 ///
 ///
 ///
-/// #[Reflect]
+/// #[Model]
 /// pub struct Item { pub value: u32 }
 ///
 /// pub fn set_value(target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
@@ -870,8 +993,8 @@ impl fmt::Debug for GetterMetadata {
 /// }
 /// # }
 ///
-/// let descriptor = TypeDescriptor::of::<example::Item>();
-/// let value_type = descriptor.field_at(0).expect("value field").field_type();
+/// let value_type = qubit_model_metadata::metadata::TypeMetadata::of::<example::Item>()
+///     .field("value").expect("value field").type_expression_data().expect("field type");
 /// let setter = SetterMetadata::new::<example::Item, u32>("set_value", value_type, example::set_value);
 /// assert_eq!(setter.rust_method_name(), "set_value");
 /// ```
@@ -880,7 +1003,7 @@ pub struct SetterMetadata {
     /// The Rust identifier of the generated setter method.
     rust_method_name: &'static str,
     /// The declared type accepted by the setter.
-    input_type: &'static TypeRef,
+    input_type: &'static TypeExpressionData,
     /// Produces the exact Rust type identity accepted for the target.
     target_type_id: fn() -> TypeId,
     /// Produces the exact Rust type identity accepted for the input.
@@ -910,7 +1033,7 @@ impl SetterMetadata {
     #[inline]
     pub const fn new<Target: 'static, Input: 'static>(
         rust_method_name: &'static str,
-        input_type: &'static TypeRef,
+        input_type: &'static TypeExpressionData,
         adapter: SetterAdapter,
     ) -> Self {
         Self {
@@ -939,8 +1062,13 @@ impl SetterMetadata {
     /// The reflection type declared for the setter input.
     #[must_use]
     #[inline]
-    pub const fn input_type(&self) -> &'static TypeRef {
+    pub const fn input_type_data(&self) -> &'static TypeExpressionData {
         self.input_type
+    }
+
+    /// Binds this setter's declared input expression to `context`.
+    pub fn input_type_in<'ctx>(&self, context: &'ctx ReflectionContext) -> TypeExpression<'ctx> {
+        qubit_reflect::__private::codegen_v4::expression::type_expression_in(self.input_type, context)
     }
 
     /// Returns the exact Rust type identity accepted for this setter target.
@@ -984,7 +1112,11 @@ impl SetterMetadata {
     /// Returns [`PropertySetFailure`] retaining `value` when target or input
     /// validation fails before adapter execution, or reports the adapter error.
     #[must_use = "handle property write failure and recover the replacement when available"]
-    pub fn set<T: 'static, V: 'static>(&self, target: &mut T, value: V) -> Result<(), PropertySetFailure> {
+    pub fn set<T: qubit_reflect::value::ValueForMut<Local>, V: qubit_reflect::value::ValueFor<Local>>(
+        &self,
+        target: &mut T,
+        value: V,
+    ) -> Result<(), PropertySetFailure> {
         self.set_dynamic(PropertyMutable::new(target), PropertyOwned::new(value))
     }
 
@@ -994,19 +1126,25 @@ impl SetterMetadata {
     /// target or input validation fails before adapter execution; adapter
     /// failures carry the recovery state produced by the setter.
     pub fn set_dynamic(&self, target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
-        let actual_target = target.value_type_id();
+        let actual_target = target.type_id();
         let expected_target = (self.target_type_id)();
         if actual_target != expected_target {
             return Err(PropertySetFailure::before_execution(
-                PropertyAccessError::TargetTypeMismatch(TypeMismatch::new(expected_target, actual_target)),
+                PropertyAccessError::TargetTypeMismatch(PropertyTypeMismatch {
+                    expected: expected_target,
+                    actual: actual_target,
+                }),
                 value,
             ));
         }
-        let actual_value = value.value_type_id();
+        let actual_value = value.type_id();
         let expected_value = (self.input_type_id)();
         if actual_value != expected_value {
             return Err(PropertySetFailure::before_execution(
-                PropertyAccessError::ValueTypeMismatch(TypeMismatch::new(expected_value, actual_value)),
+                PropertyAccessError::ValueTypeMismatch(PropertyTypeMismatch {
+                    expected: expected_value,
+                    actual: actual_value,
+                }),
                 value,
             ));
         }
@@ -1043,18 +1181,31 @@ impl fmt::Debug for SetterMetadata {
 /// let title = properties.property("title").expect("title property");
 /// assert_eq!(title.name(), "title");
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct PropertyMetadata {
     /// The public property name used by model metadata.
     name: &'static str,
     /// The declared property type.
-    type_ref: &'static TypeRef,
+    type_expression: Option<&'static TypeExpressionData>,
     /// The reflected backing field, when one exists.
     field: Option<&'static FieldMetadata>,
     /// The explicit getter adapter, when one exists.
     getter: Option<&'static GetterMetadata>,
     /// The explicit setter adapter, when one exists.
     setter: Option<&'static SetterMetadata>,
+}
+
+impl fmt::Debug for PropertyMetadata {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PropertyMetadata")
+            .field("name", &self.name)
+            .field("has_type_expression", &self.type_expression.is_some())
+            .field("has_field", &self.field.is_some())
+            .field("has_getter", &self.getter.is_some())
+            .field("has_setter", &self.setter.is_some())
+            .finish()
+    }
 }
 
 impl PropertyMetadata {
@@ -1075,14 +1226,14 @@ impl PropertyMetadata {
     #[inline]
     pub(crate) const fn new(
         name: &'static str,
-        type_ref: &'static TypeRef,
+        type_expression: Option<&'static TypeExpressionData>,
         field: Option<&'static FieldMetadata>,
         getter: Option<&'static GetterMetadata>,
         setter: Option<&'static SetterMetadata>,
     ) -> Self {
         Self {
             name,
-            type_ref,
+            type_expression,
             field,
             getter,
             setter,
@@ -1099,27 +1250,89 @@ impl PropertyMetadata {
     pub const fn name(&self) -> &'static str {
         self.name
     }
-    /// Returns the property type reference.
+    /// Returns the retained type-expression data for generated metadata.
+    #[doc(hidden)]
+    pub(crate) const fn type_expression_data(&self) -> Option<&'static TypeExpressionData> {
+        if let Some(expression) = self.type_expression {
+            return Some(expression);
+        }
+        if let Some(getter) = self.getter {
+            return Some(getter.output_type_data());
+        }
+        match self.setter {
+            Some(setter) => Some(setter.input_type_data()),
+            None => None,
+        }
+    }
+
+    /// Returns this property's type expression bound to `context`.
     ///
-    /// # Returns
-    ///
-    /// The declared type reference, whether resolved or symbolic.
+    /// A backing field determines the expression for field-backed properties.
+    /// Otherwise the explicit declaration or accessor signature is used.
     #[must_use]
     #[inline]
-    pub const fn type_ref(&self) -> &'static TypeRef {
-        self.type_ref
+    pub fn type_expression_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<TypeExpression<'ctx>> {
+        if let Some(field) = self.field
+            && let Some(expression) = field.type_expression_in(context)
+        {
+            return Some(expression);
+        }
+        if let Some(expression) = self.type_expression {
+            return Some(qubit_reflect::__private::codegen_v4::expression::type_expression_in(
+                expression, context,
+            ));
+        }
+        if let Some(getter) = self.getter {
+            return Some(getter.output_type_in(context));
+        }
+        self.setter.map(|setter| setter.input_type_in(context))
     }
-    /// Returns the resolved property type descriptor, or `None` for symbolic
-    /// and opaque property types.
+
+    pub(crate) fn declared_type_expression_in<'ctx>(
+        &self,
+        context: &'ctx ReflectionContext,
+    ) -> Option<TypeExpression<'ctx>> {
+        self.type_expression
+            .map(|expression| qubit_reflect::__private::codegen_v4::expression::type_expression_in(expression, context))
+    }
+
+    /// Resolves this property's concrete type in `context`, when available.
     ///
     /// # Returns
     ///
     /// `Some` with the concrete descriptor when resolved, or `None` for
     /// symbolic and opaque types.
-    #[must_use]
     #[inline]
-    pub const fn descriptor(&self) -> Option<&'static TypeDescriptor> {
-        self.type_ref.as_resolved()
+    pub fn descriptor_in<'ctx>(
+        &self,
+        context: &'ctx ReflectionContext,
+    ) -> Result<Option<TypeDescriptor<'ctx>>, qubit_reflect::error::ContextError> {
+        if let Some(field) = self.field
+            && let Some(reflected) = field.reflect_in(context)
+        {
+            return Ok(reflected.find_concrete_type());
+        }
+        let type_id = self
+            .getter
+            .map(GetterMetadata::output_type_id)
+            .or_else(|| self.setter.map(SetterMetadata::input_type_id));
+        type_id.map_or(Ok(None), |type_id| context.find_type_by_id(type_id))
+    }
+
+    /// Resolves a field-backed property's descriptor from its known owner.
+    #[cfg(feature = "validation")]
+    pub(crate) fn descriptor_in_owner<'ctx>(
+        &self,
+        owner: &'static TypeMetadata,
+        context: &'ctx ReflectionContext,
+    ) -> Result<Option<TypeDescriptor<'ctx>>, qubit_reflect::error::ContextError> {
+        if let Some(field) = self.field
+            && self.getter.is_none()
+            && let Some(reflected) = owner.field_descriptor_in(field, context)
+        {
+            return Ok(reflected.find_concrete_type());
+        }
+        self.descriptor_in(context)
     }
     /// Returns the backing field, or `None` for computed and virtual
     /// properties.
@@ -1132,6 +1345,12 @@ impl PropertyMetadata {
     #[inline]
     pub const fn field(&self) -> Option<&'static FieldMetadata> {
         self.field
+    }
+    /// Returns generated projection operations for an optional backing field.
+    #[must_use]
+    #[inline]
+    pub fn optional_ops(&self) -> Option<OptionalOps> {
+        self.field.and_then(FieldMetadata::optional_ops)
     }
     /// Returns the explicit getter, or `None` when reads use field fallback.
     ///
@@ -1255,7 +1474,10 @@ impl PropertyMetadata {
     /// reflection descriptor. Generated runtime metadata cannot create this
     /// state.
     #[must_use = "handle property access failure"]
-    pub fn get<'a, T: 'static>(&self, target: &'a T) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a, T: qubit_reflect::value::ValueForRef<Local>>(
+        &self,
+        target: &'a T,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
         self.get_dynamic(PropertyBorrowed::new(target))
     }
 
@@ -1266,12 +1488,21 @@ impl PropertyMetadata {
     /// otherwise propagates access failures while preserving borrowed or
     /// owned output.
     pub fn get_dynamic<'a>(&self, target: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
+        self.get_dynamic_in(ReflectionContext::global(), target)
+    }
+
+    /// Reads this property using descriptors bound to `context`.
+    pub fn get_dynamic_in<'a>(
+        &self,
+        context: &ReflectionContext,
+        target: PropertyBorrowed<'a>,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
         if let Some(getter) = self.getter {
             return getter.get_dynamic(target);
         }
         if let Some(field) = self.field {
             return field
-                .reflect()
+                .reflect_in(context)
                 .expect("runtime properties only reference concrete fields")
                 .get_dynamic(target)
                 .map(PropertyValue::Borrowed)
@@ -1290,18 +1521,60 @@ impl PropertyMetadata {
         &self,
         target: PropertyBorrowed<'a>,
     ) -> Result<PropertyValue<'a>, PropertyAccessError> {
+        unsafe { self.get_dynamic_unsafe_in(ReflectionContext::global(), target) }
+    }
+
+    /// Reads this property with a context-bound descriptor after bypassing
+    /// reflection visibility.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure access to the field is permitted by the
+    /// application's privacy and encapsulation invariants. The descriptor
+    /// still enforces field readability and exact target identity.
+    pub unsafe fn get_dynamic_unsafe_in<'a>(
+        &self,
+        context: &ReflectionContext,
+        target: PropertyBorrowed<'a>,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
         if let Some(getter) = self.getter {
             return getter.get_dynamic(target);
         }
         if let Some(field) = self.field {
-            return unsafe {
-                field
-                    .reflect()
-                    .expect("runtime property fields have concrete descriptors")
-                    .get_dynamic_unsafe(target)
-            }
-            .map(PropertyValue::Borrowed)
-            .map_err(Into::into);
+            let Some(reflected) = field.reflect_in(context) else {
+                return Err(PropertyAccessError::NotReadable);
+            };
+            return unsafe { reflected.get_dynamic_unsafe(target) }
+                .map(PropertyValue::Borrowed)
+                .map_err(Into::into);
+        }
+        Err(PropertyAccessError::NotReadable)
+    }
+
+    /// Reads a property using its statically known owner descriptor.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure access to the field is permitted by the
+    /// application's privacy and encapsulation invariants. The descriptor
+    /// still enforces field readability and exact target identity.
+    #[cfg(feature = "validation")]
+    pub(crate) unsafe fn get_dynamic_unsafe_for<'a>(
+        &self,
+        owner: &'static TypeMetadata,
+        context: &ReflectionContext,
+        target: PropertyBorrowed<'a>,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
+        if let Some(getter) = self.getter {
+            return getter.get_dynamic(target);
+        }
+        if let Some(field) = self.field {
+            let Some(reflected) = owner.field_descriptor_in(field, context) else {
+                return Err(PropertyAccessError::NotReadable);
+            };
+            return unsafe { reflected.get_dynamic_unsafe(target) }
+                .map(PropertyValue::Borrowed)
+                .map_err(Into::into);
         }
         Err(PropertyAccessError::NotReadable)
     }
@@ -1329,7 +1602,11 @@ impl PropertyMetadata {
     /// reflection descriptor. Generated runtime metadata cannot create this
     /// state.
     #[must_use = "handle property write failure and recover the replacement when available"]
-    pub fn set<T: 'static, V: 'static>(&self, target: &mut T, value: V) -> Result<(), PropertySetFailure> {
+    pub fn set<T: qubit_reflect::value::ValueForMut<Local>, V: qubit_reflect::value::ValueFor<Local>>(
+        &self,
+        target: &mut T,
+        value: V,
+    ) -> Result<(), PropertySetFailure> {
         self.set_dynamic(PropertyMutable::new(target), PropertyOwned::new(value))
     }
 
@@ -1340,21 +1617,67 @@ impl PropertyMetadata {
     /// has not started, or with the underlying setter or field failure after
     /// execution begins.
     pub fn set_dynamic(&self, target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
+        self.set_dynamic_in(ReflectionContext::global(), target, value)
+    }
+
+    /// Writes using descriptors bound to `context`.
+    pub fn set_dynamic_in(
+        &self,
+        context: &ReflectionContext,
+        target: PropertyMutable<'_>,
+        value: PropertyOwned,
+    ) -> Result<(), PropertySetFailure> {
         if let Some(setter) = self.setter {
             return setter.set_dynamic(target, value);
         }
         if let Some(field) = self.field {
             return field
-                .reflect()
+                .reflect_in(context)
                 .expect("runtime properties only reference concrete fields")
                 .set_dynamic(target, value)
                 .map_err(|failure| {
                     let (error, recovery) = failure.into_parts();
                     PropertySetFailure {
-                        error: Box::new(PropertyAccessError::Field(error)),
-                        replacement: recovery.map(FieldSetRecovery::into_value).map(Box::new),
+                        error: Box::new(PropertyAccessError::FieldSet(error)),
+                        replacement: Some(Box::new(recovery)),
                     }
                 });
+        }
+        Err(PropertySetFailure::before_execution(
+            PropertyAccessError::NotWritable,
+            value,
+        ))
+    }
+
+    /// Writes using descriptors bound to `context`, bypassing field visibility.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure mutation through this property is authorized by
+    /// the application's privacy and encapsulation invariants.
+    pub unsafe fn set_dynamic_unsafe_in(
+        &self,
+        context: &ReflectionContext,
+        target: PropertyMutable<'_>,
+        value: PropertyOwned,
+    ) -> Result<(), PropertySetFailure> {
+        if let Some(setter) = self.setter {
+            return setter.set_dynamic(target, value);
+        }
+        if let Some(field) = self.field {
+            let Some(reflected) = field.reflect_in(context) else {
+                return Err(PropertySetFailure::before_execution(
+                    PropertyAccessError::NotWritable,
+                    value,
+                ));
+            };
+            return unsafe { reflected.set_dynamic_unsafe(target, value) }.map_err(|failure| {
+                let (error, recovery) = failure.into_parts();
+                PropertySetFailure {
+                    error: Box::new(PropertyAccessError::FieldSet(error)),
+                    replacement: Some(Box::new(recovery)),
+                }
+            });
         }
         Err(PropertySetFailure::before_execution(
             PropertyAccessError::NotWritable,
@@ -1373,27 +1696,6 @@ impl PropertyMetadata {
         target: PropertyMutable<'_>,
         value: PropertyOwned,
     ) -> Result<(), PropertySetFailure> {
-        if let Some(setter) = self.setter {
-            return setter.set_dynamic(target, value);
-        }
-        if let Some(field) = self.field {
-            return unsafe {
-                field
-                    .reflect()
-                    .expect("runtime property fields have concrete descriptors")
-                    .set_dynamic_unsafe(target, value)
-            }
-            .map_err(|failure| {
-                let (error, recovery) = failure.into_parts();
-                PropertySetFailure {
-                    error: Box::new(PropertyAccessError::Field(error)),
-                    replacement: recovery.map(FieldSetRecovery::into_value).map(Box::new),
-                }
-            });
-        }
-        Err(PropertySetFailure::before_execution(
-            PropertyAccessError::NotWritable,
-            value,
-        ))
+        self.set_dynamic(target, value)
     }
 }

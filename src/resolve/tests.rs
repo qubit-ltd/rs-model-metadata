@@ -15,10 +15,7 @@ use std::error::Error;
 use std::sync::OnceLock;
 
 use qubit_reflect::Reflect;
-use qubit_reflect::TypeDescriptor;
-use qubit_reflect::capability::CapabilityDescriptor;
-use qubit_reflect::register_reflected_type;
-use qubit_reflect::registry::RegistrySnapshotBuilder;
+use qubit_reflect::ReflectionContext;
 
 use super::ModelResolutionCause;
 use super::ResolveErrorKind;
@@ -36,9 +33,9 @@ use crate::metadata::PropertyPath;
 use crate::metadata::PropertyResolutionError;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
+use crate::registry::ModelRegistryOrigin;
 
 #[Reflect]
-#[reflect(capabilities(broken_overlay))]
 struct Broken<const N: usize>;
 
 /// Constructs an invalid local assembly through the private constructor.
@@ -51,26 +48,26 @@ fn overlay() -> &'static ModelImplMetadata {
 }
 
 /// Attaches the invalid assembly while leaving reflection itself well formed.
-#[allow(
-    clippy::extra_unused_type_parameters,
-    reason = "derive capability providers receive the concrete type parameter"
-)]
-fn broken_overlay<T: 'static>() -> CapabilityDescriptor {
-    CapabilityDescriptor::with_adapter(
-        crate::reflect_facade::model_impl_key(),
-        overlay as fn() -> &'static ModelImplMetadata,
-    )
+fn broken_overlay() -> &'static ModelImplMetadata {
+    overlay()
 }
+
+crate::__qubit_model_submit_model_impl_fragment!(Broken<1>, broken_overlay, 1);
+crate::__qubit_model_submit_model_impl_fragment!(Broken<2>, broken_overlay, 2);
 
 #[test]
 fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
-    let reflection = RegistrySnapshotBuilder::new().build().unwrap();
-    let models = ModelRegistry::from_reflect_registry(&reflection).unwrap();
+    let reflection = ReflectionContext::builder()
+        .include_type::<Broken<1>>()
+        .register(crate::reflect_facade::model_impl_registration::<Broken<1>>())
+        .build()
+        .expect("reflection context should build");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry should build");
     let metadata = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new(TypeDescriptor::of::<Broken<1>>(), None, &[], v8::leak(v8::model_role()))
-            .finish::<Broken<1>>(),
+        v8::GeneratedTypeMetadataBuilder::new::<Broken<1>>(None, &[], v8::leak(v8::model_role())).finish::<Broken<1>>(),
     );
-    let empty_merge = ModelImplMetadata::merge(metadata, &[]);
+    let context = models.context().expect("global registry context");
+    let empty_merge = ModelImplMetadata::merge(metadata, &[], context);
     assert!(empty_merge.fragments().fragments().is_empty());
     assert!(
         empty_merge
@@ -95,8 +92,7 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
 fn registered_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v8::GeneratedTypeMetadataBuilder::new(
-            TypeDescriptor::of::<Broken<2>>(),
+        v8::GeneratedTypeMetadataBuilder::new::<Broken<2>>(
             Some(ModelId::new("error.Assembly")),
             &[],
             v8::leak(v8::model_role()),
@@ -105,15 +101,29 @@ fn registered_metadata() -> &'static TypeMetadata {
     })
 }
 
-register_reflected_type!(Broken<2>);
-v8::register_model_capability!(Broken<2>, registered_metadata);
-
 #[test]
 fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
-    let models = ModelRegistry::try_global().unwrap();
-    let errors = StructureResolver::new(ResolveInputs { roots: &[], models })
-        .resolve()
-        .unwrap_err();
+    let reflection = ReflectionContext::builder()
+        .include_type::<Broken<2>>()
+        .register(crate::reflect_facade::model_impl_registration::<Broken<2>>())
+        .build()
+        .expect("reflection context should build");
+    static SOURCE: ModelRegistryOrigin = ModelRegistryOrigin {
+        crate_name: "qubit-model-metadata",
+        crate_version: None,
+        module_path: "resolve::tests",
+        file: Some(file!()),
+        line: Some(line!()),
+        column: None,
+    };
+    let models = ModelRegistry::from_static_metadata(&reflection, &[(registered_metadata(), &SOURCE)])
+        .expect("static model registry should build");
+    let errors = StructureResolver::new(ResolveInputs {
+        roots: &[],
+        models: &models,
+    })
+    .resolve()
+    .unwrap_err();
     let [error] = errors.errors() else {
         panic!("one assembly diagnostic")
     };

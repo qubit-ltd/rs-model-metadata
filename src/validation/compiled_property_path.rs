@@ -8,8 +8,8 @@
 
 //! Structural, getter-free compilation of property paths.
 
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
-use qubit_reflect::VariantDescriptor;
 use qubit_reflect::descriptor::TypeKind;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
@@ -33,6 +33,7 @@ use crate::validation::internal::declaration_walker::is_transparent_unnamed_fiel
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PropertyStep {
     property: PropertyMetadata,
+    owner: Option<&'static TypeMetadata>,
     /// Exact element type expected after projecting a borrowed `Option<T>`.
     optional_element: Option<std::any::TypeId>,
 }
@@ -43,7 +44,9 @@ pub(crate) struct VariantGuard {
     /// Number of owner-path properties to read before checking the enum.
     pub(crate) after_steps: usize,
     /// Reflected variant whose payload field is being validated.
-    pub(crate) variant: &'static VariantDescriptor,
+    pub(crate) declaring_type: std::any::TypeId,
+    /// Index of the variant in its declaring enum's reflected variant list.
+    pub(crate) variant_index: usize,
 }
 
 impl PropertyStep {
@@ -59,6 +62,12 @@ impl PropertyStep {
     #[inline]
     pub(crate) const fn property(self) -> PropertyMetadata {
         self.property
+    }
+
+    /// Returns the metadata owner, when this step was compiled from a model.
+    #[must_use]
+    pub(crate) const fn owner(self) -> Option<&'static TypeMetadata> {
+        self.owner
     }
 
     /// Returns the optional element type to project for intermediate traversal.
@@ -101,6 +110,7 @@ impl CompiledPropertyPath {
     /// Compiles a direct enum payload field together with its active-variant
     /// guard.
     pub(crate) fn compile_enum_payload(
+        context: &ReflectionContext,
         root: &'static TypeMetadata,
         occurrence: &crate::validation::internal::validation_occurrence::ValidationOccurrence,
         graph: &ModelGraph<'_>,
@@ -111,15 +121,21 @@ impl CompiledPropertyPath {
         }
         let variant = occurrence
             .enum_variant
-            .and_then(|variant| variant.reflect())
+            .and_then(|variant| {
+                occurrence
+                    .owner
+                    .descriptor_in(context)
+                    .variants()
+                    .iter()
+                    .find(|actual| actual.index() == variant.index())
+            })
             .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
         let field_descriptor = occurrence
-            .field
-            .reflect()
+            .owner
+            .field_descriptor_in(occurrence.field, context)
             .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
         let field_type = field_descriptor
-            .field_type()
-            .as_resolved()
+            .find_concrete_type()
             .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
         let prefix = &occurrence.segments[..occurrence.segments.len() - 1];
         let mut path = if prefix.is_empty() {
@@ -135,12 +151,12 @@ impl CompiledPropertyPath {
                 variant_name: None,
             }
         } else {
-            Self::compile(root, &PropertyPath::new(prefix), graph, TargetMode::Value)?
+            Self::compile(context, root, &PropertyPath::new(prefix), graph, TargetMode::Value)?
         };
         let owner_type = path
             .steps
             .last()
-            .and_then(|step| step.property().descriptor())
+            .and_then(|step| step.property().descriptor_in(context).ok().flatten())
             .map_or(root.type_id(), TypeDescriptor::type_id);
         if variant.declaring_type().type_id() != owner_type {
             return Err(path_error(BindErrorKind::UnsupportedConstraint));
@@ -148,7 +164,7 @@ impl CompiledPropertyPath {
         let property_name = occurrence.field.name().unwrap_or("0");
         let property = crate::property::PropertyMetadata::new(
             property_name,
-            occurrence.field.type_ref(),
+            occurrence.field.type_expression_data(),
             Some(occurrence.field),
             None,
             None,
@@ -157,6 +173,7 @@ impl CompiledPropertyPath {
         let mut steps = path.steps.into_vec();
         steps.push(PropertyStep {
             property,
+            owner: Some(occurrence.owner),
             optional_element: None,
         });
         path.steps = steps.into_boxed_slice();
@@ -166,7 +183,11 @@ impl CompiledPropertyPath {
             InputType::Typed(field_type.type_id())
         };
         path.optional = false;
-        path.variant_guard = Some(VariantGuard { after_steps, variant });
+        path.variant_guard = Some(VariantGuard {
+            after_steps,
+            declaring_type: variant.declaring_type().type_id(),
+            variant_index: variant.index(),
+        });
         path.variant_name = Some(
             occurrence
                 .enum_variant
@@ -203,6 +224,7 @@ impl CompiledPropertyPath {
     /// descriptors, and `UnsupportedConstraint` for unsupported getter shapes
     /// or incompatible target types.
     pub(crate) fn compile(
+        context: &ReflectionContext,
         root: &'static TypeMetadata,
         path: &PropertyPath<'_>,
         graph: &ModelGraph<'_>,
@@ -222,20 +244,13 @@ impl CompiledPropertyPath {
                 .and_then(|value| value.transparent_field())
                 .filter(|field| *segment == "0" && is_transparent_unnamed_field(current, field));
             let property = if let Some(field) = transparent_field {
-                let reflect = field
-                    .reflect()
+                let reflect = current
+                    .field_descriptor_in(field, context)
                     .ok_or_else(|| path_error(BindErrorKind::UnreadablePath))?;
-                let declared = field
-                    .descriptor()
-                    .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
-                let reflected = reflect
-                    .field_type()
-                    .as_resolved()
-                    .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
-                if reflect.index() != 0 || !std::ptr::eq(reflected, declared) {
+                if reflect.index() != 0 {
                     return Err(path_error(BindErrorKind::UnsupportedConstraint));
                 }
-                PropertyMetadata::new("0", field.type_ref(), Some(field), None, None)
+                PropertyMetadata::new("0", field.type_expression_data(), Some(field), None, None)
             } else {
                 graph
                     .properties(current)
@@ -247,7 +262,9 @@ impl CompiledPropertyPath {
                 return Err(path_error(BindErrorKind::UnreadablePath));
             }
             let descriptor = property
-                .descriptor()
+                .descriptor_in_owner(current, context)
+                .ok()
+                .flatten()
                 .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
             let last = index + 1 == path.segments().len();
             let value_target = !last || matches!(target, TargetMode::Value);
@@ -257,9 +274,15 @@ impl CompiledPropertyPath {
                 (descriptor, false)
             };
             let (actual, optional, project_borrowed_optional) = if let Some(getter) = property.getter() {
-                let output = getter
-                    .output_type()
-                    .as_resolved()
+                let output = context
+                    .find_type_by_id(getter.output_type_id())
+                    .ok()
+                    .flatten()
+                    .or_else(|| {
+                        (getter.output_kind() != GetterOutputKind::Owned)
+                            .then(|| property.descriptor_in_owner(current, context).ok().flatten())
+                            .flatten()
+                    })
                     .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
                 if !last
                     && matches!(
@@ -270,27 +293,20 @@ impl CompiledPropertyPath {
                     return Err(path_error(BindErrorKind::UnsupportedConstraint));
                 }
                 if matches!(getter.output_kind(), GetterOutputKind::OptionalBorrowed) {
-                    let inner = output
-                        .as_optional()
-                        .and_then(|value| value.element_type().as_resolved())
+                    let inner = generic_type_argument(output, 0)
                         .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
                     (inner, true, false)
+                } else if last && !value_target && getter.output_kind() == GetterOutputKind::BorrowedSlice {
+                    (expected, false, false)
                 } else if !last && declared_optional {
                     if getter.output_kind() != GetterOutputKind::Borrowed {
                         return Err(path_error(BindErrorKind::UnsupportedConstraint));
                     }
-                    let declared_optional = descriptor
-                        .as_optional()
-                        .filter(|optional| optional.has_ref_projection())
+                    let actual_optional = generic_type_argument(output, 0)
                         .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
-                    let actual_optional = output
-                        .as_optional()
-                        .and_then(|value| value.element_type().as_resolved())
-                        .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
-                    if declared_optional
-                        .element_type()
-                        .as_resolved()
-                        .is_none_or(|value| value.type_id() != expected.type_id())
+                    if property
+                        .optional_ops()
+                        .is_none_or(|ops| ops.element_type_id() != expected.type_id())
                         || actual_optional.type_id() != expected.type_id()
                     {
                         return Err(path_error(BindErrorKind::UnsupportedConstraint));
@@ -299,11 +315,11 @@ impl CompiledPropertyPath {
                 } else {
                     (output, false, false)
                 }
-            } else if !last && declared_optional {
-                let optional = descriptor
-                    .as_optional()
-                    .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
-                if !optional.has_ref_projection() {
+            } else if declared_optional {
+                if property
+                    .optional_ops()
+                    .is_none_or(|ops| ops.element_type_id() != expected.type_id())
+                {
                     return Err(path_error(BindErrorKind::UnsupportedConstraint));
                 }
                 (expected, true, true)
@@ -324,6 +340,7 @@ impl CompiledPropertyPath {
             }
             steps.push(PropertyStep {
                 property,
+                owner: Some(current),
                 optional_element: project_borrowed_optional.then_some(expected.type_id()),
             });
             input = if matches!(actual.kind(), TypeKind::Text(_)) {
@@ -376,6 +393,7 @@ impl CompiledPropertyPath {
     /// Returns the path compilation error when a known owner path is invalid
     /// or its property types are unsupported.
     pub(crate) fn compile_dependency(
+        context: &ReflectionContext,
         root: &'static TypeMetadata,
         prefix: &[&'static str],
         binding: &DependencyBindingMetadata,
@@ -413,7 +431,7 @@ impl CompiledPropertyPath {
                 variant_name: None,
             });
         };
-        let mut path = Self::compile(owner, &PropertyPath::new(&segments), graph, TargetMode::Value)?;
+        let mut path = Self::compile(context, owner, &PropertyPath::new(&segments), graph, TargetMode::Value)?;
         path.context_depth = depth;
         path.dependency = Some(*binding);
         Ok(path)
@@ -523,7 +541,7 @@ impl CompiledPropertyPath {
     /// `true` when every optional dependency read has a matching optional
     /// prefix on `target`; otherwise `false`.
     #[must_use]
-    pub(crate) fn optionality_covered_by(&self, target: &Self) -> bool {
+    pub(crate) fn optionality_covered_by(&self, target: &Self, context: &ReflectionContext) -> bool {
         if self.context_depth != 0
             || target.context_depth != 0
             || !self.deferred.is_empty()
@@ -538,8 +556,8 @@ impl CompiledPropertyPath {
                 .is_some_and(|(left, right)| {
                     left.iter().zip(right).all(|(a, b)| {
                         a.property().name() == b.property().name()
-                            && a.property().descriptor().map(|d| d.type_id())
-                                == b.property().descriptor().map(|d| d.type_id())
+                            && a.property().descriptor_in(context).ok().flatten().map(|d| d.type_id())
+                                == b.property().descriptor_in(context).ok().flatten().map(|d| d.type_id())
                     }) && target.optional_steps.contains(&index)
                 })
         })
@@ -558,14 +576,16 @@ impl CompiledPropertyPath {
     ///
     /// Returns `UnsupportedConstraint` if the final field is not a resolved
     /// `Option<T>` descriptor.
-    pub(crate) fn unwrap_terminal_optional(mut self) -> Result<Self, BindError> {
-        let element = self
+    pub(crate) fn unwrap_terminal_optional(mut self, element: TypeDescriptor<'_>) -> Result<Self, BindError> {
+        let element_type_id = self
             .steps
             .last()
-            .and_then(|step| step.property().descriptor())
-            .and_then(|descriptor| descriptor.as_optional())
-            .and_then(|optional| optional.element_type().as_resolved())
+            .and_then(|step| step.property().optional_ops())
+            .map(|ops| ops.element_type_id())
             .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+        if element.type_id() != element_type_id {
+            return Err(path_error(BindErrorKind::UnsupportedConstraint));
+        }
         self.input = if matches!(element.kind(), TypeKind::Text(_)) {
             InputType::Text
         } else {
@@ -596,35 +616,47 @@ impl CompiledPropertyPath {
 /// The innermost resolved descriptor and whether an optional wrapper was
 /// encountered. If a wrapper cannot be resolved, returns the current
 /// descriptor and the optionality observed so far.
-fn value_descriptor(mut descriptor: &'static TypeDescriptor) -> (&'static TypeDescriptor, bool) {
+fn value_descriptor<'ctx>(mut descriptor: TypeDescriptor<'ctx>) -> (TypeDescriptor<'ctx>, bool) {
     let mut optional = false;
     loop {
-        let Some(element) = descriptor
-            .as_optional()
-            .map(|view| view.element_type())
-            .or_else(|| descriptor.as_smart_pointer().map(|view| view.pointee_type()))
-        else {
+        let kind = descriptor.kind();
+        let is_optional = matches!(kind, TypeKind::Optional(_));
+        let is_smart_pointer = matches!(kind, TypeKind::SmartPointer(_));
+        if !is_optional && !is_smart_pointer {
             return (descriptor, optional);
-        };
-        optional |= descriptor.as_optional().is_some();
-        let Some(next) = element.as_resolved() else {
+        }
+        optional |= is_optional;
+        let Some(next) = generic_type_argument(descriptor, 0) else {
             return (descriptor, optional);
         };
         descriptor = next;
     }
 }
 
+fn generic_type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option<TypeDescriptor<'ctx>> {
+    descriptor
+        .generic_arguments()
+        .iter()
+        .nth(index)?
+        .type_argument()
+        .ok()?
+        .find_concrete_type()
+}
+
 #[cfg(test)]
 mod tests {
     use qubit_reflect::Reflect;
+    use qubit_reflect::ReflectionContext;
     use qubit_reflect::TypeDescriptor;
     use qubit_validator::InputType;
 
     use super::CompiledPropertyPath;
     use super::PropertyStep;
+    use super::generic_type_argument;
     use super::value_descriptor;
     use crate::__private::v8;
     use crate::field_metadata::FieldMetadata;
+    use crate::property::OptionalOps;
     use crate::property::PropertyMetadata;
 
     #[Reflect]
@@ -656,18 +688,23 @@ mod tests {
 
     #[test]
     fn test_optional_terminal_projection_and_prefix_coverage() {
-        let descriptor = TypeDescriptor::of::<OptionalTerminalFixture>();
-        let field = v8::leak(FieldMetadata::from_reflect(
-            descriptor.type_id(),
-            descriptor.field_at(0).expect("optional terminal field"),
-        ));
-        let property = PropertyMetadata::new("value", field.type_ref(), Some(field), None, None);
+        let context = ReflectionContext::global();
+        let descriptor = TypeDescriptor::of_in::<OptionalTerminalFixture>(context);
+        let field = v8::leak(
+            FieldMetadata::from_reflect(
+                descriptor.type_id(),
+                descriptor.fields().get_at(0).expect("optional terminal field"),
+            )
+            .with_optional_ops(OptionalOps::for_element::<String>()),
+        );
+        let property = PropertyMetadata::new("value", field.type_expression_data(), Some(field), None, None);
         let path = CompiledPropertyPath {
             context_depth: 0,
             dependency: None,
             deferred: Box::new([]),
             steps: vec![PropertyStep {
                 property,
+                owner: None,
                 optional_element: None,
             }]
             .into_boxed_slice(),
@@ -677,7 +714,9 @@ mod tests {
             variant_guard: None,
             variant_name: None,
         }
-        .unwrap_terminal_optional()
+        .unwrap_terminal_optional(
+            generic_type_argument(descriptor.fields().get_at(0).unwrap().find_concrete_type().unwrap(), 0).unwrap(),
+        )
         .expect("Option<String> projects to its reflected text element");
 
         assert_eq!(path.input_type(), InputType::Text);
@@ -687,16 +726,32 @@ mod tests {
             optional: true,
             ..path.clone()
         };
-        assert!(path.optionality_covered_by(&covered_target));
+        assert!(path.optionality_covered_by(&covered_target, context));
 
         let uncovered_target = CompiledPropertyPath {
             optional_steps: Box::new([]),
             ..covered_target
         };
-        assert!(!path.optionality_covered_by(&uncovered_target));
+        assert!(!path.optionality_covered_by(&uncovered_target, context));
 
-        let (element, optional) = value_descriptor(descriptor.field_at(0).unwrap().field_type().as_resolved().unwrap());
-        assert_eq!(element.type_id(), TypeDescriptor::of::<String>().type_id());
+        let (element, optional) =
+            value_descriptor(descriptor.fields().get_at(0).unwrap().find_concrete_type().unwrap());
+        assert_eq!(element.type_id(), TypeDescriptor::of_in::<String>(context).type_id());
         assert!(optional);
+    }
+
+    #[test]
+    fn test_value_descriptor_unwraps_optional_and_smart_pointer_layers() {
+        let context = ReflectionContext::global();
+        let optional = TypeDescriptor::of_in::<Option<String>>(context);
+        let (value, was_optional) = value_descriptor(optional);
+        assert!(was_optional);
+        assert_eq!(value.type_id(), TypeDescriptor::of_in::<String>(context).type_id());
+
+        let nested = TypeDescriptor::of_in::<Option<Box<Option<String>>>>(context);
+        let (value, was_optional) = value_descriptor(nested);
+        assert!(was_optional);
+        assert_eq!(value.type_id(), TypeDescriptor::of_in::<String>(context).type_id());
+        assert!(generic_type_argument(value, 0).is_none());
     }
 }

@@ -10,17 +10,14 @@
 
 pub use qubit_id;
 pub use qubit_redact as redact;
-pub use qubit_reflect::__private::codegen_v3;
+pub use qubit_reflect::__private::__inventory;
+pub use qubit_reflect::__private::codegen_v4;
 pub use qubit_reflect::Reflect;
 pub use qubit_reflect::ReflectImpl;
 pub use qubit_reflect::TypeDescriptor;
-pub use qubit_reflect::TypeMismatch;
 pub use qubit_reflect::capability::CapabilityDescriptor;
-pub use qubit_reflect::capability::TypeCapabilities as ReflectTypeCapabilities;
-pub use qubit_reflect::descriptor::TypeRef;
-pub use qubit_reflect::expression::ConstExpression;
-pub use qubit_reflect::expression::TypeExpression;
-pub use qubit_reflect::register_type_capabilities;
+pub use qubit_reflect::descriptor::Reflect;
+pub use qubit_reflect::error::TypeMismatch;
 pub use qubit_reflect::value::DynamicMut;
 pub use qubit_reflect::value::DynamicOwned;
 pub use qubit_reflect::value::DynamicRef;
@@ -31,7 +28,7 @@ pub use serde;
 /// metadata.
 #[doc(hidden)]
 pub type IdentifierAccessor =
-    for<'a> fn(DynamicRef<'a, Local>) -> Result<&'a qubit_id::Id, qubit_reflect::TypeMismatch>;
+    for<'a> fn(DynamicRef<'a, Local>) -> Result<&'a qubit_id::Id, qubit_reflect::error::TypeMismatch>;
 
 pub use crate::metadata::NamedValidationArgument;
 pub use crate::metadata::PropertyBorrowed;
@@ -39,11 +36,11 @@ pub use crate::metadata::PropertyMutable;
 pub use crate::metadata::PropertyOwned;
 pub use crate::metadata::Sensitivity;
 pub use crate::metadata::ValidationArgument;
+pub use crate::reflect_facade::ModelImplFragment;
 pub use crate::reflect_facade::ModelImplProvider;
+pub use crate::reflect_facade::ModelImplSource;
+pub use crate::reflect_facade::ModelMetadataCapability;
 pub use crate::reflect_facade::ModelMetadataProvider;
-pub use crate::reflect_facade::model_impl_fragment_key;
-pub use crate::reflect_facade::model_impl_key;
-pub use crate::reflect_facade::model_metadata_key;
 
 #[path = "private/reflect_codegen.rs"]
 mod reflect_codegen;
@@ -69,7 +66,6 @@ mod compile_assertions {
     use core::marker::PhantomData;
 
     use qubit_id::Id;
-    use qubit_reflect::descriptor::TypeRef;
 
     /// Private sealing boundary for generated compile-time assertions.
     mod sealed {
@@ -293,10 +289,10 @@ mod compile_assertions {
     #[must_use]
     pub const fn property_fragment(
         name: &'static str,
-        type_ref: &'static TypeRef,
+        type_expression: Option<&'static qubit_reflect::__private::codegen_v4::expression::TypeExpressionData>,
         source: crate::metadata::PropertyFragmentSource,
     ) -> crate::metadata::PropertyFragment {
-        crate::metadata::PropertyFragment::new(name, type_ref, source)
+        crate::metadata::PropertyFragment::new(name, type_expression, source)
     }
 
     /// Creates the generated metadata attached by one `ModelImpl` block.
@@ -320,15 +316,9 @@ mod compile_assertions {
 /// its construction boundary.
 #[doc(hidden)]
 pub mod v8 {
-    use qubit_reflect::FieldDefinitionDescriptor;
-    use qubit_reflect::FieldDescriptor;
     #[cfg(feature = "generic")]
-    use qubit_reflect::TypeDefinitionDescriptor;
-    use qubit_reflect::TypeDescriptor;
-    #[cfg(feature = "generic")]
-    use qubit_reflect::VariantDefinitionDescriptor;
-    use qubit_reflect::VariantDescriptor;
-    use qubit_reflect::descriptor::TypeRef;
+    pub use qubit_reflect::capability::CapabilityRegistration;
+    pub use qubit_reflect::descriptor::Visibility;
 
     pub use super::compile_assertions::BorrowedPropertyOutput;
     pub use super::compile_assertions::DecimalConstraintTarget;
@@ -344,14 +334,26 @@ pub mod v8 {
     pub use super::compile_assertions::local_property_set;
     pub use super::compile_assertions::model_impl_metadata;
     pub use super::compile_assertions::property_fragment;
-    pub use super::reflect_codegen::reflected_type_ref;
+    #[cfg(feature = "generic")]
+    pub use crate::__qubit_model_register_generic_model_capability as register_generic_model_capability;
+    #[cfg(feature = "generic")]
+    pub use crate::__qubit_model_register_generic_model_impl_capability as register_generic_model_impl_capability;
+    pub use crate::__qubit_model_submit_metadata_capability as submit_model_metadata_capability;
+    pub use crate::__qubit_model_submit_model_impl_capability as submit_model_impl_capability;
     pub use crate::metadata::RustTypeReference;
     use crate::metadata::TypeMetadata;
     #[cfg(feature = "generic")]
-    pub use crate::reflect_facade::generic_model_capability;
+    pub use crate::reflect_facade::GenericModelMetadataCapability;
     #[cfg(feature = "generic")]
-    pub use crate::reflect_facade::generic_model_metadata_key;
+    pub use crate::reflect_facade::GenericModelMetadataProvider;
+    pub use crate::reflect_facade::ModelImplCapability;
+    pub use crate::reflect_facade::all_model_impl_fragments;
+    #[cfg(feature = "generic")]
+    pub use crate::reflect_facade::generic_model_capability;
     pub use crate::reflect_facade::model_capability;
+    pub use crate::reflect_facade::model_impl_capability_registration;
+    pub use crate::reflect_facade::model_impl_registration;
+    pub use crate::reflect_facade::model_metadata_registration;
 
     #[doc(hidden)]
     #[must_use]
@@ -359,16 +361,34 @@ pub mod v8 {
         metadata: TypeMetadata,
     }
 
+    /// Selects generated metadata when a nested field type has a model derive.
+    #[doc(hidden)]
+    pub trait NestedTypeMetadataProbe {
+        /// Returns the generated metadata when the probed type has one.
+        fn nested_type_metadata(self) -> Option<&'static TypeMetadata>;
+    }
+
+    impl<T: crate::metadata::HasTypeMetadata> NestedTypeMetadataProbe for &&::std::marker::PhantomData<T> {
+        fn nested_type_metadata(self) -> Option<&'static TypeMetadata> {
+            TypeMetadata::try_of::<T>().ok()
+        }
+    }
+
+    impl<T> NestedTypeMetadataProbe for &::std::marker::PhantomData<T> {
+        fn nested_type_metadata(self) -> Option<&'static TypeMetadata> {
+            None
+        }
+    }
+
     impl GeneratedTypeMetadataBuilder {
         /// Starts building metadata for one reflected type.
-        pub const fn new(
-            descriptor: &'static TypeDescriptor,
+        pub fn new<T: qubit_reflect::descriptor::Reflect + 'static>(
             model_id: Option<crate::metadata::ModelId>,
             fields: &'static [crate::metadata::FieldMetadata],
             role: &'static crate::metadata::RoleMetadata,
         ) -> Self {
             Self {
-                metadata: TypeMetadata::new(descriptor, model_id, fields, role),
+                metadata: TypeMetadata::new::<T>(model_id, fields, role),
             }
         }
 
@@ -381,6 +401,15 @@ pub mod v8 {
         /// Adds generated field property fragments to the builder.
         pub const fn property_fragments(mut self, fragments: &'static [crate::metadata::PropertyFragment]) -> Self {
             self.metadata = self.metadata.with_property_fragments(fragments);
+            self
+        }
+
+        /// Adds lazy providers for concrete nested model field types.
+        pub const fn nested_metadata_providers(
+            mut self,
+            providers: &'static [fn() -> Option<&'static crate::metadata::TypeMetadata>],
+        ) -> Self {
+            self.metadata = self.metadata.with_nested_metadata_providers(providers);
             self
         }
 
@@ -413,32 +442,90 @@ pub mod v8 {
     /// Builds one field metadata overlay from generated declarations.
     #[doc(hidden)]
     #[must_use]
-    pub const fn field_metadata(
+    #[allow(clippy::too_many_arguments)]
+    pub fn field_metadata(
         owner: ::std::any::TypeId,
-        reflect: &'static FieldDescriptor,
+        variant: Option<usize>,
+        index: usize,
+        name: Option<&'static str>,
+        visibility: qubit_reflect::descriptor::Visibility,
+        expression: &'static qubit_reflect::__private::codegen_v4::expression::TypeExpressionData,
         attributes: &'static [crate::metadata::FieldAttributeMetadata],
         constraints: &'static [crate::metadata::ConstraintMetadata],
         validators: &'static [crate::metadata::ValidatorMetadata],
         serde: &'static crate::metadata::SerdeFieldMetadata,
     ) -> crate::metadata::FieldMetadata {
-        crate::metadata::FieldMetadata::with_semantics(owner, reflect, attributes, constraints, validators, serde)
+        field_metadata_with_opaque_type_id(
+            owner,
+            variant,
+            index,
+            name,
+            visibility,
+            expression,
+            None,
+            attributes,
+            constraints,
+            validators,
+            serde,
+        )
+    }
+
+    /// Builds one field overlay while retaining an optional exact opaque type.
+    #[doc(hidden)]
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn field_metadata_with_opaque_type_id(
+        owner: ::std::any::TypeId,
+        variant: Option<usize>,
+        index: usize,
+        name: Option<&'static str>,
+        visibility: qubit_reflect::descriptor::Visibility,
+        expression: &'static qubit_reflect::__private::codegen_v4::expression::TypeExpressionData,
+        opaque_type_id: Option<::std::any::TypeId>,
+        attributes: &'static [crate::metadata::FieldAttributeMetadata],
+        constraints: &'static [crate::metadata::ConstraintMetadata],
+        validators: &'static [crate::metadata::ValidatorMetadata],
+        serde: &'static crate::metadata::SerdeFieldMetadata,
+    ) -> crate::metadata::FieldMetadata {
+        crate::metadata::FieldMetadata::with_semantics(
+            owner,
+            variant,
+            index,
+            name,
+            visibility,
+            expression,
+            opaque_type_id,
+            attributes,
+            constraints,
+            validators,
+            serde,
+        )
     }
 
     /// Builds a semantic overlay for one generic declaration field.
     #[doc(hidden)]
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn generic_field_metadata(
-        definition: &'static FieldDefinitionDescriptor,
+        definition_path: &'static str,
+        index: usize,
+        variant: Option<usize>,
+        name: Option<&'static str>,
+        visibility: qubit_reflect::descriptor::Visibility,
+        expression: &'static qubit_reflect::__private::codegen_v4::expression::TypeExpressionData,
         variant_inherited: bool,
         attributes: &'static [crate::metadata::FieldAttributeMetadata],
         constraints: &'static [crate::metadata::ConstraintMetadata],
         validators: &'static [crate::metadata::ValidatorMetadata],
         serde: &'static crate::metadata::SerdeFieldMetadata,
     ) -> crate::metadata::FieldMetadata {
-        let symbolic_type = leak(TypeRef::Symbolic(definition.ty().clone()));
         crate::metadata::FieldMetadata::with_definition_semantics(
-            definition,
-            symbolic_type,
+            definition_path,
+            index,
+            variant,
+            name,
+            visibility,
+            expression,
             variant_inherited,
             attributes,
             constraints,
@@ -452,12 +539,12 @@ pub mod v8 {
     #[must_use]
     pub const fn property_metadata(
         name: &'static str,
-        type_ref: &'static TypeRef,
+        type_expression: Option<&'static qubit_reflect::__private::codegen_v4::expression::TypeExpressionData>,
         field: Option<&'static crate::metadata::FieldMetadata>,
         getter: Option<&'static crate::metadata::GetterMetadata>,
         setter: Option<&'static crate::metadata::SetterMetadata>,
     ) -> crate::metadata::PropertyMetadata {
-        crate::metadata::PropertyMetadata::new(name, type_ref, field, getter, setter)
+        crate::metadata::PropertyMetadata::new(name, type_expression, field, getter, setter)
     }
 
     /// Builds entity-role metadata for an identifier field.
@@ -505,8 +592,11 @@ pub mod v8 {
     /// Builds metadata for one generated enum variant.
     #[doc(hidden)]
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub const fn enum_variant_metadata(
-        reflect: &'static VariantDescriptor,
+        owner: ::std::any::TypeId,
+        index: usize,
+        rust_name: &'static str,
         canonical_name: &'static str,
         serialized_name: &'static str,
         deserialized_name: &'static str,
@@ -514,7 +604,9 @@ pub mod v8 {
         default: bool,
     ) -> crate::metadata::EnumVariantMetadata {
         crate::metadata::EnumVariantMetadata::new(
-            reflect,
+            owner,
+            index,
+            rust_name,
             canonical_name,
             serialized_name,
             deserialized_name,
@@ -527,8 +619,11 @@ pub mod v8 {
     #[doc(hidden)]
     #[must_use]
     #[cfg(feature = "generic")]
+    #[allow(clippy::too_many_arguments)]
     pub const fn generic_enum_variant_metadata(
-        definition: &'static VariantDefinitionDescriptor,
+        definition_path: &'static str,
+        index: usize,
+        rust_name: &'static str,
         canonical_name: &'static str,
         serialized_name: &'static str,
         deserialized_name: &'static str,
@@ -536,7 +631,9 @@ pub mod v8 {
         default: bool,
     ) -> crate::metadata::EnumVariantMetadata {
         crate::metadata::EnumVariantMetadata::from_definition(
-            definition,
+            definition_path,
+            index,
+            rust_name,
             canonical_name,
             serialized_name,
             deserialized_name,
@@ -559,11 +656,11 @@ pub mod v8 {
     pub fn generic_model_metadata(
         model_id: impl Into<Option<crate::metadata::ModelId>>,
         role: crate::metadata::ModelRole,
-        definition: &'static TypeDefinitionDescriptor,
+        definition_path: &'static str,
         fields: &'static [crate::metadata::FieldMetadata],
         variants: &'static [crate::metadata::EnumVariantMetadata],
     ) -> crate::generic::GenericModelMetadata {
-        crate::generic::GenericModelMetadata::new(model_id.into(), role, definition, fields, variants)
+        crate::generic::GenericModelMetadata::new(model_id.into(), role, definition_path, fields, variants)
     }
 
     /// Leaks a generated value for static metadata storage.
@@ -581,72 +678,5 @@ pub mod v8 {
     }
 
     #[doc(hidden)]
-    #[cfg(feature = "generic")]
-    pub use crate::__qubit_model_register_generic_model_capability as register_generic_model_capability;
-    #[doc(hidden)]
-    pub use crate::__qubit_model_register_model_capability as register_model_capability;
-    pub use crate::__qubit_model_register_model_impl_capability as register_model_impl_capability;
     pub use crate::__qubit_model_with_generic_feature as with_generic_feature;
-}
-
-/// Registers a generated property provider on the shared reflection root.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __qubit_model_register_model_impl_capability {
-    ($target:ty, $provider:expr, $fingerprint:expr $(,)?) => {
-        const _: () = {
-            fn runtime_identity() -> $crate::__private::codegen_v3::registration::RuntimeIdentity {
-                $crate::__private::codegen_v3::registration::RuntimeIdentity::Capabilities(
-                    $crate::__private::codegen_v3::registration::CapabilityTarget::Type(
-                        ::core::any::TypeId::of::<$target>(),
-                    ),
-                )
-            }
-            fn payload() -> $crate::__private::codegen_v3::registration::FragmentPayload {
-                $crate::__private::codegen_v3::registration::FragmentPayload::Capability(
-                    $crate::__private::codegen_v3::registration::CapabilityRegistration::for_type(
-                        $crate::__private::TypeDescriptor::of::<$target>(),
-                        ::std::vec![$crate::__private::CapabilityDescriptor::with_adapter(
-                            $crate::__private::model_impl_fragment_key(concat!(
-                                "qubit.model.impl.v1.f",
-                                stringify!($fingerprint)
-                            )),
-                            $provider,
-                        )],
-                    ),
-                )
-            }
-            $crate::__private::codegen_v3::inventory::submit! {
-                $crate::__private::codegen_v3::registration::RegistrationFragment::new(
-                    $crate::__private::codegen_v3::registration::FragmentKind::Capability,
-                    $crate::__private::codegen_v3::registration::StaticFragmentIdentity::new(
-                        env!("CARGO_PKG_NAME"),
-                        module_path!(),
-                        line!(),
-                        column!(),
-                        concat!("model-impl<", stringify!($target), ">"),
-                        $fingerprint,
-                    ),
-                    runtime_identity,
-                    payload,
-                )
-            }
-        };
-    };
-    ($target:ty, $provider:expr $(,)?) => {
-        $crate::__private::register_type_capabilities!(
-            $target: [$crate::__private::model_impl_key() => $provider]
-        );
-    };
-}
-
-/// Registers a model metadata provider as a typed reflection capability.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __qubit_model_register_model_capability {
-    ($target:ty, $provider:expr $(,)?) => {
-        $crate::__private::register_type_capabilities!(
-            $target: [$crate::__private::model_metadata_key() => $provider]
-        );
-    };
 }

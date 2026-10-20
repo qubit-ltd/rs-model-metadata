@@ -21,7 +21,7 @@ use qubit_model_metadata::validation::ModelRuleBinding;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
-use qubit_reflect::ReflectRegistry;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 use qubit_validator::BoundValidationContext;
@@ -73,8 +73,8 @@ fn binding(id: &'static str) -> ModelRuleBinding {
 /// Builds a plan and checks both binding count and ordered report entries.
 fn assert_batches(batches: Vec<Vec<ModelRuleBinding>>, expected: &[&str]) {
     let metadata = TypeMetadata::of::<BatchModel>();
-    let reflection = ReflectRegistry::initialize().expect("reflection registry");
-    let models = ModelRegistry::from_reflect_registry(reflection).expect("model registry");
+    let reflection = ReflectionContext::global();
+    let models = ModelRegistry::from_context(reflection).expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             roots: &[],
@@ -98,7 +98,7 @@ fn assert_batches(batches: Vec<Vec<ModelRuleBinding>>, expected: &[&str]) {
     assert_eq!(plan.binding_count(), expected.len());
     let report = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new(&BatchModel {
+            DynamicRef::<Local>::new_any(&BatchModel {
                 value: "value".to_owned(),
             }),
             &ValidationOptions::default(),

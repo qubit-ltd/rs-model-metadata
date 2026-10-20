@@ -35,10 +35,11 @@ use qubit_model_metadata::metadata::CodecSource;
 use qubit_model_metadata::metadata::SelectorPosition;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistryOrigin;
 use qubit_model_metadata::resolve::ModelGraph;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
-use qubit_reflect::identity::FragmentIdentity;
+use qubit_reflect::ReflectionContext;
 
 #[derive(Default)]
 struct StringCodec;
@@ -133,7 +134,7 @@ struct AnonymousCodec {
 /// Codec occurrence identity remains exact for anonymous graph roots.
 #[test]
 fn test_binds_anonymous_root_codecs() {
-    let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("empty registry");
     let metadata = TypeMetadata::of::<AnonymousCodec>();
     let roots = [metadata];
     let graph = StructureResolver::new(ResolveInputs {
@@ -151,12 +152,20 @@ fn test_binds_anonymous_root_codecs() {
     assert_eq!(bindings.bindings().len(), 1);
 }
 
-fn source() -> FragmentIdentity {
-    FragmentIdentity::new("codec-tests", "fixture", line!(), 1, "model", 1)
+fn source() -> ModelRegistryOrigin {
+    ModelRegistryOrigin {
+        crate_name: "codec-tests",
+        crate_version: None,
+        module_path: module_path!(),
+        file: Some(file!()),
+        line: Some(line!()),
+        column: Some(1),
+    }
 }
 
-fn graph<'a>(metadata: &'static TypeMetadata, source: &'a FragmentIdentity) -> ModelGraph<'a> {
-    let models = ModelRegistry::from_static_metadata(&[(metadata, source)]).expect("model registry");
+fn graph<'a>(metadata: &'static TypeMetadata, source: &'a ModelRegistryOrigin) -> ModelGraph<'a> {
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, source)])
+        .expect("model registry");
     let models = Box::leak(Box::new(models));
     StructureResolver::new(ResolveInputs { roots: &[], models })
         .resolve()
@@ -274,7 +283,8 @@ fn test_canonical_fallback_preserves_occurrence_sources() {
     let owner = TypeMetadata::of::<CanonicalOwner>();
     let name = TypeMetadata::of::<Name>();
     let source = source();
-    let models = ModelRegistry::from_static_metadata(&[(owner, &source), (name, &source)]).expect("models");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(owner, &source), (name, &source)])
+        .expect("models");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &[],
@@ -321,7 +331,7 @@ enum TupleCodecs {
 #[test]
 fn test_tuple_payload_codecs_have_distinct_occurrences() {
     let roots = [TypeMetadata::of::<TupleCodecs>()];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("empty registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("empty registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -369,7 +379,7 @@ struct CodecContainers {
 fn test_container_selector_bindings_preserve_identity_and_execute() {
     let root = TypeMetadata::of::<CodecContainers>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -415,7 +425,7 @@ fn test_container_selector_bindings_preserve_identity_and_execute() {
 
 #[Model]
 struct OpaqueCodecContainer {
-    #[reflect(opaque)]
+    #[opaque]
     #[codec(id = "test.string")]
     hidden: Option<Vec<String>>,
 }
@@ -424,7 +434,7 @@ struct OpaqueCodecContainer {
 fn test_opaque_collection_field_is_not_resolved_for_codec_binding() {
     let root = TypeMetadata::of::<OpaqueCodecContainer>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -450,7 +460,7 @@ struct WholeCollectionCodec {
 fn test_collection_is_not_unwrapped_for_direct_codec_binding() {
     let root = TypeMetadata::of::<WholeCollectionCodec>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(&[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -474,11 +484,14 @@ fn test_collection_is_not_unwrapped_for_direct_codec_binding() {
 #[test]
 fn test_codec_errors_expose_recoverable_declaration_context() {
     let source = source();
-    let models = ModelRegistry::from_static_metadata(&[
-        (TypeMetadata::of::<Missing>(), &source),
-        (TypeMetadata::of::<Mismatch>(), &source),
-        (TypeMetadata::of::<RustType>(), &source),
-    ])
+    let models = ModelRegistry::from_static_metadata(
+        ReflectionContext::global(),
+        &[
+            (TypeMetadata::of::<Missing>(), &source),
+            (TypeMetadata::of::<Mismatch>(), &source),
+            (TypeMetadata::of::<RustType>(), &source),
+        ],
+    )
     .expect("diagnostic roots");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,

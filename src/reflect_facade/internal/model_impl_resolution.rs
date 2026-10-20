@@ -10,16 +10,10 @@
 
 use std::sync::Arc;
 
-use crate::metadata::ModelImplMetadata;
 use crate::model_impl_metadata::MergedModelImpl;
 
-/// A static implementation block or an owned multi-provider merge.
-///
-/// Static entries borrow generated metadata, while merged entries own the
-/// combined result for one reflection snapshot.
+/// An owned merge of implementation providers for one reflection snapshot.
 pub(crate) enum ModelImplResolution {
-    /// Uses the single implementation block's generated static metadata.
-    Static(&'static ModelImplMetadata),
     /// Owns the merged metadata assembled from multiple providers.
     Merged(Arc<MergedModelImpl>),
 }

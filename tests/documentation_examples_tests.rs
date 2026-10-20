@@ -372,9 +372,14 @@ fn check_raw_installation_identity(metadata: &Value, installation: &str, root: &
         let manifest = directory.join("Cargo.toml");
         let package = packages.iter().find(|package| package["name"] == *name);
         let package = package.unwrap_or_else(|| panic!("{context}: missing package {name}"));
+        let expected_manifest = manifest.canonicalize().unwrap_or(manifest);
+        let actual_manifest = package["manifest_path"]
+            .as_str()
+            .map(PathBuf::from)
+            .map(|path| path.canonicalize().unwrap_or(path));
         assert_eq!(
-            package["manifest_path"].as_str(),
-            manifest.canonicalize().unwrap_or(manifest).to_str(),
+            actual_manifest.as_deref(),
+            Some(expected_manifest.as_path()),
             "{context}: {name} checkout identity"
         );
     }
@@ -387,9 +392,14 @@ fn check_raw_installation_identity(metadata: &Value, installation: &str, root: &
             .iter()
             .find(|package| package["name"] == "qubit-validator")
             .expect("validation installation validator package");
+        let expected_manifest = manifest.canonicalize().unwrap_or(manifest);
+        let actual_manifest = package["manifest_path"]
+            .as_str()
+            .map(PathBuf::from)
+            .map(|path| path.canonicalize().unwrap_or(path));
         assert_eq!(
-            package["manifest_path"].as_str(),
-            manifest.canonicalize().unwrap_or(manifest).to_str(),
+            actual_manifest.as_deref(),
+            Some(expected_manifest.as_path()),
             "{context}: validator checkout identity"
         );
     }
