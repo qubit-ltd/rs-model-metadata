@@ -332,6 +332,49 @@ fn test_explicit_empty_path_selects_model_level_rule() {
     assert!(report.violations().is_empty());
 }
 
+#[test]
+fn test_typed_validate_entrypoint_reports_selected_field_violations() {
+    let root = TypeMetadata::of::<SelectedFields>();
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let roots = [root];
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("field structure"),
+    );
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: Arc::clone(&graph),
+            validators: &validators,
+        },
+    )
+    .expect("standard constraints");
+    let value = SelectedFields {
+        first: String::new(),
+        second: String::new(),
+        plain: String::from("unconstrained"),
+    };
+
+    let report = plan
+        .validate(&value, &ValidationOptions::default())
+        .expect("the typed entrypoint executes the compiled field rules");
+
+    assert_eq!(
+        report
+            .violations()
+            .iter()
+            .map(|violation| (violation.path().render(), violation.code().as_str()))
+            .collect::<Vec<_>>(),
+        [("first".to_owned(), "text.blank"), ("second".to_owned(), "text.blank"),],
+        "typed execution preserves each constrained field's path and violation code"
+    );
+}
+
 /// A completed builder selects the requested field before spending its budget.
 #[test]
 fn test_builder_field_selection_and_budget_execute_together() {

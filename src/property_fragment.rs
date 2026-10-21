@@ -129,3 +129,34 @@ impl PropertyFragment {
         self.source
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use qubit_reflect::Reflect;
+    use qubit_reflect::ReflectionContext;
+    use qubit_reflect::descriptor::TypeDescriptor;
+
+    use super::PropertyFragment;
+    use crate::field_metadata::FieldMetadata;
+    use crate::metadata::PropertyFragmentSource;
+
+    #[Reflect]
+    struct FragmentCoverageFixture {
+        name: String,
+    }
+
+    #[test]
+    fn debug_and_unbound_type_expression_fallback_are_observable() {
+        let context = ReflectionContext::global();
+        let descriptor = TypeDescriptor::of_in::<FragmentCoverageFixture>(context)
+            .field("name")
+            .expect("fixture field");
+        let field = Box::leak(Box::new(FieldMetadata::from_reflect(
+            std::any::TypeId::of::<FragmentCoverageFixture>(),
+            descriptor,
+        )));
+        let fragment = PropertyFragment::new("name", None, PropertyFragmentSource::Field(field));
+        assert!(format!("{fragment:?}").contains("PropertyFragment"));
+        let _ = fragment.type_expression_in(context);
+    }
+}

@@ -23,6 +23,11 @@ struct MissingPropertyFixture {
     value: String,
 }
 
+#[Model(id = "type_metadata_public_api.registered")]
+struct RegisteredMetadataFixture {
+    value: String,
+}
+
 #[test]
 fn test_type_metadata_delegates_structure_to_reflection() {
     let context = ReflectionContext::builder()
@@ -52,6 +57,31 @@ fn test_type_metadata_delegates_structure_to_reflection() {
     assert_eq!(reflected.index(), 0);
     assert!(std::ptr::eq(reflected.context(), &context));
     assert!(metadata.try_properties().is_ok());
+    assert!(metadata.field_at(0).is_some());
+    assert!(metadata.field_at(1).is_none());
+    assert!(metadata.try_property("value").unwrap().is_some());
+    assert!(metadata.try_property_in(&context, "value").unwrap().is_some());
+    assert!(metadata.try_properties_in(&context).is_ok());
+    assert!(metadata.property_fragments().is_ok());
+    assert!(metadata.property_fragments_in(&context).is_ok());
+}
+
+#[test]
+fn test_registered_type_metadata_exposes_registration_identity() {
+    let metadata = TypeMetadata::of::<RegisteredMetadataFixture>();
+    let context = ReflectionContext::builder()
+        .include_type::<RegisteredMetadataFixture>()
+        .include_type::<String>()
+        .build()
+        .expect("registered model context");
+
+    assert!(metadata.is_registered());
+    assert_eq!(
+        metadata.model_id().unwrap().as_str(),
+        "type_metadata_public_api.registered"
+    );
+    assert!(metadata.try_property("value").unwrap().is_some());
+    assert!(metadata.try_property_in(&context, "value").unwrap().is_some());
 }
 
 #[test]

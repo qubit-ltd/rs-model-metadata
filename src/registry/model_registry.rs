@@ -1072,6 +1072,29 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn metadata_lookup_returns_none_for_type_outside_registry_context() {
+        let registry_context = qubit_reflect::ReflectionContext::builder()
+            .include_type::<AnonymousMetadataFixture>()
+            .build()
+            .expect("registry context");
+        let external_context = qubit_reflect::ReflectionContext::builder()
+            .include_type::<String>()
+            .build()
+            .expect("external context");
+        let registry = ModelRegistry::from_context(&registry_context).expect("registry");
+        let external_descriptor = external_context
+            .type_by_id(TypeId::of::<String>())
+            .expect("string type");
+
+        assert!(
+            registry
+                .metadata_for(&external_descriptor)
+                .expect("a type absent from the registry context is not an error")
+                .is_none()
+        );
+    }
+
     fn first_context_metadata() -> &'static TypeMetadata {
         static METADATA: std::sync::OnceLock<&'static TypeMetadata> = std::sync::OnceLock::new();
         METADATA.get_or_init(anonymous_metadata)

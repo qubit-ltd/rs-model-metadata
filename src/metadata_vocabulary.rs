@@ -525,6 +525,20 @@ impl UniqueMetadata {
     }
 }
 
+#[cfg(test)]
+mod coverage_tests {
+    use super::UniqueMetadata;
+    use crate::relation::PropertyPath;
+
+    #[test]
+    fn reads_the_concrete_ignore_case_policy() {
+        static SCOPE: [PropertyPath<'static>; 1] = [PropertyPath::new(&["tenant"])];
+        let policy = UniqueMetadata::new(&SCOPE, true);
+
+        assert!(policy.ignore_case());
+    }
+}
+
 /// Declares the ordering of one key component.
 ///
 /// # Examples

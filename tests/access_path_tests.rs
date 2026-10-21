@@ -122,6 +122,21 @@ struct OwnedParent {
     child_value: String,
 }
 
+#[Model(id = "access.SliceParent")]
+struct SliceParent {
+    items: Vec<AccessLeaf>,
+}
+
+#[Model(id = "access.BorrowedParent")]
+struct BorrowedParent {
+    child: AccessLeaf,
+}
+
+#[Model(id = "access.BorrowedOptionalParent")]
+struct BorrowedOptionalParent {
+    child: Option<AccessMiddle>,
+}
+
 #[Model(id = "access.SetterOnly")]
 struct SetterOnly {}
 
@@ -152,6 +167,27 @@ impl OwnedParent {
     }
 }
 
+#[ModelImpl]
+impl SliceParent {
+    pub fn children(&self) -> &[AccessLeaf] {
+        &self.items
+    }
+}
+
+#[ModelImpl]
+impl BorrowedParent {
+    pub fn child(&self) -> &AccessLeaf {
+        &self.child
+    }
+}
+
+#[ModelImpl]
+impl BorrowedOptionalParent {
+    pub fn child(&self) -> Option<&AccessMiddle> {
+        self.child.as_ref()
+    }
+}
+
 /// A static isolated registry keeps property compilation independent of
 /// globals.
 fn test_registry() -> ModelRegistry<'static> {
@@ -176,9 +212,15 @@ fn test_registry() -> ModelRegistry<'static> {
             .include_type::<SetterOnly>()
             .include_type::<PublicRoot>()
             .include_type::<OwnedParent>()
+            .include_type::<SliceParent>()
+            .include_type::<BorrowedParent>()
+            .include_type::<BorrowedOptionalParent>()
             .register(model_metadata_registration::<OwnedParent>())
             .register(model_impl_registration::<SetterOnly>())
             .register(model_impl_registration::<OwnedParent>())
+            .register(model_impl_registration::<SliceParent>())
+            .register(model_impl_registration::<BorrowedParent>())
+            .register(model_impl_registration::<BorrowedOptionalParent>())
             .build()
             .expect("reflection context builds")
     });
@@ -194,6 +236,9 @@ fn test_registry() -> ModelRegistry<'static> {
             (TypeMetadata::of::<SetterOnly>(), &SOURCE),
             (TypeMetadata::of::<PublicRoot>(), &SOURCE),
             (TypeMetadata::of::<OwnedParent>(), &SOURCE),
+            (TypeMetadata::of::<SliceParent>(), &SOURCE),
+            (TypeMetadata::of::<BorrowedParent>(), &SOURCE),
+            (TypeMetadata::of::<BorrowedOptionalParent>(), &SOURCE),
         ],
     )
     .expect("isolated model registry")
@@ -403,6 +448,33 @@ fn test_read_optional_intermediate_reports_missing_value() {
     assert_eq!(root.middle.expect("middle remains present").value, "after");
 }
 
+/// Preserves a replacement when writing through an absent optional parent.
+#[test]
+fn test_write_missing_optional_intermediate_preserves_replacement() {
+    let registry = test_registry();
+    let path =
+        PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<OptionalRoot>(), &["middle", "value"])
+            .expect("optional model path compiles for writing");
+    let mut root = OptionalRoot { middle: None };
+
+    let failure = path
+        .write(&mut root, "replacement".to_owned())
+        .expect_err("an absent optional parent cannot be traversed");
+
+    assert!(matches!(
+        failure.path_error(),
+        Some(PropertyAccessPathError::MissingIntermediate { index: 0, name }) if name == "middle"
+    ));
+    assert_eq!(
+        failure
+            .replacement()
+            .and_then(|value| value.downcast_ref::<String>())
+            .map(String::as_str),
+        Some("replacement")
+    );
+    assert!(root.middle.is_none());
+}
+
 /// Rejects a getter that returns ownership before any getter invocation.
 #[test]
 fn test_compile_rejects_owned_intermediate_getter() {
@@ -421,6 +493,111 @@ fn test_compile_rejects_owned_intermediate_getter() {
             .map_or_else(|| "success".to_owned(), |error| format!("{error:?}"))
     );
     assert_eq!(OWNED_GETTER_CALLS.load(Ordering::Relaxed), 0);
+}
+
+/// Borrowed slice getters cannot be traversed as a single intermediate value.
+#[test]
+fn test_compile_rejects_borrowed_slice_intermediate() {
+    let registry = test_registry();
+    let error = match PropertyAccessPath::compile(&registry, TypeMetadata::of::<SliceParent>(), &["children", "value"])
+    {
+        Err(error) => error,
+        Ok(_) => panic!("a slice cannot be treated as one nested model"),
+    };
+
+    assert!(matches!(
+        error,
+        PropertyAccessPathError::UnsupportedIntermediate { index: 0, name } if name == "children"
+    ));
+}
+
+#[test]
+fn test_borrowed_getter_intermediate_is_readable_but_not_writable() {
+    let registry = test_registry();
+    let path =
+        PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<BorrowedParent>(), &["child", "value"])
+            .expect("borrowed getter intermediate compiles for a write path");
+    let mut root = BorrowedParent {
+        child: AccessLeaf {
+            value: "before".to_owned(),
+        },
+    };
+
+    let failure = path
+        .write(&mut root, "replacement".to_owned())
+        .expect_err("a borrowed getter cannot be traversed mutably");
+    assert!(matches!(
+        failure.path_error(),
+        Some(PropertyAccessPathError::UnwritableIntermediate { index: 0, name }) if name == "child"
+    ));
+    assert_eq!(
+        failure.replacement().and_then(|value| value.downcast_ref::<String>()),
+        Some(&"replacement".to_owned())
+    );
+    assert_eq!(root.child.value, "before");
+}
+
+#[test]
+fn test_optional_borrowed_getter_intermediate_reads_present_and_missing_values() {
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<BorrowedOptionalParent>(),
+        &["child", "value"],
+    )
+    .expect("optional borrowed getter intermediate compiles");
+
+    let missing = BorrowedOptionalParent { child: None };
+    assert!(matches!(
+        path.read(&missing),
+        Err(PropertyAccessPathError::MissingIntermediate { index: 0, name }) if name == "child"
+    ));
+
+    let present = BorrowedOptionalParent {
+        child: Some(AccessMiddle {
+            leaf: AccessLeaf {
+                value: "leaf".to_owned(),
+            },
+            value: "middle".to_owned(),
+        }),
+    };
+    assert!(matches!(
+        path.read(&present).expect("present optional getter is traversed"),
+        PropertyValue::Borrowed(value) if value.downcast_ref::<String>().is_some_and(|value| value == "middle")
+    ));
+}
+
+/// Reports a readable getter-only leaf as unwritable and retains replacements.
+#[test]
+fn test_getter_only_leaf_is_not_writable() {
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<OwnedParent>(), &["owned_child"])
+        .expect("readable getter compiles as a leaf");
+
+    assert!(matches!(
+        path.check_writable(),
+        Err(PropertyAccessPathError::NotWritable { index: 0, name }) if name == "owned_child"
+    ));
+
+    let mut root = OwnedParent {
+        child_value: "unchanged".to_owned(),
+    };
+    let failure = path
+        .write(&mut root, "replacement".to_owned())
+        .expect_err("getter-only property has no write destination");
+
+    assert!(matches!(
+        failure.path_error(),
+        Some(PropertyAccessPathError::NotWritable { index: 0, name }) if name == "owned_child"
+    ));
+    assert_eq!(
+        failure
+            .replacement()
+            .and_then(|value| value.downcast_ref::<String>())
+            .map(String::as_str),
+        Some("replacement")
+    );
+    assert_eq!(root.child_value, "unchanged");
 }
 
 /// Rejects smart-pointer intermediates rather than treating the pointer as its

@@ -529,6 +529,7 @@ mod tests {
             Err(error) => error,
         };
         assert_eq!(error.kind(), ExecutionErrorKind::MissingRequiredDependencyValue);
+        assert_eq!(error.path(), &ValidationPath::root());
     }
 
     #[test]
@@ -561,6 +562,7 @@ mod tests {
             Err(error) => error,
         };
         assert_eq!(error.kind(), ExecutionErrorKind::DependencyTypeMismatch);
+        assert_eq!(error.path().render(), "value");
     }
 
     #[test]
@@ -582,6 +584,7 @@ mod tests {
         };
         assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
         assert!(error.trusted_source().is_some());
+        assert_eq!(error.path().render(), "missing");
 
         let limited = ValidationOptions::builder()
             .max_depth(NonZeroUsize::new(1).expect("positive depth"))
@@ -686,6 +689,24 @@ mod tests {
             value.downcast_ref::<String>().map(String::as_str),
             Some("dependency value")
         );
+    }
+
+    #[test]
+    fn test_empty_dependency_batch_returns_no_values_or_report_paths() {
+        let graph = dependency_graph();
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+        let root = DependencyRoot {
+            value: "unused".to_owned(),
+        };
+
+        let (values, paths) = match dependencies(&[], DynamicRef::<Local>::new(&root), &[], &graph, &mut budget) {
+            Ok(batch) => batch,
+            Err(_) => panic!("a rule with no dependency slots has an empty successful batch"),
+        };
+
+        assert!(values.is_empty());
+        assert!(paths.is_empty());
     }
 
     #[test]

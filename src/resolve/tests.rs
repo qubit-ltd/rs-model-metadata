@@ -136,3 +136,41 @@ fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
         Some(ModelResolutionCause::Properties(PropertyResolutionError::Assembly(_)))
     ));
 }
+
+#[test]
+fn test_static_root_resolution_keeps_root_after_caller_scope() {
+    let reflection = ReflectionContext::builder()
+        .include_type::<Broken<1>>()
+        .register(crate::reflect_facade::model_impl_registration::<Broken<1>>())
+        .build()
+        .expect("reflection context should build");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry should build");
+    let root = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new::<Broken<1>>(None, &[], v8::leak(v8::model_role())).finish::<Broken<1>>(),
+    );
+    let resolver = StructureResolver::for_static_roots(&models, [root]);
+    let errors = resolver.resolve().expect_err("broken property assembly is reported");
+    assert!(errors.errors().iter().any(|error| {
+        error.kind() == ResolveErrorKind::InvalidProperties
+            && error.model_id().is_none()
+            && error.path().is_some_and(|path| path.to_string() == "value")
+    }));
+}
+
+#[test]
+fn test_empty_property_path_does_not_resolve_a_property() {
+    let reflection = ReflectionContext::builder()
+        .include_type::<Broken<2>>()
+        .register(crate::reflect_facade::model_impl_registration::<Broken<2>>())
+        .build()
+        .expect("reflection context should build");
+    let models = ModelRegistry::from_context(&reflection).expect("model registry should build");
+    let context = ResolutionContext::new(&models, &[]);
+    let path = PropertyPath::new(&[]);
+
+    assert!(
+        resolve_property_path(registered_metadata(), &path, &context)
+            .expect("empty path requires no property assembly")
+            .is_none()
+    );
+}

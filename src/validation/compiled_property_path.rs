@@ -741,6 +741,40 @@ mod tests {
     }
 
     #[test]
+    fn test_optional_terminal_projection_rejects_an_unrelated_element_type() {
+        let context = ReflectionContext::global();
+        let descriptor = TypeDescriptor::of_in::<OptionalTerminalFixture>(context);
+        let field = v8::leak(
+            FieldMetadata::from_reflect(
+                descriptor.type_id(),
+                descriptor.fields().get_at(0).expect("optional terminal field"),
+            )
+            .with_optional_ops(OptionalOps::for_element::<String>()),
+        );
+        let path = CompiledPropertyPath {
+            context_depth: 0,
+            dependency: None,
+            deferred: Box::new([]),
+            steps: vec![PropertyStep {
+                property: PropertyMetadata::new("value", field.type_expression_data(), Some(field), None, None),
+                owner: None,
+                optional_element: None,
+            }]
+            .into_boxed_slice(),
+            optional_steps: vec![0].into_boxed_slice(),
+            input: InputType::of::<Option<String>>(),
+            optional: false,
+            variant_guard: None,
+            variant_name: None,
+        };
+
+        let error = path
+            .unwrap_terminal_optional(TypeDescriptor::of_in::<u64>(context))
+            .expect_err("Option<String> cannot project to an unrelated element type");
+        assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
+    }
+
+    #[test]
     fn test_value_descriptor_unwraps_optional_and_smart_pointer_layers() {
         let context = ReflectionContext::global();
         let optional = TypeDescriptor::of_in::<Option<String>>(context);
