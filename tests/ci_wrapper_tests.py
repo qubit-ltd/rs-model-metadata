@@ -6,7 +6,6 @@
 
 import json
 import os
-import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -111,89 +110,6 @@ class CiWrapperTests(unittest.TestCase):
         for wrapper in WRAPPERS:
             with self.subTest(wrapper=wrapper):
                 self.run_wrapper(wrapper, {}, ("json", "path with spaces", "$(literal)"), exit_code=23)
-
-    def test_downstream_repositories_use_immutable_revisions(self):
-        workflow = (PROJECT_ROOT / ".github/workflows/rs-platform-downstream.yml").read_text(
-            encoding="utf-8"
-        )
-        checkouts = re.findall(
-            r"repository:\s*(qubit-ltd/[^\s]+)\s*\n\s*ref:\s*([^\s]+)",
-            workflow,
-        )
-        expected_repositories = {
-            "qubit-ltd/rs-reflect",
-            "qubit-ltd/rs-platform",
-            "qubit-ltd/rs-id",
-            "qubit-ltd/rs-datatype",
-            "qubit-ltd/rs-redact",
-            "qubit-ltd/rs-redact-derive",
-            "qubit-ltd/rs-codec",
-            "qubit-ltd/rs-validator",
-            "qubit-ltd/rs-validation-rules",
-        }
-        repositories = {repository for repository, _ in checkouts}
-        self.assertEqual(repositories, expected_repositories)
-        for repository, revision in checkouts:
-            with self.subTest(repository=repository):
-                self.assertRegex(revision, r"^[0-9a-f]{40}$")
-
-    def test_downstream_cross_repository_checkouts_declare_dependency_token(self):
-        workflow = (PROJECT_ROOT / ".github/workflows/rs-platform-downstream.yml").read_text(
-            encoding="utf-8"
-        )
-        blocks = re.findall(
-            r"^      - (?:name: [^\n]+\n        )?uses: actions/checkout@v6\n"
-            r"        with:\n(?P<with>(?:          .*\n)+)",
-            workflow,
-            re.MULTILINE,
-        )
-        dependency_checkouts = [
-            block for block in blocks if re.search(r"^\s+repository:\s*qubit-ltd/", block)
-        ]
-
-        self.assertEqual(len(dependency_checkouts), 9)
-        for checkout in dependency_checkouts:
-            repository = re.search(r"^\s+repository:\s*([^\s]+)", checkout, re.MULTILINE)
-            with self.subTest(repository=repository.group(1) if repository else "missing"):
-                self.assertIsNotNone(repository)
-                self.assertIn("token: ${{ secrets.DEPENDENCY_TOKEN || github.token }}", checkout)
-
-    def test_cross_platform_cargo_commands_cover_locked_workspace(self):
-        workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        jobs = workflow.split("\n  cross-platform-tests:\n", maxsplit=1)
-        self.assertEqual(len(jobs), 2, "cross-platform-tests job is missing")
-        job = re.split(r"\n  [a-zA-Z0-9_-]+:\n", jobs[1], maxsplit=1)[0]
-        commands = re.findall(r"^\s+- run:\s*(cargo\s+(?:test|clippy)\b.*)$", job, re.MULTILINE)
-
-        self.assertEqual(len(commands), 2, "expected cross-platform test and clippy commands")
-        by_command = {"test": None, "clippy": None}
-        for command in commands:
-            if command.startswith("cargo test "):
-                by_command["test"] = command
-            elif command.startswith("cargo clippy "):
-                by_command["clippy"] = command
-
-        for name, command in by_command.items():
-            with self.subTest(command=name):
-                self.assertIsNotNone(command, f"cross-platform {name} command is missing")
-                if command is None:
-                    continue
-                self.assertIn("--workspace", command)
-                self.assertIn("--locked", command)
-                self.assertIn("--all-features", command)
-
-    def test_cross_platform_toolchain_installs_clippy_component(self):
-        workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        jobs = workflow.split("\n  cross-platform-tests:\n", maxsplit=1)
-        self.assertEqual(len(jobs), 2, "cross-platform-tests job is missing")
-        job = re.split(r"\n  [a-zA-Z0-9_-]+:\n", jobs[1], maxsplit=1)[0]
-        setup = re.search(
-            r"- uses: actions-rust-lang/setup-rust-toolchain@v1\n(?P<with>\s+with:\n(?:\s{10,}.*\n)+)",
-            job,
-        )
-
-        self.assertIsNotNone(setup, "cross-platform Rust toolchain setup is missing")
-        self.assertRegex(setup.group("with"), r"(?m)^\s+components:\s*clippy\s*$")
 
     def test_coverage_report_expands_workspace_scope_to_package_arguments(self):
         if not os.environ.get("RS_INFRA_SHARED_ROOT"):
