@@ -26,6 +26,7 @@ use qubit_reflect::__private::codegen_v4::expression::ExpressionData;
 use qubit_reflect::__private::codegen_v4::expression::TypeExpressionData;
 use qubit_reflect::InvocationOutput;
 use qubit_reflect::Reflect;
+use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::value::DynamicMut;
 use qubit_reflect::value::DynamicOwned;
@@ -302,6 +303,96 @@ fn test_safe_property_field_fallback_rejects_private_fields() {
         panic!("field fallback must return a borrowed value");
     };
     assert_eq!(secret.downcast_ref::<String>().map(String::as_str), Some("secret"));
+}
+
+#[test]
+fn test_unsafe_property_field_fallback_can_write_private_fields() {
+    let descriptor = TypeDescriptor::of::<PrivatePropertyFixture>();
+    let reflected = descriptor.fields().get("value").expect("value field");
+    let field = Box::leak(Box::new(FieldMetadata::from_reflect(
+        reflected.declaring_type().type_id(),
+        reflected,
+    )));
+    let property = v8::property_metadata("value", None, Some(field), None, None);
+    let mut value = PrivatePropertyFixture {
+        value: "before".to_owned(),
+    };
+
+    unsafe {
+        property
+            .set_dynamic_unsafe(
+                DynamicMut::<Local>::new(&mut value),
+                DynamicOwned::<Local>::new("after".to_owned()),
+            )
+            .expect("authorized private field write");
+    }
+    assert_eq!(value.value, "after");
+}
+
+#[test]
+fn test_typed_property_metadata_adapters_and_type_queries() {
+    let getter = GetterMetadata::new::<PropertyFixture>(
+        "name",
+        &STRING_EXPRESSION,
+        string_type_id,
+        GetterOutputKind::Borrowed,
+        borrowed_name,
+    );
+    let value = PropertyFixture {
+        name: "typed getter".to_owned(),
+        count: 0,
+    };
+    let PropertyValue::Borrowed(name) = getter.get(&value).expect("typed getter") else {
+        panic!("typed getter must preserve borrowed output");
+    };
+    assert_eq!(name.downcast_ref::<String>().map(String::as_str), Some("typed getter"));
+
+    let setter = SetterMetadata::new::<PropertyFixture, String>("set_name", &STRING_EXPRESSION, set_name);
+    let mut value = PropertyFixture {
+        name: "before".to_owned(),
+        count: 0,
+    };
+    setter.set(&mut value, "typed setter".to_owned()).expect("typed setter");
+    assert_eq!(value.name, "typed setter");
+
+    let property = v8::property_metadata("name", None, None, None, Some(Box::leak(Box::new(setter))));
+    assert!(property.type_expression_in(ReflectionContext::global()).is_some());
+    assert!(
+        property
+            .descriptor_in(ReflectionContext::global())
+            .expect("setter descriptor lookup")
+            .is_some()
+    );
+    assert!(format!("{property:?}").contains("has_setter: true"));
+}
+
+#[test]
+fn test_typed_property_set_and_unsafe_field_failure_recover_value() {
+    let descriptor = TypeDescriptor::of::<PropertyFixture>();
+    let reflected = descriptor.fields().get("name").expect("name field");
+    let field = Box::leak(Box::new(FieldMetadata::from_reflect(descriptor.type_id(), reflected)));
+    let property = v8::property_metadata("name", None, Some(field), None, None);
+    let mut value = PropertyFixture {
+        name: "before".to_owned(),
+        count: 0,
+    };
+
+    property
+        .set(&mut value, "typed property setter".to_owned())
+        .expect("typed property setter");
+    assert_eq!(value.name, "typed property setter");
+
+    let failure = unsafe {
+        property.set_dynamic_unsafe(DynamicMut::<Local>::new(&mut value), DynamicOwned::<Local>::new(17_u32))
+    }
+    .expect_err("unsafe field write still validates its value type");
+    assert_eq!(
+        failure
+            .replacement()
+            .and_then(|replacement| replacement.downcast_ref::<u32>()),
+        Some(&17)
+    );
+    assert_eq!(value.name, "typed property setter");
 }
 
 #[test]

@@ -1696,6 +1696,6 @@ impl PropertyMetadata {
         target: PropertyMutable<'_>,
         value: PropertyOwned,
     ) -> Result<(), PropertySetFailure> {
-        self.set_dynamic(target, value)
+        unsafe { self.set_dynamic_unsafe_in(ReflectionContext::global(), target, value) }
     }
 }
