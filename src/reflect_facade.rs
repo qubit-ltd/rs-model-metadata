@@ -340,3 +340,55 @@ pub(crate) fn model_impl_metadata(
         metadata, &providers, context,
     )))))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ModelImplFragment;
+    use super::ModelImplMetadata;
+    use super::ModelImplProvider;
+    use super::ModelImplSource;
+    use super::model_impl_fragments;
+
+    struct AggregatedFixture;
+
+    fn first_provider() -> &'static ModelImplMetadata {
+        panic!("aggregation test does not invoke providers")
+    }
+
+    fn second_provider() -> &'static ModelImplMetadata {
+        panic!("aggregation test does not invoke providers")
+    }
+
+    qubit_reflect::__private::__inventory::submit! {
+        ModelImplFragment::for_type::<AggregatedFixture>(
+            first_provider as ModelImplProvider,
+            ModelImplSource {
+                module_path: "reflect_facade::tests",
+                file: file!(),
+                line: line!(),
+                fingerprint: 1,
+            },
+        )
+    }
+
+    qubit_reflect::__private::__inventory::submit! {
+        ModelImplFragment::for_type::<AggregatedFixture>(
+            second_provider as ModelImplProvider,
+            ModelImplSource {
+                module_path: "reflect_facade::tests",
+                file: file!(),
+                line: line!(),
+                fingerprint: 2,
+            },
+        )
+    }
+
+    #[test]
+    fn collects_multiple_impl_providers_for_one_concrete_type() {
+        let fragments = model_impl_fragments::<AggregatedFixture>();
+        assert_eq!(fragments.len(), 2);
+        let mut fingerprints: Vec<_> = fragments.iter().map(|fragment| fragment.source().fingerprint).collect();
+        fingerprints.sort_unstable();
+        assert_eq!(fingerprints, [1, 2]);
+    }
+}
