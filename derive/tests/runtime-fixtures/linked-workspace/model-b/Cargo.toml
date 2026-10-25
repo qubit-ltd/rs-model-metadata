@@ -10,7 +10,7 @@ qubit-model-metadata = { path = "../../../../../", features = ["validation", "co
 qubit-reflect = { path = "../../../../../../rs-reflect" }
 serde = { version = "1", features = ["derive"] }
 
-qubit-codec = { version = "0.16", features = ["registry"] }
+qubit-codec = { version = "0.17", features = ["registry"] }
 qubit-validator = { version = "=0.1.0", path = "../../../../../../../rust-common/rs-validator" }
 
 [features]
