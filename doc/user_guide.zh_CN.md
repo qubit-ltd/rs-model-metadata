@@ -260,7 +260,7 @@ occurrence 身份包含准确的 TypeId、可选 ModelId、Property 路径和声
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["codec"] }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-reflect = { version = "0.2", path = "../rs-reflect" }
-qubit-codec = { version = "0.16", features = ["registry"] }
+qubit-codec = { version = "0.17", features = ["registry"] }
 ```
 
 下面的完整程序先绑定已注册的 codec，再观察另一个模型引用缺失 codec ID 时返回的错误：

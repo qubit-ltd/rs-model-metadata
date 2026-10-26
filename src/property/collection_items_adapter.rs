@@ -42,7 +42,6 @@ use crate::metadata::SelectorPosition;
 ///
 /// ```
 /// use qubit_model_metadata::metadata::BorrowedCollection;
-/// use qubit_model_metadata::metadata::CollectionItemsAdapter;
 /// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_model_metadata::metadata::PropertyOwned;
 /// use qubit_model_metadata::metadata::PropertyValue;
@@ -55,7 +54,7 @@ use crate::metadata::SelectorPosition;
 ///     Ok(None)
 /// }
 ///
-/// let adapter: CollectionItemsAdapter = read_members;
+/// let adapter = read_members;
 /// let value = PropertyValue::Owned(PropertyOwned::new(()));
 /// let members = adapter(&value, SelectorPosition::Element)
 ///     .expect("the collection is readable");

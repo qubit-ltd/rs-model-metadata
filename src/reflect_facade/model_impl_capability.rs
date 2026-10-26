@@ -25,7 +25,7 @@ const MODEL_IMPL_BASE_ID: &str = "qubit.model.impl.v1";
 /// # Examples
 ///
 /// ```
-/// use qubit_model_metadata::__private::ModelImplCapability;
+/// use qubit_model_metadata::__private::v8::ModelImplCapability;
 /// use qubit_reflect::capability::CapabilitySpec;
 ///
 /// let capability_id = <ModelImplCapability as CapabilitySpec>::ID;

@@ -318,7 +318,7 @@ mismatch are reported as binding errors.
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["codec"] }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-reflect = { version = "0.2", path = "../rs-reflect" }
-qubit-codec = { version = "0.16", features = ["registry"] }
+qubit-codec = { version = "0.17", features = ["registry"] }
 ```
 
 This complete program binds a registered codec, then observes the error for a

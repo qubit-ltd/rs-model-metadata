@@ -40,6 +40,7 @@ pub type PropertyBorrowed<'a> = DynamicRef<'a, Local>;
 /// let mut value = 42_u32;
 /// let mut property = PropertyMutable::new(&mut value);
 /// *property.downcast_mut::<u32>().expect("the stored type is u32") = 7;
+/// drop(property);
 /// assert_eq!(value, 7);
 /// ```
 pub type PropertyMutable<'a> = DynamicMut<'a, Local>;
@@ -55,6 +56,6 @@ pub type PropertyMutable<'a> = DynamicMut<'a, Local>;
 /// use qubit_model_metadata::metadata::PropertyOwned;
 ///
 /// let property = PropertyOwned::new(42_u32);
-/// assert_eq!(*property.downcast::<u32>().expect("the stored type is u32"), 42);
+/// assert_eq!(property.downcast::<u32>().expect("the stored type is u32"), 42);
 /// ```
 pub type PropertyOwned = DynamicOwned<Local>;

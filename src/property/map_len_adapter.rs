@@ -34,11 +34,11 @@ use super::PropertyValue;
 /// ```
 /// use std::collections::HashMap;
 ///
-/// use qubit_model_metadata::metadata::MapLenAdapter;
+/// use qubit_model_metadata::metadata::PropertyAccessError;
 /// use qubit_model_metadata::metadata::PropertyOwned;
 /// use qubit_model_metadata::metadata::PropertyValue;
 ///
-/// let map_len: MapLenAdapter = |value| {
+/// let map_len = |value: &PropertyValue<'_>| -> Result<Option<usize>, PropertyAccessError> {
 ///     let map = match value {
 ///         PropertyValue::Owned(value) => Some(
 ///             value
