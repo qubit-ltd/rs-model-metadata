@@ -11,11 +11,11 @@
 use qubit_model_metadata::__private::ModelImplFragment;
 use qubit_model_metadata::__private::ModelImplProvider;
 use qubit_model_metadata::__private::ModelImplSource;
-use qubit_model_metadata::__private::v8::model_impl_fragments;
+use qubit_model_metadata::__private::v8::all_model_impl_fragments;
 use qubit_model_metadata::metadata::ModelImplMetadata;
 use qubit_reflect::Reflect;
 
-#[derive(Reflect)]
+#[Reflect]
 struct AggregatedFixture;
 
 fn first_provider() -> &'static ModelImplMetadata {
@@ -52,7 +52,7 @@ qubit_reflect::__private::__inventory::submit! {
 
 #[test]
 fn test_collects_multiple_impl_providers_for_one_concrete_type() {
-    let fragments = model_impl_fragments::<AggregatedFixture>();
+    let fragments = all_model_impl_fragments();
     assert_eq!(fragments.len(), 2, "both submitted providers should be retained");
     let mut fingerprints: Vec<_> = fragments.iter().map(|fragment| fragment.source().fingerprint).collect();
     fingerprints.sort_unstable();

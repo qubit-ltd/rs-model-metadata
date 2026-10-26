@@ -5,13 +5,13 @@ error: invalid signed validator integer: number too small to fit in target type
    |                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: invalid signed validator integer: number too small to fit in target type
-  --> tests/ui_roles/fail/validator_signed_bounds.rs:23:26
+  --> tests/ui_roles/fail/validator_signed_bounds.rs:23:27
    |
 23 |         params(values = [-170141183460469231731687303715884105729, 0])
-   |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: invalid signed validator integer: number too large to fit in target type
   --> tests/ui_roles/fail/validator_signed_bounds.rs:32:30
    |
 32 |         params(values = [-1, 170141183460469231731687303715884105728])
-   |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

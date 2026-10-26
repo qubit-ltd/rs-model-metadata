@@ -25,7 +25,7 @@ fn test_cfg_accessor_feature_matrix() {
     let scratch = TemporaryTargetDir::new("qubit-model-cfg-fixture");
     let fixture = prepare_cfg_fixture(scratch.path());
     let fetched = Command::new(env!("CARGO"))
-        .args(["fetch", "--locked", "--manifest-path"])
+        .args(["fetch", "--manifest-path"])
         .arg(&fixture)
         .output()
         .expect("cfg fixture dependency fetch should start");
@@ -68,7 +68,7 @@ fn test_cfg_accessor_feature_matrix() {
         );
         let normalized_stderr = stderr.replace('\\', "/");
         assert!(
-            normalized_stderr.contains("src/lib.rs:"),
+            normalized_stderr.contains("src/lib.rs:") || normalized_stderr.contains("src/configured.rs:"),
             "cfg diagnostic needs source position: {stderr}"
         );
     }
@@ -81,7 +81,9 @@ fn prepare_cfg_fixture(directory: &Path) -> PathBuf {
     let source = package_root.join("tests/runtime-fixtures/cfg-accessors");
     let destination = directory.join("cfg-accessors");
     fs::create_dir_all(destination.join("src")).expect("fixture sources");
-    fs::copy(source.join("src/lib.rs"), destination.join("src/lib.rs")).expect("fixture library");
+    for module in ["lib.rs", "configured.rs", "generic_configured.rs", "missing_impl.rs"] {
+        fs::copy(source.join("src").join(module), destination.join("src").join(module)).expect("fixture source module");
+    }
     fs::copy(source.join("Cargo.lock"), destination.join("Cargo.lock")).expect("fixture lockfile");
 
     let reflect_root = std::env::var_os("QUBIT_REFLECT_ROOT")

@@ -21,17 +21,17 @@ use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityRegistration;
 
-#[derive(Reflect)]
+#[Reflect]
 struct AnonymousMetadataFixture;
 
 fn first_context_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<&'static TypeMetadata> = OnceLock::new();
-    METADATA.get_or_init(|| anonymous_metadata())
+    METADATA.get_or_init(anonymous_metadata)
 }
 
 fn second_context_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<&'static TypeMetadata> = OnceLock::new();
-    METADATA.get_or_init(|| anonymous_metadata())
+    METADATA.get_or_init(anonymous_metadata)
 }
 
 fn anonymous_metadata() -> &'static TypeMetadata {

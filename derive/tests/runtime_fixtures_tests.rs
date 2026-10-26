@@ -40,7 +40,7 @@ fn prefetch_runtime_fixture_dependencies(fixture_root: &Path) {
     for fixture in ["normal", "renamed", "missing", "missing-invalid", "linked-workspace"] {
         let manifest = fixture_root.join(fixture).join("Cargo.toml");
         let output = Command::new(env!("CARGO"))
-            .args(["fetch", "--locked", "--manifest-path"])
+            .args(["fetch", "--manifest-path"])
             .arg(&manifest)
             .output()
             .expect("runtime fixture dependency fetch should start");

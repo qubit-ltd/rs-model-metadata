@@ -46,6 +46,7 @@ pub(crate) fn is_option_path(path: &Path) -> bool {
 /// `true` when the path has one of the supported forms, and `false` otherwise.
 #[must_use]
 #[inline]
+#[cfg(test)]
 pub(crate) fn is_string_path(path: &Path) -> bool {
     matches_path(path, &["String"])
         || matches_path(path, &["std", "string", "String"])

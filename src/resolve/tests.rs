@@ -17,9 +17,6 @@ use qubit_reflect::Reflect;
 use qubit_reflect::ReflectionContext;
 
 use super::ModelResolutionCause;
-use super::ResolveErrorKind;
-use super::ResolveInputs;
-use super::StructureResolver;
 use super::internal::ResolutionContext;
 use super::relations::resolve_property_path;
 use crate::__private::v8;

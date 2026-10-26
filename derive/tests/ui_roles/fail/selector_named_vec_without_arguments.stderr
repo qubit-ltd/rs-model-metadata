@@ -148,8 +148,8 @@ note: required for `InvalidSelectorContainer` to implement `Reflect`
 note: required by a bound in `model_capability`
   --> $WORKSPACE/src/reflect_facade.rs
    |
-   | pub fn model_capability<T: crate::metadata::HasTypeMetadata>() -> CapabilityRegistration {
-   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `model_capability`
+   | pub fn model_capability<T: HasTypeMetadata>() -> CapabilityRegistration {
+   |                            ^^^^^^^^^^^^^^^ required by this bound in `model_capability`
    = note: this error originates in the attribute macro `::model_runtime::__private::Reflect` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Vec: Reflect` is not satisfied
