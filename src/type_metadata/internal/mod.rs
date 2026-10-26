@@ -12,9 +12,9 @@ mod fields;
 mod properties;
 mod roles;
 
-pub(super) use common::abi_violation;
-pub(super) use common::contains_field;
-pub(super) use fields::descriptor_for;
-pub(super) use fields::validate_fields;
-pub(super) use properties::validate_properties;
-pub(super) use roles::validate_role;
+pub(in crate::type_metadata) use common::abi_violation;
+pub(in crate::type_metadata) use common::contains_field;
+pub(in crate::type_metadata) use fields::descriptor_for;
+pub(in crate::type_metadata) use fields::validate_fields;
+pub(in crate::type_metadata) use properties::validate_properties;
+pub(in crate::type_metadata) use roles::validate_role;

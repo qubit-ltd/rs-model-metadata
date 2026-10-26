@@ -8,6 +8,7 @@
 
 //! Checked, immutable object-navigation metadata.
 
+#[allow(clippy::module_inception)]
 mod object_path;
 
 pub use self::object_path::ObjectPath;

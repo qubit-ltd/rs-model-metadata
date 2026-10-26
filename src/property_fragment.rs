@@ -8,6 +8,7 @@
 
 //! One unmerged field, getter, or setter property declaration.
 
+#[allow(clippy::module_inception)]
 mod property_fragment;
 
 pub use property_fragment::PropertyFragment;

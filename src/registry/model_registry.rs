@@ -8,6 +8,7 @@
 
 //! Frozen model indexes projected from one explicit reflection context.
 
+#[allow(clippy::module_inception)]
 mod model_registry;
 
 pub use self::model_registry::ModelRegistry;

@@ -15,6 +15,7 @@ mod enum_variant_metadata;
 #[path = "type_metadata/has_type_metadata.rs"]
 mod has_type_metadata;
 #[path = "type_metadata/type_metadata.rs"]
+#[allow(clippy::module_inception)]
 mod type_metadata;
 
 pub use self::enum_metadata::EnumMetadata;

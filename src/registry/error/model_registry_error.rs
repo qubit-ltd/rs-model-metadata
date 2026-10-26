@@ -19,7 +19,7 @@ use qubit_reflect::error::ContextError;
 use qubit_reflect::error::LookupError;
 
 use super::super::internal::cause::Cause;
-use super::super::model_entry::ModelRegistryOrigin;
+use super::super::model_registry_origin::ModelRegistryOrigin;
 use super::ModelRegistryErrorKind;
 use crate::metadata::AbiViolation;
 use crate::metadata::ModelId;

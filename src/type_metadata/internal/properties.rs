@@ -143,7 +143,7 @@ fn accessor_types_compatible(
 }
 
 /// Verifies that generated property overlays agree with fields and reflection.
-pub(super) fn validate_properties(
+pub(in crate::type_metadata) fn validate_properties(
     properties: &[PropertyMetadata],
     fields: &[FieldMetadata],
     descriptor: TypeDescriptor<'_>,

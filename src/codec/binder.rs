@@ -11,7 +11,6 @@
 use core::any::TypeId;
 use std::collections::BTreeMap;
 
-use qubit_codec::ValueStringCodecDescriptor;
 use qubit_codec::ValueStringCodecRegistry;
 use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
@@ -26,7 +25,6 @@ use crate::metadata::CodecSource;
 use crate::metadata::FieldMetadata;
 use crate::metadata::SelectorPosition;
 use crate::metadata::TypeMetadata;
-use crate::resolve::ModelGraph;
 use crate::transparent_descriptor::transparent_descriptor;
 
 mod codec_bind_inputs;

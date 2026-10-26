@@ -618,12 +618,12 @@ fn resolve_property(
 /// This stage validates the property's reflected output representation,
 /// resolves optional element metadata when needed, and returns the generated
 /// mutable/read projection operations without changing traversal state.
-fn resolve_intermediate(
-    registry: &ModelRegistry<'_>,
+fn resolve_intermediate<'ctx>(
+    registry: &ModelRegistry<'ctx>,
     property: PropertyMetadata,
     segment: &str,
     index: usize,
-    context: &ReflectionContext,
+    context: &'ctx ReflectionContext,
 ) -> Result<(Option<OptionalOps>, &'static TypeMetadata), PropertyAccessPathError> {
     let descriptor =
         property

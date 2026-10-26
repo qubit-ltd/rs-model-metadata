@@ -13,12 +13,12 @@ use crate::metadata::FieldMetadata;
 
 /// Returns whether `candidate` is one of the declared field overlays.
 #[must_use]
-pub(super) fn contains_field(fields: &[FieldMetadata], candidate: &FieldMetadata) -> bool {
+pub(in crate::type_metadata) fn contains_field(fields: &[FieldMetadata], candidate: &FieldMetadata) -> bool {
     fields.iter().any(|field| eq(field, candidate))
 }
 
 /// Creates a stable ABI diagnostic for invalid generated metadata.
 #[inline]
-pub(super) const fn abi_violation(code: &'static str, message: &'static str) -> AbiViolation {
+pub(in crate::type_metadata) const fn abi_violation(code: &'static str, message: &'static str) -> AbiViolation {
     AbiViolation::new(code, message)
 }

@@ -24,7 +24,7 @@ use syn::visit_mut::visit_type_mut;
 
 /// Carries type and const bindings separately, avoiding token-string rewriting.
 #[derive(Default)]
-pub(super) struct Substitutions {
+pub(in crate::expand::model_impl) struct Substitutions {
     /// Maps type parameter names to their concrete replacement types.
     pub(in crate::expand::model_impl) types: BTreeMap<String, Type>,
     /// Maps const parameter names to expressions used at specialization sites.

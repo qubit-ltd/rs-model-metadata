@@ -9,6 +9,7 @@
 //! Stable, portable model identifiers shared by model-aware crates.
 
 mod has_model_id;
+#[allow(clippy::module_inception)]
 mod model_id;
 
 pub use has_model_id::HasModelId;

@@ -8,6 +8,7 @@
 
 //! Source-order field attribute metadata.
 
+#[allow(clippy::module_inception)]
 mod field_attribute_metadata;
 
 pub use field_attribute_metadata::FieldAttributeMetadata;

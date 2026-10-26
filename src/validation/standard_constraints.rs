@@ -12,7 +12,6 @@ use qubit_validation_rules::ids;
 use qubit_validation_rules::registrations;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
-use qubit_validator::BoundValidator;
 use qubit_validator::InputType;
 use qubit_validator::NamedValidationArgument;
 use qubit_validator::ValidationArgument;
@@ -33,9 +32,10 @@ mod standard_rule;
 mod standard_target;
 
 use standard_binding::StandardBinding;
-use standard_target::StandardTarget;
+pub(crate) use standard_target::StandardTarget;
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use chrono::NaiveTime;
     use qubit_validation_rules::ids;

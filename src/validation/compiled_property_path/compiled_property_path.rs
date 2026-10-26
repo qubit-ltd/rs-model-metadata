@@ -15,10 +15,9 @@ use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 use qubit_validator::InputType;
 
+use super::super::build_error::path_error;
 use super::PropertyStep;
 use super::VariantGuard;
-use super::build_error::path_error;
-use super::generic_type_argument;
 use super::resolve_getter_output;
 use super::value_descriptor;
 use crate::metadata::DependencyBindingMetadata;

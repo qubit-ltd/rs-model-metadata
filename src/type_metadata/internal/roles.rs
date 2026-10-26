@@ -25,7 +25,10 @@ use crate::type_metadata::TypeMetadata;
 /// Returns an [`AbiViolation`] when role metadata has an invalid identifier,
 /// transparent field, canonical codec, or enum variant definition, or when its
 /// fields disagree with reflection metadata.
-pub(super) fn validate_role(metadata: &TypeMetadata, descriptor: TypeDescriptor<'_>) -> Result<(), AbiViolation> {
+pub(in crate::type_metadata) fn validate_role(
+    metadata: &TypeMetadata,
+    descriptor: TypeDescriptor<'_>,
+) -> Result<(), AbiViolation> {
     match metadata.role_metadata() {
         RoleMetadata::Entity(role) => validate_identifier(metadata.fields, role.identifier())?,
         RoleMetadata::Projection(role) => validate_identifier(metadata.fields, role.identifier())?,

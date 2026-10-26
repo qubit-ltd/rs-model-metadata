@@ -35,7 +35,7 @@ use super::super::internal::model_registry_cache::MetadataCacheKey;
 use super::super::internal::model_registry_cache::PropertyCache;
 use super::super::internal::model_registry_cache::PropertyCacheCell;
 use super::super::model_entry::ModelEntry;
-use super::super::model_entry::ModelRegistryOrigin;
+use super::super::model_registry_origin::ModelRegistryOrigin;
 use crate::PropertyAccessPath;
 use crate::PropertyAccessPathError;
 #[cfg(feature = "generic")]
@@ -883,9 +883,9 @@ fn sort_and_validate_entries(entries: &mut [ModelEntry<'_>]) -> Result<(), Model
 
 /// Builds stable-ID and concrete-type lookup maps, rejecting inconsistent
 /// metadata and duplicate concrete type identities.
-fn build_entry_indices(
-    entries: &[ModelEntry<'_>],
-) -> Result<(BTreeMap<ModelId, usize>, HashMap<TypeId, usize>), ModelRegistryError> {
+type EntryIndices = (BTreeMap<ModelId, usize>, HashMap<TypeId, usize>);
+
+fn build_entry_indices(entries: &[ModelEntry<'_>]) -> Result<EntryIndices, ModelRegistryError> {
     let mut indices = BTreeMap::new();
     let mut type_indices = HashMap::new();
     for (index, entry) in entries.iter().cloned().enumerate() {
@@ -974,7 +974,7 @@ fn origin_from_capability(origin: &qubit_reflect::capability::CapabilityOrigin<'
 mod tests {
     use qubit_reflect::Reflect;
 
-    use super::super::super::model_entry::ModelRegistryOrigin;
+    use super::super::super::model_registry_origin::ModelRegistryOrigin;
     use super::ModelRegistry;
     use crate::__private::v8;
     use crate::metadata::TypeMetadata;

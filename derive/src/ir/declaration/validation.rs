@@ -8,8 +8,11 @@
 
 //! Selector and validator IR.
 
+#[path = "selector_ir.rs"]
 mod selector_ir;
+#[path = "selector_position_ir.rs"]
 mod selector_position_ir;
+#[path = "validator_ir.rs"]
 mod validator_ir;
 
 pub(crate) use selector_ir::SelectorIr;

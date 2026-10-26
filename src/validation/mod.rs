@@ -11,7 +11,7 @@
 mod build_error;
 mod compiled_property_path;
 mod constraint_rule_ref;
-mod internal;
+pub(crate) mod internal;
 mod model_rule_binding;
 mod model_validation_error;
 mod standard_constraints;

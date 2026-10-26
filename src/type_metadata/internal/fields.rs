@@ -28,12 +28,14 @@ use crate::transparent_descriptor::transparent_descriptor;
 /// The returned descriptor carries the context needed by reflection operations
 /// and should be used for the requested metadata checks.
 #[must_use = "use the returned descriptor for reflection operations"]
-pub(super) fn descriptor_for<'ctx, T: Reflect + 'static>(context: &'ctx ReflectionContext) -> TypeDescriptor<'ctx> {
+pub(in crate::type_metadata) fn descriptor_for<'ctx, T: Reflect + 'static>(
+    context: &'ctx ReflectionContext,
+) -> TypeDescriptor<'ctx> {
     TypeDescriptor::of_in::<T>(context)
 }
 
 /// Verifies that field overlays mirror the reflection descriptor exactly.
-pub(super) fn validate_fields(
+pub(in crate::type_metadata) fn validate_fields(
     metadata: &[FieldMetadata],
     reflected: Fields<'_>,
     descriptor: TypeDescriptor<'_>,

@@ -132,7 +132,6 @@ impl PropertyFragment {
     /// # Returns
     ///
     /// The source category and its corresponding declaration metadata.
-    #[must_use]
     #[inline]
     pub const fn source(&self) -> PropertyFragmentSource {
         self.source

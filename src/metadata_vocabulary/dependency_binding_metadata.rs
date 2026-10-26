@@ -67,7 +67,6 @@ impl DependencyBindingMetadata {
     /// # Returns
     ///
     /// The object path used before selecting the dependency property.
-    #[must_use]
     #[inline]
     pub const fn object_path(&self) -> ObjectPath {
         self.object_path

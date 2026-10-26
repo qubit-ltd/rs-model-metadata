@@ -469,13 +469,13 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
         let Some(FnArg::Receiver(receiver)) = method.sig.inputs.first() else {
             return Ok(None);
         };
-        if receiver.reference.is_none() || receiver.mutability.is_none() {
+        if !matches!(receiver.kind, syn::ReceiverKind::Reference(_, _, Some(_))) {
             return Ok(None);
         }
         if !matches!(method.vis, Visibility::Public(_)) {
             return Err(Error::new_spanned(&method.sig.ident, "property setters must be public"));
         }
-        if method.sig.asyncness.is_some() || method.sig.unsafety.is_some() {
+        if method.sig.asyncness.is_some() || matches!(method.sig.safety, syn::Safety::Unsafe(_)) {
             return Err(Error::new_spanned(
                 &method.sig,
                 "property setters must be safe synchronous non-const functions",
@@ -515,7 +515,7 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
     }
     if !matches!(method.vis, Visibility::Public(_))
         || method.sig.asyncness.is_some()
-        || method.sig.unsafety.is_some()
+        || matches!(method.sig.safety, syn::Safety::Unsafe(_))
         || !method.sig.generics.params.is_empty()
         || method.sig.generics.where_clause.is_some()
     {
@@ -525,7 +525,10 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
     let Some(FnArg::Receiver(receiver)) = inputs.next() else {
         return Ok(None);
     };
-    if receiver.reference.is_none() || receiver.mutability.is_some() || inputs.next().is_some() {
+    if !matches!(receiver.kind, syn::ReceiverKind::Reference(_, _, None))
+        || receiver.mutability.is_some()
+        || inputs.next().is_some()
+    {
         return Ok(None);
     }
     let ReturnType::Type(_, output) = &method.sig.output else {

@@ -779,8 +779,8 @@ mod any_view_tests {
 mod tests {
     use qubit_validator::ValidationPath;
 
+    use super::super::internal::selection_mask::SelectionMask;
     use super::field_matches;
-    use super::internal::selection_mask::SelectionMask;
     use crate::validation::validation_options::FieldPath;
     use crate::validation::validation_options::ValidationSelection;
 

@@ -20,6 +20,7 @@ use crate::metadata::GetterOutputKind;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::TypeMetadata;
 
+#[allow(clippy::module_inception)]
 mod compiled_property_path;
 mod property_step;
 mod variant_guard;
@@ -45,6 +46,7 @@ pub(crate) use variant_guard::VariantGuard;
 ///
 /// Returns `UnsupportedInput` for an unresolved getter output and
 /// `UnsupportedConstraint` for an unsupported getter or optional shape.
+#[allow(clippy::too_many_arguments)]
 fn resolve_getter_output<'ctx>(
     context: &'ctx ReflectionContext,
     current: &'static TypeMetadata,

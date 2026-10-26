@@ -11,9 +11,10 @@
 #[path = "path_cache/cache_entry.rs"]
 mod cache_entry;
 #[path = "path_cache/path_cache.rs"]
+#[allow(clippy::module_inception)]
 mod path_cache;
 #[path = "path_cache/path_cache_key.rs"]
 mod path_cache_key;
 
-pub(super) use self::path_cache::PathCache;
+pub(in crate::registry) use self::path_cache::PathCache;
 pub(super) use self::path_cache_key::PathCacheKey;

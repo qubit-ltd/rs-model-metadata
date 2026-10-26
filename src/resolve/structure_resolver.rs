@@ -10,6 +10,7 @@
 
 use std::any::TypeId;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use super::error::ResolveError;
 use super::error::ResolveErrorKind;
@@ -37,6 +38,7 @@ use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyPath;
 use crate::metadata::PropertyResolutionError;
 use crate::metadata::ReferenceSelection;
+use crate::metadata::ResolvedProperties;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
 use crate::registry::ModelRegistryOrigin;
@@ -256,15 +258,6 @@ impl<'a> StructureResolver<'a> {
                 .flat_map(|enumeration| enumeration.variants())
                 .flat_map(|variant| variant.fields());
             for field in metadata.fields().iter().chain(variant_fields) {
-                resolve_field_dependencies(
-                    metadata,
-                    field,
-                    &context,
-                    fragment_source,
-                    &mut errors,
-                    &mut dependencies,
-                );
-
                 let field_segments = field.name().map(|name| [name]);
                 let field_path = field_segments.as_ref().map(|segments| PropertyPath::new(segments));
                 if field.is_opaque() {
@@ -478,6 +471,18 @@ impl<'a> StructureResolver<'a> {
                     }
                 }
             }
+            if let Some(local_properties) = properties.get(&metadata.type_id()) {
+                for property in local_properties.properties() {
+                    resolve_field_dependencies(
+                        metadata,
+                        property,
+                        &context,
+                        fragment_source,
+                        &mut errors,
+                        &mut dependencies,
+                    );
+                }
+            }
 
             if let Some(projection) = metadata.as_projection()
                 && let Some(source) = projection.source()
@@ -575,7 +580,7 @@ impl<'a> StructureResolver<'a> {
     fn resolve_projection_producers<'b>(
         &self,
         nodes: &[(&'static TypeMetadata, Option<&'b ModelRegistryOrigin>)],
-        properties: &HashMap<TypeId, &'static [PropertyMetadata]>,
+        properties: &HashMap<TypeId, ResolvedProperties>,
         context: &ResolutionContext<'a>,
         errors: &mut Vec<ResolveError>,
         projection_producers: &mut Vec<ResolvedProjectionProducer>,
@@ -682,14 +687,17 @@ impl<'a> StructureResolver<'a> {
 ///
 /// Bindings are visited in validator and selector order; validation errors
 /// are appended before each binding is retained in the resolved graph.
-fn resolve_field_dependencies<'a>(
+fn resolve_field_dependencies(
     metadata: &'static TypeMetadata,
     field: &PropertyMetadata,
     context: &ResolutionContext<'_>,
-    fragment_source: Option<&'a ModelRegistryOrigin>,
+    fragment_source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
     dependencies: &mut Vec<super::graph::ResolvedDependency>,
 ) {
+    let Some(field) = field.field() else {
+        return;
+    };
     let selectors = field
         .sequence_constraint()
         .and_then(|value| value.element())

@@ -13,7 +13,7 @@ mod owned_property_path;
 mod resolution_context;
 mod resolve_scope;
 
-pub(super) use node_discovery::discover_nodes;
+pub(in crate::resolve) use node_discovery::discover_nodes;
 pub(super) use owned_property_path::OwnedPropertyPath;
 pub(super) use resolution_context::ResolutionContext;
-pub(super) use resolve_scope::ResolveScope;
+pub(in crate::resolve) use resolve_scope::ResolveScope;

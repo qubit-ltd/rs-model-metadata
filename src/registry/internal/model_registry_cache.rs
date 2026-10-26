@@ -24,24 +24,24 @@ use crate::metadata::TypeMetadata;
 
 /// Identifies cached properties by context, exact Rust type, and metadata
 /// allocation.
-pub(super) type PropertyCacheKey = (ReflectionContextId, TypeId, usize);
+pub(in crate::registry) type PropertyCacheKey = (ReflectionContextId, TypeId, usize);
 
 /// Shares one lazy property-resolution result; the cell retains its value or
 /// original error.
-pub(super) type PropertyCacheCell = Arc<OnceLock<Result<ResolvedProperties, PropertyResolutionError>>>;
+pub(in crate::registry) type PropertyCacheCell = Arc<OnceLock<Result<ResolvedProperties, PropertyResolutionError>>>;
 
 /// Protects this registry's lazily initialized property-resolution cells.
-pub(super) type PropertyCache = Mutex<HashMap<PropertyCacheKey, PropertyCacheCell>>;
+pub(in crate::registry) type PropertyCache = Mutex<HashMap<PropertyCacheKey, PropertyCacheCell>>;
 
 /// Identifies metadata lookups by context, exact Rust type, and descriptor
 /// allocation.
-pub(super) type MetadataCacheKey = (ReflectionContextId, TypeId, usize);
+pub(in crate::registry) type MetadataCacheKey = (ReflectionContextId, TypeId, usize);
 
 /// Retains successful, missing, and failed metadata lookup results.
-pub(super) type MetadataCacheValue = Result<Option<&'static TypeMetadata>, ModelMetadataError>;
+pub(in crate::registry) type MetadataCacheValue = Result<Option<&'static TypeMetadata>, ModelMetadataError>;
 
 /// Shares one lazy metadata lookup among concurrent callers.
-pub(super) type MetadataCacheCell = Arc<OnceLock<MetadataCacheValue>>;
+pub(in crate::registry) type MetadataCacheCell = Arc<OnceLock<MetadataCacheValue>>;
 
 /// Protects this registry's lazily initialized metadata lookup cells.
-pub(super) type MetadataCache = Mutex<HashMap<MetadataCacheKey, MetadataCacheCell>>;
+pub(in crate::registry) type MetadataCache = Mutex<HashMap<MetadataCacheKey, MetadataCacheCell>>;

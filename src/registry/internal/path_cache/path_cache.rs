@@ -32,7 +32,7 @@ const CACHE_CAPACITY: usize = 256;
 /// # Type Parameters
 ///
 /// - `T`: Compiled path value retained by the cache.
-pub(super) struct PathCache<T> {
+pub(in crate::registry) struct PathCache<T> {
     /// Hasher used to place keys into collision-checked buckets.
     hash_builder: RandomState,
     /// Cached entries grouped by their computed hash.
@@ -92,7 +92,7 @@ impl<T> PathCache<T> {
     ///
     /// The retained value on an exact key match, or `None` when the cache has
     /// no entry for the borrowed key.
-    pub(super) fn get_borrowed(
+    pub(in crate::registry) fn get_borrowed(
         &mut self,
         context_id: ReflectionContextId,
         type_id: TypeId,
@@ -153,7 +153,7 @@ impl<T> PathCache<T> {
     ///
     /// Panics if the cache length and retained buckets violate the capacity
     /// invariant.
-    pub(super) fn insert_or_existing(&mut self, key: PathCacheKey, compiled: Arc<T>) -> Arc<T> {
+    pub(in crate::registry) fn insert_or_existing(&mut self, key: PathCacheKey, compiled: Arc<T>) -> Arc<T> {
         if let Some(existing) = self.get(&key) {
             return existing;
         }

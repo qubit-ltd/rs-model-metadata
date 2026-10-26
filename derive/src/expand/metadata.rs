@@ -254,7 +254,7 @@ fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut 
                     }
                     PathArguments::Parenthesized(arguments) => {
                         for nested in &arguments.inputs {
-                            collect_nested_type_candidates(nested, output, seen);
+                            collect_nested_type_candidates(&nested.ty, output, seen);
                         }
                         if let ReturnType::Type(_, nested) = &arguments.output {
                             collect_nested_type_candidates(nested, output, seen);

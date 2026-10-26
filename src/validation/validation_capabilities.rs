@@ -8,6 +8,7 @@
 
 //! Structural validation execution capability checks.
 
+#[allow(clippy::module_inception)]
 mod validation_capabilities;
 
 pub use validation_capabilities::ValidationCapabilities;

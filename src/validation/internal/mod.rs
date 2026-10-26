@@ -19,4 +19,4 @@ pub(super) mod validation_occurrence;
 pub(super) mod execution_budget;
 pub(super) mod execution_failure;
 pub(super) mod path_reader;
-pub(super) mod report_accumulator;
+pub(crate) mod report_accumulator;

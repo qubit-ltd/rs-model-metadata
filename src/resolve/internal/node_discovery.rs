@@ -37,7 +37,7 @@ use crate::structure::children;
 ///
 /// The ordered nodes with their registry origins and any discovery errors.
 #[must_use]
-pub(super) fn discover_nodes<'a>(
+pub(in crate::resolve) fn discover_nodes<'a>(
     registry: &'a ModelRegistry<'a>,
     roots: &[&'static TypeMetadata],
     scope: ResolveScope,

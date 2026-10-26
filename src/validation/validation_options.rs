@@ -10,6 +10,7 @@
 
 mod field_path;
 mod validation_mode;
+#[allow(clippy::module_inception)]
 mod validation_options;
 mod validation_options_builder;
 mod validation_selection;

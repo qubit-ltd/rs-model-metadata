@@ -154,6 +154,7 @@ fn type_expression_data_for_owner(
                 self_path.segments.pop();
                 let self_type = type_expression_data_for_owner(
                     &Type::Path(TypePath {
+                        attrs: Vec::new(),
                         qself: None,
                         path: self_path,
                     }),
@@ -240,7 +241,7 @@ fn type_expression_data_for_owner(
         }
         Type::Ptr(TypePtr { mutability, elem, .. }) => {
             let target = type_expression_data_for_owner(elem, runtime, generic_type_names, owner);
-            let mutable = mutability.is_some();
+            let mutable = matches!(mutability, syn::PointerMutability::Mut(_));
             quote!(#leak(#expression::RawPointer { mutable: #mutable, target: #target }))
         }
         Type::Slice(slice) => {

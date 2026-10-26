@@ -15,7 +15,6 @@ use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 
 use crate::metadata::GetterMetadata;
-use crate::metadata::PropertyAccessError;
 use crate::metadata::PropertyMetadata;
 use crate::metadata::PropertyValue;
 use crate::metadata::TypeMetadata;

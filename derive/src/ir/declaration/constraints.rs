@@ -8,8 +8,11 @@
 
 //! Normalized validation constraints.
 
+#[path = "constraint_ir.rs"]
 mod constraint_ir;
+#[path = "decimal_constraint_ir.rs"]
 mod decimal_constraint_ir;
+#[path = "text_constraint_ir.rs"]
 mod text_constraint_ir;
 
 pub(crate) use constraint_ir::ConstraintIr;
