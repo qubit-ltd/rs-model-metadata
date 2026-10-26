@@ -8,6 +8,8 @@
 
 //! Verifies model registry failures retain context-bound capability causes.
 
+use std::error::Error;
+
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::registry::ModelRegistryErrorKind;
 use qubit_reflect::Reflect;
@@ -43,7 +45,7 @@ fn test_registry_error_preserves_context_capability_mismatch() {
     assert_eq!(error.kind(), ModelRegistryErrorKind::Capability);
     assert!(error.sources().is_empty());
     assert!(
-        std::error::Error::source(&error)
+        Error::source(&error)
             .and_then(|cause| cause.downcast_ref::<CapabilityError>())
             .is_some()
     );

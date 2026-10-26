@@ -8,16 +8,16 @@
 
 //! One compiled field occurrence and its bound paths.
 
-use qubit_validator::BoundValidator;
 use qubit_validator::ValidatorId;
 
 use super::selector_binding::SelectorBinding;
 use super::validation_occurrence::ValidationOccurrence;
 use crate::metadata::OnNone;
-use crate::property::ItemEqAdapter;
-use crate::property::MapLenAdapter;
 use crate::validation::compiled_property_path::CompiledPropertyPath;
-use crate::validation::standard_constraints::StandardTarget;
+
+mod field_execution;
+
+pub(crate) use self::field_execution::FieldExecution;
 
 /// One declaration bound to an executable validator and compiled paths.
 #[derive(Clone, Debug)]
@@ -38,25 +38,6 @@ pub(crate) struct FieldRuleBinding {
     pub(crate) on_none: OnNone,
     /// Selector metadata for nested collection validation.
     pub(crate) selector: Option<SelectorBinding>,
-}
-
-/// Registry-backed validation or metadata-owned sequence equality.
-#[derive(Clone, Debug)]
-pub(crate) enum FieldExecution {
-    /// A prepared registered rule and its checked input projection.
-    Registry {
-        /// Prepared rule.
-        validator: BoundValidator,
-        /// Standard target, if this is a built-in constraint.
-        target: Option<StandardTarget>,
-        /// Checked map count adapter, when needed.
-        map_len: Option<MapLenAdapter>,
-    },
-    /// Exact element comparison adapter for one sequence declaration.
-    SequenceUnique {
-        /// Typed equality operation generated for the field.
-        item_eq: ItemEqAdapter,
-    },
 }
 
 impl FieldRuleBinding {

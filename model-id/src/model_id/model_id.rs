@@ -1,0 +1,221 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
+//! The borrowed, validated identifier for a model type.
+
+use core::borrow::Borrow;
+
+use super::ModelIdError;
+
+/// A stable identifier for a model type.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_id::ModelId;
+///
+/// let id = ModelId::new("example.Account");
+/// assert_eq!(id.as_str(), "example.Account");
+/// assert_eq!(id.type_name(), "Account");
+/// ```
+#[must_use]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ModelId(
+    /// Validated dot-separated identifier borrowed for the process lifetime.
+    &'static str,
+);
+
+impl ModelId {
+    /// Creates a validated model ID from a static value.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The static model-ID string to wrap.
+    ///
+    /// # Returns
+    ///
+    /// A validated model ID borrowing `value`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `value` does not follow the stable-ID protocol. Use
+    /// [`ModelId::try_new`] when callers need a recoverable error.
+    pub const fn new(value: &'static str) -> Self {
+        match Self::validate(value) {
+            Ok(()) => Self(value),
+            Err(_) => panic!("invalid model ID"),
+        }
+    }
+
+    /// Validates and creates a model ID from a static value.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The static model-ID string to wrap.
+    ///
+    /// # Returns
+    ///
+    /// A validated model ID borrowing `value`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
+    /// protocol.
+    #[inline]
+    pub const fn try_new(value: &'static str) -> Result<Self, ModelIdError> {
+        match Self::validate(value) {
+            Ok(()) => Ok(Self(value)),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Returns the complete stable model ID.
+    ///
+    /// # Returns
+    ///
+    /// The validated ID string borrowed for the process lifetime.
+    #[must_use]
+    #[inline]
+    pub const fn as_str(self) -> &'static str {
+        let Self(value) = self;
+        value
+    }
+
+    /// Returns the final type-name segment of this model ID.
+    ///
+    /// # Returns
+    ///
+    /// The final dot-separated segment, or the full ID when it has no dot.
+    #[must_use]
+    pub const fn type_name(self) -> &'static str {
+        let Self(value) = self;
+        let bytes = value.as_bytes();
+        let mut index = bytes.len();
+        while index > 0 {
+            index -= 1;
+            if bytes[index] == b'.' {
+                let (_, type_name) = value.split_at(index + 1);
+                return type_name;
+            }
+        }
+        value
+    }
+
+    /// Validates a model-ID string without allocating.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: The candidate model-ID string.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when `value` follows the stable-ID protocol.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
+    /// protocol.
+    #[inline]
+    pub const fn validate(value: &str) -> Result<(), ModelIdError> {
+        validate_model_id(value)
+    }
+}
+
+impl Borrow<str> for ModelId {
+    /// Borrows the stable model ID as a string slice.
+    #[inline]
+    fn borrow(&self) -> &str {
+        let Self(value) = self;
+        value
+    }
+}
+
+/// Validates every dot-separated segment without allocating, returning the
+/// first empty-ID, empty-segment or invalid-ASCII-identifier error.
+///
+/// # Parameters
+///
+/// - `value`: The candidate model-ID string to validate.
+///
+/// # Returns
+///
+/// `Ok(())` when every segment follows the identifier protocol.
+///
+/// # Errors
+///
+/// Returns [`ModelIdError`] for an empty ID, an empty segment, or an invalid
+/// segment.
+const fn validate_model_id(value: &str) -> Result<(), ModelIdError> {
+    let bytes = value.as_bytes();
+    if bytes.is_empty() {
+        return Err(ModelIdError::Empty);
+    }
+    let mut start = 0;
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'.' {
+            if start == index || index + 1 == bytes.len() {
+                return Err(ModelIdError::EmptySegment);
+            }
+            if let Err(error) = validate_segment(bytes, start, index) {
+                return Err(error);
+            }
+            start = index + 1;
+        }
+        index += 1;
+    }
+    if start == bytes.len() {
+        return Err(ModelIdError::EmptySegment);
+    }
+    validate_segment(bytes, start, bytes.len())
+}
+
+/// Checks the non-empty `start..end` range supplied by `validate_model_id`.
+/// Returns `InvalidSegment` unless it matches `[A-Za-z][A-Za-z0-9_]*`.
+///
+/// # Parameters
+///
+/// - `bytes`: The UTF-8 bytes of the model-ID string.
+/// - `start`: The inclusive beginning of the segment within `bytes`.
+/// - `end`: The exclusive end of the segment within `bytes`.
+///
+/// # Returns
+///
+/// `Ok(())` when the range matches the identifier-segment protocol.
+///
+/// # Errors
+///
+/// Returns [`ModelIdError::InvalidSegment`] when the segment is invalid.
+const fn validate_segment(bytes: &[u8], start: usize, end: usize) -> Result<(), ModelIdError> {
+    if !is_ascii_letter(bytes[start]) {
+        return Err(ModelIdError::InvalidSegment);
+    }
+    let mut index = start + 1;
+    while index < end {
+        let byte = bytes[index];
+        if !(is_ascii_letter(byte) || (byte >= b'0' && byte <= b'9') || byte == b'_') {
+            return Err(ModelIdError::InvalidSegment);
+        }
+        index += 1;
+    }
+    Ok(())
+}
+
+/// Returns whether `byte` is an ASCII letter.
+///
+/// # Parameters
+///
+/// - `byte`: The byte to classify.
+///
+/// # Returns
+///
+/// `true` for an uppercase or lowercase ASCII letter; otherwise `false`.
+#[inline]
+const fn is_ascii_letter(byte: u8) -> bool {
+    (byte >= b'a' && byte <= b'z') || (byte >= b'A' && byte <= b'Z')
+}

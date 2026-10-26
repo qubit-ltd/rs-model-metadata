@@ -10,6 +10,12 @@
 
 mod local_property_set_tests;
 mod model_impl_metadata_tests;
+mod property_fragment_tests;
+mod property_resolution_error_tests;
 mod property_tests;
+mod registry_error_tests;
+mod relation;
+mod resolve;
 mod structure_children_tests;
 mod transparent_descriptor_tests;
+mod validation_tests;

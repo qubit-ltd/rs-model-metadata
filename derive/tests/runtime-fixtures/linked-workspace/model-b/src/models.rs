@@ -8,98 +8,38 @@
 // The filename is part of a Cargo fixture rather than an integration-test
 // target.
 
-//! Defines target-side models for linked registration and resolution fixtures.
-
-use core::convert::Infallible;
-use std::sync::Arc;
+//! Re-exports the model types and registrations used by linked-workspace fixtures.
 
 use qubit_codec::ValueCodecId;
 use qubit_codec::ValueCodecRegistrationSource;
-use qubit_codec::ValueDecoder;
-use qubit_codec::ValueEncoder;
-use qubit_codec::ValueStringCodecDescriptor;
 use qubit_codec::ValueStringCodecRegistration;
-use qubit_model_derive::Entity;
-#[cfg(feature = "duplicate-fixture")]
-use qubit_model_derive::Model;
-use qubit_model_metadata::__private::qubit_id::Id;
-use qubit_validator::ArgumentReader;
-use qubit_validator::BindError;
-use qubit_validator::BoundValidationContext;
-use qubit_validator::DependencySpec;
-use qubit_validator::ExecutionError;
-use qubit_validator::InputType;
-use qubit_validator::PreparedOutcome;
-use qubit_validator::PreparedValidator;
 use qubit_validator::RegistrationSource;
-use qubit_validator::ValidationValue;
-use qubit_validator::ValidatorDescriptor;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
-use qubit_validator::ValidatorSignature;
 
-#[Entity(id = "test.linked.Target")]
-pub struct Target {
-    #[identifier]
-    pub id: Id,
-}
-
-#[Model(id = "test.linked.Duplicate")]
 #[cfg(feature = "duplicate-fixture")]
-pub struct Duplicate;
+mod duplicate;
+mod target;
+mod text_codec;
+mod text_rule;
 
-/// A policy implementation in a different crate from its model declaration.
-#[derive(Default)]
-pub struct TextCodec;
+#[cfg(feature = "duplicate-fixture")]
+pub use duplicate::Duplicate;
+pub use target::Target;
+pub use text_codec::TextCodec;
 
-impl ValueEncoder<String> for TextCodec {
-    type Output = String;
-    type Error = Infallible;
-
-    fn encode(&mut self, input: &String) -> Result<String, Self::Error> {
-        Ok(input.clone())
-    }
-}
-
-impl ValueDecoder<str> for TextCodec {
-    type Output = String;
-    type Error = Infallible;
-
-    fn decode(&mut self, input: &str) -> Result<String, Self::Error> {
-        Ok(input.to_owned())
-    }
-}
-
-static CODEC_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<TextCodec, String>();
+// Preserve the source location recorded before the codec was split into its own module.
+/// The text codec registration consumed by the linked-workspace fixture.
 pub static CODEC: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.linked.text"),
-    &CODEC_DESCRIPTOR,
-    ValueCodecRegistrationSource::new("model-b", "models", file!(), line!()),
+    &text_codec::CODEC_DESCRIPTOR,
+    ValueCodecRegistrationSource::new("model-b", "models", file!(), 77),
 );
 
-struct TextRule;
-
-impl PreparedValidator for TextRule {
-    fn input_type(&self) -> InputType { InputType::Text }
-    fn dependency_specs(&self) -> &'static [DependencySpec] { &[] }
-    fn validate(
-        &self,
-        value: ValidationValue<'_>,
-        _: &BoundValidationContext<'_>,
-    ) -> Result<PreparedOutcome, ExecutionError> {
-        assert_eq!(value.as_text(), Some("cross-crate"));
-        Ok(PreparedOutcome::Valid)
-    }
-}
-
-fn prepare_text(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
-    Ok(Arc::new(TextRule))
-}
-
-static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
-static RULE_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
+// Preserve the source location recorded before the validator was split into its own module.
+/// The validator registration consumed by the linked-workspace fixture.
 pub static RULE: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("test.linked.text"),
-    &RULE_DESCRIPTOR,
-    RegistrationSource::new("model-b", "models", file!(), line!()),
+    &text_rule::RULE_DESCRIPTOR,
+    RegistrationSource::new("model-b", "models", file!(), 104),
 );

@@ -10,8 +10,10 @@
 
 //! Focused model validation execution tests.
 
+use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::error::Error;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -542,9 +544,9 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
     assert!(source.to_string().contains("sensitive property detail"));
     assert!(!error.to_string().contains("sensitive property detail"));
     assert!(!format!("{error:?}").contains("sensitive property detail"));
-    let standard_source = std::error::Error::source(&error).expect("execution error is standard source");
+    let standard_source = Error::source(&error).expect("execution error is standard source");
     assert!(standard_source.is::<ExecutionError>());
-    assert!(std::error::Error::source(standard_source).is_none());
+    assert!(Error::source(standard_source).is_none());
 }
 
 #[test]
@@ -1607,7 +1609,7 @@ fn test_unique_mismatched_getter_element_type_fails_at_build() {
         .and_then(|field| field.find_concrete_type());
     assert_eq!(
         reflected_field.map(|descriptor| descriptor.type_id()),
-        Some(std::any::TypeId::of::<Vec<i32>>())
+        Some(TypeId::of::<Vec<i32>>())
     );
     let property_errors = match models.properties_for(root) {
         Err(PropertyResolutionError::Assembly(errors)) => errors,

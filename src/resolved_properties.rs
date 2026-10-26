@@ -60,7 +60,6 @@ impl ResolvedProperties {
     ///
     /// `Some(property)` when a property with `name` exists, or `None` when the
     /// view contains no property with that name.
-    #[must_use]
     #[inline]
     pub fn property(&self, name: &str) -> Option<&PropertyMetadata> {
         self.properties().iter().find(|property| property.name() == name)

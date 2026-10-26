@@ -236,7 +236,6 @@ impl ValidationBuildError {
     }
 
     /// Returns the shared validator binding error kind.
-    #[must_use = "the validation error category should be handled"]
     #[inline]
     pub const fn kind(&self) -> ValidationBuildErrorKind {
         self.kind

@@ -8,9 +8,11 @@
 
 //! Compile-time contracts for the curated reflection facade.
 
+use trybuild::TestCases;
+
 #[test]
 fn test_reflection_facade_is_curated() {
-    let cases = trybuild::TestCases::new();
+    let cases = TestCases::new();
     cases.pass("tests/ui/pass/*.rs");
     cases.compile_fail("tests/ui/fail/*.rs");
 }
@@ -18,6 +20,6 @@ fn test_reflection_facade_is_curated() {
 #[test]
 #[cfg(not(feature = "generic"))]
 fn test_generic_models_require_feature() {
-    let cases = trybuild::TestCases::new();
+    let cases = TestCases::new();
     cases.compile_fail("tests/ui/feature/generic_requires_feature_tests.rs");
 }

@@ -8,10 +8,12 @@
 
 //! Validation regression cases.
 
+mod constraint_rule_ref_tests;
 mod declaration_binding_tests;
 mod execution_policy_tests;
 mod graph_snapshot_tests;
 mod standard_constraints_tests;
 mod unsupported_path_tests;
 mod validation_options_tests;
+mod validation_plan_tests;
 mod validator_arguments_tests;

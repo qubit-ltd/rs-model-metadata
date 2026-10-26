@@ -11,7 +11,6 @@
 // and property-assembly fixtures. Production type-to-file naming does not
 // apply. qubit-style: allow type-file-name
 
-use std::error::Error;
 use std::sync::OnceLock;
 
 use qubit_reflect::Reflect;
@@ -33,7 +32,6 @@ use crate::metadata::PropertyPath;
 use crate::metadata::PropertyResolutionError;
 use crate::metadata::TypeMetadata;
 use crate::registry::ModelRegistry;
-use crate::registry::ModelRegistryOrigin;
 
 #[Reflect]
 struct Broken<const N: usize>;
@@ -99,62 +97,6 @@ fn registered_metadata() -> &'static TypeMetadata {
         )
         .finish::<Broken<2>>()
     })
-}
-
-#[test]
-fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
-    let reflection = ReflectionContext::builder()
-        .include_type::<Broken<2>>()
-        .register(crate::reflect_facade::model_impl_registration::<Broken<2>>())
-        .build()
-        .expect("reflection context should build");
-    static SOURCE: ModelRegistryOrigin = ModelRegistryOrigin {
-        crate_name: "qubit-model-metadata",
-        crate_version: None,
-        module_path: "resolve::tests",
-        file: Some(file!()),
-        line: Some(line!()),
-        column: None,
-    };
-    let models = ModelRegistry::from_static_metadata(&reflection, &[(registered_metadata(), &SOURCE)])
-        .expect("static model registry should build");
-    let errors = StructureResolver::new(ResolveInputs {
-        roots: &[],
-        models: &models,
-    })
-    .resolve()
-    .unwrap_err();
-    let [error] = errors.errors() else {
-        panic!("one assembly diagnostic")
-    };
-    assert_eq!(error.kind(), ResolveErrorKind::InvalidProperties);
-    assert_eq!(error.model_id(), Some("error.Assembly"));
-    assert_eq!(error.path().unwrap().to_string(), "value");
-    assert!(Error::source(error).is_some());
-    assert!(matches!(
-        error.cause(),
-        Some(ModelResolutionCause::Properties(PropertyResolutionError::Assembly(_)))
-    ));
-}
-
-#[test]
-fn test_static_root_resolution_keeps_root_after_caller_scope() {
-    let reflection = ReflectionContext::builder()
-        .include_type::<Broken<1>>()
-        .register(crate::reflect_facade::model_impl_registration::<Broken<1>>())
-        .build()
-        .expect("reflection context should build");
-    let models = ModelRegistry::from_context(&reflection).expect("model registry should build");
-    let root = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<Broken<1>>(None, &[], v8::leak(v8::model_role())).finish::<Broken<1>>(),
-    );
-    let resolver = StructureResolver::for_static_roots(&models, [root]);
-    let errors = resolver.resolve().expect_err("broken property assembly is reported");
-    assert!(errors.errors().iter().any(|error| {
-        error.kind() == ResolveErrorKind::InvalidProperties
-            && error.model_id().is_none()
-            && error.path().is_some_and(|path| path.to_string() == "value")
-    }));
 }
 
 #[test]

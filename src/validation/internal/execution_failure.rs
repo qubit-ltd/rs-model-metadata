@@ -22,6 +22,10 @@ pub(crate) struct ExecutionFailure {
     pub(crate) dependency: Option<DependencyBindingMetadata>,
 }
 
+/// Wraps an execution error without dependency navigation metadata.
+///
+/// The error is boxed, and `dependency` is set to `None` because this
+/// conversion carries no information identifying a failed dependency.
 impl From<ExecutionError> for ExecutionFailure {
     fn from(error: ExecutionError) -> Self {
         Self {

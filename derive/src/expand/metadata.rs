@@ -8,6 +8,8 @@
 
 //! Generates type metadata providers and generic declaration templates.
 
+use std::collections::HashSet;
+
 use heck::ToSnakeCase;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
@@ -16,8 +18,11 @@ use quote::format_ident;
 use quote::quote;
 use syn::DeriveInput;
 use syn::Error;
+use syn::GenericArgument;
+use syn::GenericParam;
 use syn::Ident;
 use syn::LitStr;
+use syn::PathArguments;
 use syn::ReturnType;
 use syn::Type;
 use syn::TypePath;
@@ -33,6 +38,16 @@ use crate::ir::declaration::FieldIr;
 use crate::ir::declaration::VariantIr;
 
 /// Generates lazy type metadata and registration implementations.
+///
+/// # Parameters
+///
+/// - `declaration` provides the normalized model description.
+/// - `item` provides the original Rust type and its generics.
+/// - `runtime` identifies the runtime crate path used in the generated code.
+///
+/// # Returns
+///
+/// The implementations and registration items to append to the input type.
 #[must_use]
 pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let ident = &item.ident;
@@ -49,9 +64,9 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
         .params
         .iter()
         .filter_map(|parameter| match parameter {
-            syn::GenericParam::Type(parameter) => Some(parameter.ident.clone()),
-            syn::GenericParam::Const(parameter) => Some(parameter.ident.clone()),
-            syn::GenericParam::Lifetime(_) => None,
+            GenericParam::Type(parameter) => Some(parameter.ident.clone()),
+            GenericParam::Const(parameter) => Some(parameter.ident.clone()),
+            GenericParam::Lifetime(_) => None,
         })
         .collect();
     let mut impl_generics_source = item.generics.clone();
@@ -183,9 +198,10 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
 }
 
 /// Emits lazy providers for model metadata on concrete nested field types.
+#[must_use]
 fn expand_nested_metadata_providers(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
     let mut candidates = Vec::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     for field in declaration
         .fields
         .iter()
@@ -214,7 +230,7 @@ fn expand_nested_metadata_providers(declaration: &DeclarationIr, runtime: &Token
 
 /// Retains every concrete type expression node once, including nested generic
 /// arguments and container elements.
-fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut std::collections::HashSet<String>) {
+fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut HashSet<String>) {
     match ty {
         Type::Path(TypePath { path, .. }) => {
             if path.segments.last().is_some_and(|segment| segment.ident == "str") {
@@ -223,20 +239,20 @@ fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut 
             if path
                 .segments
                 .iter()
-                .any(|segment| matches!(&segment.arguments, syn::PathArguments::AngleBracketed(_)))
+                .any(|segment| matches!(&segment.arguments, PathArguments::AngleBracketed(_)))
             {
                 push_type_candidate(ty, output, seen);
             }
             for segment in &path.segments {
                 match &segment.arguments {
-                    syn::PathArguments::AngleBracketed(arguments) => {
+                    PathArguments::AngleBracketed(arguments) => {
                         for argument in &arguments.args {
-                            if let syn::GenericArgument::Type(nested) = argument {
+                            if let GenericArgument::Type(nested) = argument {
                                 collect_nested_type_candidates(nested, output, seen);
                             }
                         }
                     }
-                    syn::PathArguments::Parenthesized(arguments) => {
+                    PathArguments::Parenthesized(arguments) => {
                         for nested in &arguments.inputs {
                             collect_nested_type_candidates(nested, output, seen);
                         }
@@ -244,7 +260,7 @@ fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut 
                             collect_nested_type_candidates(nested, output, seen);
                         }
                     }
-                    syn::PathArguments::None => {}
+                    PathArguments::None => {}
                 }
             }
         }
@@ -263,7 +279,8 @@ fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut 
     }
 }
 
-fn push_type_candidate(ty: &Type, output: &mut Vec<Type>, seen: &mut std::collections::HashSet<String>) {
+/// Adds a type expression only when its tokenized form has not been seen.
+fn push_type_candidate(ty: &Type, output: &mut Vec<Type>, seen: &mut HashSet<String>) {
     let key = ty.to_token_stream().to_string();
     if seen.insert(key) {
         output.push(ty.clone());

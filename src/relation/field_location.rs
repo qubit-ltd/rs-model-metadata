@@ -78,7 +78,6 @@ impl FieldLocation {
     /// # Returns
     ///
     /// `Some(index)` for an enum variant or `None` for a struct field.
-    #[must_use]
     #[inline]
     pub const fn variant(&self) -> Option<usize> {
         self.variant
@@ -93,21 +92,5 @@ impl FieldLocation {
     #[inline]
     pub const fn index(&self) -> usize {
         self.index
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::any::TypeId;
-
-    use super::FieldLocation;
-
-    #[test]
-    fn test_location_preserves_owner_variant_and_field_index() {
-        let location = FieldLocation::new(TypeId::of::<String>(), Some(2), 4);
-
-        assert_eq!(location.owner(), TypeId::of::<String>());
-        assert_eq!(location.variant(), Some(2));
-        assert_eq!(location.index(), 4);
     }
 }

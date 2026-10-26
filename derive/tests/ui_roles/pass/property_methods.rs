@@ -19,10 +19,6 @@ struct Profile {
 
 #[ModelImpl]
 impl Profile {
-    fn private(&self) -> &str {
-        &self.value
-    }
-
     pub async fn asynchronous(&self) -> String {
         self.value.clone()
     }
@@ -33,6 +29,10 @@ impl Profile {
 
     pub fn set_value(&self, value: String) {
         let _ = value;
+    }
+
+    fn private(&self) -> &str {
+        &self.value
     }
 }
 

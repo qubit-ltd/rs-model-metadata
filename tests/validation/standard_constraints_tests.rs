@@ -160,7 +160,7 @@ fn test_text_character_and_byte_bounds_are_independent() {
     let root = TypeMetadata::of::<TextUnits>();
     for text in ["é", "ab", "中"] {
         assert!(
-            validate(root, DynamicRef::<Local>::new(&TextUnits { value: text.to_owned() })).is_valid(),
+            validate(root, DynamicRef::<Local>::new(&TextUnits { value: text.to_owned() }),).is_valid(),
             "{text}"
         );
     }

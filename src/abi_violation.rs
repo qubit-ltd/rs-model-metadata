@@ -15,6 +15,10 @@ use thiserror::Error;
 /// `AbiViolation` is returned by metadata validation APIs. Callers can inspect
 /// its stable code and explanation when handling the error.
 ///
+/// A validation API such as
+/// [`crate::metadata::TypeMetadata::validate_for`] supplies this error as the
+/// `Err` value of its result.
+///
 /// # Examples
 ///
 /// ```

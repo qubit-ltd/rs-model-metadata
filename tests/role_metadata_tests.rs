@@ -10,6 +10,7 @@
 
 use std::any::TypeId;
 
+use qubit_id::Id;
 use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::DeclaredEntityTarget;
 use qubit_model_metadata::metadata::EnumVariantMetadata;
@@ -36,9 +37,9 @@ static U64_EXPRESSION: TypeExpressionData = ExpressionData::Named {
     arguments: &[],
 };
 
-fn unavailable_identifier<'a>(_: DynamicRef<'a, Local>) -> Result<&'a qubit_id::Id, TypeMismatch> {
+fn unavailable_identifier<'a>(_: DynamicRef<'a, Local>) -> Result<&'a Id, TypeMismatch> {
     Err(DynamicRef::<Local>::new(&())
-        .downcast::<qubit_id::Id>()
+        .downcast::<Id>()
         .unwrap_err()
         .into_parts()
         .0)

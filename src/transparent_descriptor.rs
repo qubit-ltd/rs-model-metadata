@@ -11,8 +11,24 @@
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeKind;
 
-/// Returns the first descriptor outside optional and smart-pointer layers.
-#[must_use]
+/// Resolves the first descriptor outside optional and smart-pointer layers.
+///
+/// # Type Parameters
+///
+/// - `'ctx`: The lifetime of the reflection context associated with the
+///   descriptor.
+///
+/// # Parameters
+///
+/// - `descriptor`: The descriptor to resolve. Optional and smart-pointer layers
+///   are followed through their first generic type argument.
+///
+/// # Returns
+///
+/// Returns the first non-wrapper descriptor, still bound to the input
+/// descriptor's reflection context. Returns `None` if a wrapper has no first
+/// generic argument or that argument cannot be resolved to a concrete type in
+/// that context.
 pub(crate) fn transparent_descriptor<'ctx>(mut descriptor: TypeDescriptor<'ctx>) -> Option<TypeDescriptor<'ctx>> {
     loop {
         match descriptor.kind() {

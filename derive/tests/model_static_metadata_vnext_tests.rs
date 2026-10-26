@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 use model_runtime::metadata::TypeMetadata;
 use qubit_model_derive::Model;
 use qubit_reflect::ReflectionContext;
@@ -26,7 +34,7 @@ fn context() -> ReflectionContext {
 }
 
 #[test]
-fn generated_static_metadata_binds_descriptors_to_each_context() {
+fn test_generated_static_metadata_binds_descriptors_to_each_context() {
     let metadata = TypeMetadata::of::<ExternalConsumerModel>();
     let first = context();
     let second = context();
@@ -56,7 +64,7 @@ fn generated_static_metadata_binds_descriptors_to_each_context() {
 }
 
 #[test]
-fn generated_static_metadata_accepts_borrowed_str_fields() {
+fn test_generated_static_metadata_accepts_borrowed_str_fields() {
     let metadata = TypeMetadata::of::<BorrowedStrModel>();
     assert_eq!(metadata.field("value").expect("field metadata").name(), Some("value"));
 }

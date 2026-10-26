@@ -45,16 +45,8 @@ impl FieldGetterMismatch {
 
 #[ModelImpl]
 impl Profile {
-    pub fn rename_with_prefix(&mut self, prefix: &str) {
-        self.name = format!("{prefix}{}", self.name);
-    }
-
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    pub fn set_name(&mut self, value: String) {
-        self.name = value;
     }
 
     pub fn summary(&self) -> String {
@@ -69,7 +61,15 @@ impl Profile {
         &self.tags
     }
 
+    pub fn set_name(&mut self, value: String) {
+        self.name = value;
+    }
+
     pub fn set_token(&mut self, _value: String) {}
+
+    pub fn rename_with_prefix(&mut self, prefix: &str) {
+        self.name = format!("{prefix}{}", self.name);
+    }
 }
 
 #[test]

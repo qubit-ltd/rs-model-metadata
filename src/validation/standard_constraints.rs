@@ -19,15 +19,21 @@ use qubit_validator::ValidationArgument;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
 use qubit_validator::ValidatorRegistry;
-use standard_rule::StandardRule;
 
+use self::standard_rule::StandardRule;
 use crate::metadata::AllowedChars;
 use crate::metadata::ConstraintMetadata;
 use crate::metadata::TemporalPrecision;
 use crate::metadata::TextFormat;
 use crate::validation::ConstraintRuleRef;
 
+mod standard_binding;
 mod standard_rule;
+#[path = "standard_constraints/internal/standard_target.rs"]
+mod standard_target;
+
+use standard_binding::StandardBinding;
+use standard_target::StandardTarget;
 
 #[cfg(test)]
 mod tests {
@@ -225,38 +231,46 @@ mod tests {
 /// Stable identity of metadata's typed sequence equality adapter.
 pub(crate) const SEQUENCE_UNIQUE_ID: ValidatorId = ValidatorId::new(ids::COLLECTION_UNIQUE);
 
-/// Whether a standard binding validates the field value or its item count.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum StandardTarget {
-    /// Pass the field value to the rule.
-    Value,
-    /// Pass the borrowed sequence length as a `usize`.
-    SequenceCount,
-    /// Pass the borrowed map length as a `usize`.
-    MapCount,
-}
-
-/// One executable standard constraint occurrence.
-pub(crate) struct StandardBinding {
-    /// The prepared standard rule.
-    pub(crate) validator: BoundValidator,
-    /// The input projection required by this rule.
-    pub(crate) target: StandardTarget,
-}
-
 /// Combines the built-in rules with the caller's local rules.
 ///
-/// Built-in IDs cannot be overridden. Returns a canonical registry and one
-/// diagnostic per conflicting caller registration, allowing independent
-/// declarations to be checked before the plan is rejected.
+/// Built-in IDs cannot be overridden. Caller registrations that do not conflict
+/// with built-ins are merged into the canonical registry; each conflicting
+/// caller registration is collected as a diagnostic so independent declarations
+/// can be checked before the plan is rejected.
+///
+/// # Parameters
+///
+/// - `validators`: Caller-provided registry whose registrations are merged
+///   after the built-in registrations.
+///
+/// # Returns
+///
+/// Returns the canonical registry together with one diagnostic for each
+/// conflicting caller registration.
 ///
 /// # Errors
-/// Returns `InvalidDeclaration` if the built-in definitions themselves contain
-/// duplicate IDs and cannot form a registry.
+/// Returns `InvalidDeclaration` if the built-in definitions or accepted caller
+/// registrations cannot form a registry.
 pub(crate) fn registry(validators: &ValidatorRegistry) -> Result<(ValidatorRegistry, Vec<BindError>), BindError> {
     registry_with_builtins(registrations(), validators)
 }
 
+/// Merges caller registrations after the built-ins and records every conflict.
+///
+/// # Parameters
+///
+/// - `registrations`: Built-in registrations that define reserved IDs.
+/// - `validators`: Caller registry whose registrations are checked and merged.
+///
+/// # Returns
+///
+/// Returns the combined registry and one error per conflicting caller
+/// registration.
+///
+/// # Errors
+///
+/// Returns `InvalidDeclaration` if the combined registrations cannot form a
+/// valid registry.
 fn registry_with_builtins(
     mut registrations: Vec<ValidatorRegistration>,
     validators: &ValidatorRegistry,
@@ -277,8 +291,22 @@ fn registry_with_builtins(
     build_builtin_registry(registrations).map(|registry| (registry, errors))
 }
 
-/// Builds the canonical registry and maps malformed built-in declarations to
-/// the metadata binding error category.
+/// Builds a registry from the supplied registrations using metadata's error
+/// category for invalid declarations.
+///
+/// # Parameters
+///
+/// - `registrations`: Complete built-in and accepted caller registrations.
+///
+/// # Returns
+///
+/// Returns the canonical registry when all registration IDs and declarations
+/// are valid.
+///
+/// # Errors
+///
+/// Returns `InvalidDeclaration` when the validator crate rejects the supplied
+/// registrations.
 fn build_builtin_registry(registrations: Vec<ValidatorRegistration>) -> Result<ValidatorRegistry, BindError> {
     ValidatorRegistry::from_registrations(registrations).map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
 }
@@ -287,6 +315,16 @@ fn build_builtin_registry(registrations: Vec<ValidatorRegistration>) -> Result<V
 ///
 /// Reflection-specific sequence equality is bound separately by the metadata
 /// executor; this registry binding only returns registry-backed rules.
+///
+/// # Parameters
+///
+/// - `constraint`: Metadata constraint whose executable rules are bound.
+/// - `validators`: Registry that supplies the executable validators.
+/// - `input`: Runtime input type used for value-targeted rules.
+///
+/// # Returns
+///
+/// Returns all bound executable rules when every rule binds successfully.
 ///
 /// # Errors
 /// Returns one binding error for each executable rule that the supplied
@@ -313,6 +351,16 @@ pub(crate) fn bind(
 /// Returns every known rule mapping in execution order without consulting a
 /// registry or invoking a validator. Unknown backend mappings contribute no
 /// reference.
+///
+/// # Parameters
+///
+/// - `constraint`: Metadata constraint whose rule mappings are collected.
+///
+/// # Returns
+///
+/// Returns rule references in execution order, omitting unknown backend
+/// mappings.
+#[must_use]
 pub(crate) fn rule_refs(constraint: &ConstraintMetadata) -> Vec<ConstraintRuleRef> {
     let mut refs = Vec::new();
     visit_rules(constraint, |rule| refs.push(rule.diagnostic_ref()));
@@ -321,6 +369,11 @@ pub(crate) fn rule_refs(constraint: &ConstraintMetadata) -> Vec<ConstraintRuleRe
 
 /// Visits canonical rule mappings synchronously. Argument slices are valid
 /// only during the callback; no getter, registry or validator is invoked here.
+///
+/// # Parameters
+///
+/// - `constraint`: Metadata constraint whose rules are visited.
+/// - `visitor`: Callback invoked in canonical execution order for each rule.
 fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(StandardRule<'_>)) {
     match constraint {
         ConstraintMetadata::Text(text) => {
@@ -422,6 +475,14 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
 }
 
 /// Emits one executable mapping while the caller's argument slice is alive.
+///
+/// # Parameters
+///
+/// - `visitor`: Callback that receives the emitted mapping synchronously.
+/// - `id`: Stable identifier of the executable rule.
+/// - `args`: Arguments borrowed by the mapping for the duration of the
+///   callback.
+/// - `target`: Metadata target whose runtime value the rule validates.
 fn visit_rule(
     visitor: &mut impl FnMut(StandardRule<'_>),
     id: &'static str,
@@ -436,6 +497,18 @@ fn visit_rule(
 }
 
 /// Returns the runtime input type required by a standard target.
+///
+/// # Parameters
+///
+/// - `target`: Standard rule target selecting value or collection-count input.
+/// - `value`: Runtime type of the metadata value, used for value targets.
+///
+/// # Returns
+///
+/// Returns `value` for value targets and the machine-word type for collection
+/// counts.
+#[must_use]
+#[inline]
 fn input_type(target: StandardTarget, value: InputType) -> InputType {
     match target {
         StandardTarget::Value => value,
@@ -444,6 +517,17 @@ fn input_type(target: StandardTarget, value: InputType) -> InputType {
 }
 
 /// Builds optional unsigned-32-bit bound arguments in declaration order.
+///
+/// # Parameters
+///
+/// - `min`: Optional inclusive lower bound.
+/// - `max`: Optional inclusive upper bound.
+///
+/// # Returns
+///
+/// Returns arguments for the present bounds, preserving minimum-before-maximum
+/// order.
+#[must_use]
 fn optional_u32_args(min: Option<u32>, max: Option<u32>) -> Vec<NamedValidationArgument<'static>> {
     let mut args = Vec::with_capacity(2);
     if let Some(value) = min {
@@ -462,6 +546,17 @@ fn optional_u32_args(min: Option<u32>, max: Option<u32>) -> Vec<NamedValidationA
 }
 
 /// Builds optional machine-word bound arguments in declaration order.
+///
+/// # Parameters
+///
+/// - `min`: Optional inclusive lower bound.
+/// - `max`: Optional inclusive upper bound.
+///
+/// # Returns
+///
+/// Returns arguments for the present bounds, preserving minimum-before-maximum
+/// order.
+#[must_use]
 fn optional_usize_args(min: Option<usize>, max: Option<usize>) -> Vec<NamedValidationArgument<'static>> {
     let mut args = Vec::with_capacity(2);
     if let Some(value) = min {
@@ -480,6 +575,16 @@ fn optional_usize_args(min: Option<usize>, max: Option<usize>) -> Vec<NamedValid
 }
 
 /// Maps a character policy to the runtime rule vocabulary.
+///
+/// # Parameters
+///
+/// - `value`: Metadata character policy to map.
+///
+/// # Returns
+///
+/// Returns the corresponding static rule token.
+#[must_use]
+#[inline]
 const fn allowed_chars(value: AllowedChars) -> &'static str {
     match value {
         AllowedChars::Unicode => "unicode",

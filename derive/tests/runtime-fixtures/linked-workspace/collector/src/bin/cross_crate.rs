@@ -34,8 +34,14 @@ fn main() {
     let _ = size_of::<Source>();
     let _ = size_of::<Target>();
     let registry = ModelRegistry::try_global().expect("cross-crate registrations should be valid");
-    assert!(registry.metadata("test.linked.Source").is_some());
-    assert!(registry.metadata("test.linked.Target").is_some());
+    assert!(
+        registry.metadata("test.linked.Source").is_some(),
+        "source model should be registered across crates"
+    );
+    assert!(
+        registry.metadata("test.linked.Target").is_some(),
+        "target model should be registered across crates"
+    );
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             roots: &[],
@@ -54,12 +60,14 @@ fn main() {
             .unwrap()
             .as_str(),
         "test.linked.Target",
+        "source reference should resolve to the target model"
     );
 
     let projection = TypeMetadata::of::<TargetView>().type_id();
     assert_eq!(
         graph.projection_source(projection).unwrap().target().type_id(),
         TypeMetadata::of::<Target>().type_id(),
+        "target projection should resolve to the target model",
     );
     let validators = ValidatorRegistry::from_registrations([RULE]).unwrap();
     let plan = ValidationPlan::build(
@@ -70,7 +78,11 @@ fn main() {
         },
     )
     .unwrap();
-    assert_eq!(plan.binding_count(), 1);
+    assert_eq!(
+        plan.binding_count(),
+        1,
+        "source text rule should bind once"
+    );
     let value = Source {
         target_id: Default::default(),
         text: "cross-crate".to_owned(),
@@ -78,12 +90,19 @@ fn main() {
     let report = plan
         .validate_dynamic(DynamicRef::<Local>::new(&value), &ValidationOptions::default())
         .unwrap();
-    assert!(report.is_valid());
+    assert!(
+        report.is_valid(),
+        "registered text validator should accept the source value"
+    );
     let codecs = ValueStringCodecRegistry::from_registrations([&CODEC]).unwrap();
     let bound = bind_codecs(CodecBindInputs {
         graph: graph.as_ref(),
         codecs: &codecs,
     })
     .unwrap();
-    assert_eq!(bound.bindings().len(), 1);
+    assert_eq!(
+        bound.bindings().len(),
+        1,
+        "source text codec should bind once"
+    );
 }

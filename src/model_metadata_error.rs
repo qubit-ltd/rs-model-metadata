@@ -21,6 +21,8 @@ use crate::metadata::AbiViolation;
 /// ```
 /// use qubit_model_metadata::metadata::ModelMetadataError;
 ///
+/// // This error is supplied by `ModelRegistry::metadata_for` when a
+/// // descriptor's capability lookup fails.
 /// fn is_capability_error(error: &ModelMetadataError) -> bool {
 ///     matches!(error, ModelMetadataError::Capability { .. })
 /// }

@@ -10,7 +10,19 @@
 
 use syn::Path;
 
-/// Returns whether `path` names the standard `Option` type.
+/// Classifies paths written as `Option`, `std::option::Option`, or
+/// `core::option::Option` as the standard `Option` type.
+///
+/// This is a syntactic match on the complete path; it does not resolve aliases
+/// or verify that an unqualified `Option` refers to the standard library.
+///
+/// # Parameters
+///
+/// - `path`: The parsed type path to classify.
+///
+/// # Returns
+///
+/// `true` when the path has one of the supported forms, and `false` otherwise.
 #[must_use]
 #[inline]
 pub(crate) fn is_option_path(path: &Path) -> bool {
@@ -19,15 +31,42 @@ pub(crate) fn is_option_path(path: &Path) -> bool {
         || matches_path(path, &["core", "option", "Option"])
 }
 
-/// Returns whether `path` names the standard `String` type.
-#[cfg(test)]
+/// Classifies paths written as `String`, `std::string::String`, or
+/// `alloc::string::String` as the standard `String` type.
+///
+/// This is a syntactic match on the complete path; it does not resolve aliases
+/// or verify that an unqualified `String` refers to the standard library.
+///
+/// # Parameters
+///
+/// - `path`: The parsed type path to classify.
+///
+/// # Returns
+///
+/// `true` when the path has one of the supported forms, and `false` otherwise.
+#[must_use]
+#[inline]
 pub(crate) fn is_string_path(path: &Path) -> bool {
     matches_path(path, &["String"])
         || matches_path(path, &["std", "string", "String"])
         || matches_path(path, &["alloc", "string", "String"])
 }
 
-/// Returns whether `path` names a standard collection with `is_empty`.
+/// Classifies supported standard collection paths whose types provide
+/// `is_empty`.
+///
+/// Unqualified paths are matched by their final identifier, while qualified
+/// paths must exactly match a supported `std` or `alloc` path. Other prefixes,
+/// qualified suffixes, and differently named types are rejected.
+///
+/// # Parameters
+///
+/// - `path`: The parsed type path to classify.
+///
+/// # Returns
+///
+/// `true` when the path matches a supported collection form, and `false`
+/// otherwise.
 #[must_use]
 #[inline]
 pub(crate) fn is_collection_path(path: &Path) -> bool {
@@ -51,6 +90,18 @@ pub(crate) fn is_collection_path(path: &Path) -> bool {
 }
 
 /// Compares a Syn path with an exact list of identifier segments.
+///
+/// The path must have the same number and order of segments; leading or
+/// trailing qualification is not ignored.
+///
+/// # Parameters
+///
+/// - `path`: The parsed path to compare.
+/// - `expected`: The expected identifiers in path order.
+///
+/// # Returns
+///
+/// `true` only when every path segment matches its corresponding identifier.
 #[must_use]
 #[inline]
 fn matches_path(path: &Path, expected: &[&str]) -> bool {
@@ -62,48 +113,20 @@ fn matches_path(path: &Path, expected: &[&str]) -> bool {
             .all(|(actual, expected)| actual.ident == *expected)
 }
 
-/// Matches `std::collections::Name` or `alloc::collections::Name`.
+/// Matches an exact `std::collections::Name` or `alloc::collections::Name`
+/// path using the supplied collection name.
+///
+/// # Parameters
+///
+/// - `path`: The parsed path to compare.
+/// - `root`: The expected `std` or `alloc` root segment.
+/// - `name`: The expected collection type segment.
+///
+/// # Returns
+///
+/// `true` when all path segments match the expected collection path.
 #[must_use]
 #[inline]
 fn matches_collection_path(path: &Path, root: &str, name: &str) -> bool {
     matches_path(path, &[root, "collections", name])
-}
-
-#[cfg(test)]
-mod tests {
-    use syn::Path;
-    use syn::parse_quote;
-
-    use super::is_collection_path;
-    use super::is_option_path;
-    use super::is_string_path;
-
-    /// Confirms canonical paths are accepted and lookalike module paths are
-    /// rejected.
-    #[test]
-    fn test_standard_type_path_classification() {
-        let option: Path = parse_quote!(std::option::Option);
-        let absolute_option: Path = parse_quote!(::core::option::Option);
-        let fake_option: Path = parse_quote!(domain::Option);
-        let vector: Path = parse_quote!(alloc::vec::Vec);
-        let deque: Path = parse_quote!(std::collections::VecDeque);
-        let hash_map: Path = parse_quote!(std::collections::HashMap);
-        let tree_map: Path = parse_quote!(alloc::collections::BTreeMap);
-        let qualified_vector: Path = parse_quote!(domain::collections::Vec);
-        let fake_vector: Path = parse_quote!(domain::Vec);
-        let string: Path = parse_quote!(std::string::String);
-        let fake_string: Path = parse_quote!(domain::String);
-
-        assert!(is_option_path(&option));
-        assert!(is_option_path(&absolute_option));
-        assert!(!is_option_path(&fake_option));
-        assert!(is_collection_path(&vector));
-        assert!(is_collection_path(&deque));
-        assert!(is_collection_path(&hash_map));
-        assert!(is_collection_path(&tree_map));
-        assert!(!is_collection_path(&qualified_vector));
-        assert!(!is_collection_path(&fake_vector));
-        assert!(is_string_path(&string));
-        assert!(!is_string_path(&fake_string));
-    }
 }

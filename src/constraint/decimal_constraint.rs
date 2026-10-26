@@ -47,6 +47,15 @@ pub struct DecimalConstraint {
 }
 
 impl fmt::Debug for DecimalConstraint {
+    /// Formats the constraint policies and redacts exact bound values.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The destination formatter.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when formatting succeeds, or the formatter's error otherwise.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("DecimalConstraint")
@@ -98,39 +107,11 @@ impl DecimalConstraint {
         }
     }
 
-    /// Attaches exact declaration-time bounds.
-    ///
-    /// # Parameters
-    ///
-    /// * `min` - The optional inclusive or exclusive lower-bound value.
-    /// * `max` - The optional inclusive or exclusive upper-bound value.
-    /// * `min_inclusive` - Whether equality satisfies a supplied lower bound.
-    /// * `max_inclusive` - Whether equality satisfies a supplied upper bound.
-    ///
-    /// # Returns
-    ///
-    /// The updated constraints with the supplied bounds and inclusivity rules.
-    #[must_use]
-    pub const fn with_bounds(
-        mut self,
-        min: Option<&'static str>,
-        max: Option<&'static str>,
-        min_inclusive: bool,
-        max_inclusive: bool,
-    ) -> Self {
-        self.min = min;
-        self.max = max;
-        self.min_inclusive = min_inclusive;
-        self.max_inclusive = max_inclusive;
-        self
-    }
-
     /// Returns the total significant-digit precision, if constrained.
     ///
     /// # Returns
     ///
     /// `Some` with the precision when constrained; otherwise, `None`.
-    #[must_use]
     #[inline]
     pub const fn precision(self) -> Option<u16> {
         self.precision
@@ -174,7 +155,6 @@ impl DecimalConstraint {
     /// # Returns
     ///
     /// The exact lower-bound value, or `None` when no lower bound is declared.
-    #[must_use]
     #[inline]
     pub const fn min(self) -> Option<&'static str> {
         self.min
@@ -185,13 +165,16 @@ impl DecimalConstraint {
     /// # Returns
     ///
     /// The exact upper-bound value, or `None` when no upper bound is declared.
-    #[must_use]
     #[inline]
     pub const fn max(self) -> Option<&'static str> {
         self.max
     }
 
     /// Returns whether the lower bound includes equality.
+    ///
+    /// # Returns
+    ///
+    /// `true` when a value equal to the lower bound satisfies the constraint.
     #[must_use]
     #[inline]
     pub const fn min_inclusive(self) -> bool {
@@ -199,9 +182,40 @@ impl DecimalConstraint {
     }
 
     /// Returns whether the upper bound includes equality.
+    ///
+    /// # Returns
+    ///
+    /// `true` when a value equal to the upper bound satisfies the constraint.
     #[must_use]
     #[inline]
     pub const fn max_inclusive(self) -> bool {
         self.max_inclusive
+    }
+
+    /// Attaches exact declaration-time bounds.
+    ///
+    /// # Parameters
+    ///
+    /// * `min` - The optional inclusive or exclusive lower-bound value.
+    /// * `max` - The optional inclusive or exclusive upper-bound value.
+    /// * `min_inclusive` - Whether equality satisfies a supplied lower bound.
+    /// * `max_inclusive` - Whether equality satisfies a supplied upper bound.
+    ///
+    /// # Returns
+    ///
+    /// The updated constraints with the supplied bounds and inclusivity rules.
+    #[must_use]
+    pub const fn with_bounds(
+        mut self,
+        min: Option<&'static str>,
+        max: Option<&'static str>,
+        min_inclusive: bool,
+        max_inclusive: bool,
+    ) -> Self {
+        self.min = min;
+        self.max = max;
+        self.min_inclusive = min_inclusive;
+        self.max_inclusive = max_inclusive;
+        self
     }
 }

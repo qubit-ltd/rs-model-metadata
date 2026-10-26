@@ -1,0 +1,11 @@
+error: equal decimal bounds cannot both be exclusive
+  --> tests/ui_roles/fail/decimal_equal_exclusive.rs:15:5
+   |
+15 |     #[decimal(min = "1.0", max = "1", min_inclusive = false)]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: equal decimal bounds cannot both be exclusive
+  --> tests/ui_roles/fail/decimal_equal_exclusive.rs:17:5
+   |
+17 |     #[decimal(min = "1", max = "1.0", max_inclusive = false)]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -23,8 +23,11 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationCapabilities;
+use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_reflect::ReflectionContext;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 use qubit_validator::ValidatorRegistry;
 
 #[Model(id = "validation.MapKeySelector")]
@@ -47,6 +50,7 @@ struct UnsupportedBoxedSliceSelector {
 
 #[ModelImpl]
 impl OwnedSelectorGetter {
+    #[must_use]
     pub fn values(&self) -> Vec<String> {
         self.values.clone()
     }
@@ -94,10 +98,10 @@ fn test_map_key_selector_violation_reports_map_key_path() {
     let plan = result.expect("map-key selector plan builds");
     let report = plan
         .validate_dynamic(
-            qubit_reflect::value::DynamicRef::<qubit_reflect::value::Local>::new(&MapKeySelector {
+            DynamicRef::<Local>::new(&MapKeySelector {
                 values: HashMap::from([(String::new(), "value".to_owned())]),
             }),
-            &qubit_model_metadata::validation::ValidationOptions::default(),
+            &ValidationOptions::default(),
         )
         .expect("map-key validation executes");
     assert_eq!(report.violations().len(), 1);

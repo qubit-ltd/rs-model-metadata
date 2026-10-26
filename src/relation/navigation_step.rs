@@ -22,7 +22,11 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NavigationStep {
     /// Reads the named object property.
-    Property(&'static str),
+    Property(
+        /// The property name, stored as static declaration metadata and
+        /// validated when constructing an [`ObjectPath`](super::ObjectPath).
+        &'static str,
+    ),
     /// Selects the containing domain object; collections add no parent level.
     Parent,
 }

@@ -55,7 +55,6 @@ pub(crate) fn is_constraint_attribute(attribute: &Attribute) -> bool {
 /// # Errors
 /// Returns an error for an unsupported attribute or option, malformed value,
 /// duplicate option, or missing required option.
-#[must_use = "the parsed constraint must be validated"]
 pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
     if attribute.path().is_ident("text") {
         return parse_text_constraint(attribute).map(ConstraintIr::Text);
@@ -67,59 +66,104 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
         return parse_decimal_constraint(attribute, true).map(ConstraintIr::Decimal);
     }
     if attribute.path().is_ident("time") {
-        let mut precision = None;
-        attribute.parse_nested_meta(|meta| {
-            if meta.path.is_ident("precision") {
-                let expression: Expr = meta.value()?.parse()?;
-                let value = parse_ident_value(expression.clone())?;
-                validate_closed_value(
-                    &expression,
-                    &value,
-                    &["second", "millisecond", "microsecond", "nanosecond"],
-                    "invalid time precision",
-                )?;
-                if precision.replace(value).is_some() {
-                    return Err(meta.error("duplicate time `precision` option"));
-                }
-                Ok(())
-            } else {
-                Err(meta.error("unsupported time option"))
-            }
-        })?;
-        return Ok(ConstraintIr::Time(
-            precision.ok_or_else(|| Error::new_spanned(attribute, "time requires precision"))?,
-        ));
+        return parse_time_constraint(attribute).map(ConstraintIr::Time);
     }
     if attribute.path().is_ident("sequence") {
-        let (mut min, mut max, mut unique) = (None, None, false);
-        let mut any = false;
-        let mut seen = HashSet::new();
-        attribute.parse_nested_meta(|meta| {
-            any = true;
-            let option = meta.path.get_ident().map(ToString::to_string);
-            if let Some(option) = option.as_deref()
-                && !seen.insert(option.to_owned())
-            {
-                return Err(meta.error(format!("duplicate sequence `{option}` option")));
-            }
-            if meta.path.is_ident("min_items") {
-                min = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
-                Ok(())
-            } else if meta.path.is_ident("max_items") {
-                max = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
-                Ok(())
-            } else if meta.path.is_ident("unique_items") {
-                unique = true;
-                Ok(())
-            } else {
-                Err(meta.error("unsupported sequence option"))
-            }
-        })?;
-        if !any {
-            return Err(Error::new_spanned(attribute, "sequence requires at least one option"));
-        }
-        return Ok(ConstraintIr::Sequence { min, max, unique });
+        return parse_sequence_constraint(attribute).map(|(min, max, unique)| ConstraintIr::Sequence {
+            min,
+            max,
+            unique,
+        });
     }
+    parse_map_constraint(attribute).map(|(min, max)| ConstraintIr::Map { min, max })
+}
+
+/// Parses and validates the required temporal precision option.
+///
+/// # Parameters
+/// - `attribute`: The time constraint attribute and its nested options.
+///
+/// # Returns
+/// The selected temporal precision name.
+///
+/// # Errors
+/// Returns an error for an unsupported or duplicate option, an unknown
+/// precision, or a missing precision option.
+fn parse_time_constraint(attribute: &Attribute) -> Result<String> {
+    let mut precision = None;
+    attribute.parse_nested_meta(|meta| {
+        if meta.path.is_ident("precision") {
+            let expression: Expr = meta.value()?.parse()?;
+            let value = parse_ident_value(expression.clone())?;
+            validate_closed_value(
+                &expression,
+                &value,
+                &["second", "millisecond", "microsecond", "nanosecond"],
+                "invalid time precision",
+            )?;
+            if precision.replace(value).is_some() {
+                return Err(meta.error("duplicate time `precision` option"));
+            }
+            Ok(())
+        } else {
+            Err(meta.error("unsupported time option"))
+        }
+    })?;
+    precision.ok_or_else(|| Error::new_spanned(attribute, "time requires precision"))
+}
+
+/// Parses the optional sequence bounds and uniqueness marker.
+///
+/// # Parameters
+/// - `attribute`: The sequence constraint attribute and its nested options.
+///
+/// # Returns
+/// The optional minimum and maximum item counts and uniqueness requirement.
+///
+/// # Errors
+/// Returns an error for malformed, duplicate, unsupported, or missing options.
+fn parse_sequence_constraint(attribute: &Attribute) -> Result<(Option<usize>, Option<usize>, bool)> {
+    let (mut min, mut max, mut unique) = (None, None, false);
+    let mut any = false;
+    let mut seen = HashSet::new();
+    attribute.parse_nested_meta(|meta| {
+        any = true;
+        let option = meta.path.get_ident().map(ToString::to_string);
+        if let Some(option) = option.as_deref()
+            && !seen.insert(option.to_owned())
+        {
+            return Err(meta.error(format!("duplicate sequence `{option}` option")));
+        }
+        if meta.path.is_ident("min_items") {
+            min = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
+            Ok(())
+        } else if meta.path.is_ident("max_items") {
+            max = Some(meta.value()?.parse::<LitInt>()?.base10_parse()?);
+            Ok(())
+        } else if meta.path.is_ident("unique_items") {
+            unique = true;
+            Ok(())
+        } else {
+            Err(meta.error("unsupported sequence option"))
+        }
+    })?;
+    if !any {
+        return Err(Error::new_spanned(attribute, "sequence requires at least one option"));
+    }
+    Ok((min, max, unique))
+}
+
+/// Parses the optional map entry-count bounds.
+///
+/// # Parameters
+/// - `attribute`: The map constraint attribute and its nested options.
+///
+/// # Returns
+/// The optional minimum and maximum entry counts.
+///
+/// # Errors
+/// Returns an error for malformed, duplicate, unsupported, or missing options.
+fn parse_map_constraint(attribute: &Attribute) -> Result<(Option<usize>, Option<usize>)> {
     let (mut min, mut max) = (None, None);
     let mut any = false;
     let mut seen = HashSet::new();
@@ -144,7 +188,7 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
     if !any {
         return Err(Error::new_spanned(attribute, "map requires min_entries or max_entries"));
     }
-    Ok(ConstraintIr::Map { min, max })
+    Ok((min, max))
 }
 
 /// Parses text length, character-set, blankness, and format options.
@@ -158,7 +202,6 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
 /// # Errors
 /// Returns an error for malformed or duplicate options, unsupported values, or
 /// an attribute with no options.
-#[must_use = "the parsed text constraint must be validated"]
 fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
     let mut value = TextConstraintIr::default();
     let mut any = false;
@@ -234,7 +277,6 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
 /// # Errors
 /// Returns an error for malformed, duplicate, or unsupported options, invalid
 /// precision or bounds, or missing required options.
-#[must_use = "the parsed decimal constraint must be validated"]
 fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<DecimalConstraintIr> {
     let mut precision = None;
     let mut scale = None;
@@ -363,7 +405,6 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
 /// `Some((negative, digits, scale))` when the spelling is supported, with
 /// leading integer zeroes and trailing fractional zeroes removed. Returns
 /// `None` for malformed spellings.
-#[must_use]
 fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
     let (negative, unsigned) = value.strip_prefix('-').map_or((false, value), |value| (true, value));
     if unsigned.is_empty() || unsigned.starts_with('+') {
@@ -398,7 +439,6 @@ fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
 /// # Returns
 /// `Some(Ordering)` when both values can be parsed, or `None` if either
 /// spelling is malformed.
-#[must_use = "the comparison result determines whether decimal bounds are valid"]
 fn compare_decimal_literals(left: &str, right: &str) -> Option<Ordering> {
     let (left_negative, mut left_digits, left_scale) = parse_decimal_literal(left)?;
     let (right_negative, mut right_digits, right_scale) = parse_decimal_literal(right)?;
@@ -421,10 +461,7 @@ fn compare_decimal_literals(left: &str, right: &str) -> Option<Ordering> {
 mod tests {
     use core::cmp::Ordering;
 
-    use syn::parse_quote;
-
     use super::compare_decimal_literals;
-    use super::parse_constraint;
     use super::parse_decimal_literal;
 
     /// Verifies the documented decimal spelling boundaries and normalization
@@ -437,29 +474,5 @@ mod tests {
         assert_eq!(parse_decimal_literal("+1"), None);
         assert_eq!(parse_decimal_literal("1.2.3"), None);
         assert_eq!(compare_decimal_literals("001.20", "1.2"), Some(Ordering::Equal));
-    }
-
-    /// Either excluded endpoint makes equal decimal bounds an empty interval.
-    #[test]
-    fn test_equal_decimal_bounds_require_both_endpoints() {
-        for attribute in [
-            parse_quote!(#[decimal(min = "1.0", max = "1", min_inclusive = false)]),
-            parse_quote!(#[decimal(min = "1", max = "1.0", max_inclusive = false)]),
-        ] {
-            assert!(parse_constraint(&attribute).is_err());
-        }
-    }
-
-    /// Confirms closed-vocabulary constraint options are rejected by parsing.
-    #[test]
-    fn test_rejects_unknown_closed_vocabulary_values() {
-        for attribute in [
-            parse_quote!(#[text(allowed_chars = unsupported)]),
-            parse_quote!(#[text(format = unsupported)]),
-            parse_quote!(#[decimal(rounding = unsupported)]),
-            parse_quote!(#[time(precision = unsupported)]),
-        ] {
-            assert!(parse_constraint(&attribute).is_err());
-        }
     }
 }

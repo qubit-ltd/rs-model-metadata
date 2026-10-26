@@ -9,3 +9,4 @@
 //! Registry regression cases.
 
 mod abi_cause_tests;
+mod model_registry_context_tests;

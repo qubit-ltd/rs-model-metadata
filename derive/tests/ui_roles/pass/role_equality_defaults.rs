@@ -5,6 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::hash::Hash;
+use std::hash::Hasher;
+
 use model_runtime::__private::qubit_id::Id;
 use qubit_model_derive::{Entity, Enum, Model, Projection, Value};
 
@@ -50,9 +53,9 @@ enum Choice { One }
 struct Ordered { value: u8 }
 
 // A handwritten Hash impl verifies that ord does not generate Hash.
-impl std::hash::Hash for Ordered {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        std::hash::Hash::hash(&self.value, state);
+impl Hash for Ordered {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Hash::hash(&self.value, state);
     }
 }
 
@@ -60,9 +63,9 @@ impl std::hash::Hash for Ordered {
 struct EqualityOnly { value: u8 }
 
 // Likewise, eq alone must not opt into hashing.
-impl std::hash::Hash for EqualityOnly {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        std::hash::Hash::hash(&self.value, state);
+impl Hash for EqualityOnly {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Hash::hash(&self.value, state);
     }
 }
 
@@ -73,7 +76,7 @@ struct OrderedHash { value: u8 }
 struct PartialOrder { value: f64 }
 
 fn partial<T: PartialEq>() {}
-fn hashed<T: Eq + std::hash::Hash>() {}
+fn hashed<T: Eq + Hash>() {}
 fn ordered<T: Eq + Ord>() {}
 fn partially_ordered<T: PartialOrd>() {}
 

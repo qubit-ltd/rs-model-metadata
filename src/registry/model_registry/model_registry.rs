@@ -1,0 +1,1051 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
+//! Frozen model indexes projected from one explicit reflection context.
+
+#![allow(clippy::result_large_err)]
+
+#[path = "../internal/path_cache.rs"]
+mod path_cache;
+
+use std::any::TypeId;
+use std::cmp::Ordering;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::OnceLock;
+
+use qubit_reflect::ReflectionContext;
+use qubit_reflect::TypeDescriptor;
+#[cfg(feature = "generic")]
+use qubit_reflect::descriptor::TypeDefinitionId;
+
+use self::path_cache::PathCache;
+use self::path_cache::PathCacheKey;
+use super::super::ModelRegistryError;
+use super::super::internal::model_registry_cache::MetadataCache;
+use super::super::internal::model_registry_cache::MetadataCacheCell;
+use super::super::internal::model_registry_cache::MetadataCacheKey;
+use super::super::internal::model_registry_cache::PropertyCache;
+use super::super::internal::model_registry_cache::PropertyCacheCell;
+use super::super::model_entry::ModelEntry;
+use super::super::model_entry::ModelRegistryOrigin;
+use crate::PropertyAccessPath;
+use crate::PropertyAccessPathError;
+#[cfg(feature = "generic")]
+use crate::generic::GenericModelMetadata;
+use crate::metadata::ModelId;
+use crate::metadata::ModelMetadataError;
+use crate::metadata::PropertyResolutionError;
+use crate::metadata::ResolvedProperties;
+use crate::metadata::TypeMetadata;
+
+/// An immutable registry sorted by stable model ID and registration source.
+///
+/// The lifetime retains the bound reflection context. Metadata itself lives
+/// for the process. Use an explicit context for isolation;
+/// [`Self::try_global`] projects the global reflection context and caches the
+/// result, including failures. Anonymous roots are supplied directly to the
+/// structural resolver instead of being indexed under an invented stable ID.
+///
+/// # Type Parameters
+///
+/// - `'reflection`: Lifetime of the reflection context retained by this
+///   registry.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_derive::Model;
+/// use qubit_model_metadata::metadata::TypeMetadata;
+/// use qubit_model_metadata::registry::ModelRegistry;
+///
+/// #[Model(id = "example.RegistryNote")]
+/// struct Note { title: String }
+/// # fn main() {
+/// let registry = ModelRegistry::try_global().expect("valid linked registrations");
+/// let note = registry.metadata("example.RegistryNote").expect("linked model");
+/// assert_eq!(note.type_id(), TypeMetadata::of::<Note>().type_id());
+/// assert!(registry.get("example.Missing").is_none());
+/// # }
+/// ```
+pub struct ModelRegistry<'reflection> {
+    /// Registrations in deterministic model-ID and fragment-identity order.
+    entries: Box<[ModelEntry<'reflection>]>,
+    /// Lookup from a stable model ID to a registration index.
+    indices: BTreeMap<ModelId, usize>,
+    /// Lookup from an exact Rust type identity to a registration index.
+    type_indices: HashMap<TypeId, usize>,
+    /// Generic definitions retained in deterministic registration order.
+    #[cfg(feature = "generic")]
+    generic_definitions: Box<[&'static GenericModelMetadata]>,
+    /// Lookup from process-local definition identity to generic metadata.
+    #[cfg(feature = "generic")]
+    generic_definition_indices: HashMap<TypeDefinitionId, &'static GenericModelMetadata>,
+    /// Reflection context that owns effective capability resolution.
+    reflection: Option<&'reflection ReflectionContext>,
+    /// Per-registry cache for context-specific property resolutions.
+    property_cache: PropertyCache,
+    /// Per-registry cache for validated metadata lookups.
+    metadata_cache: MetadataCache,
+    /// Bounded successful access paths retained only by this registry.
+    path_cache: Mutex<PathCache<PropertyAccessPath<'reflection>>>,
+}
+
+impl std::fmt::Debug for ModelRegistry<'_> {
+    /// Formats the registry's entries and bound context identity.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ModelRegistry")
+            .field("entries", &self.entries)
+            .field("context_id", &self.reflection.map(ReflectionContext::id))
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'reflection> ModelRegistry<'reflection> {
+    /// Projects concrete and generic model registrations from one explicit
+    /// reflection context.
+    ///
+    /// Invokes the context's metadata providers and copies registration
+    /// provenance. Anonymous declarations are not indexed by stable ID. The
+    /// returned registry uses this context for later capability and property
+    /// queries; it does not consult the global registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `reflection`: Context whose declarations and capabilities are
+    ///   projected into this model registry.
+    ///
+    /// # Returns
+    ///
+    /// The immutable projection, bound to `reflection`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelRegistryError`] for context/capability failures,
+    /// duplicate model IDs or generic definition identities, conflicting
+    /// concrete type registrations, or metadata inconsistent with its
+    /// reflected descriptor/definition. ABI failures retain their cause.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from a registered metadata provider.
+    pub fn from_context(reflection: &'reflection ReflectionContext) -> Result<Self, ModelRegistryError> {
+        let mut entries = Vec::new();
+        let mut metadata_inputs = Vec::new();
+        #[cfg(feature = "generic")]
+        let mut generic_inputs = Vec::new();
+        for descriptor in reflection.types().map_err(ModelRegistryError::context)?.iter() {
+            let Some(capability) = descriptor
+                .find_capability::<crate::reflect_facade::ModelMetadataCapability>()
+                .map_err(ModelRegistryError::capability)?
+            else {
+                continue;
+            };
+            let capability_source = origin_from_capability(&capability.origin());
+            let metadata = (capability.adapter())();
+            if let Err(cause) = metadata.validate_descriptor(&descriptor) {
+                return Err(ModelRegistryError::invalid_abi(
+                    metadata.model_id(),
+                    vec![capability_source.clone()],
+                    cause,
+                ));
+            }
+            metadata_inputs.push((metadata, capability_source.clone()));
+            if metadata.model_id().is_some() {
+                entries.push(
+                    ModelEntry::concrete(metadata, capability_source.clone(), Some(capability_source.clone()))
+                        .expect("metadata with a model ID creates an entry"),
+                );
+            }
+        }
+        #[cfg(feature = "generic")]
+        for definition in reflection
+            .type_definitions()
+            .map_err(ModelRegistryError::context)?
+            .iter()
+        {
+            let Some(capability) = definition
+                .find_capability::<crate::reflect_facade::GenericModelMetadataCapability>()
+                .map_err(ModelRegistryError::capability)?
+            else {
+                continue;
+            };
+            let capability_source = origin_from_capability(&capability.origin());
+            let metadata = (capability.adapter())();
+            if metadata
+                .definition_in(reflection)
+                .map_err(ModelRegistryError::lookup)?
+                .id()
+                != definition.id()
+            {
+                return Err(ModelRegistryError::conflict(
+                    metadata.model_id(),
+                    vec![capability_source.clone()],
+                ));
+            }
+            generic_inputs.push((metadata, capability_source.clone(), Some(capability_source)));
+        }
+        let mut registry = Self::build(
+            reflection,
+            entries,
+            #[cfg(feature = "generic")]
+            generic_inputs,
+            metadata_inputs,
+        )?;
+        registry.reflection = Some(reflection);
+        Ok(registry)
+    }
+
+    /// Builds an isolated deterministic registry from explicit metadata.
+    ///
+    /// Copies each registration's source coordinates and retains its static
+    /// metadata. No metadata provider or global registry is invoked. Supply
+    /// anonymous models as structural roots instead of registrations under
+    /// stable IDs. Property resolution uses only the model's statically
+    /// declared local properties and does not read independently registered
+    /// `ModelImpl` capabilities.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `'a`: Lifetime of the reflection context retained by the returned
+    ///   registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `concrete`: Static metadata and source coordinates to index.
+    ///
+    /// # Returns
+    ///
+    /// The isolated registry bound to the supplied context.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelRegistryError`] for an anonymous concrete registration,
+    /// a repeated stable model ID, or conflicting registrations of one concrete
+    /// Rust type. Concrete metadata whose ABI does not match its reflected
+    /// descriptor is rejected with its ABI cause.
+    pub fn from_static_metadata<'a>(
+        context: &'a ReflectionContext,
+        concrete: &[(&'static TypeMetadata, &'a ModelRegistryOrigin)],
+    ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
+        let mut entries = Vec::with_capacity(concrete.len());
+        for &(metadata, source) in concrete {
+            if let Err(cause) = metadata.validate_descriptor(&metadata.descriptor_in(context)) {
+                return Err(ModelRegistryError::invalid_abi(
+                    metadata.model_id(),
+                    vec![(*source).clone()],
+                    cause,
+                ));
+            }
+            let Some(entry) = ModelEntry::concrete(metadata, (*source).clone(), None) else {
+                return Err(ModelRegistryError::conflict(None, vec![(*source).clone()]));
+            };
+            entries.push(entry);
+        }
+        ModelRegistry::<'a>::build(
+            context,
+            entries,
+            #[cfg(feature = "generic")]
+            Vec::new(),
+            concrete
+                .iter()
+                .map(|(metadata, source)| (*metadata, (*source).clone()))
+                .collect(),
+        )
+        .map(|mut registry| {
+            registry.reflection = Some(context);
+            registry
+        })
+    }
+
+    /// Builds an isolated registry from concrete and generic declarations.
+    ///
+    /// Copies source coordinates without invoking metadata providers or global
+    /// state. Anonymous generic definitions remain available by definition
+    /// identity; concrete anonymous registrations are rejected. Property
+    /// resolution uses only the model's statically declared local
+    /// properties and does not read independently registered `ModelImpl`
+    /// capabilities.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `'a`: Lifetime of the reflection context retained by the returned
+    ///   registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `concrete`: Static concrete metadata and source coordinates to index.
+    /// - `generic`: Static generic metadata and source coordinates to index.
+    ///
+    /// # Returns
+    ///
+    /// The isolated registry bound to the supplied context.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelRegistryError`] for an anonymous concrete registration,
+    /// duplicate stable IDs or generic definition identities across
+    /// declarations, conflicting registrations of one concrete Rust type, or
+    /// concrete metadata whose ABI does not match its reflected descriptor.
+    /// ABI errors retain their cause.
+    #[cfg(feature = "generic")]
+    pub fn from_static_metadata_with_generics<'a>(
+        context: &'a ReflectionContext,
+        concrete: &[(&'static TypeMetadata, &'a ModelRegistryOrigin)],
+        generic: &[(&'static GenericModelMetadata, &'a ModelRegistryOrigin)],
+    ) -> Result<ModelRegistry<'a>, ModelRegistryError> {
+        let mut entries = Vec::with_capacity(concrete.len() + generic.len());
+        for &(metadata, source) in concrete {
+            if let Err(cause) = metadata.validate_descriptor(&metadata.descriptor_in(context)) {
+                return Err(ModelRegistryError::invalid_abi(
+                    metadata.model_id(),
+                    vec![(*source).clone()],
+                    cause,
+                ));
+            }
+            let Some(entry) = ModelEntry::concrete(metadata, (*source).clone(), None) else {
+                return Err(ModelRegistryError::conflict(None, vec![(*source).clone()]));
+            };
+            entries.push(entry);
+        }
+        ModelRegistry::<'a>::build(
+            context,
+            entries,
+            generic
+                .iter()
+                .map(|&(metadata, source)| (metadata, (*source).clone(), None))
+                .collect(),
+            concrete
+                .iter()
+                .map(|(metadata, source)| (*metadata, (*source).clone()))
+                .collect(),
+        )
+        .map(|mut registry| {
+            registry.reflection = Some(context);
+            registry
+        })
+    }
+
+    /// Initializes reflection first, then freezes all linked model
+    /// registrations.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the process-wide registry after successful
+    /// initialization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelRegistryError`] when reflection initialization or model
+    /// registration validation fails. Both successful and failed results are
+    /// cached for the process; subsequent failures return clones of the error.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from an initializing metadata provider. A panic does
+    /// not cache a result. Providers must not recursively enter this global
+    /// initialization.
+    pub fn try_global() -> Result<&'static ModelRegistry<'static>, ModelRegistryError> {
+        static REGISTRY: OnceLock<Result<ModelRegistry<'static>, ModelRegistryError>> = OnceLock::new();
+        match REGISTRY.get_or_init(|| ModelRegistry::<'static>::from_context(ReflectionContext::global())) {
+            Ok(registry) => Ok(registry),
+            Err(error) => Err(error.clone()),
+        }
+    }
+
+    /// Returns the process-wide registry or panics with a stable diagnostic.
+    ///
+    /// # Returns
+    ///
+    /// The process-wide validated registry.
+    ///
+    /// # Panics
+    ///
+    /// Panics when global registry initialization returns an error, or when an
+    /// initializing metadata provider panics.
+    #[must_use]
+    pub fn global() -> &'static ModelRegistry<'static> {
+        Self::try_global().unwrap_or_else(|error| panic!("invalid global model registry: {error}"))
+    }
+
+    /// Validates and indexes owned registrations in deterministic order.
+    ///
+    /// # Parameters
+    ///
+    /// - `entries`: Concrete and generic model entries to validate and index.
+    /// - `generic_inputs`: Generic definitions and their declaration provenance
+    ///   when generic metadata is enabled.
+    /// - `metadata_inputs`: Concrete metadata and its source validated before
+    ///   registry build, including anonymous metadata without a stable ID.
+    ///
+    /// # Returns
+    ///
+    /// The registry with owned indexes, an empty property cache, and no
+    /// reflection snapshot associated yet.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelRegistryError`] for duplicate model IDs or generic
+    /// definition identities, or inconsistent concrete registration metadata.
+    fn build(
+        context: &'reflection ReflectionContext,
+        mut entries: Vec<ModelEntry<'reflection>>,
+        #[cfg(feature = "generic")] mut generic_inputs: Vec<(
+            &'static GenericModelMetadata,
+            ModelRegistryOrigin,
+            Option<ModelRegistryOrigin>,
+        )>,
+        metadata_inputs: Vec<(&'static TypeMetadata, ModelRegistryOrigin)>,
+    ) -> Result<Self, ModelRegistryError> {
+        #[cfg(feature = "generic")]
+        let (generic_definitions, generic_definition_indices) =
+            index_generic_definitions(context, &mut entries, &mut generic_inputs)?;
+        sort_and_validate_entries(&mut entries)?;
+        let (indices, type_indices) = build_entry_indices(&entries)?;
+        let metadata_cache = prefill_metadata_cache(context, metadata_inputs)?;
+
+        Ok(Self {
+            entries: entries.into_boxed_slice(),
+            indices,
+            type_indices,
+            #[cfg(feature = "generic")]
+            generic_definitions: generic_definitions.into_boxed_slice(),
+            #[cfg(feature = "generic")]
+            generic_definition_indices,
+            reflection: Some(context),
+            property_cache: Mutex::default(),
+            metadata_cache: Mutex::new(metadata_cache),
+            path_cache: Mutex::default(),
+        })
+    }
+
+    /// Finds one immutable model entry by stable ID.
+    /// Returns `None` for invalid IDs and IDs absent from this registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: Stable model ID to look up.
+    ///
+    /// # Returns
+    ///
+    /// The indexed entry, or `None` when the ID is invalid or absent.
+    #[inline]
+    pub fn get(&self, id: &str) -> Option<&ModelEntry<'reflection>> {
+        if ModelId::validate(id).is_err() {
+            return None;
+        }
+        self.entries.get(*self.indices.get(id)?)
+    }
+
+    /// Returns the reflection context bound to this registry.
+    ///
+    /// # Returns
+    ///
+    /// `Some` contains the context bound by the registry constructors. `None`
+    /// represents a registry without a bound context; all public constructors
+    /// currently bind the supplied context.
+    #[inline]
+    pub const fn context(&self) -> Option<&'reflection ReflectionContext> {
+        self.reflection
+    }
+
+    /// Enumerates concrete and generic models in stable model-ID order.
+    ///
+    /// # Returns
+    ///
+    /// All entries in deterministic model-ID and fragment-identity order.
+    #[must_use]
+    #[inline]
+    pub fn entries(&self) -> &[ModelEntry<'reflection>] {
+        &self.entries
+    }
+
+    /// Returns concrete metadata for a stable ID, or `None` for an invalid,
+    /// absent, or generic-definition-only ID.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: Stable model ID to resolve.
+    ///
+    /// # Returns
+    ///
+    /// Concrete metadata for a registered concrete model; `None` for an
+    /// invalid ID, an absent ID, or a generic-definition-only registration.
+    #[inline]
+    pub fn metadata(&self, id: &str) -> Option<&'static TypeMetadata> {
+        self.get(id).and_then(ModelEntry::metadata)
+    }
+
+    /// Returns generic-definition metadata for a stable ID, or `None` for an
+    /// invalid, absent, or concrete-only ID.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: Stable model ID to resolve.
+    ///
+    /// # Returns
+    ///
+    /// Generic metadata for a registered definition; `None` for an invalid ID,
+    /// an absent ID, or a concrete-only registration.
+    #[inline]
+    #[cfg(feature = "generic")]
+    pub fn generic(&self, id: &str) -> Option<&'static GenericModelMetadata> {
+        self.get(id).and_then(ModelEntry::generic_metadata)
+    }
+
+    /// Returns registered concrete metadata by exact Rust identity, or `None`
+    /// when that concrete type is absent from this registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `type_id`: Exact Rust type identity to look up.
+    ///
+    /// # Returns
+    ///
+    /// Registered concrete metadata, or `None` when that type is absent.
+    #[inline]
+    pub fn by_type_id(&self, type_id: TypeId) -> Option<&'static TypeMetadata> {
+        self.entries
+            .get(*self.type_indices.get(&type_id)?)
+            .and_then(ModelEntry::metadata)
+    }
+
+    /// Returns model metadata resolved for one exact concrete descriptor.
+    ///
+    /// Reuses the validated result for this exact descriptor within this
+    /// registry. Snapshot projections prefill metadata supplied during
+    /// construction, including anonymous metadata. Other lookups cache their
+    /// provider result, absence, or structured error after the first call. A
+    /// provider panic leaves the cache cell uninitialized and can be retried.
+    /// No global registry is consulted.
+    ///
+    /// # Parameters
+    ///
+    /// - `descriptor`: Exact static type descriptor whose metadata is queried.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some(metadata))` contains descriptor-checked metadata. `Ok(None)`
+    /// means neither a provider nor an explicit registration supplied metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelMetadataError`] for capability resolution or descriptor
+    /// ABI failures, preserving the exact queried type and underlying cause.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from the selected metadata provider.
+    pub fn metadata_for(
+        &self,
+        descriptor: &TypeDescriptor<'reflection>,
+    ) -> Result<Option<&'static TypeMetadata>, ModelMetadataError> {
+        let Some(reflection) = self.reflection else {
+            return Ok(self.by_type_id(descriptor.type_id()));
+        };
+        let type_id = descriptor.type_id();
+        let bound_descriptor =
+            reflection
+                .find_type_by_id(type_id)
+                .map_err(|source| ModelMetadataError::Capability {
+                    type_id,
+                    type_name: descriptor.rust_type_name(),
+                    source: Box::new(qubit_reflect::capability::CapabilityError::Context(source)),
+                })?;
+        let Some(descriptor) = bound_descriptor.as_ref() else {
+            return Ok(None);
+        };
+        let key = (reflection.id(), type_id, 0);
+        let cell: MetadataCacheCell = {
+            let mut cache = self.metadata_cache.lock().expect("metadata cache lock");
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceLock::new())))
+        };
+        cell.get_or_init(|| {
+            let provided = descriptor
+                .find_capability::<crate::reflect_facade::ModelMetadataCapability>()
+                .map_err(|source| ModelMetadataError::Capability {
+                    type_id,
+                    type_name: descriptor.rust_type_name(),
+                    source: Box::new(source),
+                })?
+                .map(|provider| (provider.adapter())());
+            let metadata = provided.or_else(|| self.by_type_id(type_id));
+            if let Some(metadata) = metadata {
+                metadata
+                    .validate_descriptor(descriptor)
+                    .map_err(|source| ModelMetadataError::Abi {
+                        type_id: descriptor.type_id(),
+                        type_name: descriptor.rust_type_name(),
+                        source,
+                    })?;
+            }
+            Ok(metadata)
+        })
+        .clone()
+    }
+
+    /// Resolves properties using this model registry's reflection context.
+    ///
+    /// Registries built by `from_static_metadata` or
+    /// `from_static_metadata_with_generics` use only
+    /// the model's statically declared local properties, without independently
+    /// registered `ModelImpl` capabilities. Snapshot registries invoke their
+    /// implementation providers on a cache miss, then reuse the owned merge
+    /// for the same metadata identity. Cache storage is released with this
+    /// registry. This never consults global state.
+    ///
+    /// # Parameters
+    ///
+    /// - `metadata`: Static model metadata whose local and reflected properties
+    ///   are resolved.
+    ///
+    /// # Returns
+    ///
+    /// The merged or static resolved properties on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PropertyResolutionError`] for capability or property assembly
+    /// failures, retaining the original diagnostics.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from an implementation provider or a poisoned cache
+    /// lock.
+    pub fn properties_for(
+        &self,
+        metadata: &'static TypeMetadata,
+    ) -> Result<ResolvedProperties, PropertyResolutionError> {
+        let Some(reflection) = self.reflection else {
+            return Ok(ResolvedProperties::Static(metadata.local_properties()));
+        };
+        let key = (
+            reflection.id(),
+            metadata.type_id(),
+            metadata as *const TypeMetadata as usize,
+        );
+        let cell: PropertyCacheCell = {
+            let mut cache = self.property_cache.lock().expect("property cache lock");
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceLock::new())))
+        };
+        cell.get_or_init(|| metadata.try_properties_in(reflection)).clone()
+    }
+
+    /// Compiles or reuses a successful readable path within this registry.
+    ///
+    /// The key includes the exact root metadata address and all segments.
+    /// Failed compilations are retried on later calls. Each registry retains
+    /// at most 256 successful paths and evicts the least recently used entry
+    /// when full, so pointer identity is shared only while an entry remains
+    /// cached. A miss compiles outside the cache lock, so concurrent misses
+    /// may compile more than once.
+    ///
+    /// # Parameters
+    ///
+    /// - `root`: Static metadata for the root type whose path is compiled.
+    /// - `segments`: Property names from the root to the target property.
+    ///
+    /// # Returns
+    ///
+    /// A shared compiled path on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original [`PropertyAccessPathError`] for invalid segments,
+    /// unresolved metadata, and unreadable or unsupported properties.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache mutex was poisoned.
+    pub fn compile_read_path_cached(
+        &self,
+        root: &'static TypeMetadata,
+        segments: &[&str],
+    ) -> Result<Arc<PropertyAccessPath<'reflection>>, PropertyAccessPathError> {
+        self.compile_path_cached(root, segments, false)
+    }
+
+    /// Compiles or reuses a successful writable path within this registry.
+    ///
+    /// Write paths have separate entries from read paths. The leaf's runtime
+    /// writability remains checked by the compiled path when writing. Each
+    /// registry retains at most 256 successful paths, so pointer identity is
+    /// shared only while an entry remains cached.
+    ///
+    /// # Parameters
+    ///
+    /// - `root`: Static metadata for the root type whose path is compiled.
+    /// - `segments`: Property names from the root to the target property.
+    ///
+    /// # Returns
+    ///
+    /// A shared compiled writable path on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original [`PropertyAccessPathError`] for invalid segments,
+    /// unresolved metadata, and unreadable or unsupported intermediates.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache mutex was poisoned.
+    pub fn compile_write_path_cached(
+        &self,
+        root: &'static TypeMetadata,
+        segments: &[&str],
+    ) -> Result<Arc<PropertyAccessPath<'reflection>>, PropertyAccessPathError> {
+        self.compile_path_cached(root, segments, true)
+    }
+
+    /// Returns registered generic metadata for one definition identity, or
+    /// `None` when no indexed definition matches. This does not instantiate a
+    /// concrete model or consult the global registry.
+    ///
+    /// # Parameters
+    ///
+    /// - `definition_id`: Process-local identity of the generic definition.
+    ///
+    /// # Returns
+    ///
+    /// The indexed generic metadata, or `None` when no definition matches.
+    #[inline]
+    #[cfg(feature = "generic")]
+    pub fn generic_metadata_for(&self, definition_id: TypeDefinitionId) -> Option<&'static GenericModelMetadata> {
+        self.generic_definition_indices.get(&definition_id).copied()
+    }
+
+    /// Returns the metadata capability source for context projections or the
+    /// explicit input source for static metadata, or `None` for an invalid or
+    /// absent ID.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: Stable model ID whose registration source is requested.
+    ///
+    /// # Returns
+    ///
+    /// The copied capability or explicit-input source, or `None` when the ID
+    /// is invalid or absent.
+    #[inline]
+    pub fn source(&self, id: &str) -> Option<&ModelRegistryOrigin> {
+        Some(self.get(id)?.source())
+    }
+
+    /// Returns registered generic definitions ordered by registration source
+    /// and then Rust path, including definitions without stable model IDs.
+    ///
+    /// # Returns
+    ///
+    /// All registered generic definitions in deterministic order.
+    #[must_use]
+    #[cfg(feature = "generic")]
+    #[inline]
+    pub fn generic_definitions(&self) -> &[&'static GenericModelMetadata] {
+        &self.generic_definitions
+    }
+
+    /// Iterates over concrete registrations in stable registry order.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over each concrete metadata value and its owned source.
+    #[inline]
+    pub(crate) fn concrete_entries(&self) -> impl Iterator<Item = (&'static TypeMetadata, &ModelRegistryOrigin)> + '_ {
+        self.entries
+            .iter()
+            .filter_map(|entry| entry.metadata().map(|metadata| (metadata, entry.source())))
+    }
+
+    /// Looks up the keyed mode, compiling without a cache lock on a miss.
+    ///
+    /// Returns the retained `Arc` on success and preserves compilation errors.
+    /// A second lookup under the insertion lock resolves concurrent misses.
+    ///
+    /// # Parameters
+    ///
+    /// - `root`: Static metadata identifying the root type.
+    /// - `segments`: Property names forming the access path.
+    /// - `write`: Whether the path must support writes.
+    ///
+    /// # Returns
+    ///
+    /// The cached or newly compiled path on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns the path compilation error unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the registry context is absent or either cache lock is
+    /// poisoned.
+    fn compile_path_cached(
+        &self,
+        root: &'static TypeMetadata,
+        segments: &[&str],
+        write: bool,
+    ) -> Result<Arc<PropertyAccessPath<'reflection>>, PropertyAccessPathError> {
+        let context_id = self
+            .reflection
+            .map(ReflectionContext::id)
+            .expect("registry context is bound");
+        let type_id = root.type_id();
+        let metadata_address = root as *const _ as usize;
+        {
+            let mut cache = self.path_cache.lock().expect("path cache lock");
+            if let Some(hit) = cache.get_borrowed(context_id, type_id, metadata_address, segments, write) {
+                return Ok(hit);
+            }
+        }
+        let compiled = Arc::new(if write {
+            PropertyAccessPath::compile_for_write(self, root, segments)?
+        } else {
+            PropertyAccessPath::compile(self, root, segments)?
+        });
+        let mut cache = self.path_cache.lock().expect("path cache lock");
+        if let Some(hit) = cache.get_borrowed(context_id, type_id, metadata_address, segments, write) {
+            return Ok(hit);
+        }
+        let key = PathCacheKey::new(context_id, type_id, metadata_address, segments, write);
+        Ok(cache.insert_or_existing(key, compiled))
+    }
+}
+
+/// Sorts generic registrations, rejects repeated definition identities, and
+/// appends their stable-ID entries after concrete registrations.
+#[cfg(feature = "generic")]
+fn index_generic_definitions(
+    context: &ReflectionContext,
+    entries: &mut Vec<ModelEntry<'_>>,
+    generic_inputs: &mut Vec<(
+        &'static GenericModelMetadata,
+        ModelRegistryOrigin,
+        Option<ModelRegistryOrigin>,
+    )>,
+) -> Result<
+    (
+        Vec<&'static GenericModelMetadata>,
+        HashMap<TypeDefinitionId, &'static GenericModelMetadata>,
+    ),
+    ModelRegistryError,
+> {
+    generic_inputs.sort_by(|(left, left_source, _), (right, right_source, _)| {
+        left_source
+            .cmp(right_source)
+            .then_with(|| left.definition_path().cmp(right.definition_path()))
+    });
+    let mut generic_definition_indices = HashMap::new();
+    let mut definition_sources = HashMap::new();
+    let mut generic_definitions = Vec::with_capacity(generic_inputs.len());
+    for (metadata, source, _) in generic_inputs.iter() {
+        let definition_id = metadata
+            .definition_in(context)
+            .map_err(ModelRegistryError::lookup)?
+            .id();
+        if let Some(previous_source) = definition_sources.insert(definition_id, source) {
+            return Err(ModelRegistryError::conflict(
+                metadata.model_id(),
+                vec![previous_source.clone(), source.clone()],
+            ));
+        }
+        generic_definition_indices.insert(definition_id, *metadata);
+        generic_definitions.push(*metadata);
+    }
+    entries.extend(
+        generic_inputs
+            .iter()
+            .filter_map(|(metadata, source, declaration_source)| {
+                ModelEntry::generic(metadata, source.clone(), declaration_source.clone())
+            }),
+    );
+    Ok((generic_definitions, generic_definition_indices))
+}
+
+/// Sorts entries by their stable ordering and rejects adjacent duplicate IDs.
+fn sort_and_validate_entries(entries: &mut [ModelEntry<'_>]) -> Result<(), ModelRegistryError> {
+    entries.sort_by(compare_entries);
+    for pair in entries.windows(2) {
+        if pair[0].model_id == pair[1].model_id {
+            let sources = pair.iter().map(|entry| entry.source.clone()).collect();
+            return Err(ModelRegistryError::duplicate(pair[0].model_id, sources));
+        }
+    }
+    Ok(())
+}
+
+/// Builds stable-ID and concrete-type lookup maps, rejecting inconsistent
+/// metadata and duplicate concrete type identities.
+fn build_entry_indices(
+    entries: &[ModelEntry<'_>],
+) -> Result<(BTreeMap<ModelId, usize>, HashMap<TypeId, usize>), ModelRegistryError> {
+    let mut indices = BTreeMap::new();
+    let mut type_indices = HashMap::new();
+    for (index, entry) in entries.iter().cloned().enumerate() {
+        indices.insert(entry.model_id, index);
+        if let Some(metadata) = entry.metadata() {
+            if metadata.model_id() != Some(entry.model_id) {
+                return Err(ModelRegistryError::conflict(
+                    Some(entry.model_id),
+                    vec![entry.source.clone()],
+                ));
+            }
+            if let Some(previous) = type_indices.insert(metadata.type_id(), index) {
+                return Err(ModelRegistryError::conflict(
+                    Some(entry.model_id),
+                    vec![entries[previous].source.clone(), entry.source.clone()],
+                ));
+            }
+        }
+    }
+    Ok((indices, type_indices))
+}
+
+/// Prefills the descriptor-keyed metadata cache and rejects conflicting
+/// metadata pointers for the same reflected type.
+fn prefill_metadata_cache(
+    context: &ReflectionContext,
+    metadata_inputs: Vec<(&'static TypeMetadata, ModelRegistryOrigin)>,
+) -> Result<HashMap<MetadataCacheKey, MetadataCacheCell>, ModelRegistryError> {
+    let mut metadata_cache_with_sources: HashMap<MetadataCacheKey, (MetadataCacheCell, ModelRegistryOrigin)> =
+        HashMap::with_capacity(metadata_inputs.len());
+    for (metadata, source) in metadata_inputs {
+        let descriptor = metadata.descriptor_in(context);
+        let key = (context.id(), descriptor.type_id(), 0);
+        if let Some((cell, first_source)) = metadata_cache_with_sources.get(&key) {
+            let cached = cell.get().expect("prefilled metadata cell").as_ref();
+            if !matches!(cached, Ok(Some(existing)) if std::ptr::eq(*existing, metadata)) {
+                return Err(ModelRegistryError::conflict(
+                    metadata.model_id(),
+                    vec![(*first_source).clone(), source.clone()],
+                ));
+            }
+            continue;
+        }
+        let cell = Arc::new(OnceLock::new());
+        cell.set(Ok(Some(metadata))).expect("new metadata cache cell");
+        metadata_cache_with_sources.insert(key, (cell, source));
+    }
+    Ok(metadata_cache_with_sources
+        .into_iter()
+        .map(|(key, (cell, _source))| (key, cell))
+        .collect())
+}
+
+/// Compares registrations by stable model ID and then registration source.
+///
+/// # Parameters
+///
+/// - `left`: First registration to compare.
+/// - `right`: Second registration to compare.
+///
+/// # Returns
+///
+/// Their deterministic order: model ID first, then registration source.
+#[inline]
+fn compare_entries(left: &ModelEntry, right: &ModelEntry) -> Ordering {
+    left.model_id
+        .cmp(&right.model_id)
+        .then_with(|| left.source.cmp(&right.source))
+}
+
+/// Copies capability provenance into owned registry coordinates.
+///
+/// The reflection origin borrows registration data from its context; this
+/// conversion preserves the fields needed after projection without retaining
+/// that borrow.
+fn origin_from_capability(origin: &qubit_reflect::capability::CapabilityOrigin<'_>) -> ModelRegistryOrigin {
+    match origin {
+        qubit_reflect::capability::CapabilityOrigin::Linked { registration }
+        | qubit_reflect::capability::CapabilityOrigin::Explicit { registration } => {
+            ModelRegistryOrigin::from(registration.registration())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use qubit_reflect::Reflect;
+
+    use super::super::super::model_entry::ModelRegistryOrigin;
+    use super::ModelRegistry;
+    use crate::__private::v8;
+    use crate::metadata::TypeMetadata;
+    use crate::registry::ModelRegistryErrorKind;
+
+    #[Reflect]
+    struct AnonymousMetadataFixture;
+
+    /// Creates distinct ABI-valid anonymous metadata values for one descriptor.
+    fn anonymous_metadata() -> &'static TypeMetadata {
+        v8::leak(
+            v8::GeneratedTypeMetadataBuilder::new::<AnonymousMetadataFixture>(None, &[], v8::leak(v8::model_role()))
+                .finish::<AnonymousMetadataFixture>(),
+        )
+    }
+
+    #[test]
+    fn test_conflicting_anonymous_metadata_retains_both_sources() {
+        let first = anonymous_metadata();
+        let second = anonymous_metadata();
+        assert!(!std::ptr::eq(first, second));
+        let context = qubit_reflect::ReflectionContext::builder()
+            .include_type::<AnonymousMetadataFixture>()
+            .build()
+            .expect("fixture context");
+        assert!(first.validate_descriptor(&first.descriptor_in(&context)).is_ok());
+        assert!(second.validate_descriptor(&second.descriptor_in(&context)).is_ok());
+        let first_source = test_origin(1);
+        let second_source = test_origin(2);
+
+        let error = ModelRegistry::build(
+            &context,
+            Vec::new(),
+            #[cfg(feature = "generic")]
+            Vec::new(),
+            vec![(first, first_source.clone()), (second, second_source.clone())],
+        )
+        .expect_err("different metadata values for one descriptor must conflict");
+        assert_eq!(error.kind(), ModelRegistryErrorKind::RegistrationConflict);
+        assert_eq!(error.model_id(), None);
+        assert_eq!(error.sources(), &[first_source, second_source]);
+    }
+
+    #[test]
+    fn test_repeated_anonymous_metadata_pointer_does_not_conflict() {
+        let metadata = anonymous_metadata();
+        let context = qubit_reflect::ReflectionContext::builder()
+            .include_type::<AnonymousMetadataFixture>()
+            .build()
+            .expect("fixture context");
+        let first_source = test_origin(3);
+        let second_source = test_origin(4);
+
+        ModelRegistry::build(
+            &context,
+            Vec::new(),
+            #[cfg(feature = "generic")]
+            Vec::new(),
+            vec![(metadata, first_source), (metadata, second_source)],
+        )
+        .expect("repeating one metadata pointer is valid during cache prefill");
+    }
+
+    fn test_origin(line: u32) -> ModelRegistryOrigin {
+        ModelRegistryOrigin {
+            crate_name: "fixture",
+            crate_version: Some("0"),
+            module_path: "tests",
+            file: Some("model.rs"),
+            line: Some(line),
+            column: Some(1),
+        }
+    }
+}

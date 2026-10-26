@@ -95,8 +95,16 @@ fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
     let report = plan
         .validate_dynamic(DynamicRef::<Local>::new(&invalid), &ValidationOptions::default())
         .expect("transparent field execution");
-    assert_eq!(report.violations().len(), 1);
-    assert_eq!(report.violations()[0].path().render(), "email[0]");
+    assert_eq!(
+        report.violations().len(),
+        1,
+        "invalid nested email should report one violation"
+    );
+    assert_eq!(
+        report.violations()[0].path().render(),
+        "email[0]",
+        "nested email violation should identify the transparent value field"
+    );
     assert!(report.skipped().is_empty());
 
     let missing = Envelope { email: None };
@@ -104,9 +112,17 @@ fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
         .validate_dynamic(DynamicRef::<Local>::new(&missing), &ValidationOptions::default())
         .expect("missing email skips the field");
     assert!(report.violations().is_empty());
-    assert_eq!(report.skipped().len(), 1);
-    assert_eq!(report.skipped()[0].path().render(), "email[0]");
-    assert_eq!(report.skipped()[0].reason(), SkipReason::MissingOptional);
+    assert_eq!(report.skipped().len(), 1, "missing email should be skipped once");
+    assert_eq!(
+        report.skipped()[0].path().render(),
+        "email[0]",
+        "missing email should report the nested field path"
+    );
+    assert_eq!(
+        report.skipped()[0].reason(),
+        SkipReason::MissingOptional,
+        "missing email should use the missing-optional skip reason"
+    );
 }
 
 #[test]
@@ -137,8 +153,16 @@ fn test_transparent_value_root_field_reports_numeric_path() {
             &ValidationOptions::default(),
         )
         .expect("transparent root execution");
-    assert_eq!(report.violations().len(), 1);
-    assert_eq!(report.violations()[0].path().render(), "[0]");
+    assert_eq!(
+        report.violations().len(),
+        1,
+        "invalid transparent root should report one violation"
+    );
+    assert_eq!(
+        report.violations()[0].path().render(),
+        "[0]",
+        "transparent root violation should use the numeric value path"
+    );
 }
 
 #[test]
@@ -168,8 +192,16 @@ fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
     let report = plan
         .validate_dynamic(DynamicRef::<Local>::new(&invalid), &ValidationOptions::default())
         .expect("present optional scalar execution");
-    assert_eq!(report.violations().len(), 1);
-    assert_eq!(report.violations()[0].path().render(), "[0]");
+    assert_eq!(
+        report.violations().len(),
+        1,
+        "present invalid optional scalar should report one violation"
+    );
+    assert_eq!(
+        report.violations()[0].path().render(),
+        "[0]",
+        "optional scalar violation should use the numeric value path"
+    );
     assert!(report.skipped().is_empty());
 
     let missing = OptionalEmail(None);
@@ -177,9 +209,21 @@ fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
         .validate_dynamic(DynamicRef::<Local>::new(&missing), &ValidationOptions::default())
         .expect("missing optional scalar skips the field");
     assert!(report.violations().is_empty());
-    assert_eq!(report.skipped().len(), 1);
-    assert_eq!(report.skipped()[0].path().render(), "[0]");
-    assert_eq!(report.skipped()[0].reason(), SkipReason::MissingOptional);
+    assert_eq!(
+        report.skipped().len(),
+        1,
+        "missing optional scalar should be skipped once"
+    );
+    assert_eq!(
+        report.skipped()[0].path().render(),
+        "[0]",
+        "missing optional scalar should report its numeric value path"
+    );
+    assert_eq!(
+        report.skipped()[0].reason(),
+        SkipReason::MissingOptional,
+        "missing optional scalar should use the missing-optional skip reason"
+    );
 }
 
 #[cfg(feature = "generic")]
@@ -214,8 +258,16 @@ fn test_transparent_value_validation_through_generic_optional_wrapper() {
     let report = plan
         .validate_dynamic(DynamicRef::<Local>::new(&present), &ValidationOptions::default())
         .expect("present wrapped value execution");
-    assert_eq!(report.violations().len(), 1);
-    assert_eq!(report.violations()[0].path().render(), "wrapped.value[0]");
+    assert_eq!(
+        report.violations().len(),
+        1,
+        "present invalid wrapped value should report one violation"
+    );
+    assert_eq!(
+        report.violations()[0].path().render(),
+        "wrapped.value[0]",
+        "wrapped value violation should identify the transparent field path"
+    );
 
     let absent = GenericWrapperEnvelope {
         wrapped: GenericOptionalWrapper { value: None },
@@ -224,9 +276,17 @@ fn test_transparent_value_validation_through_generic_optional_wrapper() {
         .validate_dynamic(DynamicRef::<Local>::new(&absent), &ValidationOptions::default())
         .expect("absent wrapped value execution");
     assert!(report.violations().is_empty());
-    assert_eq!(report.skipped().len(), 1);
-    assert_eq!(report.skipped()[0].path().render(), "wrapped.value[0]");
-    assert_eq!(report.skipped()[0].reason(), SkipReason::MissingOptional);
+    assert_eq!(report.skipped().len(), 1, "absent wrapped value should be skipped once");
+    assert_eq!(
+        report.skipped()[0].path().render(),
+        "wrapped.value[0]",
+        "absent wrapped value should report the wrapped field path"
+    );
+    assert_eq!(
+        report.skipped()[0].reason(),
+        SkipReason::MissingOptional,
+        "absent wrapped value should use the missing-optional skip reason"
+    );
 }
 
 #[test]
@@ -253,7 +313,19 @@ fn test_ordinary_tuple_field_remains_unsupported() {
         Ok(_) => panic!("ordinary tuple validation must remain unsupported"),
         Err(errors) => errors,
     };
-    assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
-    assert_eq!(errors[0].path(), Some("pair.0.0"));
+    assert_eq!(
+        errors.len(),
+        1,
+        "unsupported tuple execution should produce one build error"
+    );
+    assert_eq!(
+        errors[0].kind(),
+        ValidationBuildErrorKind::UnsupportedExecution,
+        "ordinary tuple fields should remain unsupported for execution"
+    );
+    assert_eq!(
+        errors[0].path(),
+        Some("pair.0.0"),
+        "unsupported tuple error should identify the tuple field path"
+    );
 }

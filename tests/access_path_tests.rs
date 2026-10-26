@@ -563,7 +563,10 @@ fn test_optional_borrowed_getter_intermediate_reads_present_and_missing_values()
     };
     assert!(matches!(
         path.read(&present).expect("present optional getter is traversed"),
-        PropertyValue::Borrowed(value) if value.downcast_ref::<String>().is_some_and(|value| value == "middle")
+        PropertyValue::Borrowed(value)
+            if value
+                .downcast_ref::<String>()
+                .is_some_and(|value| value == "middle")
     ));
 }
 

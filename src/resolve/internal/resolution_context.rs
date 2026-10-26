@@ -71,6 +71,13 @@ impl<'a> ResolutionContext<'a> {
     }
 
     /// Returns the reflection context retained by this registry.
+    ///
+    /// # Returns
+    ///
+    /// The registry's reflection context, which remains available for the
+    /// lifetime of this resolution context.
+    #[must_use]
+    #[inline]
     pub(in crate::resolve) fn reflection(&self) -> &'a ReflectionContext {
         self.registry
             .context()
@@ -102,7 +109,6 @@ impl<'a> ResolutionContext<'a> {
     /// # Panics
     ///
     /// May panic if the selected registry metadata provider panics.
-    #[must_use = "handle descriptor metadata failures"]
     pub(in crate::resolve) fn metadata_for(
         &self,
         descriptor: TypeDescriptor<'a>,

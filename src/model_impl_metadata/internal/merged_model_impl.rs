@@ -73,7 +73,6 @@ impl MergedModelImpl {
     /// Returns the retained shared diagnostics for incompatible types,
     /// conflicting accessors, or invalid field ownership. Fragments remain
     /// available through [`Self::fragments`] when assembly fails.
-    #[must_use = "handle property assembly failures"]
     #[inline]
     pub(crate) fn try_properties(&self) -> Result<ResolvedProperties, Arc<PropertyBuildErrors>> {
         self.properties.clone()

@@ -71,10 +71,14 @@ mod validate;
 
 mod compiler;
 
+#[cfg(test)]
+mod tests;
+
 mod runtime_path;
 
-use ir::MacroKind;
 use proc_macro::TokenStream;
+
+use crate::ir::MacroKind;
 
 /// Compiles an identity-bearing persistent entity declaration.
 ///

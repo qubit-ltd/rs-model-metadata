@@ -8,10 +8,12 @@
 
 //! Invalid generated property overlays retain ordered, actionable diagnostics.
 
+use std::any::TypeId;
 use std::error::Error;
 
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::v8;
+use qubit_model_metadata::metadata::FieldMetadata;
 use qubit_model_metadata::metadata::GetterMetadata;
 use qubit_model_metadata::metadata::GetterOutputKind;
 use qubit_model_metadata::metadata::PropertyAccessError;
@@ -54,15 +56,16 @@ fn context() -> ReflectionContext {
         .expect("property fixture context")
 }
 
-fn expression(field: &qubit_model_metadata::metadata::FieldMetadata) -> &'static TypeExpressionData {
+fn expression(field: &FieldMetadata) -> &'static TypeExpressionData {
     field.type_expression_data().expect("generated field expression")
 }
 
-fn string_type_id() -> std::any::TypeId {
-    std::any::TypeId::of::<String>()
+fn string_type_id() -> TypeId {
+    TypeId::of::<String>()
 }
-fn u32_type_id() -> std::any::TypeId {
-    std::any::TypeId::of::<u32>()
+
+fn u32_type_id() -> TypeId {
+    TypeId::of::<u32>()
 }
 
 /// A malformed concrete overlay must not turn a fallible Property check into

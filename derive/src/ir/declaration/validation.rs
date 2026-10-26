@@ -8,68 +8,10 @@
 
 //! Selector and validator IR.
 
-use syn::LitStr;
+mod selector_ir;
+mod selector_position_ir;
+mod validator_ir;
 
-use super::CodecIr;
-use super::ConstraintIr;
-use super::RedactIr;
-
-/// Normalized selector declaration and metadata applied to selected values.
-#[derive(Clone)]
-pub(crate) struct SelectorIr {
-    /// Selected sequence or map position.
-    pub(crate) position: SelectorPositionIr,
-    /// Constraints declared for the selected values.
-    pub(crate) constraints: Vec<ConstraintIr>,
-    /// Validators declared for the selected values.
-    pub(crate) validators: Vec<ValidatorIr>,
-    /// Codec declared for the selected values.
-    pub(crate) codec: Option<CodecIr>,
-    /// Redaction declared for the selected values.
-    pub(crate) redact: Option<RedactIr>,
-}
-
-/// Kind of collection position addressed by a selector declaration.
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub(crate) enum SelectorPositionIr {
-    /// Sequence element position.
-    Element,
-    /// Map key position.
-    MapKey,
-    /// Map value position.
-    MapValue,
-}
-
-/// Literal value shape accepted as a validator strategy argument.
-#[derive(Clone)]
-pub(crate) enum StrategyArgumentIr {
-    /// Boolean argument.
-    Bool(bool),
-    /// Signed integer argument.
-    Integer(i128),
-    /// Unsigned integer argument.
-    Unsigned(u128),
-    /// String argument.
-    String(LitStr),
-    /// Boolean list argument.
-    BoolList(Vec<bool>),
-    /// Signed integer list argument.
-    IntegerList(Vec<i128>),
-    /// Unsigned integer list argument.
-    UnsignedList(Vec<u128>),
-    /// String list argument.
-    StringList(Vec<LitStr>),
-}
-
-/// Normalized validator declaration and its bound parameters/dependencies.
-#[derive(Clone)]
-pub(crate) struct ValidatorIr {
-    /// Validator registry identifier.
-    pub(crate) id: LitStr,
-    /// Named validator arguments.
-    pub(crate) params: Vec<(String, StrategyArgumentIr)>,
-    /// Legacy dependency paths.
-    pub(crate) depends_on: Vec<Vec<String>>,
-    /// Named dependency bindings.
-    pub(crate) dependency_bindings: Vec<(String, Vec<String>, Vec<String>)>,
-}
+pub(crate) use selector_ir::SelectorIr;
+pub(crate) use selector_position_ir::SelectorPositionIr;
+pub(crate) use validator_ir::ValidatorIr;

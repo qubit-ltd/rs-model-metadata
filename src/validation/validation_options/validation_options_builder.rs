@@ -50,7 +50,6 @@ impl ValidationOptionsBuilder {
     ///
     /// This builder with the supplied stopping policy.
     #[inline]
-    #[must_use = "use the returned builder"]
     pub fn mode(mut self, mode: ValidationMode) -> Self {
         self.options.mode = mode;
         self
@@ -66,7 +65,6 @@ impl ValidationOptionsBuilder {
     ///
     /// This builder with the supplied occurrence selection.
     #[inline]
-    #[must_use = "use the returned builder"]
     pub fn selection(mut self, selection: ValidationSelection) -> Self {
         self.options.selection = selection;
         self
@@ -82,7 +80,6 @@ impl ValidationOptionsBuilder {
     ///
     /// This builder with the supplied access-depth budget.
     #[inline]
-    #[must_use = "use the returned builder"]
     pub fn max_depth(mut self, value: NonZeroUsize) -> Self {
         self.options.max_depth = value;
         self
@@ -99,7 +96,6 @@ impl ValidationOptionsBuilder {
     ///
     /// This builder with the supplied operation budget.
     #[inline]
-    #[must_use = "use the returned builder"]
     pub fn max_nodes(mut self, value: NonZeroUsize) -> Self {
         self.options.max_nodes = value;
         self
@@ -116,7 +112,6 @@ impl ValidationOptionsBuilder {
     ///
     /// This builder with the supplied retained-failure budget.
     #[inline]
-    #[must_use = "use the returned builder"]
     pub fn max_violations(mut self, value: NonZeroUsize) -> Self {
         self.options.max_violations = value;
         self
@@ -133,7 +128,6 @@ impl ValidationOptionsBuilder {
     ///
     /// This builder with the supplied selector-call budget.
     #[inline]
-    #[must_use = "use the returned builder"]
     pub fn max_comparisons(mut self, value: NonZeroUsize) -> Self {
         self.options.max_comparisons = value;
         self

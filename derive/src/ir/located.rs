@@ -28,7 +28,7 @@ impl<T> Located<T> {
     }
 
     /// Returns the parsed value without changing its source location.
-    #[must_use]
+    #[must_use = "inspect or use the borrowed parsed value"]
     #[inline]
     pub(crate) const fn value(&self) -> &T {
         &self.value

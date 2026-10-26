@@ -17,7 +17,8 @@ use qubit_model_metadata::resolve::StructureResolver;
 
 fn main() {
     let _ = size_of::<MissingTarget>();
-    let registry = ModelRegistry::try_global().expect("a missing reference target must not invalidate registration");
+    let registry = ModelRegistry::try_global()
+        .expect("a missing reference target must not invalidate registration");
     assert!(registry.metadata("test.linked.Absent").is_none());
     assert!(registry.metadata("test.linked.MissingTarget").is_some());
     let errors = StructureResolver::new(ResolveInputs {
@@ -27,6 +28,7 @@ fn main() {
     .resolve()
     .expect_err("the missing reference target must be reported by graph validation");
     assert!(errors.errors().iter().any(|error| {
-        error.kind() == ResolveErrorKind::MissingModelId && error.model_id() == Some("test.linked.Absent")
+        error.kind() == ResolveErrorKind::MissingModelId
+            && error.model_id() == Some("test.linked.Absent")
     }));
 }

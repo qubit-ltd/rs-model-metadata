@@ -13,14 +13,20 @@ use syn::Type;
 
 use super::presence_condition::PresenceCondition;
 
-/// Records the name, method, and input type of one setter.
+/// Stores the validated metadata needed to generate one property setter
+/// adapter.
+///
+/// The property name is canonicalized during validation, while the method
+/// identifier and input type are retained from the source signature.
 pub(in crate::expand::model_impl) struct SetterIr {
-    /// Consumer-evaluated condition under which this method exists.
+    /// Conditional-compilation predicate controlling whether the method exists
+    /// in the consuming crate.
     pub(in crate::expand::model_impl) presence: PresenceCondition,
-    /// Canonical property name.
+    /// Canonical property name used when associating the setter with a
+    /// property.
     pub(in crate::expand::model_impl) property: String,
-    /// Source setter method identifier.
+    /// Identifier of the setter method in the source model.
     pub(in crate::expand::model_impl) method: Ident,
-    /// Setter input type.
+    /// Input type accepted by the setter method.
     pub(in crate::expand::model_impl) input: Type,
 }

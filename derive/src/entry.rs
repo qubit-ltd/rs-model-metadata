@@ -17,6 +17,16 @@ use crate::ir::MacroKind;
 /// `kind` selects the macro contract, while `args` and `input` are its raw
 /// token streams. This conversion never panics for invalid user input; errors
 /// are emitted as compiler diagnostics in the returned token stream.
+///
+/// # Parameters
+///
+/// - `kind` selects the macro contract.
+/// - `args` contains the macro's attribute arguments.
+/// - `input` contains the macro's input tokens.
+///
+/// # Returns
+///
+/// The expanded tokens, or compiler diagnostics when the input is invalid.
 #[must_use]
 pub(crate) fn expand(kind: MacroKind, args: TokenStream, input: TokenStream) -> TokenStream {
     crate::expand::declaration::expand(kind, args.into(), input.into()).into()

@@ -174,7 +174,8 @@ fn test_documented_installation_paths() {
     assert!(
         diagnostic.contains(&expected_missing.display().to_string())
             && (diagnostic.contains("does not exist") || diagnostic.contains("failed to read")),
-        "rs-platform/app failure did not identify its incorrect rs-model-metadata path ({}): {diagnostic}",
+        "rs-platform/app failure did not identify its incorrect rs-model-metadata path \
+         ({}): {diagnostic}",
         expected_missing.display()
     );
 }
@@ -274,7 +275,8 @@ fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str)
         assert!(actual.is_dir(), "checkout root {} exists", actual.display());
         let absolute = actual.to_str().expect("UTF-8 checkout root");
         assert!(!absolute.chars().any(char::is_control), "printable checkout path");
-        dependencies = dependencies.replace(declared, &absolute.replace('\\', "\\\\").replace('"', "\\\""));
+        let escaped = absolute.replace('\\', "\\\\").replace('"', "\\\"");
+        dependencies = dependencies.replace(declared, &escaped);
     }
     // Package/workspace scaffolding is independent of dependency configuration.
     let package = concat!(

@@ -5,6 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+// The filename is part of a Cargo or trybuild fixture protocol.
+
 use qubit_model_derive::Model;
 
 #[Model(eq, no_partial_eq)]

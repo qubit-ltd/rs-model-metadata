@@ -8,7 +8,6 @@
 
 //! Codec declarations without executable codec dependencies.
 
-pub use crate::metadata_vocabulary::CodecMetadata;
-pub use crate::metadata_vocabulary::CodecReference;
-pub use crate::metadata_vocabulary::CodecSource;
-pub use crate::metadata_vocabulary::RustTypeReference;
+pub use super::codec_metadata::CodecMetadata;
+pub use super::codec_reference::CodecReference;
+pub use super::codec_source::CodecSource;

@@ -6,6 +6,9 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+//! Verifies that static model metadata remains isolated across reflection
+//! contexts.
+
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -22,6 +25,8 @@ struct ContextBoundStaticFacts {
     opaque: OpaqueFieldType,
 }
 
+/// Builds a reflection context containing the fixture's registration and field
+/// types.
 fn context() -> ReflectionContext {
     ReflectionContext::builder()
         .include_type::<ContextBoundStaticFacts>()
@@ -34,7 +39,7 @@ fn context() -> ReflectionContext {
 }
 
 #[test]
-fn static_metadata_can_be_reused_with_distinct_context_bound_descriptors() {
+fn test_static_metadata_can_be_reused_with_distinct_context_bound_descriptors() {
     let metadata = TypeMetadata::of::<ContextBoundStaticFacts>();
     let first_context = context();
     let second_context = context();
@@ -47,7 +52,7 @@ fn static_metadata_can_be_reused_with_distinct_context_bound_descriptors() {
 }
 
 #[test]
-fn registry_queries_reuse_static_metadata_without_crossing_contexts() {
+fn test_registry_queries_reuse_static_metadata_without_crossing_contexts() {
     let metadata = TypeMetadata::of::<ContextBoundStaticFacts>();
     let first_context = context();
     let second_context = context();
@@ -73,18 +78,21 @@ fn registry_queries_reuse_static_metadata_without_crossing_contexts() {
 }
 
 #[test]
-fn opaque_field_keeps_static_facts_and_stays_hidden_from_reflect_descriptor() {
+fn test_opaque_field_keeps_static_facts_and_stays_hidden_from_reflect_descriptor() {
     let metadata = TypeMetadata::of::<ContextBoundStaticFacts>();
     let context = context();
     let field = metadata.field("opaque").expect("opaque field metadata");
 
-    assert!(field.is_opaque(), "the M static facts preserve the traversal boundary");
+    assert!(
+        field.is_opaque(),
+        "static metadata preserves the opaque field traversal boundary"
+    );
     assert!(
         TypeDescriptor::of_in::<ContextBoundStaticFacts>(&context)
             .fields()
             .get("opaque")
             .is_none(),
-        "R omits a typed field descriptor when the field is opaque",
+        "reflection omits a typed field descriptor when the field is opaque",
     );
     assert_eq!(
         field

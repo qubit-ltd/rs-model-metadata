@@ -51,31 +51,11 @@ impl ConstraintRuleRef {
 
     /// Returns an ID eligible for registry binding, or `None` for an intrinsic
     /// rule. A returned ID alone does not guarantee that binding succeeds.
-    #[must_use]
     #[inline]
     pub const fn registry_id(self) -> Option<ValidatorId> {
         match self {
             Self::Registry(id) => Some(id),
             Self::ModelIntrinsic(_) => None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use qubit_validator::ValidatorId;
-
-    use super::ConstraintRuleRef;
-
-    #[test]
-    fn test_rule_id_and_registry_eligibility() {
-        let id = ValidatorId::new("qubit.rules.text.non_blank");
-        let registry = ConstraintRuleRef::Registry(id);
-        let intrinsic = ConstraintRuleRef::ModelIntrinsic(id);
-
-        assert_eq!(registry.id(), id);
-        assert_eq!(registry.registry_id(), Some(id));
-        assert_eq!(intrinsic.id(), id);
-        assert_eq!(intrinsic.registry_id(), None);
     }
 }

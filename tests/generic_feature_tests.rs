@@ -14,6 +14,10 @@ use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_reflect::ReflectionContext;
+use qubit_reflect::descriptor::ConstExpression;
+use qubit_reflect::descriptor::GenericExpressionArgumentKind;
+use qubit_reflect::descriptor::LifetimeExpression;
+use qubit_reflect::descriptor::TypeExpressionKind;
 use qubit_reflect::descriptor::Visibility;
 
 #[Model(id = "generic.CacheFixture")]
@@ -47,7 +51,7 @@ struct ConstExpressionFixture<const N: usize> {
 }
 
 #[test]
-fn generic_static_facts_bind_definition_and_symbolic_fields_per_context() {
+fn test_generic_static_facts_bind_definition_and_symbolic_fields_per_context() {
     let metadata = TypeMetadata::of::<VariantFixture<String>>();
     let generic = metadata.generic_definition().expect("generic definition");
     let first = ReflectionContext::builder()
@@ -73,31 +77,26 @@ fn generic_static_facts_bind_definition_and_symbolic_fields_per_context() {
         .expect("symbolic expression in second context");
     assert_eq!(first_expression.display().to_string(), "Vec<Option<T>>");
     assert_eq!(second_expression.display().to_string(), "Vec<Option<T>>");
-    let qubit_reflect::descriptor::TypeExpressionKind::Named(vector) = first_expression.kind() else {
+    let TypeExpressionKind::Named(vector) = first_expression.kind() else {
         panic!("the generic field should retain its outer named type");
     };
-    let qubit_reflect::descriptor::GenericExpressionArgumentKind::Type(option) =
-        vector.arguments().get(0).expect("Vec element type").kind()
+    let GenericExpressionArgumentKind::Type(option) = vector.arguments().get(0).expect("Vec element type").kind()
     else {
         panic!("Vec argument should retain the nested Option type");
     };
-    let qubit_reflect::descriptor::TypeExpressionKind::Named(option) = option.kind() else {
+    let TypeExpressionKind::Named(option) = option.kind() else {
         panic!("Option should remain a named type expression");
     };
-    let qubit_reflect::descriptor::GenericExpressionArgumentKind::Type(parameter) =
-        option.arguments().get(0).expect("Option payload type").kind()
+    let GenericExpressionArgumentKind::Type(parameter) = option.arguments().get(0).expect("Option payload type").kind()
     else {
         panic!("Option argument should retain the generic parameter");
     };
-    assert!(matches!(
-        parameter.kind(),
-        qubit_reflect::descriptor::TypeExpressionKind::ParameterName("T")
-    ));
+    assert!(matches!(parameter.kind(), TypeExpressionKind::ParameterName("T")));
     assert!(core::ptr::eq(parameter.context(), &first));
-    let qubit_reflect::descriptor::TypeExpressionKind::Named(second_vector) = second_expression.kind() else {
+    let TypeExpressionKind::Named(second_vector) = second_expression.kind() else {
         panic!("the second context should retain the outer named type");
     };
-    let qubit_reflect::descriptor::GenericExpressionArgumentKind::Type(second_option) = second_vector
+    let GenericExpressionArgumentKind::Type(second_option) = second_vector
         .arguments()
         .get(0)
         .expect("second Vec element type")
@@ -105,10 +104,10 @@ fn generic_static_facts_bind_definition_and_symbolic_fields_per_context() {
     else {
         panic!("the second context should retain the nested Option type");
     };
-    let qubit_reflect::descriptor::TypeExpressionKind::Named(second_option) = second_option.kind() else {
+    let TypeExpressionKind::Named(second_option) = second_option.kind() else {
         panic!("the second context should retain Option as a named expression");
     };
-    let qubit_reflect::descriptor::GenericExpressionArgumentKind::Type(second_parameter) = second_option
+    let GenericExpressionArgumentKind::Type(second_parameter) = second_option
         .arguments()
         .get(0)
         .expect("second Option payload type")
@@ -118,7 +117,7 @@ fn generic_static_facts_bind_definition_and_symbolic_fields_per_context() {
     };
     assert!(matches!(
         second_parameter.kind(),
-        qubit_reflect::descriptor::TypeExpressionKind::ParameterName("T")
+        TypeExpressionKind::ParameterName("T")
     ));
     assert!(core::ptr::eq(second_parameter.context(), &second));
     assert!(core::ptr::eq(first_expression.context(), &first));
@@ -126,11 +125,7 @@ fn generic_static_facts_bind_definition_and_symbolic_fields_per_context() {
 }
 
 #[test]
-fn associated_type_arguments_preserve_projection_and_context_structure() {
-    use qubit_reflect::descriptor::GenericExpressionArgumentKind;
-    use qubit_reflect::descriptor::LifetimeExpression;
-    use qubit_reflect::descriptor::TypeExpressionKind;
-
+fn test_associated_type_arguments_preserve_projection_and_context_structure() {
     let metadata = TypeMetadata::of::<AssociatedTypeProjection<u8>>();
     let generic = metadata.generic_definition().expect("generic definition");
     let first = ReflectionContext::builder()
@@ -175,9 +170,16 @@ fn associated_type_arguments_preserve_projection_and_context_structure() {
             if let Some(trait_) = associated.trait_() {
                 assert_eq!(trait_.arguments().len(), 1);
                 assert!(matches!(
-                    trait_.arguments().get(0).expect("trait type argument").kind(),
+                    trait_
+                        .arguments()
+                        .get(0)
+                        .expect("trait type argument")
+                        .kind(),
                     GenericExpressionArgumentKind::Type(argument)
-                        if matches!(argument.kind(), TypeExpressionKind::Named(named) if named.path() == "u8")
+                        if matches!(
+                            argument.kind(),
+                            TypeExpressionKind::Named(named) if named.path() == "u8"
+                        )
                 ));
                 assert!(core::ptr::eq(trait_.arguments().context(), context));
             }
@@ -186,7 +188,7 @@ fn associated_type_arguments_preserve_projection_and_context_structure() {
 }
 
 #[test]
-fn generic_array_length_retains_const_parameter_in_each_context() {
+fn test_generic_array_length_retains_const_parameter_in_each_context() {
     let metadata = TypeMetadata::of::<ConstExpressionFixture<4>>();
     let generic = metadata.generic_definition().expect("generic definition");
     let first = ReflectionContext::builder()
@@ -201,10 +203,10 @@ fn generic_array_length_retains_const_parameter_in_each_context() {
 
     for context in [&first, &second] {
         let expression = field.type_expression_in(context).expect("generic array expression");
-        let qubit_reflect::descriptor::TypeExpressionKind::Array { element, length } = expression.kind() else {
+        let TypeExpressionKind::Array { element, length } = expression.kind() else {
             panic!("generic field should retain its array structure");
         };
-        assert_eq!(length, qubit_reflect::descriptor::ConstExpression::Parameter("N"));
+        assert_eq!(length, ConstExpression::Parameter("N"));
         assert!(core::ptr::eq(element.context(), context));
     }
 }

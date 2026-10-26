@@ -13,7 +13,9 @@ use crate::metadata::ModelImplMetadata;
 
 #[test]
 fn test_generated_impl_metadata_retains_empty_local_view() {
-    let generated = ModelImplMetadata::new(&[], Ok(Box::leak(Box::new(LocalPropertySet::new(&[])))));
+    static EMPTY_LOCAL_PROPERTY_SET: LocalPropertySet = LocalPropertySet::new(&[]);
+
+    let generated = ModelImplMetadata::new(&[], Ok(&EMPTY_LOCAL_PROPERTY_SET));
     assert!(
         generated.fragments().is_empty(),
         "generated metadata should have no fragments"

@@ -49,6 +49,7 @@ impl SequenceConstraint {
     ///
     /// Panics when the supplied minimum item count exceeds the maximum.
     #[must_use]
+    #[inline]
     pub const fn new(min_items: Option<usize>, max_items: Option<usize>, unique_items: bool) -> Self {
         if let (Some(min_items), Some(max_items)) = (min_items, max_items) {
             assert!(
@@ -64,27 +65,11 @@ impl SequenceConstraint {
         }
     }
 
-    /// Attaches non-recursive element semantics.
-    ///
-    /// # Parameters
-    ///
-    /// * `element` - The selector metadata describing the sequence element.
-    ///
-    /// # Returns
-    ///
-    /// The updated constraints, with the supplied element semantics attached.
-    #[must_use]
-    pub const fn with_element(mut self, element: &'static crate::metadata::SelectorMetadata) -> Self {
-        self.element = Some(element);
-        self
-    }
-
     /// Returns the minimum number of items, if constrained.
     ///
     /// # Returns
     ///
     /// `Some` with the minimum item count when constrained; otherwise, `None`.
-    #[must_use]
     #[inline]
     pub const fn min_items(&self) -> Option<usize> {
         self.min_items
@@ -95,7 +80,6 @@ impl SequenceConstraint {
     /// # Returns
     ///
     /// `Some` with the maximum item count when constrained; otherwise, `None`.
-    #[must_use]
     #[inline]
     pub const fn max_items(&self) -> Option<usize> {
         self.max_items
@@ -118,9 +102,24 @@ impl SequenceConstraint {
     ///
     /// `Some` with the declared selector metadata; otherwise, `None` when no
     /// element semantics are attached.
-    #[must_use]
     #[inline]
     pub const fn element(&self) -> Option<&'static crate::metadata::SelectorMetadata> {
         self.element
+    }
+
+    /// Attaches non-recursive element semantics.
+    ///
+    /// # Parameters
+    ///
+    /// * `element` - The selector metadata describing the sequence element.
+    ///
+    /// # Returns
+    ///
+    /// The updated constraints, with the supplied element semantics attached.
+    #[must_use]
+    #[inline]
+    pub const fn with_element(mut self, element: &'static crate::metadata::SelectorMetadata) -> Self {
+        self.element = Some(element);
+        self
     }
 }

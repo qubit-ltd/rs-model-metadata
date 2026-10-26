@@ -8,6 +8,11 @@
 
 //! Integration tests for stable model identifiers.
 
+use std::collections::HashMap;
+
+use qubit_model_id::ModelId as StandaloneModelId;
+use qubit_model_id::ModelIdBuf as StandaloneModelIdBuf;
+use qubit_model_id::ModelIdError as StandaloneModelIdError;
 use qubit_model_metadata::metadata::ModelId;
 use qubit_model_metadata::metadata::ModelIdBuf;
 use qubit_model_metadata::metadata::ModelIdError;
@@ -19,9 +24,9 @@ const CONST_CHECKED: Result<ModelId, ModelIdError> = ModelId::try_new("Single_se
 
 #[test]
 fn test_metadata_reexports_standalone_model_id_type() {
-    let standalone: qubit_model_id::ModelId = STATIC_MODEL_ID;
-    let owned: qubit_model_id::ModelIdBuf = ModelIdBuf::from(standalone);
-    let error: qubit_model_id::ModelIdError = ModelId::validate("").expect_err("empty ID");
+    let standalone: StandaloneModelId = STATIC_MODEL_ID;
+    let owned: StandaloneModelIdBuf = ModelIdBuf::from(standalone);
+    let error: StandaloneModelIdError = ModelId::validate("").expect_err("empty ID");
     assert_eq!(owned.as_str(), "qubit.platform.iam.User");
     assert_eq!(error, ModelIdError::Empty);
 }
@@ -48,7 +53,7 @@ fn test_model_id_uses_one_shared_ascii_segment_grammar() {
 /// Static IDs can index a registry queried by an unallocated string slice.
 #[test]
 fn test_static_model_id_borrowed_registry_lookup() {
-    let entries = std::collections::HashMap::from([(STATIC_MODEL_ID, "user metadata")]);
+    let entries = HashMap::from([(STATIC_MODEL_ID, "user metadata")]);
     assert_eq!(entries.get("qubit.platform.iam.User"), Some(&"user metadata"));
     assert_eq!(entries.get("qubit.platform.iam.user"), None);
 }

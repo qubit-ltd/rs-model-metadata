@@ -5,7 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use qubit_model_derive::{Enum, Model, Value};
+use qubit_model_derive::Enum;
+use qubit_model_derive::Model;
+use qubit_model_derive::Value;
 
 #[Value(no_eq)]
 struct ValueWithoutEquality {

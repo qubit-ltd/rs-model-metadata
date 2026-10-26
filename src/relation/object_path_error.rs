@@ -10,7 +10,8 @@
 
 use thiserror::Error;
 
-/// A property step contains an empty or ambiguous name.
+/// A property step contains a name that is empty or invalid for object
+/// navigation because it contains `.` or `/`, or any whitespace.
 ///
 /// # Examples
 ///

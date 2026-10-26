@@ -155,7 +155,11 @@ fn test_generic_model_capabilities_preserve_providers_and_registration_sources()
         assert_eq!(capability_source.column, None);
     }
 
-    let first_source = models.source("example.FirstGeneric").unwrap();
-    let second_source = models.source("example.SecondGeneric").unwrap();
+    let first_source = models
+        .source("example.FirstGeneric")
+        .expect("first generic model must have a registration source");
+    let second_source = models
+        .source("example.SecondGeneric")
+        .expect("second generic model must have a registration source");
     assert_ne!(first_source, second_source);
 }

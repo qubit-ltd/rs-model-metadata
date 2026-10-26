@@ -25,6 +25,7 @@ use qubit_validator::ViolationCode;
 use qubit_validator::ViolationParam;
 
 use super::ValidationPlan;
+use super::internal::selection_mask::SelectionMask;
 use crate::metadata::OnNone;
 use crate::metadata::PropertyBorrowed;
 use crate::metadata::PropertyOwned;
@@ -47,87 +48,6 @@ use crate::validation::standard_constraints::StandardTarget;
 use crate::validation::validation_options::FieldPath;
 use crate::validation::validation_options::ValidationSelection;
 
-/// Tracks which planned rule occurrences are selected and whether later work
-/// remains.
-enum SelectionMask {
-    /// Represents an all-fields selection without allocating per-occurrence
-    /// entries.
-    All {
-        /// Number of planned occurrences represented by this mask.
-        total: usize,
-    },
-    /// Stores selection and path state for each planned occurrence.
-    Fields(Vec<SelectionEntry>),
-}
-
-/// Selection state associated with one model or field rule occurrence.
-struct SelectionEntry {
-    /// Whether the caller selected this occurrence.
-    selected: bool,
-    /// Whether a later occurrence is selected, for report stop-policy
-    /// decisions.
-    later_selected: bool,
-    /// Cached field path, consumed when the occurrence is executed.
-    field_path: Option<ValidationPath>,
-}
-
-impl SelectionMask {
-    /// Builds occurrence state from the caller's selection and compiled
-    /// bindings.
-    fn new(selection: &ValidationSelection, model_rule_count: usize, bindings: &[FieldRuleBinding]) -> Self {
-        let total = model_rule_count + bindings.len();
-        if matches!(selection, ValidationSelection::All) {
-            return Self::All { total };
-        }
-        let model_path = ValidationPath::root();
-        let mut entries = Vec::with_capacity(total);
-        entries.extend((0..model_rule_count).map(|_| SelectionEntry {
-            selected: selected(selection, &model_path),
-            later_selected: false,
-            field_path: None,
-        }));
-        for binding in bindings {
-            let path = path_for(binding.value());
-            let is_selected = selected(selection, &path);
-            entries.push(SelectionEntry {
-                selected: is_selected,
-                later_selected: false,
-                field_path: is_selected.then_some(path),
-            });
-        }
-        let mut later = false;
-        for entry in entries.iter_mut().rev() {
-            entry.later_selected = later;
-            later |= entry.selected;
-        }
-        Self::Fields(entries)
-    }
-
-    /// Returns whether the indexed occurrence is selected.
-    fn selected(&self, index: usize) -> bool {
-        match self {
-            Self::All { total } => index < *total,
-            Self::Fields(entries) => entries[index].selected,
-        }
-    }
-
-    /// Returns whether any occurrence after the indexed one is selected.
-    fn later_selected(&self, index: usize) -> bool {
-        match self {
-            Self::All { total } => index + 1 < *total,
-            Self::Fields(entries) => entries[index].later_selected,
-        }
-    }
-
-    /// Takes the cached field path for an occurrence, if it has one.
-    fn take_field_path(&mut self, index: usize) -> Option<ValidationPath> {
-        match self {
-            Self::All { .. } => None,
-            Self::Fields(entries) => entries[index].field_path.take(),
-        }
-    }
-}
-
 impl<'a> ValidationPlan<'a> {
     /// Executes selected occurrences under one stopping policy and work budget.
     ///
@@ -146,6 +66,7 @@ impl<'a> ValidationPlan<'a> {
     /// Returns the original infrastructure failure and the partial report.
     /// The borrowed root must preserve its concrete `Any` view for typed
     /// validators; otherwise execution reports an adapter contract violation.
+    #[inline]
     pub fn validate<T: ValueForRef<Local> + std::any::Any>(
         &self,
         value: &T,
@@ -162,11 +83,17 @@ impl<'a> ValidationPlan<'a> {
     /// * `options` - Selection, stopping policy and execution budgets for this
     ///   validation call.
     ///
+    /// # Returns
+    ///
+    /// A report containing the selected rule outcomes, or the infrastructure
+    /// error together with the partial report.
+    ///
     /// # Errors
     /// Returns the original infrastructure failure and the partial report.
     /// Non-text typed validation requires a dynamic borrow that preserves its
     /// concrete `Any` view; a view without one produces an adapter contract
     /// violation.
+    #[inline]
     pub fn validate_dynamic(
         &self,
         value: PropertyBorrowed<'_>,
@@ -196,6 +123,7 @@ impl<'a> ValidationPlan<'a> {
     /// Non-text typed validation requires a dynamic borrow that preserves its
     /// concrete `Any` view; a view without one produces an adapter contract
     /// violation.
+    #[inline]
     pub fn validate_with_context<'value, T: ValueForRef<Local> + std::any::Any>(
         &self,
         value: &'value T,
@@ -205,6 +133,27 @@ impl<'a> ValidationPlan<'a> {
         self.validate_dynamic_with_context(PropertyBorrowed::new_any(value), ancestors, options)
     }
 
+    /// Executes a dynamic root value against the selected rules and shared
+    /// execution budget.
+    ///
+    /// The public `validate_dynamic` and `validate_with_context` flows provide
+    /// the root and ancestor borrows accepted here.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Dynamic borrow of the root instance described by this plan.
+    /// * `ancestors` - Containing objects ordered from nearest parent outward.
+    /// * `options` - Selection, stopping policy, and execution budgets.
+    ///
+    /// # Returns
+    ///
+    /// A report of selected outcomes, or an error retaining the partial report.
+    ///
+    /// # Errors
+    ///
+    /// Returns an input type or selection error, a typed execution failure, or
+    /// a traversal-limit error. Typed validation also requires the dynamic
+    /// borrow to preserve its concrete `Any` view.
     fn validate_dynamic_with_context<'value>(
         &self,
         value: PropertyBorrowed<'value>,
@@ -298,6 +247,11 @@ impl<'a> ValidationPlan<'a> {
 /// Model-level occurrences match the empty path. A field selection must not
 /// silently succeed when it is empty or names an existing field without a
 /// validation rule.
+///
+/// # Returns
+///
+/// The first unmatched field path, or `None` when every requested path has a
+/// corresponding model or field rule.
 fn unmatched_selection(
     selection: &ValidationSelection,
     model_rule_count: usize,
@@ -322,6 +276,10 @@ fn unmatched_selection(
 }
 
 /// Reads a value before its dependencies and executes one compiled field rule.
+///
+/// Returns `Ok(())` when the field has no runtime value or its outcome is
+/// accepted. Read, budget, validator, and report failures retain their field
+/// and dependency context in `ExecutionFailure`.
 #[allow(clippy::too_many_arguments)]
 fn execute_field<'value>(
     binding: &FieldRuleBinding,
@@ -412,6 +370,37 @@ fn execute_field<'value>(
         )
         .map_err(Into::into);
     }
+    execute_registry_field(
+        binding,
+        occurrence,
+        value,
+        projected_scalar,
+        path,
+        root,
+        ancestors,
+        graph,
+        budget,
+        report,
+        has_more_work,
+    )
+}
+
+/// Resolves registry dependencies, builds validator input, and records its
+/// outcome.
+#[allow(clippy::too_many_arguments)]
+fn execute_registry_field<'value>(
+    binding: &FieldRuleBinding,
+    occurrence: usize,
+    value: PropertyValue<'_>,
+    projected_scalar: Option<Option<PropertyBorrowed<'value>>>,
+    path: ValidationPath,
+    root: PropertyBorrowed<'value>,
+    ancestors: &[PropertyBorrowed<'value>],
+    graph: &ModelGraph<'_>,
+    budget: &mut ExecutionBudget<'_>,
+    report: &mut ReportAccumulator<'_>,
+    has_more_work: bool,
+) -> Result<(), ExecutionFailure> {
     let FieldExecution::Registry {
         validator,
         target,
@@ -650,6 +639,9 @@ fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionErro
 }
 
 /// Converts a reflected borrow into the validator input abstraction.
+///
+/// Strings become text inputs; other values require a dynamic view that
+/// exposes the concrete value through `Any`.
 fn reflected_value<'a>(value: &'a PropertyBorrowed<'_>) -> Result<ValidationValue<'a>, ExecutionError> {
     if let Some(text) = value.downcast_ref::<String>() {
         return Ok(ValidationValue::Text(text.as_str()));
@@ -664,6 +656,9 @@ fn reflected_value<'a>(value: &'a PropertyBorrowed<'_>) -> Result<ValidationValu
 }
 
 /// Converts a property adapter result into a validator input abstraction.
+///
+/// Borrowed and owned values use the same text-versus-typed conversion. An
+/// absent optional value or a borrowed slice becomes `Missing`.
 fn property_value<'a>(value: &'a PropertyValue<'_>) -> Result<ValidationValue<'a>, ExecutionError> {
     match value {
         PropertyValue::Borrowed(value) => reflected_value(value),
@@ -675,7 +670,7 @@ fn property_value<'a>(value: &'a PropertyValue<'_>) -> Result<ValidationValue<'a
 }
 
 /// Borrows the contained scalar from a reflected, field-backed `Option<T>`.
-/// The outer `None` indicates an unexpected adapter shape; the inner `None`
+/// A non-borrowed adapter shape returns `PropertyTypeMismatch`; `Ok(None)`
 /// means the optional field is absent. No value is cloned or formatted.
 fn optional_scalar_value<'a>(
     value: &PropertyValue<'a>,
@@ -698,6 +693,9 @@ fn optional_scalar_value<'a>(
 }
 
 /// Converts an owned reflected value into a validator input abstraction.
+///
+/// Owned strings become text inputs; other values remain typed borrows from
+/// the owner and are not cloned.
 fn owned_value<'a>(value: &'a PropertyOwned) -> Result<ValidationValue<'a>, ExecutionError> {
     if let Some(text) = value.downcast_ref::<String>() {
         return Ok(ValidationValue::Text(text.as_str()));
@@ -705,16 +703,18 @@ fn owned_value<'a>(value: &'a PropertyOwned) -> Result<ValidationValue<'a>, Exec
     Ok(ValidationValue::Typed(value.as_any()))
 }
 
-/// Reports whether a validation path is selected by the caller.
-fn selected(selection: &ValidationSelection, path: &ValidationPath) -> bool {
-    match selection {
-        ValidationSelection::All => true,
-        ValidationSelection::Fields(fields) => fields.iter().any(|field| field_matches(field, path)),
-    }
-}
-
 /// Matches the complete field-name sequence, ignoring collection indices.
-fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
+///
+/// # Parameters
+///
+/// * `field` - Requested field path containing field names only.
+/// * `path` - Compiled rule path, which may also contain collection indices.
+///
+/// # Returns
+///
+/// `true` when the field names match after collection indices are ignored.
+#[must_use]
+pub(super) fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
     field
         .segments()
         .iter()
@@ -779,8 +779,8 @@ mod any_view_tests {
 mod tests {
     use qubit_validator::ValidationPath;
 
-    use super::SelectionMask;
     use super::field_matches;
+    use super::internal::selection_mask::SelectionMask;
     use crate::validation::validation_options::FieldPath;
     use crate::validation::validation_options::ValidationSelection;
 

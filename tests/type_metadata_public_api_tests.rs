@@ -11,6 +11,7 @@
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::ModelRole;
 use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
 use qubit_reflect::ReflectionContext;
 
 #[Model]
@@ -111,8 +112,7 @@ fn test_reflect_only_types_do_not_acquire_model_metadata() {
         .build()
         .expect("string context");
     let descriptor = context.type_of::<String>();
-    let registry =
-        qubit_model_metadata::registry::ModelRegistry::from_context(&context).expect("model registry must initialize");
+    let registry = ModelRegistry::from_context(&context).expect("model registry must initialize");
     assert!(
         registry
             .metadata_for(&descriptor)

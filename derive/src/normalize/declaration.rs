@@ -93,6 +93,10 @@ pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
 
 /// Validates normalized role, field, capability, and ordering invariants.
 ///
+/// # Returns
+///
+/// Returns `Ok(())` when every declaration invariant holds.
+///
 /// # Errors
 ///
 /// Returns the combined role, field, capability, and ordering violations.
@@ -569,8 +573,17 @@ mod tests {
         let fake_option: Type = parse_quote!(domain::Option<String>);
         let standard: Type = parse_quote!(core::option::Option<std::string::String>);
 
-        assert!(!is_text_type(&fake_string));
-        assert!(!is_text_type(&fake_option));
-        assert!(is_text_type(&standard));
+        assert!(
+            !is_text_type(&fake_string),
+            "a domain::String lookalike must not be treated as text"
+        );
+        assert!(
+            !is_text_type(&fake_option),
+            "a domain::Option lookalike must not be treated as optional text"
+        );
+        assert!(
+            is_text_type(&standard),
+            "the canonical standard Option<String> path must be treated as text"
+        );
     }
 }

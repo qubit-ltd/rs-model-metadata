@@ -11,10 +11,16 @@
 mod error;
 mod graph;
 mod internal;
+mod model_resolution_cause;
 mod queries;
 mod reference_selection_ext;
 mod relations;
+mod resolve_error;
+mod resolve_error_kind;
+mod resolve_errors;
+mod resolve_inputs;
 mod resolver;
+mod structure_resolver;
 #[cfg(test)]
 mod tests;
 
@@ -31,5 +37,5 @@ pub use graph::ResolvedDependency;
 pub use graph::ResolvedProjectionProducer;
 pub use graph::ResolvedProjectionSource;
 pub use graph::ResolvedReference;
-pub use resolver::ResolveInputs;
+pub use resolve_inputs::ResolveInputs;
 pub use resolver::StructureResolver;

@@ -90,6 +90,7 @@ impl GenericModelMetadata {
     /// # Returns
     ///
     /// Immutable metadata borrowing the supplied process-lifetime descriptors.
+    #[must_use]
     #[inline]
     pub(crate) const fn new(
         model_id: Option<ModelId>,
@@ -113,7 +114,6 @@ impl GenericModelMetadata {
     ///
     /// `Some` identifies a named definition; `None` denotes an anonymous
     /// definition that remains queryable by its reflection definition identity.
-    #[must_use = "the stable model ID identifies the registered generic definition"]
     #[inline]
     pub const fn model_id(&self) -> Option<ModelId> {
         self.model_id
@@ -124,6 +124,7 @@ impl GenericModelMetadata {
     /// # Returns
     ///
     /// The role shared by all concrete specializations of this template.
+    #[must_use]
     #[inline]
     pub const fn role(&self) -> ModelRole {
         self.role
@@ -134,6 +135,11 @@ impl GenericModelMetadata {
     /// # Returns
     ///
     /// The descriptor bound to `context`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LookupError`] when the context cannot resolve this generic
+    /// definition path.
     #[inline]
     pub fn definition_in<'ctx>(
         &self,
@@ -144,6 +150,7 @@ impl GenericModelMetadata {
 
     /// Returns the source path used to identify this generic definition.
     #[must_use]
+    #[inline]
     pub const fn definition_path(&self) -> &'static str {
         self.definition_path
     }

@@ -42,6 +42,11 @@ impl EnumMetadata {
     ///
     /// The slice is retained without copying and must list variants in
     /// declaration order.
+    ///
+    /// # Parameters
+    ///
+    /// * `variants` - Static metadata for the enum's variants in declaration
+    ///   order.
     #[must_use]
     #[inline]
     pub(crate) const fn new(variants: &'static [EnumVariantMetadata]) -> Self {
@@ -68,7 +73,6 @@ impl EnumMetadata {
     /// # Returns
     ///
     /// The matching variant, or `None` when no canonical name matches.
-    #[must_use]
     pub fn variant(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
         self.variants.iter().find(|variant| variant.canonical_name() == name)
     }
@@ -82,7 +86,6 @@ impl EnumMetadata {
     /// # Returns
     ///
     /// The matching variant, or `None` when no Rust identifier matches.
-    #[must_use]
     pub fn variant_by_rust_name(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
         self.variants.iter().find(|variant| variant.rust_name() == name)
     }
@@ -96,7 +99,6 @@ impl EnumMetadata {
     /// # Returns
     ///
     /// The matching variant, or `None` when no serialization name matches.
-    #[must_use]
     pub fn variant_by_serialized_name(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
         self.variants.iter().find(|variant| variant.serialized_name() == name)
     }

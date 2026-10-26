@@ -15,8 +15,12 @@
 /// ```
 /// use qubit_model_metadata::metadata::PropertyBuildErrorKind;
 ///
-/// let kind = PropertyBuildErrorKind::MissingSource;
-/// assert_eq!(kind, PropertyBuildErrorKind::MissingSource);
+/// let action = match PropertyBuildErrorKind::MissingSource {
+///     PropertyBuildErrorKind::MissingSource => "add a property source",
+///     PropertyBuildErrorKind::InvalidName => "choose a unique property name",
+///     _ => "inspect the property metadata",
+/// };
+/// assert_eq!(action, "add a property source");
 /// ```
 #[must_use]
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

@@ -8,6 +8,8 @@
 
 //! Boundary coverage for model-owned reflection code generation.
 
+use core::any::TypeId;
+
 use model_runtime::__private::DynamicMut;
 use model_runtime::__private::DynamicOwned;
 use model_runtime::__private::DynamicRef;
@@ -38,16 +40,16 @@ impl CodegenBoundaryProperties {
         &self.name
     }
 
-    pub fn set_name(&mut self, value: String) {
-        self.name = value;
-    }
-
     pub fn alias(&self) -> Option<&String> {
         self.alias.as_ref()
     }
 
     pub fn tags(&self) -> &[String] {
         &self.tags
+    }
+
+    pub fn set_name(&mut self, value: String) {
+        self.name = value;
     }
 }
 
@@ -71,7 +73,7 @@ fn test_generic_model_registration_preserves_definition_identity_and_source() {
     let definition = generic.definition_in(&context).expect("definition binds in context");
     assert_eq!(definition.generics().parameters().len(), 1);
     let concrete = context
-        .find_type_by_id(core::any::TypeId::of::<CodegenBoundaryGeneric<u8>>())
+        .find_type_by_id(TypeId::of::<CodegenBoundaryGeneric<u8>>())
         .expect("type lookup must succeed")
         .expect("concrete generic instance must be in context");
     assert_eq!(

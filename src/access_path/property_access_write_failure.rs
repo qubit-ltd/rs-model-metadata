@@ -16,6 +16,25 @@ use crate::metadata::PropertyOwned;
 use crate::metadata::PropertySetFailure;
 
 /// A path write failure that preserves any replacement still owned by caller.
+///
+/// # Examples
+///
+/// A write failure is returned as `Err` by
+/// [`PropertyAccessPath::set_dynamic`](super::PropertyAccessPath::set_dynamic).
+/// The caller can inspect the stage at which the write failed:
+///
+/// ```
+/// use qubit_model_metadata::PropertyAccessWriteFailure;
+///
+/// fn report_failure(failure: &PropertyAccessWriteFailure) {
+///     if let Some(path_error) = failure.path_error() {
+///         eprintln!("path traversal failed: {path_error}");
+///     }
+///     if let Some(property_failure) = failure.property_failure() {
+///         eprintln!("leaf property write failed: {property_failure}");
+///     }
+/// }
+/// ```
 #[must_use]
 pub enum PropertyAccessWriteFailure {
     /// Path validation or intermediate access failed before leaf mutation.
@@ -40,6 +59,7 @@ impl PropertyAccessWriteFailure {
     /// # Returns
     ///
     /// A failure that retains the replacement for recovery.
+    #[inline]
     pub(crate) fn before_path(error: PropertyAccessPathError, replacement: PropertyOwned) -> Self {
         Self::Path {
             error,
@@ -56,6 +76,7 @@ impl PropertyAccessWriteFailure {
     /// # Returns
     ///
     /// The failure with the original error and replacement recovery semantics.
+    #[inline]
     pub(crate) const fn from_property_set(failure: PropertySetFailure) -> Self {
         Self::Property(failure)
     }
@@ -66,7 +87,6 @@ impl PropertyAccessWriteFailure {
     ///
     /// The untouched replacement for pre-execution failures, or `None` when
     /// the setter consumed it.
-    #[must_use]
     #[inline]
     pub fn replacement(&self) -> Option<&PropertyOwned> {
         match self {
@@ -76,7 +96,7 @@ impl PropertyAccessWriteFailure {
     }
 
     /// Returns the path error when traversal failed before reaching the leaf.
-    #[must_use]
+    #[must_use = "inspect the path failure before discarding it"]
     #[inline]
     pub const fn path_error(&self) -> Option<&PropertyAccessPathError> {
         match self {
@@ -86,7 +106,7 @@ impl PropertyAccessWriteFailure {
     }
 
     /// Returns the leaf property failure when its setter was invoked.
-    #[must_use]
+    #[must_use = "inspect the property failure before discarding it"]
     #[inline]
     pub const fn property_failure(&self) -> Option<&PropertySetFailure> {
         match self {

@@ -417,7 +417,6 @@ fn enum_ordering_prefix(item: &DeriveInput, trait_name: &str) -> TokenStream {
 /// `Some` with nonrecursive child types borrowed from `ty` when a recursive
 /// occurrence is removed; otherwise `None` when no recursive occurrence is
 /// found.
-#[must_use]
 pub(super) fn recursive_bounds<'a>(ty: &'a Type, recursive_type: &str) -> Option<Vec<&'a Type>> {
     let rendered = ty.to_token_stream().to_string();
     if rendered == recursive_type || rendered == "Self" {

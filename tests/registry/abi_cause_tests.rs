@@ -26,6 +26,7 @@ struct Invalid {
 }
 
 /// Omits the required field overlay to violate the checked ABI.
+#[must_use]
 fn invalid_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {

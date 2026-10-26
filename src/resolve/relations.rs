@@ -12,6 +12,9 @@ use std::any::TypeId;
 use std::collections::HashSet;
 
 use qubit_reflect::TypeDescriptor;
+use qubit_reflect::descriptor::GenericExpressionArgumentKind;
+use qubit_reflect::descriptor::TypeExpression;
+use qubit_reflect::descriptor::TypeExpressionKind;
 use qubit_reflect::descriptor::TypeKind;
 
 use super::error::ModelResolutionCause;
@@ -306,6 +309,8 @@ fn validate_nested_value(
 ///
 /// # Parameters
 ///
+/// - `owner`: Model metadata that declares the field and provides its runtime
+///   descriptor.
 /// - `field`: Field whose type closure and declaration are checked.
 /// - `root`: Original value model owning the closure check.
 /// - `path`: Property names from the root to this field.
@@ -369,10 +374,22 @@ fn validate_value_field(
     closed
 }
 
-fn self_recursive_expression(expression: qubit_reflect::descriptor::TypeExpression<'_>) -> bool {
-    use qubit_reflect::descriptor::GenericExpressionArgumentKind;
-    use qubit_reflect::descriptor::TypeExpressionKind;
-
+/// Determines whether a field expression refers back to its containing type
+/// through a supported value container.
+///
+/// References hidden behind unsupported containers are not treated as a
+/// self-recursive value expression.
+///
+/// # Parameters
+///
+/// - `expression`: Type expression inspected for a direct or container-wrapped
+///   `Self` reference.
+///
+/// # Returns
+///
+/// `true` when the expression is `Self` or a supported container containing
+/// only a self-recursive type argument, or `false` otherwise.
+fn self_recursive_expression(expression: TypeExpression<'_>) -> bool {
     match expression.kind() {
         TypeExpressionKind::SelfType => true,
         TypeExpressionKind::Named(named) => {

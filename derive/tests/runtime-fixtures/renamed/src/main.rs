@@ -42,16 +42,16 @@ impl RenamedProperties {
         &self.name
     }
 
-    pub fn set_name(&mut self, value: String) {
-        self.name = value;
-    }
-
     pub fn alias(&self) -> Option<&String> {
         self.alias.as_ref()
     }
 
     pub fn tags(&self) -> &[String] {
         &self.tags
+    }
+
+    pub fn set_name(&mut self, value: String) {
+        self.name = value;
     }
 }
 

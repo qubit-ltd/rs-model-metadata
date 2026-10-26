@@ -18,83 +18,45 @@ use std::sync::Arc;
 
 use qubit_reflect::context::ReflectionContextId;
 
+#[path = "path_cache_key.rs"]
+mod path_cache_key;
+#[path = "path_cache/internal/cache_entry.rs"]
+mod internal;
+
+pub(super) use self::path_cache_key::PathCacheKey;
+use self::internal::CacheEntry;
+
 /// Maximum number of successful compiled paths retained by one registry.
 const CACHE_CAPACITY: usize = 256;
 
-/// Distinguishes root metadata allocations, path segments, and access modes.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub(super) struct PathCacheKey {
-    context_id: ReflectionContextId,
-    type_id: TypeId,
-    metadata_address: usize,
-    segments: Vec<String>,
-    write: bool,
-}
-
-impl PathCacheKey {
-    /// Copies the path inputs into a key for this registry's cache.
-    pub(super) fn new(
-        context_id: ReflectionContextId,
-        type_id: TypeId,
-        metadata_address: usize,
-        segments: &[&str],
-        write: bool,
-    ) -> Self {
-        Self {
-            context_id,
-            type_id,
-            metadata_address,
-            segments: segments.iter().map(|segment| (*segment).to_owned()).collect(),
-            write,
-        }
-    }
-
-    /// Compares an owned key against caller-borrowed path segments.
-    fn matches_borrowed(
-        &self,
-        context_id: ReflectionContextId,
-        type_id: TypeId,
-        metadata_address: usize,
-        segments: &[&str],
-        write: bool,
-    ) -> bool {
-        self.context_id == context_id
-            && self.type_id == type_id
-            && self.metadata_address == metadata_address
-            && self.write == write
-            && self.segments.len() == segments.len()
-            && self
-                .segments
-                .iter()
-                .zip(segments)
-                .all(|(owned, borrowed)| owned == borrowed)
-    }
-}
-
-/// One full key and its compiled path inside a hash bucket.
-struct CacheEntry<T> {
-    key: PathCacheKey,
-    compiled: Arc<T>,
-    last_access: u64,
-}
-
 /// Stores successful paths and evicts the least recently used entry.
+///
+/// # Type Parameters
+///
+/// - `T`: the compiled property-path value shared by successful lookups.
 pub(super) struct PathCache<T> {
+    /// Randomized hasher used to distribute path identities across buckets.
     hash_builder: RandomState,
+    /// Hash buckets containing full keys to resolve collisions exactly.
     entries: HashMap<u64, Vec<CacheEntry<T>>>,
+    /// Number of retained successful paths across all buckets.
     len: usize,
+    /// Next monotonically increasing access stamp for recency tracking.
     next_access: u64,
+    /// Optional deterministic hash override used only by collision tests.
     #[cfg(test)]
     forced_hash: Option<u64>,
 }
 
 impl<T> std::fmt::Debug for PathCache<T> {
+    /// Formats the cache using its retained entry count without exposing keys.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.debug_struct("PathCache").field("len", &self.len).finish()
     }
 }
 
 impl<T> Default for PathCache<T> {
+    /// Creates an empty cache with a fresh randomized hash builder.
     fn default() -> Self {
         Self {
             hash_builder: RandomState::new(),
@@ -138,6 +100,7 @@ impl<T> PathCache<T> {
     }
 
     /// Hashes borrowed fields in the same order as their owned counterpart.
+    #[must_use]
     fn hash_borrowed(
         &self,
         context_id: ReflectionContextId,
@@ -163,6 +126,7 @@ impl<T> PathCache<T> {
     }
 
     /// Hashes an owned key without allocating borrowed segment storage.
+    #[must_use]
     fn hash_owned(&self, key: &PathCacheKey) -> u64 {
         #[cfg(test)]
         if let Some(hash) = self.forced_hash {
@@ -259,6 +223,7 @@ impl<T> PathCache<T> {
 
     /// Returns the count of retained successes for the capacity regression.
     #[cfg(test)]
+    #[must_use]
     fn len(&self) -> usize {
         self.len
     }
@@ -287,7 +252,10 @@ mod tests {
     #[test]
     fn test_context_is_part_of_path_cache_identity() {
         let first_context = test_context_id();
-        let second_context = ReflectionContext::builder().build().expect("second empty context").id();
+        let second_context = ReflectionContext::builder()
+            .build()
+            .expect("second empty context")
+            .id();
         let mut cache = PathCache::default();
         let key = PathCacheKey::new(first_context, TypeId::of::<usize>(), 1, &["value"], false);
         cache.insert_or_existing(key, Arc::new(42));
@@ -334,7 +302,13 @@ mod tests {
     #[test]
     fn test_path_cache_duplicate_insert_keeps_existing_value() {
         let mut cache = PathCache::default();
-        let key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 7, &["middle", "leaf"], false);
+        let key = PathCacheKey::new(
+            test_context_id(),
+            TypeId::of::<usize>(),
+            7,
+            &["middle", "leaf"],
+            false,
+        );
         let first = cache.insert_or_existing(key.clone(), Arc::new(42));
         let competing = Arc::new(99);
 
@@ -401,15 +375,33 @@ mod tests {
             forced_hash: Some(1),
             ..PathCache::default()
         };
-        let first_key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &["path-0"], false);
+        let first_key = PathCacheKey::new(
+            test_context_id(),
+            TypeId::of::<usize>(),
+            1,
+            &["path-0"],
+            false,
+        );
         let first = cache.insert_or_existing(first_key.clone(), Arc::new(0));
-        let second_key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &["path-1"], false);
+        let second_key = PathCacheKey::new(
+            test_context_id(),
+            TypeId::of::<usize>(),
+            1,
+            &["path-1"],
+            false,
+        );
         let second = cache.insert_or_existing(second_key.clone(), Arc::new(1));
 
         let mut newest = None;
         for index in 2..=CACHE_CAPACITY {
             let segment = format!("path-{index}");
-            let key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &[&segment], false);
+            let key = PathCacheKey::new(
+                test_context_id(),
+                TypeId::of::<usize>(),
+                1,
+                &[&segment],
+                false,
+            );
             let retained = cache.insert_or_existing(key, Arc::new(index));
             if index == CACHE_CAPACITY {
                 newest = Some(retained);
@@ -422,7 +414,13 @@ mod tests {
             &second,
             &cache.get(&second_key).expect("second colliding key remains")
         ));
-        let newest_key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &["path-256"], false);
+        let newest_key = PathCacheKey::new(
+            test_context_id(),
+            TypeId::of::<usize>(),
+            1,
+            &["path-256"],
+            false,
+        );
         assert!(Arc::ptr_eq(
             &newest.expect("257th insertion is retained"),
             &cache.get(&newest_key).expect("newest colliding key remains")

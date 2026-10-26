@@ -104,6 +104,7 @@ pub(crate) fn parse_declaration(
         variants,
     })
 }
+
 /// Parses every field and combines independent field diagnostics.
 ///
 /// # Parameters
@@ -248,29 +249,4 @@ fn parse_variant_serde_names(attributes: &[Attribute], canonical: &str) -> Resul
         }
     }
     Ok((serialize, deserialize))
-}
-
-#[cfg(test)]
-mod tests {
-    use syn::parse_quote;
-
-    use super::parse_variants;
-
-    #[test]
-    fn enum_field_ir_retains_its_variant_index() {
-        let item: syn::ItemEnum = parse_quote! {
-            enum Example {
-                First { value: u8 },
-                Second(u16),
-            }
-        };
-        let data = syn::DataEnum {
-            enum_token: item.enum_token,
-            brace_token: item.brace_token,
-            variants: item.variants,
-        };
-        let variants = parse_variants(&data).expect("enum fields should parse");
-        assert_eq!(variants[0].fields[0].variant_index, Some(0));
-        assert_eq!(variants[1].fields[0].variant_index, Some(1));
-    }
 }

@@ -23,10 +23,15 @@ use crate::metadata::FieldMetadata;
 /// concrete payload fields have a [`FieldMetadata::location`]. Copying this
 /// overlay preserves its descriptors and payload field identities.
 ///
+/// Obtain variants through [`crate::metadata::TypeMetadata::of`] and
+/// [`crate::metadata::EnumMetadata::variants`]; callers do not construct this
+/// framework-provided metadata directly.
+///
 /// # Examples
 ///
 /// ```
 /// use qubit_model_derive::Enum;
+/// use qubit_model_metadata::metadata::EnumVariantMetadata;
 /// use qubit_model_metadata::metadata::TypeMetadata;
 ///
 /// #[Enum]
@@ -34,7 +39,7 @@ use crate::metadata::FieldMetadata;
 /// # fn main() {
 /// let metadata = TypeMetadata::of::<Reply>();
 /// let variants = metadata.as_enum().expect("enum metadata").variants();
-/// let message = &variants[0];
+/// let message: &EnumVariantMetadata = &variants[0];
 /// assert_eq!(message.rust_name(), "Message");
 /// let text = message.field("text").expect("named payload field");
 /// assert_eq!(text.location().expect("concrete field").variant(), Some(0));
@@ -66,7 +71,31 @@ pub struct EnumVariantMetadata {
 }
 
 impl EnumVariantMetadata {
-    /// Creates an enum-variant overlay.
+    /// Creates metadata for a concrete variant of a reflected enum.
+    ///
+    /// The owner identity and payload metadata must describe the same enum
+    /// declaration, and `index` must be that variant's zero-based source
+    /// position. Names preserve the model's canonical, serialization, and
+    /// deserialization overlays; `fields` must remain valid for the program's
+    /// lifetime because this metadata stores a static borrow. The `default`
+    /// flag records the model-level default designation.
+    ///
+    /// # Parameters
+    ///
+    /// * `owner` - Runtime type identity used to resolve the concrete
+    ///   reflection descriptor.
+    /// * `index` - Zero-based source position of this variant in its enum.
+    /// * `rust_name` - Original Rust variant identifier.
+    /// * `canonical_name` - Model-level canonical variant name.
+    /// * `serialized_name` - Variant name emitted during serialization.
+    /// * `deserialized_name` - Variant name accepted during deserialization.
+    /// * `fields` - Static payload field metadata in declaration order.
+    /// * `default` - Whether this variant is the model's default variant.
+    ///
+    /// # Returns
+    ///
+    /// An overlay linked to the concrete owner type and carrying the supplied
+    /// variant names, payload fields, and default designation.
     #[must_use]
     #[allow(clippy::too_many_arguments)]
     pub(crate) const fn new(
@@ -92,7 +121,34 @@ impl EnumVariantMetadata {
         }
     }
 
-    /// Creates an overlay for one generic enum declaration variant.
+    /// Creates metadata for a symbolic variant in a generic enum definition.
+    ///
+    /// The definition path and payload metadata must describe the same
+    /// declaration, and `index` must be that variant's zero-based source
+    /// position. Names preserve the model's canonical, serialization, and
+    /// deserialization overlays; `fields` must remain valid for the program's
+    /// lifetime because this metadata stores a static borrow. The `default`
+    /// flag records the model-level default designation. Unlike concrete
+    /// metadata, this form has no runtime owner identity and cannot resolve a
+    /// concrete reflection descriptor until specialized.
+    ///
+    /// # Parameters
+    ///
+    /// * `definition_path` - Stable path identifying the generic enum
+    ///   declaration.
+    /// * `index` - Zero-based source position of this variant in its enum.
+    /// * `rust_name` - Original Rust variant identifier.
+    /// * `canonical_name` - Model-level canonical variant name.
+    /// * `serialized_name` - Variant name emitted during serialization.
+    /// * `deserialized_name` - Variant name accepted during deserialization.
+    /// * `fields` - Static symbolic payload field metadata in declaration
+    ///   order.
+    /// * `default` - Whether this variant is the model's default variant.
+    ///
+    /// # Returns
+    ///
+    /// An overlay linked to the generic definition path and carrying the
+    /// supplied variant names, payload fields, and default designation.
     #[doc(hidden)]
     #[must_use]
     #[cfg(feature = "generic")]
@@ -122,7 +178,15 @@ impl EnumVariantMetadata {
 
     /// Returns the concrete structural descriptor, or `None` for a generic
     /// definition variant that has not been specialized.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `context` - Reflection context containing the concrete owner type.
+    ///
+    /// # Returns
+    ///
+    /// The descriptor for this variant when its concrete owner is registered
+    /// in `context`; otherwise, `None`.
     #[inline]
     pub fn reflect_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<BoundVariantDescriptor<'ctx>> {
         let ty = context.find_type_by_id(self.owner_type_id?).ok().flatten()?;
@@ -132,7 +196,11 @@ impl EnumVariantMetadata {
     }
 
     /// Returns the generic definition path for a symbolic variant.
-    #[must_use]
+    ///
+    /// # Returns
+    ///
+    /// The owning definition path for a generic variant, or `None` for a
+    /// concrete variant.
     pub const fn definition_path(&self) -> Option<&'static str> {
         self.definition_path
     }
@@ -141,6 +209,10 @@ impl EnumVariantMetadata {
     ///
     /// The index is local to its enum and is unchanged by specialization or
     /// renaming. It is not an explicit Rust discriminant value.
+    ///
+    /// # Returns
+    ///
+    /// The zero-based position of this variant in its source enum.
     #[must_use]
     #[inline]
     pub const fn index(&self) -> usize {
@@ -148,6 +220,10 @@ impl EnumVariantMetadata {
     }
 
     /// Returns the immutable Rust identifier.
+    ///
+    /// # Returns
+    ///
+    /// The variant's source-level Rust identifier.
     #[must_use]
     #[inline]
     pub const fn rust_name(&self) -> &'static str {
@@ -155,6 +231,10 @@ impl EnumVariantMetadata {
     }
 
     /// Returns the canonical model name.
+    ///
+    /// # Returns
+    ///
+    /// The canonical name used by the model metadata.
     #[must_use]
     #[inline]
     pub const fn canonical_name(&self) -> &'static str {
@@ -162,6 +242,10 @@ impl EnumVariantMetadata {
     }
 
     /// Returns the serialization name.
+    ///
+    /// # Returns
+    ///
+    /// The name emitted when serializing this variant.
     #[must_use]
     #[inline]
     pub const fn serialized_name(&self) -> &'static str {
@@ -169,6 +253,10 @@ impl EnumVariantMetadata {
     }
 
     /// Returns the deserialization name.
+    ///
+    /// # Returns
+    ///
+    /// The name accepted when deserializing this variant.
     #[must_use]
     #[inline]
     pub const fn deserialized_name(&self) -> &'static str {
@@ -178,6 +266,11 @@ impl EnumVariantMetadata {
     /// Returns payload field overlays in source order, or an empty slice for
     /// a unit variant. Definition fields are symbolic; concrete fields retain
     /// their owner, variant, and field coordinates.
+    ///
+    /// # Returns
+    ///
+    /// Payload fields in source declaration order; unit variants return an
+    /// empty slice.
     #[must_use]
     #[inline]
     pub const fn fields(&self) -> &'static [FieldMetadata] {
@@ -189,7 +282,15 @@ impl EnumVariantMetadata {
     ///
     /// Tuple payloads have no query names: use [`Self::field_at`] for their
     /// positions. Numeric strings are not interpreted as tuple indices.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Exact payload field query name.
+    ///
+    /// # Returns
+    ///
+    /// The matching named field, or `None` when the name does not match a
+    /// named payload field.
     pub fn field(&self, name: &str) -> Option<&'static FieldMetadata> {
         self.fields.iter().find(|field| field.name() == Some(name))
     }
@@ -197,13 +298,24 @@ impl EnumVariantMetadata {
     /// Returns a payload field by zero-based source index for either named or
     /// tuple payloads. Returns `None` when the index is outside this variant's
     /// field slice, including every index for a unit variant.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `index` - Zero-based position in the payload declaration.
+    ///
+    /// # Returns
+    ///
+    /// The payload field at that position, or `None` when it is out of range.
     #[inline]
     pub fn field_at(&self, index: usize) -> Option<&'static FieldMetadata> {
         self.fields.get(index)
     }
 
     /// Returns whether this is the default variant.
+    ///
+    /// # Returns
+    ///
+    /// `true` when this variant is the model default; otherwise, `false`.
     #[must_use]
     #[inline]
     pub const fn is_default(&self) -> bool {

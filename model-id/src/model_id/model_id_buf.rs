@@ -45,7 +45,6 @@ impl ModelIdBuf {
     ///
     /// Returns [`ModelIdError`] when `value` does not follow the stable-ID
     /// protocol.
-    #[must_use = "handle invalid model IDs"]
     pub fn parse(value: &str) -> Result<Self, ModelIdError> {
         ModelId::validate(value)?;
         Ok(Self(value.into()))

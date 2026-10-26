@@ -116,6 +116,41 @@ pub(crate) fn check_access(
             ConstraintMetadata::Text(_) | ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_)
         )
     );
+    let path = compile_access_path(occurrence, graph, context, requires_slice, is_map, scalar_constraint)?;
+    validate_collection_access(occurrence, &path, context, requires_slice, is_map)?;
+    let selected_type = occurrence
+        .selector
+        .and_then(|selector| selector_input_type(context, &path, selector));
+    let selected_input = selected_type.map(|descriptor| {
+        if matches!(descriptor.kind(), TypeKind::Text(_)) {
+            InputType::Text
+        } else {
+            InputType::Typed(descriptor.type_id())
+        }
+    });
+    validate_constraint_input(occurrence, &path, selected_input)?;
+    if let ExecutionDeclaration::Validator(declaration) = occurrence.declaration {
+        validate_validator_access(occurrence, context, graph, declaration, selected_type)?;
+    }
+    Ok(path)
+}
+
+/// Compiles the occurrence path and projects a direct optional scalar when
+/// its registered adapter exposes the underlying element.
+///
+/// # Errors
+///
+/// Returns an unsupported build error when the declaration needs an
+/// unavailable path or projection adapter, and a contextual build error for
+/// other path compilation failures.
+fn compile_access_path(
+    occurrence: &ValidationOccurrence,
+    graph: &ModelGraph<'_>,
+    context: &ReflectionContext,
+    requires_slice: bool,
+    is_map: bool,
+    scalar_constraint: bool,
+) -> Result<CompiledPropertyPath, Box<ValidationBuildError>> {
     let compile = |target| -> Result<_, Box<ValidationBuildError>> {
         let compiled = if occurrence.enum_variant.is_some() {
             CompiledPropertyPath::compile_enum_payload(context, occurrence.root, occurrence, graph, target)
@@ -204,6 +239,26 @@ pub(crate) fn check_access(
     } else {
         path
     };
+    Ok(path)
+}
+
+/// Checks collection adapters and type relationships required by selectors,
+/// sequence uniqueness, maps, and borrowed sequence slices.
+///
+/// The checks run in declaration order so unsupported adapters keep the same
+/// early-error behavior as path compilation.
+///
+/// # Errors
+///
+/// Returns an unsupported build error when a required collection adapter,
+/// borrowed output, or reflected element type is unavailable.
+fn validate_collection_access(
+    occurrence: &ValidationOccurrence,
+    path: &CompiledPropertyPath,
+    context: &ReflectionContext,
+    requires_slice: bool,
+    is_map: bool,
+) -> Result<(), Box<ValidationBuildError>> {
     let slice = path
         .steps()
         .last()
@@ -214,7 +269,7 @@ pub(crate) fn check_access(
     }
     if let Some(selector) = occurrence.selector {
         let items = occurrence.field.collection_ops().and_then(|ops| ops.collection_items());
-        let supported_type = selector_input_type(context, &path, selector).is_some();
+        let supported_type = selector_input_type(context, path, selector).is_some();
         let borrowed_output = path
             .steps()
             .last()
@@ -276,16 +331,22 @@ pub(crate) fn check_access(
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         }
     }
-    let selected_type = occurrence
-        .selector
-        .and_then(|selector| selector_input_type(context, &path, selector));
-    let selected_input = selected_type.map(|descriptor| {
-        if matches!(descriptor.kind(), TypeKind::Text(_)) {
-            InputType::Text
-        } else {
-            InputType::Typed(descriptor.type_id())
-        }
-    });
+    Ok(())
+}
+
+/// Ensures a selected or whole-path input matches its constraint's accepted
+/// reflected type. When no selector input is supplied, the compiled path's
+/// input type is checked instead.
+///
+/// # Errors
+///
+/// Returns an unsupported build error when the input type is not accepted by
+/// the declared text, decimal, or time constraint.
+fn validate_constraint_input(
+    occurrence: &ValidationOccurrence,
+    path: &CompiledPropertyPath,
+    selected_input: Option<InputType>,
+) -> Result<(), Box<ValidationBuildError>> {
     if matches!(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(ConstraintMetadata::Text(_))
@@ -308,47 +369,63 @@ pub(crate) fn check_access(
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         }
     }
-    if let ExecutionDeclaration::Validator(declaration) = occurrence.declaration {
-        if occurrence.selector.is_some() {
-            let Some(descriptor) = selected_type else {
-                return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
-            };
-            // Selected members are direct borrows, so optional values and
-            // smart pointers need a separate projection adapter.
-            if declaration.target() == TargetMode::Value
-                && matches!(descriptor.kind(), TypeKind::Optional(_) | TypeKind::SmartPointer(_))
-            {
-                return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
-            }
+    Ok(())
+}
+
+/// Checks validator-specific selector restrictions and validates dependency
+/// paths without binding the validator registry. Selected optional and smart
+/// pointer values cannot be passed directly to a value-target validator.
+///
+/// # Errors
+///
+/// Returns an unsupported build error for an invalid selector input and a
+/// contextual build error when a dependency path cannot be compiled.
+fn validate_validator_access(
+    occurrence: &ValidationOccurrence,
+    context: &ReflectionContext,
+    graph: &ModelGraph<'_>,
+    declaration: &ValidatorMetadata,
+    selected_type: Option<TypeDescriptor<'_>>,
+) -> Result<(), Box<ValidationBuildError>> {
+    if occurrence.selector.is_some() {
+        let Some(descriptor) = selected_type else {
+            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
+        };
+        // Selected members are direct borrows, so optional values and
+        // smart pointers need a separate projection adapter.
+        if declaration.target() == TargetMode::Value
+            && matches!(descriptor.kind(), TypeKind::Optional(_) | TypeKind::SmartPointer(_))
+        {
+            return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         }
-        let prefix = &occurrence.segments[..occurrence.segments.len() - 1];
-        for binding in declaration.dependency_bindings() {
-            CompiledPropertyPath::compile_dependency(
+    }
+    let prefix = &occurrence.segments[..occurrence.segments.len() - 1];
+    for binding in declaration.dependency_bindings() {
+        CompiledPropertyPath::compile_dependency(
+            context,
+            occurrence.root,
+            prefix,
+            binding,
+            graph,
+            &[],
+            InputType::of::<()>(),
+        )
+        .map_err(|error| access_error(occurrence, error))?;
+    }
+    if declaration.dependency_bindings().is_empty() {
+        for dependency in declaration.depends_on() {
+            let segments: Vec<_> = prefix.iter().chain(dependency.segments()).copied().collect();
+            CompiledPropertyPath::compile(
                 context,
                 occurrence.root,
-                prefix,
-                binding,
+                &PropertyPath::new(&segments),
                 graph,
-                &[],
-                InputType::of::<()>(),
+                TargetMode::Value,
             )
             .map_err(|error| access_error(occurrence, error))?;
         }
-        if declaration.dependency_bindings().is_empty() {
-            for dependency in declaration.depends_on() {
-                let segments: Vec<_> = prefix.iter().chain(dependency.segments()).copied().collect();
-                CompiledPropertyPath::compile(
-                    context,
-                    occurrence.root,
-                    &PropertyPath::new(&segments),
-                    graph,
-                    TargetMode::Value,
-                )
-                .map_err(|error| access_error(occurrence, error))?;
-            }
-        }
     }
-    Ok(path)
+    Ok(())
 }
 
 /// Confirms that a borrowed slice exposes the declared collection element
@@ -372,6 +449,10 @@ fn sequence_element_matches(declared: TypeDescriptor<'_>, output: TypeDescriptor
         .is_some_and(|(declared, output)| declared.type_id() == output.type_id())
 }
 
+/// Resolves one concrete type argument from a reflected descriptor.
+///
+/// Returns `None` when the requested argument is absent, is not a type
+/// argument, or does not resolve to a concrete type.
 fn generic_type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option<TypeDescriptor<'ctx>> {
     descriptor
         .generic_arguments()
@@ -402,6 +483,9 @@ fn access_error(occurrence: &ValidationOccurrence, error: BindError) -> Validati
 }
 
 /// Resolves the selected member type from the exact collection descriptor.
+///
+/// Optional getters are resolved through their underlying optional element
+/// only when its reflected type ID matches the registered optional adapter.
 fn selector_input_type<'ctx>(
     context: &'ctx ReflectionContext,
     path: &CompiledPropertyPath,

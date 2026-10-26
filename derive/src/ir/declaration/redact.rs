@@ -6,28 +6,10 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Redaction IR.
+//! Redaction declaration IR types.
 
-/// Redaction policy normalized from one field's declaration attributes.
-#[derive(Clone)]
-pub(crate) struct RedactIr {
-    /// Normalized redaction mode.
-    pub(crate) mode: RedactModeIr,
-}
+mod redact_ir;
+mod redact_mode_ir;
 
-/// Redaction operation applied when producing reflected or serialized values.
-#[derive(Clone)]
-pub(crate) enum RedactModeIr {
-    /// Sensitivity level name.
-    Level(String),
-    /// Omit the value.
-    Skip,
-    /// Recurse into nested metadata.
-    Nested,
-    /// Apply map redaction.
-    Map,
-    /// Select a keyed policy.
-    KeyedBy(String),
-    /// Apply JSON redaction.
-    Json,
-}
+pub(crate) use redact_ir::RedactIr;
+pub(crate) use redact_mode_ir::RedactModeIr;

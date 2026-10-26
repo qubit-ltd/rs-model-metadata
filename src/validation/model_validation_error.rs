@@ -66,7 +66,13 @@ use crate::validation::internal::validation_occurrence::ValidationOccurrence;
 /// let graph = Arc::new(StructureResolver::for_static_roots(models, [root])
 ///     .resolve().expect("valid structure"));
 /// let validators = ValidatorRegistry::empty();
-/// let plan = ValidationPlan::build(root, ValidationBuildInputs { graph: Arc::clone(&graph), validators: &validators })
+/// let plan = ValidationPlan::build(
+///     root,
+///     ValidationBuildInputs {
+///         graph: Arc::clone(&graph),
+///         validators: &validators,
+///     },
+/// )
 ///     .expect("empty model plan");
 /// let error = plan.validate(&42_u32, &ValidationOptions::default())
 ///     .expect_err("the instance has the wrong root type");
@@ -107,7 +113,6 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns an error with no model or field context attached.
-    #[must_use = "the validation error must be retained and handled"]
     pub(crate) fn new(error: ExecutionError, mut partial_report: ValidationReport) -> Self {
         partial_report.mark_truncated();
         Self {
@@ -130,7 +135,6 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns this error with root identity and optional occurrence attached.
-    #[must_use = "the enriched model validation error must be retained"]
     pub(crate) fn at_model(mut self, root: &'static TypeMetadata, occurrence: Option<usize>) -> Self {
         self.root_type_id = Some(root.type_id());
         self.occurrence = occurrence;
@@ -150,7 +154,6 @@ impl ModelValidationError {
     /// # Returns
     ///
     /// Returns this error with root, field, occurrence, and dependency context.
-    #[must_use = "the enriched field validation error must be retained"]
     pub(crate) fn at_field(
         mut self,
         context: &ValidationOccurrence,

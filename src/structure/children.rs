@@ -15,6 +15,16 @@ use qubit_reflect::descriptor::TypeKind;
 use crate::structure::StructuralEdge;
 use crate::structure::StructuralEdgeKind;
 
+/// Resolves a concrete type argument at `index` in the descriptor's context.
+///
+/// # Parameters
+///
+/// - `index`: Zero-based position of the type argument in the descriptor.
+///
+/// # Returns
+///
+/// The resolved concrete type descriptor, or `None` when the position is
+/// absent, is not a type argument, or has no registered concrete type.
 fn type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option<TypeDescriptor<'ctx>> {
     descriptor
         .generic_arguments()
@@ -26,6 +36,11 @@ fn type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option
 
 /// Calls `visit` for each direct structural child that resolves in the bound
 /// context.
+///
+/// # Parameters
+///
+/// - `descriptor`: Descriptor whose direct structural children are enumerated.
+/// - `visit`: Callback invoked once for each resolved child edge.
 pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl FnMut(StructuralEdge<'ctx>)) {
     match descriptor.kind() {
         TypeKind::Optional(_) => {

@@ -46,12 +46,43 @@ use crate::compiler::type_path::is_option_path;
 ///
 /// `item` is preserved in the emitted tokens and `runtime` identifies the
 /// metadata facade. Returns diagnostics for invalid property-method contracts.
+///
+/// # Parameters
+///
+/// - `item`: the parsed implementation block to expand.
+/// - `runtime`: the runtime crate path used in generated tokens.
+/// - `arguments`: reflection options attached to the implementation.
+///
+/// # Returns
+///
+/// The implementation tokens with property metadata expansion.
+///
+/// # Errors
+///
+/// Returns a syntax error when a property method or specialization option
+/// violates its supported contract.
 pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream, arguments: TokenStream) -> Result<TokenStream> {
     expand_inner(item, runtime, arguments, true)
 }
 
 /// Expands concrete property providers independently of retained reflection
 /// syntax.
+///
+/// # Parameters
+///
+/// - `item`: the implementation being expanded.
+/// - `runtime`: the runtime crate path used in generated tokens.
+/// - `arguments`: specialization options for a generic implementation.
+/// - `retain`: whether to retain the reflection implementation in output.
+///
+/// # Returns
+///
+/// The retained implementation and any generated provider tokens.
+///
+/// # Errors
+///
+/// Returns a syntax error when property methods or specialization options are
+/// invalid.
 fn expand_inner(
     mut item: ItemImpl,
     runtime: &TokenStream,
@@ -340,6 +371,17 @@ fn expand_inner(
 ///
 /// Each assertion relates one getter's exact declared output shape to the
 /// input accepted by the setter with the same canonical property name.
+///
+/// # Parameters
+///
+/// - `getters`: validated getter contracts.
+/// - `setters`: validated setter contracts.
+/// - `runtime`: the runtime crate path used in generated type assertions.
+///
+/// # Returns
+///
+/// Compile-time assertions for getter and setter pairs sharing a property.
+#[must_use]
 fn expand_property_compatibility_assertions(
     getters: &[GetterIr],
     setters: &[SetterIr],
@@ -370,6 +412,17 @@ fn expand_property_compatibility_assertions(
 }
 
 /// Returns the exact source-level type shape produced by a getter.
+///
+/// # Parameters
+///
+/// - `output`: the classified getter return shape.
+/// - `runtime`: the runtime crate path used for borrowed output wrappers.
+///
+/// # Returns
+///
+/// A token stream naming the getter's output type, including the runtime
+/// wrapper for borrowed values.
+#[must_use]
 fn getter_output_type(output: &GetterReturn, runtime: &TokenStream) -> TokenStream {
     match output {
         GetterReturn::Owned(ty) => quote!(#ty),
@@ -396,6 +449,20 @@ fn getter_output_type(output: &GetterReturn, runtime: &TokenStream) -> TokenStre
 ///
 /// Setter-prefixed methods are explicit property declarations and therefore
 /// receive diagnostics when they violate the setter contract.
+///
+/// # Parameters
+///
+/// - `method`: the implementation method to classify.
+///
+/// # Returns
+///
+/// The parsed getter or setter contract, or `None` when the method is not a
+/// supported property method.
+///
+/// # Errors
+///
+/// Returns a syntax error when an explicit property method violates its
+/// contract.
 fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> {
     let name = method.sig.ident.to_string();
     if let Some(property) = name.strip_prefix("set_") {
@@ -505,6 +572,14 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
 ///
 /// `None` means that the syntax does not represent the supported optional
 /// borrowed getter return shape.
+///
+/// # Parameters
+///
+/// - `path`: the candidate return type path.
+///
+/// # Returns
+///
+/// The borrowed inner type when `path` has the supported `Option<&T>` shape.
 fn option_borrowed_type(path: &TypePath) -> Option<&TypeReference> {
     if path.qself.is_some() || !is_option_path(&path.path) {
         return None;
@@ -523,6 +598,16 @@ fn option_borrowed_type(path: &TypePath) -> Option<&TypeReference> {
 }
 
 /// Reports whether `output` is the unit return type required by setters.
+///
+/// # Parameters
+///
+/// - `output`: the method's declared return type.
+///
+/// # Returns
+///
+/// `true` when the return type is omitted or explicitly written as `()`.
+#[must_use]
+#[inline]
 fn returns_unit(output: &ReturnType) -> bool {
     matches!(output, ReturnType::Default)
         || matches!(output, ReturnType::Type(_, ty) if matches!(ty.as_ref(), Type::Tuple(tuple) if tuple.elems.is_empty()))
@@ -531,6 +616,17 @@ fn returns_unit(output: &ReturnType) -> bool {
 /// Emits one guarded diagnostic for each same-kind candidate pair.
 /// The consuming compiler reports only simultaneously enabled duplicates,
 /// anchored at the later method and including the canonical property name.
+///
+/// # Parameters
+///
+/// - `getters`: validated getter contracts to compare.
+/// - `setters`: validated setter contracts to compare.
+///
+/// # Returns
+///
+/// Compile-error tokens for duplicate getters or setters whose presence
+/// conditions overlap.
+#[must_use]
 fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterIr]) -> Vec<TokenStream> {
     let mut assertions = Vec::new();
     for (index, getter) in getters.iter().enumerate() {
@@ -560,6 +656,19 @@ fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterI
 ///
 /// `index` makes the generated symbol unique; `getter`, `target`, and
 /// `runtime` supply the validated method contract and emitted type paths.
+///
+/// # Parameters
+///
+/// - `index`: the getter's index among generated adapters.
+/// - `getter`: the validated getter contract.
+/// - `target`: the implementation target type.
+/// - `runtime`: the runtime crate path used in generated tokens.
+///
+/// # Returns
+///
+/// A token stream defining an adapter that invokes the getter and wraps its
+/// value for runtime reflection.
+#[must_use]
 fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
     let adapter = format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}",);
@@ -599,6 +708,19 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
 ///
 /// `index` makes the generated symbol unique; `setter`, `target`, and
 /// `runtime` supply the validated method contract and emitted type paths.
+///
+/// # Parameters
+///
+/// - `index`: the setter's index among generated adapters.
+/// - `setter`: the validated setter contract.
+/// - `target`: the implementation target type.
+/// - `runtime`: the runtime crate path used in generated tokens.
+///
+/// # Returns
+///
+/// A token stream defining an adapter that checks the target and input value
+/// before invoking the setter.
+#[must_use]
 fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
     let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}",);

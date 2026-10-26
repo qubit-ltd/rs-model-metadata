@@ -18,13 +18,19 @@ use quote::quote_spanned;
 use syn::Expr;
 use syn::GenericArgument;
 use syn::Ident;
+use syn::Lifetime;
 use syn::Lit;
 use syn::LitStr;
 use syn::PathArguments;
+use syn::PathSegment;
+use syn::Stmt;
 use syn::Type;
 use syn::TypeArray;
+use syn::TypePath;
 use syn::TypePtr;
 use syn::TypeReference;
+use syn::UnOp;
+use syn::Visibility;
 use syn::spanned::Spanned;
 
 use crate::ir::declaration::CodecIr;
@@ -45,8 +51,17 @@ use crate::ir::declaration::ValidatorIr;
 /// Converts Rust type syntax to v4 static expression facts.
 ///
 /// Unsupported syntax is emitted as a compile-time diagnostic so metadata
-/// never silently loses source type information.
-/// Converts type syntax while identifying declaration generic parameters.
+/// never silently loses source type information. Declared generic parameters
+/// retain their names in the generated expression facts.
+///
+/// # Parameters
+/// - `ty`: Rust type syntax to represent.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_type_names`: declared type and const parameter names.
+///
+/// # Returns
+/// Tokens constructing the corresponding expression facts.
+#[must_use]
 pub(super) fn type_expression_data_with_parameters(
     ty: &Type,
     runtime: &TokenStream,
@@ -55,6 +70,13 @@ pub(super) fn type_expression_data_with_parameters(
     type_expression_data_for_owner(ty, runtime, generic_type_names, None)
 }
 
+/// Builds expression facts while applying declaration-owner and generic-name
+/// rules.
+///
+/// Exact owner paths become `SelfType`, while declared type and const
+/// parameters retain their names. Unsupported syntax remains represented by a
+/// generated compile-time diagnostic.
+#[must_use]
 fn type_expression_data_for_owner(
     ty: &Type,
     runtime: &TokenStream,
@@ -131,7 +153,7 @@ fn type_expression_data_for_owner(
                 let mut self_path = path.path.clone();
                 self_path.segments.pop();
                 let self_type = type_expression_data_for_owner(
-                    &Type::Path(syn::TypePath {
+                    &Type::Path(TypePath {
                         qself: None,
                         path: self_path,
                     }),
@@ -248,6 +270,8 @@ fn type_expression_data_for_owner(
     }
 }
 
+/// Converts a Rust type into expression tokens for the declaration owner.
+#[must_use]
 fn type_expression_for_owner(
     ty: &Type,
     runtime: &TokenStream,
@@ -257,8 +281,10 @@ fn type_expression_for_owner(
     type_expression_data_for_owner(ty, runtime, generic_type_names, owner)
 }
 
+/// Converts generic arguments from associated-type trait path segments.
+#[must_use]
 fn trait_generic_arguments(
-    segments: &[&syn::PathSegment],
+    segments: &[&PathSegment],
     runtime: &TokenStream,
     generic_type_names: &[Ident],
     owner: Option<&Ident>,
@@ -289,7 +315,9 @@ fn trait_generic_arguments(
         .collect()
 }
 
-fn trait_generic_lifetimes(segments: &[&syn::PathSegment], runtime: &TokenStream) -> Vec<TokenStream> {
+/// Collects lifetime arguments from associated-type trait path segments.
+#[must_use]
+fn trait_generic_lifetimes(segments: &[&PathSegment], runtime: &TokenStream) -> Vec<TokenStream> {
     segments
         .iter()
         .flat_map(|segment| match &segment.arguments {
@@ -303,7 +331,9 @@ fn trait_generic_lifetimes(segments: &[&syn::PathSegment], runtime: &TokenStream
         .collect()
 }
 
-fn lifetime_expression(lifetime: &syn::Lifetime, runtime: &TokenStream) -> TokenStream {
+/// Converts a Rust lifetime into its runtime expression representation.
+#[must_use]
+fn lifetime_expression(lifetime: &Lifetime, runtime: &TokenStream) -> TokenStream {
     match lifetime.ident.to_string().as_str() {
         "static" => quote!(#runtime::__private::codegen_v4::expression::LifetimeExpression::Static),
         "_" => quote!(#runtime::__private::codegen_v4::expression::LifetimeExpression::Placeholder),
@@ -314,6 +344,8 @@ fn lifetime_expression(lifetime: &syn::Lifetime, runtime: &TokenStream) -> Token
     }
 }
 
+/// Converts a Rust const expression into a supported runtime expression fact.
+#[must_use]
 fn const_expression(expression: &Expr, runtime: &TokenStream, generic_type_names: &[Ident]) -> TokenStream {
     let path = |value: &Expr| {
         let text = LitStr::new(&value.to_token_stream().to_string(), value.span());
@@ -325,7 +357,7 @@ fn const_expression(expression: &Expr, runtime: &TokenStream, generic_type_names
         |value: u128| quote!(#runtime::__private::codegen_v4::expression::ConstExpression::UnsignedInteger(#value));
     match expression {
         Expr::Block(value) if value.block.stmts.len() == 1 => {
-            if let syn::Stmt::Expr(inner, None) = &value.block.stmts[0] {
+            if let Stmt::Expr(inner, None) = &value.block.stmts[0] {
                 return const_expression(inner, runtime, generic_type_names);
             }
             path(expression)
@@ -347,7 +379,7 @@ fn const_expression(expression: &Expr, runtime: &TokenStream, generic_type_names
             }
             _ => path(expression),
         },
-        Expr::Unary(value) if matches!(value.op, syn::UnOp::Neg(_)) => {
+        Expr::Unary(value) if matches!(value.op, UnOp::Neg(_)) => {
             if let Expr::Lit(literal) = value.expr.as_ref()
                 && let Lit::Int(integer) = &literal.lit
                 && let Ok(number) = integer.base10_parse::<i128>()
@@ -373,8 +405,8 @@ fn const_expression(expression: &Expr, runtime: &TokenStream, generic_type_names
 ///
 /// # Parameters
 /// - `fields`: normalized fields to expand.
-/// - `descriptor_fields`: tokens naming the reflected descriptors.
 /// - `runtime`: path to the runtime crate.
+/// - `owner`: declaration type name used to identify recursive fields.
 ///
 /// # Returns
 /// Tokens that build the declaration's runtime field vector.
@@ -393,9 +425,11 @@ pub(super) fn expand_field_vector(fields: &[FieldIr], runtime: &TokenStream, own
 ///
 /// # Parameters
 /// - `fields`: normalized fields to expand.
-/// - `descriptor_fields`: tokens naming the reflected descriptors.
+/// - `definition_path`: tokens naming the generic declaration.
 /// - `runtime`: path to the runtime crate.
 /// - `variant_inherited`: whether fields inherit variant-level metadata.
+/// - `generic_type_names`: declared type and const parameter names.
+/// - `owner`: declaration type name used to identify recursive fields.
 ///
 /// # Returns
 /// Tokens that build the generic declaration's runtime field vector.
@@ -428,7 +462,6 @@ pub(super) fn expand_generic_field_vector(
 ///
 /// # Parameters
 /// - `field`: normalized field metadata.
-/// - `descriptor_fields`: tokens naming the reflected descriptors.
 /// - `runtime`: path to the runtime crate.
 /// - `generic_variant_inherited`: generic variant inheritance state, when
 ///   expanding a generic declaration.
@@ -447,6 +480,28 @@ fn expand_field(
     expand_field_with_parameters(field, runtime, generic_variant_inherited, definition_path, &[], None)
 }
 
+/// Generates the ordered metadata bindings and field-vector update for one
+/// field.
+///
+/// The emitted tokens preserve normalized occurrence order, build supporting
+/// selector and constraint metadata before attaching attributes, then append
+/// the completed descriptor to the surrounding `fields` vector.
+///
+/// `generic_variant_inherited` controls definition-specific metadata,
+/// `generic_type_names` identifies declared parameters, and `owner` identifies
+/// recursive fields.
+///
+/// # Parameters
+/// - `field`: normalized field metadata.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_variant_inherited`: generic variant inheritance state.
+/// - `definition_path`: generic declaration path when expanding a definition.
+/// - `generic_type_names`: declared type and const parameter names.
+/// - `owner`: declaration type name used to identify recursive fields.
+///
+/// # Returns
+/// Tokens that construct the field metadata and append it to the field vector.
+#[must_use]
 fn expand_field_with_parameters(
     field: &FieldIr,
     runtime: &TokenStream,
@@ -467,15 +522,15 @@ fn expand_field_with_parameters(
         },
     );
     let visibility = match &field.visibility {
-        syn::Visibility::Public(_) => quote!(#runtime::__private::v8::Visibility::Public),
-        syn::Visibility::Restricted(value) if value.path.is_ident("crate") => {
+        Visibility::Public(_) => quote!(#runtime::__private::v8::Visibility::Public),
+        Visibility::Restricted(value) if value.path.is_ident("crate") => {
             quote!(#runtime::__private::v8::Visibility::Crate)
         }
-        syn::Visibility::Restricted(value) => {
+        Visibility::Restricted(value) => {
             let name = LitStr::new(&value.path.to_token_stream().to_string(), value.path.span());
             quote!(#runtime::__private::v8::Visibility::Restricted(#name))
         }
-        syn::Visibility::Inherited => quote!(#runtime::__private::v8::Visibility::Private),
+        Visibility::Inherited => quote!(#runtime::__private::v8::Visibility::Private),
     };
     let declaration_owner = quote!(None);
     let span = field.index.span();
@@ -542,77 +597,8 @@ fn expand_field_with_parameters(
         FieldOccurrence::Serde(value) => Some(value),
         _ => None,
     });
-    let element_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::Element) => Some(value),
-        _ => None,
-    });
-    let map_key_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapKey) => Some(value),
-        _ => None,
-    });
-    let map_value_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapValue) => Some(value),
-        _ => None,
-    });
-    let element_selector = element_ir.map(|value| {
-        let value_type = quote!(
-            <#field_type as #runtime::__private::v8::SequenceConstraintTarget>::Element
-        );
-        expand_selector_metadata(value, &value_type, format_ident!("element_selector"), runtime)
-    });
-    let map_key_selector = map_key_ir.map(|value| {
-        let value_type = quote!(
-            <#field_type as #runtime::__private::v8::MapConstraintTarget>::Key
-        );
-        expand_selector_metadata(value, &value_type, format_ident!("map_key_selector"), runtime)
-    });
-    let map_value_selector = map_value_ir.map(|value| {
-        let value_type = quote!(
-            <#field_type as #runtime::__private::v8::MapConstraintTarget>::Value
-        );
-        expand_selector_metadata(value, &value_type, format_ident!("map_value_selector"), runtime)
-    });
-    let constraint_irs: Vec<_> = field
-        .occurrences
-        .iter()
-        .filter_map(|value| match value {
-            FieldOccurrence::Constraint(value) => Some(value),
-            _ => None,
-        })
-        .collect();
-    let constraints = constraint_irs.iter().map(|value| {
-        expand_constraint(
-            value,
-            element_ir.is_some(),
-            map_key_ir.is_some(),
-            map_value_ir.is_some(),
-            runtime,
-        )
-    });
-    let constraint_assertions = expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
-    let collection_ops = expand_collection_ops(field, &constraint_irs, runtime, generic_variant_inherited.is_some());
-    let optional_ops = expand_optional_ops(field, runtime, generic_variant_inherited.is_some());
-    let requires_sequence = element_ir.is_some()
-        || constraint_irs
-            .iter()
-            .any(|value| matches!(value, ConstraintIr::Sequence { .. }));
-    let requires_map = map_key_ir.is_some()
-        || map_value_ir.is_some()
-        || constraint_irs
-            .iter()
-            .any(|value| matches!(value, ConstraintIr::Map { .. }));
-    let sequence_assertion = requires_sequence.then(|| {
-        quote! {
-            fn assert_sequence_target<T: #runtime::__private::v8::SequenceConstraintTarget>() {}
-            assert_sequence_target::<#field_type>();
-        }
-    });
-    let map_assertion = requires_map.then(|| {
-        quote! {
-            fn assert_map_target<T: #runtime::__private::v8::MapConstraintTarget>() {}
-            assert_map_target::<#field_type>();
-        }
-    });
+    let (collection_assertions, selector_metadata, constraints_binding, collection_ops, optional_ops) =
+        expand_collection_metadata(field, runtime, generic_variant_inherited.is_some());
     let identifier = identifier_assignment.map(|assignment| {
         let assignment = match assignment {
             IdentifierAssignmentIr::Application => {
@@ -691,6 +677,199 @@ fn expand_field_with_parameters(
         },
         |value| expand_serde(value, runtime),
     );
+    let (occurrence_tokens, indexed) = expand_field_attribute_tokens(
+        field,
+        has_indexed,
+        has_identifier,
+        unique_ir.is_some(),
+        reference_ir.is_some(),
+        runtime,
+    );
+    let metadata = match generic_variant_inherited {
+        Some(variant_inherited) => quote! {
+            #runtime::__private::v8::generic_field_metadata(
+                #definition_path,
+                #index,
+                #variant,
+                #source_name,
+                #visibility,
+                _field_type_expression_data,
+                #variant_inherited,
+                attributes,
+                constraints,
+                validators,
+                serde,
+            )
+        },
+        None => quote! {
+            #runtime::__private::v8::field_metadata_with_opaque_type_id(
+                ::std::any::TypeId::of::<Self>(),
+                #variant,
+                #index,
+                #source_name,
+                #visibility,
+                _field_type_expression_data,
+                opaque_type_id,
+                attributes,
+                constraints,
+                validators,
+                serde,
+            )
+        },
+    };
+    quote! {
+        {
+            #location
+            let _field_type_expression_data = #type_expression;
+            let opaque_type_id: Option<::std::any::TypeId> = #opaque_type_id;
+            #collection_assertions
+            #identifier
+            #unique
+            #reference
+            #key_part
+            let validators: &'static [#runtime::metadata::ValidatorMetadata] =
+                #runtime::__private::v8::leak_slice(::std::vec![#(#validators),*]);
+            #codec
+            #redact
+            #serde
+            #selector_metadata
+            #constraints_binding
+            let mut attributes = ::std::vec::Vec::new();
+            #(#occurrence_tokens)*
+            #indexed
+            let attributes: &'static [#runtime::metadata::FieldAttributeMetadata] =
+                #runtime::__private::v8::leak_slice(attributes);
+            #collection_ops
+            #optional_ops
+            let field_metadata = (#metadata).with_declaration(*field_declaration);
+            let field_metadata = match collection_ops {
+                Some(ops) => field_metadata.with_collection_ops(ops),
+                None => field_metadata,
+            };
+            let field_metadata = match optional_ops {
+                Some(ops) => field_metadata.with_optional_ops(ops),
+                None => field_metadata,
+            };
+            fields.push(field_metadata);
+        }
+    }
+}
+
+/// Builds selector, constraint, and collection metadata tokens for a field.
+///
+/// The returned fragments are inserted at their original binding points so
+/// references to declaration metadata remain initialized in the same order.
+#[must_use]
+fn expand_collection_metadata(
+    field: &FieldIr,
+    runtime: &TokenStream,
+    generic_definition: bool,
+) -> (TokenStream, TokenStream, TokenStream, TokenStream, TokenStream) {
+    let field_type = &field.ty;
+    let element_ir = field.occurrences.iter().find_map(|value| match value {
+        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::Element) => Some(value),
+        _ => None,
+    });
+    let map_key_ir = field.occurrences.iter().find_map(|value| match value {
+        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapKey) => Some(value),
+        _ => None,
+    });
+    let map_value_ir = field.occurrences.iter().find_map(|value| match value {
+        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapValue) => Some(value),
+        _ => None,
+    });
+    let element_selector = element_ir.map(|value| {
+        let value_type = quote!(
+            <#field_type as #runtime::__private::v8::SequenceConstraintTarget>::Element
+        );
+        expand_selector_metadata(value, &value_type, format_ident!("element_selector"), runtime)
+    });
+    let map_key_selector = map_key_ir.map(|value| {
+        let value_type = quote!(
+            <#field_type as #runtime::__private::v8::MapConstraintTarget>::Key
+        );
+        expand_selector_metadata(value, &value_type, format_ident!("map_key_selector"), runtime)
+    });
+    let map_value_selector = map_value_ir.map(|value| {
+        let value_type = quote!(
+            <#field_type as #runtime::__private::v8::MapConstraintTarget>::Value
+        );
+        expand_selector_metadata(value, &value_type, format_ident!("map_value_selector"), runtime)
+    });
+    let constraint_irs: Vec<_> = field
+        .occurrences
+        .iter()
+        .filter_map(|value| match value {
+            FieldOccurrence::Constraint(value) => Some(value),
+            _ => None,
+        })
+        .collect();
+    let constraints = constraint_irs.iter().map(|value| {
+        expand_constraint(
+            value,
+            element_ir.is_some(),
+            map_key_ir.is_some(),
+            map_value_ir.is_some(),
+            runtime,
+        )
+    });
+    let constraint_assertions = expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
+    let requires_sequence = element_ir.is_some()
+        || constraint_irs
+            .iter()
+            .any(|value| matches!(value, ConstraintIr::Sequence { .. }));
+    let requires_map = map_key_ir.is_some()
+        || map_value_ir.is_some()
+        || constraint_irs
+            .iter()
+            .any(|value| matches!(value, ConstraintIr::Map { .. }));
+    let sequence_assertion = requires_sequence.then(|| {
+        quote! {
+            fn assert_sequence_target<T: #runtime::__private::v8::SequenceConstraintTarget>() {}
+            assert_sequence_target::<#field_type>();
+        }
+    });
+    let map_assertion = requires_map.then(|| {
+        quote! {
+            fn assert_map_target<T: #runtime::__private::v8::MapConstraintTarget>() {}
+            assert_map_target::<#field_type>();
+        }
+    });
+    let selector_metadata = quote! {
+        #element_selector
+        #map_key_selector
+        #map_value_selector
+    };
+    let constraints_binding = quote! {
+        let constraints: &'static [#runtime::metadata::ConstraintMetadata] =
+            #runtime::__private::v8::leak_slice(::std::vec![#(#constraints),*]);
+    };
+    let collection_ops = expand_collection_ops(field, &constraint_irs, runtime, generic_definition);
+    let optional_ops = expand_optional_ops(field, runtime, generic_definition);
+    (
+        quote!(#sequence_assertion #map_assertion #constraint_assertions),
+        selector_metadata,
+        constraints_binding,
+        collection_ops,
+        optional_ops,
+    )
+}
+
+/// Builds field-attribute pushes in normalized occurrence order and appends the
+/// synthesized indexing reason after those explicit attributes.
+///
+/// Constraint and validator indices advance only when their matching
+/// occurrences are visited, so the generated references stay aligned with the
+/// arrays assembled by the caller.
+#[must_use]
+fn expand_field_attribute_tokens(
+    field: &FieldIr,
+    has_indexed: bool,
+    has_identifier: bool,
+    has_unique: bool,
+    has_reference: bool,
+    runtime: &TokenStream,
+) -> (Vec<TokenStream>, Option<TokenStream>) {
     let mut occurrence_tokens = Vec::new();
     let mut validator_index = 0usize;
     let mut constraint_index = 0usize;
@@ -739,10 +918,10 @@ fn expand_field_with_parameters(
     if has_identifier {
         reason_parts.push(quote!(#runtime::metadata::IndexingReasons::IDENTIFIER));
     }
-    if unique_ir.is_some() {
+    if has_unique {
         reason_parts.push(quote!(#runtime::metadata::IndexingReasons::UNIQUE));
     }
-    if reference_ir.is_some() {
+    if has_reference {
         reason_parts.push(quote!(#runtime::metadata::IndexingReasons::REFERENCE));
     }
     let indexed = reason_parts
@@ -753,82 +932,15 @@ fn expand_field_with_parameters(
                 attributes.push(#runtime::metadata::FieldAttributeMetadata::Indexed(#reasons));
             }
         });
-    let metadata = match generic_variant_inherited {
-        Some(variant_inherited) => quote! {
-            #runtime::__private::v8::generic_field_metadata(
-                #definition_path,
-                #index,
-                #variant,
-                #source_name,
-                #visibility,
-                _field_type_expression_data,
-                #variant_inherited,
-                attributes,
-                constraints,
-                validators,
-                serde,
-            )
-        },
-        None => quote! {
-            #runtime::__private::v8::field_metadata_with_opaque_type_id(
-                ::std::any::TypeId::of::<Self>(),
-                #variant,
-                #index,
-                #source_name,
-                #visibility,
-                _field_type_expression_data,
-                opaque_type_id,
-                attributes,
-                constraints,
-                validators,
-                serde,
-            )
-        },
-    };
-    quote! {
-        {
-            #location
-            let _field_type_expression_data = #type_expression;
-            let opaque_type_id: Option<::std::any::TypeId> = #opaque_type_id;
-            #sequence_assertion
-            #map_assertion
-            #constraint_assertions
-            #identifier
-            #unique
-            #reference
-            #key_part
-            let validators: &'static [#runtime::metadata::ValidatorMetadata] =
-                #runtime::__private::v8::leak_slice(::std::vec![#(#validators),*]);
-            #codec
-            #redact
-            #serde
-            #element_selector
-            #map_key_selector
-            #map_value_selector
-            let constraints: &'static [#runtime::metadata::ConstraintMetadata] =
-                #runtime::__private::v8::leak_slice(::std::vec![#(#constraints),*]);
-            let mut attributes = ::std::vec::Vec::new();
-            #(#occurrence_tokens)*
-            #indexed
-            let attributes: &'static [#runtime::metadata::FieldAttributeMetadata] =
-                #runtime::__private::v8::leak_slice(attributes);
-            #collection_ops
-            #optional_ops
-            let field_metadata = (#metadata).with_declaration(*field_declaration);
-            let field_metadata = match collection_ops {
-                Some(ops) => field_metadata.with_collection_ops(ops),
-                None => field_metadata,
-            };
-            let field_metadata = match optional_ops {
-                Some(ops) => field_metadata.with_optional_ops(ops),
-                None => field_metadata,
-            };
-            fields.push(field_metadata);
-        }
-    }
+    (occurrence_tokens, indexed)
 }
 
+/// Reports whether a type contains neither lifetimes nor declared type
+/// parameters.
+#[must_use]
 fn type_is_static_concrete(ty: &Type, generic_type_names: &[Ident]) -> bool {
+    /// Recursively checks whether the token stream contains static concrete
+    /// syntax.
     fn is_eligible(stream: TokenStream, generic_type_names: &[Ident]) -> bool {
         stream.into_iter().all(|token| match token {
             TokenTree::Group(group) => is_eligible(group.stream(), generic_type_names),
@@ -841,7 +953,19 @@ fn type_is_static_concrete(ty: &Type, generic_type_names: &[Ident]) -> bool {
     is_eligible(ty.to_token_stream(), generic_type_names)
 }
 
-/// Emits exact-type projections for a concrete `Option<T>` field.
+/// Emits an optional-element adapter for a concrete `Option<T>` field.
+///
+/// Generic definitions and opaque fields intentionally receive no adapter;
+/// other fields receive one only when their declared type has the supported
+/// `Option<T>` shape.
+///
+/// # Parameters
+/// - `field`: normalized field metadata.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_definition`: whether expansion targets a generic definition.
+///
+/// # Returns
+/// Tokens binding `optional_ops` to an adapter or `None`.
 #[must_use]
 fn expand_optional_ops(field: &FieldIr, runtime: &TokenStream, generic_definition: bool) -> TokenStream {
     if generic_definition
@@ -897,12 +1021,63 @@ fn expand_collection_ops(
         return quote!(let collection_ops = None;);
     }
     let field_type = &field.ty;
+    if unique
+        && (collection_name(field_type) == Some("Vec") || matches!(field_type, Type::Array(_)))
+        && collection_element_type(field_type).is_none()
+    {
+        return quote!(compile_error!("unique_items requires a concrete element type"); let collection_ops = None;);
+    }
     let optional_map = collection_element_type(field_type)
         .filter(|_| {
             matches!(field_type, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
         })
         .filter(|inner| matches!(collection_name(inner), Some("HashMap" | "BTreeMap")));
-    let map_adapter = if map && matches!(collection_name(field_type), Some("HashMap" | "BTreeMap")) {
+    let map_adapter = expand_map_length_adapter(field_type, map, optional_map, runtime);
+    let item_adapter = expand_unique_item_adapter(field_type, unique, runtime);
+    let items_adapter = if has_selector {
+        expand_collection_items(field_type, runtime)
+    } else {
+        TokenStream::new()
+    };
+    let map_value = if map_adapter.is_empty() {
+        quote!(None)
+    } else {
+        quote!(Some(map_len))
+    };
+    let item_value = if item_adapter.is_empty() {
+        quote!(None)
+    } else {
+        quote!(Some(item_eq))
+    };
+    if map_adapter.is_empty() && item_adapter.is_empty() && items_adapter.is_empty() {
+        return quote!(let collection_ops = None;);
+    }
+    let collection_ops = if items_adapter.is_empty() {
+        quote!(#runtime::metadata::CollectionOps::new(#map_value, #item_value))
+    } else {
+        quote!(#runtime::metadata::CollectionOps::new(#map_value, #item_value).with_items(collection_items))
+    };
+    quote! {
+        #map_adapter
+        #item_adapter
+        #items_adapter
+        let collection_ops = Some(#collection_ops);
+    }
+}
+
+/// Generates a map-length callback for supported concrete map field shapes.
+///
+/// The callback accepts borrowed map values, reports absence for optional
+/// values, and preserves the existing type-mismatch and adapter-unavailable
+/// errors for incompatible inputs.
+#[must_use]
+fn expand_map_length_adapter(
+    field_type: &Type,
+    map: bool,
+    optional_map: Option<&Type>,
+    runtime: &TokenStream,
+) -> TokenStream {
+    if map && matches!(collection_name(field_type), Some("HashMap" | "BTreeMap")) {
         quote! {
             fn map_len(value: &#runtime::metadata::PropertyValue<'_>) -> ::core::result::Result<::core::option::Option<usize>, #runtime::metadata::PropertyAccessError> {
                 match value {
@@ -946,12 +1121,17 @@ fn expand_collection_ops(
         }
     } else {
         TokenStream::new()
-    };
-    let item_adapter = if unique && (collection_name(field_type) == Some("Vec") || matches!(field_type, Type::Array(_)))
-    {
-        let Some(element_type) = collection_element_type(field_type) else {
-            return quote!(compile_error!("unique_items requires a concrete element type"); let collection_ops = None;);
-        };
+    }
+}
+
+/// Generates an equality callback for unique items in supported sequences.
+///
+/// The callback downcasts each dynamic reference to the declared element type
+/// and reports a type mismatch through the existing property-access error.
+#[must_use]
+fn expand_unique_item_adapter(field_type: &Type, unique: bool, runtime: &TokenStream) -> TokenStream {
+    if unique && (collection_name(field_type) == Some("Vec") || matches!(field_type, Type::Array(_))) {
+        let element_type = collection_element_type(field_type).expect("sequence element shape was checked");
         quote! {
             fn assert_item_eq<T: ::core::cmp::PartialEq + 'static>() {}
             assert_item_eq::<#element_type>();
@@ -970,35 +1150,6 @@ fn expand_collection_ops(
         }
     } else {
         TokenStream::new()
-    };
-    let items_adapter = if has_selector {
-        expand_collection_items(field_type, runtime)
-    } else {
-        TokenStream::new()
-    };
-    let map_value = if map_adapter.is_empty() {
-        quote!(None)
-    } else {
-        quote!(Some(map_len))
-    };
-    let item_value = if item_adapter.is_empty() {
-        quote!(None)
-    } else {
-        quote!(Some(item_eq))
-    };
-    if map_adapter.is_empty() && item_adapter.is_empty() && items_adapter.is_empty() {
-        return quote!(let collection_ops = None;);
-    }
-    let collection_ops = if items_adapter.is_empty() {
-        quote!(#runtime::metadata::CollectionOps::new(#map_value, #item_value))
-    } else {
-        quote!(#runtime::metadata::CollectionOps::new(#map_value, #item_value).with_items(collection_items))
-    };
-    quote! {
-        #map_adapter
-        #item_adapter
-        #items_adapter
-        let collection_ops = Some(#collection_ops);
     }
 }
 
@@ -1125,7 +1276,6 @@ fn expand_collection_items(field_type: &Type, runtime: &TokenStream) -> TokenStr
 }
 
 /// Returns the inner type of `Option<T>` when the declaration uses that shape.
-#[must_use]
 fn option_inner_type(ty: &Type) -> Option<&Type> {
     let Type::Path(path) = ty else {
         return None;
@@ -1150,7 +1300,6 @@ fn option_inner_type(ty: &Type) -> Option<&Type> {
 ///
 /// # Returns
 /// `Some` with a supported collection name, or `None` for other types.
-#[must_use]
 fn collection_name(ty: &Type) -> Option<&str> {
     let Type::Path(path) = ty else {
         return None;
@@ -1177,7 +1326,6 @@ fn collection_name(ty: &Type) -> Option<&str> {
 ///
 /// # Returns
 /// The first concrete element or value type argument, when present.
-#[must_use]
 fn collection_element_type(ty: &Type) -> Option<&Type> {
     match ty {
         Type::Array(array) => Some(&array.elem),
@@ -1824,8 +1972,10 @@ mod tests {
     use quote::ToTokens;
     use quote::format_ident;
     use quote::quote;
+    use syn::Ident;
     use syn::LitStr;
     use syn::Type;
+    use syn::Visibility;
     use syn::parse_quote;
 
     use super::codec_reference_expression;
@@ -1849,9 +1999,16 @@ mod tests {
     use crate::ir::declaration::FieldIr;
     use crate::ir::declaration::FieldOccurrence;
     use crate::ir::declaration::RedactIr;
+    use crate::ir::declaration::RedactModeIr;
+    use crate::ir::declaration::ReferenceIr;
+    use crate::ir::declaration::ReferenceTargetIr;
+    use crate::ir::declaration::SerdeIr;
+    use crate::ir::declaration::StrategyArgumentIr;
+    use crate::ir::declaration::TextConstraintIr;
+    use crate::ir::declaration::ValidatorIr;
 
     #[test]
-    fn type_expression_data_preserves_nested_paths_and_references() {
+    fn test_type_expression_data_preserves_nested_paths_and_references() {
         let ty: Type = parse_quote!(std::option::Option<&'static crate::model::Value<u32>>);
         let tokens = type_expression_data_with_parameters(&ty, &quote!(runtime), &[]).to_string();
         assert!(tokens.contains("ExpressionData :: Named"), "{tokens}");
@@ -1861,7 +2018,7 @@ mod tests {
     }
 
     #[test]
-    fn type_expression_data_preserves_const_paths_and_special_types() {
+    fn test_type_expression_data_preserves_const_paths_and_special_types() {
         let runtime = quote!(runtime);
         for (ty, expected) in [
             (
@@ -1887,7 +2044,7 @@ mod tests {
     }
 
     #[test]
-    fn type_expression_data_links_declared_type_and_const_parameters_by_name() {
+    fn test_type_expression_data_links_declared_type_and_const_parameters_by_name() {
         let runtime = quote!(runtime);
         let parameters = [format_ident!("T"), format_ident!("N")];
         let type_parameter = type_expression_data_with_parameters(&parse_quote!(T), &runtime, &parameters).to_string();
@@ -1952,7 +2109,7 @@ mod tests {
     }
 
     #[test]
-    fn type_expression_data_marks_only_exact_owner_paths_as_self() {
+    fn test_type_expression_data_marks_only_exact_owner_paths_as_self() {
         let owner = format_ident!("RecursiveValue");
         let runtime = quote!(runtime);
         let recursive =
@@ -1967,7 +2124,7 @@ mod tests {
     }
 
     #[test]
-    fn opaque_type_identity_skips_lifetimes_and_generic_parameters() {
+    fn test_opaque_type_identity_skips_lifetimes_and_generic_parameters() {
         let generic_names = [format_ident!("T")];
         assert!(type_is_static_concrete(&parse_quote!(Option<Inner>), &[]));
         assert!(!type_is_static_concrete(&parse_quote!(&'a Inner), &[]));
@@ -1975,7 +2132,7 @@ mod tests {
     }
 
     #[test]
-    fn opaque_field_codegen_retains_only_concrete_static_type_ids() {
+    fn test_opaque_field_codegen_retains_only_concrete_static_type_ids() {
         let mut opaque = FieldIr {
             variant_index: None,
             index: Located::new(0, Span::call_site()),
@@ -1984,7 +2141,7 @@ mod tests {
             keep_serializing: true,
             named: true,
             rust_name: Some(format_ident!("hidden")),
-            visibility: syn::Visibility::Inherited,
+            visibility: Visibility::Inherited,
         };
         let concrete = expand_field_with_parameters(&opaque, &quote!(runtime), None, None, &[], None).to_string();
         assert!(
@@ -2012,7 +2169,7 @@ mod tests {
     }
 
     #[test]
-    fn generated_field_metadata_uses_v4_expression_facts_without_legacy_handles() {
+    fn test_generated_field_metadata_uses_v4_expression_facts_without_legacy_handles() {
         let field = FieldIr {
             variant_index: None,
             index: Located::new(0, Span::call_site()),
@@ -2020,8 +2177,8 @@ mod tests {
             occurrences: vec![],
             keep_serializing: true,
             named: true,
-            rust_name: Some(syn::Ident::new("value", Span::call_site())),
-            visibility: syn::Visibility::Inherited,
+            rust_name: Some(Ident::new("value", Span::call_site())),
+            visibility: Visibility::Inherited,
         };
         let generated = expand_field(&field, &quote!(descriptor_fields), &quote!(runtime), None, None).to_string();
         assert!(
@@ -2031,14 +2188,6 @@ mod tests {
         assert!(!generated.contains("TypeRef"), "{generated}");
         assert!(!generated.contains("codegen_v3"), "{generated}");
     }
-    use crate::ir::declaration::RedactModeIr;
-    use crate::ir::declaration::ReferenceIr;
-    use crate::ir::declaration::ReferenceTargetIr;
-    use crate::ir::declaration::SerdeIr;
-    use crate::ir::declaration::StrategyArgumentIr;
-    use crate::ir::declaration::TextConstraintIr;
-    use crate::ir::declaration::ValidatorIr;
-
     fn assert_tokens_contain(tokens: &TokenStream, expected: &str) {
         fn token_matches(left: &TokenTree, right: &TokenTree) -> bool {
             match (left, right) {
@@ -2104,7 +2253,7 @@ mod tests {
             keep_serializing: true,
             named: true,
             rust_name: Some(format_ident!("field")),
-            visibility: syn::Visibility::Inherited,
+            visibility: Visibility::Inherited,
         };
         let constraint = ConstraintIr::Sequence {
             min: None,

@@ -17,6 +17,7 @@ use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_reflect::Reflect;
 use qubit_reflect::ReflectionContext;
+use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::Reflect as ReflectType;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
@@ -49,17 +50,20 @@ impl Person {
 
     /// Excludes this getter while preserving its same-named stored field.
     #[model_property(skip)]
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
     /// Retains reflection while excluding the computed property.
     #[model_property(skip)]
+    #[must_use]
     pub fn diagnostic(&self) -> usize {
         self.name.len()
     }
 
     /// Provides a computed property without a separate marker.
+    #[must_use]
     pub fn full_name(&self) -> String {
         self.name.clone()
     }
@@ -79,7 +83,7 @@ fn test_exclusion_preserves_computed_and_stored_properties() {
     assert!(properties.property("diagnostic").is_none());
     assert!(properties.property("full_name").expect("computed").is_computed());
     assert!(properties.property("name").expect("field").is_writable());
-    let descriptor = qubit_reflect::TypeDescriptor::of_in::<Person>(&context);
+    let descriptor = TypeDescriptor::of_in::<Person>(&context);
     assert!(descriptor.method("diagnostic").is_ok());
     let person = Person { name: "Ada".into() };
     assert_eq!(person.diagnostic(), 3);
@@ -90,6 +94,7 @@ fn test_exclusion_preserves_computed_and_stored_properties() {
 #[Reflect]
 trait Greeting {
     /// Provides trait behavior, independently of model properties.
+    #[must_use]
     fn greeting(&self) -> String;
 }
 
@@ -114,11 +119,7 @@ fn test_trait_methods_do_not_contribute_properties() {
             .property("greeting")
             .is_none()
     );
-    assert!(
-        qubit_reflect::TypeDescriptor::of_in::<Person>(&context)
-            .method("greeting")
-            .is_ok()
-    );
+    assert!(TypeDescriptor::of_in::<Person>(&context).method("greeting").is_ok());
     assert_eq!(Person { name: "Ada".into() }.greeting(), "Ada");
 }
 
@@ -130,6 +131,7 @@ struct GenericName<T> {
 #[ModelImpl(specialize(T = String), specialize(T = u32))]
 impl<T: Clone + ReflectType> GenericName<T> {
     /// A computed property specialized using the reflection support boundary.
+    #[must_use]
     pub fn current(&self) -> T {
         self.value.clone()
     }
@@ -178,6 +180,7 @@ struct Fixed<const N: usize> {
 #[ModelImpl(specialize(N = 2))]
 impl<const N: usize> Fixed<N> {
     /// Reports the concrete const-specialized storage length.
+    #[must_use]
     pub fn length(&self) -> usize {
         self.bytes.len()
     }
@@ -205,6 +208,7 @@ struct SplitAccessors {
 
 #[ModelImpl]
 impl SplitAccessors {
+    #[must_use]
     pub fn title(&self) -> String {
         self.value.clone()
     }

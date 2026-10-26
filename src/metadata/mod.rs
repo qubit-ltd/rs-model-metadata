@@ -9,14 +9,17 @@
 //! Stable declaration-side model vocabulary.
 
 mod codec;
+mod codec_metadata;
+mod codec_reference;
+mod codec_source;
 mod redaction;
+mod rust_type_reference;
 mod selector;
 mod validation;
 
 pub use codec::CodecMetadata;
 pub use codec::CodecReference;
 pub use codec::CodecSource;
-pub use codec::RustTypeReference;
 pub use qubit_model_id::HasModelId;
 pub use qubit_model_id::ModelId;
 pub use qubit_model_id::ModelIdBuf;
@@ -25,6 +28,7 @@ pub use redaction::RedactMetadata;
 pub use redaction::RedactModeMetadata;
 pub use redaction::RedactPosition;
 pub use redaction::Sensitivity;
+pub use rust_type_reference::RustTypeReference;
 pub use selector::SelectorMetadata;
 pub use selector::SelectorPosition;
 pub use validation::DependencyBindingMetadata;

@@ -8,5 +8,10 @@
 
 //! Nested collection selector declarations.
 
-pub use crate::metadata_vocabulary::SelectorMetadata;
-pub use crate::metadata_vocabulary::SelectorPosition;
+#[path = "selector_metadata.rs"]
+mod selector_metadata;
+#[path = "selector_position.rs"]
+mod selector_position;
+
+pub use selector_metadata::SelectorMetadata;
+pub use selector_position::SelectorPosition;

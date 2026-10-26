@@ -27,7 +27,17 @@ use super::fields::validate_ascii_id;
 use crate::ir::declaration::StrategyArgumentIr;
 use crate::ir::declaration::ValidatorIr;
 
-/// Parses a validator ID, dependencies, and strategy parameters.
+/// Parses a validator ID, dependencies, and strategy parameters from metadata.
+///
+/// # Parameters
+/// - `attribute`: The validator metadata attribute to parse.
+///
+/// # Returns
+/// The validator's ID, normalized strategy parameters, and dependency bindings.
+///
+/// # Errors
+/// Returns an error for missing or duplicate IDs, malformed or duplicate
+/// dependencies and parameters, unsupported options, or invalid values.
 pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
     let mut id = None;
     let mut params = Vec::new();
@@ -121,7 +131,16 @@ pub(crate) fn parse_validator(attribute: &Attribute) -> Result<ValidatorIr> {
     })
 }
 
-/// Parses one validator strategy argument into a supported literal variant.
+/// Parses one validator strategy expression into its supported literal variant.
+///
+/// # Parameters
+/// - `expression`: The expression supplied as a validator strategy argument.
+///
+/// # Returns
+/// The typed scalar or homogeneous-list strategy argument.
+///
+/// # Errors
+/// Returns a diagnostic when the expression is not a supported literal shape.
 fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
     match expression {
         Expr::Lit(ExprLit {
@@ -160,7 +179,19 @@ fn parse_strategy_argument(expression: Expr) -> Result<StrategyArgumentIr> {
     }
 }
 
-/// Parses a homogeneous array of validator strategy literals.
+/// Parses a nonempty homogeneous array of validator strategy literals.
+///
+/// # Parameters
+/// - `values`: The array elements in their original order.
+///
+/// # Returns
+/// The boolean, signed integer, unsigned integer, or string list variant.
+///
+/// # Errors
+/// Returns a diagnostic for an empty, mixed, or unsupported array. A boolean
+/// first element selects boolean parsing; otherwise, any unary expression
+/// selects signed integer parsing, and the first element selects the remaining
+/// literal categories.
 fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
     if values.is_empty() {
         return Err(Error::new(
@@ -229,6 +260,16 @@ fn parse_strategy_array(values: Vec<Expr>) -> Result<StrategyArgumentIr> {
 }
 
 /// Parses one signed integer from an integer literal or unary-minus expression.
+///
+/// # Parameters
+/// - `value`: The expression to parse as a signed integer.
+///
+/// # Returns
+/// The signed value represented by the literal.
+///
+/// # Errors
+/// Returns a diagnostic when the expression is not an integer literal with an
+/// optional unary minus, or when its value is out of range.
 fn parse_strategy_signed_integer(value: &Expr) -> Result<i128> {
     match value {
         Expr::Lit(ExprLit {
@@ -255,110 +296,17 @@ fn parse_strategy_signed_integer(value: &Expr) -> Result<i128> {
 /// Parses a negated literal without requiring its positive magnitude to fit in
 /// `i128`. Returns a diagnostic at the literal when the signed value
 /// underflows.
+///
+/// # Parameters
+/// - `value`: The positive-magnitude integer literal to negate.
+///
+/// # Returns
+/// The representable signed value after negation.
+///
+/// # Errors
+/// Returns a diagnostic when the negated value is outside the `i128` range.
 fn parse_negative_strategy_integer(value: &LitInt) -> Result<i128> {
     format!("-{}", value.base10_digits())
         .parse::<i128>()
         .map_err(|error| Error::new_spanned(value, format!("invalid signed validator integer: {error}")))
-}
-
-#[cfg(test)]
-mod tests {
-    use syn::Attribute;
-    use syn::parse_quote;
-
-    use super::parse_validator;
-    use crate::ir::declaration::StrategyArgumentIr;
-
-    /// Parses every supported scalar and homogeneous validator argument shape.
-    #[test]
-    fn test_parse_validator_argument_shapes() {
-        let attribute: Attribute = parse_quote!(
-            #[validator(
-                id = "example.rule",
-                params(
-                    enabled = true,
-                    count = 7,
-                    offset = -2,
-                    label = "ok",
-                    flags = [true, false],
-                    counts = [1, 2],
-                    offsets = [-1, 2],
-                    labels = ["a", "b"]
-                ),
-                depends_on(owner(property = owner.id), tenant)
-            )]
-        );
-        let validator = parse_validator(&attribute).expect("supported validator");
-
-        assert_eq!(validator.id.value(), "example.rule");
-        assert_eq!(validator.params.len(), 8);
-        assert_eq!(
-            validator.dependency_bindings,
-            vec![
-                ("owner".to_owned(), vec![], vec!["owner".to_owned(), "id".to_owned()]),
-                ("tenant".to_owned(), vec![], vec!["tenant".to_owned()])
-            ]
-        );
-        assert!(matches!(validator.params[0].1, StrategyArgumentIr::Bool(true)));
-        assert!(matches!(validator.params[1].1, StrategyArgumentIr::Unsigned(7)));
-        assert!(matches!(validator.params[2].1, StrategyArgumentIr::Integer(-2)));
-        assert!(matches!(validator.params[3].1, StrategyArgumentIr::String(_)));
-        assert!(matches!(validator.params[4].1, StrategyArgumentIr::BoolList(_)));
-        assert!(matches!(validator.params[5].1, StrategyArgumentIr::UnsignedList(_)));
-        assert!(matches!(validator.params[6].1, StrategyArgumentIr::IntegerList(_)));
-        assert!(matches!(validator.params[7].1, StrategyArgumentIr::StringList(_)));
-    }
-
-    /// Preserves a named dependency slot separately from its source path.
-    #[test]
-    fn test_parse_named_validator_dependency() {
-        let attribute: Attribute = parse_quote!(
-            #[validator(
-                id = "example.rule",
-                depends_on(kind(property = owner.kind))
-            )]
-        );
-        let validator = parse_validator(&attribute).expect("named dependency");
-
-        assert_eq!(
-            validator.dependency_bindings,
-            vec![(
-                "kind".to_owned(),
-                Vec::new(),
-                vec!["owner".to_owned(), "kind".to_owned()]
-            )]
-        );
-    }
-
-    /// Execution policy is not part of metadata declaration syntax.
-    #[test]
-    fn test_reject_execution_policy_options() {
-        for attribute in [
-            parse_quote!(#[validator(id = "example.rule", target = "container")]),
-            parse_quote!(#[validator(id = "example.rule", on_none = "skip")]),
-        ] {
-            assert!(parse_validator(&attribute).is_err());
-        }
-    }
-
-    /// Covers missing IDs, unsupported options, and heterogeneous arrays.
-    #[test]
-    fn test_parse_validator_errors() {
-        let cases: [Attribute; 10] = [
-            parse_quote!(#[validator(params(value = 1))]),
-            parse_quote!(#[validator(id = "bad id")]),
-            parse_quote!(#[validator(id = "a", id = "b")]),
-            parse_quote!(#[validator(id = "a", unsupported)]),
-            parse_quote!(#[validator(id = "a", params(value = [true, 1]))]),
-            parse_quote!(#[validator(id = "a", params(value = [-true]))]),
-            parse_quote!(#[validator(id = "a", params(value = [path]))]),
-            parse_quote!(#[validator(id = "a", depends_on(value = first, value = second))]),
-            parse_quote!(#[validator(id = "a", target = "unknown")]),
-            parse_quote!(#[validator(id = "a", target = "container", on_none = "reject")]),
-        ];
-
-        for attribute in cases {
-            assert!(parse_validator(&attribute).is_err());
-        }
-    }
 }

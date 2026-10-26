@@ -13,7 +13,10 @@ use syn::Result;
 
 /// Accumulates recoverable declaration diagnostics.
 #[derive(Default)]
-pub(crate) struct Diagnostics(Option<Error>);
+pub(crate) struct Diagnostics(
+    /// Holds the combined diagnostics, or `None` until the first error arrives.
+    Option<Error>,
+);
 
 impl Diagnostics {
     /// Adds one diagnostic without discarding previously collected errors.
@@ -29,27 +32,5 @@ impl Diagnostics {
     #[inline]
     pub(crate) fn finish(self) -> Result<()> {
         self.0.map_or(Ok(()), Err)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use proc_macro2::Span;
-    use syn::Error;
-
-    use super::Diagnostics;
-
-    /// Confirms independent diagnostics are retained in the emitted error.
-    #[test]
-    fn test_finish_emits_all_combined_errors() {
-        let mut diagnostics = Diagnostics::default();
-        diagnostics.push(Error::new(Span::call_site(), "first error"));
-        diagnostics.push(Error::new(Span::call_site(), "second error"));
-
-        let error = diagnostics.finish().expect_err("combined diagnostics must fail");
-        let tokens = error.into_compile_error().to_string();
-
-        assert!(tokens.contains("first error"));
-        assert!(tokens.contains("second error"));
     }
 }

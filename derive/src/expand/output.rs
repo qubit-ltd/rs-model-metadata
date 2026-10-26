@@ -24,6 +24,7 @@ use syn::Meta;
 use syn::Path;
 use syn::Result;
 use syn::Token;
+use syn::Variant;
 use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
@@ -366,29 +367,35 @@ fn apply_enum_default_serde_wire_names(item: &mut DeriveInput, declaration: &Dec
         return Ok(());
     };
     for variant in &mut data.variants {
-        if variant_has_serde_rename(&variant.attrs)? {
-            continue;
-        }
-        let rust_name = variant.ident.to_string();
-        let Some(variant_ir) = declaration
-            .variants
-            .iter()
-            .find(|candidate| candidate.rust_name == rust_name)
-        else {
-            continue;
-        };
-        let serialized = &variant_ir.serialized_name;
-        let deserialized = &variant_ir.deserialized_name;
-        if serialized == deserialized {
-            let name = LitStr::new(serialized, variant.ident.span());
-            variant.attrs.push(parse_quote!(#[serde(rename = #name)]));
-        } else {
-            let serialize = LitStr::new(serialized, variant.ident.span());
-            let deserialize = LitStr::new(deserialized, variant.ident.span());
-            variant
-                .attrs
-                .push(parse_quote!(#[serde(rename(serialize = #serialize, deserialize = #deserialize))]));
-        }
+        apply_variant_default_serde_wire_name(variant, declaration)?;
+    }
+    Ok(())
+}
+
+/// Adds declaration-derived Serde names to one variant when it has no override.
+fn apply_variant_default_serde_wire_name(variant: &mut Variant, declaration: &DeclarationIr) -> Result<()> {
+    if variant_has_serde_rename(&variant.attrs)? {
+        return Ok(());
+    }
+    let rust_name = variant.ident.to_string();
+    let Some(variant_ir) = declaration
+        .variants
+        .iter()
+        .find(|candidate| candidate.rust_name == rust_name)
+    else {
+        return Ok(());
+    };
+    let serialized = &variant_ir.serialized_name;
+    let deserialized = &variant_ir.deserialized_name;
+    if serialized == deserialized {
+        let name = LitStr::new(serialized, variant.ident.span());
+        variant.attrs.push(parse_quote!(#[serde(rename = #name)]));
+    } else {
+        let serialize = LitStr::new(serialized, variant.ident.span());
+        let deserialize = LitStr::new(deserialized, variant.ident.span());
+        variant
+            .attrs
+            .push(parse_quote!(#[serde(rename(serialize = #serialize, deserialize = #deserialize))]));
     }
     Ok(())
 }

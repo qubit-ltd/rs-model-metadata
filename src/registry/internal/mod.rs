@@ -8,4 +8,6 @@
 
 //! Registry-owned representations which are not part of the public API.
 
+pub(super) mod cause;
 pub(super) mod model_entry_target;
+pub(super) mod model_registry_cache;

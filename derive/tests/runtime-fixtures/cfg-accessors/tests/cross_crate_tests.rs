@@ -19,13 +19,21 @@ use qubit_reflect::registry::ReflectRegistry;
 fn test_cross_crate_conditional_contributions() {
     let metadata = TypeMetadata::of::<Configured>();
     let reflection = ReflectRegistry::initialize().expect("cross-crate reflection");
-    assert!(metadata.try_property("paired").expect("properties").is_some());
+    assert!(
+        metadata
+            .try_property("paired")
+            .expect("properties")
+            .is_some(),
+        "paired metadata should always be present"
+    );
     assert_eq!(
         metadata.try_property("feature_value").expect("properties").is_some(),
         cfg!(feature = "accessors"),
         "feature_value metadata should follow the accessors feature"
     );
-    let present = reflection.implementations(TypeId::of::<Configured>()).iter()
+    let present = reflection
+        .implementations(TypeId::of::<Configured>())
+        .iter()
         .flat_map(|implementation| implementation.methods())
         .any(|method| method.rust_name() == "feature_value");
     assert_eq!(

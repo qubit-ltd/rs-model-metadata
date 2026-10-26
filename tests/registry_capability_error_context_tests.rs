@@ -8,6 +8,9 @@
 
 //! Verifies context-bound registry capability lookup and error provenance.
 
+use std::any::TypeId;
+use std::error::Error;
+
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::v8::model_metadata_registration;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -47,7 +50,7 @@ fn test_registry_capability_error_retains_typed_cause() {
 
     assert_eq!(error.kind(), ModelRegistryErrorKind::Capability);
     assert!(
-        std::error::Error::source(&error)
+        Error::source(&error)
             .and_then(|cause| cause.downcast_ref::<CapabilityError>())
             .is_some()
     );
@@ -66,10 +69,10 @@ fn test_registry_uses_only_its_bound_context_and_rebinds_descriptors() {
         .expect("unregistered model context");
     let registry = ModelRegistry::from_context(&first_context).expect("registry projection");
     let first_descriptor = first_context
-        .type_by_id(std::any::TypeId::of::<RegistryContextTarget>())
+        .type_by_id(TypeId::of::<RegistryContextTarget>())
         .expect("first descriptor");
     let second_descriptor = second_context
-        .type_by_id(std::any::TypeId::of::<RegistryContextTarget>())
+        .type_by_id(TypeId::of::<RegistryContextTarget>())
         .expect("second descriptor");
 
     assert!(

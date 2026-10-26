@@ -26,6 +26,7 @@ macro_rules! fixture_models {
         )+
 
         /// Returns metadata for every concrete fixture type in stable order.
+        #[must_use]
         pub(super) fn all_metadata() -> Vec<&'static TypeMetadata> {
             vec![$(TypeMetadata::of::<$model>()),+]
         }
@@ -60,6 +61,7 @@ pub(super) struct Pipeline1 {
 
 impl Pipeline1 {
     /// Creates valid input outside the measured loops.
+    #[must_use]
     pub(super) fn sample() -> Self {
         Self {
             field_0: "valid input".to_owned(),
@@ -99,6 +101,7 @@ pub(super) struct Pipeline8 {
 
 impl Pipeline8 {
     /// Creates valid input outside the measured loops.
+    #[must_use]
     pub(super) fn sample() -> Self {
         Self {
             field_0: "valid input".to_owned(),
@@ -256,6 +259,7 @@ pub(super) struct Pipeline32 {
 
 impl Pipeline32 {
     /// Creates valid input outside the measured loops.
+    #[must_use]
     pub(super) fn sample() -> Self {
         Self {
             field_0: "valid input".to_owned(),

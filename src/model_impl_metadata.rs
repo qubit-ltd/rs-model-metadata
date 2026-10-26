@@ -8,6 +8,8 @@
 
 //! Generated metadata for one model-aware inherent implementation block.
 
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::ptr::eq;
 use std::sync::Arc;
 
@@ -30,6 +32,95 @@ use crate::reflect_facade::ModelImplSource;
 mod internal;
 
 pub(crate) use internal::merged_model_impl::MergedModelImpl;
+
+/// Appends an overlay's fragments while retaining the first backing field.
+///
+/// `field_names` tracks fields already emitted, while non-field fragments are
+/// always appended in provider and declaration order.
+fn append_overlay_fragments(
+    fragments: &mut Vec<PropertyFragment>,
+    field_names: &mut HashSet<&'static str>,
+    overlay: &ModelImplMetadata,
+) {
+    for fragment in overlay.fragments() {
+        if matches!(fragment.source(), PropertyFragmentSource::Field(_)) && !field_names.insert(fragment.name()) {
+            continue;
+        }
+        fragments.push(*fragment);
+    }
+}
+
+/// Merges one overlay's successful properties and retains its diagnostics.
+///
+/// `property_indices` points into the ordered output vector, avoiding a scan
+/// while preserving the first occurrence and provider order of each property.
+fn merge_overlay_properties(
+    overlay: &ModelImplMetadata,
+    origin: ModelImplSource,
+    properties: &mut Vec<(PropertyMetadata, Option<ModelImplSource>, Option<ModelImplSource>)>,
+    property_indices: &mut HashMap<&'static str, usize>,
+    errors: &mut Vec<PropertyBuildError>,
+) {
+    match overlay.try_properties() {
+        Err(error) => errors.extend_from_slice(error.errors()),
+        Ok(local) => {
+            for property in local.properties() {
+                if let Some(index) = property_indices.get(property.name()).copied() {
+                    let (current, getter_origin, setter_origin) = &mut properties[index];
+                    if let Some((first, second)) = current.getter().zip(property.getter())
+                        && !eq(first, second)
+                    {
+                        errors.push(PropertyBuildError::with_conflict(
+                            PropertyBuildErrorKind::ConflictingGetter,
+                            current.name(),
+                            first.rust_method_name(),
+                            second.rust_method_name(),
+                            (*getter_origin).expect("selected getter retains its origin"),
+                            origin,
+                        ));
+                    }
+                    if let Some((first, second)) = current.setter().zip(property.setter())
+                        && !eq(first, second)
+                    {
+                        errors.push(PropertyBuildError::with_conflict(
+                            PropertyBuildErrorKind::ConflictingSetter,
+                            current.name(),
+                            first.rust_method_name(),
+                            second.rust_method_name(),
+                            (*setter_origin).expect("selected setter retains its origin"),
+                            origin,
+                        ));
+                    }
+                    if getter_origin.is_none() && property.getter().is_some() {
+                        *getter_origin = Some(origin);
+                    }
+                    if setter_origin.is_none() && property.setter().is_some() {
+                        *setter_origin = Some(origin);
+                    }
+                    let selected = if current.field().is_some() || current.getter().is_some() {
+                        *current
+                    } else {
+                        *property
+                    };
+                    *current = PropertyMetadata::new(
+                        current.name(),
+                        selected.type_expression_data(),
+                        current.field().or(property.field()),
+                        current.getter().or(property.getter()),
+                        current.setter().or(property.setter()),
+                    );
+                } else {
+                    property_indices.insert(property.name(), properties.len());
+                    properties.push((
+                        *property,
+                        property.getter().map(|_| origin),
+                        property.setter().map(|_| origin),
+                    ));
+                }
+            }
+        }
+    }
+}
 
 /// Stores the declarations emitted for one model-aware implementation block.
 ///
@@ -130,80 +221,13 @@ impl ModelImplMetadata {
             .map(|(provider, origin)| (provider(), origin))
             .collect();
         let mut fragments = Vec::new();
+        let mut field_names = HashSet::new();
         let mut properties: Vec<(PropertyMetadata, Option<ModelImplSource>, Option<ModelImplSource>)> = Vec::new();
+        let mut property_indices = HashMap::new();
         let mut errors = Vec::new();
         for (overlay, origin) in overlays {
-            for fragment in overlay.fragments() {
-                if matches!(fragment.source(), PropertyFragmentSource::Field(_))
-                    && fragments.iter().any(|existing: &PropertyFragment| {
-                        existing.name() == fragment.name()
-                            && matches!(existing.source(), PropertyFragmentSource::Field(_))
-                    })
-                {
-                    continue;
-                }
-                fragments.push(*fragment);
-            }
-            match overlay.try_properties() {
-                Err(error) => errors.extend_from_slice(error.errors()),
-                Ok(local) => {
-                    for property in local.properties() {
-                        if let Some((current, getter_origin, setter_origin)) = properties
-                            .iter_mut()
-                            .find(|(value, _, _)| value.name() == property.name())
-                        {
-                            if let Some((first, second)) = current.getter().zip(property.getter())
-                                && !eq(first, second)
-                            {
-                                errors.push(PropertyBuildError::with_conflict(
-                                    PropertyBuildErrorKind::ConflictingGetter,
-                                    current.name(),
-                                    first.rust_method_name(),
-                                    second.rust_method_name(),
-                                    (*getter_origin).expect("selected getter retains its origin"),
-                                    *origin,
-                                ));
-                            }
-                            if let Some((first, second)) = current.setter().zip(property.setter())
-                                && !eq(first, second)
-                            {
-                                errors.push(PropertyBuildError::with_conflict(
-                                    PropertyBuildErrorKind::ConflictingSetter,
-                                    current.name(),
-                                    first.rust_method_name(),
-                                    second.rust_method_name(),
-                                    (*setter_origin).expect("selected setter retains its origin"),
-                                    *origin,
-                                ));
-                            }
-                            if getter_origin.is_none() && property.getter().is_some() {
-                                *getter_origin = Some(*origin);
-                            }
-                            if setter_origin.is_none() && property.setter().is_some() {
-                                *setter_origin = Some(*origin);
-                            }
-                            let selected = if current.field().is_some() || current.getter().is_some() {
-                                *current
-                            } else {
-                                *property
-                            };
-                            *current = PropertyMetadata::new(
-                                current.name(),
-                                selected.type_expression_data(),
-                                current.field().or(property.field()),
-                                current.getter().or(property.getter()),
-                                current.setter().or(property.setter()),
-                            );
-                        } else {
-                            properties.push((
-                                *property,
-                                property.getter().map(|_| *origin),
-                                property.setter().map(|_| *origin),
-                            ));
-                        }
-                    }
-                }
-            }
+            append_overlay_fragments(&mut fragments, &mut field_names, overlay);
+            merge_overlay_properties(overlay, *origin, &mut properties, &mut property_indices, &mut errors);
         }
         let properties: Vec<_> = properties.into_iter().map(|(property, _, _)| property).collect();
         if let Err(error) = owner.validate_properties_in(context, &properties) {
@@ -240,7 +264,6 @@ impl ModelImplMetadata {
     /// Returns the retained assembly diagnostics for incompatible types,
     /// conflicting accessors, or invalid field ownership. This accessor does
     /// not rerun assembly or invoke providers.
-    #[must_use = "handle property assembly failures"]
     #[inline]
     pub const fn try_properties(&self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
         self.properties

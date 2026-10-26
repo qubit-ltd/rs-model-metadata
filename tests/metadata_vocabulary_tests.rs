@@ -33,6 +33,14 @@ use qubit_model_metadata::metadata::ReferenceSelection;
 use qubit_model_metadata::metadata::Sensitivity;
 use qubit_model_metadata::metadata::SerdeBehaviorSource;
 use qubit_model_metadata::metadata::TargetMode;
+
+#[test]
+fn test_reads_the_concrete_ignore_case_policy() {
+    static SCOPE: [PropertyPath<'static>; 1] = [PropertyPath::new(&["tenant"])];
+    let policy = FieldUniqueMetadata::new(&SCOPE, true);
+
+    assert!(policy.ignore_case());
+}
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::metadata::ValidationArgument;
 use qubit_model_metadata::metadata::ValidatorMetadata;

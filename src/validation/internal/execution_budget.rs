@@ -34,6 +34,8 @@ impl<'options> ExecutionBudget<'options> {
     /// # Returns
     ///
     /// A budget initialized with one consumed root node and no comparisons.
+    #[must_use]
+    #[inline]
     pub(crate) const fn new(options: &'options ValidationOptions) -> Self {
         Self {
             options,
@@ -55,6 +57,7 @@ impl<'options> ExecutionBudget<'options> {
     /// # Errors
     ///
     /// Returns `TraversalLimit` when `depth` exceeds the configured maximum.
+    #[inline]
     pub(crate) fn check_depth(&self, depth: usize) -> Result<(), ExecutionError> {
         if depth > self.options.max_depth() {
             Err(limit())
@@ -145,6 +148,7 @@ impl<'options> ExecutionBudget<'options> {
 /// # Returns
 ///
 /// An execution error classified as `TraversalLimit`.
+#[inline]
 fn limit() -> ExecutionError {
     ExecutionError::new(ExecutionErrorKind::TraversalLimit)
 }

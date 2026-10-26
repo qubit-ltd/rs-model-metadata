@@ -8,10 +8,12 @@
 
 //! Fixed-predicate diagnostics for conditional property candidates.
 
+use trybuild::TestCases;
+
 /// Verifies conditional duplicates and compatibility errors with source spans.
 #[test]
 fn test_conditional_accessor_diagnostics() {
-    let cases = trybuild::TestCases::new();
+    let cases = TestCases::new();
     cases.pass("tests/ui_cfg/pass/*.rs");
     cases.compile_fail("tests/ui_cfg/fail/*.rs");
 }

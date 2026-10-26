@@ -20,12 +20,31 @@ use crate::metadata::SetterMetadata;
 /// # Examples
 ///
 /// ```
+/// use qubit_model_derive::Model;
 /// use qubit_model_metadata::metadata::PropertyFragmentSource;
+/// use qubit_model_metadata::metadata::TypeMetadata;
 ///
-/// fn is_storage_field(source: &PropertyFragmentSource) -> bool {
-///     matches!(source, PropertyFragmentSource::Field(_))
+/// #[Model(id = "example.PropertyFragmentSource")]
+/// struct Note {
+///     title: String,
 /// }
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let metadata = TypeMetadata::of::<Note>();
+/// let fragments = metadata.property_fragments()?;
+/// let title = fragments
+///     .fragments()
+///     .iter()
+///     .find(|fragment| fragment.name() == "title")
+///     .expect("generated title fragment");
+/// assert!(matches!(
+///     title.source(),
+///     PropertyFragmentSource::Field(_)
+/// ));
+/// # Ok(())
+/// # }
 /// ```
+#[must_use = "inspect the declaration source category"]
 #[derive(Clone, Copy, Debug)]
 pub enum PropertyFragmentSource {
     /// A reflected storage field declared the property.

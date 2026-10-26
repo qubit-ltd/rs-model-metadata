@@ -327,6 +327,7 @@ fn test_same_type_dependencies_follow_signature_order() {
             .is_valid()
     );
 }
+
 #[Model]
 struct RepeatedRules {
     #[validator(id = "test.repeat", params(order = 1))]

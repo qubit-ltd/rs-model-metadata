@@ -8,11 +8,11 @@
 
 //! Runtime coverage for model-graph role and opaque boundaries.
 
-use model_runtime::__private::qubit_id::Id;
 use model_runtime::registry::ModelRegistry;
 use model_runtime::resolve::ResolveErrorKind;
 use model_runtime::resolve::ResolveInputs;
 use model_runtime::resolve::StructureResolver;
+use qubit_id::Id;
 use qubit_model_derive::Entity;
 
 #[Entity(id = "graph.Nested")]
@@ -50,12 +50,14 @@ fn test_resolver_rejects_entity_embedding_and_opaque_model_hiding() {
         errors
             .errors()
             .iter()
-            .any(|error| error.kind() == ResolveErrorKind::InvalidEntityNesting)
+            .any(|error| error.kind() == ResolveErrorKind::InvalidEntityNesting),
+        "direct entity embedding must be rejected"
     );
     assert!(
         errors
             .errors()
             .iter()
-            .any(|error| error.kind() == ResolveErrorKind::OpaqueModel)
+            .any(|error| error.kind() == ResolveErrorKind::OpaqueModel),
+        "opaque model embedding must be reported"
     );
 }

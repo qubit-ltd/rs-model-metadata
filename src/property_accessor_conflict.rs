@@ -16,13 +16,42 @@ use crate::reflect_facade::ModelImplSource;
 /// different methods for the same accessor. Inspect both method names and
 /// origins to identify the conflicting declarations.
 ///
+/// The value is available through
+/// [`crate::metadata::PropertyBuildError::conflict`]
+/// when [`crate::metadata::TypeMetadata::try_properties`] reports a property
+/// assembly failure.
+///
 /// # Examples
 ///
 /// ```
 /// use qubit_model_metadata::metadata::PropertyAccessorConflict;
+/// use qubit_model_metadata::metadata::PropertyBuildError;
+/// use qubit_model_metadata::metadata::PropertyResolutionError;
+/// use qubit_model_metadata::metadata::TypeMetadata;
 ///
-/// fn describe(conflict: &PropertyAccessorConflict) -> (&str, &str) {
-///     (conflict.first_method(), conflict.second_method())
+/// fn describe(conflict: &PropertyAccessorConflict) -> (&str, &str, &str, &str) {
+///     let first_origin = conflict.first_origin();
+///     let second_origin = conflict.second_origin();
+///     (
+///         conflict.first_method(),
+///         conflict.second_method(),
+///         first_origin.module_path,
+///         second_origin.module_path,
+///     )
+/// }
+///
+/// fn inspect_failure(error: &PropertyBuildError) {
+///     if let Some(conflict) = error.conflict() {
+///         let _details = describe(conflict);
+///     }
+/// }
+///
+/// fn inspect_model(metadata: &'static TypeMetadata) {
+///     if let Err(PropertyResolutionError::Assembly(errors)) = metadata.try_properties() {
+///         for failure in errors.errors() {
+///             inspect_failure(failure);
+///         }
+///     }
 /// }
 /// ```
 #[must_use]

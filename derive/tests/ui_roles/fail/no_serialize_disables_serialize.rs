@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use qubit_model_derive::Model;
 use serde::Deserialize;
 use serde::Serialize;
-use qubit_model_derive::Model;
 
 #[Model(no_serialize)]
 struct Value {

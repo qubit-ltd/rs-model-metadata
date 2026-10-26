@@ -17,6 +17,8 @@ use std::sync::Arc;
 mod build;
 // Defines instance borrowing, rule execution and bounded report collection.
 mod execute;
+// Defines private per-occurrence selection state for plan execution.
+pub(super) mod internal;
 
 use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
@@ -124,7 +126,6 @@ impl<'registry> ValidationPlan<'registry> {
     ///
     /// This plan with the supplied model-level rules appended after existing
     /// model rules. An empty iterator leaves the existing rules unchanged.
-    #[must_use = "use the returned plan containing the added model rules"]
     pub fn with_model_rules(mut self, bindings: impl IntoIterator<Item = ModelRuleBinding>) -> Self {
         let bindings = bindings.into_iter();
         let mut all = Vec::with_capacity(self.model_rules.len() + bindings.size_hint().0);
@@ -146,66 +147,5 @@ impl<'registry> ValidationPlan<'registry> {
     #[inline]
     pub(crate) fn bindings(&self) -> &[FieldRuleBinding] {
         &self.bindings
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use qubit_reflect::Reflect;
-    use qubit_reflect::ReflectionContext;
-    use qubit_validator::ValidatorRegistry;
-
-    use crate::__private::v8;
-    use crate::metadata::TypeMetadata;
-    use crate::registry::ModelRegistry;
-    use crate::resolve::ResolveInputs;
-    use crate::resolve::StructureResolver;
-    use crate::validation::ValidationBuildInputs;
-    use crate::validation::ValidationOptions;
-    use crate::validation::ValidationPlan;
-
-    #[Reflect]
-    struct Profile;
-
-    /// A plan retains the resolved graph after the caller releases its handle.
-    #[test]
-    fn test_plan_retains_graph_after_caller_drops_arc() {
-        let root: &'static TypeMetadata = v8::leak(
-            v8::GeneratedTypeMetadataBuilder::new::<Profile>(None, &[], v8::leak(v8::model_role())).finish::<Profile>(),
-        );
-        let roots = [root];
-        let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
-        let graph = Arc::new(
-            StructureResolver::new(ResolveInputs {
-                models: &models,
-                roots: &roots,
-            })
-            .resolve()
-            .expect("valid structure"),
-        );
-        let validators = ValidatorRegistry::empty();
-        let graph_ptr = Arc::as_ptr(&graph);
-        let plan = ValidationPlan::build(
-            root,
-            ValidationBuildInputs {
-                graph: Arc::clone(&graph),
-                validators: &validators,
-            },
-        )
-        .expect("empty model plan builds");
-
-        drop(graph);
-        drop(validators);
-
-        assert!(std::ptr::eq(plan.graph(), graph_ptr));
-        let profile = Profile;
-        let report = plan
-            .validate(&profile, &ValidationOptions::default())
-            .expect("validation succeeds");
-        assert!(report.is_valid());
-        assert!(report.violations().is_empty());
-        assert!(report.skipped().is_empty());
     }
 }

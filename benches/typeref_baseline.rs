@@ -84,51 +84,90 @@ struct RepeatedAccessors {
 
 #[ModelImpl]
 impl RepeatedAccessors {
+    #[must_use]
+    #[inline]
     pub fn field_0(&self) -> &str {
         &self.field_0
     }
+
+    #[must_use]
+    #[inline]
     pub fn field_1(&self) -> &str {
         &self.field_1
     }
+
+    #[must_use]
+    #[inline]
     pub fn field_2(&self) -> &str {
         &self.field_2
     }
+
+    #[must_use]
+    #[inline]
     pub fn field_3(&self) -> &str {
         &self.field_3
     }
+
+    #[must_use]
+    #[inline]
     pub fn field_4(&self) -> &str {
         &self.field_4
     }
+
+    #[must_use]
+    #[inline]
     pub fn field_5(&self) -> &str {
         &self.field_5
     }
+
+    #[must_use]
+    #[inline]
     pub fn field_6(&self) -> &str {
         &self.field_6
     }
+
+    #[must_use]
+    #[inline]
     pub fn field_7(&self) -> &str {
         &self.field_7
     }
+
+    #[inline]
     pub fn set_field_0(&mut self, value: String) {
         self.field_0 = value;
     }
+
+    #[inline]
     pub fn set_field_1(&mut self, value: String) {
         self.field_1 = value;
     }
+
+    #[inline]
     pub fn set_field_2(&mut self, value: String) {
         self.field_2 = value;
     }
+
+    #[inline]
     pub fn set_field_3(&mut self, value: String) {
         self.field_3 = value;
     }
+
+    #[inline]
     pub fn set_field_4(&mut self, value: String) {
         self.field_4 = value;
     }
+
+    #[inline]
     pub fn set_field_5(&mut self, value: String) {
         self.field_5 = value;
     }
+
+    #[inline]
     pub fn set_field_6(&mut self, value: String) {
         self.field_6 = value;
     }
+
+    #[inline]
     pub fn set_field_7(&mut self, value: String) {
         self.field_7 = value;
     }

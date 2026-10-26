@@ -63,6 +63,7 @@ struct Root {
 }
 #[ModelImpl]
 impl Root {
+    #[must_use]
     pub fn value(&self) -> &str {
         GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
         &self.value
@@ -278,10 +279,12 @@ struct Fields {
 }
 #[ModelImpl]
 impl Fields {
+    #[must_use]
     pub fn first(&self) -> &str {
         GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
         &self.first
     }
+    #[must_use]
     pub fn second(&self) -> &str {
         GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
         &self.second
@@ -294,6 +297,7 @@ struct Elements {
 }
 #[ModelImpl]
 impl Elements {
+    #[must_use]
     pub fn values(&self) -> &[String] {
         GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
         &self.values
@@ -308,6 +312,7 @@ struct OwnedField {
 
 #[ModelImpl]
 impl OwnedField {
+    #[must_use]
     pub fn value(&self) -> String {
         self.value.clone()
     }
@@ -712,6 +717,7 @@ struct Parent {
 }
 #[ModelImpl]
 impl Parent {
+    #[must_use]
     pub fn nickname(&self) -> &str {
         PARENT_READS.with(|calls| calls.set(calls.get() + 1));
         &self.nickname

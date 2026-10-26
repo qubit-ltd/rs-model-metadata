@@ -11,15 +11,15 @@
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 
-/// Creates a validator binding error for a path that cannot be read.
+/// Creates a binding error for a property-path validation failure.
 ///
 /// # Parameters
 ///
-/// - `kind`: the binding error category associated with the unreadable path.
+/// - `kind`: the binding error category for the property-path failure.
 ///
 /// # Returns
 ///
-/// A validator error carrying `kind`.
+/// A binding error carrying the supplied failure category.
 #[inline]
 pub(crate) fn path_error(kind: BindErrorKind) -> BindError {
     BindError::new(kind)

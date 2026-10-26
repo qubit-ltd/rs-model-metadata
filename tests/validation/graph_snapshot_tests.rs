@@ -43,6 +43,7 @@ struct UniqueValues {
 
 /// Builds a second checked overlay for the same concrete descriptor, without
 /// domain constraints. This models explicitly selected snapshot declarations.
+#[must_use]
 fn unconstrained<T: Reflect>() -> &'static TypeMetadata {
     let descriptor = TypeDescriptor::of::<T>();
     let fields = descriptor

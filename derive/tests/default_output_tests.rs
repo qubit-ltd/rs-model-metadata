@@ -8,14 +8,24 @@
 
 //! Default model capabilities and actual output contracts.
 
+use std::collections::BTreeMap;
+use std::collections::hash_map::DefaultHasher;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::hash::Hash;
+use std::sync::Mutex;
+
 use model_runtime::__private::redact::RedactionPolicy;
 use model_runtime::__private::redact::Redactor;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Value;
 use qubit_reflect::Reflect;
+use serde::Deserialize;
+use serde::Serialize;
+use serde_json;
 
-static POLICY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static POLICY_LOCK: Mutex<()> = Mutex::new(());
 
 #[Model]
 struct Label {
@@ -26,10 +36,7 @@ struct Label {
 #[test]
 fn test_default_model_capabilities() {
     /// Checks the observable default trait contract at compilation.
-    fn traits<
-        T: Clone + PartialEq + std::fmt::Debug + std::fmt::Display + serde::Serialize + for<'de> serde::Deserialize<'de>,
-    >() {
-    }
+    fn traits<T: Clone + PartialEq + Debug + Display + Serialize + for<'de> Deserialize<'de>>() {}
     traits::<Label>();
     let label = Label {
         text: "visible".to_owned(),
@@ -111,8 +118,8 @@ fn test_generic_capabilities_avoid_unnecessary_bounds() {
         marker: std::marker::PhantomData,
     };
     assert!(value == value.clone());
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    std::hash::Hash::hash(&value, &mut hasher);
+    let mut hasher = DefaultHasher::new();
+    Hash::hash(&value, &mut hasher);
 }
 
 #[Value(transparent)]
@@ -192,10 +199,10 @@ struct SelectorSecrets {
     #[element(redact(level = "secret"))]
     sequence: Vec<String>,
     #[map_value(redact(level = "secret"))]
-    values: std::collections::BTreeMap<String, String>,
+    values: BTreeMap<String, String>,
     #[map_key(redact(level = "secret"))]
     #[map_value(redact(level = "secret"))]
-    keys: std::collections::BTreeMap<String, String>,
+    keys: BTreeMap<String, String>,
 }
 
 /// Selector output delegates level handling and collision detection to

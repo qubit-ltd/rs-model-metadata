@@ -10,11 +10,27 @@
 
 use std::any::TypeId;
 
+use qubit_reflect::error::ContextError;
+
 use crate::metadata::ModelMetadataError;
 use crate::metadata::PropertyAccessError;
 use crate::metadata::PropertyResolutionError;
 
 /// A failure to compile or execute a dynamic property path.
+///
+/// # Examples
+///
+/// `PropertyAccessPathError` values are returned by public path compilation
+/// and access operations. A caller can inspect an error returned by
+/// [`PropertyAccessPath::compile`](crate::access_path::PropertyAccessPath::compile):
+///
+/// ```
+/// use qubit_model_metadata::PropertyAccessPathError;
+///
+/// fn is_unknown_property(error: &PropertyAccessPathError) -> bool {
+///     matches!(error, PropertyAccessPathError::UnknownProperty { .. })
+/// }
+/// ```
 #[must_use]
 #[derive(Debug, thiserror::Error)]
 pub enum PropertyAccessPathError {
@@ -31,7 +47,7 @@ pub enum PropertyAccessPathError {
         index: usize,
         /// Context lookup failure.
         #[source]
-        source: qubit_reflect::error::ContextError,
+        source: ContextError,
     },
     /// A supplied property name is empty.
     #[error("property access path segment {index} is empty")]

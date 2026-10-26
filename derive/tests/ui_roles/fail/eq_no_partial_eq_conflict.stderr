@@ -1,5 +1,5 @@
 error: eq conflicts with no_partial_eq
-  --> tests/ui_roles/fail/eq_no_partial_eq_conflict.rs:11:8
+  --> tests/ui_roles/fail/eq_no_partial_eq_conflict.rs:13:8
    |
-11 | struct Invalid { value: u8 }
+13 | struct Invalid { value: u8 }
    |        ^^^^^^^

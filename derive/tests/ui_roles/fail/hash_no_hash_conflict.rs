@@ -5,9 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+
 use qubit_model_derive::Model;
 
 #[Model(eq, hash, no_hash)]
-struct Invalid { value: u8 }
+struct Invalid {
+    value: u8,
+}
 
 fn main() {}

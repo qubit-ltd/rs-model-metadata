@@ -5,6 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+
 use std::hash::Hash;
 
 use qubit_model_derive::Value as ValueRole;

@@ -8,6 +8,8 @@
 
 //! Crate-private property access checks.
 
+use std::any::TypeId;
+
 use qubit_reflect::__private::codegen_v4::expression::ExpressionData;
 use qubit_reflect::__private::codegen_v4::expression::TypeExpressionData;
 use qubit_reflect::Reflect;
@@ -34,8 +36,8 @@ static STRING_EXPRESSION: TypeExpressionData = ExpressionData::Named {
     arguments: &[],
 };
 
-fn string_type_id() -> std::any::TypeId {
-    std::any::TypeId::of::<String>()
+fn string_type_id() -> TypeId {
+    TypeId::of::<String>()
 }
 
 #[Reflect]
@@ -44,7 +46,7 @@ struct PrivatePropertyFixture {
 }
 
 #[test]
-fn unsafe_dynamic_read_bypasses_private_field_visibility() {
+fn test_unsafe_dynamic_read_bypasses_private_field_visibility() {
     let context = ReflectionContext::builder()
         .include_type::<PrivatePropertyFixture>()
         .include_type::<String>()
@@ -76,7 +78,7 @@ fn unsafe_dynamic_read_bypasses_private_field_visibility() {
 }
 
 #[test]
-fn unsafe_dynamic_write_bypasses_private_field_visibility() {
+fn test_unsafe_dynamic_write_bypasses_private_field_visibility() {
     let context = ReflectionContext::builder()
         .include_type::<PrivatePropertyFixture>()
         .include_type::<String>()
@@ -115,7 +117,7 @@ fn unsafe_dynamic_write_bypasses_private_field_visibility() {
 }
 
 #[test]
-fn dynamic_read_propagates_getter_errors() {
+fn test_dynamic_read_propagates_getter_errors() {
     let getter = Box::leak(Box::new(GetterMetadata::new::<PrivatePropertyFixture>(
         "failing_getter",
         &STRING_EXPRESSION,
@@ -135,7 +137,7 @@ fn dynamic_read_propagates_getter_errors() {
 }
 
 #[test]
-fn borrowed_slice_reports_empty_and_in_bounds_elements() {
+fn test_borrowed_slice_reports_empty_and_in_bounds_elements() {
     let values = [17_u32, 23_u32];
     let slice = BorrowedPropertySlice::new(&values);
 
@@ -149,7 +151,7 @@ fn borrowed_slice_reports_empty_and_in_bounds_elements() {
 }
 
 #[test]
-fn dynamic_type_mismatch_reports_expected_and_actual_types() {
+fn test_dynamic_type_mismatch_reports_expected_and_actual_types() {
     let actual = PropertyBorrowed::new(&23_u32);
     let error = PropertyAccessError::value_type_mismatch::<String>(actual);
 

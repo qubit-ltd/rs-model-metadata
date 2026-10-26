@@ -152,6 +152,10 @@ fn test_binds_anonymous_root_codecs() {
     assert_eq!(bindings.bindings().len(), 1);
 }
 
+/// Builds the shared provenance fixture used when registering test metadata.
+///
+/// The location fields point to this helper's call site, giving registry tests
+/// deterministic crate and module context without duplicating origin setup.
 fn source() -> ModelRegistryOrigin {
     ModelRegistryOrigin {
         crate_name: "codec-tests",
@@ -163,6 +167,11 @@ fn source() -> ModelRegistryOrigin {
     }
 }
 
+/// Resolves one metadata root into a graph for codec-binding assertions.
+///
+/// The registry borrows the supplied provenance, so it is boxed and leaked to
+/// keep the registry alive for the returned graph's lifetime. This fixture is
+/// only used by tests and avoids changing the production graph ownership API.
 fn graph<'a>(metadata: &'static TypeMetadata, source: &'a ModelRegistryOrigin) -> ModelGraph<'a> {
     let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, source)])
         .expect("model registry");

@@ -8,10 +8,12 @@
 
 //! Validates declaration shapes and rewrites consumed helper attributes.
 
+use quote::quote;
 use syn::Attribute;
 use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
+use syn::Field;
 use syn::Fields;
 use syn::GenericParam;
 use syn::LitStr;
@@ -25,10 +27,16 @@ use syn::punctuated::Punctuated;
 
 use crate::ir::MacroKind;
 use crate::ir::declaration::DeclarationIr;
+use crate::ir::declaration::FieldIr;
 use crate::ir::declaration::FieldOccurrence;
 use crate::ir::declaration::RedactModeIr;
 use crate::ir::declaration::SelectorPositionIr;
 /// Validates the declaration shape before constructing intermediate metadata.
+///
+/// # Errors
+///
+/// Returns a combined [`syn::Error`] when the declaration uses unsupported
+/// generic parameters, a role-incompatible data shape, or a union.
 pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Result<()> {
     let mut errors = None;
     for parameter in &item.generics.params {
@@ -117,6 +125,11 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
 }
 
 /// Rejects user reflection derives that would duplicate generated metadata.
+///
+/// # Errors
+///
+/// Returns a [`syn::Error`] when an attribute directly names `Reflect`, a
+/// derive list contains `Reflect`, or a derive list cannot be parsed.
 pub(crate) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
     for attribute in attributes {
         if attribute.path().is_ident("Reflect") {
@@ -159,60 +172,9 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
     };
     for (field, ir) in fields {
         let opaque = field.attrs.iter().any(|attribute| attribute.path().is_ident("opaque"));
-        for occurrence in &ir.occurrences {
-            if let FieldOccurrence::Serde(serde) = occurrence {
-                if serde_helpers && serde.default_from_model {
-                    field.attrs.push(parse_quote!(#[serde(default)]));
-                }
-                if serde_helpers
-                    && serde.omit_from_model
-                    && let Type::Path(path) = &field.ty
-                {
-                    let method = if crate::compiler::type_path::is_option_path(&path.path) {
-                        "is_none"
-                    } else {
-                        "is_empty"
-                    };
-                    let mut path = path.path.clone();
-                    for segment in &mut path.segments {
-                        segment.arguments = PathArguments::None;
-                    }
-                    let predicate = LitStr::new(&format!("{}::{method}", quote::quote!(#path)), ir.index.span());
-                    field
-                        .attrs
-                        .push(parse_quote!(#[serde(skip_serializing_if = #predicate)]));
-                }
-            }
-        }
-        field
-            .attrs
-            .retain(|attribute| attribute.path().is_ident("redact") || !is_model_field_helper(attribute));
-        let mut element_level = None;
-        let mut key_level = None;
-        let mut value_level = None;
-        for occurrence in &ir.occurrences {
-            if let FieldOccurrence::Selector(selector) = occurrence
-                && let Some(redact) = &selector.redact
-                && let RedactModeIr::Level(level) = &redact.mode
-            {
-                match selector.position {
-                    SelectorPositionIr::Element => element_level = Some(level),
-                    SelectorPositionIr::MapKey => key_level = Some(level),
-                    SelectorPositionIr::MapValue => value_level = Some(level),
-                }
-            }
-        }
-        if let Some(key) = key_level {
-            if let Some(value) = value_level {
-                field
-                    .attrs
-                    .push(parse_quote!(#[redact(map_key_level = #key, map_value_level = #value)]));
-            } else {
-                field.attrs.push(parse_quote!(#[redact(map_key_level = #key)]));
-            }
-        } else if let Some(level) = element_level.or(value_level) {
-            field.attrs.push(parse_quote!(#[redact(level = #level)]));
-        }
+        rewrite_serde_helpers(field, ir, serde_helpers);
+        remove_model_field_helpers(field);
+        rewrite_selector_redaction(field, ir);
         if opaque {
             // The M metadata keeps this field as an opaque traversal boundary,
             // while R omits it because it cannot safely build a typed adapter
@@ -224,6 +186,73 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
         for variant in &mut data.variants {
             variant.attrs.retain(|attribute| !attribute.path().is_ident("variant"));
         }
+    }
+}
+
+/// Rewrites serde helpers into the serde attributes consumed by generated code.
+fn rewrite_serde_helpers(field: &mut Field, ir: &FieldIr, serde_helpers: bool) {
+    for occurrence in &ir.occurrences {
+        if let FieldOccurrence::Serde(serde) = occurrence {
+            if serde_helpers && serde.default_from_model {
+                field.attrs.push(parse_quote!(#[serde(default)]));
+            }
+            if serde_helpers
+                && serde.omit_from_model
+                && let Type::Path(path) = &field.ty
+            {
+                let method = if crate::compiler::type_path::is_option_path(&path.path) {
+                    "is_none"
+                } else {
+                    "is_empty"
+                };
+                let mut path = path.path.clone();
+                for segment in &mut path.segments {
+                    segment.arguments = PathArguments::None;
+                }
+                let predicate = LitStr::new(&format!("{}::{method}", quote!(#path)), ir.index.span());
+                field
+                    .attrs
+                    .push(parse_quote!(#[serde(skip_serializing_if = #predicate)]));
+            }
+        }
+    }
+}
+
+/// Removes consumed model-field helpers while preserving generated redact
+/// attributes.
+fn remove_model_field_helpers(field: &mut Field) {
+    field
+        .attrs
+        .retain(|attribute| attribute.path().is_ident("redact") || !is_model_field_helper(attribute));
+}
+
+/// Rewrites selector redaction levels into the field-level redact attribute.
+fn rewrite_selector_redaction(field: &mut Field, ir: &FieldIr) {
+    let mut element_level = None;
+    let mut key_level = None;
+    let mut value_level = None;
+    for occurrence in &ir.occurrences {
+        if let FieldOccurrence::Selector(selector) = occurrence
+            && let Some(redact) = &selector.redact
+            && let RedactModeIr::Level(level) = &redact.mode
+        {
+            match selector.position {
+                SelectorPositionIr::Element => element_level = Some(level),
+                SelectorPositionIr::MapKey => key_level = Some(level),
+                SelectorPositionIr::MapValue => value_level = Some(level),
+            }
+        }
+    }
+    if let Some(key) = key_level {
+        if let Some(value) = value_level {
+            field
+                .attrs
+                .push(parse_quote!(#[redact(map_key_level = #key, map_value_level = #value)]));
+        } else {
+            field.attrs.push(parse_quote!(#[redact(map_key_level = #key)]));
+        }
+    } else if let Some(level) = element_level.or(value_level) {
+        field.attrs.push(parse_quote!(#[redact(level = #level)]));
     }
 }
 

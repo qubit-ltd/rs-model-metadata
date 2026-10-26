@@ -8,9 +8,8 @@
 
 //! Read-only concrete and generic model entries.
 
-use qubit_reflect::error::RegistrationOrigin;
-
 use super::internal::model_entry_target::ModelEntryTarget;
+use super::model_registry_origin::ModelRegistryOrigin;
 #[cfg(feature = "generic")]
 use crate::generic::GenericModelMetadata;
 use crate::metadata::ModelId;
@@ -56,36 +55,6 @@ pub struct ModelEntry<'reflection> {
     lifetime: std::marker::PhantomData<&'reflection ()>,
 }
 
-/// Owned source coordinates retained from a vNext capability registration.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct ModelRegistryOrigin {
-    /// Crate containing the registration.
-    pub crate_name: &'static str,
-    /// Crate version recorded for the registration.
-    pub crate_version: Option<&'static str>,
-    /// Module containing the registration.
-    pub module_path: &'static str,
-    /// Source file, when available.
-    pub file: Option<&'static str>,
-    /// One-based source line, when available.
-    pub line: Option<u32>,
-    /// One-based source column, when available.
-    pub column: Option<u32>,
-}
-
-impl From<&RegistrationOrigin> for ModelRegistryOrigin {
-    fn from(origin: &RegistrationOrigin) -> Self {
-        Self {
-            crate_name: origin.crate_name,
-            crate_version: origin.crate_version,
-            module_path: origin.module_path,
-            file: origin.file,
-            line: origin.line,
-            column: origin.column,
-        }
-    }
-}
-
 impl<'reflection> ModelEntry<'reflection> {
     /// Creates an entry from concrete metadata and borrowed provenance.
     ///
@@ -102,7 +71,6 @@ impl<'reflection> ModelEntry<'reflection> {
     /// # Returns
     ///
     /// `Some` when `metadata` has a model ID; otherwise `None`.
-    #[must_use]
     #[inline]
     pub(super) fn concrete(
         metadata: &'static TypeMetadata,
@@ -133,7 +101,6 @@ impl<'reflection> ModelEntry<'reflection> {
     /// # Returns
     ///
     /// `Some` when `metadata` has a model ID; otherwise `None`.
-    #[must_use]
     #[inline]
     #[cfg(feature = "generic")]
     pub(super) fn generic(
@@ -180,7 +147,6 @@ impl<'reflection> ModelEntry<'reflection> {
     ///
     /// The declaring fragment for a snapshot entry, or `None` for a static
     /// entry.
-    #[must_use]
     #[inline]
     pub fn declaration_source(&self) -> Option<&ModelRegistryOrigin> {
         self.declaration_source.as_ref()
@@ -191,7 +157,6 @@ impl<'reflection> ModelEntry<'reflection> {
     /// # Returns
     ///
     /// The concrete type metadata, or `None` when this entry is generic.
-    #[must_use]
     #[inline]
     pub const fn metadata(&self) -> Option<&'static TypeMetadata> {
         match self.target {
@@ -206,7 +171,6 @@ impl<'reflection> ModelEntry<'reflection> {
     /// # Returns
     ///
     /// The generic definition metadata, or `None` when this entry is concrete.
-    #[must_use]
     #[inline]
     #[cfg(feature = "generic")]
     pub const fn generic_metadata(&self) -> Option<&'static GenericModelMetadata> {

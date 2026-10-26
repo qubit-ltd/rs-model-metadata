@@ -260,6 +260,7 @@ fn read_dependency<'value>(
 ///
 /// Returns deferred field segments when present; otherwise returns the names
 /// of the resolved property steps.
+#[must_use]
 pub(crate) fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
     if !path.deferred().is_empty() {
         return path

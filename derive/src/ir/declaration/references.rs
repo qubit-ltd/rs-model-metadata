@@ -6,28 +6,9 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Relationship and uniqueness IR.
+//! Normalized relationship metadata.
 
-use syn::LitStr;
-use syn::Type;
-
-/// Normalized uniqueness scope and comparison options for one field.
-#[derive(Clone)]
-pub(crate) struct UniqueIr {
-    /// Property paths scoping uniqueness.
-    pub(crate) respect_to: Vec<Vec<String>>,
-    /// Whether textual comparison ignores case.
-    pub(crate) ignore_case: Option<bool>,
-}
-
-/// Source form used to identify a referenced model.
-#[derive(Clone)]
-pub(crate) enum ReferenceTargetIr {
-    /// Target supplied by a Rust type.
-    RustType(Box<Type>),
-    /// Target supplied by a stable model ID.
-    ModelId(LitStr),
-}
+use super::ReferenceTargetIr;
 
 /// Normalized relationship target and property-mapping requirements.
 #[derive(Clone)]

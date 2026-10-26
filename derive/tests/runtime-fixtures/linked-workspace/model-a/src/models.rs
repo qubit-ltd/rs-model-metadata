@@ -8,34 +8,18 @@
 // The filename is part of a Cargo fixture rather than an integration-test
 // target.
 
-//! Defines source-side models for linked registration and resolution fixtures.
-
-use qubit_model_derive::Model;
-use qubit_model_derive::Projection;
-use qubit_model_metadata::__private::qubit_id::Id;
-
-#[Model(id = "test.linked.Source")]
-pub struct Source {
-    #[reference(entity_id = "test.linked.Target", property = id)]
-    pub target_id: Id,
-    #[validator(id = "test.linked.text")]
-    #[codec(id = "test.linked.text")]
-    pub text: String,
-}
+//! Collects the source-side model declarations used by linked-workspace fixtures.
 
 #[cfg(feature = "duplicate-fixture")]
-#[Model(id = "test.linked.Duplicate")]
-pub struct Duplicate;
-
+mod duplicate;
 #[cfg(feature = "missing-fixture")]
-#[Model(id = "test.linked.MissingTarget")]
-pub struct MissingTarget {
-    #[reference(entity_id = "test.linked.Absent", property = id)]
-    pub target_id: Id,
-}
+mod missing_target;
+mod source;
+mod target_view;
 
-#[Projection(id = "test.linked.TargetView", source_id = "test.linked.Target")]
-pub struct TargetView {
-    #[identifier]
-    pub id: Id,
-}
+#[cfg(feature = "duplicate-fixture")]
+pub use duplicate::Duplicate;
+#[cfg(feature = "missing-fixture")]
+pub use missing_target::MissingTarget;
+pub use source::Source;
+pub use target_view::TargetView;

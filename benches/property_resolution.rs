@@ -141,6 +141,7 @@ struct ResolutionPathFiftyOne {
     f50: ResolutionPathMiddle,
 }
 
+/// Returns the fixture's `name` field through a borrowed dynamic value.
 fn read_name(target: DynamicRef<'_, Local>) -> Result<PropertyValue<'_>, PropertyAccessError> {
     let target = target
         .downcast::<ResolutionFixture>()
@@ -148,6 +149,7 @@ fn read_name(target: DynamicRef<'_, Local>) -> Result<PropertyValue<'_>, Propert
     Ok(PropertyValue::Borrowed(DynamicRef::<Local>::new(&target.name)))
 }
 
+/// Replaces the fixture's `name` field with an owned dynamic value.
 fn write_name(target: DynamicMut<'_, Local>, value: DynamicOwned<Local>) -> Result<(), PropertySetFailure> {
     let target = target
         .downcast::<ResolutionFixture>()

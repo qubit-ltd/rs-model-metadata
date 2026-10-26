@@ -14,6 +14,7 @@ use std::error::Error;
 use std::ptr::eq;
 use std::sync::Arc;
 
+use chrono::NaiveDate;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
@@ -36,6 +37,7 @@ use qubit_validator::ArgumentReader;
 use qubit_validator::BindError;
 use qubit_validator::BindErrorKind;
 use qubit_validator::BoundValidationContext;
+use qubit_validator::DependencySpec;
 use qubit_validator::ExecutionError;
 use qubit_validator::InputType;
 use qubit_validator::PreparedOutcome;
@@ -248,10 +250,10 @@ fn test_enum_payload_collection_selector_is_rejected_with_its_path() {
 /// Rejects every selected string to make nested execution observable.
 struct Reject;
 impl PreparedValidator for Reject {
-    fn input_type(&self) -> qubit_validator::InputType {
-        qubit_validator::InputType::Text
+    fn input_type(&self) -> InputType {
+        InputType::Text
     }
-    fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
         &[]
     }
     fn validate(
@@ -276,10 +278,8 @@ static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     RegistrationSource::new("binding-tests", "nested", file!(), line!()),
 );
 
-static OPTIONAL_REQUIRED_DEPS: &[qubit_validator::DependencySpec] =
-    &[qubit_validator::DependencySpec::new("expected", InputType::Text, false)];
-static OPTIONAL_ALLOWED_DEPS: &[qubit_validator::DependencySpec] =
-    &[qubit_validator::DependencySpec::new("expected", InputType::Text, true)];
+static OPTIONAL_REQUIRED_DEPS: &[DependencySpec] = &[DependencySpec::new("expected", InputType::Text, false)];
+static OPTIONAL_ALLOWED_DEPS: &[DependencySpec] = &[DependencySpec::new("expected", InputType::Text, true)];
 fn prepare_optional_required(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(prepare_text_with_context(OPTIONAL_REQUIRED_DEPS, |_, _| {
         Ok(PreparedOutcome::Valid)
@@ -590,6 +590,8 @@ struct BorrowedOption {
 }
 #[ModelImpl]
 impl BorrowedOption {
+    #[must_use = "check whether the borrowed child is present"]
+    #[inline]
     pub fn child(&self) -> &Option<OptionalChild> {
         OPTIONAL_PARENT_GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
         &self.child
@@ -792,7 +794,7 @@ struct Mixed {
     #[validator(id = "binding.missing")]
     z_missing: String,
     #[time(precision = second)]
-    a_date: chrono::NaiveDate,
+    a_date: NaiveDate,
 }
 #[Model]
 struct Counted {

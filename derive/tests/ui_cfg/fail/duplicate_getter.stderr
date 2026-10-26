@@ -1,14 +1,14 @@
 error: duplicate property getter `title`
-  --> tests/ui_cfg/fail/duplicate_getter.rs:20:12
+  --> tests/ui_cfg/fail/duplicate_getter.rs:27:12
    |
-20 |     pub fn title(&self) -> u32 { self.value }
+27 |     pub fn title(&self) -> u32 {
    |            ^^^^^
 
 error[E0592]: duplicate definitions with name `title`
-  --> tests/ui_cfg/fail/duplicate_getter.rs:20:5
+  --> tests/ui_cfg/fail/duplicate_getter.rs:27:5
    |
-18 |     pub fn title(&self) -> u32 { self.value }
+22 |     pub fn title(&self) -> u32 {
    |     -------------------------- other definition for `title`
-19 |     #[cfg_attr(any(), cfg(any()))]
-20 |     pub fn title(&self) -> u32 { self.value }
+...
+27 |     pub fn title(&self) -> u32 {
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^ duplicate definitions for `title`
