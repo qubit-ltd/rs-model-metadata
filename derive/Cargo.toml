@@ -27,20 +27,20 @@ name = "qubit_model_derive"
 proc-macro = true
 
 [dependencies]
-heck = "0.5"
-proc-macro-crate = "3"
-proc-macro2 = "1"
-quote = "1"
-syn = { version = "2", features = ["full", "visit-mut"] }
+heck = "^0.5"
+proc-macro-crate = "^3.5"
+proc-macro2 = "^1.0"
+quote = "^1.0"
+syn = { version = "^3.0", features = ["full", "visit-mut"] }
 
 [dev-dependencies]
-bigdecimal = "0.4"
-chrono = { version = "0.4", features = ["std"], default-features = false }
+bigdecimal = "^0.4"
+chrono = { version = "^0.4", features = ["std"], default-features = false }
 model_runtime = { package = "qubit-model-metadata", path = "..", features = ["generic"] }
-qubit-codec = { version = "0.17", features = ["registry"] }
-qubit-id = { version = "0.7" }
+qubit-codec = { version = "^0.17", features = ["registry"] }
+qubit-id = "^0.7"
 qubit-reflect = { version = "=0.2.1", path = "../../rs-reflect" }
 qubit-validator = { version = "=0.1.0", path = "../../../rust-common/rs-validator" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-trybuild = "1"
+serde = { version = "^1.0", features = ["derive"] }
+serde_json = "^1.0"
+trybuild = "^1.0"

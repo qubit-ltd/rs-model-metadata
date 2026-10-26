@@ -8,9 +8,9 @@ publish = false
 qubit-model-derive = { path = "../../../../" }
 qubit-model-metadata = { path = "../../../../../", features = ["validation", "codec"] }
 qubit-reflect = { path = "../../../../../../rs-reflect" }
-serde = { version = "1", features = ["derive"] }
+serde = { version = "^1.0", features = ["derive"] }
 
-qubit-codec = { version = "0.17", features = ["registry"] }
+qubit-codec = { version = "^0.17", features = ["registry"] }
 qubit-validator = { version = "=0.1.0", path = "../../../../../../../rust-common/rs-validator" }
 
 [features]
