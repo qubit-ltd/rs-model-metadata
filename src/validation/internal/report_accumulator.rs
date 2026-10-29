@@ -100,12 +100,17 @@ impl<'options> ReportAccumulator<'options> {
         if self.stopped {
             return self
                 .report
-                .record_outcome(occurrence, path.clone(), ValidationOutcome::valid())
+                .record_outcome(occurrence, ValidationPath::root(), ValidationOutcome::valid())
                 .map_err(|_| contract_error());
         }
+        let report_path = if matches!(&outcome, ValidationOutcome::Valid) {
+            ValidationPath::root()
+        } else {
+            path.clone()
+        };
         let accepted = self
             .report
-            .record_outcome(occurrence, path.clone(), outcome)
+            .record_outcome(occurrence, report_path, outcome)
             .map_err(|_| contract_error())?;
         let added_failures = !accepted.failure_ids().is_empty();
         let at_limit = self.report.failure_count() >= self.options.max_violations();
