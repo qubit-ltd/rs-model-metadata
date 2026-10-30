@@ -345,8 +345,10 @@ impl PreparedValidator for OutcomeRule {
         Ok(match value.as_text().unwrap() {
             "invalid" => PreparedOutcome::Invalid(drafts()),
             "empty-invalid" => PreparedOutcome::Invalid(vec![]),
-            "error" => {
-                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed));
+            "error" => return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)),
+            "nested-error" => {
+                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                    .with_path(ValidationPath::root().with_field("nested")));
             }
             _ => PreparedOutcome::Valid,
         })
@@ -493,6 +495,34 @@ fn test_fields_and_selectors_reject_empty_invalid_outcomes() {
         assert_eq!(error.field_location().unwrap().index(), 0);
         assert_eq!(error.declared_rule_id(), Some("execution.rule"));
         assert!(error.source().unwrap().downcast_ref::<ExecutionError>().is_some());
+    }
+}
+
+#[test]
+fn test_fields_and_selectors_prefix_relative_execution_error_paths() {
+    let fields = Fields {
+        first: "nested-error".into(),
+        second: "valid".into(),
+    };
+    let elements = Elements {
+        values: vec!["nested-error".into()],
+    };
+    for (root, value, expected_path) in [
+        (
+            TypeMetadata::of::<Fields>(),
+            DynamicRef::<Local>::new(&fields),
+            "first.nested",
+        ),
+        (
+            TypeMetadata::of::<Elements>(),
+            DynamicRef::<Local>::new(&elements),
+            "values[0].nested",
+        ),
+    ] {
+        let error = run(root, value, &ValidationOptions::default()).unwrap_err();
+        assert_eq!(error.error().kind(), ExecutionErrorKind::PropertyReadFailed);
+        assert_eq!(error.error().path().render(), expected_path);
+        assert_eq!(error.error().dependency(), None);
     }
 }
 
@@ -710,6 +740,7 @@ fn test_missing_optional_occurrences_are_unique_without_triggering_fail_fast() {
 
 thread_local! {
     static PARENT_READS: Cell<usize> = const { Cell::new(0) };
+    static DEPENDENCY_ERROR_CALLS: Cell<usize> = const { Cell::new(0) };
 }
 #[Model]
 struct Parent {
@@ -759,6 +790,253 @@ static PARENT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     &PARENT_DESCRIPTOR,
     RegistrationSource::new("execution-tests", "parent", file!(), line!()),
 );
+
+#[Model]
+struct DependencyErrorTarget {
+    #[validator(id = "execution.dependency_error", depends_on(expected(path = "..", property = nickname)))]
+    value: String,
+}
+
+#[Model]
+struct SiblingDependencyErrorTarget {
+    email: String,
+    #[validator(id = "execution.dependency_error", depends_on(expected(property = email)))]
+    confirmation: String,
+}
+
+#[Model]
+struct NestedDependencyErrorProfile {
+    email: String,
+    #[validator(id = "execution.dependency_error", depends_on(expected(property = email)))]
+    confirmation: String,
+}
+
+#[Model]
+struct NestedDependencyErrorTarget {
+    profile: NestedDependencyErrorProfile,
+}
+
+struct DependencyErrorRule;
+impl PreparedValidator for DependencyErrorRule {
+    fn input_type(&self) -> InputType {
+        InputType::Text
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        DEPENDENCY_ERROR_SIGNATURES[0].dependencies()
+    }
+    fn validate(
+        &self,
+        value: ValidationValue<'_>,
+        context: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
+        assert_eq!(context.text(0)?, "parent");
+        DEPENDENCY_ERROR_CALLS.with(|calls| calls.set(calls.get() + 1));
+        let dependency = if value.as_text() == Some("unknown") {
+            "unexpected"
+        } else {
+            "expected"
+        };
+        Err(ExecutionError::new(ExecutionErrorKind::ExternalFailure)
+            .with_dependency(dependency)
+            .with_path(context.dependency_path(0)?.clone()))
+    }
+}
+fn prepare_dependency_error(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
+    Ok(Arc::new(DependencyErrorRule))
+}
+static DEPENDENCY_ERROR_SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(
+    InputType::Text,
+    &[DependencySpec::new("expected", InputType::Text, false)],
+    prepare_dependency_error,
+)];
+static DEPENDENCY_ERROR_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(DEPENDENCY_ERROR_SIGNATURES);
+static DEPENDENCY_ERROR_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
+    ValidatorId::new("execution.dependency_error"),
+    &DEPENDENCY_ERROR_DESCRIPTOR,
+    RegistrationSource::new("execution-tests", "dependency-error", file!(), line!()),
+);
+
+#[test]
+fn test_dependency_error_path_preserves_external_dependency_coordinates() {
+    let root = TypeMetadata::of::<DependencyErrorTarget>();
+    let parent = TypeMetadata::of::<Parent>();
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
+    let roots = [root, parent];
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
+    );
+    let validators = ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
+    let plan = ValidationPlan::build_with_context(
+        root,
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+        &[parent],
+    )
+    .unwrap();
+    DEPENDENCY_ERROR_CALLS.with(|calls| calls.set(0));
+    let error = plan
+        .validate_with_context(
+            &DependencyErrorTarget { value: "child".into() },
+            &[DynamicRef::<Local>::new(&Parent {
+                nickname: "parent".into(),
+            })],
+            &ValidationOptions::default(),
+        )
+        .unwrap_err();
+
+    assert_eq!(DEPENDENCY_ERROR_CALLS.with(Cell::get), 1);
+    assert_eq!(error.error().kind(), ExecutionErrorKind::ExternalFailure);
+    assert_eq!(error.error().dependency(), Some("expected"));
+    assert_eq!(error.error().path().render(), "nickname");
+    assert_eq!(error.dependency_object_path().unwrap().to_string(), "..");
+    assert_eq!(error.dependency_property_path().unwrap().to_string(), "nickname");
+}
+
+#[test]
+fn test_dependency_error_path_does_not_map_unknown_dependency_names() {
+    let root = TypeMetadata::of::<DependencyErrorTarget>();
+    let parent = TypeMetadata::of::<Parent>();
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
+    let roots = [root, parent];
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
+    );
+    let validators = ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
+    let plan = ValidationPlan::build_with_context(
+        root,
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+        &[parent],
+    )
+    .unwrap();
+    DEPENDENCY_ERROR_CALLS.with(|calls| calls.set(0));
+    let error = plan
+        .validate_with_context(
+            &DependencyErrorTarget { value: "unknown".into() },
+            &[DynamicRef::<Local>::new(&Parent {
+                nickname: "parent".into(),
+            })],
+            &ValidationOptions::default(),
+        )
+        .unwrap_err();
+
+    assert_eq!(DEPENDENCY_ERROR_CALLS.with(Cell::get), 1);
+    assert_eq!(error.error().dependency(), Some("unexpected"));
+    assert_eq!(error.error().path().render(), "value.nickname");
+    assert!(error.dependency_object_path().is_none());
+    assert!(error.dependency_property_path().is_none());
+}
+
+#[test]
+fn test_dependency_error_path_preserves_sibling_dependency_coordinates() {
+    let root = TypeMetadata::of::<SiblingDependencyErrorTarget>();
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
+    let roots = [root];
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
+    );
+    let validators = ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+    )
+    .unwrap();
+    DEPENDENCY_ERROR_CALLS.with(|calls| calls.set(0));
+    let error = plan
+        .validate(
+            &SiblingDependencyErrorTarget {
+                email: "parent".into(),
+                confirmation: "child".into(),
+            },
+            &ValidationOptions::default(),
+        )
+        .unwrap_err();
+
+    assert_eq!(DEPENDENCY_ERROR_CALLS.with(Cell::get), 1);
+    assert_eq!(error.error().path().render(), "email");
+    assert_eq!(error.error().dependency(), Some("expected"));
+    assert_eq!(error.dependency_property_path().unwrap().to_string(), "email");
+}
+
+#[test]
+fn test_dependency_error_path_preserves_nested_dependency_coordinates() {
+    let root = TypeMetadata::of::<NestedDependencyErrorTarget>();
+    let profile = TypeMetadata::of::<NestedDependencyErrorProfile>();
+    let reflection = qubit_reflect::ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .unwrap();
+    let models = ModelRegistry::from_context(&reflection).unwrap();
+    let roots = [root, profile];
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .unwrap(),
+    );
+    let validators = ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+    )
+    .unwrap();
+    DEPENDENCY_ERROR_CALLS.with(|calls| calls.set(0));
+    let error = plan
+        .validate(
+            &NestedDependencyErrorTarget {
+                profile: NestedDependencyErrorProfile {
+                    email: "parent".into(),
+                    confirmation: "child".into(),
+                },
+            },
+            &ValidationOptions::default(),
+        )
+        .unwrap_err();
+
+    assert_eq!(DEPENDENCY_ERROR_CALLS.with(Cell::get), 1);
+    assert_eq!(error.error().path().render(), "profile.email");
+    assert_eq!(error.error().dependency(), Some("expected"));
+    assert_eq!(error.dependency_property_path().unwrap().to_string(), "email");
+}
 
 #[test]
 fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation_context() {

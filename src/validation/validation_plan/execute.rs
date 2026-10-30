@@ -487,7 +487,24 @@ fn execute_registry_field<'value>(
     budget.invoke(path.as_segments().len(), false)?;
     let outcome = validator
         .validate(input, &context)
-        .map_err(|error| prefix_error(error, &path))?;
+        .map_err(|error| {
+            let dependency = error.dependency().and_then(|name| {
+                binding
+                    .dependencies()
+                    .iter()
+                    .filter_map(|path| path.dependency())
+                    .find(|dependency| dependency.name() == name)
+            });
+            let error = if dependency.is_some() {
+                error
+            } else {
+                prefix_error(error, &path)
+            };
+            ExecutionFailure {
+                error: Box::new(error),
+                dependency,
+            }
+        })?;
     report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
     Ok(())
 }
