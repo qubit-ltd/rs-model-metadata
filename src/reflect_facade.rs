@@ -25,6 +25,7 @@ use qubit_reflect::ReflectionContext;
 use qubit_reflect::capability::CapabilityError;
 use qubit_reflect::capability::CapabilityRegistration;
 use qubit_reflect::descriptor::Reflect;
+#[cfg(feature = "generic")]
 use qubit_reflect::descriptor::TypeDefinitionId;
 
 use crate::metadata::HasTypeMetadata;

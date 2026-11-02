@@ -18,4 +18,5 @@ mod relation;
 mod resolve;
 mod structure_children_tests;
 mod transparent_descriptor_tests;
+#[cfg(feature = "validation")]
 mod validation_tests;

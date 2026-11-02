@@ -20,7 +20,7 @@ use crate::metadata::PropertySetFailure;
 /// # Examples
 ///
 /// A write failure is returned as `Err` by
-/// [`PropertyAccessPath::set_dynamic`](super::PropertyAccessPath::set_dynamic).
+/// [`PropertyAccessPath::write_dynamic`](super::PropertyAccessPath::write_dynamic).
 /// The caller can inspect the stage at which the write failed:
 ///
 /// ```

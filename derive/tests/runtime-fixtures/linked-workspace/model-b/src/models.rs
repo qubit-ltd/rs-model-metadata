@@ -18,9 +18,13 @@ use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
 
 #[cfg(feature = "duplicate-fixture")]
+#[path = "duplicate.rs"]
 mod duplicate;
+#[path = "target.rs"]
 mod target;
+#[path = "text_codec.rs"]
 mod text_codec;
+#[path = "text_rule.rs"]
 mod text_rule;
 
 #[cfg(feature = "duplicate-fixture")]

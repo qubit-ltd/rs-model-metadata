@@ -17,7 +17,7 @@ use qubit_validator::PreparedValidator;
 use qubit_validator::ValidationValue;
 
 /// Checks that the linked-workspace fixture passes the expected text value.
-pub(super) struct TextRule;
+pub(in crate::models::text_rule) struct TextRule;
 
 impl PreparedValidator for TextRule {
     /// Identifies the input shape required by this validator.

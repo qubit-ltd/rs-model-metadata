@@ -17,6 +17,7 @@ use qubit_validator::PreparedValidator;
 use qubit_validator::ValidatorDescriptor;
 use qubit_validator::ValidatorSignature;
 
+#[path = "text_rule/internal/mod.rs"]
 mod internal;
 
 use self::internal::TextRule;
