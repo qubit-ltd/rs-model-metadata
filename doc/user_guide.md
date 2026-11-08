@@ -205,6 +205,9 @@ qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", feature
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+
+[patch.crates-io]
+qubit-validator = { path = "../../rust-common/rs-validator" }
 ```
 
 The profile's label and optional contact name must be nonblank. Metadata discovery

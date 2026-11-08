@@ -562,6 +562,8 @@ dependencies = [
 [[package]]
 name = "qubit-datatype"
 version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13ee50328f95637a2689cd8c77fa3a4f8cdb7b2af3fda3b991001eb92b0df4d4"
 dependencies = [
  "serde",
  "thiserror",
@@ -569,9 +571,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-datatype"
-version = "0.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13ee50328f95637a2689cd8c77fa3a4f8cdb7b2af3fda3b991001eb92b0df4d4"
+version = "0.15.3"
 dependencies = [
  "serde",
  "thiserror",
@@ -646,7 +646,7 @@ dependencies = [
  "chrono",
  "criterion",
  "qubit-codec",
- "qubit-datatype 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "qubit-datatype 0.15.2",
  "qubit-id",
  "qubit-model-derive",
  "qubit-model-id",
@@ -663,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "bigdecimal",
  "qubit-budget",
@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact-derive"
-version = "0.9.0"
+version = "0.10.1"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -690,7 +690,7 @@ dependencies = [
  "bigdecimal",
  "chrono",
  "inventory",
- "qubit-datatype 0.15.2",
+ "qubit-datatype 0.15.3",
  "qubit-id",
  "qubit-reflect-derive",
  "thiserror",

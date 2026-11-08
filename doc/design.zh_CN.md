@@ -21,24 +21,58 @@
 ```text
 Rust 声明 --derive--> TypeMetadata + 反射能力
                          |
-ReflectRegistry 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
+ReflectionContext 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
                                |                   |
                        PropertyAccessPath    可选的校验/codec 绑定
 ```
 
 `TypeMetadata` 无需实例即可描述一个 Rust 类型的角色、字段、声明和本地属性。`FieldMetadata` 对应存储字段；`PropertyMetadata` 组合字段与符合条件的 `ModelImpl` 访问器，也可表示计算属性。读取属性时，能借用实例就保留借用。`FieldLocation` 用所属 `TypeId`、可选枚举变体和字段序号定位具体字段；泛型定义的字段尚无具体位置。外部持久身份使用 `ModelId`，`TypeId` 与 `FieldLocation` 仅在进程内有效。
 
-反射边界采用 `rs-reflect` codegen v3：运行时和生成代码通过
+反射边界采用 `rs-reflect` codegen v4：运行时和生成代码通过
 `DynamicRef<'a, Local>`、`DynamicMut<'a, Local>`、`DynamicOwned<Local>`
 进行受检动态访问，并用 `#[ReflectImpl]` 注册生成的能力。`__private::v8`
-是 runtime 与 derive 间的内部 ABI，不是应用 API。枚举 payload 执行前会调用反射
+是另一个独立版本的 runtime 与 derive 内部 ABI，不是应用 API。枚举 payload 执行前会调用反射
 `VariantDescriptor::is_active_dynamic`；动态根类型不匹配会作为执行错误返回。
 
 公开功能分别放在 `metadata`、`registry`、`resolve`、`access_path`；`generic`、`validation`、`codec` 是独立可选 feature，默认均不启用。稳定 ID 协议还可单独通过 `qubit-model-id` 使用。
 
 ## 快照与模型图
 
-`ModelRegistry::try_global()` 对已链接的反射注册进行一次冻结，并保留初始化错误。需要隔离时，可从指定 `ReflectRegistry` 快照或静态元数据构造 registry。Registry 同时按稳定 ID 和精确 Rust 类型建立索引；匿名根由解析器接收，不伪造 ID。属性、元数据缓存属于各自的 registry。属性路径缓存合计最多保留 256 条成功的读写路径；失败的编译下次会重试。调用方已经持有的编译路径在缓存逐出后仍可使用。
+`ModelRegistry::try_global()` 对已链接的反射注册进行一次冻结，并保留初始化错误。需要隔离时，可从指定 `ReflectionContext` 快照或静态元数据构造 registry。Registry 同时按稳定 ID 和精确 Rust 类型建立索引；匿名根由解析器接收，不伪造 ID。属性、元数据缓存属于各自的 registry。属性路径缓存合计最多保留 256 条成功的读写路径；失败的编译下次会重试。调用方已经持有的编译路径在缓存逐出后仍可使用。
+
+下面的完整程序创建显式反射上下文，将其投影到模型注册表，并查询已注册模型：
+
+<!-- example: core -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-id = "0.7"
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+```
+
+<!-- example: core/design-context -->
+```rust
+use qubit_id::Id;
+use qubit_model_derive::Entity;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_reflect::ReflectionContext;
+
+#[Entity(id = "docs.design.ContextRegistered")]
+struct ContextRegistered {
+    #[identifier]
+    id: Id,
+}
+
+fn main() {
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("链接的反射上下文");
+    let models = ModelRegistry::from_context(&reflection).expect("上下文模型注册表");
+    assert!(models.get("docs.design.ContextRegistered").is_some());
+}
+```
 
 `StructureResolver::new` 审计全部已注册模型；`for_roots` 与 `for_static_roots` 只解析指定根及其可达模型。解析时检查角色、引用、Projection 来源、Value 闭包、唯一性作用域和查询声明。`ModelGraph` 借用选定的 registry，以 `TypeId` 或 `FieldLocation` 查询关系。仅由静态元数据构建的 registry 需要显式提供子模型；基于反射快照的 registry 可发现可达匿名子模型。模型图不会从全局 registry 补入缺失声明。
 
@@ -76,7 +110,7 @@ ReflectRegistry 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
 有三种主要入口，按调用方掌握的范围选用：
 
 1. `ModelRegistry::try_global()` 从进程已链接的反射注册构造全局实例。初始化结果通过一次性单元保存；注册冲突或 ABI 错误不会在后续调用中偷偷变成成功。
-2. `ModelRegistry::from_reflect_registry(&reflection)` 投影调用方提供的冻结快照。它保留来源信息，合并快照中的 `ModelImpl` provider，并能在可达遍历中发现匿名子模型；不会查询全局快照补缺。
+2. `ModelRegistry::from_context(&reflection)` 投影调用方提供的 `ReflectionContext` 快照。它保留来源信息，合并上下文中的 `ModelImpl` provider，并能在可达遍历中发现匿名子模型；不会查询全局上下文补缺。
 3. `ModelRegistry::from_static_metadata(...)` 用明确给出的元数据建立隔离注册表。它只使用每个 `TypeMetadata` 的本地属性，不会看到另行注册的 impl provider；需要解析匿名子模型时，调用方必须将子元数据列入输入。
 
 注册表按稳定 ID、精确 `TypeId` 建索引。`get(id)` 返回注册条目，`metadata(id)` 返回具体类型元数据；启用 `generic` 后，`generic(id)` 与 `generic_metadata_for(definition_id)` 处理泛型定义。匿名定义可以按进程内定义身份查到，却不进入稳定 ID 列表。构建阶段会拒绝重复 ID、互相矛盾的具体类型注册、能力目标不属于快照、能力适配器类型不匹配和元数据与反射 descriptor 不一致等情形。

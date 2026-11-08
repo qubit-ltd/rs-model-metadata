@@ -19,18 +19,18 @@ The optional `validation` feature binds supported declarations into a `Validatio
 ```text
 Rust declarations --derive--> TypeMetadata + reflect capabilities
                               |
-ReflectRegistry snapshot ----> ModelRegistry ----> StructureResolver ----> ModelGraph
+ReflectionContext snapshot --> ModelRegistry ----> StructureResolver ----> ModelGraph
                                      |                    |
                              PropertyAccessPath     optional validation/codec binders
 ```
 
 The public vocabulary lives in `metadata`, `registry`, `resolve`, and `access_path`. `generic`, `validation`, and `codec` are separate optional features; the default feature set is empty. The independent `qubit-model-id` crate carries the stable model ID protocol.
 
-The reflection boundary follows `rs-reflect` codegen v3: runtime and generated
+The reflection boundary follows `rs-reflect` codegen v4: runtime and generated
 code use `DynamicRef<'a, Local>`, `DynamicMut<'a, Local>`, and
 `DynamicOwned<Local>` for checked dynamic access, while `#[ReflectImpl]`
-registers generated capabilities. The crate's `__private::v8` facade is an
-internal runtime/derive ABI, not an application API. Enum payload execution
+registers generated capabilities. The crate's `__private::v8` facade is a
+separate internal runtime/derive ABI version, not an application API. Enum payload execution
 uses the reflected `VariantDescriptor::is_active_dynamic` check before reading
 a payload field; a mismatched dynamic root is an execution error.
 
@@ -56,10 +56,45 @@ These objects describe declarations and resolved structure; they do not represen
 Choose the registry constructor according to the declarations and snapshot available to the caller:
 
 1. `ModelRegistry::try_global()` initializes the process-wide reflection registry and projects its model registrations once. Both success and initialization errors are cached; later failures return a clone of the original error. A panic from an initializing provider propagates and is not cached.
-2. `ModelRegistry::from_reflect_registry(&reflection)` projects a caller-supplied frozen `ReflectRegistry` snapshot. It invokes that snapshot's metadata providers, retains their provenance, and resolves `ModelImpl` providers from the same snapshot. Reachable anonymous child models can be discovered even though they have no stable `ModelId`. It never consults the global registry to fill gaps.
+2. `ModelRegistry::from_context(&reflection)` projects a caller-supplied `ReflectionContext` snapshot. It invokes that snapshot's metadata providers, retains their provenance, and resolves `ModelImpl` providers from the same context. Reachable anonymous child models can be discovered even though they have no stable `ModelId`. It never consults the global context to fill gaps.
 3. `ModelRegistry::from_static_metadata(...)` builds an isolated registry from explicitly supplied metadata and provenance. It uses each type's local properties only; it cannot see independently registered `ModelImpl` providers. Callers must include child metadata explicitly when resolving anonymous nested models.
 
 The registry indexes stable model IDs and exact `TypeId`s. With `generic`, generic definitions can also be looked up by their process-local definition identity; anonymous definitions are not added to the stable-ID list. Registry construction rejects duplicate IDs, conflicting registrations for one concrete type, capability targets outside the reflection snapshot, incompatible providers, and metadata inconsistent with its reflection descriptor.
+
+The following complete program builds an explicit reflection context, projects
+it into a model registry, and looks up the registered model:
+
+<!-- example: core -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-id = "0.7"
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+```
+
+<!-- example: core/design-context -->
+```rust
+use qubit_id::Id;
+use qubit_model_derive::Entity;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_reflect::ReflectionContext;
+
+#[Entity(id = "docs.design.ContextRegistered")]
+struct ContextRegistered {
+    #[identifier]
+    id: Id,
+}
+
+fn main() {
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked reflection context");
+    let models = ModelRegistry::from_context(&reflection).expect("context model registry");
+    assert!(models.get("docs.design.ContextRegistered").is_some());
+}
+```
 
 Metadata, property, and path caches are scoped to their registry. The bounded path cache retains at most 256 successfully compiled paths, distinguishing root metadata, path segments, and read/write mode; failures are not cached and can be retried. An `Arc<PropertyAccessPath>` already returned to a caller remains usable after cache eviction. Build a new path against the registry for each distinct reflection snapshot or overlay.
 

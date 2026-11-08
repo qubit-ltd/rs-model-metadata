@@ -27,6 +27,8 @@ const DOCUMENTS: &[&str] = &[
     "derive/README.zh_CN.md",
     "doc/user_guide.md",
     "doc/user_guide.zh_CN.md",
+    "doc/design.md",
+    "doc/design.zh_CN.md",
     "derive/doc/user_guide.md",
     "derive/doc/user_guide.zh_CN.md",
 ];

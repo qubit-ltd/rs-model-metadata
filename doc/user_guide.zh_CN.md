@@ -133,6 +133,9 @@ qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-id = "0.7"
 qubit-reflect = { version = "0.2", path = "../rs-reflect" }
 qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+
+[patch.crates-io]
+qubit-validator = { path = "../../rust-common/rs-validator" }
 ```
 
 验证执行依赖同一 checkout 的 `rs-validator`；添加该依赖后，从新建的 `app/` 目录运行完整示例。
