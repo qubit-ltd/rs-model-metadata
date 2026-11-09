@@ -25,9 +25,10 @@
 //! # Examples
 //!
 //! ```
+//! # extern crate model_runtime as qubit_model_metadata;
 //! use qubit_id::Id;
 //! use qubit_model_derive::{Entity, ModelImpl};
-//! use model_runtime::metadata::TypeMetadata;
+//! use qubit_model_metadata::metadata::TypeMetadata;
 //!
 //! #[Entity(id = "example.Document")]
 //! pub struct Document {

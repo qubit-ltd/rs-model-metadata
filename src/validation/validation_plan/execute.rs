@@ -948,6 +948,10 @@ mod typed_entry_tests {
     use std::sync::Arc;
 
     use qubit_model_derive::Model;
+    use qubit_reflect::value::DynamicRef;
+    use qubit_reflect::value::Local;
+    use qubit_validator::ExecutionErrorKind;
+    use qubit_validator::ValidatorRegistry;
 
     use super::ValidationPlan;
     use crate::metadata::TypeMetadata;
@@ -958,10 +962,6 @@ mod typed_entry_tests {
     use crate::validation::ValidationOptions;
     use crate::validation::ValidationSelection;
     use crate::validation::validation_options::FieldPath;
-    use qubit_reflect::value::DynamicRef;
-    use qubit_reflect::value::Local;
-    use qubit_validator::ExecutionErrorKind;
-    use qubit_validator::ValidatorRegistry;
 
     #[Model(id = "validation.TypedEntryFixture")]
     struct TypedEntryFixture {
@@ -969,7 +969,7 @@ mod typed_entry_tests {
     }
 
     #[test]
-    fn public_typed_validation_entry_points_return_valid_reports() {
+    fn test_public_typed_validation_entry_points_return_valid_reports() {
         let metadata = TypeMetadata::of::<TypedEntryFixture>();
         let models = ModelRegistry::global();
         let graph = Arc::new(
@@ -992,17 +992,16 @@ mod typed_entry_tests {
         let options = ValidationOptions::default();
 
         assert!(plan.validate(&value, &options).expect("typed validation").is_valid());
-        assert!(plan
-            .validate_with_context(&value, &[], &options)
-            .expect("typed contextual validation")
-            .is_valid());
-        assert!(plan
-            .validate_dynamic(
-                DynamicRef::<Local>::new_any(&value),
-                &options,
-            )
-            .expect("dynamic validation")
-            .is_valid());
+        assert!(
+            plan.validate_with_context(&value, &[], &options)
+                .expect("typed contextual validation")
+                .is_valid()
+        );
+        assert!(
+            plan.validate_dynamic(DynamicRef::<Local>::new_any(&value), &options,)
+                .expect("dynamic validation")
+                .is_valid()
+        );
 
         let mismatch = plan
             .validate_dynamic(DynamicRef::<Local>::new_any(&String::from("wrong root")), &options)

@@ -83,9 +83,11 @@ fn test_validator_argument_debug_redacts_names_and_values() {
         assert!(rendered.iter().any(|value| value == &format!("{variant}(<redacted>)")));
     }
     for variant in ["BoolList", "IntegerList", "UnsignedList", "StringList"] {
-        assert!(rendered
-            .iter()
-            .any(|value| value.starts_with(&format!("{variant} {{ len: 2 }}"))));
+        assert!(
+            rendered
+                .iter()
+                .any(|value| value.starts_with(&format!("{variant} {{ len: 2 }}")))
+        );
     }
 }
 

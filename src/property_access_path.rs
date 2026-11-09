@@ -741,16 +741,16 @@ mod tests {
 
     use qubit_model_derive::Model;
     use qubit_model_derive::ModelImpl;
+    use qubit_reflect::ReflectionContext;
 
     use super::PropertyAccessPath;
+    use crate::metadata::OptionalOps;
     use crate::metadata::PropertyBorrowed;
     use crate::metadata::PropertyMutable;
     use crate::metadata::PropertyOwned;
     use crate::metadata::PropertyValue;
-    use crate::metadata::OptionalOps;
     use crate::metadata::TypeMetadata;
     use crate::registry::ModelRegistry;
-    use qubit_reflect::ReflectionContext;
 
     #[Model(id = "tests.AccessPathUnitChild")]
     struct Child {
@@ -801,74 +801,52 @@ mod tests {
     impl OwnedRoot {
         pub fn owned_child(&self) -> Child {
             OWNED_GETTER_CALLS.fetch_add(1, Ordering::Relaxed);
-            Child {
-                value: String::new(),
-            }
+            Child { value: String::new() }
         }
     }
 
     #[test]
-    fn compiled_path_supports_typed_dynamic_and_authorized_access() {
+    fn test_compiled_path_supports_typed_dynamic_and_authorized_access() {
         let context = ReflectionContext::builder()
             .include_linked()
             .build()
             .expect("reflection context");
         let registry = ModelRegistry::from_context(&context).expect("model registry");
-        let path =
-            PropertyAccessPath::compile(&registry, TypeMetadata::of::<Root>(), &["child", "value"])
-                .expect("nested path compiles");
+        let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<Root>(), &["child", "value"])
+            .expect("nested path compiles");
         assert_eq!(path.leaf_property().name(), "value");
         path.check_writable().expect("nested fields are writable");
 
         let root = Root {
-            child: Child {
-                value: "read".into(),
-            },
+            child: Child { value: "read".into() },
         };
         let PropertyValue::Borrowed(value) = path.read(&root).expect("typed read") else {
             panic!("typed read returns a borrow");
         };
-        assert_eq!(
-            value.downcast_ref::<String>().map(String::as_str),
-            Some("read")
-        );
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("read"));
 
-        let PropertyValue::Borrowed(value) = path
-            .read_dynamic(PropertyBorrowed::new(&root))
-            .expect("dynamic read")
+        let PropertyValue::Borrowed(value) = path.read_dynamic(PropertyBorrowed::new(&root)).expect("dynamic read")
         else {
             panic!("dynamic read returns a borrow");
         };
-        assert_eq!(
-            value.downcast_ref::<String>().map(String::as_str),
-            Some("read")
-        );
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("read"));
 
         // SAFETY: This test owns the public fixture and authorizes its access.
         let PropertyValue::Borrowed(value) =
-            unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }
-                .expect("authorized dynamic read")
+            unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }.expect("authorized dynamic read")
         else {
             panic!("authorized read returns a borrow");
         };
-        assert_eq!(
-            value.downcast_ref::<String>().map(String::as_str),
-            Some("read")
-        );
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("read"));
 
         let mut typed_root = Root {
-            child: Child {
-                value: "before".into(),
-            },
+            child: Child { value: "before".into() },
         };
-        path.write(&mut typed_root, String::from("typed"))
-            .expect("typed write");
+        path.write(&mut typed_root, String::from("typed")).expect("typed write");
         assert_eq!(typed_root.child.value, "typed");
 
         let mut dynamic_root = Root {
-            child: Child {
-                value: "before".into(),
-            },
+            child: Child { value: "before".into() },
         };
         path.write_dynamic(
             PropertyMutable::new(&mut dynamic_root),
@@ -878,9 +856,7 @@ mod tests {
         assert_eq!(dynamic_root.child.value, "dynamic");
 
         let mut authorized_root = Root {
-            child: Child {
-                value: "before".into(),
-            },
+            child: Child { value: "before".into() },
         };
         // SAFETY: This test owns the public fixture and authorizes its access.
         unsafe {
@@ -894,16 +870,11 @@ mod tests {
     }
 
     fn assert_public_access_entry_points<'ctx>(registry: &ModelRegistry<'ctx>) {
-        let path = PropertyAccessPath::compile(
-            registry,
-            TypeMetadata::of::<Root>(),
-            &["child", "value"],
-        )
-        .expect("nested path compiles");
+        let path = PropertyAccessPath::compile(registry, TypeMetadata::of::<Root>(), &["child", "value"])
+            .expect("nested path compiles");
 
-        let leaf_property: for<'path> fn(
-            &'path PropertyAccessPath<'ctx>,
-        ) -> &'path crate::property::PropertyMetadata = PropertyAccessPath::leaf_property;
+        let leaf_property: for<'path> fn(&'path PropertyAccessPath<'ctx>) -> &'path crate::property::PropertyMetadata =
+            PropertyAccessPath::leaf_property;
         let leaf_property = std::hint::black_box(leaf_property);
         assert_eq!(leaf_property(&path).name(), "value");
 
@@ -913,9 +884,7 @@ mod tests {
         ) -> Result<PropertyValue<'value>, super::PropertyAccessPathError> = PropertyAccessPath::read::<Root>;
         let typed_read = std::hint::black_box(typed_read);
         let mut root = Root {
-            child: Child {
-                value: "typed".into(),
-            },
+            child: Child { value: "typed".into() },
         };
         let PropertyValue::Borrowed(value) = typed_read(&path, &root).expect("typed pointer read") else {
             panic!("typed pointer read returns a borrow");
@@ -948,12 +917,14 @@ mod tests {
         let dynamic_read_unsafe: for<'value> unsafe fn(
             &PropertyAccessPath<'ctx>,
             PropertyBorrowed<'value>,
-        ) -> Result<PropertyValue<'value>, super::PropertyAccessPathError> = PropertyAccessPath::read_dynamic_unsafe;
+        ) -> Result<
+            PropertyValue<'value>,
+            super::PropertyAccessPathError,
+        > = PropertyAccessPath::read_dynamic_unsafe;
         let dynamic_read_unsafe = std::hint::black_box(dynamic_read_unsafe);
         // SAFETY: This test owns the fixture and authorizes its access.
-        let PropertyValue::Borrowed(value) =
-            unsafe { dynamic_read_unsafe(&path, PropertyBorrowed::new(&root)) }
-                .expect("authorized dynamic pointer read")
+        let PropertyValue::Borrowed(value) = unsafe { dynamic_read_unsafe(&path, PropertyBorrowed::new(&root)) }
+            .expect("authorized dynamic pointer read")
         else {
             panic!("authorized dynamic pointer read returns a borrow");
         };
@@ -993,7 +964,7 @@ mod tests {
     }
 
     #[test]
-    fn public_access_entry_points_work_through_function_pointers() {
+    fn test_public_access_entry_points_work_through_function_pointers() {
         let context = ReflectionContext::builder()
             .include_linked()
             .build()
@@ -1003,7 +974,7 @@ mod tests {
     }
 
     #[test]
-    fn compilation_reports_empty_and_unknown_path_segments() {
+    fn test_compilation_reports_empty_and_unknown_path_segments() {
         let context = ReflectionContext::builder()
             .include_linked()
             .build()
@@ -1022,21 +993,17 @@ mod tests {
             Err(super::PropertyAccessPathError::UnknownProperty { index: 0, .. })
         ));
 
-        let unlinked_context = ReflectionContext::builder()
-            .build()
-            .expect("empty reflection context");
-        let unlinked_registry =
-            ModelRegistry::from_context(&unlinked_context).expect("empty model registry");
-        let error = match PropertyAccessPath::compile(
-            &unlinked_registry,
-            TypeMetadata::of::<Root>(),
-            &["child"],
-        ) {
+        let unlinked_context = ReflectionContext::builder().build().expect("empty reflection context");
+        let unlinked_registry = ModelRegistry::from_context(&unlinked_context).expect("empty model registry");
+        let error = match PropertyAccessPath::compile(&unlinked_registry, TypeMetadata::of::<Root>(), &["child"]) {
             Ok(_) => panic!("unlinked owner metadata cannot be resolved"),
             Err(error) => error,
         };
         assert!(
-            matches!(error, super::PropertyAccessPathError::AdapterUnavailable { index: 0, .. }),
+            matches!(
+                error,
+                super::PropertyAccessPathError::AdapterUnavailable { index: 0, .. }
+            ),
             "unexpected unlinked owner error: {error:?}"
         );
 
@@ -1056,18 +1023,15 @@ mod tests {
     }
 
     #[test]
-    fn optional_paths_preserve_absence_and_recover_unwritten_values() {
+    fn test_optional_paths_preserve_absence_and_recover_unwritten_values() {
         let context = ReflectionContext::builder()
             .include_linked()
             .build()
             .expect("reflection context");
         let registry = ModelRegistry::from_context(&context).expect("model registry");
-        let path = PropertyAccessPath::compile_for_write(
-            &registry,
-            TypeMetadata::of::<OptionalRoot>(),
-            &["child", "value"],
-        )
-        .expect("optional path compiles for writing");
+        let path =
+            PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<OptionalRoot>(), &["child", "value"])
+                .expect("optional path compiles for writing");
 
         let absent = OptionalRoot { child: None };
         assert!(matches!(
@@ -1091,33 +1055,24 @@ mod tests {
         );
 
         let present = OptionalRoot {
-            child: Some(Child {
-                value: "nested".into(),
-            }),
+            child: Some(Child { value: "nested".into() }),
         };
-        let PropertyValue::Borrowed(value) = path.read(&present).expect("present child reads")
-        else {
+        let PropertyValue::Borrowed(value) = path.read(&present).expect("present child reads") else {
             panic!("nested path returns a borrow");
         };
-        assert_eq!(
-            value.downcast_ref::<String>().map(String::as_str),
-            Some("nested")
-        );
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("nested"));
     }
 
     #[test]
-    fn optional_borrowed_getter_intermediate_preserves_presence_and_absence() {
+    fn test_optional_borrowed_getter_intermediate_preserves_presence_and_absence() {
         let context = ReflectionContext::builder()
             .include_linked()
             .build()
             .expect("reflection context");
         let registry = ModelRegistry::from_context(&context).expect("model registry");
-        let path = PropertyAccessPath::compile(
-            &registry,
-            TypeMetadata::of::<OptionalGetterRoot>(),
-            &["child", "value"],
-        )
-        .expect("optional borrowed getter path compiles");
+        let path =
+            PropertyAccessPath::compile(&registry, TypeMetadata::of::<OptionalGetterRoot>(), &["child", "value"])
+                .expect("optional borrowed getter path compiles");
 
         assert!(matches!(
             path.read(&OptionalGetterRoot { child: None }),
@@ -1139,18 +1094,15 @@ mod tests {
     }
 
     #[test]
-    fn malformed_optional_projection_is_reported_and_keeps_write_replacement() {
+    fn test_malformed_optional_projection_is_reported_and_keeps_write_replacement() {
         let context = ReflectionContext::builder()
             .include_linked()
             .build()
             .expect("reflection context");
         let registry = ModelRegistry::from_context(&context).expect("model registry");
-        let mut path = PropertyAccessPath::compile_for_write(
-            &registry,
-            TypeMetadata::of::<OptionalRoot>(),
-            &["child", "value"],
-        )
-        .expect("optional path compiles");
+        let mut path =
+            PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<OptionalRoot>(), &["child", "value"])
+                .expect("optional path compiles");
         path.steps[0].optional_ops = Some(OptionalOps::for_element::<String>());
 
         let root = OptionalRoot {
@@ -1193,18 +1145,14 @@ mod tests {
     }
 
     #[test]
-    fn setter_only_leaf_and_invalid_owner_paths_keep_their_contracts() {
+    fn test_setter_only_leaf_and_invalid_owner_paths_keep_their_contracts() {
         let context = ReflectionContext::builder()
             .include_linked()
             .build()
             .expect("reflection context");
         let registry = ModelRegistry::from_context(&context).expect("model registry");
-        let setter = PropertyAccessPath::compile_for_write(
-            &registry,
-            TypeMetadata::of::<SetterRoot>(),
-            &["value"],
-        )
-        .expect("setter-only leaf compiles for writing");
+        let setter = PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<SetterRoot>(), &["value"])
+            .expect("setter-only leaf compiles for writing");
         let mut root = SetterRoot {};
         setter
             .write(&mut root, String::from("written"))
@@ -1214,33 +1162,27 @@ mod tests {
             Err(super::PropertyAccessPathError::UnreadableIntermediate { index: 0, .. })
         ));
 
-        let read_path =
-            PropertyAccessPath::compile(&registry, TypeMetadata::of::<Root>(), &["child", "value"])
-                .expect("nested path compiles");
+        let read_path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<Root>(), &["child", "value"])
+            .expect("nested path compiles");
         assert!(matches!(
             read_path.read_dynamic(PropertyBorrowed::new(&String::new())),
             Err(super::PropertyAccessPathError::RootTypeMismatch { .. })
         ));
         let failure = read_path
-            .write_dynamic(
-                PropertyMutable::new(&mut String::new()),
-                PropertyOwned::new(17_u32),
-            )
+            .write_dynamic(PropertyMutable::new(&mut String::new()), PropertyOwned::new(17_u32))
             .expect_err("wrong dynamic root cannot be mutated");
         assert!(matches!(
             failure.path_error(),
             Some(super::PropertyAccessPathError::RootTypeMismatch { .. })
         ));
         assert_eq!(
-            failure
-                .replacement()
-                .and_then(|value| value.downcast_ref::<u32>()),
+            failure.replacement().and_then(|value| value.downcast_ref::<u32>()),
             Some(&17)
         );
     }
 
     #[test]
-    fn owned_intermediate_getters_are_rejected_without_execution() {
+    fn test_owned_intermediate_getters_are_rejected_without_execution() {
         let context = ReflectionContext::builder()
             .include_linked()
             .build()
@@ -1248,11 +1190,7 @@ mod tests {
         let registry = ModelRegistry::from_context(&context).expect("model registry");
         OWNED_GETTER_CALLS.store(0, Ordering::Relaxed);
         assert!(matches!(
-            PropertyAccessPath::compile(
-                &registry,
-                TypeMetadata::of::<OwnedRoot>(),
-                &["owned_child", "value"],
-            ),
+            PropertyAccessPath::compile(&registry, TypeMetadata::of::<OwnedRoot>(), &["owned_child", "value"],),
             Err(super::PropertyAccessPathError::UnsupportedIntermediate { index: 0, .. })
         ));
         assert_eq!(OWNED_GETTER_CALLS.load(Ordering::Relaxed), 0);
@@ -1261,18 +1199,14 @@ mod tests {
     }
 
     #[test]
-    fn private_intermediate_reports_safe_failures_and_authorized_access() {
+    fn test_private_intermediate_reports_safe_failures_and_authorized_access() {
         let context = ReflectionContext::builder()
             .include_linked()
             .build()
             .expect("reflection context");
         let registry = ModelRegistry::from_context(&context).expect("model registry");
-        let path = PropertyAccessPath::compile(
-            &registry,
-            TypeMetadata::of::<PrivateRoot>(),
-            &["child", "value"],
-        )
-        .expect("private path compiles from registered metadata");
+        let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<PrivateRoot>(), &["child", "value"])
+            .expect("private path compiles from registered metadata");
         let root = PrivateRoot {
             child: Child {
                 value: "private".into(),
@@ -1284,8 +1218,7 @@ mod tests {
         ));
         // SAFETY: This test owns the private fixture and authorizes access.
         let PropertyValue::Borrowed(value) =
-            unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }
-                .expect("authorized private read")
+            unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }.expect("authorized private read")
         else {
             panic!("authorized private read returns a borrow");
         };

@@ -593,16 +593,9 @@ mod tests {
         let context = graph.registry().context().expect("reflection context");
         let binding = DependencyBindingMetadata::new("expected", PropertyPath::new(&["value"]));
 
-        let path = CompiledPropertyPath::compile_dependency(
-            context,
-            metadata,
-            &[],
-            &binding,
-            &graph,
-            &[],
-            InputType::Text,
-        )
-        .expect("named dependency compiles");
+        let path =
+            CompiledPropertyPath::compile_dependency(context, metadata, &[], &binding, &graph, &[], InputType::Text)
+                .expect("named dependency compiles");
 
         assert_eq!(path.dependency(), Some(binding));
         assert_eq!(path.context_depth(), 0);
@@ -647,24 +640,13 @@ mod tests {
             declaration: ExecutionDeclaration::Traversal,
         };
 
-        let error = CompiledPropertyPath::compile_enum_payload(
-            context,
-            root,
-            &occurrence,
-            &graph,
-            TargetMode::Container,
-        )
-        .expect_err("enum payloads only compile as value targets");
+        let error =
+            CompiledPropertyPath::compile_enum_payload(context, root, &occurrence, &graph, TargetMode::Container)
+                .expect_err("enum payloads only compile as value targets");
         assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
 
-        let path = CompiledPropertyPath::compile_enum_payload(
-            context,
-            root,
-            &occurrence,
-            &graph,
-            TargetMode::Value,
-        )
-        .expect("enum payload compiles as a value target");
+        let path = CompiledPropertyPath::compile_enum_payload(context, root, &occurrence, &graph, TargetMode::Value)
+            .expect("enum payload compiles as a value target");
         assert_eq!(path.input_type(), InputType::Text);
         assert_eq!(path.variant_name, Some("Value"));
         assert!(path.variant_guard.is_some());
@@ -673,14 +655,9 @@ mod tests {
             enum_variant: None,
             ..occurrence.clone()
         };
-        let error = CompiledPropertyPath::compile_enum_payload(
-            context,
-            root,
-            &missing_variant,
-            &graph,
-            TargetMode::Value,
-        )
-        .expect_err("payload occurrence must retain its reflected variant");
+        let error =
+            CompiledPropertyPath::compile_enum_payload(context, root, &missing_variant, &graph, TargetMode::Value)
+                .expect_err("payload occurrence must retain its reflected variant");
         assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
 
         let foreign_descriptor = TypeDescriptor::of_in::<ForeignFieldFixture>(context);
@@ -692,14 +669,9 @@ mod tests {
             field: foreign_field,
             ..occurrence
         };
-        let error = CompiledPropertyPath::compile_enum_payload(
-            context,
-            root,
-            &mismatched_field,
-            &graph,
-            TargetMode::Value,
-        )
-        .expect_err("payload field must belong to the reflected enum owner");
+        let error =
+            CompiledPropertyPath::compile_enum_payload(context, root, &mismatched_field, &graph, TargetMode::Value)
+                .expect_err("payload field must belong to the reflected enum owner");
         assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
     }
 }

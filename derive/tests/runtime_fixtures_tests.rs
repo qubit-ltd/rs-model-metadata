@@ -149,8 +149,7 @@ fn prepare_runtime_fixtures(source_root: &Path, scratch: &Path) -> PathBuf {
         &validator_root,
     );
     let linked_workspace_manifest = destination_root.join("linked-workspace/Cargo.toml");
-    let linked_workspace_config =
-        fs::read_to_string(&linked_workspace_manifest).expect("linked-workspace manifest");
+    let linked_workspace_config = fs::read_to_string(&linked_workspace_manifest).expect("linked-workspace manifest");
     let validator_path = validator_root
         .to_str()
         .expect("UTF-8 validator checkout")

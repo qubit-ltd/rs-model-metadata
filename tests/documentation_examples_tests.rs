@@ -133,20 +133,14 @@ fn test_documented_installation_paths() {
                 .find(|candidate| candidate.join("Cargo.toml").is_file())
         })
         .expect("reflect checkout");
-    symlink_directory(
-        &reflect_root,
-        &parent.join("rs-reflect"),
-    );
+    symlink_directory(&reflect_root, &parent.join("rs-reflect"));
     for dependency in ["rs-validator", "rs-redact", "rs-datatype"] {
         let checkout = root
             .ancestors()
             .map(|ancestor| ancestor.join(dependency))
             .find(|candidate| candidate.join("Cargo.toml").is_file())
             .unwrap_or_else(|| panic!("{dependency} checkout"));
-        symlink_directory(
-            &checkout,
-            &parent.join(dependency),
-        );
+        symlink_directory(&checkout, &parent.join(dependency));
     }
     let mut configurations = Vec::new();
     let mut installation_kinds = BTreeMap::new();

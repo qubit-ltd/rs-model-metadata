@@ -80,10 +80,10 @@ mod tests {
     use crate::__private::v8;
     use crate::field_metadata::FieldMetadata;
     use crate::metadata::PropertyMetadata;
+    use crate::validation::ValidationOptions;
     use crate::validation::compiled_property_path::CompiledPropertyPath;
     use crate::validation::internal::execution_budget::ExecutionBudget;
     use crate::validation::internal::path_reader;
-    use crate::validation::ValidationOptions;
 
     #[Reflect]
     struct OptionalField {
@@ -139,7 +139,7 @@ mod tests {
     }
 
     #[test]
-    fn read_rejects_unavailable_and_mismatched_optional_projection_adapters() {
+    fn test_read_rejects_unavailable_and_mismatched_optional_projection_adapters() {
         let context = ReflectionContext::global();
         let options = ValidationOptions::default();
         let mut budget = ExecutionBudget::new(&options);
@@ -164,7 +164,10 @@ mod tests {
             &ValidationPath::root().with_field("value").with_field("value")
         );
 
-        let wrong_ops = path(property(context, Some(TypeId::of::<u32>())), Some(TypeId::of::<String>()));
+        let wrong_ops = path(
+            property(context, Some(TypeId::of::<u32>())),
+            Some(TypeId::of::<String>()),
+        );
         let error = match path_reader::read(
             context,
             &wrong_ops,
@@ -178,7 +181,10 @@ mod tests {
         assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
         assert!(error.trusted_source().is_some());
 
-        let unexpected_element = path(property(context, Some(TypeId::of::<String>())), Some(TypeId::of::<u32>()));
+        let unexpected_element = path(
+            property(context, Some(TypeId::of::<String>())),
+            Some(TypeId::of::<u32>()),
+        );
         let error = match path_reader::read(
             context,
             &unexpected_element,

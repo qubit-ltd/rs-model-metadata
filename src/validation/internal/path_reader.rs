@@ -1004,11 +1004,7 @@ mod tests {
         path.variant_guard = Some(VariantGuard {
             after_steps: 0,
             declaring_type: descriptor.type_id(),
-            variant_index: descriptor
-                .variants()
-                .get_at(0)
-                .expect("guard variant")
-                .index(),
+            variant_index: descriptor.variants().get_at(0).expect("guard variant").index(),
         });
         path.variant_name = Some("Named");
         let inactive = GuardMismatchFixture::Other;
@@ -1025,22 +1021,15 @@ mod tests {
             ),
             Ok(None)
         ));
-        let dependency_error = match read_dependency(
-            &path,
-            DynamicRef::<Local>::new(&inactive),
-            &[],
-            &graph,
-            &mut budget,
-        ) {
-            Ok(_) => panic!("inactive dependency variant unexpectedly produced a value"),
-            Err(error) => error,
-        };
+        let dependency_error =
+            match read_dependency(&path, DynamicRef::<Local>::new(&inactive), &[], &graph, &mut budget) {
+                Ok(_) => panic!("inactive dependency variant unexpectedly produced a value"),
+                Err(error) => error,
+            };
         assert_eq!(dependency_error.kind(), ExecutionErrorKind::PropertyReadFailed);
 
-        path.variant_guard
-            .as_mut()
-            .expect("guard exists")
-            .declaring_type = TypeDescriptor::of_in::<()>(reflection_context()).type_id();
+        path.variant_guard.as_mut().expect("guard exists").declaring_type =
+            TypeDescriptor::of_in::<()>(reflection_context()).type_id();
         let error = match super::read(
             reflection_context(),
             &path,
@@ -1054,9 +1043,7 @@ mod tests {
         assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
         assert_eq!(
             error.path(),
-            &ValidationPath::root()
-                .with_field("Named")
-                .with_field("value")
+            &ValidationPath::root().with_field("Named").with_field("value")
         );
     }
 }
