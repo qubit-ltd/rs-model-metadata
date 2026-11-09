@@ -18,6 +18,7 @@ mod fixtures;
 
 use std::hint::black_box;
 use std::sync::Arc;
+use std::time::Duration;
 use std::time::Instant;
 
 use criterion::BenchmarkId;
@@ -25,6 +26,7 @@ use criterion::Criterion;
 use fixtures::Pipeline1;
 use fixtures::Pipeline8;
 use fixtures::Pipeline32;
+use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::registry::ModelRegistryOrigin;
@@ -48,6 +50,46 @@ use qubit_validator::PreparedValidator;
 use qubit_validator::ValidationValue;
 use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistry;
+
+/// Shared binary tree whose leaves carry one validation declaration.
+#[Model(id = "benchmark.PlanScaleLeaf")]
+#[allow(dead_code)]
+struct PlanScaleLeaf {
+    #[text(non_blank)]
+    value: String,
+}
+
+macro_rules! scale_models {
+    ($(($binary:ident, $binary_id:literal, $chain:ident, $chain_id:literal, $previous_binary:ty, $previous_chain:ty, $depth:literal)),+ $(,)?) => {
+        $(
+            #[Model(id = $binary_id)]
+            #[allow(dead_code)]
+            struct $binary {
+                left: $previous_binary,
+                right: $previous_binary,
+            }
+
+            #[Model(id = $chain_id)]
+            #[allow(dead_code)]
+            struct $chain {
+                child: $previous_chain,
+            }
+        )+
+    };
+}
+
+scale_models! {
+    (PlanScaleBinary1, "benchmark.PlanScaleBinary1", PlanScaleChain1, "benchmark.PlanScaleChain1", PlanScaleLeaf, PlanScaleLeaf, 1),
+    (PlanScaleBinary2, "benchmark.PlanScaleBinary2", PlanScaleChain2, "benchmark.PlanScaleChain2", PlanScaleBinary1, PlanScaleChain1, 2),
+    (PlanScaleBinary3, "benchmark.PlanScaleBinary3", PlanScaleChain3, "benchmark.PlanScaleChain3", PlanScaleBinary2, PlanScaleChain2, 3),
+    (PlanScaleBinary4, "benchmark.PlanScaleBinary4", PlanScaleChain4, "benchmark.PlanScaleChain4", PlanScaleBinary3, PlanScaleChain3, 4),
+    (PlanScaleBinary5, "benchmark.PlanScaleBinary5", PlanScaleChain5, "benchmark.PlanScaleChain5", PlanScaleBinary4, PlanScaleChain4, 5),
+    (PlanScaleBinary6, "benchmark.PlanScaleBinary6", PlanScaleChain6, "benchmark.PlanScaleChain6", PlanScaleBinary5, PlanScaleChain5, 6),
+    (PlanScaleBinary7, "benchmark.PlanScaleBinary7", PlanScaleChain7, "benchmark.PlanScaleChain7", PlanScaleBinary6, PlanScaleChain6, 7),
+    (PlanScaleBinary8, "benchmark.PlanScaleBinary8", PlanScaleChain8, "benchmark.PlanScaleChain8", PlanScaleBinary7, PlanScaleChain7, 8),
+    (PlanScaleBinary9, "benchmark.PlanScaleBinary9", PlanScaleChain9, "benchmark.PlanScaleChain9", PlanScaleBinary8, PlanScaleChain8, 9),
+    (PlanScaleBinary10, "benchmark.PlanScaleBinary10", PlanScaleChain10, "benchmark.PlanScaleChain10", PlanScaleBinary9, PlanScaleChain9, 10),
+}
 
 struct AcceptModel;
 
@@ -370,6 +412,67 @@ fn model_count_pipeline(criterion: &mut Criterion, reflection: &ReflectionContex
     }
 }
 
+/// Measures validation-plan growth for shared binary submodels and a chain.
+/// The model graph is resolved before timing; only plan construction is timed.
+fn plan_build_scaling(criterion: &mut Criterion, reflection: &ReflectionContext) {
+    let models = ModelRegistry::from_context(reflection).expect("valid scaling registrations");
+    let validators = ValidatorRegistry::empty();
+    let roots: [(&str, &'static TypeMetadata, usize, usize); 8] = [
+        ("binary", TypeMetadata::of::<PlanScaleBinary1>(), 1, 2),
+        ("binary", TypeMetadata::of::<PlanScaleBinary4>(), 4, 16),
+        ("binary", TypeMetadata::of::<PlanScaleBinary8>(), 8, 256),
+        ("binary", TypeMetadata::of::<PlanScaleBinary10>(), 10, 1024),
+        ("chain", TypeMetadata::of::<PlanScaleChain1>(), 1, 1),
+        ("chain", TypeMetadata::of::<PlanScaleChain4>(), 4, 1),
+        ("chain", TypeMetadata::of::<PlanScaleChain8>(), 8, 1),
+        ("chain", TypeMetadata::of::<PlanScaleChain10>(), 10, 1),
+    ];
+    let mut group = criterion.benchmark_group("plan_build_scaling");
+    group.sample_size(10).measurement_time(Duration::from_secs(1));
+    println!(
+        "plan_build_scaling: profile={}, arch={}, os={}, samples=10, unique_types=binary(depth+1)/chain(depth+1)",
+        if cfg!(debug_assertions) { "debug" } else { "release" },
+        std::env::consts::ARCH,
+        std::env::consts::OS,
+    );
+    for (shape, root, depth, expected_occurrences) in roots {
+        let graph = Arc::new(
+            StructureResolver::for_static_roots(&models, [root])
+                .resolve()
+                .expect("scaling graph resolves outside timing"),
+        );
+        let expected_types = depth + 1;
+        assert_eq!(graph.models().len(), expected_types);
+        let plan = ValidationPlan::build(
+            root,
+            ValidationBuildInputs {
+                graph: Arc::clone(&graph),
+                validators: &validators,
+            },
+        )
+        .expect("scaling plan binds outside timing");
+        assert_eq!(plan.binding_count(), expected_occurrences);
+        println!(
+            "plan_build_scaling/{shape}/depth_{depth}: unique_types={expected_types}, occurrences={expected_occurrences}"
+        );
+        group.bench_function(
+            BenchmarkId::new(shape, format!("depth_{depth}_rules_{expected_occurrences}")),
+            |bencher| {
+                bencher.iter(|| {
+                    black_box(ValidationPlan::build(
+                        black_box(root),
+                        ValidationBuildInputs {
+                            graph: Arc::clone(&graph),
+                            validators: &validators,
+                        },
+                    ))
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
 /// Keeps cold probes ahead of any code that could initialize property caches.
 fn main() {
     let reflection = ReflectionContext::builder()
@@ -389,5 +492,6 @@ fn main() {
     pipeline(&mut criterion, &reflection, &roots);
     model_count_pipeline(&mut criterion, &reflection);
     model_rule_batch_build(&mut criterion, &reflection);
+    plan_build_scaling(&mut criterion, &reflection);
     criterion.final_summary();
 }

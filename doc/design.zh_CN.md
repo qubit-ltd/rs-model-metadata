@@ -111,7 +111,7 @@ fn main() {
 
 1. `ModelRegistry::try_global()` 从进程已链接的反射注册构造全局实例。初始化结果通过一次性单元保存；注册冲突或 ABI 错误不会在后续调用中偷偷变成成功。
 2. `ModelRegistry::from_context(&reflection)` 投影调用方提供的 `ReflectionContext` 快照。它保留来源信息，合并上下文中的 `ModelImpl` provider，并能在可达遍历中发现匿名子模型；不会查询全局上下文补缺。
-3. `ModelRegistry::from_static_metadata(...)` 用明确给出的元数据建立隔离注册表。它只使用每个 `TypeMetadata` 的本地属性，不会看到另行注册的 impl provider；需要解析匿名子模型时，调用方必须将子元数据列入输入。
+3. `ModelRegistry::from_static_metadata(...)` 用明确给出的元数据和来源建立索引。传入的 `ReflectionContext` 仍绑定到注册表，用于能力和属性解析，因此该 context 中注册的 `ModelImpl` provider 仍可见；若 context 没有对应 provider，则返回类型的本地属性。解析匿名子模型时，调用方仍须将子元数据列入输入。
 
 注册表按稳定 ID、精确 `TypeId` 建索引。`get(id)` 返回注册条目，`metadata(id)` 返回具体类型元数据；启用 `generic` 后，`generic(id)` 与 `generic_metadata_for(definition_id)` 处理泛型定义。匿名定义可以按进程内定义身份查到，却不进入稳定 ID 列表。构建阶段会拒绝重复 ID、互相矛盾的具体类型注册、能力目标不属于快照、能力适配器类型不匹配和元数据与反射 descriptor 不一致等情形。
 
@@ -148,7 +148,61 @@ fn main() {
 
 1. `ValidationCapabilities::check(root, &graph)` 检查图内根的声明发现与访问形状；它不绑定自定义规则，也不调用 getter。
 2. `ValidationPlan::build(root, ValidationBuildInputs { graph, validators })` 对每个可执行 occurrence 绑定内置规则或传入的 `ValidatorRegistry`。构建时聚合独立的缺失注册、类型不匹配和 `UnsupportedExecution` 等错误。根以图内同一 `TypeId` 的规范元数据为准，调用方另传的 overlay 不能篡改图内声明。
-3. `plan.validate(DynamicRef::<Local>::new(&value), &options)` 核对实例根类型，按模型规则、字段及 selector 的声明次序读取并执行。规则违例返回 `Ok(ValidationReport)`；访问器、依赖、预算等基础设施故障返回 `Err(ModelValidationError)`，并保留已经产生的部分报告。
+3. `plan.validate(&value, &options)` 核对具体实例的根类型，按模型规则、字段及 selector 的声明次序读取并执行。规则违例返回 `Ok(ValidationReport)`；访问器、依赖、预算等基础设施故障返回 `Err(ModelValidationError)`，并保留已经产生的部分报告。动态调用方使用 `validate_dynamic(PropertyBorrowed::new_any(&value), &options)`。
+
+以下完整程序为具体值构建并复用验证计划：
+
+<!-- example: validation -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+
+[patch.crates-io]
+qubit-validator = { path = "../../rust-common/rs-validator" }
+```
+
+<!-- example: validation/design-plan -->
+```rust
+use std::sync::Arc;
+use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationOptions;
+use qubit_model_metadata::validation::ValidationPlan;
+use qubit_validator::ValidatorRegistry;
+
+#[Model]
+struct Account {
+    #[text(non_blank)]
+    name: String,
+}
+
+fn main() {
+    let root = TypeMetadata::of::<Account>();
+    let models = ModelRegistry::try_global().expect("已链接模型元数据");
+    let graph = Arc::new(StructureResolver::for_static_roots(&models, [root])
+        .resolve().expect("模型图有效"));
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(root, ValidationBuildInputs {
+        graph: Arc::clone(&graph),
+        validators: &validators,
+    }).expect("内置文本规则已绑定");
+
+    let valid = Account { name: "Ada".to_owned() };
+    assert!(plan.validate(&valid, &ValidationOptions::default())
+        .expect("验证已执行").is_valid());
+    let invalid = Account { name: String::new() };
+    let report = plan.validate(&invalid, &ValidationOptions::default())
+        .expect("验证已执行");
+    assert!(!report.is_valid());
+    assert_eq!(report.violations()[0].path().render(), "name");
+}
+```
 
 遍历会发现每条实际使用路径上的声明，例如两个不同字段都指向同一种子类型时保留两个 occurrence。执行边界如下：
 

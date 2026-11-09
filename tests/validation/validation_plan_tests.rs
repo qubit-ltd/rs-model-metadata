@@ -23,6 +23,18 @@ use qubit_validator::ValidatorRegistry;
 #[Model]
 struct Profile;
 
+#[Model]
+struct SharedValidatedLeaf {
+    #[text(non_blank)]
+    value: String,
+}
+
+#[Model]
+struct SharedValidatedRoot {
+    left: SharedValidatedLeaf,
+    right: SharedValidatedLeaf,
+}
+
 /// A plan keeps its resolved graph alive after the caller releases its handle.
 #[test]
 fn test_plan_retains_graph_after_caller_drops_arc() {
@@ -64,4 +76,56 @@ fn test_plan_retains_graph_after_caller_drops_arc() {
         .validate_dynamic(PropertyBorrowed::new(&profile), &ValidationOptions::default())
         .expect("dynamic validation succeeds");
     assert!(dynamic.is_valid());
+}
+
+/// A shared child type retains one validation binding for each usage path.
+#[test]
+fn test_plan_keeps_occurrences_for_shared_nested_model_paths() {
+    let root = TypeMetadata::of::<SharedValidatedRoot>();
+    let models = ModelRegistry::try_global().expect("model registry");
+    let graph = Arc::new(
+        StructureResolver::for_static_roots(models, [root])
+            .resolve()
+            .expect("shared child graph resolves"),
+    );
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+    )
+    .expect("shared child declarations bind at both paths");
+    assert_eq!(plan.binding_count(), 2);
+
+    let value = SharedValidatedRoot {
+        left: SharedValidatedLeaf { value: String::new() },
+        right: SharedValidatedLeaf { value: String::new() },
+    };
+    let report = plan
+        .validate(&value, &ValidationOptions::default())
+        .expect("validation report is produced");
+    let paths: Vec<_> = report
+        .violations()
+        .iter()
+        .map(|violation| violation.path().render())
+        .collect();
+    assert_eq!(paths, ["left.value", "right.value"]);
+
+    let value = SharedValidatedRoot {
+        left: SharedValidatedLeaf {
+            value: "valid".to_owned(),
+        },
+        right: SharedValidatedLeaf { value: String::new() },
+    };
+    let report = plan
+        .validate(&value, &ValidationOptions::default())
+        .expect("one invalid shared-child value is reported");
+    let paths: Vec<_> = report
+        .violations()
+        .iter()
+        .map(|violation| violation.path().render())
+        .collect();
+    assert_eq!(paths, ["right.value"]);
 }

@@ -216,11 +216,13 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// Builds an isolated deterministic registry from explicit metadata.
     ///
     /// Copies each registration's source coordinates and retains its static
-    /// metadata. No metadata provider or global registry is invoked. Supply
+    /// metadata. No metadata provider is invoked to populate registrations,
+    /// and the global registry is never consulted. The supplied reflection
+    /// context remains bound for capability and property resolution. Supply
     /// anonymous models as structural roots instead of registrations under
-    /// stable IDs. Property resolution uses only the model's statically
-    /// declared local properties and does not read independently registered
-    /// `ModelImpl` capabilities.
+    /// stable IDs. Property resolution uses providers registered in `context`
+    /// when present and otherwise returns the model's declared local
+    /// properties.
     ///
     /// # Type Parameters
     ///
@@ -233,7 +235,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// # Returns
     ///
-    /// The isolated registry bound to the supplied context.
+    /// The registry bound to the supplied context.
     ///
     /// # Errors
     ///
@@ -277,12 +279,13 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Builds an isolated registry from concrete and generic declarations.
     ///
-    /// Copies source coordinates without invoking metadata providers or global
-    /// state. Anonymous generic definitions remain available by definition
-    /// identity; concrete anonymous registrations are rejected. Property
-    /// resolution uses only the model's statically declared local
-    /// properties and does not read independently registered `ModelImpl`
-    /// capabilities.
+    /// Copies source coordinates without invoking metadata providers to
+    /// populate registrations or consulting global state. The supplied
+    /// reflection context remains bound for capability and property
+    /// resolution. Anonymous generic definitions remain available by
+    /// definition identity; concrete anonymous registrations are rejected.
+    /// Property resolution uses providers registered in `context` when
+    /// present and otherwise returns the model's declared local properties.
     ///
     /// # Type Parameters
     ///
@@ -397,8 +400,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// # Returns
     ///
-    /// The registry with owned indexes, an empty property cache, and no
-    /// reflection snapshot associated yet.
+    /// The registry with owned indexes, an empty property cache, and the
+    /// supplied reflection context bound for property and metadata queries.
     ///
     /// # Errors
     ///
@@ -603,13 +606,14 @@ impl<'reflection> ModelRegistry<'reflection> {
 
     /// Resolves properties using this model registry's reflection context.
     ///
-    /// Registries built by `from_static_metadata` or
-    /// `from_static_metadata_with_generics` use only
-    /// the model's statically declared local properties, without independently
-    /// registered `ModelImpl` capabilities. Snapshot registries invoke their
-    /// implementation providers on a cache miss, then reuse the owned merge
-    /// for the same metadata identity. Cache storage is released with this
-    /// registry. This never consults global state.
+    /// Every registry resolves properties in its bound reflection context.
+    /// This includes registries built by `from_static_metadata` and
+    /// `from_static_metadata_with_generics`; their explicit metadata controls
+    /// indexed entries, while context-registered `ModelImpl` providers remain
+    /// available. A context without a matching provider returns the metadata's
+    /// local properties. Providers run on a cache miss; the owned result is
+    /// reused for the same metadata identity. Cache storage is released with
+    /// this registry. This never consults global state.
     ///
     /// # Parameters
     ///

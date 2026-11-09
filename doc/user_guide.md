@@ -92,9 +92,12 @@ Use `qubit_model_id::{ModelId, ModelIdBuf, ModelIdError}` in that library.
 Keep `qubit-model-metadata` for model declarations, registries, and resolution;
 `qubit_model_metadata::metadata` re-exports the exact same ID types.
 
-A static registry made with `ModelRegistry::from_static_metadata` reads only
-the supplied metadata and `TypeMetadata::local_properties()`; it cannot see
-independently registered `ModelImpl` providers. For metadata-only discovery, supply anonymous child metadata explicitly.
+A static registry made with `ModelRegistry::from_static_metadata` indexes only
+the supplied metadata, while property resolution still uses the supplied
+`ReflectionContext`. `ModelImpl` providers registered in that context remain
+visible; a context without a matching provider returns local properties. To
+isolate capabilities, pass a context containing only the registrations you
+want. For metadata discovery, supply anonymous child metadata explicitly.
 A registry built from the intended reflection snapshot discovers reachable
 children from the root, without a second child entry in `roots`. Validation consumes the resulting graph without filling
 missing declarations from the process-wide registry.
@@ -186,6 +189,10 @@ in `entries()` or support ID-based lookup; anonymous definitions remain availabl
 through the definition APIs. Concrete generic metadata retains its definition
 association even when the definition has no stable ID.
 Repeated concurrent concrete metadata queries share the same allocation.
+
+Static constructors choose which entries are indexed; property capabilities
+remain scoped to their supplied reflection context. Build a minimal context
+with only the desired registrations when you need capability isolation.
 
 Validation entry points use the supplied root's TypeId to select the graph's
 canonical metadata. If the caller holds another checked overlay for the same
@@ -839,6 +846,11 @@ execution policy and cannot bypass declaration or binding errors.
   no member; exact-size iterators avoid this extra probe. This conservative
   accounting can truncate an unknown-length traversal earlier than its number
   of yielded members suggests. Accounting cannot wrap on overflow.
+
+These `ValidationOptions` budgets apply while a plan validates an instance;
+they do not limit declaration discovery or binding during `ValidationPlan::build`.
+Build a plan for the intended root and reuse it across validations instead of
+rebuilding it for each instance.
 
 Decimal checks normalize numeric representation before checking scale, optional
 precision, then the exact range. Thus `1.2300` fits scale 2 while `1.234` does

@@ -207,10 +207,11 @@ assert_eq!(user_metadata.type_id(), TypeMetadata::of::<User>().type_id());
 | --- | --- | --- |
 | 最终二进制已链接的模型 | `ModelRegistry::try_global()` | 应用启动时检查全部链接声明 |
 | 显式反射上下文 | `ModelRegistry::from_context(&reflection)` | 测试隔离、插件视图或需要独立注册的 `ModelImpl` 访问器 |
-| 手头的一组静态元数据 | `from_static_metadata(...)` | 不需要反射快照能力的工具；子模型也须显式提供 |
+| 手头的一组静态元数据 | `from_static_metadata(...)` | 显式选择索引条目；属性仍按传入 context 解析，子模型也须显式提供 |
 
-注册表不会从进程全局范围补入当前范围缺失的模型。快照可从根发现可达匿名子模型，
-静态元数据注册表只能读取显式传入的类型和本地 Property；因此计划构建前要确认使用了同一注册范围。
+注册表不会从进程全局范围补入当前范围缺失的模型。快照可从根发现可达匿名子模型。
+静态构造函数显式选择索引条目，但属性仍由传入的 context 解析；若要隔离 provider，
+应使用只含所需注册的精简 context。
 启用 `generic` 后，定义 provider 也随反射快照收集；静态注册表可用
 `from_static_metadata_with_generics` 显式提供。按 ID 的 `entries()` 不包含匿名定义，
 但 `generic_definitions()` 和 `generic_metadata_for(definition.id())` 可以访问它们。
@@ -658,6 +659,10 @@ let report = plan.validate(&profile, &options)?;
   `next()` 才能判断是否还有成员；执行器会在探测前为可能存在的成员预留节点和 comparison 预算，
   因此即使探测结果为空，也可能消耗预算；精确长度迭代器无需这次额外探测。这种保守计费可能使
   未知长度遍历早于其实际产出的成员数量而截断。计数溢出不会回绕。
+
+这些 `ValidationOptions` 预算只在计划验证实例时生效，不限制
+`ValidationPlan::build` 的声明发现和规则绑定。应针对目标 root 构建计划，并在多次验证中复用，
+不要为每个实例重复构建。
 
 Decimal 先规范化数值表示，再依次检查 scale、可选 precision 和精确区间。因此 `1.2300`
 符合 scale 2，`1.234` 不符合。precision 按 `DECIMAL(p,s)` 总容量解释：scale 为 2、precision

@@ -33,13 +33,14 @@ use qubit_model_metadata::metadata::ResolvedProperties;
 use qubit_model_metadata::metadata::SetterMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::registry::ModelRegistryOrigin;
 use qubit_reflect::ReflectionContext;
 use qubit_reflect::value::DynamicMut;
 use qubit_reflect::value::DynamicOwned;
 use qubit_reflect::value::DynamicRef;
 use qubit_reflect::value::Local;
 
-#[Model]
+#[Model(id = "model_impl_merge_tests.Record")]
 struct Record {
     name: String,
     count: u32,
@@ -71,6 +72,14 @@ const SOURCE_B: ModelImplSource = ModelImplSource {
     file: file!(),
     line: 2,
     fingerprint: 0xB002,
+};
+const REGISTRY_ORIGIN: ModelRegistryOrigin = ModelRegistryOrigin {
+    crate_name: "qubit-model-metadata",
+    crate_version: None,
+    module_path: "model_impl_merge_tests",
+    file: Some(file!()),
+    line: Some(1),
+    column: Some(1),
 };
 // ModelImpl code generation repeats the declaration's backing fields in each
 // overlay. These fixtures reproduce that ABI shape with independently owned
@@ -160,8 +169,15 @@ fn combined_b() -> &'static ModelImplMetadata {
 
 static PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
 
+static STATIC_REGISTRY_PROVIDER_CALLS: AtomicUsize = AtomicUsize::new(0);
+
 fn counting_getter() -> &'static ModelImplMetadata {
     PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst);
+    getter_a()
+}
+
+fn counting_static_registry_getter() -> &'static ModelImplMetadata {
+    STATIC_REGISTRY_PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst);
     getter_a()
 }
 
@@ -194,6 +210,76 @@ fn snapshot_with(providers: &[(ModelImplProvider, ModelImplSource)]) -> Reflecti
 
 fn snapshot(first: ModelImplProvider, second: ModelImplProvider) -> ReflectionContext {
     snapshot_with(&[(first, SOURCE_A), (second, SOURCE_B)])
+}
+
+fn context_without_provider() -> ReflectionContext {
+    ReflectionContext::builder()
+        .include_type::<Record>()
+        .include_type::<String>()
+        .include_type::<u32>()
+        .build()
+        .expect("provider-free context")
+}
+
+#[test]
+fn test_static_registry_uses_context_providers_and_caches_the_merge() {
+    STATIC_REGISTRY_PROVIDER_CALLS.store(0, Ordering::SeqCst);
+    let owner = TypeMetadata::of::<Record>();
+    let reflection = snapshot_with(&[(counting_static_registry_getter, SOURCE_A)]);
+    let registry = ModelRegistry::from_static_metadata(&reflection, &[(owner, &REGISTRY_ORIGIN)])
+        .expect("static registry with explicit metadata");
+
+    for _ in 0..2 {
+        let properties = registry.properties_for(owner).expect("context properties");
+        assert_eq!(
+            properties
+                .property("name")
+                .and_then(|property| property.getter())
+                .map(|getter| getter.rust_method_name()),
+            Some("get_name")
+        );
+    }
+    assert_eq!(STATIC_REGISTRY_PROVIDER_CALLS.load(Ordering::SeqCst), 1);
+
+    let independent = context_without_provider();
+    let isolated = ModelRegistry::from_static_metadata(&independent, &[(owner, &REGISTRY_ORIGIN)])
+        .expect("static registry without provider");
+    let properties = isolated.properties_for(owner).expect("local properties");
+    assert!(
+        properties
+            .property("name")
+            .and_then(|property| property.getter())
+            .is_none()
+    );
+}
+
+#[test]
+fn test_static_and_context_registries_resolve_the_same_properties() {
+    let owner = TypeMetadata::of::<Record>();
+    let reflection = snapshot(getter_a, setter_a);
+    let from_context = ModelRegistry::from_context(&reflection).expect("context registry");
+    let from_static =
+        ModelRegistry::from_static_metadata(&reflection, &[(owner, &REGISTRY_ORIGIN)]).expect("static registry");
+    let context_properties = from_context.properties_for(owner).expect("context properties");
+    let static_properties = from_static.properties_for(owner).expect("static properties");
+    for properties in [&context_properties, &static_properties] {
+        let name = properties.property("name").expect("name property");
+        assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
+        assert_eq!(name.setter().expect("setter").rust_method_name(), "set_name");
+    }
+}
+
+#[cfg(feature = "generic")]
+#[test]
+fn test_static_registry_with_generics_uses_context_providers() {
+    let owner = TypeMetadata::of::<Record>();
+    let reflection = snapshot(getter_a, setter_a);
+    let registry = ModelRegistry::from_static_metadata_with_generics(&reflection, &[(owner, &REGISTRY_ORIGIN)], &[])
+        .expect("static registry with empty generic list");
+    let properties = registry.properties_for(owner).expect("context properties");
+    let name = properties.property("name").expect("name property");
+    assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
+    assert_eq!(name.setter().expect("setter").rust_method_name(), "set_name");
 }
 
 #[test]

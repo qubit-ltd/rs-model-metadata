@@ -57,7 +57,7 @@ Choose the registry constructor according to the declarations and snapshot avail
 
 1. `ModelRegistry::try_global()` initializes the process-wide reflection registry and projects its model registrations once. Both success and initialization errors are cached; later failures return a clone of the original error. A panic from an initializing provider propagates and is not cached.
 2. `ModelRegistry::from_context(&reflection)` projects a caller-supplied `ReflectionContext` snapshot. It invokes that snapshot's metadata providers, retains their provenance, and resolves `ModelImpl` providers from the same context. Reachable anonymous child models can be discovered even though they have no stable `ModelId`. It never consults the global context to fill gaps.
-3. `ModelRegistry::from_static_metadata(...)` builds an isolated registry from explicitly supplied metadata and provenance. It uses each type's local properties only; it cannot see independently registered `ModelImpl` providers. Callers must include child metadata explicitly when resolving anonymous nested models.
+3. `ModelRegistry::from_static_metadata(...)` builds a registry whose indexed entries come from explicitly supplied metadata and provenance. The supplied `ReflectionContext` remains bound for capability and property resolution, so `ModelImpl` providers registered in that context are visible. A context without a matching provider yields the type's local properties. Callers must include child metadata explicitly when resolving anonymous nested models.
 
 The registry indexes stable model IDs and exact `TypeId`s. With `generic`, generic definitions can also be looked up by their process-local definition identity; anonymous definitions are not added to the stable-ID list. Registry construction rejects duplicate IDs, conflicting registrations for one concrete type, capability targets outside the reflection snapshot, incompatible providers, and metadata inconsistent with its reflection descriptor.
 
@@ -124,7 +124,61 @@ With `validation`, a validation operation has three distinct stages:
 
 1. `ValidationCapabilities::check(root, &graph)` checks whether declarations and access shapes found from the graph root are discoverable. It does not bind custom rules or invoke getters.
 2. `ValidationPlan::build(root, ValidationBuildInputs { graph, validators })` binds executable occurrences to built-in rules and the supplied `ValidatorRegistry`. It aggregates independent unsupported-shape, missing-rule, and type-mismatch errors. The graph's canonical metadata for the root type is authoritative; an overlay with the same `TypeId` cannot replace its declarations.
-3. `plan.validate(DynamicRef::<Local>::new(&value), &options)` checks the instance root type, then reads and executes rules in declaration order. Rule violations are returned in `Ok(ValidationReport)`. Accessor, dependency, and traversal-budget failures return `Err(ModelValidationError)` with the report accumulated before execution stopped.
+3. `plan.validate(&value, &options)` checks the concrete instance root type, then reads and executes rules in declaration order. Rule violations are returned in `Ok(ValidationReport)`. Accessor, dependency, and traversal-budget failures return `Err(ModelValidationError)` with the report accumulated before execution stopped. Dynamic callers use `validate_dynamic(PropertyBorrowed::new_any(&value), &options)`.
+
+This complete program builds and reuses a plan for a concrete value:
+
+<!-- example: validation -->
+```toml
+[dependencies]
+qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
+qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
+qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+
+[patch.crates-io]
+qubit-validator = { path = "../../rust-common/rs-validator" }
+```
+
+<!-- example: validation/design-plan -->
+```rust
+use std::sync::Arc;
+use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::StructureResolver;
+use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationOptions;
+use qubit_model_metadata::validation::ValidationPlan;
+use qubit_validator::ValidatorRegistry;
+
+#[Model]
+struct Account {
+    #[text(non_blank)]
+    name: String,
+}
+
+fn main() {
+    let root = TypeMetadata::of::<Account>();
+    let models = ModelRegistry::try_global().expect("linked model metadata");
+    let graph = Arc::new(StructureResolver::for_static_roots(&models, [root])
+        .resolve().expect("valid model graph"));
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(root, ValidationBuildInputs {
+        graph: Arc::clone(&graph),
+        validators: &validators,
+    }).expect("built-in text rule bound");
+
+    let valid = Account { name: "Ada".to_owned() };
+    assert!(plan.validate(&valid, &ValidationOptions::default())
+        .expect("validation executed").is_valid());
+    let invalid = Account { name: String::new() };
+    let report = plan.validate(&invalid, &ValidationOptions::default())
+        .expect("validation executed");
+    assert!(!report.is_valid());
+    assert_eq!(report.violations()[0].path().render(), "name");
+}
+```
 
 The walker preserves each actual use path as a separate occurrence, even when several fields lead to the same child type. Its current shape boundary is:
 
