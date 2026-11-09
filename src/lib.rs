@@ -9,7 +9,7 @@
 //! Static metadata overlays for Rust domain models.
 
 // Gives derives the same absolute path inside this crate and in its doctests.
-pub use crate as qubit_model_metadata;
+pub extern crate self as qubit_model_metadata;
 
 #[doc(hidden)]
 pub mod __private;
