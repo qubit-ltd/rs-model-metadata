@@ -667,6 +667,36 @@ fn test_write_private_intermediate_reports_access_failure() {
     assert_eq!(root.middle.leaf.value, "unchanged");
 }
 
+/// Safe reads retain the privacy failure from a private intermediate field.
+#[test]
+fn test_safe_read_private_intermediate_reports_access_failure() {
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<PrivateRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("private field remains a valid path shape");
+    let root = PrivateRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf {
+                value: "secret-value".to_owned(),
+            },
+            value: "middle".to_owned(),
+        },
+    };
+
+    let error = match path.read(&root) {
+        Err(error) => error,
+        Ok(_) => panic!("safe reads cannot cross private fields"),
+    };
+    assert!(matches!(
+        &error,
+        PropertyAccessPathError::AccessFailure { index: 0, name, .. } if name == "middle"
+    ));
+    assert!(std::error::Error::source(&error).is_some());
+}
+
 /// Authorized unsafe access can read and write through private intermediates.
 #[test]
 fn test_unsafe_dynamic_access_can_cross_private_intermediates() {

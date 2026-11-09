@@ -1038,6 +1038,20 @@ mod tests {
         .expect("repeating one metadata pointer is valid during cache prefill");
     }
 
+    #[test]
+    fn test_registry_debug_includes_entries_and_context_identity() {
+        let context = qubit_reflect::ReflectionContext::builder()
+            .include_type::<AnonymousMetadataFixture>()
+            .build()
+            .expect("fixture context");
+        let registry = ModelRegistry::from_context(&context).expect("valid reflected registry");
+
+        let debug = format!("{registry:?}");
+        assert!(debug.contains("ModelRegistry"));
+        assert!(debug.contains("entries"));
+        assert!(debug.contains("context_id"));
+    }
+
     fn test_origin(line: u32) -> ModelRegistryOrigin {
         ModelRegistryOrigin {
             crate_name: "fixture",

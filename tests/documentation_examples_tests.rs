@@ -66,11 +66,20 @@ fn test_bilingual_documentation_examples() {
             .collect();
         assert_eq!(
             manifests.len(),
-            blocks.iter().filter(|block| block.language == "toml").count(),
+            blocks
+                .iter()
+                .filter(|block| block.language == "toml")
+                .count(),
             "{document}: duplicate installation identifier"
         );
-        let programs: Vec<_> = blocks.iter().filter(|block| block.language == "rust").collect();
-        assert!(!programs.is_empty(), "{document}: no complete runnable program");
+        let programs: Vec<_> = blocks
+            .iter()
+            .filter(|block| block.language == "rust")
+            .collect();
+        assert!(
+            !programs.is_empty(),
+            "{document}: no complete runnable program"
+        );
         for (program_index, program) in programs.iter().enumerate() {
             let (installation, _) = program.example.split_once('/').unwrap_or_else(|| {
                 panic!(
@@ -116,7 +125,32 @@ fn test_bilingual_documentation_examples() {
 #[test]
 fn test_documented_installation_paths() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let parent = root.parent().expect("metadata checkout parent");
+    let layout_fixture = root
+        .file_name()
+        .is_some_and(|name| name != "rs-model-metadata")
+        .then(create_fixture);
+    let parent = if let Some(fixture) = &layout_fixture {
+        let parent = fixture.directory.join("rust-common");
+        fs::create_dir_all(&parent).expect("documented workspace layout");
+        symlink_directory(root, &parent.join("rs-model-metadata"));
+        let reflect_root = env::var_os("QUBIT_REFLECT_ROOT")
+            .map(PathBuf::from)
+            .or_else(|| nearest_checkout(root, "rs-reflect"))
+            .expect("reflect checkout");
+        symlink_directory(&reflect_root, &parent.join("rs-reflect"));
+        let validator_root = nearest_checkout(root, "rs-validator").expect("validator checkout");
+        symlink_directory(&validator_root, &parent.join("rs-validator"));
+        for crate_name in ["rs-redact", "rs-datatype"] {
+            if let Some(checkout) = nearest_checkout(root, crate_name) {
+                symlink_directory(&checkout, &parent.join(crate_name));
+            }
+        }
+        parent
+    } else {
+        root.parent()
+            .expect("metadata checkout parent")
+            .to_path_buf()
+    };
     let mut configurations = Vec::new();
     let mut installation_kinds = BTreeMap::new();
     for document in DOCUMENTS {
@@ -126,7 +160,12 @@ fn test_documented_installation_paths() {
                 && block.language == "toml"
             {
                 installation_kinds.insert(block.example.clone(), ());
-                configurations.push((block.example, (*document).to_owned(), block.line, block.source));
+                configurations.push((
+                    block.example,
+                    (*document).to_owned(),
+                    block.line,
+                    block.source,
+                ));
             }
         }
     }
@@ -140,6 +179,21 @@ fn test_documented_installation_paths() {
         let directory = parent.join(format!("app-documentation-{}-{index}", std::process::id()));
         let fixture = create_fixture_at(&directory);
         write_raw_consumer(&fixture.directory, dependencies);
+        if layout_fixture.is_some() {
+            // The checkout's temporary absolute dependency path must match the
+            // documented sibling path's package identity during worktree tests.
+            let reflect_root = env::var_os("QUBIT_REFLECT_ROOT")
+                .map(PathBuf::from)
+                .expect("worktree reflect checkout");
+            let manifest_path = fixture.directory.join("Cargo.toml");
+            let manifest = fs::read_to_string(&manifest_path).expect("raw manifest");
+            let reflect_root = reflect_root.to_str().expect("UTF-8 reflect path");
+            let manifest = manifest.replace(
+                "../rs-reflect",
+                &reflect_root.replace('\\', "\\\\").replace('"', "\\\""),
+            );
+            fs::write(manifest_path, manifest).expect("aligned worktree reflect identity");
+        }
         let output = metadata(&fixture.directory);
         let context = format!("{document}:{line} {installation} raw installation");
         assert!(
@@ -149,7 +203,7 @@ fn test_documented_installation_paths() {
         );
         let metadata: Value = from_slice(&output.stdout)
             .unwrap_or_else(|error| panic!("{context}: invalid Cargo metadata JSON: {error}"));
-        check_raw_installation_identity(&metadata, installation, root, parent, &context);
+        check_raw_installation_identity(&metadata, installation, root, &parent, &context);
     }
 
     let core = configurations
@@ -231,7 +285,10 @@ fn test_installation_rejects_missing_validation_feature() {
         .find(|block| block.example == "validation/profile")
         .expect("validation source");
     let incomplete = manifest.source.replace(", features = [\"validation\"]", "");
-    assert_ne!(incomplete, manifest.source, "actual manifest must declare validation");
+    assert_ne!(
+        incomplete, manifest.source,
+        "actual manifest must declare validation"
+    );
     let fixture = create_fixture();
     let directory = fixture.directory.join("rs-platform/app-missing-feature");
     prepare_consumer(&directory, root, &incomplete, &program.source);
@@ -274,7 +331,10 @@ fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str)
     for (declared, actual) in replacements {
         assert!(actual.is_dir(), "checkout root {} exists", actual.display());
         let absolute = actual.to_str().expect("UTF-8 checkout root");
-        assert!(!absolute.chars().any(char::is_control), "printable checkout path");
+        assert!(
+            !absolute.chars().any(char::is_control),
+            "printable checkout path"
+        );
         let escaped = absolute.replace('\\', "\\\\").replace('"', "\\\"");
         dependencies = dependencies.replace(declared, &escaped);
     }
@@ -287,7 +347,27 @@ fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str)
         "publish = false\n\n",
         "[workspace]\n\n",
     );
-    fs::write(directory.join("Cargo.toml"), format!("{package}{dependencies}")).expect("exact documented dependencies");
+    let mut consumer_manifest = format!("{package}{dependencies}");
+    let worktree_validator = root.join("../../rust-common/rs-validator");
+    let validator_root = if worktree_validator.is_dir() {
+        Some(worktree_validator)
+    } else {
+        nearest_checkout(root, "rs-validator")
+    };
+    if let Some(validator_root) = validator_root {
+        consumer_manifest.push('\n');
+        let validator_root = validator_root
+            .canonicalize()
+            .expect("local validator checkout");
+        let validator_root = validator_root.to_str().expect("UTF-8 validator path");
+        let validator_patch = format!(
+            "[patch.crates-io]\nqubit-validator = {{ path = \"{}\" }}\n",
+            validator_root.replace('\\', "\\\\").replace('"', "\\\"")
+        );
+        consumer_manifest.push_str(&validator_patch);
+    }
+    fs::write(directory.join("Cargo.toml"), consumer_manifest)
+        .expect("exact documented dependencies");
     fs::write(directory.join("src/main.rs"), source).expect("verbatim Markdown source");
 }
 
@@ -352,8 +432,17 @@ fn check_package_identity(metadata: &Value, installation: &str, context: &str) {
     }
 }
 
-fn check_raw_installation_identity(metadata: &Value, installation: &str, root: &Path, parent: &Path, context: &str) {
-    let documented_root = if root.file_name().is_some_and(|name| name == "rs-model-metadata") {
+fn check_raw_installation_identity(
+    metadata: &Value,
+    installation: &str,
+    root: &Path,
+    parent: &Path,
+    context: &str,
+) {
+    let documented_root = if root
+        .file_name()
+        .is_some_and(|name| name == "rs-model-metadata")
+    {
         root.to_path_buf()
     } else {
         parent.join("rs-model-metadata")
@@ -406,7 +495,9 @@ fn check_raw_installation_identity(metadata: &Value, installation: &str, root: &
         );
     }
     if matches!(installation, "core" | "validation" | "codec") {
-        let nodes = metadata["resolve"]["nodes"].as_array().expect("resolved nodes");
+        let nodes = metadata["resolve"]["nodes"]
+            .as_array()
+            .expect("resolved nodes");
         let runtime = nodes
             .iter()
             .find(|node| {
@@ -468,6 +559,23 @@ fn create_fixture_at(directory: &Path) -> DocumentationFixture {
     }
 }
 
+/// Finds a sibling checkout from any nested worktree or repository directory.
+fn nearest_checkout(root: &Path, crate_name: &str) -> Option<PathBuf> {
+    root.ancestors()
+        .map(|ancestor| ancestor.join(crate_name))
+        .find(|candidate| candidate.join("Cargo.toml").is_file())
+}
+
+#[cfg(unix)]
+fn symlink_directory(target: &Path, link: &Path) {
+    std::os::unix::fs::symlink(target, link).expect("documented checkout link");
+}
+
+#[cfg(windows)]
+fn symlink_directory(target: &Path, link: &Path) {
+    std::os::windows::fs::symlink_dir(target, link).expect("documented checkout link");
+}
+
 /// Writes only package scaffolding and the unmodified TOML dependency fence.
 fn write_raw_consumer(directory: &Path, dependencies: &str) {
     fs::create_dir_all(directory.join("src")).expect("raw consumer sources");
@@ -479,7 +587,11 @@ fn write_raw_consumer(directory: &Path, dependencies: &str) {
         "publish = false\n\n",
         "[workspace]\n\n",
     );
-    fs::write(directory.join("Cargo.toml"), format!("{package}{dependencies}")).expect("raw documented dependencies");
+    fs::write(
+        directory.join("Cargo.toml"),
+        format!("{package}{dependencies}"),
+    )
+    .expect("raw documented dependencies");
     fs::write(directory.join("src/main.rs"), "fn main() {}\n").expect("raw consumer source");
 }
 

@@ -52,6 +52,9 @@ use serde_json::to_value;
 #[test]
 fn test_validator_argument_debug_redacts_names_and_values() {
     let labels = ["first-secret", "second-secret"];
+    let booleans = [true, false];
+    let signed = [i128::MIN, i128::MAX];
+    let unsigned = [0, u128::MAX];
     let arguments = [
         NamedValidationArgument::new("secret-name", ValidationArgument::String("secret-value")),
         NamedValidationArgument::new("labels", ValidationArgument::StringList(&labels)),
@@ -62,6 +65,28 @@ fn test_validator_argument_debug_redacts_names_and_values() {
     }
     assert!(output.contains("String(<redacted>)"));
     assert!(output.contains("len: 2"));
+
+    // Named arguments intentionally redact the wrapped value without calling
+    // its formatter; exercise every value variant directly as well.
+    let values = [
+        ValidationArgument::Bool(true),
+        ValidationArgument::Integer(i128::MIN),
+        ValidationArgument::Unsigned(u128::MAX),
+        ValidationArgument::String("secret"),
+        ValidationArgument::BoolList(&booleans),
+        ValidationArgument::IntegerList(&signed),
+        ValidationArgument::UnsignedList(&unsigned),
+        ValidationArgument::StringList(&labels),
+    ];
+    let rendered: Vec<_> = values.iter().map(|value| format!("{value:?}")).collect();
+    for variant in ["Bool", "Integer", "Unsigned", "String"] {
+        assert!(rendered.iter().any(|value| value == &format!("{variant}(<redacted>)")));
+    }
+    for variant in ["BoolList", "IntegerList", "UnsignedList", "StringList"] {
+        assert!(rendered
+            .iter()
+            .any(|value| value.starts_with(&format!("{variant} {{ len: 2 }}"))));
+    }
 }
 
 // Flatten belongs to the plain Serde path; redacted output rejects it.

@@ -295,6 +295,22 @@ fn test_executes_bound_rule_and_prefixes_field_path() {
     assert!(!report.is_valid());
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "name");
+
+    let typed = plan
+        .validate(&TestModel { name: "bad".to_owned() }, &ValidationOptions::default())
+        .expect("typed validation execution");
+    assert_eq!(typed.violations().len(), 1);
+    assert_eq!(typed.violations()[0].path().render(), "name");
+
+    let contextual = plan
+        .validate_with_context(
+            &TestModel { name: "bad".to_owned() },
+            &[],
+            &ValidationOptions::default(),
+        )
+        .expect("typed contextual validation execution");
+    assert_eq!(contextual.violations().len(), 1);
+    assert_eq!(contextual.violations()[0].path().render(), "name");
 }
 
 #[test]

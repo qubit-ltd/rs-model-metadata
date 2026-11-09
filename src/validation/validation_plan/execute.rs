@@ -793,6 +793,82 @@ mod any_view_tests {
 }
 
 #[cfg(test)]
+mod typed_entry_tests {
+    use std::sync::Arc;
+
+    use qubit_model_derive::Model;
+
+    use super::ValidationPlan;
+    use crate::metadata::TypeMetadata;
+    use crate::registry::ModelRegistry;
+    use crate::resolve::ResolveInputs;
+    use crate::resolve::StructureResolver;
+    use crate::validation::ValidationBuildInputs;
+    use crate::validation::ValidationOptions;
+    use crate::validation::ValidationSelection;
+    use crate::validation::validation_options::FieldPath;
+    use qubit_reflect::value::DynamicRef;
+    use qubit_reflect::value::Local;
+    use qubit_validator::ExecutionErrorKind;
+    use qubit_validator::ValidatorRegistry;
+
+    #[Model(id = "validation.TypedEntryFixture")]
+    struct TypedEntryFixture {
+        value: String,
+    }
+
+    #[test]
+    fn public_typed_validation_entry_points_return_valid_reports() {
+        let metadata = TypeMetadata::of::<TypedEntryFixture>();
+        let models = ModelRegistry::global();
+        let graph = Arc::new(
+            StructureResolver::new(ResolveInputs { roots: &[], models })
+                .resolve()
+                .expect("empty validation graph resolves"),
+        );
+        let validators = ValidatorRegistry::empty();
+        let plan = ValidationPlan::build(
+            metadata,
+            ValidationBuildInputs {
+                graph,
+                validators: &validators,
+            },
+        )
+        .expect("fixture without constraints binds");
+        let value = TypedEntryFixture {
+            value: "unused".to_owned(),
+        };
+        let options = ValidationOptions::default();
+
+        assert!(plan.validate(&value, &options).expect("typed validation").is_valid());
+        assert!(plan
+            .validate_with_context(&value, &[], &options)
+            .expect("typed contextual validation")
+            .is_valid());
+        assert!(plan
+            .validate_dynamic(
+                DynamicRef::<Local>::new_any(&value),
+                &options,
+            )
+            .expect("dynamic validation")
+            .is_valid());
+
+        let mismatch = plan
+            .validate_dynamic(DynamicRef::<Local>::new_any(&String::from("wrong root")), &options)
+            .expect_err("a different root type is rejected");
+        assert_eq!(mismatch.error().kind(), ExecutionErrorKind::InputTypeMismatch);
+
+        let selection = ValidationOptions::builder()
+            .selection(ValidationSelection::Fields(vec![FieldPath::new("missing")]))
+            .build();
+        let unmatched = plan
+            .validate_dynamic(DynamicRef::<Local>::new_any(&value), &selection)
+            .expect_err("an unmatched field selection is rejected");
+        assert_eq!(unmatched.error().kind(), ExecutionErrorKind::InvalidSelection);
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use qubit_validator::ValidationPath;
 

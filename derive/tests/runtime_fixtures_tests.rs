@@ -147,6 +147,15 @@ fn prepare_runtime_fixtures(source_root: &Path, scratch: &Path) -> PathBuf {
         &reflect_root,
         &validator_root,
     );
+    let linked_workspace_manifest = destination_root.join("linked-workspace/Cargo.toml");
+    let mut linked_workspace_config =
+        fs::read_to_string(&linked_workspace_manifest).expect("linked-workspace manifest");
+    linked_workspace_config.push_str(&format!(
+        "\n[patch.crates-io]\nqubit-validator = {{ path = \"{}\" }}\n",
+        validator_root.display()
+    ));
+    fs::write(linked_workspace_manifest, linked_workspace_config)
+        .expect("patch linked-workspace validator dependency");
     destination_root
 }
 

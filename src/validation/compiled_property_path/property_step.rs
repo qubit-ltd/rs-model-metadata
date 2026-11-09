@@ -62,3 +62,131 @@ impl PropertyStep {
         self.optional_element
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use qubit_reflect::Reflect;
+    use qubit_reflect::ReflectionContext;
+    use qubit_reflect::TypeDescriptor;
+    use qubit_validator::ExecutionErrorKind;
+    use qubit_validator::InputType;
+    use qubit_validator::ValidationPath;
+
+    use super::PropertyStep;
+    use crate::__private::v8;
+    use crate::field_metadata::FieldMetadata;
+    use crate::metadata::PropertyMetadata;
+    use crate::validation::compiled_property_path::CompiledPropertyPath;
+    use crate::validation::internal::execution_budget::ExecutionBudget;
+    use crate::validation::internal::path_reader;
+    use crate::validation::ValidationOptions;
+
+    #[Reflect]
+    struct OptionalField {
+        value: Option<String>,
+    }
+
+    fn path(property: PropertyMetadata, element: Option<TypeId>) -> CompiledPropertyPath {
+        CompiledPropertyPath {
+            context_depth: 0,
+            dependency: None,
+            deferred: Box::new([]),
+            steps: vec![
+                PropertyStep {
+                    property,
+                    owner: None,
+                    optional_element: element,
+                },
+                PropertyStep {
+                    property,
+                    owner: None,
+                    optional_element: None,
+                },
+            ]
+            .into_boxed_slice(),
+            optional_steps: Box::new([]),
+            input: InputType::of::<String>(),
+            optional: false,
+            variant_guard: None,
+            variant_name: None,
+        }
+    }
+
+    fn property(context: &ReflectionContext, optional_element: Option<TypeId>) -> PropertyMetadata {
+        let descriptor = TypeDescriptor::of_in::<OptionalField>(context);
+        let mut field = FieldMetadata::from_reflect(
+            descriptor.type_id(),
+            descriptor.fields().get_at(0).expect("optional field"),
+        );
+        if let Some(element) = optional_element {
+            field = if element == TypeId::of::<String>() {
+                field.with_optional_ops(crate::property::OptionalOps::for_element::<String>())
+            } else {
+                field.with_optional_ops(crate::property::OptionalOps::for_element::<u32>())
+            };
+        }
+        *v8::leak(PropertyMetadata::new(
+            "value",
+            field.type_expression_data(),
+            Some(v8::leak(field)),
+            None,
+            None,
+        ))
+    }
+
+    #[test]
+    fn read_rejects_unavailable_and_mismatched_optional_projection_adapters() {
+        let context = ReflectionContext::global();
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+        let root = OptionalField {
+            value: Some("value".to_owned()),
+        };
+
+        let missing_ops = path(property(context, None), Some(TypeId::of::<String>()));
+        let error = match path_reader::read(
+            context,
+            &missing_ops,
+            crate::metadata::PropertyBorrowed::new(&root),
+            0,
+            &mut budget,
+        ) {
+            Ok(_) => panic!("optional projection without adapter unexpectedly succeeded"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
+        assert_eq!(
+            error.path(),
+            &ValidationPath::root().with_field("value").with_field("value")
+        );
+
+        let wrong_ops = path(property(context, Some(TypeId::of::<u32>())), Some(TypeId::of::<String>()));
+        let error = match path_reader::read(
+            context,
+            &wrong_ops,
+            crate::metadata::PropertyBorrowed::new(&root),
+            0,
+            &mut budget,
+        ) {
+            Ok(_) => panic!("mismatched optional adapter unexpectedly succeeded"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
+        assert!(error.trusted_source().is_some());
+
+        let unexpected_element = path(property(context, Some(TypeId::of::<String>())), Some(TypeId::of::<u32>()));
+        let error = match path_reader::read(
+            context,
+            &unexpected_element,
+            crate::metadata::PropertyBorrowed::new(&root),
+            0,
+            &mut budget,
+        ) {
+            Ok(_) => panic!("unexpected optional element type succeeded"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
+    }
+}
