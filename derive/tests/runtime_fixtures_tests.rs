@@ -137,7 +137,9 @@ fn prepare_runtime_fixtures(source_root: &Path, scratch: &Path) -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|| source_root.join("../../../../rs-reflect"));
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
-    let validator_root = workspace_root.join("../../rust-common/rs-validator");
+    let validator_root = std::env::var_os("QUBIT_VALIDATOR_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace_root.join("../../rust-common/rs-validator"));
     rewrite_fixture_manifests(
         source_root,
         &destination_root,
@@ -146,6 +148,33 @@ fn prepare_runtime_fixtures(source_root: &Path, scratch: &Path) -> PathBuf {
         &reflect_root,
         &validator_root,
     );
+    let linked_workspace_manifest = destination_root.join("linked-workspace/Cargo.toml");
+    let linked_workspace_config =
+        fs::read_to_string(&linked_workspace_manifest).expect("linked-workspace manifest");
+    let validator_path = validator_root
+        .to_str()
+        .expect("UTF-8 validator checkout")
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    let validator_patch = format!("qubit-validator = {{ path = \"{validator_path}\" }}");
+    let mut replaced = false;
+    let mut linked_workspace_config = linked_workspace_config
+        .lines()
+        .map(|line| {
+            if line.trim_start().starts_with("qubit-validator =") {
+                replaced = true;
+                validator_patch.as_str()
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    if !replaced {
+        linked_workspace_config.push_str(&format!("\n[patch.crates-io]\n{validator_patch}\n"));
+    }
+    fs::write(linked_workspace_manifest, format!("{linked_workspace_config}\n"))
+        .expect("patch linked-workspace validator dependency");
     destination_root
 }
 

@@ -544,3 +544,162 @@ impl CompiledPropertyPath {
         Ok(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use qubit_model_derive::Enum;
+    use qubit_model_derive::Model;
+    use qubit_reflect::Reflect;
+    use qubit_reflect::ReflectionContext;
+    use qubit_reflect::TypeDescriptor;
+    use qubit_validator::InputType;
+
+    use super::CompiledPropertyPath;
+    use crate::__private::v8;
+    use crate::metadata::DependencyBindingMetadata;
+    use crate::metadata::FieldMetadata;
+    use crate::metadata::PropertyPath;
+    use crate::metadata::TargetMode;
+    use crate::metadata::TypeMetadata;
+    use crate::registry::ModelRegistry;
+    use crate::resolve::ResolveInputs;
+    use crate::resolve::StructureResolver;
+    use crate::validation::internal::execution_declaration::ExecutionDeclaration;
+    use crate::validation::internal::validation_occurrence::ValidationOccurrence;
+
+    #[Model(id = "validation.CompiledDependencyFixture")]
+    struct CompiledDependencyFixture {
+        value: String,
+    }
+
+    #[Enum(id = "validation.CompiledEnumPayloadFixture")]
+    enum CompiledEnumPayloadFixture {
+        Value(String),
+        Empty,
+    }
+
+    #[Reflect]
+    struct ForeignFieldFixture {
+        value: u8,
+    }
+
+    #[test]
+    fn test_named_dependency_compiles_against_the_resolved_root() {
+        let metadata = TypeMetadata::of::<CompiledDependencyFixture>();
+        let models = ModelRegistry::global();
+        let graph = StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("dependency fixture graph resolves");
+        let context = graph.registry().context().expect("reflection context");
+        let binding = DependencyBindingMetadata::new("expected", PropertyPath::new(&["value"]));
+
+        let path = CompiledPropertyPath::compile_dependency(
+            context,
+            metadata,
+            &[],
+            &binding,
+            &graph,
+            &[],
+            InputType::Text,
+        )
+        .expect("named dependency compiles");
+
+        assert_eq!(path.dependency(), Some(binding));
+        assert_eq!(path.context_depth(), 0);
+        assert!(path.deferred().is_empty());
+        assert_eq!(path.steps().len(), 1);
+        assert_eq!(path.input_type(), InputType::Text);
+    }
+
+    #[test]
+    fn test_enum_payload_compilation_checks_target_and_attaches_variant_guard() {
+        let context = ReflectionContext::global();
+        let root = TypeMetadata::of::<CompiledEnumPayloadFixture>();
+        let models = ModelRegistry::global();
+        let graph = StructureResolver::new(ResolveInputs { roots: &[], models })
+            .resolve()
+            .expect("enum fixture graph resolves");
+        let descriptor = TypeDescriptor::of_in::<CompiledEnumPayloadFixture>(context);
+        let variant = descriptor.variants().get_at(0).expect("payload variant");
+        let field = v8::leak(FieldMetadata::from_reflect(
+            descriptor.type_id(),
+            variant.fields().get_at(0).expect("payload field"),
+        ));
+        let variant = v8::leak(v8::enum_variant_metadata(
+            descriptor.type_id(),
+            variant.index(),
+            "Value",
+            "Value",
+            "Value",
+            "Value",
+            &[],
+            false,
+        ));
+        let occurrence = ValidationOccurrence {
+            root,
+            owner: root,
+            field,
+            enum_variant: Some(variant),
+            segments: vec!["Value"],
+            unsupported_path: None,
+            selector: None,
+            ordinal: 0,
+            declaration: ExecutionDeclaration::Traversal,
+        };
+
+        let error = CompiledPropertyPath::compile_enum_payload(
+            context,
+            root,
+            &occurrence,
+            &graph,
+            TargetMode::Container,
+        )
+        .expect_err("enum payloads only compile as value targets");
+        assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
+
+        let path = CompiledPropertyPath::compile_enum_payload(
+            context,
+            root,
+            &occurrence,
+            &graph,
+            TargetMode::Value,
+        )
+        .expect("enum payload compiles as a value target");
+        assert_eq!(path.input_type(), InputType::Text);
+        assert_eq!(path.variant_name, Some("Value"));
+        assert!(path.variant_guard.is_some());
+
+        let missing_variant = ValidationOccurrence {
+            enum_variant: None,
+            ..occurrence.clone()
+        };
+        let error = CompiledPropertyPath::compile_enum_payload(
+            context,
+            root,
+            &missing_variant,
+            &graph,
+            TargetMode::Value,
+        )
+        .expect_err("payload occurrence must retain its reflected variant");
+        assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
+
+        let foreign_descriptor = TypeDescriptor::of_in::<ForeignFieldFixture>(context);
+        let foreign_field = v8::leak(FieldMetadata::from_reflect(
+            foreign_descriptor.type_id(),
+            foreign_descriptor.fields().get_at(0).expect("foreign field"),
+        ));
+        let mismatched_field = ValidationOccurrence {
+            field: foreign_field,
+            ..occurrence
+        };
+        let error = CompiledPropertyPath::compile_enum_payload(
+            context,
+            root,
+            &mismatched_field,
+            &graph,
+            TargetMode::Value,
+        )
+        .expect_err("payload field must belong to the reflected enum owner");
+        assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
+    }
+}

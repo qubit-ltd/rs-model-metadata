@@ -125,24 +125,26 @@ fn test_documented_installation_paths() {
     let parent = layout.directory.join("rust-common");
     fs::create_dir_all(&parent).expect("documented checkout layout");
     symlink_directory(root, &parent.join("rs-model-metadata"));
+    let reflect_root = env::var_os("QUBIT_REFLECT_ROOT")
+        .map(PathBuf::from)
+        .or_else(|| {
+            root.ancestors()
+                .map(|ancestor| ancestor.join("rs-reflect"))
+                .find(|candidate| candidate.join("Cargo.toml").is_file())
+        })
+        .expect("reflect checkout");
     symlink_directory(
-        &root.join("../rs-reflect").canonicalize().expect("reflect checkout"),
+        &reflect_root,
         &parent.join("rs-reflect"),
     );
-    symlink_directory(
-        &root
-            .join("../../rust-common/rs-validator")
-            .canonicalize()
-            .expect("validator checkout"),
-        &parent.join("rs-validator"),
-    );
-    for dependency in ["rs-redact", "rs-datatype"] {
+    for dependency in ["rs-validator", "rs-redact", "rs-datatype"] {
+        let checkout = root
+            .ancestors()
+            .map(|ancestor| ancestor.join(dependency))
+            .find(|candidate| candidate.join("Cargo.toml").is_file())
+            .unwrap_or_else(|| panic!("{dependency} checkout"));
         symlink_directory(
-            &root
-                .join("..")
-                .join(dependency)
-                .canonicalize()
-                .unwrap_or_else(|error| panic!("{dependency} checkout: {error}")),
+            &checkout,
             &parent.join(dependency),
         );
     }

@@ -341,6 +341,7 @@ mod tests {
     enum GuardMismatchFixture {
         Named { value: String },
         Inactive,
+        Other,
     }
 
     fn dependency_metadata() -> &'static TypeMetadata {
@@ -985,6 +986,77 @@ mod tests {
         assert_eq!(
             metadata.location().and_then(|location| location.variant()),
             Some(variant.index())
+        );
+    }
+
+    #[test]
+    fn test_variant_guard_skips_inactive_variant_and_rejects_unknown_guard_type() {
+        let graph = dependency_graph();
+        let mut path = CompiledPropertyPath::compile(
+            reflection_context(),
+            dependency_metadata(),
+            &PropertyPath::new(&["value"]),
+            &graph,
+            TargetMode::Value,
+        )
+        .expect("dependency field path compiles");
+        let descriptor = TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context());
+        path.variant_guard = Some(VariantGuard {
+            after_steps: 0,
+            declaring_type: descriptor.type_id(),
+            variant_index: descriptor
+                .variants()
+                .get_at(0)
+                .expect("guard variant")
+                .index(),
+        });
+        path.variant_name = Some("Named");
+        let inactive = GuardMismatchFixture::Other;
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+
+        assert!(matches!(
+            super::read(
+                reflection_context(),
+                &path,
+                DynamicRef::<Local>::new(&inactive),
+                0,
+                &mut budget,
+            ),
+            Ok(None)
+        ));
+        let dependency_error = match read_dependency(
+            &path,
+            DynamicRef::<Local>::new(&inactive),
+            &[],
+            &graph,
+            &mut budget,
+        ) {
+            Ok(_) => panic!("inactive dependency variant unexpectedly produced a value"),
+            Err(error) => error,
+        };
+        assert_eq!(dependency_error.kind(), ExecutionErrorKind::PropertyReadFailed);
+
+        path.variant_guard
+            .as_mut()
+            .expect("guard exists")
+            .declaring_type = TypeDescriptor::of_in::<()>(reflection_context()).type_id();
+        let error = match super::read(
+            reflection_context(),
+            &path,
+            DynamicRef::<Local>::new(&inactive),
+            0,
+            &mut budget,
+        ) {
+            Ok(_) => panic!("unknown guard variant unexpectedly resolved"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
+        assert_eq!(
+            error.path(),
+            &ValidationPath::root()
+                .with_field("Named")
+                .with_field("value")
         );
     }
 }
