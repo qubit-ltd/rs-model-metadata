@@ -29,9 +29,15 @@ use crate::metadata::PropertyMetadata;
 #[derive(Clone, Debug)]
 pub enum ResolvedProperties {
     /// Properties emitted as part of static model metadata.
-    Static(&'static LocalPropertySet),
+    Static(
+        /// Static property set retained by the model metadata provider.
+        &'static LocalPropertySet,
+    ),
     /// Properties assembled from an explicit reflection snapshot.
-    Merged(Arc<[PropertyMetadata]>),
+    Merged(
+        /// Owned property metadata assembled for the reflection snapshot.
+        Arc<[PropertyMetadata]>,
+    ),
 }
 
 impl ResolvedProperties {

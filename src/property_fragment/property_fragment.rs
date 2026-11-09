@@ -58,6 +58,18 @@ pub struct PropertyFragment {
 impl fmt::Debug for PropertyFragment {
     /// Formats the fragment's name, type-expression presence, and source
     /// metadata.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the fragment's debug representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the representation cannot be written.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("PropertyFragment")

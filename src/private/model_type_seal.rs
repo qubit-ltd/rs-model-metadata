@@ -14,4 +14,6 @@
 /// downstream code cannot implement that trait for arbitrary types. The derive
 /// macro supplies this implementation as part of the generated model metadata.
 #[doc(hidden)]
-pub trait ModelTypeSeal {}
+pub trait ModelTypeSeal {
+    // empty
+}

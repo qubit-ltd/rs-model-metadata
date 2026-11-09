@@ -21,9 +21,15 @@ use crate::metadata::RustTypeReference;
 #[derive(Clone, Copy, Debug)]
 pub enum CodecReference {
     /// A codec identified by its Rust type.
-    RustType(RustTypeReference),
+    RustType(
+        /// Reference describing the Rust codec type.
+        RustTypeReference,
+    ),
     /// A codec identified by its stable registry ID.
-    DeclaredId(&'static str),
+    DeclaredId(
+        /// Stable registry identifier used to resolve the codec.
+        &'static str,
+    ),
 }
 
 impl CodecReference {

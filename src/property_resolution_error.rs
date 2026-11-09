@@ -37,18 +37,37 @@ use crate::metadata::PropertyBuildErrors;
 pub enum PropertyResolutionError {
     /// Intrinsic capabilities cannot form a valid set for the property owner.
     #[error("property capability resolution failed: {0}")]
-    Capability(Box<CapabilityError>),
+    Capability(
+        /// The capability error explaining why the property set is invalid.
+        Box<CapabilityError>,
+    ),
     /// The process-wide reflection snapshot could not be initialized.
     #[error("reflection registry error: {0}")]
-    Reflection(#[from] ContextError),
+    Reflection(
+        /// The reflection context initialization error.
+        #[from]
+        ContextError,
+    ),
     /// Linked field and method declarations cannot form valid properties.
     #[error("property assembly error: {0}")]
-    Assembly(#[from] Arc<PropertyBuildErrors>),
+    Assembly(
+        /// The collected errors produced while assembling property metadata.
+        #[from]
+        Arc<PropertyBuildErrors>,
+    ),
 }
 
 impl From<CapabilityError> for PropertyResolutionError {
     /// Wraps a capability resolution failure in the corresponding error
     /// variant.
+    ///
+    /// # Parameters
+    ///
+    /// * `error` - The capability resolution error to retain.
+    ///
+    /// # Returns
+    ///
+    /// A property resolution error containing the capability failure.
     fn from(error: CapabilityError) -> Self {
         Self::Capability(Box::new(error))
     }

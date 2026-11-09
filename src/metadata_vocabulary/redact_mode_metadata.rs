@@ -27,7 +27,10 @@ pub enum RedactModeMetadata {
     /// Apply map-specific redaction.
     Map,
     /// Select a redaction policy by stable key.
-    KeyedBy(&'static str),
+    KeyedBy(
+        /// Stable identifier used to choose the redaction policy.
+        &'static str,
+    ),
     /// Use JSON redaction semantics.
     Json,
 }

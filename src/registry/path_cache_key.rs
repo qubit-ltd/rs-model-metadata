@@ -30,6 +30,14 @@ pub(super) struct PathCacheKey {
 
 impl PathCacheKey {
     /// Copies the path inputs into a key for this registry's cache.
+    ///
+    /// # Parameters
+    ///
+    /// - `context_id`: Identity of the reflection context owning the metadata.
+    /// - `type_id`: Exact Rust type used as the path root.
+    /// - `metadata_address`: Identity of the root metadata allocation.
+    /// - `segments`: Ordered property names copied into the cache key.
+    /// - `write`: Whether the key represents a writable path.
     #[must_use]
     pub(super) fn new(
         context_id: ReflectionContextId,
@@ -48,6 +56,14 @@ impl PathCacheKey {
     }
 
     /// Compares an owned key against caller-borrowed path segments.
+    ///
+    /// # Parameters
+    ///
+    /// - `context_id`: Reflection context identity to compare with this key.
+    /// - `type_id`: Root Rust type identity to compare with this key.
+    /// - `metadata_address`: Root metadata allocation identity to compare.
+    /// - `segments`: Ordered caller-borrowed property names to compare.
+    /// - `write`: Access mode to compare with this key.
     #[must_use]
     pub(super) fn matches_borrowed(
         &self,

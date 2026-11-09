@@ -17,4 +17,6 @@
 /// runtime state or callable API. It is part of the hidden generated-code
 /// interface and is not intended as a user customization point.
 #[doc(hidden)]
-pub trait ModelImplSeal {}
+pub trait ModelImplSeal {
+    // empty
+}

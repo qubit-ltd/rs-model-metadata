@@ -76,6 +76,18 @@ impl RustTypeReference {
 
 impl fmt::Debug for RustTypeReference {
     /// Formats the reference as a tuple containing its diagnostic type name.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the debug tuple.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the tuple cannot be written.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("RustTypeReference")
@@ -86,6 +98,15 @@ impl fmt::Debug for RustTypeReference {
 
 impl PartialEq for RustTypeReference {
     /// Compares references by the identity of their represented Rust types.
+    ///
+    /// # Parameters
+    ///
+    /// * `other` - The reference whose represented type is compared with
+    ///   `self`.
+    ///
+    /// # Returns
+    ///
+    /// `true` when both references represent the same Rust type.
     fn eq(&self, other: &Self) -> bool {
         self.type_id() == other.type_id()
     }
@@ -95,6 +116,14 @@ impl Eq for RustTypeReference {}
 
 impl Hash for RustTypeReference {
     /// Hashes the represented Rust type identity, matching [`PartialEq`].
+    ///
+    /// # Type Parameters
+    ///
+    /// * `H` - The hasher receiving the represented type identity.
+    ///
+    /// # Parameters
+    ///
+    /// * `state` - The hasher state updated with the represented type identity.
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.type_id().hash(state);
     }

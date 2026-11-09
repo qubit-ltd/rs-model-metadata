@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Trybuild compile-fail fixture: rejects duplicate explicit names on enum variants.
+//! Trybuild compile-fail fixture: rejects duplicate explicit names on enum
+//! variants.
 // The filename is part of a Cargo or trybuild fixture protocol.
 
 use qubit_model_derive::Enum;

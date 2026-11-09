@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Trybuild compile-fail fixture: the removed `reflect(crate = ...)` helper is rejected.
+//! Trybuild compile-fail fixture: the removed `reflect(crate = ...)` helper is
+//! rejected.
 
 use qubit_reflect::Reflect;
 

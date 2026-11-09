@@ -198,6 +198,14 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
 }
 
 /// Emits lazy providers for model metadata on concrete nested field types.
+///
+/// # Parameters
+/// - `declaration`: normalized fields and variants whose nested types are
+///   inspected.
+/// - `runtime`: path to the runtime crate used by generated providers.
+///
+/// # Returns
+/// Tokens that declare and populate the nested metadata provider slice.
 #[must_use]
 fn expand_nested_metadata_providers(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
     let mut candidates = Vec::new();
@@ -230,6 +238,12 @@ fn expand_nested_metadata_providers(declaration: &DeclarationIr, runtime: &Token
 
 /// Retains every concrete type expression node once, including nested generic
 /// arguments and container elements.
+///
+/// # Parameters
+/// - `ty`: type expression whose nested nodes are visited.
+/// - `output`: ordered collection of concrete type candidates to extend.
+/// - `seen`: tokenized type expressions already retained, used to avoid
+///   duplicates.
 fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut HashSet<String>) {
     match ty {
         Type::Path(TypePath { path, .. }) => {
@@ -280,6 +294,11 @@ fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut 
 }
 
 /// Adds a type expression only when its tokenized form has not been seen.
+///
+/// # Parameters
+/// - `ty`: type expression to retain.
+/// - `output`: ordered collection of retained type candidates to extend.
+/// - `seen`: tokenized expressions used to detect duplicates.
 fn push_type_candidate(ty: &Type, output: &mut Vec<Type>, seen: &mut HashSet<String>) {
     let key = ty.to_token_stream().to_string();
     if seen.insert(key) {
@@ -288,6 +307,21 @@ fn push_type_candidate(ty: &Type, output: &mut Vec<Type>, seen: &mut HashSet<Str
 }
 
 /// Generates registration metadata for a generic model definition.
+///
+/// # Parameters
+/// - `ident`: Rust identifier of the generic model definition.
+/// - `id`: optional declared model identifier.
+/// - `kind`: model role used to select registration metadata.
+/// - `metadata_fn`: generated function identifier for generic metadata.
+/// - `fields`: normalized fields for the generic definition.
+/// - `variants`: normalized enum variants for the definition.
+/// - `generic_type_names`: declared type and const parameter names.
+/// - `owner`: Rust identifier of the declaration owning the generated fields.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens defining generic metadata and capability registration, or a
+/// compile-time diagnostic when the model role cannot be registered.
 #[allow(clippy::too_many_arguments)]
 #[must_use]
 fn expand_generic_registration(
@@ -373,6 +407,16 @@ fn expand_generic_registration(
 }
 
 /// Generates complete symbolic overlays for generic enum variants.
+///
+/// # Parameters
+/// - `variants`: normalized variants whose field metadata is generated.
+/// - `definition_path`: tokens naming the generic model definition.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_type_names`: declared type and const parameter names.
+/// - `owner`: Rust identifier of the declaration owning the variants.
+///
+/// # Returns
+/// Tokens generating each variant's symbolic metadata and fields.
 #[must_use]
 fn expand_generic_variant_vector(
     variants: &[VariantIr],

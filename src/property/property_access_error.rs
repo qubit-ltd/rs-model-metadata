@@ -30,10 +30,16 @@ use super::PropertyTypeMismatch;
 pub enum PropertyAccessError {
     /// The target has a different concrete type.
     #[error("property target type mismatch")]
-    TargetTypeMismatch(PropertyTypeMismatch),
+    TargetTypeMismatch(
+        /// The expected and actual type identities of the supplied target.
+        PropertyTypeMismatch,
+    ),
     /// The replacement has a different concrete type.
     #[error("property value type mismatch")]
-    ValueTypeMismatch(PropertyTypeMismatch),
+    ValueTypeMismatch(
+        /// The expected property type and actual replacement type identities.
+        PropertyTypeMismatch,
+    ),
     /// The property has no readable source.
     #[error("property is not readable")]
     NotReadable,
@@ -45,13 +51,24 @@ pub enum PropertyAccessError {
     AdapterUnavailable,
     /// The underlying reflection field operation failed.
     #[error("reflected field access failed: {0}")]
-    Field(#[from] FieldAccessError),
+    Field(
+        /// The reflection error returned while accessing the field.
+        #[from]
+        FieldAccessError,
+    ),
     /// The underlying reflection field replacement failed.
     #[error("reflected field replacement failed: {0}")]
-    FieldSet(#[from] FieldSetError),
+    FieldSet(
+        /// The reflection error returned while replacing the field value.
+        #[from]
+        FieldSetError,
+    ),
     /// An adapter reported a static user-facing error.
     #[error("property method failed: {0}")]
-    User(&'static str),
+    User(
+        /// The static message supplied by the adapter implementation.
+        &'static str,
+    ),
 }
 
 impl PropertyAccessError {

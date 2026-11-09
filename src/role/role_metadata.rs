@@ -28,15 +28,30 @@ use crate::type_metadata::EnumMetadata;
 #[derive(Clone, Copy, Debug)]
 pub enum RoleMetadata {
     /// Entity-specific payload.
-    Entity(EntityMetadata),
+    Entity(
+        /// The identifier field and typed accessor associated with the entity.
+        EntityMetadata,
+    ),
     /// Projection-specific payload.
-    Projection(ProjectionMetadata),
+    Projection(
+        /// The projection identifier and its optional declared entity source.
+        ProjectionMetadata,
+    ),
     /// General model payload.
-    Model(ModelMetadata),
+    Model(
+        /// The marker metadata identifying the type as a general model.
+        ModelMetadata,
+    ),
     /// Enum-specific payload.
-    Enum(EnumMetadata),
+    Enum(
+        /// The enum's variants and their source-order metadata.
+        EnumMetadata,
+    ),
     /// Value-specific payload.
-    Value(ValueMetadata),
+    Value(
+        /// The value's transparent-field and canonical-codec metadata.
+        ValueMetadata,
+    ),
 }
 
 impl RoleMetadata {

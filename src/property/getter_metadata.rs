@@ -249,6 +249,11 @@ impl GetterMetadata {
 
     /// Executes this getter after exact target validation.
     ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The target type that can be borrowed as a local reflection
+    ///   value.
+    ///
     /// # Parameters
     ///
     /// * `target` - The borrowed target value to pass to the getter adapter.
@@ -288,6 +293,19 @@ impl GetterMetadata {
 }
 
 impl fmt::Debug for GetterMetadata {
+    /// Formats the getter's method name and output ownership mode.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the getter metadata summary.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the summary cannot be written.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("GetterMetadata")

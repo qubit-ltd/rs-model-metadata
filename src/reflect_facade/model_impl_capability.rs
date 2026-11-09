@@ -36,6 +36,7 @@ const MODEL_IMPL_BASE_ID: &str = "qubit.model.impl.v1";
 pub struct ModelImplCapability;
 
 impl CapabilitySpec for ModelImplCapability {
+    /// Static model implementation fragments contributed by linked providers.
     type Adapter = &'static [ModelImplFragment];
     const ID: &'static str = MODEL_IMPL_BASE_ID;
 }

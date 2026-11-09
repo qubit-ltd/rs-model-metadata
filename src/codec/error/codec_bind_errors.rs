@@ -31,7 +31,10 @@ use crate::codec::CodecBindError;
 /// ```
 #[must_use]
 #[derive(Debug)]
-pub struct CodecBindErrors(Box<[CodecBindError]>);
+pub struct CodecBindErrors(
+    /// Failures sorted by occurrence identity and then by failure class.
+    Box<[CodecBindError]>,
+);
 
 impl CodecBindErrors {
     /// Creates a deterministically ordered collection of binding diagnostics.
@@ -76,6 +79,19 @@ impl CodecBindErrors {
 }
 
 impl Display for CodecBindErrors {
+    /// Writes a summary containing the number of codec binding failures.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the failure-count summary.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the summary cannot be written.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         write!(formatter, "{} codec binding error(s)", self.0.len())
     }

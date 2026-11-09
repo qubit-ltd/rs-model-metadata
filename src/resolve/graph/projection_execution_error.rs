@@ -40,8 +40,16 @@ pub enum ProjectionExecutionError {
     IdentifierMismatch,
     /// A property getter failed.
     #[error("projection property access failed: {0}")]
-    Property(#[from] PropertyAccessError),
+    Property(
+        /// Error reported while reading or adapting a projection property.
+        #[from]
+        PropertyAccessError,
+    ),
     /// A reflected identifier field could not be read.
     #[error("projection identifier field access failed: {0}")]
-    Field(#[from] FieldAccessError),
+    Field(
+        /// Reflection error raised while reading the identifier field.
+        #[from]
+        FieldAccessError,
+    ),
 }

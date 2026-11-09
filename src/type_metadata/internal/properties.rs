@@ -25,6 +25,13 @@ use crate::metadata::PropertyBuildErrors;
 use crate::metadata::PropertyMetadata;
 
 /// Resolves a type expression's concrete type ID when available.
+///
+/// # Parameters
+///
+/// - `property`: Property whose reflected field or declared type is resolved.
+/// - `fields`: Owning type's fields used to find a backing field by property
+///   name.
+/// - `context`: Reflection context used to resolve the type expression.
 fn property_type_descriptor<'ctx>(
     property: &PropertyMetadata,
     fields: &[FieldMetadata],
@@ -39,6 +46,12 @@ fn property_type_descriptor<'ctx>(
 
 /// Checks whether an explicit property expression agrees with an accessor
 /// signature when no concrete backing field can establish the type identity.
+///
+/// # Parameters
+///
+/// - `property`: Property whose declared type expression is compared.
+/// - `accessor`: Type expression from the accessor signature.
+/// - `context`: Reflection context used to resolve the property's expression.
 #[must_use]
 fn property_accessor_expression_matches(
     property: &PropertyMetadata,
@@ -52,6 +65,12 @@ fn property_accessor_expression_matches(
 }
 
 /// Checks whether a getter's concrete output agrees with the property type.
+///
+/// # Parameters
+///
+/// - `property_type`: Reflected property type, when it can be resolved.
+/// - `getter`: Accessor metadata supplying the output type and shape.
+/// - `context`: Reflection context used to resolve output and element types.
 #[must_use]
 fn getter_type_compatible(
     property_type: Option<TypeDescriptor<'_>>,
@@ -105,6 +124,12 @@ fn getter_type_compatible(
 }
 
 /// Checks whether an accessor type is a text-compatible view of a property.
+///
+/// # Parameters
+///
+/// - `property_type`: Reflected property type whose text kind is checked.
+/// - `accessor_type_id`: Concrete type identity reported by the accessor.
+/// - `context`: Reflection context used to inspect the accessor type.
 #[must_use]
 fn text_accessor_type_compatible(
     property_type: TypeDescriptor<'_>,
@@ -128,6 +153,15 @@ fn text_accessor_type_compatible(
 }
 
 /// Checks whether two accessor identities agree for one property type.
+///
+/// # Parameters
+///
+/// - `property_type`: Reflected property type used to allow compatible text
+///   views.
+/// - `left_type_id`: Concrete output type identity of the first accessor.
+/// - `right_type_id`: Concrete output type identity of the second accessor.
+/// - `context`: Reflection context used to resolve text-compatible accessor
+///   types.
 #[must_use]
 fn accessor_types_compatible(
     property_type: Option<TypeDescriptor<'_>>,
@@ -143,6 +177,14 @@ fn accessor_types_compatible(
 }
 
 /// Verifies that generated property overlays agree with fields and reflection.
+///
+/// # Parameters
+///
+/// - `properties`: Property overlays to validate for names, sources, and type
+///   agreement.
+/// - `fields`: Reflected fields owned by the type described by `descriptor`.
+/// - `descriptor`: Reflected owner type and context used to validate the
+///   overlays.
 pub(in crate::type_metadata) fn validate_properties(
     properties: &[PropertyMetadata],
     fields: &[FieldMetadata],
@@ -249,5 +291,70 @@ pub(in crate::type_metadata) fn validate_properties(
         Ok(())
     } else {
         Err(PropertyBuildErrors::new(errors))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use qubit_reflect::__private::codegen_v4::expression::TypeExpressionData;
+    use qubit_reflect::ReflectionContext;
+    use qubit_reflect::value::DynamicRef;
+    use qubit_reflect::value::Local;
+
+    use super::accessor_types_compatible;
+    use super::getter_type_compatible;
+    use super::property_accessor_expression_matches;
+    use super::property_type_descriptor;
+    use super::text_accessor_type_compatible;
+    use crate::__private::v8;
+    use crate::metadata::GetterMetadata;
+    use crate::metadata::GetterOutputKind;
+    use crate::metadata::PropertyAccessError;
+    use crate::metadata::PropertyValue;
+
+    static STRING_EXPRESSION: TypeExpressionData = TypeExpressionData::Named {
+        path: "alloc::string::String",
+        definition: None,
+        arguments: &[],
+    };
+
+    fn never_get(_: DynamicRef<'_, Local>) -> Result<PropertyValue<'_>, PropertyAccessError> {
+        panic!("property compatibility checks must not invoke accessors");
+    }
+
+    #[test]
+    fn test_text_property_accessor_type_compatibility() {
+        let context = ReflectionContext::builder()
+            .include_type::<String>()
+            .include_type::<str>()
+            .build()
+            .expect("text property reflection context");
+        let getter = v8::leak(GetterMetadata::new::<String>(
+            "as_text",
+            &STRING_EXPRESSION,
+            TypeId::of::<str>,
+            GetterOutputKind::Borrowed,
+            never_get,
+        ));
+        let property = v8::property_metadata("text", None, None, Some(getter), None);
+        let descriptor = context.type_by_id(TypeId::of::<String>()).expect("String descriptor");
+
+        assert_eq!(descriptor.type_id(), TypeId::of::<String>());
+        assert!(property_type_descriptor(&property, &[], &context).is_none());
+        assert!(property_accessor_expression_matches(
+            &property,
+            getter.output_type_in(&context),
+            &context,
+        ));
+        assert!(text_accessor_type_compatible(descriptor, TypeId::of::<str>(), &context));
+        assert!(getter_type_compatible(Some(descriptor), getter, &context));
+        assert!(accessor_types_compatible(
+            Some(descriptor),
+            TypeId::of::<String>(),
+            TypeId::of::<str>(),
+            &context,
+        ));
     }
 }

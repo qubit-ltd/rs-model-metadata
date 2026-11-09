@@ -8,7 +8,8 @@
 // The filename is part of a Cargo fixture rather than an integration-test
 // target.
 
-//! Collects the source-side model declarations used by linked-workspace fixtures.
+//! Collects the source-side model declarations used by linked-workspace
+//! fixtures.
 
 #[cfg(feature = "duplicate-fixture")]
 mod duplicate;

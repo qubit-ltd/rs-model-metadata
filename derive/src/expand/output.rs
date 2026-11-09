@@ -37,6 +37,15 @@ use crate::ir::declaration::FieldOccurrence;
 ///
 /// Returns additional implementations, or a targeted error for conflicting
 /// switches and output declarations. Field output is delegated to qubit-redact.
+///
+/// # Parameters
+///
+/// - `item`: Derive input updated with role-default derives and Serde
+///   attributes.
+/// - `declaration`: Parsed model options and field metadata that control the
+///   generated output.
+/// - `runtime`: Token path to the runtime crate used by generated
+///   implementations.
 pub(crate) fn prepare(
     item: &mut DeriveInput,
     declaration: &DeclarationIr,
@@ -201,6 +210,11 @@ pub(crate) fn prepare(
 }
 
 /// Collects visible derive names; independent impls remain caller-managed.
+///
+/// # Parameters
+///
+/// - `item`: Derive input whose container attributes are inspected for explicit
+///   derives.
 fn explicit_derives(item: &DeriveInput) -> Result<BTreeSet<String>> {
     let mut result = BTreeSet::new();
     for attribute in &item.attrs {
@@ -216,6 +230,12 @@ fn explicit_derives(item: &DeriveInput) -> Result<BTreeSet<String>> {
 }
 
 /// Builds non-redacted Display without requiring a public Debug impl on Self.
+///
+/// # Parameters
+///
+/// - `item`: Struct or enum whose Display implementation is generated.
+/// - `transparent`: Whether a single-field value uses that field's Display
+///   implementation directly.
 fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
     let name = &item.ident;
     let mut generics = item.generics.clone();
@@ -297,6 +317,12 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
 }
 
 /// Emits the standalone formatting implementation with precise field bounds.
+///
+/// # Parameters
+///
+/// - `item`: Type receiving the generated Display implementation.
+/// - `generics`: Type parameters and bounds used by the implementation.
+/// - `body`: Token stream for the implementation's `fmt` method body.
 fn display_impl(item: &DeriveInput, generics: &Generics, body: TokenStream) -> TokenStream {
     let name = &item.ident;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -309,6 +335,12 @@ fn display_impl(item: &DeriveInput, generics: &Generics, body: TokenStream) -> T
 
 /// Uses field-shaped bounds for generic deserialization, including const
 /// arrays.
+///
+/// # Parameters
+///
+/// - `item`: Derive input whose generic fields receive Serde deserialization
+///   bounds.
+/// - `runtime`: Token path to the runtime crate's Serde re-export.
 fn add_deserialize_bounds(item: &mut DeriveInput, runtime: &TokenStream) -> Result<()> {
     if item.generics.params.is_empty() {
         return Ok(());
@@ -356,6 +388,12 @@ fn add_deserialize_bounds(item: &mut DeriveInput, runtime: &TokenStream) -> Resu
 ///
 /// Wire names match metadata `serialized_name` / `deserialized_name` unless the
 /// enum or variant already declares Serde renaming.
+///
+/// # Parameters
+///
+/// - `item`: Derive input whose enum variants may receive default Serde names.
+/// - `declaration`: Parsed declaration supplying canonical serialized and
+///   deserialized variant names.
 fn apply_enum_default_serde_wire_names(item: &mut DeriveInput, declaration: &DeclarationIr) -> Result<()> {
     if declaration.kind != MacroKind::Enum {
         return Ok(());
@@ -373,6 +411,12 @@ fn apply_enum_default_serde_wire_names(item: &mut DeriveInput, declaration: &Dec
 }
 
 /// Adds declaration-derived Serde names to one variant when it has no override.
+///
+/// # Parameters
+///
+/// - `variant`: Enum variant whose attributes may receive a Serde rename.
+/// - `declaration`: Parsed declaration supplying the variant's serialized and
+///   deserialized names.
 fn apply_variant_default_serde_wire_name(variant: &mut Variant, declaration: &DeclarationIr) -> Result<()> {
     if variant_has_serde_rename(&variant.attrs)? {
         return Ok(());
@@ -401,6 +445,10 @@ fn apply_variant_default_serde_wire_name(variant: &mut Variant, declaration: &De
 }
 
 /// Returns whether a variant already declares Serde rename options.
+///
+/// # Parameters
+///
+/// - `attributes`: Variant attributes checked for a Serde `rename` option.
 fn variant_has_serde_rename(attributes: &[syn::Attribute]) -> Result<bool> {
     for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("serde")) {
         for meta in attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)? {
@@ -413,6 +461,11 @@ fn variant_has_serde_rename(attributes: &[syn::Attribute]) -> Result<bool> {
 }
 
 /// Detects explicit container controls before adding model defaults.
+///
+/// # Parameters
+///
+/// - `item`: Derive input whose container attributes are inspected.
+/// - `name`: Serde container option to search for.
 fn has_serde_control(item: &DeriveInput, name: &str) -> Result<bool> {
     for attribute in &item.attrs {
         if attribute.path().is_ident("serde") {

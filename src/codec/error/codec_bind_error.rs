@@ -159,6 +159,19 @@ impl CodecBindError {
 }
 
 impl Display for CodecBindError {
+    /// Formats the occurrence and failure category for diagnostics.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the occurrence and failure category.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the diagnostic cannot be written.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         write!(
             formatter,

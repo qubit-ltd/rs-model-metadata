@@ -17,20 +17,18 @@ use qubit_validator::PreparedValidator;
 use qubit_validator::ValidatorDescriptor;
 use qubit_validator::ValidatorSignature;
 
-#[path = "text_rule/internal/mod.rs"]
 mod internal;
 
 use self::internal::TextRule;
 
 /// The single text signature supported by this fixture's validator.
-static SIGNATURES: &[ValidatorSignature] = &[
-    ValidatorSignature::new(InputType::Text, &[], prepare_text),
-];
+static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
 
 /// The immutable descriptor used by the static validator registration.
 pub(super) static RULE_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 
-/// Prepares the text validator after the framework supplies its argument reader.
+/// Prepares the text validator after the framework supplies its argument
+/// reader.
 ///
 /// # Parameters
 ///
@@ -44,8 +42,6 @@ pub(super) static RULE_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::ne
 ///
 /// The current implementation does not reject binding, but uses the framework's
 /// `BindError` result type to satisfy the validator preparation interface.
-pub(super) fn prepare_text(
-    _reader: &mut ArgumentReader<'_>,
-) -> Result<Arc<dyn PreparedValidator>, BindError> {
+pub(super) fn prepare_text(_reader: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(TextRule))
 }

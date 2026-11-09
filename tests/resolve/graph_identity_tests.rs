@@ -14,8 +14,10 @@ use qubit_id::Id;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
+use qubit_model_derive::ModelImpl;
 use qubit_model_derive::Projection;
 use qubit_model_metadata::metadata::IndexingReasons;
+use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ContextRequirement;
@@ -23,6 +25,8 @@ use qubit_model_metadata::resolve::ResolveErrorKind;
 use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_reflect::ReflectionContext;
+use qubit_reflect::value::DynamicRef;
+use qubit_reflect::value::Local;
 
 #[Entity(id = "identity.Target")]
 struct Target {
@@ -150,6 +154,25 @@ struct TargetView {
     id: Id,
 }
 
+#[Entity(id = "identity.ProjectionSource")]
+struct ProjectionSource {
+    #[identifier]
+    id: Id,
+}
+
+#[Projection(source = ProjectionSource)]
+struct ProducedView {
+    #[identifier]
+    id: Id,
+}
+
+#[ModelImpl]
+impl ProjectionSource {
+    pub fn view(&self) -> ProducedView {
+        ProducedView { id: self.id }
+    }
+}
+
 #[test]
 fn test_anonymous_roots_and_role_queries_use_concrete_type_identity() {
     let models = ModelRegistry::from_context(ReflectionContext::global()).expect("valid registry");
@@ -202,6 +225,35 @@ fn test_variant_fields_have_distinct_declaration_identities() {
     assert_eq!(first.variant(), Some(0));
     assert_eq!(second.variant(), Some(1));
     assert_ne!(first, second);
+}
+
+#[test]
+fn test_resolved_projection_producer_executes_and_preserves_identifier() {
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("valid registry");
+    let roots = [TypeMetadata::of::<ProjectionSource>()];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("valid projection producer graph");
+
+    let [producer] = graph.projection_producers() else {
+        panic!("the registered getter should produce one projection edge");
+    };
+    assert_eq!(producer.source().type_id(), TypeId::of::<ProjectionSource>());
+    assert_eq!(producer.projection().type_id(), TypeId::of::<ProducedView>());
+    assert_eq!(producer.property().name(), "view");
+    assert!(producer.projector().is_some());
+
+    let source = ProjectionSource { id: Id::new(41) };
+    let PropertyValue::Owned(projected) = producer
+        .project(DynamicRef::<Local>::new(&source))
+        .expect("getter should return a view with the source identifier")
+    else {
+        panic!("fixture getter returns an owned view");
+    };
+    assert_eq!(projected.downcast::<ProducedView>().unwrap().id, source.id);
 }
 
 #[cfg(feature = "generic")]

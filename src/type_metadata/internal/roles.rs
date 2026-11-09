@@ -20,6 +20,12 @@ use crate::type_metadata::TypeMetadata;
 
 /// Verifies that role-specific metadata agrees with the reflected type.
 ///
+/// # Parameters
+///
+/// - `metadata`: Type metadata whose role and declared fields are validated.
+/// - `descriptor`: Reflected type descriptor used to compare variant and field
+///   metadata.
+///
 /// # Errors
 ///
 /// Returns an [`AbiViolation`] when role metadata has an invalid identifier,
@@ -101,6 +107,12 @@ pub(in crate::type_metadata) fn validate_role(
 ///
 /// The supplied field must be declared in `fields`, marked as an identifier,
 /// and be the only identifier field in that collection.
+///
+/// # Parameters
+///
+/// - `fields`: Declared field collection that must contain exactly one
+///   identifier.
+/// - `identifier`: Role's identifier field to validate against that collection.
 fn validate_identifier(fields: &[FieldMetadata], identifier: &FieldMetadata) -> Result<(), AbiViolation> {
     if !contains_field(fields, identifier)
         || !identifier.is_identifier()

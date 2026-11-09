@@ -36,6 +36,8 @@ use crate::__private::TypeMetadataProvider;
 /// accepts_metadata_type::<User>();
 /// # }
 /// ```
-pub trait HasTypeMetadata: Reflect + ModelTypeSeal + TypeMetadataProvider {}
+pub trait HasTypeMetadata: Reflect + ModelTypeSeal + TypeMetadataProvider {
+    // empty
+}
 
 impl<T> HasTypeMetadata for T where T: Reflect + ModelTypeSeal + TypeMetadataProvider {}

@@ -24,5 +24,8 @@ pub enum ReferenceSelection {
     /// Selects the complete entity.
     Entity,
     /// Selects a property path on the entity.
-    Property(PropertyPath<'static>),
+    Property(
+        /// Path from the entity root to the selected property.
+        PropertyPath<'static>,
+    ),
 }

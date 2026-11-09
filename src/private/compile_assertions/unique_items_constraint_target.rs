@@ -18,7 +18,9 @@ use super::SequenceConstraintTarget;
 
 /// Marks sequence shapes for which `unique_items` is not redundant.
 #[doc(hidden)]
-pub trait UniqueItemsConstraintTarget: SequenceConstraintTarget {}
+pub trait UniqueItemsConstraintTarget: SequenceConstraintTarget {
+    // empty
+}
 
 /// Implements the uniqueness marker for supported sequence containers.
 ///

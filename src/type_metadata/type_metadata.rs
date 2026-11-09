@@ -136,6 +136,16 @@ impl TypeMetadata {
     }
 
     /// Creates generated role-aware metadata over an existing descriptor root.
+    ///
+    /// # Parameters
+    ///
+    /// * `model_id` - Optional stable model identifier for this type.
+    /// * `fields` - Generated field metadata in declaration order.
+    /// * `role` - Generated role-specific metadata for the type.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Reflected Rust type described by the metadata.
     #[doc(hidden)]
     #[must_use]
     #[inline]
@@ -160,6 +170,10 @@ impl TypeMetadata {
     }
 
     /// Adds generated property metadata to this immutable overlay.
+    ///
+    /// # Parameters
+    ///
+    /// * `properties` - Generated property declarations to retain.
     #[doc(hidden)]
     #[must_use]
     #[inline]
@@ -169,6 +183,10 @@ impl TypeMetadata {
     }
 
     /// Adds generated field property fragments to this immutable overlay.
+    ///
+    /// # Parameters
+    ///
+    /// * `fragments` - Generated field property fragments to retain.
     #[doc(hidden)]
     #[must_use]
     #[inline]
@@ -178,6 +196,11 @@ impl TypeMetadata {
     }
 
     /// Adds lazy metadata providers for concrete nested field types.
+    ///
+    /// # Parameters
+    ///
+    /// * `providers` - Functions that resolve metadata for nested concrete
+    ///   types.
     #[doc(hidden)]
     #[must_use]
     #[inline]
@@ -201,6 +224,10 @@ impl TypeMetadata {
     }
 
     /// Records the generic definition that produced this concrete instance.
+    ///
+    /// # Parameters
+    ///
+    /// * `definition` - Generic model metadata that produced this instance.
     #[doc(hidden)]
     #[must_use]
     #[inline]
@@ -212,6 +239,10 @@ impl TypeMetadata {
 
     /// Returns this type's descriptor in the supplied reflection context.
     ///
+    /// # Parameters
+    ///
+    /// * `context` - Reflection context in which to rebuild the descriptor.
+    ///
     /// # Returns
     ///
     /// A descriptor tied to `context`; it cannot outlive that context.
@@ -222,6 +253,12 @@ impl TypeMetadata {
     }
 
     /// Resolves one retained field identity against this metadata's descriptor.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Retained field metadata whose reflected descriptor is
+    ///   needed.
+    /// * `context` - Reflection context used to rebuild the type descriptor.
     pub(crate) fn field_descriptor_in<'ctx>(
         &self,
         field: &FieldMetadata,
@@ -617,6 +654,10 @@ impl TypeMetadata {
     }
 
     /// Checks that this metadata remains attached to `descriptor`.
+    ///
+    /// # Parameters
+    ///
+    /// * `descriptor` - Reflection descriptor that must match this metadata.
     pub(crate) fn validate_descriptor(&self, descriptor: &TypeDescriptor) -> Result<(), AbiViolation> {
         if self.type_id != descriptor.type_id() {
             return Err(abi_violation(
@@ -680,5 +721,23 @@ impl TypeMetadata {
         properties: &[PropertyMetadata],
     ) -> Result<(), PropertyBuildErrors> {
         validate_properties(properties, self.fields, self.descriptor_in(context))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TypeMetadata;
+    use crate::metadata::ModelMetadata;
+    use crate::metadata::RoleMetadata;
+
+    #[test]
+    fn test_local_properties_returns_the_metadata_owned_declarations() {
+        let role = Box::leak(Box::new(RoleMetadata::Model(ModelMetadata)));
+        let metadata = Box::leak(Box::new(TypeMetadata::new::<String>(None, &[], role)));
+
+        let properties = metadata.local_properties();
+
+        assert!(properties.properties().is_empty());
+        assert!(properties.property("missing").is_none());
     }
 }

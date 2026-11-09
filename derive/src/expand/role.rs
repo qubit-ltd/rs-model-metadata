@@ -32,6 +32,17 @@ use crate::ir::declaration::VariantIr;
 /// Value declarations use their transparent field and canonical codec options
 /// when present. An unsupported `ModelImpl` declaration produces a compile
 /// error instead of a metadata binding.
+///
+/// # Parameters
+///
+/// - `declaration`: Normalized declaration role and metadata options.
+/// - `item`: Original Rust item used to resolve fields and declaration name.
+/// - `runtime`: Path to the runtime crate used by generated tokens.
+///
+/// # Returns
+///
+/// Tokens binding the role metadata, or a compile-time diagnostic for a role
+/// that cannot produce metadata.
 #[must_use]
 pub(super) fn expand_role(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     match declaration.kind {
@@ -115,6 +126,17 @@ pub(super) fn expand_role(declaration: &DeclarationIr, item: &DeriveInput, runti
 }
 
 /// Generates a typed accessor for exactly the marked identifier field.
+///
+/// # Parameters
+///
+/// - `item`: Original struct item containing the identifier field.
+/// - `index`: Zero-based position of the identifier field in the struct.
+/// - `runtime`: Path to the runtime crate used by the accessor.
+///
+/// # Returns
+///
+/// Tokens for a typed identifier accessor, or a compile-time diagnostic when
+/// the indexed member cannot be resolved as a struct field.
 fn identifier_accessor(item: &DeriveInput, index: usize, runtime: &TokenStream) -> TokenStream {
     let member = match &item.data {
         syn::Data::Struct(data) => data.fields.iter().nth(index).map(|field| {
@@ -147,6 +169,16 @@ fn identifier_accessor(item: &DeriveInput, index: usize, runtime: &TokenStream) 
 /// metadata alongside its canonical and serialized names and default marker.
 /// The generated binding also includes an empty declaration-level field slice,
 /// since enum fields belong to individual variants.
+///
+/// # Parameters
+///
+/// - `variants`: Normalized enum variants and their field declarations.
+/// - `owner`: Rust identifier of the enum that owns the generated fields.
+/// - `runtime`: Path to the runtime crate used by generated tokens.
+///
+/// # Returns
+///
+/// Tokens binding enum variants and role metadata.
 #[must_use]
 fn expand_enum_role(variants: &[VariantIr], owner: &Ident, runtime: &TokenStream) -> TokenStream {
     let variants = variants.iter().enumerate().map(|(variant_index, variant)| {
@@ -187,6 +219,15 @@ fn expand_enum_role(variants: &[VariantIr], owner: &Ident, runtime: &TokenStream
 ///
 /// Returns `None` when no field has an identifier occurrence. Callers that
 /// require exactly one identifier treat that case as a declaration error.
+///
+/// # Parameters
+///
+/// - `fields`: Normalized fields whose identifier occurrences are searched.
+///
+/// # Returns
+///
+/// The zero-based index of the first field containing an identifier occurrence,
+/// or `None` when no field is marked.
 #[must_use]
 #[inline]
 fn identifier_index(fields: &[FieldIr]) -> Option<usize> {

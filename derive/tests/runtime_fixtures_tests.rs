@@ -13,10 +13,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
-#[path = "support/temporary_target_dir.rs"]
-mod temporary_target_dir;
+mod support;
 
-use temporary_target_dir::TemporaryTargetDir;
+use support::temporary_target_dir::TemporaryTargetDir;
 
 /// Checks normal, renamed, and absent runtime dependency declarations.
 #[test]

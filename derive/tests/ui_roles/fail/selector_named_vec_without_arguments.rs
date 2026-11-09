@@ -5,22 +5,14 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Trybuild compile-fail fixture: a named `Vec` selector must supply the required type arguments.
+//! Trybuild compile-fail fixture: a named `Vec` selector must supply the
+//! required type arguments.
 
 use qubit_model_derive::Model;
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(
-    Clone,
-    Debug,
-    Default,
-    Eq,
-    Hash,
-    PartialEq,
-    Deserialize,
-    Serialize,
-)]
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Deserialize, Serialize)]
 struct Vec;
 
 #[Model]

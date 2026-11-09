@@ -112,6 +112,10 @@ pub(crate) fn parse_declaration_options(options: Punctuated<Meta, Token![,]>) ->
 }
 
 /// Returns whether `path` names a supported capability option.
+///
+/// # Parameters
+///
+/// - `path`: Parsed option path checked against supported capability names.
 #[must_use]
 #[inline]
 fn is_behavior_option(path: &Path) -> bool {

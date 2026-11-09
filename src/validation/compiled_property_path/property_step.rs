@@ -19,7 +19,9 @@ use crate::metadata::TypeMetadata;
 /// a transparent value field. Inspecting a step never invokes a getter.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PropertyStep {
+    /// Validated metadata copied for the property at this path segment.
     pub(super) property: PropertyMetadata,
+    /// Model metadata that owns the property, or `None` for a synthetic step.
     pub(super) owner: Option<&'static TypeMetadata>,
     /// Exact element type expected after projecting a borrowed `Option<T>`.
     pub(super) optional_element: Option<TypeId>,

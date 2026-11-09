@@ -15,7 +15,13 @@ use syn::Type;
 #[derive(Clone)]
 pub(crate) enum CodecIr {
     /// A Rust type used directly as the codec implementation.
-    RustType(Box<Type>),
+    RustType(
+        /// Parsed Rust syntax naming the codec type.
+        Box<Type>,
+    ),
     /// A declared model identifier resolved to a codec later in compilation.
-    DeclaredId(LitStr),
+    DeclaredId(
+        /// String literal containing the declared codec identity.
+        LitStr,
+    ),
 }

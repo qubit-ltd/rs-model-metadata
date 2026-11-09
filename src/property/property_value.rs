@@ -34,13 +34,28 @@ use super::PropertyOwned;
 #[must_use]
 pub enum PropertyValue<'a> {
     /// A dynamically typed borrow tied to the target.
-    Borrowed(PropertyBorrowed<'a>),
+    Borrowed(
+        /// The erased borrowed value whose lifetime is tied to the getter
+        /// target.
+        PropertyBorrowed<'a>,
+    ),
     /// An optional dynamically typed borrow.
-    OptionalBorrowed(Option<PropertyBorrowed<'a>>),
+    OptionalBorrowed(
+        /// The optional erased borrow, preserving whether the getter produced a
+        /// value.
+        Option<PropertyBorrowed<'a>>,
+    ),
     /// A lifetime-preserving borrowed slice.
-    BorrowedSlice(BorrowedPropertySlice<'a>),
+    BorrowedSlice(
+        /// The slice adapter that yields borrowed elements without cloning
+        /// them.
+        BorrowedPropertySlice<'a>,
+    ),
     /// An owned dynamically typed value.
-    Owned(PropertyOwned),
+    Owned(
+        /// The dynamically typed value owned by this getter result.
+        PropertyOwned,
+    ),
 }
 
 impl<'a> PropertyValue<'a> {

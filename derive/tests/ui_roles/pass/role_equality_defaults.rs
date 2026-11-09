@@ -9,7 +9,11 @@ use std::hash::Hash;
 use std::hash::Hasher;
 
 use model_runtime::__private::qubit_id::Id;
-use qubit_model_derive::{Entity, Enum, Model, Projection, Value};
+use qubit_model_derive::Entity;
+use qubit_model_derive::Enum;
+use qubit_model_derive::Model;
+use qubit_model_derive::Projection;
+use qubit_model_derive::Value;
 
 #[Entity(id = "trybuild.FloatEntity")]
 struct FloatEntity {
@@ -26,7 +30,9 @@ struct FloatProjection {
 }
 
 #[Model]
-struct FloatModel { amount: f64 }
+struct FloatModel {
+    amount: f64,
+}
 
 #[Entity(id = "trybuild.HashEntity", eq, hash)]
 struct HashEntity {
@@ -41,16 +47,22 @@ struct HashProjection {
 }
 
 #[Model(eq, hash)]
-struct HashModel { value: u8 }
+struct HashModel {
+    value: u8,
+}
 
 #[Value]
 struct Scalar(u8);
 
 #[Enum]
-enum Choice { One }
+enum Choice {
+    One,
+}
 
 #[Model(ord)]
-struct Ordered { value: u8 }
+struct Ordered {
+    value: u8,
+}
 
 // A handwritten Hash impl verifies that ord does not generate Hash.
 impl Hash for Ordered {
@@ -60,7 +72,9 @@ impl Hash for Ordered {
 }
 
 #[Model(eq)]
-struct EqualityOnly { value: u8 }
+struct EqualityOnly {
+    value: u8,
+}
 
 // Likewise, eq alone must not opt into hashing.
 impl Hash for EqualityOnly {
@@ -70,10 +84,14 @@ impl Hash for EqualityOnly {
 }
 
 #[Model(ord, hash)]
-struct OrderedHash { value: u8 }
+struct OrderedHash {
+    value: u8,
+}
 
 #[Model(partial_ord)]
-struct PartialOrder { value: f64 }
+struct PartialOrder {
+    value: f64,
+}
 
 fn partial<T: PartialEq>() {}
 fn hashed<T: Eq + Hash>() {}

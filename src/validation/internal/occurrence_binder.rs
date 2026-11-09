@@ -138,6 +138,17 @@ pub(crate) fn check_access(
 /// Compiles the occurrence path and projects a direct optional scalar when
 /// its registered adapter exposes the underlying element.
 ///
+/// # Parameters
+///
+/// * `occurrence` - The declaration occurrence whose access path is compiled.
+/// * `graph` - The resolved model graph used to resolve path properties.
+/// * `context` - The reflection context used to resolve descriptors and
+///   adapters.
+/// * `requires_slice` - Whether the declaration requires a borrowed sequence
+///   slice.
+/// * `is_map` - Whether the declaration requires map access semantics.
+/// * `scalar_constraint` - Whether the declaration constrains a scalar value.
+///
 /// # Errors
 ///
 /// Returns an unsupported build error when the declaration needs an
@@ -248,6 +259,16 @@ fn compile_access_path(
 /// The checks run in declaration order so unsupported adapters keep the same
 /// early-error behavior as path compilation.
 ///
+/// # Parameters
+///
+/// * `occurrence` - The declaration whose collection access requirements are
+///   checked.
+/// * `path` - The compiled property path whose terminal adapter is inspected.
+/// * `context` - The reflection context used to resolve field and element
+///   types.
+/// * `requires_slice` - Whether a borrowed slice adapter is required.
+/// * `is_map` - Whether the terminal property must provide map access.
+///
 /// # Errors
 ///
 /// Returns an unsupported build error when a required collection adapter,
@@ -338,6 +359,14 @@ fn validate_collection_access(
 /// reflected type. When no selector input is supplied, the compiled path's
 /// input type is checked instead.
 ///
+/// # Parameters
+///
+/// * `occurrence` - The declaration whose constraint defines the accepted input
+///   type.
+/// * `path` - The compiled path used when no selector input is supplied.
+/// * `selected_input` - The selector's reflected input type, when one was
+///   resolved.
+///
 /// # Errors
 ///
 /// Returns an unsupported build error when the input type is not accepted by
@@ -375,6 +404,17 @@ fn validate_constraint_input(
 /// Checks validator-specific selector restrictions and validates dependency
 /// paths without binding the validator registry. Selected optional and smart
 /// pointer values cannot be passed directly to a value-target validator.
+///
+/// # Parameters
+///
+/// * `occurrence` - The validator occurrence whose access and dependency paths
+///   are checked.
+/// * `context` - The reflection context used to compile dependency paths.
+/// * `graph` - The resolved model graph used to resolve dependency properties.
+/// * `declaration` - The validator metadata containing target and dependency
+///   requirements.
+/// * `selected_type` - The reflected selector type, when the occurrence targets
+///   a selector.
 ///
 /// # Errors
 ///
@@ -453,6 +493,11 @@ fn sequence_element_matches(declared: TypeDescriptor<'_>, output: TypeDescriptor
 ///
 /// Returns `None` when the requested argument is absent, is not a type
 /// argument, or does not resolve to a concrete type.
+///
+/// # Parameters
+///
+/// * `descriptor` - The reflected type whose generic arguments are inspected.
+/// * `index` - The zero-based position of the type argument to resolve.
 fn generic_type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option<TypeDescriptor<'ctx>> {
     descriptor
         .generic_arguments()
@@ -486,6 +531,14 @@ fn access_error(occurrence: &ValidationOccurrence, error: BindError) -> Validati
 ///
 /// Optional getters are resolved through their underlying optional element
 /// only when its reflected type ID matches the registered optional adapter.
+///
+/// # Parameters
+///
+/// * `context` - The reflection context used to resolve getter and property
+///   types.
+/// * `path` - The compiled property path whose terminal property supplies the
+///   collection type.
+/// * `position` - The collection position whose selected type is requested.
 fn selector_input_type<'ctx>(
     context: &'ctx ReflectionContext,
     path: &CompiledPropertyPath,

@@ -15,7 +15,6 @@ use model_a::TargetView;
 use model_b::CODEC;
 use model_b::RULE;
 use model_b::Target;
-
 use qubit_codec::ValueStringCodecRegistry;
 use qubit_model_metadata::__private::DynamicRef;
 use qubit_model_metadata::__private::Local;
@@ -78,11 +77,7 @@ fn main() {
         },
     )
     .unwrap();
-    assert_eq!(
-        plan.binding_count(),
-        1,
-        "source text rule should bind once"
-    );
+    assert_eq!(plan.binding_count(), 1, "source text rule should bind once");
     let value = Source {
         target_id: Default::default(),
         text: "cross-crate".to_owned(),
@@ -100,9 +95,5 @@ fn main() {
         codecs: &codecs,
     })
     .unwrap();
-    assert_eq!(
-        bound.bindings().len(),
-        1,
-        "source text codec should bind once"
-    );
+    assert_eq!(bound.bindings().len(), 1, "source text codec should bind once");
 }

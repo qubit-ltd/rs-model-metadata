@@ -6,7 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 // The filename is part of a Cargo or trybuild fixture protocol.
-//! Rejects `keep_serializing` on model fields that already serialize by default.
+//! Rejects `keep_serializing` on model fields that already serialize by
+//! default.
 
 use qubit_model_derive::Model;
 use qubit_model_derive::Value;

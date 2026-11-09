@@ -1,5 +1,5 @@
 error: unknown reflection helper `crate`
-  --> tests/ui_roles/fail/reflect_crate_helper.rs:13:11
+  --> tests/ui_roles/fail/reflect_crate_helper.rs:14:11
    |
-13 | #[reflect(crate = qubit_reflect)]
+14 | #[reflect(crate = qubit_reflect)]
    |           ^^^^^

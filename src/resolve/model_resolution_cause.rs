@@ -36,8 +36,16 @@ use crate::metadata::PropertyResolutionError;
 pub enum ModelResolutionCause {
     /// Reflected metadata could not be obtained or validated.
     #[error(transparent)]
-    Metadata(#[from] ModelMetadataError),
+    Metadata(
+        /// Original metadata construction or validation failure.
+        #[from]
+        ModelMetadataError,
+    ),
     /// A property set could not be obtained or assembled.
     #[error(transparent)]
-    Properties(#[from] PropertyResolutionError),
+    Properties(
+        /// Original property resolution or assembly failure.
+        #[from]
+        PropertyResolutionError,
+    ),
 }

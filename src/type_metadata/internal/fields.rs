@@ -27,6 +27,14 @@ use crate::transparent_descriptor::transparent_descriptor;
 ///
 /// The returned descriptor carries the context needed by reflection operations
 /// and should be used for the requested metadata checks.
+///
+/// # Type Parameters
+///
+/// * `T` - The registered model type whose reflection descriptor is rebuilt.
+///
+/// # Parameters
+///
+/// * `context` - The reflection context that owns the returned descriptor.
 #[must_use = "use the returned descriptor for reflection operations"]
 pub(in crate::type_metadata) fn descriptor_for<'ctx, T: Reflect + 'static>(
     context: &'ctx ReflectionContext,
@@ -35,6 +43,16 @@ pub(in crate::type_metadata) fn descriptor_for<'ctx, T: Reflect + 'static>(
 }
 
 /// Verifies that field overlays mirror the reflection descriptor exactly.
+///
+/// # Parameters
+///
+/// * `metadata` - The cached field metadata whose ordering, identity, and
+///   semantics are checked.
+/// * `reflected` - The source field descriptors used to verify visible fields.
+/// * `descriptor` - The owning type descriptor that supplies identity and
+///   reflection context.
+/// * `code` - The ABI violation code attached to any mismatch reported by this
+///   check.
 pub(in crate::type_metadata) fn validate_fields(
     metadata: &[FieldMetadata],
     reflected: Fields<'_>,
@@ -84,6 +102,10 @@ pub(in crate::type_metadata) fn validate_fields(
 }
 
 /// Verifies that key-part orders are unique and contiguous.
+///
+/// # Parameters
+///
+/// * `metadata` - The field metadata whose key-part orders are checked.
 fn validate_key_part_order(metadata: &[FieldMetadata]) -> Result<(), AbiViolation> {
     let mut key_parts = metadata
         .iter()
@@ -100,6 +122,13 @@ fn validate_key_part_order(metadata: &[FieldMetadata]) -> Result<(), AbiViolatio
 }
 
 /// Verifies mutually compatible field-level semantic declarations.
+///
+/// # Parameters
+///
+/// * `field` - The field whose cached attributes, constraints, validators, and
+///   codec are verified.
+/// * `context` - The reflection context used to resolve the field's concrete
+///   type.
 fn validate_field_semantics(field: &FieldMetadata, context: &ReflectionContext) -> Result<(), AbiViolation> {
     // Every counter is bounded by the slice length, so usize cannot overflow
     // even for malformed generated input containing more than 255 repeats.
@@ -165,6 +194,11 @@ fn validate_field_semantics(field: &FieldMetadata, context: &ReflectionContext) 
 }
 
 /// Verifies that validator declarations have non-empty, unique dependencies.
+///
+/// # Parameters
+///
+/// * `validators` - The declarations whose parameter names and dependency paths
+///   are checked.
 fn validate_validators(validators: &[crate::metadata::ValidatorMetadata]) -> Result<(), AbiViolation> {
     for validator in validators {
         let mut parameter_names = HashSet::with_capacity(validator.params().len());
@@ -188,6 +222,15 @@ fn validate_validators(validators: &[crate::metadata::ValidatorMetadata]) -> Res
 }
 
 /// Verifies constraint kinds against the reflected field type.
+///
+/// # Parameters
+///
+/// * `constraints` - The constraints checked for duplicate kinds and valid
+///   nested selectors.
+/// * `descriptor` - The reflected type used to validate selector positions,
+///   when available.
+/// * `allow_selectors` - Whether nested selector declarations may be validated
+///   recursively.
 fn validate_constraint_kinds(
     constraints: &[ConstraintMetadata],
     descriptor: Option<TypeDescriptor<'_>>,
@@ -234,6 +277,15 @@ fn validate_constraint_kinds(
 }
 
 /// Verifies one nested selector against its structural position and type.
+///
+/// # Parameters
+///
+/// * `selector` - The nested selector whose position, constraints, validators,
+///   and codec are checked.
+/// * `position` - The collection position that the selector is expected to
+///   describe.
+/// * `descriptor` - The enclosing reflected type used to resolve the selected
+///   element or map type.
 fn validate_selector(
     selector: &crate::metadata::SelectorMetadata,
     position: SelectorPosition,
@@ -264,6 +316,14 @@ fn validate_selector(
 }
 
 /// Verifies that a codec declaration is valid for its expected type and source.
+///
+/// # Parameters
+///
+/// * `codec` - The optional codec declaration to validate.
+/// * `expected_type` - The concrete type identifier the codec is expected to
+///   handle, when known.
+/// * `source` - The metadata position from which the codec declaration is
+///   expected to originate.
 fn validate_codec(
     codec: Option<&crate::metadata::CodecMetadata>,
     expected_type: Option<TypeId>,
@@ -283,6 +343,12 @@ fn validate_codec(
 }
 
 /// Returns the nested type selected by a collection position.
+///
+/// # Parameters
+///
+/// * `descriptor` - The collection type whose generic arguments provide the
+///   selected type.
+/// * `position` - The sequence, map-key, or map-value position to resolve.
 fn selector_type_descriptor(descriptor: TypeDescriptor<'_>, position: SelectorPosition) -> Option<TypeDescriptor<'_>> {
     let arguments = descriptor.generic_arguments();
     let index = match (descriptor.kind(), position) {

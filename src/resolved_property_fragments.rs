@@ -25,9 +25,15 @@ use crate::metadata::PropertyFragment;
 #[derive(Clone, Debug)]
 pub enum ResolvedPropertyFragments {
     /// Fragments emitted as part of static model metadata.
-    Static(&'static [PropertyFragment]),
+    Static(
+        /// Static fragments retained by the model metadata provider.
+        &'static [PropertyFragment],
+    ),
     /// Fragments collected from an explicit reflection snapshot.
-    Merged(Arc<[PropertyFragment]>),
+    Merged(
+        /// Snapshot-owned fragments kept alive by shared ownership.
+        Arc<[PropertyFragment]>,
+    ),
 }
 
 impl ResolvedPropertyFragments {

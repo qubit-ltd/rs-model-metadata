@@ -88,6 +88,10 @@ pub use model_impl_fragment::model_impl_fragments;
 #[inline]
 pub fn model_metadata_registration<T: HasTypeMetadata>() -> CapabilityRegistration {
     /// Supplies validated static metadata for a generated concrete model.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Concrete model type whose generated metadata is supplied.
     fn provide<T: HasTypeMetadata>() -> &'static TypeMetadata {
         let metadata = <T as crate::__private::TypeMetadataProvider>::__type_metadata();
         metadata.assert_valid_for::<T>();
@@ -255,6 +259,14 @@ pub(crate) fn model_impl_metadata(
 ///
 /// The caller selects either the concrete capability or the generic
 /// definition capability before invoking this helper.
+///
+/// # Parameters
+///
+/// - `fragments`: Provider fragments collected from the selected capability.
+/// - `metadata`: Concrete model metadata used to filter fragments by type
+///   identity.
+/// - `providers`: Output list receiving matching provider/source pairs in
+///   fragment order.
 fn collect_matching_model_impl_providers(
     fragments: &[ModelImplFragment],
     metadata: &TypeMetadata,

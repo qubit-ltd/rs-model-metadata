@@ -15,11 +15,20 @@ use super::TextConstraintIr;
 #[derive(Clone)]
 pub(crate) enum ConstraintIr {
     /// Character, byte-length, blankness, and semantic-format restrictions.
-    Text(TextConstraintIr),
+    Text(
+        /// Normalized text constraint bounds and format options.
+        TextConstraintIr,
+    ),
     /// Precision, scale, rounding, and bound restrictions for decimal values.
-    Decimal(DecimalConstraintIr),
+    Decimal(
+        /// Normalized decimal precision, rounding, and bound options.
+        DecimalConstraintIr,
+    ),
     /// Name of the temporal precision constraint applied to a field.
-    Time(String),
+    Time(
+        /// Normalized temporal precision name.
+        String,
+    ),
     /// Minimum, maximum, and uniqueness requirements for a sequence.
     Sequence {
         /// Minimum item count.

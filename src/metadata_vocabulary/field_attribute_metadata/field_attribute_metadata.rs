@@ -37,25 +37,55 @@ use crate::metadata::CodecMetadata;
 #[derive(Clone, Copy, Debug)]
 pub enum FieldAttributeMetadata {
     /// Identifier declaration metadata.
-    Identifier(&'static IdentifierMetadata),
+    Identifier(
+        /// Assignment metadata for the field's identifier.
+        &'static IdentifierMetadata,
+    ),
     /// Reasons the field participates in an index.
-    Indexed(IndexingReasons),
+    Indexed(
+        /// Bit flags describing the indexing reasons attached to the field.
+        IndexingReasons,
+    ),
     /// Uniqueness declaration metadata.
-    Unique(&'static UniqueMetadata),
+    Unique(
+        /// Uniqueness constraint metadata for the field.
+        &'static UniqueMetadata,
+    ),
     /// Entity-reference declaration metadata.
-    Reference(&'static ReferenceMetadata),
+    Reference(
+        /// Target and selection metadata for the declared entity reference.
+        &'static ReferenceMetadata,
+    ),
     /// Composite-key position metadata.
-    KeyPart(&'static KeyPartMetadata),
+    KeyPart(
+        /// Ordered position of the field in its composite key.
+        &'static KeyPartMetadata,
+    ),
     /// A standard validation constraint occurrence.
-    Constraint(&'static ConstraintMetadata),
+    Constraint(
+        /// Constraint kind and limits associated with this field occurrence.
+        &'static ConstraintMetadata,
+    ),
     /// A custom validator occurrence.
-    Validator(&'static ValidatorMetadata),
+    Validator(
+        /// Validator function and argument metadata for this occurrence.
+        &'static ValidatorMetadata,
+    ),
     /// A value codec occurrence.
-    Codec(&'static CodecMetadata),
+    Codec(
+        /// Codec reference and source metadata for this field occurrence.
+        &'static CodecMetadata,
+    ),
     /// A redaction declaration occurrence.
-    Redact(&'static RedactMetadata),
+    Redact(
+        /// Redaction policy associated with this field.
+        &'static RedactMetadata,
+    ),
     /// Effective Serde behavior.
-    Serde(&'static SerdeFieldMetadata),
+    Serde(
+        /// Effective serialization and deserialization behavior for the field.
+        &'static SerdeFieldMetadata,
+    ),
     /// An explicit opaque-type marker.
     Opaque,
 }

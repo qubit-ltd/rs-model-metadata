@@ -45,7 +45,11 @@ pub enum PropertyAccessWriteFailure {
         replacement: Option<PropertyOwned>,
     },
     /// The leaf setter or field operation failed with its recovery semantics.
-    Property(PropertySetFailure),
+    Property(
+        /// The property failure and any replacement still recoverable by the
+        /// caller.
+        PropertySetFailure,
+    ),
 }
 
 impl PropertyAccessWriteFailure {
@@ -117,6 +121,19 @@ impl PropertyAccessWriteFailure {
 }
 
 impl fmt::Debug for PropertyAccessWriteFailure {
+    /// Formats the failure stage and whether a replacement remains available.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the failure's debug representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the representation cannot be written.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Path { error, replacement } => formatter
@@ -130,6 +147,20 @@ impl fmt::Debug for PropertyAccessWriteFailure {
 }
 
 impl fmt::Display for PropertyAccessWriteFailure {
+    /// Formats the underlying path or property failure.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of formatting the underlying failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the underlying failure cannot be
+    /// written.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Path { error, .. } => error.fmt(formatter),
@@ -139,6 +170,7 @@ impl fmt::Display for PropertyAccessWriteFailure {
 }
 
 impl Error for PropertyAccessWriteFailure {
+    /// Returns the underlying path or leaf property error, if present.
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Path { error, .. } => Some(error),

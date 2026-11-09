@@ -1,3 +1,6 @@
 [workspace]
 members = ["model-a", "model-b", "collector"]
 resolver = "3"
+
+[patch.crates-io]
+qubit-validator = { path = "../../../../../../rust-common/rs-validator" }

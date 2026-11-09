@@ -52,6 +52,14 @@ pub type SetterAdapter = fn(PropertyMutable<'_>, PropertyOwned) -> Result<(), Pr
 ///
 /// Target identity is checked before replacement identity, matching the
 /// recovery error precedence used by the setter API.
+///
+/// # Parameters
+///
+/// - `target`: Mutable target checked against the setter's expected root type.
+/// - `value`: Owned replacement checked against the setter's expected input
+///   type.
+/// - `expected_target`: Exact Rust type identity required for the target.
+/// - `expected_value`: Exact Rust type identity required for the replacement.
 fn validate_setter_types(
     target: &PropertyMutable<'_>,
     value: &PropertyOwned,
@@ -223,6 +231,11 @@ impl SetterMetadata {
 
     /// Executes this setter after exact target and value validation.
     ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Concrete mutable target type accepted by this setter.
+    /// * `V` - Concrete replacement type accepted by this setter.
+    ///
     /// # Parameters
     ///
     /// * `target` - The mutable target that receives the replacement.
@@ -271,6 +284,19 @@ impl SetterMetadata {
 }
 
 impl fmt::Debug for SetterMetadata {
+    /// Formats the setter's method name without exposing adapter details.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination for the debug representation.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after writing the method name and non-exhaustive marker.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if writing the representation fails.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("SetterMetadata")

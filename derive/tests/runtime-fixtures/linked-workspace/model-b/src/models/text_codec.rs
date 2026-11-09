@@ -67,5 +67,4 @@ impl ValueDecoder<str> for TextCodec {
 }
 
 /// The immutable codec implementation metadata used by the root registration.
-pub(super) static CODEC_DESCRIPTOR: ValueStringCodecDescriptor =
-    ValueStringCodecDescriptor::of::<TextCodec, String>();
+pub(super) static CODEC_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<TextCodec, String>();

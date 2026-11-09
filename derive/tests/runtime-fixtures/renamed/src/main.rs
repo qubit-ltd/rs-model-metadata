@@ -21,10 +21,7 @@ struct Renamed {
 }
 
 #[Model(id = "test.derive.RenamedGeneric")]
-#[allow(
-    dead_code,
-    reason = "the registration must not require a concrete monomorph"
-)]
+#[allow(dead_code, reason = "the registration must not require a concrete monomorph")]
 struct RenamedGeneric<T> {
     value: T,
 }

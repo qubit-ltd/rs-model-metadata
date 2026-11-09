@@ -11,6 +11,7 @@
 use std::any::TypeId;
 use std::sync::OnceLock;
 
+use qubit_model_derive::Model;
 use qubit_model_metadata::__private::ModelMetadataCapability;
 use qubit_model_metadata::__private::ModelMetadataProvider;
 use qubit_model_metadata::__private::v8;
@@ -23,6 +24,11 @@ use qubit_reflect::capability::CapabilityRegistration;
 
 #[Reflect]
 struct AnonymousMetadataFixture;
+
+#[Model(id = "tests.RegistryAccessorFixture")]
+struct RegistryAccessorFixture {
+    name: String,
+}
 
 fn first_context_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<&'static TypeMetadata> = OnceLock::new();
@@ -118,8 +124,11 @@ fn test_empty_metadata_registry_exposes_empty_indexes() {
     let empty_context = ReflectionContext::builder().build().expect("empty context");
     let registry = ModelRegistry::from_static_metadata(&empty_context, &[]).expect("empty registry is valid");
 
+    assert!(format!("{registry:?}").contains("ModelRegistry"));
     assert!(registry.entries().is_empty());
     assert!(registry.get("missing.Model").is_none());
+    assert!(registry.get("invalid model id").is_none());
+    assert!(registry.metadata("missing.Model").is_none());
     assert!(registry.source("missing.Model").is_none());
     assert!(registry.by_type_id(TypeId::of::<String>()).is_none());
     assert!(
@@ -131,5 +140,55 @@ fn test_empty_metadata_registry_exposes_empty_indexes() {
     #[cfg(feature = "generic")]
     {
         assert!(registry.generic_definitions().is_empty());
+        assert!(registry.generic("missing.Model").is_none());
     }
+}
+
+#[test]
+fn test_global_registry_accessors_share_the_initialized_registry() {
+    let fallible = ModelRegistry::try_global().expect("global registry initializes");
+    let infallible = ModelRegistry::global();
+
+    assert!(std::ptr::eq(fallible, infallible));
+    assert!(fallible.context().is_some());
+    assert!(fallible.entries().iter().all(|entry| {
+        let id = entry.model_id().as_str();
+        fallible.get(id).is_some() && fallible.metadata(id).is_some() == entry.metadata().is_some()
+    }));
+
+    let id = "tests.RegistryAccessorFixture";
+    let fixture = RegistryAccessorFixture {
+        name: String::from("registry"),
+    };
+    assert_eq!(fixture.name, "registry");
+    let metadata = TypeMetadata::try_of::<RegistryAccessorFixture>().expect("fixture ABI");
+    assert!(std::ptr::eq(TypeMetadata::of::<RegistryAccessorFixture>(), metadata));
+    assert_eq!(metadata.model_id().expect("fixture model ID").as_str(), id);
+    assert!(metadata.is_registered());
+    assert!(metadata.as_model().is_some());
+    assert!(metadata.as_value().is_none());
+    assert_eq!(metadata.fields().len(), 1);
+    assert_eq!(metadata.field("name").expect("name field").name(), Some("name"));
+    assert!(std::ptr::eq(
+        metadata.field_at(0).expect("first field"),
+        metadata.field("name").unwrap()
+    ));
+    assert!(metadata.field_at(1).is_none());
+    assert!(
+        !metadata
+            .property_fragments()
+            .expect("global fragments")
+            .fragments()
+            .is_empty()
+    );
+    assert!(
+        metadata
+            .try_properties()
+            .expect("global properties")
+            .property("name")
+            .is_some()
+    );
+    assert!(fallible.metadata(id).is_some());
+    assert!(fallible.source(id).is_some());
+    assert_eq!(fallible.get(id).expect("registered entry").model_id().as_str(), id);
 }

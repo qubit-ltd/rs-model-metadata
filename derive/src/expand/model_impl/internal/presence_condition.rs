@@ -26,6 +26,20 @@ pub(in crate::expand::model_impl) struct PresenceCondition {
 impl PresenceCondition {
     /// Extracts all existence-changing attributes, returning syntax errors for
     /// malformed `cfg_attr` lists. Ordinary method attributes are ignored.
+    ///
+    /// # Parameters
+    ///
+    /// * `attributes` - The source attributes inspected for `cfg` and
+    ///   `cfg_attr` predicates.
+    ///
+    /// # Returns
+    ///
+    /// A condition combining all existence predicates, including `all()` when
+    /// none are present.
+    ///
+    /// # Errors
+    ///
+    /// Returns a syntax error when a `cfg_attr` list is malformed.
     pub(in crate::expand::model_impl) fn from_attributes(attributes: &[Attribute]) -> Result<Self> {
         let predicates = attributes
             .iter()
@@ -45,6 +59,15 @@ impl PresenceCondition {
     }
 
     /// Returns the condition under which both candidates exist.
+    ///
+    /// # Parameters
+    ///
+    /// * `other` - The second condition whose predicate must also hold.
+    ///
+    /// # Returns
+    ///
+    /// The combined condition requiring both this predicate and `other`'s
+    /// predicate.
     #[must_use]
     pub(in crate::expand::model_impl) fn intersection(&self, other: &Self) -> Self {
         let left = &self.predicate;
@@ -58,6 +81,21 @@ impl PresenceCondition {
 /// Returns the existence predicate of a `cfg` or recursively nested
 /// `cfg_attr`, or `None` for attributes that do not affect existence.
 /// Malformed conditional attribute lists return a source-anchored error.
+///
+/// # Parameters
+///
+/// * `meta` - Attribute metadata inspected for `cfg` or recursively nested
+///   `cfg_attr`.
+///
+/// # Returns
+///
+/// The extracted existence predicate, or `None` when the attribute does not
+/// affect item presence.
+///
+/// # Errors
+///
+/// Returns a source-anchored syntax error when a conditional attribute list is
+/// malformed.
 fn existence_predicate(meta: &Meta) -> Result<Option<TokenStream>> {
     let Meta::List(list) = meta else {
         return Ok(None);

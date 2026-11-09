@@ -100,6 +100,15 @@ pub struct ModelRegistry<'reflection> {
 
 impl std::fmt::Debug for ModelRegistry<'_> {
     /// Formats the registry's entries and bound context identity.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination receiving the registry's debug
+    ///   representation.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when formatting succeeds, or the formatter's error.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("ModelRegistry")
@@ -821,6 +830,23 @@ impl<'reflection> ModelRegistry<'reflection> {
 
 /// Sorts generic registrations, rejects repeated definition identities, and
 /// appends their stable-ID entries after concrete registrations.
+///
+/// # Parameters
+///
+/// - `context`: Reflection context used to resolve each generic definition.
+/// - `entries`: Concrete registry entries to extend with stable-ID generic
+///   entries.
+/// - `generic_inputs`: Generic metadata and registration provenance to sort and
+///   index.
+///
+/// # Returns
+///
+/// The ordered generic definitions and their process-local identity index.
+///
+/// # Errors
+///
+/// Returns a lookup error when a definition cannot be resolved, or a conflict
+/// error when multiple registrations resolve to one definition identity.
 #[cfg(feature = "generic")]
 fn index_generic_definitions(
     context: &ReflectionContext,
@@ -870,6 +896,15 @@ fn index_generic_definitions(
 }
 
 /// Sorts entries by their stable ordering and rejects adjacent duplicate IDs.
+///
+/// # Parameters
+///
+/// - `entries`: Registry entries to sort and validate in place.
+///
+/// # Errors
+///
+/// Returns a duplicate-registration error when adjacent entries share a model
+/// ID after sorting.
 fn sort_and_validate_entries(entries: &mut [ModelEntry<'_>]) -> Result<(), ModelRegistryError> {
     entries.sort_by(compare_entries);
     for pair in entries.windows(2) {
@@ -885,6 +920,23 @@ fn sort_and_validate_entries(entries: &mut [ModelEntry<'_>]) -> Result<(), Model
 /// metadata and duplicate concrete type identities.
 type EntryIndices = (BTreeMap<ModelId, usize>, HashMap<TypeId, usize>);
 
+/// Builds stable-ID and concrete-type indexes while checking registration
+/// metadata for consistency.
+///
+/// # Parameters
+///
+/// - `entries`: Validated entries whose concrete metadata supplies type
+///   identities.
+///
+/// # Returns
+///
+/// Stable-ID and concrete-type lookup maps containing each matching entry
+/// index.
+///
+/// # Errors
+///
+/// Returns a conflict error when metadata has a different model ID from its
+/// entry or when two entries identify the same concrete Rust type.
 fn build_entry_indices(entries: &[ModelEntry<'_>]) -> Result<EntryIndices, ModelRegistryError> {
     let mut indices = BTreeMap::new();
     let mut type_indices = HashMap::new();
@@ -910,6 +962,21 @@ fn build_entry_indices(entries: &[ModelEntry<'_>]) -> Result<EntryIndices, Model
 
 /// Prefills the descriptor-keyed metadata cache and rejects conflicting
 /// metadata pointers for the same reflected type.
+///
+/// # Parameters
+///
+/// - `context`: Reflection context used to obtain each metadata descriptor.
+/// - `metadata_inputs`: Static metadata and source provenance to cache.
+///
+/// # Returns
+///
+/// Cache cells keyed by the context, reflected type identity, and metadata
+/// address.
+///
+/// # Errors
+///
+/// Returns a conflict error when one reflected type is supplied with different
+/// metadata pointers.
 fn prefill_metadata_cache(
     context: &ReflectionContext,
     metadata_inputs: Vec<(&'static TypeMetadata, ModelRegistryOrigin)>,
@@ -961,6 +1028,14 @@ fn compare_entries(left: &ModelEntry, right: &ModelEntry) -> Ordering {
 /// The reflection origin borrows registration data from its context; this
 /// conversion preserves the fields needed after projection without retaining
 /// that borrow.
+///
+/// # Parameters
+///
+/// - `origin`: Linked or explicit capability origin to project.
+///
+/// # Returns
+///
+/// Owned registry provenance copied from the capability registration.
 fn origin_from_capability(origin: &qubit_reflect::capability::CapabilityOrigin<'_>) -> ModelRegistryOrigin {
     match origin {
         qubit_reflect::capability::CapabilityOrigin::Linked { registration }
@@ -977,6 +1052,7 @@ mod tests {
     use super::super::super::model_registry_origin::ModelRegistryOrigin;
     use super::ModelRegistry;
     use crate::__private::v8;
+    use crate::metadata::ModelId;
     use crate::metadata::TypeMetadata;
     use crate::registry::ModelRegistryErrorKind;
 
@@ -991,11 +1067,24 @@ mod tests {
         )
     }
 
+    fn registered_metadata() -> &'static TypeMetadata {
+        static METADATA: std::sync::OnceLock<TypeMetadata> = std::sync::OnceLock::new();
+        METADATA.get_or_init(|| {
+            v8::GeneratedTypeMetadataBuilder::new::<AnonymousMetadataFixture>(
+                Some(ModelId::new("tests.RegistryUnitFixture")),
+                &[],
+                v8::leak(v8::model_role()),
+            )
+            .finish::<AnonymousMetadataFixture>()
+        })
+    }
+
     #[test]
     fn test_conflicting_anonymous_metadata_retains_both_sources() {
         let first = anonymous_metadata();
         let second = anonymous_metadata();
         assert!(!std::ptr::eq(first, second));
+        assert!(first.local_properties().properties().is_empty());
         let context = qubit_reflect::ReflectionContext::builder()
             .include_type::<AnonymousMetadataFixture>()
             .build()
@@ -1036,6 +1125,65 @@ mod tests {
             vec![(metadata, first_source), (metadata, second_source)],
         )
         .expect("repeating one metadata pointer is valid during cache prefill");
+    }
+
+    #[test]
+    fn test_registry_debug_includes_entries_and_bound_context_identity() {
+        let context = qubit_reflect::ReflectionContext::builder()
+            .include_type::<AnonymousMetadataFixture>()
+            .build()
+            .expect("fixture context");
+        let registry = ModelRegistry::from_static_metadata(&context, &[]).expect("empty registry");
+
+        let formatted = format!("{registry:?}");
+
+        assert!(formatted.starts_with("ModelRegistry {"));
+        assert!(formatted.contains("entries: []"));
+        assert!(formatted.contains(&format!("context_id: Some({:?})", context.id())));
+    }
+
+    #[test]
+    fn test_static_registry_queries_and_global_accessors() {
+        let context = qubit_reflect::ReflectionContext::builder()
+            .include_type::<AnonymousMetadataFixture>()
+            .build()
+            .expect("fixture context");
+        let metadata = registered_metadata();
+        let source = test_origin(5);
+        let registry =
+            ModelRegistry::from_static_metadata(&context, &[(metadata, &source)]).expect("registered fixture metadata");
+        let id = "tests.RegistryUnitFixture";
+
+        assert_eq!(registry.entries().len(), 1);
+        let entry = registry.get(id).expect("indexed model ID");
+        assert_eq!(entry.model_id().as_str(), id);
+        assert!(std::ptr::eq(entry.metadata().expect("concrete metadata"), metadata));
+        assert!(registry.get("invalid model ID").is_none());
+        assert!(registry.get("tests.Missing").is_none());
+        assert!(std::ptr::eq(
+            registry
+                .by_type_id(std::any::TypeId::of::<AnonymousMetadataFixture>())
+                .expect("concrete type index"),
+            metadata,
+        ));
+        assert!(registry.by_type_id(std::any::TypeId::of::<String>()).is_none());
+        assert_eq!(registry.source(id).expect("registration source").line, Some(5));
+        assert!(registry.source("tests.Missing").is_none());
+
+        let descriptor = context.type_of::<AnonymousMetadataFixture>();
+        assert!(std::ptr::eq(
+            registry
+                .metadata_for(&descriptor)
+                .expect("metadata lookup")
+                .expect("explicit metadata fallback"),
+            metadata,
+        ));
+        assert!(registry.compile_read_path_cached(metadata, &["missing"]).is_err());
+        assert!(registry.compile_write_path_cached(metadata, &["missing"]).is_err());
+
+        let fallible = ModelRegistry::try_global().expect("global registry initializes");
+        let infallible = ModelRegistry::global();
+        assert!(std::ptr::eq(fallible, infallible));
     }
 
     fn test_origin(line: u32) -> ModelRegistryOrigin {

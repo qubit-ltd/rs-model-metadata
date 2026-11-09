@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Trybuild compile-fail fixture: rejects boolean, floating-point, and mixed-type validator parameter values.
+//! Trybuild compile-fail fixture: rejects boolean, floating-point, and
+//! mixed-type validator parameter values.
 
 use qubit_model_derive::Model;
 

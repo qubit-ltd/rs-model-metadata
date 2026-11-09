@@ -11,6 +11,8 @@
 use qubit_id::Id;
 
 /// Prevents downstream crates from extending exact model type roles.
-pub trait IdentifierTypeSeal {}
+pub trait IdentifierTypeSeal {
+    // empty
+}
 
 impl IdentifierTypeSeal for Id {}

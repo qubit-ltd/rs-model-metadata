@@ -79,9 +79,46 @@ impl ResolveErrors {
 }
 
 impl Display for ResolveErrors {
+    /// Formats the number of collected resolution errors.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination for the diagnostic count.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when formatting succeeds, or the formatter's error.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
         write!(formatter, "{} model resolution error(s)", self.errors.len())
     }
 }
 
 impl Error for ResolveErrors {}
+
+#[cfg(test)]
+mod tests {
+    use super::ResolveErrors;
+    use crate::resolve::ResolveError;
+    use crate::resolve::ResolveErrorKind;
+
+    #[test]
+    fn test_collected_errors_expose_order_and_owned_values() {
+        let errors = ResolveErrors {
+            errors: vec![ResolveError::new(
+                ResolveErrorKind::InvalidValueClosure,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )],
+        };
+
+        assert_eq!(errors.errors().len(), 1);
+        assert_eq!(errors.errors()[0].kind(), ResolveErrorKind::InvalidValueClosure);
+        assert_eq!(errors.to_string(), "1 model resolution error(s)");
+        let owned = errors.into_vec();
+        assert_eq!(owned.len(), 1);
+        assert_eq!(owned[0].kind(), ResolveErrorKind::InvalidValueClosure);
+    }
+}

@@ -66,6 +66,15 @@ impl ValidationBuildErrors {
     ///
     /// Stable sorting preserves the input order among diagnostics with the
     /// same ordinal, including failures without an occurrence.
+    ///
+    /// # Parameters
+    ///
+    /// - `errors`: Independently collected diagnostics to order and retain.
+    ///
+    /// # Returns
+    ///
+    /// The aggregate containing those diagnostics in stable root-before-
+    /// occurrence order.
     pub(crate) fn from_errors(mut errors: Vec<ValidationBuildError>) -> Self {
         errors.sort_by_key(ValidationBuildError::occurrence);
         Self { errors }
@@ -123,6 +132,14 @@ impl Index<usize> for ValidationBuildErrors {
 
     /// Borrows the diagnostic at its stable collection position.
     ///
+    /// # Parameters
+    ///
+    /// - `index`: Zero-based position of the diagnostic to borrow.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the diagnostic stored at `index`.
+    ///
     /// # Panics
     ///
     /// Panics when `index` is greater than or equal to the diagnostic count.
@@ -139,6 +156,14 @@ impl<'a> IntoIterator for &'a ValidationBuildErrors {
     type IntoIter = Iter<'a, ValidationBuildError>;
 
     /// Borrows each diagnostic in root-before-occurrence order.
+    ///
+    /// # Parameters
+    ///
+    /// - `self`: Borrowed diagnostic collection to iterate.
+    ///
+    /// # Returns
+    ///
+    /// An allocation-free iterator borrowing each retained diagnostic.
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.errors.iter()
@@ -147,6 +172,14 @@ impl<'a> IntoIterator for &'a ValidationBuildErrors {
 
 impl fmt::Display for ValidationBuildErrors {
     /// Formats a count summary without expanding metadata or nested causes.
+    ///
+    /// # Parameters
+    ///
+    /// - `f`: Formatter receiving the summary text.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when formatting succeeds, or the formatter's error.
     ///
     /// # Errors
     ///

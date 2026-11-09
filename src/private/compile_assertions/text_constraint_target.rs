@@ -16,7 +16,9 @@ use std::sync::Arc;
 /// Implementations cover strings, optional values of supported types, and
 /// pointer wrappers around supported targets.
 #[doc(hidden)]
-pub trait TextConstraintTarget {}
+pub trait TextConstraintTarget {
+    // empty
+}
 
 impl TextConstraintTarget for str {}
 impl TextConstraintTarget for String {}

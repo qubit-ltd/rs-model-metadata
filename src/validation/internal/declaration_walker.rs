@@ -86,6 +86,13 @@ pub(crate) fn collect(
 /// Computes executable-work reachability by monotone propagation, including
 /// cycles.
 ///
+/// # Parameters
+///
+/// * `graph` - The resolved models and relationships whose declarations are
+///   examined.
+/// * `context` - The reflection context used to resolve concrete field
+///   descriptors.
+///
 /// # Returns
 ///
 /// Returns the set of model types whose reachable declarations require
@@ -125,6 +132,25 @@ fn reachable_work(graph: &ModelGraph<'_>, context: &ReflectionContext) -> HashSe
 }
 
 /// Visits usage paths in source order; only the active path deduplicates types.
+///
+/// # Parameters
+///
+/// * `root` - The requested root model retained on each discovered occurrence.
+/// * `owner` - The model whose fields are visited in this step.
+/// * `prefix` - The access path accumulated from the root to `owner`.
+/// * `diagnostic_prefix` - A rendered ancestor path for unsupported
+///   diagnostics, when available.
+/// * `context` - The reflection context used to resolve field descriptors.
+/// * `graph` - The resolved model graph used to discover nested model types.
+/// * `work` - Model types known to reach declarations that require execution.
+/// * `active` - Model types on the current traversal path, used to stop cycles.
+/// * `inherited_unsupported` - Whether an ancestor already makes descendants
+///   unsupported.
+/// * `ordinal` - The next source-order index assigned to a declaration
+///   occurrence.
+/// * `occurrences` - The output vector receiving supported declaration
+///   occurrences.
+/// * `errors` - The output vector receiving unsupported structural occurrences.
 #[allow(clippy::too_many_arguments)]
 fn walk(
     root: &'static TypeMetadata,
@@ -209,6 +235,34 @@ fn walk(
 }
 
 /// Descends through a field's executable nested models in structural order.
+///
+/// # Parameters
+///
+/// * `root` - The requested root model retained on descendant occurrences.
+/// * `owner` - The model that owns the field being traversed.
+/// * `field` - The field whose structural wrappers may contain nested models.
+/// * `enum_variant` - The enum variant containing `field`, if the owner is an
+///   enum.
+/// * `prefix` - The access path to `owner` before this field.
+/// * `diagnostic_prefix` - A rendered ancestor path for unsupported
+///   diagnostics, when present.
+/// * `segments` - The access path extended through the current field.
+/// * `unsupported_path` - The rendered path already associated with this
+///   unsupported field, if any.
+/// * `unsupported` - Whether the current field or an ancestor has unsupported
+///   structure.
+/// * `context` - The reflection context used to resolve the field's concrete
+///   descriptor.
+/// * `graph` - The resolved model graph used to find reachable nested
+///   declarations.
+/// * `work` - Model types known to require executable validation work.
+/// * `active` - Model types on the current traversal path, used to detect
+///   cycles.
+/// * `ordinal` - The next source-order index assigned to a declaration
+///   occurrence.
+/// * `occurrences` - The output vector receiving supported declaration
+///   occurrences.
+/// * `errors` - The output vector receiving unsupported structural occurrences.
 #[allow(clippy::too_many_arguments)]
 fn walk_nested_fields(
     root: &'static TypeMetadata,
@@ -295,6 +349,23 @@ fn walk_nested_fields(
 }
 
 /// Records this field's declarations in their original metadata order.
+///
+/// # Parameters
+///
+/// * `root` - The requested root model retained on each recorded occurrence.
+/// * `owner` - The model that owns the declaration-bearing field.
+/// * `field` - The field whose constraints and validators are recorded.
+/// * `enum_variant` - The enum variant containing the field, if applicable.
+/// * `segments` - The access path from the root to the field.
+/// * `unsupported_path` - The rendered unsupported path to attach to
+///   occurrences, if present.
+/// * `unsupported` - Whether the field must be reported as structurally
+///   unsupported.
+/// * `ordinal` - The next source-order index assigned to a declaration
+///   occurrence.
+/// * `occurrences` - The output vector receiving supported declaration
+///   occurrences.
+/// * `errors` - The output vector receiving unsupported structural occurrences.
 #[allow(clippy::too_many_arguments)]
 fn collect_field_declarations(
     root: &'static TypeMetadata,
@@ -331,6 +402,11 @@ fn collect_field_declarations(
 
 /// Resolves the concrete enum variant associated with a payload field.
 ///
+/// # Parameters
+///
+/// * `owner` - The model metadata whose enum variants are searched.
+/// * `field` - The payload field whose recorded variant index is resolved.
+///
 /// # Returns
 ///
 /// Returns the variant containing `field`, or `None` when the field has no
@@ -353,6 +429,11 @@ fn enum_variant_for_field(
 /// Returns `true` only for the exact anonymous field at index zero. Other
 /// tuple fields remain unsupported.
 ///
+/// # Parameters
+///
+/// * `owner` - The value metadata that may declare a transparent field.
+/// * `field` - The candidate field checked against that declaration.
+///
 /// # Returns
 ///
 /// Returns whether `field` is the transparent value's sole anonymous field.
@@ -366,6 +447,12 @@ pub(crate) fn is_transparent_unnamed_field(owner: &TypeMetadata, field: &FieldMe
 
 /// Returns struct fields or enum payload fields in declaration order.
 ///
+///
+/// # Parameters
+///
+/// * `model` - The metadata whose struct fields or enum payload fields are
+///   returned.
+///
 /// # Returns
 ///
 /// Returns all fields of `model` in declaration order.
@@ -378,6 +465,12 @@ fn fields(model: &'static TypeMetadata) -> Vec<&'static FieldMetadata> {
 
 /// Enumerates actual executable declarations without mistaking empty selectors
 /// for work.
+///
+///
+/// # Parameters
+///
+/// * `field` - The metadata whose direct and selector declarations are
+///   enumerated.
 ///
 /// # Returns
 ///
@@ -414,6 +507,11 @@ fn declarations(field: &'static FieldMetadata) -> Vec<(Option<SelectorPosition>,
 
 /// Returns nested selector metadata in key-before-value declaration order.
 ///
+///
+/// # Parameters
+///
+/// * `constraint` - The constraint whose nested selector metadata is inspected.
+///
 /// # Returns
 ///
 /// Returns selectors belonging to a sequence or map constraint; other
@@ -427,6 +525,11 @@ fn selectors(constraint: &'static ConstraintMetadata) -> Vec<&'static SelectorMe
 }
 
 /// Reports whether the outer constraint requires an execution operation.
+///
+/// # Parameters
+///
+/// * `constraint` - The configured limits or checks that determine whether
+///   execution work is needed.
 #[must_use]
 fn constraint_has_work(constraint: &ConstraintMetadata) -> bool {
     match constraint {
@@ -453,6 +556,12 @@ fn constraint_has_work(constraint: &ConstraintMetadata) -> bool {
 ///
 /// Returns the first model found through the descriptor or its supported
 /// wrappers, or `None` when no model is registered along that path.
+///
+/// # Parameters
+///
+/// * `descriptor` - The optional concrete type descriptor followed through
+///   supported wrappers.
+/// * `graph` - The resolved graph used to identify registered model types.
 fn direct_model<'ctx>(
     mut descriptor: Option<TypeDescriptor<'ctx>>,
     graph: &ModelGraph<'_>,
@@ -481,6 +590,12 @@ fn direct_model<'ctx>(
 
 /// Appends one field, variant or tuple index to a dot-separated diagnostic
 /// path.
+///
+/// # Parameters
+///
+/// * `path` - The diagnostic path extended in place, with a separator when
+///   nonempty.
+/// * `segment` - The field, variant, or tuple index name appended to the path.
 fn append_segment(path: &mut String, segment: &str) {
     if !path.is_empty() {
         path.push('.');
@@ -495,6 +610,11 @@ fn append_segment(path: &mut String, segment: &str) {
 /// variants retain their source Rust names. Unnamed positions remain numeric
 /// diagnostic suffixes. Transparent wrappers return an empty suffix, and
 /// collection elements identify an element type without a runtime index.
+///
+///
+/// # Parameters
+///
+/// * `kind` - The structural edge whose source-level path suffix is rendered.
 ///
 /// # Returns
 ///
@@ -535,6 +655,17 @@ fn structural_suffix(kind: StructuralEdgeKind) -> String {
 /// Finds every model usage behind structural wrappers without expanding model
 /// bodies. Returned suffixes distinguish static uses of the same target type.
 /// Only active ancestors suppress cycles; siblings are never deduplicated.
+///
+///
+/// # Parameters
+///
+/// * `descriptor` - A concrete field type descriptor, if reflection resolved
+///   one.
+/// * `expression` - The source type expression used when the descriptor finds
+///   no nested model.
+/// * `owner` - The model that owns the field represented by the inputs.
+/// * `graph` - The resolved model graph used to match discovered types to
+///   metadata.
 ///
 /// # Returns
 ///
@@ -605,6 +736,17 @@ fn nested_models<'ctx>(
 
 /// Retains model usages found in source expressions when a context has no
 /// registered concrete field descriptor for the owning type.
+///
+/// # Parameters
+///
+/// * `expression` - The type expression recursively searched for registered
+///   model uses.
+/// * `owner` - The model whose type expression is being interpreted, including
+///   `Self` references.
+/// * `graph` - The resolved model graph used to resolve matching type names.
+/// * `suffix` - The diagnostic suffix accumulated from surrounding wrappers.
+/// * `output` - The vector receiving each discovered model use and its access
+///   information.
 fn expression_models(
     expression: TypeExpression<'_>,
     owner: &'static TypeMetadata,

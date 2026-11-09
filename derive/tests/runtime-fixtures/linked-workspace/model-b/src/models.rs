@@ -8,7 +8,8 @@
 // The filename is part of a Cargo fixture rather than an integration-test
 // target.
 
-//! Re-exports the model types and registrations used by linked-workspace fixtures.
+//! Re-exports the model types and registrations used by linked-workspace
+//! fixtures.
 
 use qubit_codec::ValueCodecId;
 use qubit_codec::ValueCodecRegistrationSource;
@@ -18,13 +19,9 @@ use qubit_validator::ValidatorId;
 use qubit_validator::ValidatorRegistration;
 
 #[cfg(feature = "duplicate-fixture")]
-#[path = "duplicate.rs"]
 mod duplicate;
-#[path = "target.rs"]
 mod target;
-#[path = "text_codec.rs"]
 mod text_codec;
-#[path = "text_rule.rs"]
 mod text_rule;
 
 #[cfg(feature = "duplicate-fixture")]
@@ -32,7 +29,8 @@ pub use duplicate::Duplicate;
 pub use target::Target;
 pub use text_codec::TextCodec;
 
-// Preserve the source location recorded before the codec was split into its own module.
+// Preserve the source location recorded before the codec was split into its own
+// module.
 /// The text codec registration consumed by the linked-workspace fixture.
 pub static CODEC: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.linked.text"),
@@ -40,7 +38,8 @@ pub static CODEC: ValueStringCodecRegistration = ValueStringCodecRegistration::n
     ValueCodecRegistrationSource::new("model-b", "models", file!(), 77),
 );
 
-// Preserve the source location recorded before the validator was split into its own module.
+// Preserve the source location recorded before the validator was split into its
+// own module.
 /// The validator registration consumed by the linked-workspace fixture.
 pub static RULE: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("test.linked.text"),

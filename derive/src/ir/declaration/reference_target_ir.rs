@@ -15,7 +15,13 @@ use syn::Type;
 #[derive(Clone)]
 pub(crate) enum ReferenceTargetIr {
     /// Target supplied by a Rust type.
-    RustType(Box<Type>),
+    RustType(
+        /// Parsed Rust type syntax identifying the referenced model.
+        Box<Type>,
+    ),
     /// Target supplied by a stable model ID.
-    ModelId(LitStr),
+    ModelId(
+        /// String literal containing the referenced model's stable ID.
+        LitStr,
+    ),
 }

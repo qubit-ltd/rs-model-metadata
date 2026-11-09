@@ -9,6 +9,7 @@
 //! Standard declaration adapters preserve text units, policies and rule
 //! identity.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use qubit_model_derive::Enum;
@@ -38,6 +39,18 @@ use qubit_validator::ViolationParam;
 struct TextUnits {
     #[text(min_chars = 1, max_chars = 2, min_bytes = 2, max_bytes = 3)]
     value: String,
+}
+
+#[Model]
+struct OptionalText {
+    #[text(non_blank)]
+    value: Option<String>,
+}
+
+#[Model]
+struct OptionalMapCount {
+    #[map(min_entries = 1)]
+    values: Option<HashMap<String, String>>,
 }
 
 #[Model]
@@ -182,6 +195,46 @@ fn test_text_character_and_byte_bounds_are_independent() {
             );
         }
     }
+}
+
+/// Direct optional text fields project their inner value and skip absent
+/// values.
+#[test]
+fn test_optional_text_projects_present_value_and_skips_none() {
+    let root = TypeMetadata::of::<OptionalText>();
+    let valid = validate(
+        root,
+        DynamicRef::<Local>::new(&OptionalText {
+            value: Some("present".to_owned()),
+        }),
+    );
+    assert!(valid.is_valid());
+    assert!(valid.skipped().is_empty());
+
+    let absent = validate(root, DynamicRef::<Local>::new(&OptionalText { value: None }));
+    assert!(absent.is_valid());
+    assert_eq!(absent.skipped().len(), 1);
+    assert_eq!(absent.skipped()[0].path().render(), "value");
+}
+
+/// Optional map cardinality checks skip absence and still count a present map.
+#[test]
+fn test_optional_map_count_skips_absent_map_and_checks_present_map() {
+    let root = TypeMetadata::of::<OptionalMapCount>();
+    let absent = validate(root, DynamicRef::<Local>::new(&OptionalMapCount { values: None }));
+    assert!(absent.is_valid());
+    assert_eq!(absent.skipped().len(), 1);
+    assert_eq!(absent.skipped()[0].path().render(), "values");
+
+    let present = validate(
+        root,
+        DynamicRef::<Local>::new(&OptionalMapCount {
+            values: Some(HashMap::new()),
+        }),
+    );
+    assert_eq!(present.violations().len(), 1);
+    assert_eq!(present.violations()[0].path().render(), "values");
+    assert_eq!(present.violations()[0].code().as_str(), "collection.too_small");
 }
 
 #[test]

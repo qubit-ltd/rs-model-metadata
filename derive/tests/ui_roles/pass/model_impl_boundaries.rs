@@ -25,6 +25,8 @@ trait Named {
 impl Named for Account {}
 
 #[Model]
-struct Generic<T> { value: T }
+struct Generic<T> {
+    value: T,
+}
 
 fn main() {}

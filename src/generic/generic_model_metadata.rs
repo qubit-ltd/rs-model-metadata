@@ -132,6 +132,11 @@ impl GenericModelMetadata {
 
     /// Finds the generic definition in the supplied reflection context.
     ///
+    /// # Parameters
+    ///
+    /// - `context`: Reflection context used to resolve this definition's source
+    ///   path.
+    ///
     /// # Returns
     ///
     /// The descriptor bound to `context`.

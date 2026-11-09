@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::PropertyBorrowed;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::StructureResolver;
@@ -54,4 +55,13 @@ fn test_plan_retains_graph_after_caller_drops_arc() {
     assert!(report.is_valid());
     assert!(report.violations().is_empty());
     assert!(report.skipped().is_empty());
+
+    let contextual = plan
+        .validate_with_context(&profile, &[], &ValidationOptions::default())
+        .expect("typed validation with explicit ancestor context succeeds");
+    assert!(contextual.is_valid());
+    let dynamic = plan
+        .validate_dynamic(PropertyBorrowed::new(&profile), &ValidationOptions::default())
+        .expect("dynamic validation succeeds");
+    assert!(dynamic.is_valid());
 }

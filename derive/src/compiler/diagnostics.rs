@@ -20,6 +20,10 @@ pub(crate) struct Diagnostics(
 
 impl Diagnostics {
     /// Adds one diagnostic without discarding previously collected errors.
+    ///
+    /// # Parameters
+    ///
+    /// * `error` - Compiler diagnostic to append to the accumulated errors.
     pub(crate) fn push(&mut self, error: Error) {
         if let Some(existing) = &mut self.0 {
             existing.combine(error);

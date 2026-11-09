@@ -12,6 +12,7 @@ use qubit_reflect::descriptor::Reflect;
 
 use crate::metadata::TypeMetadata;
 
+/// Builds static type metadata for generated model declarations.
 #[doc(hidden)]
 #[must_use]
 pub struct GeneratedTypeMetadataBuilder {

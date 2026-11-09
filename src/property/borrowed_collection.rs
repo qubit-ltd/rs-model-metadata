@@ -62,8 +62,15 @@ impl<'a> BorrowedCollection<'a> {
 }
 
 impl<'a> Iterator for BorrowedCollection<'a> {
+    /// One collection member borrowed for the source lifetime `'a`.
     type Item = PropertyBorrowed<'a>;
 
+    /// Returns the next borrowed member selected from the source collection.
+    ///
+    /// # Returns
+    ///
+    /// `Some` contains the next member with its original borrow lifetime;
+    /// `None` indicates that the iterator is exhausted.
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.values.next()

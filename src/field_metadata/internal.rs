@@ -65,3 +65,22 @@ pub(super) fn contains_self_type(expression: &TypeExpressionData) -> bool {
         | ExpressionData::Never => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use qubit_reflect::__private::codegen_v4::expression::ExpressionData;
+    use qubit_reflect::__private::codegen_v4::expression::FunctionPointerData;
+    use qubit_reflect::__private::codegen_v4::expression::TypeExpressionData;
+
+    use super::contains_self_type;
+
+    static SELF_TYPE: TypeExpressionData = ExpressionData::SelfType;
+    static FUNCTION: FunctionPointerData =
+        FunctionPointerData::new(&[&SELF_TYPE], Some(&SELF_TYPE), false, None, false, &[]);
+    static FUNCTION_TYPE: TypeExpressionData = ExpressionData::FunctionPointer(&FUNCTION);
+
+    #[test]
+    fn test_function_pointer_result_is_checked_for_self_type() {
+        assert!(contains_self_type(&FUNCTION_TYPE));
+    }
+}

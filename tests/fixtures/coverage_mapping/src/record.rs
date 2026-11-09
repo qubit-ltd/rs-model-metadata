@@ -28,7 +28,8 @@ impl Record {
         self.value
     }
 
-    /// Negative control: no test calls this method, so its count must stay zero.
+    /// Negative control: no test calls this method, so its count must stay
+    /// zero.
     #[must_use]
     #[inline(always)]
     pub const fn never_called(&self) -> u64 {

@@ -55,6 +55,10 @@ pub struct ModelRegistryError {
 
 impl ModelRegistryError {
     /// Wraps a reflection-context failure without model identity coordinates.
+    ///
+    /// # Parameters
+    ///
+    /// - `error`: Reflection-context failure retained as the underlying cause.
     pub(crate) fn context(error: ContextError) -> Self {
         Self {
             kind: ModelRegistryErrorKind::Context,
@@ -66,6 +70,11 @@ impl ModelRegistryError {
 
     /// Wraps a capability-resolution failure without model identity
     /// coordinates.
+    ///
+    /// # Parameters
+    ///
+    /// - `error`: Capability-resolution failure retained as the underlying
+    ///   cause.
     pub(crate) fn capability(error: CapabilityError) -> Self {
         Self {
             kind: ModelRegistryErrorKind::Capability,
@@ -76,6 +85,11 @@ impl ModelRegistryError {
     }
 
     /// Wraps a generic definition-lookup failure.
+    ///
+    /// # Parameters
+    ///
+    /// - `error`: Generic definition-lookup failure retained as the underlying
+    ///   cause.
     #[cfg(feature = "generic")]
     pub(crate) fn lookup(error: LookupError) -> Self {
         Self {
@@ -88,6 +102,15 @@ impl ModelRegistryError {
 
     /// Retains the model identity, source coordinates, and ABI validation
     /// cause.
+    ///
+    /// # Parameters
+    ///
+    /// - `model_id`: Stable model identifier associated with the invalid
+    ///   metadata, when known.
+    /// - `sources`: Registration coordinates that identify where the metadata
+    ///   came from.
+    /// - `cause`: ABI validation failure retained for diagnostics and error
+    ///   chaining.
     pub(crate) fn invalid_abi(
         model_id: Option<ModelId>,
         sources: Vec<ModelRegistryOrigin>,
@@ -102,6 +125,12 @@ impl ModelRegistryError {
     }
 
     /// Records a registration conflict without an underlying error cause.
+    ///
+    /// # Parameters
+    ///
+    /// - `model_id`: Stable model identifier involved in the conflict, when
+    ///   known.
+    /// - `sources`: Registration coordinates for the conflicting declarations.
     pub(crate) fn conflict(model_id: Option<ModelId>, sources: Vec<ModelRegistryOrigin>) -> Self {
         Self {
             kind: ModelRegistryErrorKind::RegistrationConflict,
@@ -112,6 +141,11 @@ impl ModelRegistryError {
     }
 
     /// Records duplicate use of a stable model identifier.
+    ///
+    /// # Parameters
+    ///
+    /// - `model_id`: Stable model identifier registered more than once.
+    /// - `sources`: Registration coordinates of the duplicate declarations.
     pub(crate) fn duplicate(model_id: ModelId, sources: Vec<ModelRegistryOrigin>) -> Self {
         Self {
             kind: ModelRegistryErrorKind::DuplicateModelId,
@@ -168,6 +202,20 @@ impl ModelRegistryError {
 }
 
 impl Display for ModelRegistryError {
+    /// Formats the error category, optional model identifier, and retained
+    /// cause.
+    ///
+    /// # Parameters
+    ///
+    /// - `f`: Destination formatter supplied by the formatting caller.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after the available error details have been written.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`std::fmt::Error`] if writing to the formatter fails.
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "model registry {:?}", self.kind)?;
         if let Some(id) = self.model_id {
@@ -181,6 +229,12 @@ impl Display for ModelRegistryError {
 }
 
 impl Error for ModelRegistryError {
+    /// Exposes the retained underlying failure for standard error chaining.
+    ///
+    /// # Returns
+    ///
+    /// `Some` borrows a retained context, capability, lookup, or ABI cause;
+    /// `None` indicates that the registry error has no underlying cause.
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self.cause.as_ref()? {
             Cause::Context(error) => Some(error),
@@ -188,6 +242,37 @@ impl Error for ModelRegistryError {
             #[cfg(feature = "generic")]
             Cause::Lookup(error) => Some(error),
             Cause::Abi(error) => Some(error),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+
+    #[cfg(feature = "generic")]
+    use qubit_reflect::ReflectionContext;
+    use qubit_reflect::error::ContextError;
+
+    use super::ModelRegistryError;
+    use super::ModelRegistryErrorKind;
+
+    #[test]
+    fn test_context_and_lookup_errors_retain_their_causes() {
+        let context_error = ModelRegistryError::context(ContextError::new("context unavailable"));
+        assert_eq!(context_error.kind(), ModelRegistryErrorKind::Context);
+        assert!(Error::source(&context_error).is_some());
+
+        #[cfg(feature = "generic")]
+        {
+            let context = ReflectionContext::builder().build().expect("empty context");
+            let lookup = match context.type_definition_by_name("missing.Definition") {
+                Ok(_) => panic!("unknown definition unexpectedly resolved"),
+                Err(error) => error,
+            };
+            let error = ModelRegistryError::lookup(lookup);
+            assert_eq!(error.kind(), ModelRegistryErrorKind::Lookup);
+            assert!(Error::source(&error).is_some());
         }
     }
 }

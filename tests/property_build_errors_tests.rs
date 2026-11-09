@@ -40,6 +40,11 @@ struct Other {
     name: String,
 }
 
+#[Model]
+struct SequenceRecord {
+    values: Vec<u32>,
+}
+
 #[cfg(feature = "generic")]
 #[Model]
 struct GenericRecord<T> {
@@ -204,4 +209,63 @@ fn test_accessor_signature_errors_are_aggregated_before_invocation() {
             ("setter_owner", PropertyBuildErrorKind::SetterTypeMismatch),
         ]
     );
+}
+
+/// Text accessors may borrow `str` views of a `String` property, and a slice
+/// getter may expose the element view of a sequence property.
+#[test]
+fn test_property_validation_accepts_text_views_and_borrowed_slices() {
+    let model = TypeMetadata::of::<Record>();
+    let context = ReflectionContext::builder()
+        .include_type::<Record>()
+        .include_type::<SequenceRecord>()
+        .include_type::<String>()
+        .include_type::<str>()
+        .include_type::<u32>()
+        .include_type::<Vec<u32>>()
+        .include_type::<[u32]>()
+        .build()
+        .expect("property accessor context");
+    let name = &model.fields()[0];
+    let text_getter = v8::leak(GetterMetadata::new::<Record>(
+        "name",
+        expression(name),
+        TypeId::of::<str>,
+        GetterOutputKind::Borrowed,
+        never_get,
+    ));
+    let text_setter = v8::leak(SetterMetadata::new::<Record, String>(
+        "set_name",
+        expression(name),
+        never_set,
+    ));
+    let text_property = v8::property_metadata(
+        "name",
+        Some(expression(name)),
+        Some(name),
+        Some(text_getter),
+        Some(text_setter),
+    );
+    assert!(model.validate_properties_in(&context, &[text_property]).is_ok());
+
+    let sequence = TypeMetadata::of::<SequenceRecord>();
+    let values = &sequence.fields()[0];
+    let slice_getter = v8::leak(
+        GetterMetadata::new::<SequenceRecord>(
+            "values",
+            expression(values),
+            TypeId::of::<&[u32]>,
+            GetterOutputKind::BorrowedSlice,
+            never_get,
+        )
+        .with_output_element_type_id(u32_type_id),
+    );
+    let sequence_property = v8::property_metadata(
+        "values",
+        Some(expression(values)),
+        Some(values),
+        Some(slice_getter),
+        None,
+    );
+    assert!(sequence.validate_properties_in(&context, &[sequence_property]).is_ok());
 }

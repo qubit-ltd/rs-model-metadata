@@ -170,6 +170,11 @@ impl PropertyMetadata {
 
     /// Resolves this property's concrete type in `context`, when available.
     ///
+    /// # Parameters
+    ///
+    /// - `context`: Reflection context used to resolve the property's reflected
+    ///   type.
+    ///
     /// # Returns
     ///
     /// `Some` with the concrete descriptor when resolved, or `None` for

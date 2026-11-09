@@ -19,6 +19,16 @@ use crate::metadata::ValidationArgument;
 /// Allocates a new ordered vector while preserving names, scalar values, and
 /// the borrowed string/list storage. Those borrowed values remain tied to the
 /// declarations' lifetime; the conversion does not clone their contents.
+///
+/// # Parameters
+///
+/// * `arguments` - Declaration-side named values converted in their original
+///   order.
+///
+/// # Returns
+///
+/// An ordered vector in the runtime validator vocabulary, borrowing any string
+/// and list data.
 #[must_use = "retain the converted validator arguments"]
 pub(crate) fn validator_arguments<'a>(
     arguments: &[NamedValidationArgument<'a>],

@@ -47,6 +47,11 @@ impl Debug for FieldPath {
     ///
     /// The `segments` field is represented by a redaction marker, while
     /// formatter failures are returned unchanged.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatter for the redacted path
+    ///   representation.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("FieldPath")
@@ -60,6 +65,11 @@ impl Display for FieldPath {
     ///
     /// The caller-supplied segments are omitted so diagnostics do not expose
     /// field names; formatter failures are returned unchanged.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatter for the stable non-sensitive
+    ///   message.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("field path did not match validation rules")
     }

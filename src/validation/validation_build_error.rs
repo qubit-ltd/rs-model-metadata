@@ -90,6 +90,12 @@ pub struct ValidationBuildError {
 
 impl ValidationBuildError {
     /// Wraps a shared validator binding error with model context.
+    ///
+    /// # Parameters
+    ///
+    /// - `model`: Validation root associated with the binding failure.
+    /// - `source`: Original validator binding failure retained for diagnostics
+    ///   and error chaining.
     pub(crate) fn new(model: &'static TypeMetadata, source: BindError) -> Self {
         Self {
             model,
@@ -107,6 +113,13 @@ impl ValidationBuildError {
     }
 
     /// Builds a diagnostic at the exact declaration being compiled.
+    ///
+    /// # Parameters
+    ///
+    /// - `occurrence`: Declaration occurrence retaining the root, owner, field,
+    ///   and source coordinates.
+    /// - `source`: Original validator binding failure associated with the
+    ///   occurrence.
     pub(crate) fn at_occurrence(occurrence: &ValidationOccurrence, source: BindError) -> Self {
         let mut error = Self::new(occurrence.root, source);
         error.owner = occurrence.owner;
@@ -132,6 +145,11 @@ impl ValidationBuildError {
     }
 
     /// Records a declaration which cannot be executed without losing semantics.
+    ///
+    /// # Parameters
+    ///
+    /// - `occurrence`: Unsupported declaration and the source context to retain
+    ///   in the diagnostic.
     pub(crate) fn unsupported(occurrence: &ValidationOccurrence) -> Self {
         let mut error = Self::at_occurrence(occurrence, BindError::new(BindErrorKind::UnsupportedConstraint));
         error.kind = ValidationBuildErrorKind::UnsupportedExecution;
@@ -140,6 +158,10 @@ impl ValidationBuildError {
     }
 
     /// Rejects a caller root not owned by the explicitly supplied graph.
+    ///
+    /// # Parameters
+    ///
+    /// - `root`: Requested validation root that is absent from the graph.
     pub(crate) fn missing_root(root: &'static TypeMetadata) -> Self {
         let mut error = Self::new(root, BindError::new(BindErrorKind::UnreadablePath));
         error.kind = ValidationBuildErrorKind::RootNotInGraph;
@@ -280,6 +302,10 @@ impl fmt::Debug for ValidationBuildError {
     /// Formats identities and declaration coordinates without expanding the
     /// metadata graph or inspecting model instances.
     ///
+    /// # Parameters
+    ///
+    /// - `f`: Destination formatter supplied by the formatting caller.
+    ///
     /// # Errors
     ///
     /// Returns the formatter's error if writing diagnostics fails.
@@ -302,6 +328,10 @@ impl fmt::Debug for ValidationBuildError {
 impl fmt::Display for ValidationBuildError {
     /// Formats the root, occurrence path, selector, original rule ID and cause
     /// when each is available.
+    ///
+    /// # Parameters
+    ///
+    /// - `f`: Destination formatter supplied by the formatting caller.
     ///
     /// # Errors
     ///

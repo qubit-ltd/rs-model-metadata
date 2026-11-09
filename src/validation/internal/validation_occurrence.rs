@@ -58,6 +58,15 @@ impl ValidationOccurrence {
 }
 
 impl Debug for ValidationOccurrence {
+    /// Formats the occurrence's declaration identity and traversal context.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination for the structured occurrence summary.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when formatting succeeds, or the formatter's error.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("ValidationOccurrence")

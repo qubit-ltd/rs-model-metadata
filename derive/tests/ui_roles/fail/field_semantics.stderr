@@ -1,23 +1,23 @@
 error: duplicate singleton field declaration
-  --> tests/ui_roles/fail/field_semantics.rs:14:8
+  --> tests/ui_roles/fail/field_semantics.rs:15:8
    |
-14 | struct InvalidFields {
+15 | struct InvalidFields {
    |        ^^^^^^^^^^^^^
 
 error: key_part orders must be unique and contiguous from zero
-  --> tests/ui_roles/fail/field_semantics.rs:14:8
+  --> tests/ui_roles/fail/field_semantics.rs:15:8
    |
-14 | struct InvalidFields {
+15 | struct InvalidFields {
    |        ^^^^^^^^^^^^^
 
 error: key_part orders must be unique and contiguous from zero
-  --> tests/ui_roles/fail/field_semantics.rs:25:8
+  --> tests/ui_roles/fail/field_semantics.rs:26:8
    |
-25 | struct NonZeroKeyStart {
+26 | struct NonZeroKeyStart {
    |        ^^^^^^^^^^^^^^^
 
 error: key_part orders must be unique and contiguous from zero
-  --> tests/ui_roles/fail/field_semantics.rs:31:8
+  --> tests/ui_roles/fail/field_semantics.rs:32:8
    |
-31 | struct GappedKeyOrder {
+32 | struct GappedKeyOrder {
    |        ^^^^^^^^^^^^^^

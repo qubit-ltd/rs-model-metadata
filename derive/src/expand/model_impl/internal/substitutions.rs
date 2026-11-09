@@ -34,6 +34,11 @@ pub(in crate::expand::model_impl) struct Substitutions {
 impl VisitMut for Substitutions {
     /// Replaces complete type parameters and qualified associated-type
     /// prefixes.
+    ///
+    /// # Parameters
+    ///
+    /// - `self`: Type and const replacement bindings to apply recursively.
+    /// - `ty`: Mutable type syntax whose matching generic paths are replaced.
     fn visit_type_mut(&mut self, ty: &mut Type) {
         if let Type::Path(path) = ty
             && path.qself.is_none()
@@ -51,6 +56,11 @@ impl VisitMut for Substitutions {
     }
 
     /// Converts syntactically ambiguous generic arguments to const values.
+    ///
+    /// # Parameters
+    ///
+    /// - `self`: Const replacement bindings to apply recursively.
+    /// - `argument`: Mutable generic argument to inspect and rewrite.
     fn visit_generic_argument_mut(&mut self, argument: &mut GenericArgument) {
         if let GenericArgument::Type(Type::Path(path)) = argument
             && let Some(name) = path.path.get_ident()
@@ -63,6 +73,12 @@ impl VisitMut for Substitutions {
     }
 
     /// Replaces const parameters in array lengths and generic const arguments.
+    ///
+    /// # Parameters
+    ///
+    /// - `self`: Const replacement bindings to apply recursively.
+    /// - `expression`: Mutable expression whose matching const paths are
+    ///   replaced.
     fn visit_expr_mut(&mut self, expression: &mut Expr) {
         if let Expr::Path(path) = expression
             && let Some(name) = path.path.get_ident()

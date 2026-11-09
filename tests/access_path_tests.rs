@@ -511,6 +511,53 @@ fn test_compile_rejects_borrowed_slice_intermediate() {
     ));
 }
 
+/// A dynamic read rejects a value whose type differs from the compiled root.
+#[test]
+fn test_dynamic_read_rejects_a_mismatched_root_type() {
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &["middle", "value"])
+        .expect("root path compiles");
+    let wrong_root = AccessLeaf {
+        value: "unrelated".to_owned(),
+    };
+
+    assert!(matches!(
+        path.read_dynamic(DynamicRef::<Local>::new(&wrong_root)),
+        Err(PropertyAccessPathError::RootTypeMismatch { .. })
+    ));
+}
+
+/// A dynamic write returns its unconsumed replacement on a root mismatch.
+#[test]
+fn test_dynamic_write_preserves_replacement_for_a_mismatched_root_type() {
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<AccessRoot>(), &["middle", "value"])
+        .expect("root path compiles for writing");
+    let mut wrong_root = AccessLeaf {
+        value: "unrelated".to_owned(),
+    };
+
+    let failure = path
+        .write_dynamic(
+            DynamicMut::<Local>::new(&mut wrong_root),
+            DynamicOwned::<Local>::new("replacement".to_owned()),
+        )
+        .expect_err("a path cannot be applied to a different root type");
+
+    assert!(matches!(
+        failure.path_error(),
+        Some(PropertyAccessPathError::RootTypeMismatch { .. })
+    ));
+    assert_eq!(
+        failure
+            .replacement()
+            .and_then(|value| value.downcast_ref::<String>())
+            .map(String::as_str),
+        Some("replacement")
+    );
+    assert_eq!(wrong_root.value, "unrelated");
+}
+
 #[test]
 fn test_borrowed_getter_intermediate_is_readable_but_not_writable() {
     let registry = test_registry();

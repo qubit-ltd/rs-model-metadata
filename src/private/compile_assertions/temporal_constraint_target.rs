@@ -19,7 +19,9 @@ use chrono::TimeZone;
 
 /// Marks temporal values accepted by time constraints.
 #[doc(hidden)]
-pub trait TemporalConstraintTarget {}
+pub trait TemporalConstraintTarget {
+    // empty
+}
 
 impl<Tz: TimeZone + 'static> TemporalConstraintTarget for DateTime<Tz> {}
 impl TemporalConstraintTarget for NaiveDate {}

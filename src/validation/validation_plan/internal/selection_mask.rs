@@ -27,7 +27,10 @@ pub(in crate::validation::validation_plan) enum SelectionMask {
         total: usize,
     },
     /// Stores selection and path state for each planned occurrence.
-    Fields(Vec<SelectionEntry>),
+    Fields(
+        /// Per-occurrence selection flags and any retained explicit field path.
+        Vec<SelectionEntry>,
+    ),
 }
 
 impl SelectionMask {
@@ -149,6 +152,15 @@ impl SelectionMask {
 }
 
 /// Reports whether a validation path is selected by the caller.
+///
+/// # Parameters
+///
+/// - `selection`: Requested all-fields or explicit field-path selection.
+/// - `path`: Validation path to compare against the requested selection.
+///
+/// # Returns
+///
+/// `true` when the selection includes `path`.
 #[must_use]
 fn selected(selection: &ValidationSelection, path: &ValidationPath) -> bool {
     match selection {

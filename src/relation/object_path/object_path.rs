@@ -113,6 +113,10 @@ impl ObjectPath {
 
 impl fmt::Display for ObjectPath {
     /// Renders the relative path with slash separators.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination formatter for the rendered relative path.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (index, step) in self.steps.iter().enumerate() {
             if index != 0 {

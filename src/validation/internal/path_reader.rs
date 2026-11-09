@@ -55,7 +55,7 @@ pub(crate) fn read<'value>(
             let depth = parent_depth
                 .checked_add(index)
                 .and_then(|depth| depth.checked_add(1))
-                .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit))?;
+                .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit).with_path(path_for(path)))?;
             budget.read(depth).map_err(|error| error.with_path(path_for(path)))?;
             let variant = context
                 .find_type_by_id(guard.declaring_type)
@@ -74,7 +74,7 @@ pub(crate) fn read<'value>(
         let depth = parent_depth
             .checked_add(index)
             .and_then(|depth| depth.checked_add(1))
-            .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit))?;
+            .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit).with_path(path_for(path)))?;
         budget.read(depth).map_err(|error| error.with_path(path_for(path)))?;
         // The path was compiled from registered Model metadata and its owner,
         // field descriptor, and target type were validated during resolution.
@@ -340,6 +340,7 @@ mod tests {
     #[Reflect]
     enum GuardMismatchFixture {
         Named { value: String },
+        Inactive,
     }
 
     fn dependency_metadata() -> &'static TypeMetadata {
@@ -661,6 +662,37 @@ mod tests {
     }
 
     #[test]
+    fn test_property_read_depth_overflow_keeps_traversal_context() {
+        let graph = dependency_graph();
+        let path = CompiledPropertyPath::compile(
+            reflection_context(),
+            dependency_metadata(),
+            &PropertyPath::new(&["value"]),
+            &graph,
+            TargetMode::Value,
+        )
+        .expect("root field path compiles");
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+        let root = DependencyRoot {
+            value: "value".to_owned(),
+        };
+
+        let error = match super::read(
+            reflection_context(),
+            &path,
+            DynamicRef::<Local>::new(&root),
+            usize::MAX,
+            &mut budget,
+        ) {
+            Ok(_) => panic!("overflowing property depth unexpectedly succeeded"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
+        assert_eq!(error.path().render(), "value");
+    }
+
+    #[test]
     fn test_dependency_batch_preserves_values_and_report_paths() {
         let graph = dependency_graph();
         let path = CompiledPropertyPath::compile(
@@ -797,6 +829,162 @@ mod tests {
         assert_eq!(
             error.path(),
             &ValidationPath::root().with_field("Named").with_field("value")
+        );
+    }
+
+    #[test]
+    fn test_inactive_variant_guard_is_a_missing_dependency_value() {
+        let graph = dependency_graph();
+        let mut path = CompiledPropertyPath::compile(
+            reflection_context(),
+            dependency_metadata(),
+            &PropertyPath::new(&["value"]),
+            &graph,
+            TargetMode::Value,
+        )
+        .expect("dependency field path compiles");
+        path.variant_guard = Some(VariantGuard {
+            after_steps: 0,
+            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context()).type_id(),
+            variant_index: 0,
+        });
+        path.variant_name = Some("Named");
+        let inactive = GuardMismatchFixture::Inactive;
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+
+        let error = match read_dependency(&path, DynamicRef::<Local>::new(&inactive), &[], &graph, &mut budget) {
+            Err(error) => error,
+            Ok(_) => panic!("a dependency field outside the active variant is absent"),
+        };
+
+        assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
+        assert_eq!(error.path().render(), "Named.value");
+    }
+
+    #[test]
+    fn test_variant_guard_with_missing_variant_is_a_property_read_failure() {
+        let graph = dependency_graph();
+        let mut path = CompiledPropertyPath::compile(
+            reflection_context(),
+            dependency_metadata(),
+            &PropertyPath::new(&["value"]),
+            &graph,
+            TargetMode::Value,
+        )
+        .expect("dependency field path compiles");
+        path.variant_guard = Some(VariantGuard {
+            after_steps: 0,
+            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context()).type_id(),
+            variant_index: usize::MAX,
+        });
+        path.variant_name = Some("Named");
+        let root = DependencyRoot {
+            value: "value".to_owned(),
+        };
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+
+        let error = match super::read(
+            reflection_context(),
+            &path,
+            DynamicRef::<Local>::new(&root),
+            0,
+            &mut budget,
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("a guard referring to no declared variant cannot read the path"),
+        };
+
+        assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
+        assert_eq!(
+            error.path(),
+            &ValidationPath::root().with_field("Named").with_field("value")
+        );
+    }
+
+    #[test]
+    fn test_variant_guard_depth_overflow_keeps_the_property_path() {
+        let graph = dependency_graph();
+        let mut path = CompiledPropertyPath::compile(
+            reflection_context(),
+            dependency_metadata(),
+            &PropertyPath::new(&["value"]),
+            &graph,
+            TargetMode::Value,
+        )
+        .expect("dependency field path compiles");
+        path.variant_guard = Some(VariantGuard {
+            after_steps: 0,
+            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context()).type_id(),
+            variant_index: 0,
+        });
+        path.variant_name = Some("Named");
+        let root = DependencyRoot {
+            value: "value".to_owned(),
+        };
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+
+        let error = match super::read(
+            reflection_context(),
+            &path,
+            DynamicRef::<Local>::new(&root),
+            usize::MAX,
+            &mut budget,
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("variant guard depth arithmetic must reject overflow"),
+        };
+
+        assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
+        assert_eq!(
+            error.path(),
+            &ValidationPath::root().with_field("Named").with_field("value")
+        );
+    }
+
+    #[test]
+    fn test_property_getter_failure_keeps_the_compiled_path() {
+        let graph = dependency_graph();
+        let path = CompiledPropertyPath::compile(
+            reflection_context(),
+            dependency_metadata(),
+            &PropertyPath::new(&["value"]),
+            &graph,
+            TargetMode::Value,
+        )
+        .expect("dependency field path compiles");
+        let wrong_root = OptionalDependencyRoot { child: None };
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+
+        let error = match super::read(
+            reflection_context(),
+            &path,
+            DynamicRef::<Local>::new(&wrong_root),
+            0,
+            &mut budget,
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("a field adapter rejects a root of another type"),
+        };
+
+        assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
+        assert_eq!(error.path(), &ValidationPath::root().with_field("value"));
+    }
+
+    #[test]
+    fn test_reflected_enum_field_retains_its_declaring_variant() {
+        let descriptor = TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context());
+        let variant = descriptor.variants().get_at(0).expect("named variant");
+        let reflected_field = variant.fields().get_at(0).expect("variant value field");
+        let metadata = FieldMetadata::from_reflect(descriptor.type_id(), reflected_field);
+
+        assert!(metadata.variant_inherited());
+        assert_eq!(
+            metadata.location().and_then(|location| location.variant()),
+            Some(variant.index())
         );
     }
 }

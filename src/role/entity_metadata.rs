@@ -80,6 +80,11 @@ impl EntityMetadata {
 
     /// Reads this entity's identifier through its generated typed accessor.
     ///
+    /// # Parameters
+    ///
+    /// - `value`: Dynamically borrowed entity value passed to the generated
+    ///   accessor.
+    ///
     /// # Returns
     ///
     /// The identifier borrowed from `value` when it has the generated entity

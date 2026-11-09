@@ -76,6 +76,15 @@ impl PropertySetFailure {
 
     /// Builds a field-write failure while preserving the replacement returned
     /// by reflection after a rejected write.
+    ///
+    /// # Parameters
+    ///
+    /// * `error` - Reflection's field-set rejection details.
+    /// * `replacement` - Untouched replacement returned by the rejected write.
+    ///
+    /// # Returns
+    ///
+    /// A failure retaining the replacement for recovery.
     pub(super) fn from_field_set_failure(error: FieldSetError, replacement: PropertyOwned) -> Self {
         Self {
             error: Box::new(PropertyAccessError::FieldSet(error)),
@@ -118,6 +127,15 @@ impl PropertySetFailure {
 }
 
 impl fmt::Debug for PropertySetFailure {
+    /// Formats the structured error and whether a replacement is available.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination for the failure summary.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when formatting succeeds, or the formatter's error.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("PropertySetFailure")
@@ -128,6 +146,15 @@ impl fmt::Debug for PropertySetFailure {
 }
 
 impl fmt::Display for PropertySetFailure {
+    /// Formats the underlying property access error.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination for the access error description.
+    ///
+    /// # Returns
+    ///
+    /// The result of formatting the underlying property access error.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.error.fmt(formatter)
     }

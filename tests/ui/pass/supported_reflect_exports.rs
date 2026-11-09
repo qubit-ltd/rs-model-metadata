@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
+use qubit_reflect::Reflect;
 use qubit_reflect::context::ReflectionContext;
 use qubit_reflect::context::ReflectionContextId;
 use qubit_reflect::descriptor::ConstExpression;
@@ -17,7 +18,6 @@ use qubit_reflect::descriptor::TypeDescriptor;
 use qubit_reflect::descriptor::TypeExpression;
 use qubit_reflect::descriptor::VariantDescriptor;
 use qubit_reflect::error::RegistrationOrigin;
-use qubit_reflect::Reflect;
 
 #[Reflect]
 struct Generic<T> {

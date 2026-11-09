@@ -14,10 +14,9 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::process::Output;
 
-#[path = "support/temporary_target_dir.rs"]
-mod temporary_target_dir;
+mod support;
 
-use temporary_target_dir::TemporaryTargetDir;
+use support::temporary_target_dir::TemporaryTargetDir;
 
 /// Checks all declared presence axes and the intersecting failure cases.
 #[test]

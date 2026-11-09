@@ -70,30 +70,22 @@ mod tests {
             TypeMetadata::of::<GenericConfigured<u32>>(),
         ] {
             let properties = models.properties_for(metadata).expect("generic properties");
-            assert_eq!(
-                properties.property("current").is_some(),
-                cfg!(feature = "accessors")
-            );
+            assert_eq!(properties.property("current").is_some(), cfg!(feature = "accessors"));
             assert_eq!(
                 properties.property("impl_current").is_some(),
                 cfg!(feature = "impl-enabled")
             );
             assert!(properties.property("missing").is_none());
-            let generic_impls = reflection
-                .impl_definitions()
-                .expect("generic source impl definitions");
+            let generic_impls = reflection.impl_definitions().expect("generic source impl definitions");
             for (name, enabled) in [
                 ("current", cfg!(feature = "accessors")),
                 ("impl_current", cfg!(feature = "impl-enabled")),
                 ("missing", false),
             ] {
-                let present = generic_impls
-                    .iter()
-                    .any(|implementation| {
-                        let target = implementation.target().display().to_string();
-                        target.contains("GenericConfigured")
-                            && implementation.methods().get(name).is_some()
-                    });
+                let present = generic_impls.iter().any(|implementation| {
+                    let target = implementation.target().display().to_string();
+                    target.contains("GenericConfigured") && implementation.methods().get(name).is_some()
+                });
                 assert_eq!(present, enabled, "generic reflection method {name}");
             }
         }

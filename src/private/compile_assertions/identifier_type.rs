@@ -17,6 +17,8 @@ use super::identifier_type_seal::IdentifierTypeSeal;
 /// Type aliases of [`qubit_id::Id`] satisfy this bound because aliases do
 /// not create a distinct Rust type. Wrappers and containers do not.
 #[doc(hidden)]
-pub trait IdentifierType: IdentifierTypeSeal {}
+pub trait IdentifierType: IdentifierTypeSeal {
+    // empty
+}
 
 impl IdentifierType for Id {}

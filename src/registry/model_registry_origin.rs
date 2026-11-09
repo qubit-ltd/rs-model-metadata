@@ -47,6 +47,10 @@ pub struct ModelRegistryOrigin {
 impl From<&RegistrationOrigin> for ModelRegistryOrigin {
     /// Copies the registration's source coordinates into an owned value.
     ///
+    /// # Parameters
+    ///
+    /// - `origin`: Registration source coordinates to retain.
+    ///
     /// # Returns
     ///
     /// A value containing the registration's crate, module, and source

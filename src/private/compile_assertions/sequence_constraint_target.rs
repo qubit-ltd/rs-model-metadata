@@ -68,11 +68,15 @@ sequence_target!(
     BTreeSet<T>,
 );
 
+/// Selects the stored element type for fixed-size arrays.
 impl<T: 'static, const N: usize> SequenceConstraintTarget for [T; N] {
+    /// Element type stored in the fixed-size array.
     type Element = T;
 }
 
+/// Forwards sequence element selection through an optional wrapper.
 impl<T: SequenceConstraintTarget> SequenceConstraintTarget for Option<T> {
+    /// Element type selected recursively from the wrapped sequence target.
     type Element = T::Element;
 }
 

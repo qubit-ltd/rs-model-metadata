@@ -38,6 +38,10 @@ use crate::validate::declaration::combine;
 ///
 /// Omission metadata is supported for `Option` and standard collection paths
 /// with generic arguments; qualified-self paths are rejected.
+///
+/// # Parameters
+///
+/// - `ty`: Field type whose omission support is being checked.
 #[must_use]
 #[inline]
 fn supports_omission_metadata(ty: &Type) -> bool {
@@ -54,6 +58,11 @@ fn supports_omission_metadata(ty: &Type) -> bool {
 }
 
 /// Applies declaration-wide canonicalization before semantic validation.
+///
+/// # Parameters
+///
+/// - `declaration`: Parsed declaration whose variant indices and omission
+///   metadata are normalized in place.
 pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
     for (index, variant) in declaration.variants.iter_mut().enumerate() {
         for field in &mut variant.fields {
@@ -93,6 +102,12 @@ pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
 
 /// Validates normalized role, field, capability, and ordering invariants.
 ///
+/// # Parameters
+///
+/// - `declaration`: Normalized intermediate representation to validate.
+/// - `item`: Original derive input used to attach diagnostics to the source
+///   item.
+///
 /// # Returns
 ///
 /// Returns `Ok(())` when every declaration invariant holds.
@@ -116,6 +131,12 @@ pub(crate) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
 }
 
 /// Checks role-specific declaration options and their pairwise constraints.
+///
+/// # Parameters
+///
+/// - `declaration`: Parsed declaration whose role and options are checked.
+/// - `item`: Original derive input used to locate option diagnostics.
+/// - `errors`: Accumulator that receives any option violations found.
 fn validate_declaration_options(declaration: &DeclarationIr, item: &DeriveInput, errors: &mut Option<Error>) {
     let options = &declaration.options;
     if declaration.kind == MacroKind::Entity && options.id.is_none() {
@@ -196,6 +217,12 @@ fn validate_declaration_options(declaration: &DeclarationIr, item: &DeriveInput,
 }
 
 /// Rejects duplicate canonical names among enum variants.
+///
+/// # Parameters
+///
+/// - `declaration`: Parsed declaration whose variant names are checked.
+/// - `item`: Original derive input used to locate duplicate-name diagnostics.
+/// - `errors`: Accumulator that receives a duplicate-name violation.
 fn validate_variant_names(declaration: &DeclarationIr, item: &DeriveInput, errors: &mut Option<Error>) {
     let mut variant_names = HashSet::new();
     for variant in &declaration.variants {
@@ -209,6 +236,13 @@ fn validate_variant_names(declaration: &DeclarationIr, item: &DeriveInput, error
 }
 
 /// Checks role compatibility and field-level declaration conflicts.
+///
+/// # Parameters
+///
+/// - `declaration`: Parsed declaration supplying the model role and options.
+/// - `field`: Field whose occurrences and constraints are checked.
+/// - `item`: Original derive input used to locate diagnostics.
+/// - `errors`: Accumulator that receives any field violations found.
 fn validate_field_declaration(
     declaration: &DeclarationIr,
     field: &FieldIr,
@@ -221,6 +255,14 @@ fn validate_field_declaration(
 }
 
 /// Validates field occurrences against the model role and scalar constraints.
+///
+/// # Parameters
+///
+/// - `declaration`: Parsed declaration supplying the model role.
+/// - `field`: Field whose occurrences are checked against that role.
+/// - `item`: Original derive input used to locate diagnostics.
+/// - `errors`: Accumulator that receives any role or constraint violations
+///   found.
 fn validate_field_role_compatibility(
     declaration: &DeclarationIr,
     field: &FieldIr,
@@ -289,6 +331,12 @@ fn validate_field_role_compatibility(
 }
 
 /// Detects incompatible, duplicate, or overlapping field occurrences.
+///
+/// # Parameters
+///
+/// - `field`: Field whose occurrence combinations are checked.
+/// - `item`: Original derive input used to locate conflict diagnostics.
+/// - `errors`: Accumulator that receives any occurrence conflict found.
 fn validate_field_occurrence_conflicts(field: &FieldIr, item: &DeriveInput, errors: &mut Option<Error>) {
     let has_implicit_index = field.occurrences.iter().any(|value| {
         matches!(
@@ -398,6 +446,13 @@ fn validate_field_occurrence_conflicts(field: &FieldIr, item: &DeriveInput, erro
 }
 
 /// Ensures key-part indices form one unique contiguous sequence.
+///
+/// # Parameters
+///
+/// - `declaration`: Parsed declaration whose key-part indices are checked.
+/// - `item`: Original derive input used to locate ordering diagnostics.
+/// - `errors`: Accumulator that receives a violation if indices are not
+///   contiguous.
 fn validate_key_part_order(declaration: &DeclarationIr, item: &DeriveInput, errors: &mut Option<Error>) {
     let mut orders: Vec<_> = declaration
         .fields
@@ -447,6 +502,11 @@ fn is_text_type(ty: &Type) -> bool {
 }
 
 /// Adds implicit container constraints required by selector metadata.
+///
+/// # Parameters
+///
+/// - `field`: Field whose selector positions determine required container
+///   constraints.
 pub(crate) fn normalize_selector_containers(field: &mut FieldIr) {
     let has_element = field.occurrences.iter().any(|value| {
         matches!(
@@ -493,6 +553,12 @@ pub(crate) fn normalize_selector_containers(field: &mut FieldIr) {
 }
 
 /// Validates duplicate field and selector constraints and checks their ranges.
+///
+/// # Parameters
+///
+/// - `field`: Field whose constraints are checked for duplicate kinds and
+///   invalid ranges.
+/// - `errors`: Accumulator that receives any constraint violation found.
 pub(crate) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Error>) {
     let mut kinds = HashSet::new();
     for constraint in field.occurrences.iter().filter_map(|value| match value {

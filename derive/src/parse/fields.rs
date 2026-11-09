@@ -701,3 +701,27 @@ pub(crate) fn parse_object_path(value: LitStr) -> Result<Vec<String>> {
     }
     Ok(steps)
 }
+
+#[cfg(test)]
+mod tests {
+    use syn::Attribute;
+    use syn::parse_quote;
+
+    use super::parse_codec;
+    use super::parse_identifier;
+    use super::parse_key_part;
+    use super::parse_redact;
+
+    #[test]
+    fn test_required_field_options_report_missing_values() {
+        let identifier: Attribute = parse_quote!(#[identifier()]);
+        let key_part: Attribute = parse_quote!(#[key_part()]);
+        let codec: Attribute = parse_quote!(#[codec()]);
+        let redact: Attribute = parse_quote!(#[redact()]);
+
+        assert!(parse_identifier(&identifier).is_err());
+        assert!(parse_key_part(&key_part).is_err());
+        assert!(parse_codec(&codec).is_err());
+        assert!(parse_redact(&redact).is_err());
+    }
+}

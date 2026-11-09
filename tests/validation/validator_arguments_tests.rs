@@ -11,6 +11,9 @@
 use std::sync::Arc;
 
 use qubit_model_derive::Model;
+use qubit_model_metadata::metadata::CodecReference;
+use qubit_model_metadata::metadata::RustTypeReference;
+use qubit_model_metadata::metadata::Sensitivity;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ResolveInputs;
@@ -153,4 +156,54 @@ fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
         assert_eq!(report.violations().len(), expected_failures);
         assert!(!report.is_truncated());
     }
+}
+
+/// Debug output preserves the argument kind and collection size without leaking
+/// values.
+#[test]
+fn test_validation_argument_debug_redacts_values() {
+    let secret = "private token";
+    let bools = [true, false];
+    let integers = [i128::MIN, i128::MAX];
+    let unsigned = [u128::MAX];
+    let strings = [secret, "another private value"];
+    let arguments = [
+        (ValidationArgument::Bool(true), "Bool(<redacted>)"),
+        (ValidationArgument::Integer(i128::MIN), "Integer(<redacted>)"),
+        (ValidationArgument::Unsigned(u128::MAX), "Unsigned(<redacted>)"),
+        (ValidationArgument::String(secret), "String(<redacted>)"),
+        (ValidationArgument::BoolList(&bools), "BoolList { len: 2 }"),
+        (ValidationArgument::IntegerList(&integers), "IntegerList { len: 2 }"),
+        (ValidationArgument::UnsignedList(&unsigned), "UnsignedList { len: 1 }"),
+        (ValidationArgument::StringList(&strings), "StringList { len: 2 }"),
+    ];
+
+    for (argument, expected) in arguments {
+        let debug = format!("{argument:?}");
+        assert_eq!(debug, expected);
+        assert!(!debug.contains(secret));
+    }
+}
+
+/// Codec declarations keep their identifier and Rust type forms distinct.
+#[test]
+fn test_codec_reference_accessors_preserve_declaration_kind() {
+    let declared = CodecReference::DeclaredId("codec.email");
+    assert_eq!(declared.declared_id(), Some("codec.email"));
+    assert!(declared.rust_type().is_none());
+
+    let rust_type = CodecReference::RustType(RustTypeReference::of::<String>());
+    let reference = rust_type.rust_type().expect("Rust type declaration");
+    assert_eq!(reference.type_id(), std::any::TypeId::of::<String>());
+    assert!(reference.type_name().contains("String"));
+    assert!(rust_type.declared_id().is_none());
+}
+
+/// Sensitivity labels use stable lowercase metadata spellings.
+#[test]
+fn test_sensitivity_labels_are_stable() {
+    assert_eq!(Sensitivity::Public.as_str(), "public");
+    assert_eq!(Sensitivity::Personal.as_str(), "personal");
+    assert_eq!(Sensitivity::Confidential.as_str(), "confidential");
+    assert_eq!(Sensitivity::Secret.as_str(), "secret");
 }

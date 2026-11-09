@@ -26,5 +26,8 @@ pub enum CodecSource {
     /// A codec declared for a value object's canonical representation.
     CanonicalValue,
     /// A codec declared for a nested selector position.
-    Selector(SelectorPosition),
+    Selector(
+        /// Nested collection position that owns the codec declaration.
+        SelectorPosition,
+    ),
 }

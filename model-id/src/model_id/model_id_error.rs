@@ -36,6 +36,14 @@ pub enum ModelIdError {
 
 impl Display for ModelIdError {
     /// Formats a concise explanation of the invalid model-ID component.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination for the error description.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when formatting succeeds, or the formatter's error.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
         formatter.write_str(match self {
             Self::Empty => "model ID cannot be empty",

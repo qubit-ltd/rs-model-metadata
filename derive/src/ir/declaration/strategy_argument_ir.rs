@@ -14,19 +14,45 @@ use syn::LitStr;
 #[derive(Clone)]
 pub(crate) enum StrategyArgumentIr {
     /// Boolean argument.
-    Bool(bool),
+    Bool(
+        /// The value of the parsed boolean literal.
+        bool,
+    ),
     /// Signed integer argument.
-    Integer(i128),
+    Integer(
+        /// The signed value parsed from an integer literal.
+        i128,
+    ),
     /// Unsigned integer argument.
-    Unsigned(u128),
+    Unsigned(
+        /// The non-negative value parsed from an integer literal.
+        u128,
+    ),
     /// String argument.
-    String(LitStr),
+    String(
+        /// The parsed string literal, including its source span.
+        LitStr,
+    ),
     /// Boolean list argument.
-    BoolList(Vec<bool>),
+    BoolList(
+        /// Values from a non-empty homogeneous boolean literal array.
+        Vec<bool>,
+    ),
     /// Signed integer list argument.
-    IntegerList(Vec<i128>),
+    IntegerList(
+        /// Signed values from a non-empty homogeneous integer literal array.
+        Vec<i128>,
+    ),
     /// Unsigned integer list argument.
-    UnsignedList(Vec<u128>),
+    UnsignedList(
+        /// Non-negative values from a non-empty homogeneous integer literal
+        /// array.
+        Vec<u128>,
+    ),
     /// String list argument.
-    StringList(Vec<LitStr>),
+    StringList(
+        /// String literals from a non-empty homogeneous array, with their
+        /// spans.
+        Vec<LitStr>,
+    ),
 }

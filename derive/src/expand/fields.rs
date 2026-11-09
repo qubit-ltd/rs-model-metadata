@@ -76,6 +76,15 @@ pub(super) fn type_expression_data_with_parameters(
 /// Exact owner paths become `SelfType`, while declared type and const
 /// parameters retain their names. Unsupported syntax remains represented by a
 /// generated compile-time diagnostic.
+///
+/// # Parameters
+/// - `ty`: Rust type syntax to represent.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_type_names`: declared type and const parameter names.
+/// - `owner`: optional declaration type whose exact path represents `Self`.
+///
+/// # Returns
+/// Tokens constructing the corresponding expression facts.
 #[must_use]
 fn type_expression_data_for_owner(
     ty: &Type,
@@ -272,6 +281,15 @@ fn type_expression_data_for_owner(
 }
 
 /// Converts a Rust type into expression tokens for the declaration owner.
+///
+/// # Parameters
+/// - `ty`: Rust type syntax to represent.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_type_names`: declared type and const parameter names.
+/// - `owner`: optional declaration type whose exact path represents `Self`.
+///
+/// # Returns
+/// Tokens constructing the corresponding expression facts.
 #[must_use]
 fn type_expression_for_owner(
     ty: &Type,
@@ -283,6 +301,15 @@ fn type_expression_for_owner(
 }
 
 /// Converts generic arguments from associated-type trait path segments.
+///
+/// # Parameters
+/// - `segments`: trait path segments whose generic arguments are represented.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_type_names`: declared type and const parameter names.
+/// - `owner`: optional declaration type used to recognize `Self` paths.
+///
+/// # Returns
+/// Runtime expression tokens for supported type, lifetime, and const arguments.
 #[must_use]
 fn trait_generic_arguments(
     segments: &[&PathSegment],
@@ -317,6 +344,13 @@ fn trait_generic_arguments(
 }
 
 /// Collects lifetime arguments from associated-type trait path segments.
+///
+/// # Parameters
+/// - `segments`: trait path segments whose lifetime arguments are collected.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Runtime expression tokens for lifetime arguments, in path order.
 #[must_use]
 fn trait_generic_lifetimes(segments: &[&PathSegment], runtime: &TokenStream) -> Vec<TokenStream> {
     segments
@@ -333,6 +367,13 @@ fn trait_generic_lifetimes(segments: &[&PathSegment], runtime: &TokenStream) -> 
 }
 
 /// Converts a Rust lifetime into its runtime expression representation.
+///
+/// # Parameters
+/// - `lifetime`: source lifetime to represent.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens for the corresponding static, placeholder, or named lifetime value.
 #[must_use]
 fn lifetime_expression(lifetime: &Lifetime, runtime: &TokenStream) -> TokenStream {
     match lifetime.ident.to_string().as_str() {
@@ -346,6 +387,15 @@ fn lifetime_expression(lifetime: &Lifetime, runtime: &TokenStream) -> TokenStrea
 }
 
 /// Converts a Rust const expression into a supported runtime expression fact.
+///
+/// # Parameters
+/// - `expression`: source const expression to represent.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_type_names`: declared type and const parameter names.
+///
+/// # Returns
+/// Tokens for the supported literal or path representation, or a diagnostic
+/// for unsupported syntax.
 #[must_use]
 fn const_expression(expression: &Expr, runtime: &TokenStream, generic_type_names: &[Ident]) -> TokenStream {
     let path = |value: &Expr| {
@@ -760,6 +810,16 @@ fn expand_field_with_parameters(
 ///
 /// The returned fragments are inserted at their original binding points so
 /// references to declaration metadata remain initialized in the same order.
+///
+/// # Parameters
+/// - `field`: normalized field and selector declarations.
+/// - `runtime`: path to the runtime crate.
+/// - `generic_definition`: whether the generated metadata describes a generic
+///   definition.
+///
+/// # Returns
+/// Tokens for selector assertions and metadata, constraints, and optional
+/// collection adapters in the order expected by the caller.
 #[must_use]
 fn expand_collection_metadata(
     field: &FieldIr,
@@ -862,6 +922,18 @@ fn expand_collection_metadata(
 /// Constraint and validator indices advance only when their matching
 /// occurrences are visited, so the generated references stay aligned with the
 /// arrays assembled by the caller.
+///
+/// # Parameters
+/// - `field`: normalized field occurrences to convert.
+/// - `has_indexed`: whether the field has an explicit indexing occurrence.
+/// - `has_identifier`: whether the field declares an identifier.
+/// - `has_unique`: whether the field declares uniqueness.
+/// - `has_reference`: whether the field declares a reference.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Attribute push tokens in occurrence order and an optional synthesized
+/// indexing token.
 #[must_use]
 fn expand_field_attribute_tokens(
     field: &FieldIr,
@@ -938,10 +1010,25 @@ fn expand_field_attribute_tokens(
 
 /// Reports whether a type contains neither lifetimes nor declared type
 /// parameters.
+///
+/// # Parameters
+/// - `ty`: Rust type syntax to inspect.
+/// - `generic_type_names`: declared type and const parameter identifiers.
+///
+/// # Returns
+/// `true` when the token structure contains neither a lifetime nor a declared
+/// parameter name.
 #[must_use]
 fn type_is_static_concrete(ty: &Type, generic_type_names: &[Ident]) -> bool {
     /// Recursively checks whether the token stream contains static concrete
     /// syntax.
+    ///
+    /// # Parameters
+    /// - `stream`: token stream to inspect recursively.
+    /// - `generic_type_names`: declared parameter identifiers to reject.
+    ///
+    /// # Returns
+    /// `true` when every token is concrete and contains no declared parameter.
     fn is_eligible(stream: TokenStream, generic_type_names: &[Ident]) -> bool {
         stream.into_iter().all(|token| match token {
             TokenTree::Group(group) => is_eligible(group.stream(), generic_type_names),
@@ -1071,6 +1158,16 @@ fn expand_collection_ops(
 /// The callback accepts borrowed map values, reports absence for optional
 /// values, and preserves the existing type-mismatch and adapter-unavailable
 /// errors for incompatible inputs.
+///
+/// # Parameters
+/// - `field_type`: declared Rust field type.
+/// - `map`: whether map-length metadata is requested.
+/// - `optional_map`: inner map type when the field is an optional map.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens defining the map-length adapter when the field shape supports it;
+/// otherwise an empty token stream.
 #[must_use]
 fn expand_map_length_adapter(
     field_type: &Type,
@@ -1129,6 +1226,15 @@ fn expand_map_length_adapter(
 ///
 /// The callback downcasts each dynamic reference to the declared element type
 /// and reports a type mismatch through the existing property-access error.
+///
+/// # Parameters
+/// - `field_type`: declared Rust field type.
+/// - `unique`: whether sequence uniqueness is requested.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens defining the unique-item equality adapter when supported; otherwise
+/// an empty token stream.
 #[must_use]
 fn expand_unique_item_adapter(field_type: &Type, unique: bool, runtime: &TokenStream) -> TokenStream {
     if unique && (collection_name(field_type) == Some("Vec") || matches!(field_type, Type::Array(_))) {
@@ -1155,6 +1261,14 @@ fn expand_unique_item_adapter(field_type: &Type, unique: bool, runtime: &TokenSt
 }
 
 /// Generates an iterator over borrowed values for a known sequence or map.
+///
+/// # Parameters
+/// - `field_type`: declared Rust field type, including an optional wrapper.
+/// - `runtime`: path to the runtime crate.
+///
+/// # Returns
+/// Tokens defining the borrowed-items adapter for a supported collection, or
+/// an empty token stream when no adapter applies.
 #[must_use]
 fn expand_collection_items(field_type: &Type, runtime: &TokenStream) -> TokenStream {
     let inner = option_inner_type(field_type).unwrap_or(field_type);
@@ -1277,6 +1391,12 @@ fn expand_collection_items(field_type: &Type, runtime: &TokenStream) -> TokenStr
 }
 
 /// Returns the inner type of `Option<T>` when the declaration uses that shape.
+///
+/// # Parameters
+/// - `ty`: Rust type syntax to inspect.
+///
+/// # Returns
+/// The first type argument for an `Option` path, or `None` for other shapes.
 fn option_inner_type(ty: &Type) -> Option<&Type> {
     let Type::Path(path) = ty else {
         return None;
@@ -1629,6 +1749,9 @@ fn expand_selector_metadata(
 
 /// Converts an optional tokenizable number into runtime option tokens.
 ///
+/// # Type Parameters
+/// - `T`: tokenizable value type used by the optional number.
+///
 /// # Parameters
 /// - `value`: the optional value to quote.
 ///
@@ -1849,6 +1972,9 @@ fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenSt
 }
 
 /// Generates runtime metadata for a declared value codec.
+///
+/// # Type Parameters
+/// - `T`: tokenizable Rust type selected for the codec metadata.
 ///
 /// # Parameters
 /// - `codec`: normalized Rust codec type or declared codec ID.

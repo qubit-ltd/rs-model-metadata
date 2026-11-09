@@ -11,6 +11,10 @@
 use proc_macro2::Span;
 
 /// Stores one parsed value and the source location that declared it.
+///
+/// # Type Parameters
+///
+/// * `T` - Parsed representation associated with the source location.
 #[derive(Clone)]
 pub(crate) struct Located<T> {
     /// The parsed representation associated with the source location.
@@ -21,6 +25,11 @@ pub(crate) struct Located<T> {
 
 impl<T> Located<T> {
     /// Creates a located value from its parsed representation and source span.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Parsed representation to retain.
+    /// * `span` - Source location where the representation was declared.
     #[must_use]
     #[inline]
     pub(crate) const fn new(value: T, span: Span) -> Self {

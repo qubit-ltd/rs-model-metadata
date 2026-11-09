@@ -28,17 +28,23 @@ pub trait MapConstraintTarget {
 }
 
 impl<K: 'static, V: 'static, S> MapConstraintTarget for HashMap<K, V, S> {
+    /// The hash map's key type.
     type Key = K;
+    /// The hash map's value type.
     type Value = V;
 }
 
 impl<K: 'static, V: 'static> MapConstraintTarget for BTreeMap<K, V> {
+    /// The ordered map's key type.
     type Key = K;
+    /// The ordered map's value type.
     type Value = V;
 }
 
 impl<T: MapConstraintTarget> MapConstraintTarget for Option<T> {
+    /// The wrapped map's key type.
     type Key = T::Key;
+    /// The wrapped map's value type.
     type Value = T::Value;
 }
 

@@ -22,27 +22,57 @@ use super::IdentifierAssignmentIr;
 #[derive(Clone)]
 pub(crate) enum FieldOccurrence {
     /// Identity storage strategy selected for the field.
-    Identifier(IdentifierAssignmentIr),
+    Identifier(
+        /// Assignment mode parsed from the field's identifier annotation.
+        IdentifierAssignmentIr,
+    ),
     /// Marks a field whose position contributes to tuple layout.
     Indexed,
     /// Marks the field as participating in a uniqueness constraint.
-    Unique(UniqueIr),
+    Unique(
+        /// Normalized uniqueness options declared for the field.
+        UniqueIr,
+    ),
     /// Declares a relationship to another model.
-    Reference(ReferenceIr),
+    Reference(
+        /// Normalized target, selection, and existence rules for the reference.
+        ReferenceIr,
+    ),
     /// Position of this field in a compound key.
-    KeyPart(usize),
+    KeyPart(
+        /// Zero-based order of the field in the compound key.
+        usize,
+    ),
     /// Validation constraints attached to this field.
-    Constraint(ConstraintIr),
+    Constraint(
+        /// Parsed constraint kind and its normalized bounds.
+        ConstraintIr,
+    ),
     /// Selector declaration used to bind validator dependencies.
-    Selector(SelectorIr),
+    Selector(
+        /// Normalized selector position, constraints, and related options.
+        SelectorIr,
+    ),
     /// Validator declaration attached to this field.
-    Validator(ValidatorIr),
+    Validator(
+        /// Normalized validator function and argument declaration.
+        ValidatorIr,
+    ),
     /// Codec declaration for this field's value.
-    Codec(CodecIr),
+    Codec(
+        /// Normalized codec type or declared codec identity.
+        CodecIr,
+    ),
     /// Redaction policy applied to this field.
-    Redact(RedactIr),
+    Redact(
+        /// Normalized redaction mode and its optional level or selector.
+        RedactIr,
+    ),
     /// Serialization behavior declared for this field.
-    Serde(SerdeIr),
+    Serde(
+        /// Normalized serialization and deserialization options.
+        SerdeIr,
+    ),
     /// An unrecognized or otherwise opaque field annotation.
     Opaque,
 }

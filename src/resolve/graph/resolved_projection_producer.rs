@@ -178,6 +178,11 @@ impl ResolvedProjectionProducer {
 }
 
 /// Converts a reflected type mismatch into a field-access failure.
+///
+/// # Parameters
+///
+/// - `mismatch`: Reflected target-type mismatch produced by an identifier
+///   accessor.
 #[inline]
 fn identifier_target_mismatch(mismatch: TypeMismatch) -> FieldAccessError {
     FieldAccessError::TargetTypeMismatch(mismatch)

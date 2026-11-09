@@ -143,3 +143,25 @@ impl<'options> ReportAccumulator<'options> {
 fn contract_error() -> ExecutionError {
     ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
 }
+
+#[cfg(test)]
+mod tests {
+    use qubit_validator::ExecutionErrorKind;
+    use qubit_validator::ValidationOutcome;
+    use qubit_validator::ValidationPath;
+
+    use super::ReportAccumulator;
+    use crate::validation::ValidationOptions;
+
+    #[test]
+    fn test_rejects_an_invalid_outcome_without_violations() {
+        let options = ValidationOptions::default();
+        let mut report = ReportAccumulator::new(&options);
+
+        let error = report
+            .accept(0, &ValidationPath::root(), ValidationOutcome::Invalid(vec![]), false)
+            .expect_err("an invalid outcome must contain a violation");
+
+        assert_eq!(error.kind(), ExecutionErrorKind::AdapterContractViolation);
+    }
+}

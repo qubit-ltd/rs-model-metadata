@@ -502,6 +502,11 @@ impl CompiledPropertyPath {
     /// This is used only by scalar constraints that can borrow the contained
     /// value at execution. An absent or unresolved element is unsupported.
     ///
+    /// # Parameters
+    ///
+    /// * `element` - The reflected inner type expected from the `Option<T>`
+    ///   field.
+    ///
     /// # Returns
     ///
     /// The updated path with the inner type as its validator input and the

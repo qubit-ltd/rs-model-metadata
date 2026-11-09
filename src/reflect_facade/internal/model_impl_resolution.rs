@@ -15,5 +15,8 @@ use crate::model_impl_metadata::MergedModelImpl;
 /// An owned merge of implementation providers for one reflection snapshot.
 pub(crate) enum ModelImplResolution {
     /// Owns the merged metadata assembled from multiple providers.
-    Merged(Arc<MergedModelImpl>),
+    Merged(
+        /// Provider metadata merged for the current reflection snapshot.
+        Arc<MergedModelImpl>,
+    ),
 }

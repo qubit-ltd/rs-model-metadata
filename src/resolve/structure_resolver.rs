@@ -577,6 +577,18 @@ impl<'a> StructureResolver<'a> {
     /// Metadata lookup failures and inconsistent source or identifier types
     /// are appended to `errors`; valid producers are appended in node and
     /// property order.
+    ///
+    /// # Parameters
+    ///
+    /// * `nodes` - The discovered model metadata and their optional registry
+    ///   origins.
+    /// * `properties` - Resolved properties indexed by their source model type.
+    /// * `context` - The resolution context used to inspect reflected types and
+    ///   targets.
+    /// * `errors` - The output vector receiving metadata and relationship
+    ///   failures.
+    /// * `projection_producers` - The output vector receiving valid entity
+    ///   projection producers.
     fn resolve_projection_producers<'b>(
         &self,
         nodes: &[(&'static TypeMetadata, Option<&'b ModelRegistryOrigin>)],
@@ -687,6 +699,17 @@ impl<'a> StructureResolver<'a> {
 ///
 /// Bindings are visited in validator and selector order; validation errors
 /// are appended before each binding is retained in the resolved graph.
+///
+/// # Parameters
+///
+/// * `metadata` - The model whose validator dependencies are resolved.
+/// * `field` - The resolved property whose direct and selector validators are
+///   inspected.
+/// * `context` - The resolution context used to validate dependency paths.
+/// * `fragment_source` - The registry fragment that supplied `metadata`, when
+///   applicable.
+/// * `errors` - The output vector receiving dependency validation failures.
+/// * `dependencies` - The output vector receiving retained dependency bindings.
 fn resolve_field_dependencies(
     metadata: &'static TypeMetadata,
     field: &PropertyMetadata,

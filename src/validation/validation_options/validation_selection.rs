@@ -36,5 +36,8 @@ pub enum ValidationSelection {
     /// Collection indices are ignored; selecting a parent is not a prefix
     /// match. Every supplied path must match a bound rule, and this variant
     /// must contain at least one path.
-    Fields(Vec<FieldPath>),
+    Fields(
+        /// The non-empty field paths used to select bound validation rules.
+        Vec<FieldPath>,
+    ),
 }

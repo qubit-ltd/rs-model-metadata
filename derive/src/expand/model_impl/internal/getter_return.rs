@@ -14,15 +14,27 @@ use syn::Type;
 #[derive(Clone)]
 pub(in crate::expand::model_impl) enum GetterReturn {
     /// Getter returns an owned value.
-    Owned(Type),
+    Owned(
+        /// The Rust type of the owned getter result.
+        Type,
+    ),
     /// Getter returns a borrowed value.
-    Borrowed(Type),
+    Borrowed(
+        /// The pointee type of the getter's shared reference result.
+        Type,
+    ),
     /// Getter returns a borrowed string.
     BorrowedStr,
     /// Getter returns a borrowed slice.
-    BorrowedSlice(Type),
+    BorrowedSlice(
+        /// The element type of the getter's borrowed slice result.
+        Type,
+    ),
     /// Getter returns an optional borrowed value.
-    OptionalBorrowed(Type),
+    OptionalBorrowed(
+        /// The pointee type carried by the optional shared reference result.
+        Type,
+    ),
     /// Getter returns an optional borrowed string.
     OptionalBorrowedStr,
 }

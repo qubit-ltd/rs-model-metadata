@@ -37,6 +37,13 @@ pub(crate) use internal::merged_model_impl::MergedModelImpl;
 ///
 /// `field_names` tracks fields already emitted, while non-field fragments are
 /// always appended in provider and declaration order.
+///
+/// # Parameters
+///
+/// - `fragments`: Ordered output list receiving fragments from the overlay.
+/// - `field_names`: Names of backing fields already retained by an earlier
+///   overlay.
+/// - `overlay`: Provider metadata whose fragments are appended.
 fn append_overlay_fragments(
     fragments: &mut Vec<PropertyFragment>,
     field_names: &mut HashSet<&'static str>,
@@ -54,6 +61,19 @@ fn append_overlay_fragments(
 ///
 /// `property_indices` points into the ordered output vector, avoiding a scan
 /// while preserving the first occurrence and provider order of each property.
+///
+/// # Parameters
+///
+/// - `overlay`: Provider metadata whose local properties and diagnostics are
+///   merged.
+/// - `origin`: Source identity assigned to getter and setter declarations from
+///   this overlay.
+/// - `properties`: Ordered merged properties with the origins of their selected
+///   accessors.
+/// - `property_indices`: Map from property names to their positions in
+///   `properties`.
+/// - `errors`: Output list receiving retained assembly errors and accessor
+///   conflicts.
 fn merge_overlay_properties(
     overlay: &ModelImplMetadata,
     origin: ModelImplSource,

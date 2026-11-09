@@ -109,6 +109,16 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
 }
 
 /// Binds codecs declared directly on one field and its selectors.
+///
+/// # Parameters
+///
+/// * `model` - Metadata for the model that owns the field.
+/// * `field` - Field whose direct and selector codec declarations are bound.
+/// * `context` - Reflection context used to inspect the field's concrete type.
+/// * `models` - Resolved model metadata used to find canonical value codecs.
+/// * `codecs` - Runtime registry of executable value-string codecs.
+/// * `bindings` - Output map receiving successful bindings by occurrence.
+/// * `errors` - Output list receiving binding failures.
 #[inline]
 fn bind_field<'a>(
     model: &'static TypeMetadata,
@@ -132,6 +142,17 @@ fn bind_field<'a>(
 }
 
 /// Binds codecs for a field using the supplied canonical property path.
+///
+/// # Parameters
+///
+/// * `model` - Metadata for the model that owns the field.
+/// * `path` - Canonical property path used to identify codec occurrences.
+/// * `field` - Field whose direct and selector codec declarations are bound.
+/// * `context` - Reflection context used to inspect the field's concrete type.
+/// * `models` - Resolved model metadata used to find canonical value codecs.
+/// * `codecs` - Runtime registry of executable value-string codecs.
+/// * `bindings` - Output map receiving successful bindings by occurrence.
+/// * `errors` - Output list receiving binding failures.
 #[allow(clippy::too_many_arguments)]
 fn bind_field_at<'a>(
     model: &'static TypeMetadata,
@@ -196,6 +217,11 @@ fn bind_field_at<'a>(
 
 /// Reads a canonical declaration only from the resolved graph's concrete
 /// models.
+///
+/// # Parameters
+///
+/// * `expected` - Runtime type whose canonical codec is being looked up.
+/// * `models` - Resolved model metadata searched for that concrete type.
 fn canonical_codec(expected: TypeId, models: &[&'static TypeMetadata]) -> Option<&'static CodecMetadata> {
     models
         .iter()
@@ -205,6 +231,15 @@ fn canonical_codec(expected: TypeId, models: &[&'static TypeMetadata]) -> Option
 }
 
 /// Resolves one declaration to exactly one compatible registry registration.
+///
+/// # Parameters
+///
+/// * `occurrence` - Stable identity of the codec declaration being resolved.
+/// * `declaration` - Codec metadata declaring the requested registration.
+/// * `expected_type` - Runtime value type that the registration must support.
+/// * `codecs` - Runtime registry searched for compatible registrations.
+/// * `bindings` - Output map receiving the unique compatible binding.
+/// * `errors` - Output list receiving missing, ambiguous, or mismatch failures.
 fn bind_one<'a>(
     occurrence: CodecOccurrenceId,
     declaration: &'static CodecMetadata,
@@ -270,6 +305,11 @@ fn bind_one<'a>(
 }
 
 /// Resolves the runtime value type at one nested selector position.
+///
+/// # Parameters
+///
+/// * `descriptor` - Concrete descriptor for the selected field value.
+/// * `position` - Sequence element, map key, or map value position to inspect.
 #[inline]
 fn selector_type_id(descriptor: TypeDescriptor<'_>, position: SelectorPosition) -> Option<TypeId> {
     let descriptor = transparent_descriptor(descriptor)?;

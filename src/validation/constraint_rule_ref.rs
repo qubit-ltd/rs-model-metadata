@@ -34,9 +34,15 @@ use qubit_validator::ValidatorId;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConstraintRuleRef {
     /// A rule selected through a validator registry.
-    Registry(ValidatorId),
+    Registry(
+        /// Stable validator identifier to resolve through the registry.
+        ValidatorId,
+    ),
     /// A rule implemented directly by the metadata validation plan.
-    ModelIntrinsic(ValidatorId),
+    ModelIntrinsic(
+        /// Stable identifier reported for the model-intrinsic rule.
+        ValidatorId,
+    ),
 }
 
 impl ConstraintRuleRef {

@@ -26,6 +26,18 @@ use super::internal::Substitutions;
 
 /// Applies explicit reflect-style specializations to property signature types.
 ///
+/// # Parameters
+///
+/// * `item` - The generic implementation whose property signatures are
+///   specialized.
+/// * `options` - The implementation attributes containing `specialize(...)`
+///   bindings.
+///
+/// # Returns
+///
+/// The concrete implementations produced in option order, with all impl
+/// parameters bound.
+///
 /// # Errors
 ///
 /// Returns an error when a binding is malformed, duplicated, or names an
@@ -87,6 +99,14 @@ pub(super) fn concrete_impls(item: &ItemImpl, options: &Punctuated<Meta, Token![
 
 /// Parses the forwarded reflection options without assigning product policy.
 ///
+/// # Parameters
+///
+/// * `tokens` - The option tokens forwarded from the macro attribute.
+///
+/// # Returns
+///
+/// The parsed comma-separated metadata items in their source order.
+///
 /// # Errors
 ///
 /// Returns an error when the tokens do not parse as a comma-separated list of
@@ -96,6 +116,11 @@ pub(super) fn options(tokens: TokenStream) -> Result<Punctuated<Meta, Token![,]>
 }
 
 /// Resolves Self only in a property signature, preserving the original impl.
+///
+/// # Parameters
+///
+/// * `method` - The implementation method whose signature is updated.
+/// * `target` - The concrete type substituted for `Self` in that signature.
 pub(super) fn replace_self(method: &mut ImplItemFn, target: &Type) {
     let mut substitutions = Substitutions::default();
     substitutions.types.insert("Self".into(), target.clone());

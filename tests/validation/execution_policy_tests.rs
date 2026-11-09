@@ -270,6 +270,64 @@ thread_local! {
     static RULE_CALLS: Cell<usize> = const { Cell::new(0) };
 }
 
+struct CountedInvalid;
+impl PreparedValidator for CountedInvalid {
+    fn input_type(&self) -> InputType {
+        InputType::of::<Root>()
+    }
+    fn dependency_specs(&self) -> &'static [DependencySpec] {
+        &[]
+    }
+    fn validate(
+        &self,
+        _: ValidationValue<'_>,
+        _: &BoundValidationContext<'_>,
+    ) -> Result<PreparedOutcome, ExecutionError> {
+        RULE_CALLS.with(|calls| calls.set(calls.get() + 1));
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+            "bad",
+        ))]))
+    }
+}
+
+#[test]
+fn test_fail_fast_stops_before_the_next_model_rule() {
+    RULE_CALLS.with(|calls| calls.set(0));
+    GETTER_CALLS.with(|calls| calls.set(0));
+    let models = ModelRegistry::try_global().unwrap();
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs { models, roots: &[] })
+            .resolve()
+            .unwrap(),
+    );
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        TypeMetadata::of::<Root>(),
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+    )
+    .unwrap()
+    .with_model_rules([
+        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.first"), Arc::new(CountedInvalid))
+            .expect("first rule shape"),
+        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.second"), Arc::new(CountedInvalid))
+            .expect("second rule shape"),
+    ]);
+
+    let report = plan
+        .validate_dynamic(
+            DynamicRef::<Local>::new_any(&Root { value: String::new() }),
+            &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
+        )
+        .expect("fail-fast returns the partial report");
+    assert_eq!(report.violations().len(), 1);
+    assert!(report.is_truncated());
+    assert_eq!(RULE_CALLS.with(Cell::get), 1, "second model rule must not run");
+    assert_eq!(GETTER_CALLS.with(Cell::get), 0, "field getter must not run");
+}
+
 #[Model]
 struct Fields {
     #[validator(id = "execution.rule")]
@@ -934,7 +992,9 @@ fn test_dependency_error_path_does_not_map_unknown_dependency_names() {
     DEPENDENCY_ERROR_CALLS.with(|calls| calls.set(0));
     let error = plan
         .validate_with_context(
-            &DependencyErrorTarget { value: "unknown".into() },
+            &DependencyErrorTarget {
+                value: "unknown".into(),
+            },
             &[DynamicRef::<Local>::new(&Parent {
                 nickname: "parent".into(),
             })],

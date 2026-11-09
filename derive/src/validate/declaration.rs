@@ -33,6 +33,12 @@ use crate::ir::declaration::RedactModeIr;
 use crate::ir::declaration::SelectorPositionIr;
 /// Validates the declaration shape before constructing intermediate metadata.
 ///
+/// # Parameters
+///
+/// - `kind`: Model role whose supported generic parameters and data shapes are
+///   checked.
+/// - `item`: Parsed Rust item declared for that role.
+///
 /// # Errors
 ///
 /// Returns a combined [`syn::Error`] when the declaration uses unsupported
@@ -126,6 +132,11 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
 
 /// Rejects user reflection derives that would duplicate generated metadata.
 ///
+/// # Parameters
+///
+/// - `attributes`: Attributes checked for a duplicate `Reflect` derive or
+///   malformed derive list.
+///
 /// # Errors
 ///
 /// Returns a [`syn::Error`] when an attribute directly names `Reflect`, a
@@ -156,6 +167,13 @@ pub(crate) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
 }
 
 /// Rewrites helper attributes used to expose nested field metadata.
+///
+/// # Parameters
+///
+/// - `data`: Parsed item data whose field and variant helper attributes are
+///   rewritten in place.
+/// - `declaration`: Normalized declaration IR supplying role options and field
+///   metadata.
 pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr) {
     let serde_helpers = !["no_redact", "no_serialize", "no_deserialize"]
         .iter()
@@ -190,6 +208,13 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
 }
 
 /// Rewrites serde helpers into the serde attributes consumed by generated code.
+///
+/// # Parameters
+///
+/// - `field`: Parsed field whose attributes receive the derived Serde helper
+///   forms.
+/// - `ir`: Normalized field metadata supplying default and omission behavior.
+/// - `serde_helpers`: Whether generated code will consume the Serde attributes.
 fn rewrite_serde_helpers(field: &mut Field, ir: &FieldIr, serde_helpers: bool) {
     for occurrence in &ir.occurrences {
         if let FieldOccurrence::Serde(serde) = occurrence {
@@ -220,6 +245,11 @@ fn rewrite_serde_helpers(field: &mut Field, ir: &FieldIr, serde_helpers: bool) {
 
 /// Removes consumed model-field helpers while preserving generated redact
 /// attributes.
+///
+/// # Parameters
+///
+/// - `field`: Parsed field whose consumed model helper attributes are removed
+///   in place.
 fn remove_model_field_helpers(field: &mut Field) {
     field
         .attrs
@@ -227,6 +257,13 @@ fn remove_model_field_helpers(field: &mut Field) {
 }
 
 /// Rewrites selector redaction levels into the field-level redact attribute.
+///
+/// # Parameters
+///
+/// - `field`: Parsed field that receives the derived field-level redact
+///   attribute.
+/// - `ir`: Normalized field metadata supplying selector positions and redaction
+///   levels.
 fn rewrite_selector_redaction(field: &mut Field, ir: &FieldIr) {
     let mut element_level = None;
     let mut key_level = None;
@@ -257,6 +294,11 @@ fn rewrite_selector_redaction(field: &mut Field, ir: &FieldIr) {
 }
 
 /// Reports whether an attribute is an internal model-field helper.
+///
+/// # Parameters
+///
+/// - `attribute`: Parsed attribute whose path is checked against model helper
+///   names.
 fn is_model_field_helper(attribute: &Attribute) -> bool {
     let Some(name) = attribute.path().get_ident().map(ToString::to_string) else {
         return false;
@@ -287,6 +329,11 @@ fn is_model_field_helper(attribute: &Attribute) -> bool {
 }
 
 /// Combines one diagnostic into an existing optional error accumulator.
+///
+/// # Parameters
+///
+/// - `errors`: Optional accumulated diagnostic, updated with the new error.
+/// - `error`: Diagnostic to insert or combine into the accumulator.
 pub(crate) fn combine(errors: &mut Option<Error>, error: Error) {
     match errors {
         Some(current) => current.combine(error),

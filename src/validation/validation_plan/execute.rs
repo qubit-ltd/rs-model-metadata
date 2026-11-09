@@ -20,6 +20,7 @@ use qubit_validator::ValidationOutcome;
 use qubit_validator::ValidationPath;
 use qubit_validator::ValidationReport;
 use qubit_validator::ValidationValue;
+use qubit_validator::ValidatorId;
 use qubit_validator::Violation;
 use qubit_validator::ViolationCode;
 use qubit_validator::ViolationParam;
@@ -50,6 +51,11 @@ use crate::validation::validation_options::ValidationSelection;
 
 impl<'a> ValidationPlan<'a> {
     /// Executes selected occurrences under one stopping policy and work budget.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Concrete root type that can be borrowed for local reflection and
+    ///   inspected through `Any`.
     ///
     /// # Parameters
     ///
@@ -103,6 +109,12 @@ impl<'a> ValidationPlan<'a> {
     }
 
     /// Executes with nearest-parent-first containing-object borrows.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'value` - Shared lifetime of the root and ancestor borrows.
+    /// * `T` - Concrete root type that can be borrowed for local reflection and
+    ///   inspected through `Any`.
     ///
     /// # Parameters
     ///
@@ -248,6 +260,13 @@ impl<'a> ValidationPlan<'a> {
 /// silently succeed when it is empty or names an existing field without a
 /// validation rule.
 ///
+/// # Parameters
+///
+/// * `selection` - Requested model or field paths to match against bound rules.
+/// * `model_rule_count` - Number of model-level rules, which match the empty
+///   path.
+/// * `bindings` - Compiled field rules available to satisfy field selections.
+///
 /// # Returns
 ///
 /// The first unmatched field path, or `None` when every requested path has a
@@ -280,6 +299,19 @@ fn unmatched_selection(
 /// Returns `Ok(())` when the field has no runtime value or its outcome is
 /// accepted. Read, budget, validator, and report failures retain their field
 /// and dependency context in `ExecutionFailure`.
+///
+/// # Parameters
+///
+/// * `binding` - Compiled rule and field metadata used to read and validate
+///   this occurrence.
+/// * `occurrence` - Report index assigned to this field occurrence.
+/// * `root` - Borrowed root model instance from which the field value is read.
+/// * `ancestors` - Containing-object borrows available to dependency readers.
+/// * `graph` - Resolved model graph providing registry and reflection context.
+/// * `budget` - Shared execution budget charged for reads and validator calls.
+/// * `report` - Accumulator receiving the field outcome and any violations.
+/// * `has_more_work` - Whether later selected work remains for stop-policy
+///   handling.
 #[allow(clippy::too_many_arguments)]
 fn execute_field<'value>(
     binding: &FieldRuleBinding,
@@ -345,7 +377,7 @@ fn execute_field<'value>(
     }
     if let FieldExecution::SequenceUnique { item_eq } = binding.execution() {
         return execute_unique(
-            binding,
+            binding.rule_id(),
             occurrence,
             value,
             &path,
@@ -387,6 +419,23 @@ fn execute_field<'value>(
 
 /// Resolves registry dependencies, builds validator input, and records its
 /// outcome.
+///
+/// # Parameters
+///
+/// * `binding` - Compiled registry rule, field path, and dependency metadata.
+/// * `occurrence` - Report index assigned to this field occurrence.
+/// * `value` - Property value read for the field, including collection views.
+/// * `projected_scalar` - Borrowed scalar projected from a direct optional
+///   field, when applicable.
+/// * `path` - Field path used to attach context to execution failures.
+/// * `root` - Borrowed root model instance used for dependency reads.
+/// * `ancestors` - Containing-object borrows available to dependency readers.
+/// * `graph` - Resolved model graph providing registry and reflection context.
+/// * `budget` - Shared execution budget charged for dependency reads and
+///   validator calls.
+/// * `report` - Accumulator receiving the validator outcome and any violations.
+/// * `has_more_work` - Whether later selected work remains for stop-policy
+///   handling.
 #[allow(clippy::too_many_arguments)]
 fn execute_registry_field<'value>(
     binding: &FieldRuleBinding,
@@ -485,35 +534,46 @@ fn execute_registry_field<'value>(
             .map_or_else(|| property_value(&value), Ok)?,
     };
     budget.invoke(path.as_segments().len(), false)?;
-    let outcome = validator
-        .validate(input, &context)
-        .map_err(|error| {
-            let dependency = error.dependency().and_then(|name| {
-                binding
-                    .dependencies()
-                    .iter()
-                    .filter_map(|path| path.dependency())
-                    .find(|dependency| dependency.name() == name)
-            });
-            let error = if dependency.is_some() {
-                error
-            } else {
-                prefix_error(error, &path)
-            };
-            ExecutionFailure {
-                error: Box::new(error),
-                dependency,
-            }
-        })?;
+    let outcome = validator.validate(input, &context).map_err(|error| {
+        let dependency = error.dependency().and_then(|name| {
+            binding
+                .dependencies()
+                .iter()
+                .filter_map(|path| path.dependency())
+                .find(|dependency| dependency.name() == name)
+        });
+        let error = if dependency.is_some() {
+            error
+        } else {
+            prefix_error(error, &path)
+        };
+        ExecutionFailure {
+            error: Box::new(error),
+            dependency,
+        }
+    })?;
     report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
     Ok(())
 }
 
 /// Compares borrowed elements in deterministic pair order, reserving every
 /// read and comparison before calling the checked adapter.
+///
+/// # Parameters
+///
+/// * `binding` - Compiled rule metadata used to identify duplicate-item
+///   violations.
+/// * `occurrence` - Report index assigned to this field occurrence.
+/// * `value` - Property value expected to contain a borrowed sequence.
+/// * `path` - Field path used to attach read or comparison failures.
+/// * `item_eq` - Checked adapter for comparing two borrowed sequence items.
+/// * `budget` - Shared execution budget charged for reads and comparisons.
+/// * `report` - Accumulator receiving the valid outcome or duplicate violation.
+/// * `has_more_work` - Whether later selected work remains for stop-policy
+///   handling.
 #[allow(clippy::too_many_arguments)]
 fn execute_unique(
-    binding: &FieldRuleBinding,
+    rule_id: ValidatorId,
     occurrence: usize,
     value: PropertyValue<'_>,
     path: &ValidationPath,
@@ -557,7 +617,7 @@ fn execute_unique(
                 .with_path(second_path.clone())
         })?;
         if equal {
-            let violation = Violation::new(binding.rule_id(), ViolationCode::new("collection.duplicate_item"))
+            let violation = Violation::new(rule_id, ViolationCode::new("collection.duplicate_item"))
                 .with_path(ValidationPath::root().with_index(second))
                 .with_param("first_index", ViolationParam::Unsigned(first as u128));
             report.accept(
@@ -575,6 +635,22 @@ fn execute_unique(
 
 /// Executes selected sequence or map members, checking budgets before each
 /// member is exposed to the validator.
+///
+/// # Parameters
+///
+/// * `binding` - Compiled registry rule and dependency metadata for each
+///   selected member.
+/// * `occurrence` - Report index assigned to this field occurrence.
+/// * `value` - Property value containing the sequence or map to project.
+/// * `path` - Field path used as the base for member paths and failures.
+/// * `position` - Selector position choosing sequence elements, map keys, or
+///   map values.
+/// * `items` - Checked adapter that projects the selected collection members.
+/// * `budget` - Shared execution budget charged before each member read and
+///   validator call.
+/// * `report` - Accumulator receiving member outcomes and any violations.
+/// * `has_more_work` - Whether work beyond the selected members remains for
+///   stop-policy handling.
 #[allow(clippy::too_many_arguments)]
 fn execute_selected_members(
     binding: &FieldRuleBinding,
@@ -638,6 +714,11 @@ fn execute_selected_members(
 }
 
 /// Prefixes a validator's relative error path without discarding its source.
+///
+/// # Parameters
+///
+/// * `error` - Validator failure whose relative path is extended.
+/// * `prefix` - Field or member path prepended to the validator's path.
 fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionError {
     let path =
         prefix
@@ -659,6 +740,11 @@ fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionErro
 ///
 /// Strings become text inputs; other values require a dynamic view that
 /// exposes the concrete value through `Any`.
+///
+/// # Parameters
+///
+/// * `value` - Reflected borrow converted to the validator's text or typed
+///   input form.
 fn reflected_value<'a>(value: &'a PropertyBorrowed<'_>) -> Result<ValidationValue<'a>, ExecutionError> {
     if let Some(text) = value.downcast_ref::<String>() {
         return Ok(ValidationValue::Text(text.as_str()));
@@ -676,6 +762,11 @@ fn reflected_value<'a>(value: &'a PropertyBorrowed<'_>) -> Result<ValidationValu
 ///
 /// Borrowed and owned values use the same text-versus-typed conversion. An
 /// absent optional value or a borrowed slice becomes `Missing`.
+///
+/// # Parameters
+///
+/// * `value` - Borrowed or owned property adapter result converted for a
+///   validator.
 fn property_value<'a>(value: &'a PropertyValue<'_>) -> Result<ValidationValue<'a>, ExecutionError> {
     match value {
         PropertyValue::Borrowed(value) => reflected_value(value),
@@ -689,6 +780,13 @@ fn property_value<'a>(value: &'a PropertyValue<'_>) -> Result<ValidationValue<'a
 /// Borrows the contained scalar from a reflected, field-backed `Option<T>`.
 /// A non-borrowed adapter shape returns `PropertyTypeMismatch`; `Ok(None)`
 /// means the optional field is absent. No value is cloned or formatted.
+///
+/// # Parameters
+///
+/// * `value` - Property adapter result expected to contain a borrowed optional
+///   field.
+/// * `optional` - Operations descriptor used to project the borrowed inner
+///   scalar.
 fn optional_scalar_value<'a>(
     value: &PropertyValue<'a>,
     optional: OptionalOps,
@@ -713,6 +811,10 @@ fn optional_scalar_value<'a>(
 ///
 /// Owned strings become text inputs; other values remain typed borrows from
 /// the owner and are not cloned.
+///
+/// # Parameters
+///
+/// * `value` - Owned reflected property value converted for a validator.
 fn owned_value<'a>(value: &'a PropertyOwned) -> Result<ValidationValue<'a>, ExecutionError> {
     if let Some(text) = value.downcast_ref::<String>() {
         return Ok(ValidationValue::Text(text.as_str()));
@@ -794,10 +896,44 @@ mod any_view_tests {
 
 #[cfg(test)]
 mod tests {
+    use qubit_reflect::value::DynamicRef;
+    use qubit_reflect::value::Local;
+    use qubit_validator::ExecutionError;
+    use qubit_validator::ExecutionErrorKind;
     use qubit_validator::ValidationPath;
+    use qubit_validator::ValidatorId;
 
     use super::super::internal::selection_mask::SelectionMask;
+    use super::execute_unique;
     use super::field_matches;
+    use super::optional_scalar_value;
+    use super::prefix_error;
+    use super::property_value;
+    use super::unmatched_selection;
+    use crate::metadata::BorrowedPropertySlice;
+    use crate::metadata::PropertyOwned;
+    use crate::metadata::PropertyValue;
+    use crate::property::ItemEqAdapter;
+    use crate::property::OptionalOps;
+    use crate::validation::ValidationOptions;
+    use crate::validation::internal::execution_budget::ExecutionBudget;
+    use crate::validation::internal::report_accumulator::ReportAccumulator;
+
+    fn unused_item_comparison(
+        left: crate::metadata::PropertyBorrowed<'_>,
+        right: crate::metadata::PropertyBorrowed<'_>,
+    ) -> Result<bool, crate::metadata::PropertyAccessError> {
+        let left = left.downcast_ref::<u32>();
+        let right = right.downcast_ref::<u32>();
+        Ok(left.zip(right).is_some_and(|(left, right)| left == right))
+    }
+
+    fn failing_item_comparison(
+        _left: crate::metadata::PropertyBorrowed<'_>,
+        _right: crate::metadata::PropertyBorrowed<'_>,
+    ) -> Result<bool, crate::metadata::PropertyAccessError> {
+        Err(crate::metadata::PropertyAccessError::NotReadable)
+    }
     use crate::validation::validation_options::FieldPath;
     use crate::validation::validation_options::ValidationSelection;
 
@@ -834,5 +970,234 @@ mod tests {
         assert!(fields.selected(0));
         assert!(!fields.later_selected(0));
         assert!(fields.take_field_path(0).is_none());
+    }
+
+    #[test]
+    fn test_unmatched_selection_requires_a_bound_field_or_model_rule() {
+        assert!(unmatched_selection(&ValidationSelection::All, 0, &[]).is_none());
+
+        let empty = ValidationSelection::Fields(Vec::new());
+        assert!(
+            unmatched_selection(&empty, 0, &[])
+                .expect("an empty field selection has no rule")
+                .segments()
+                .is_empty()
+        );
+
+        let root = ValidationSelection::Fields(vec![FieldPath::from_segments([] as [&str; 0])]);
+        assert!(unmatched_selection(&root, 1, &[]).is_none());
+        assert!(unmatched_selection(&root, 0, &[]).is_some());
+    }
+
+    #[test]
+    fn test_property_value_treats_absent_optional_and_slices_as_missing() {
+        assert!(matches!(
+            property_value(&PropertyValue::OptionalBorrowed(None))
+                .expect("an absent optional is a missing validator input"),
+            qubit_validator::ValidationValue::Missing
+        ));
+
+        let values = ["first".to_owned(), "second".to_owned()];
+        let slice = BorrowedPropertySlice::new(&values);
+        assert!(matches!(
+            property_value(&PropertyValue::BorrowedSlice(slice))
+                .expect("a collection slice is not a scalar validator input"),
+            qubit_validator::ValidationValue::Missing
+        ));
+    }
+
+    #[test]
+    fn test_optional_scalar_projection_preserves_presence_and_borrow() {
+        let present = Some(String::from("present"));
+        let projected = optional_scalar_value(
+            &PropertyValue::Borrowed(DynamicRef::<Local>::new(&present)),
+            OptionalOps::for_element::<String>(),
+        )
+        .expect("matching Option<String> adapter projects successfully")
+        .expect("present optional projects a borrow");
+        assert_eq!(projected.downcast_ref::<String>().map(String::as_str), Some("present"));
+
+        let absent: Option<String> = None;
+        assert!(
+            optional_scalar_value(
+                &PropertyValue::Borrowed(DynamicRef::<Local>::new(&absent)),
+                OptionalOps::for_element::<String>(),
+            )
+            .expect("matching absent optional is not a type error")
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn test_prefix_error_composes_field_index_and_map_segments() {
+        let relative = ValidationPath::root()
+            .with_field("item")
+            .with_index(2)
+            .with_map_entry(1)
+            .with_map_value();
+        let error = ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(relative);
+        let prefix = ValidationPath::root().with_field("records");
+
+        let error = prefix_error(error, &prefix);
+
+        assert_eq!(
+            error.path(),
+            &ValidationPath::root()
+                .with_field("records")
+                .with_field("item")
+                .with_index(2)
+                .with_map_entry(1)
+                .with_map_value()
+        );
+    }
+
+    #[test]
+    fn test_unique_execution_accepts_an_empty_borrowed_sequence() {
+        let values: [u32; 0] = [];
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+        let mut report = ReportAccumulator::new(&options);
+        let path = ValidationPath::root().with_field("values");
+
+        execute_unique(
+            ValidatorId::new("test.unique"),
+            0,
+            PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values)),
+            &path,
+            unused_item_comparison as ItemEqAdapter,
+            &mut budget,
+            &mut report,
+            false,
+        )
+        .expect("an empty sequence has no duplicate pair");
+
+        assert!(report.into_report().is_valid());
+    }
+
+    #[test]
+    fn test_unique_execution_rejects_non_slice_property_values_with_path() {
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+        let mut report = ReportAccumulator::new(&options);
+        let path = ValidationPath::root().with_field("values");
+
+        let error = execute_unique(
+            ValidatorId::new("test.unique"),
+            0,
+            PropertyValue::Owned(PropertyOwned::new(42_u32)),
+            &path,
+            unused_item_comparison as ItemEqAdapter,
+            &mut budget,
+            &mut report,
+            false,
+        )
+        .expect_err("a scalar getter cannot satisfy a sequence uniqueness rule");
+
+        assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
+        assert_eq!(error.path(), &path);
+    }
+
+    #[test]
+    fn test_unique_execution_reports_duplicate_indices() {
+        let values = [3_u32, 5, 3];
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+        let mut report = ReportAccumulator::new(&options);
+        let path = ValidationPath::root().with_field("values");
+
+        execute_unique(
+            ValidatorId::new("test.unique"),
+            0,
+            PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values)),
+            &path,
+            unused_item_comparison as ItemEqAdapter,
+            &mut budget,
+            &mut report,
+            false,
+        )
+        .expect("duplicate values are reported as a validation outcome");
+
+        let report = report.into_report();
+        assert!(!report.is_valid());
+        assert_eq!(report.violations().len(), 1);
+        let violation = &report.violations()[0];
+        assert_eq!(violation.code().as_str(), "collection.duplicate_item");
+        assert_eq!(
+            violation.path(),
+            &ValidationPath::root().with_field("values").with_index(2)
+        );
+    }
+
+    #[test]
+    fn test_unique_execution_accepts_distinct_values() {
+        let values = [3_u32, 5, 8];
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+        let mut report = ReportAccumulator::new(&options);
+        let path = ValidationPath::root().with_field("values");
+
+        execute_unique(
+            ValidatorId::new("test.unique"),
+            0,
+            PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values)),
+            &path,
+            unused_item_comparison as ItemEqAdapter,
+            &mut budget,
+            &mut report,
+            false,
+        )
+        .expect("distinct values finish the uniqueness rule");
+
+        assert!(report.into_report().is_valid());
+    }
+
+    #[test]
+    fn test_unique_execution_preserves_comparison_failure_path() {
+        let values = [3_u32, 5];
+        let options = ValidationOptions::default();
+        let mut budget = ExecutionBudget::new(&options);
+        let mut report = ReportAccumulator::new(&options);
+        let path = ValidationPath::root().with_field("values");
+
+        let error = execute_unique(
+            ValidatorId::new("test.unique"),
+            0,
+            PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values)),
+            &path,
+            failing_item_comparison as ItemEqAdapter,
+            &mut budget,
+            &mut report,
+            false,
+        )
+        .expect_err("a failing item adapter stops uniqueness comparison");
+
+        assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
+        assert_eq!(error.path(), &path.with_index(1));
+    }
+
+    #[test]
+    fn test_unique_execution_reports_comparison_budget_exhaustion() {
+        let values = [3_u32, 5, 8];
+        let options = ValidationOptions::builder()
+            .max_comparisons(std::num::NonZeroUsize::new(1).expect("positive comparison limit"))
+            .build();
+        let mut budget = ExecutionBudget::new(&options);
+        let mut report = ReportAccumulator::new(&options);
+        let path = ValidationPath::root().with_field("values");
+
+        let error = execute_unique(
+            ValidatorId::new("test.unique"),
+            0,
+            PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&values)),
+            &path,
+            unused_item_comparison as ItemEqAdapter,
+            &mut budget,
+            &mut report,
+            false,
+        )
+        .expect_err("the second comparison exceeds the configured budget");
+
+        assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
+        assert_eq!(error.path(), &path.with_index(2));
     }
 }

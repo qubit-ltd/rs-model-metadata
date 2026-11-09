@@ -131,6 +131,18 @@ impl Display for CodecOccurrenceId {
     ///
     /// Canonical codecs use the `<canonical>` marker because they have no
     /// property path.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the model type and property path.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the identity cannot be written.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         if self.property.is_empty() {
             write!(formatter, "{}::<canonical>", self.type_name)

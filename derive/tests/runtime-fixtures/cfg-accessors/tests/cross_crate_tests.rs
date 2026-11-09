@@ -20,10 +20,7 @@ fn test_cross_crate_conditional_contributions() {
     let metadata = TypeMetadata::of::<Configured>();
     let reflection = ReflectRegistry::initialize().expect("cross-crate reflection");
     assert!(
-        metadata
-            .try_property("paired")
-            .expect("properties")
-            .is_some(),
+        metadata.try_property("paired").expect("properties").is_some(),
         "paired metadata should always be present"
     );
     assert_eq!(

@@ -26,9 +26,15 @@ use crate::type_metadata::TypeMetadata;
 #[derive(Clone, Copy)]
 pub enum DeclaredEntityTarget {
     /// A Rust type metadata provider.
-    RustType(fn() -> &'static TypeMetadata),
+    RustType(
+        /// Function returning metadata for the declared Rust type.
+        fn() -> &'static TypeMetadata,
+    ),
     /// A stable model ID string.
-    ModelId(ModelId),
+    ModelId(
+        /// Stable identity of the declared target model.
+        ModelId,
+    ),
 }
 
 impl DeclaredEntityTarget {
@@ -79,6 +85,15 @@ impl DeclaredEntityTarget {
 }
 
 impl fmt::Debug for DeclaredEntityTarget {
+    /// Formats the target kind without invoking its metadata provider.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination receiving the target-kind representation.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when formatting succeeds, or the formatter's error.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("DeclaredEntityTarget")

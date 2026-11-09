@@ -17,7 +17,13 @@ pub(crate) enum ExecutionDeclaration {
     /// A structural edge whose traversal cannot be executed.
     Traversal,
     /// A standard constraint, possibly mapping to several built-in rules.
-    Constraint(&'static ConstraintMetadata),
+    Constraint(
+        /// Static metadata describing the standard constraint.
+        &'static ConstraintMetadata,
+    ),
     /// A named user validator with arguments and dependencies.
-    Validator(&'static ValidatorMetadata),
+    Validator(
+        /// Static metadata describing the validator call and its inputs.
+        &'static ValidatorMetadata,
+    ),
 }

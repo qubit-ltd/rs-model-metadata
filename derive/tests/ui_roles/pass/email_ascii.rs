@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Trybuild pass fixture: accepts the `email_ascii` text format and verifies its metadata representation.
+//! Trybuild pass fixture: accepts the `email_ascii` text format and verifies
+//! its metadata representation.
 
 use model_runtime::metadata::TextFormat;
 use model_runtime::metadata::TypeMetadata;

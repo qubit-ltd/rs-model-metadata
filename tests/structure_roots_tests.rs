@@ -18,6 +18,7 @@ use qubit_id::Id;
 use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
+use qubit_model_derive::ModelImpl;
 use qubit_model_derive::Projection;
 use qubit_model_derive::Value;
 use qubit_model_metadata::metadata::ModelRole;
@@ -126,6 +127,65 @@ fn test_anonymous_root_validation_binds() {
 #[Model(eq, hash)]
 struct Owner {
     name: String,
+}
+
+#[Projection(source = Owner)]
+struct ProjectionFromModel {
+    #[identifier]
+    id: Id,
+    name: String,
+}
+
+#[Model]
+struct ReferenceToModel {
+    #[reference(entity = Owner, property = name)]
+    owner_name: String,
+}
+
+/// Projection sources must resolve to an Entity role, not a plain Model.
+#[test]
+fn test_projection_source_rejects_plain_model_role() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
+    let root = TypeMetadata::of::<ProjectionFromModel>();
+    let roots = [root];
+    let errors = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect_err("projection source with Model role is invalid");
+
+    let error = errors
+        .errors()
+        .iter()
+        .find(|error| error.owner_type_id() == Some(root.type_id()))
+        .expect("projection source diagnostic");
+    assert_eq!(error.kind(), ResolveErrorKind::WrongModelRole);
+    assert_eq!(error.actual_role(), Some(ModelRole::Model));
+}
+
+/// Reference targets must be Entities even when the selected property exists.
+#[test]
+fn test_reference_to_plain_model_rejects_wrong_role() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
+    let root = TypeMetadata::of::<ReferenceToModel>();
+    let roots = [root];
+    let errors = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect_err("reference target must be an Entity");
+
+    let error = errors
+        .errors()
+        .iter()
+        .find(|error| error.owner_type_id() == Some(root.type_id()))
+        .expect("wrong target role diagnostic");
+    assert_eq!(error.kind(), ResolveErrorKind::WrongModelRole);
+    assert_eq!(error.actual_role(), Some(ModelRole::Model));
 }
 
 #[Entity(id = "roots.Record", eq, hash)]
@@ -441,6 +501,17 @@ struct MissingUniqueScope {
     value: String,
 }
 
+#[Model]
+struct UnreadableUniqueScope {
+    #[unique(respect_to(hidden))]
+    value: String,
+}
+
+#[ModelImpl]
+impl UnreadableUniqueScope {
+    pub fn set_hidden(&mut self, _value: String) {}
+}
+
 /// A missing uniqueness scope identifies the field that declared it.
 #[test]
 fn test_unique_scope_error_retains_declaration_location() {
@@ -460,6 +531,28 @@ fn test_unique_scope_error_retains_declaration_location() {
         error.declaration().expect("unique scope declaration location").field,
         Some(0)
     );
+}
+
+/// A setter-only property cannot serve as a readable uniqueness scope.
+#[test]
+fn test_unreadable_unique_scope_is_rejected() {
+    let reflection = linked_reflection_context();
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
+    let roots = [TypeMetadata::of::<UnreadableUniqueScope>()];
+    let errors = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect_err("setter-only scope is not readable");
+
+    let error = errors
+        .errors()
+        .iter()
+        .find(|error| error.kind() == ResolveErrorKind::UnreadableProperty)
+        .expect("unreadable unique scope diagnostic");
+    assert_eq!(error.path().expect("scope path").to_string(), "hidden");
+    assert_eq!(error.declaration().expect("unique declaration").field, Some(0));
 }
 
 #[Model]

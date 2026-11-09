@@ -27,6 +27,15 @@ pub(crate) struct ExecutionFailure {
 /// The error is boxed, and `dependency` is set to `None` because this
 /// conversion carries no information identifying a failed dependency.
 impl From<ExecutionError> for ExecutionFailure {
+    /// Wraps the execution error without inventing dependency context.
+    ///
+    /// # Parameters
+    ///
+    /// - `error`: Execution failure to retain, including its adapter cause.
+    ///
+    /// # Returns
+    ///
+    /// An `ExecutionFailure` with the error boxed and no dependency binding.
     fn from(error: ExecutionError) -> Self {
         Self {
             error: Box::new(error),

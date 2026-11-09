@@ -14,7 +14,15 @@ use super::SetterIr;
 /// Represents one validated property method.
 pub(in crate::expand::model_impl) enum PropertyMethod {
     /// Validated getter.
-    Getter(GetterIr),
+    Getter(
+        /// The validated method, property, presence condition, and output
+        /// classification.
+        GetterIr,
+    ),
     /// Validated setter.
-    Setter(SetterIr),
+    Setter(
+        /// The validated method, property, presence condition, and accepted
+        /// input type.
+        SetterIr,
+    ),
 }

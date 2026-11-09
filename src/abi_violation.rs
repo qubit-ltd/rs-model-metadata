@@ -71,3 +71,17 @@ impl AbiViolation {
         self.message
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::AbiViolation;
+
+    #[test]
+    fn test_violation_exposes_stable_code_and_message() {
+        let violation = AbiViolation::new("metadata.role", "role differs from descriptor");
+
+        assert_eq!(violation.code(), "metadata.role");
+        assert_eq!(violation.message(), "role differs from descriptor");
+        assert_eq!(violation.to_string(), "metadata.role: role differs from descriptor");
+    }
+}

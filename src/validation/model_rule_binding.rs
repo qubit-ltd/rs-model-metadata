@@ -77,6 +77,14 @@ pub struct ModelRuleBinding {
 impl fmt::Debug for ModelRuleBinding {
     /// Formats the rule identity without invoking or inspecting its validator.
     ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the rule identity.
+    ///
     /// # Errors
     ///
     /// Returns a formatter error if writing the diagnostic fails.

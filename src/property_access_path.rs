@@ -361,6 +361,12 @@ impl<'ctx> PropertyAccessPath<'ctx> {
     ///
     /// The unsafe public entry point supplies `bypass_visibility` only after
     /// its caller accepts the privacy obligation for every private field.
+    ///
+    /// # Parameters
+    ///
+    /// - `root`: Borrowed root value traversed by the compiled path.
+    /// - `bypass_visibility`: Whether field visibility checks are bypassed
+    ///   under the unsafe caller's authorization.
     fn read_dynamic_impl<'a>(
         &self,
         root: PropertyBorrowed<'a>,
@@ -426,6 +432,14 @@ impl<'ctx> PropertyAccessPath<'ctx> {
     ///
     /// `bypass_visibility` is enabled only by the unsafe public entry point,
     /// whose caller authorizes access through private fields.
+    ///
+    /// # Parameters
+    ///
+    /// - `root`: Mutable root value traversed by the compiled path.
+    /// - `replacement`: Owned value held until the leaf setter or field accepts
+    ///   it.
+    /// - `bypass_visibility`: Whether private-field access is authorized by the
+    ///   unsafe caller.
     fn write_dynamic_impl(
         &self,
         root: PropertyMutable<'_>,
@@ -526,6 +540,13 @@ impl<'ctx> PropertyAccessPath<'ctx> {
     /// Intermediate properties remain readable because path traversal must
     /// inspect their values. The `require_readable_leaf` flag distinguishes
     /// read paths from write paths, whose leaf can be setter-only.
+    ///
+    /// # Parameters
+    ///
+    /// - `registry`: Explicit registry used to resolve each path segment.
+    /// - `root`: Static metadata for the root object type.
+    /// - `segments`: Ordered property names from root to leaf.
+    /// - `require_readable_leaf`: Whether the leaf must provide a read adapter.
     fn compile_with_leaf_readability(
         registry: &ModelRegistry<'ctx>,
         root: &'static TypeMetadata,
@@ -573,6 +594,16 @@ impl<'ctx> PropertyAccessPath<'ctx> {
 /// `is_last` and `require_readable_leaf` preserve the distinction between read
 /// paths and setter-only write leaves. Resolution errors retain the original
 /// segment index and property name.
+///
+/// # Parameters
+///
+/// - `registry`: Registry used to find properties declared by `owner`.
+/// - `owner`: Metadata for the type declaring the property.
+/// - `segment`: Property name to resolve at this path segment.
+/// - `index`: Position of the segment, retained in any resolution error.
+/// - `is_last`: Whether this segment is the path's leaf.
+/// - `require_readable_leaf`: Whether a leaf must provide a read adapter.
+/// - `context`: Reflection context used to validate reflected field adapters.
 fn resolve_property(
     registry: &ModelRegistry<'_>,
     owner: &'static TypeMetadata,
@@ -618,6 +649,17 @@ fn resolve_property(
 /// This stage validates the property's reflected output representation,
 /// resolves optional element metadata when needed, and returns the generated
 /// mutable/read projection operations without changing traversal state.
+///
+/// # Parameters
+///
+/// - `registry`: Registry used to resolve the model type reached by the
+///   property.
+/// - `property`: Intermediate property whose output representation is
+///   inspected.
+/// - `segment`: Property name used in any unsupported-intermediate error.
+/// - `index`: Position of the property in the compiled path.
+/// - `context`: Reflection context used to resolve output and optional element
+///   types.
 fn resolve_intermediate<'ctx>(
     registry: &ModelRegistry<'ctx>,
     property: PropertyMetadata,

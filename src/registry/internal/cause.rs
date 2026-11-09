@@ -21,18 +21,43 @@ use crate::metadata::AbiViolation;
 #[derive(Clone, Debug)]
 pub(crate) enum Cause {
     /// A failure while querying reflection context.
-    Context(ContextError),
+    Context(
+        /// The reflection lookup or context operation that failed.
+        ContextError,
+    ),
     /// A failure while resolving model capabilities.
-    Capability(CapabilityError),
+    Capability(
+        /// The capability resolution error retained for the source chain.
+        CapabilityError,
+    ),
     /// A failed generic definition lookup.
     #[cfg(feature = "generic")]
-    Lookup(LookupError),
+    Lookup(
+        /// The generic metadata lookup error retained for the source chain.
+        LookupError,
+    ),
     /// Invalid ABI metadata supplied for a model.
-    Abi(AbiViolation),
+    Abi(
+        /// The ABI invariant violation reported for the model metadata.
+        AbiViolation,
+    ),
 }
 
 impl Display for Cause {
     /// Formats the retained underlying error without changing its message.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - The formatting destination supplied by the caller.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the underlying error's message.
+    ///
+    /// # Errors
+    ///
+    /// Returns the formatter's error if the underlying message cannot be
+    /// written.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Context(error) => Display::fmt(error, formatter),

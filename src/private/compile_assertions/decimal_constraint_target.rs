@@ -15,7 +15,9 @@ use bigdecimal::BigDecimal;
 
 /// Marks exact decimal values accepted by decimal and money constraints.
 #[doc(hidden)]
-pub trait DecimalConstraintTarget {}
+pub trait DecimalConstraintTarget {
+    // empty
+}
 
 macro_rules! decimal_target {
     ($($type:ty),+ $(,)?) => {

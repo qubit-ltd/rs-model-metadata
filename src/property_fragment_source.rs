@@ -48,9 +48,18 @@ use crate::metadata::SetterMetadata;
 #[derive(Clone, Copy, Debug)]
 pub enum PropertyFragmentSource {
     /// A reflected storage field declared the property.
-    Field(&'static FieldMetadata),
+    Field(
+        /// Metadata for the field that contributes this property fragment.
+        &'static FieldMetadata,
+    ),
     /// A public getter declared a readable property fragment.
-    Getter(&'static GetterMetadata),
+    Getter(
+        /// Metadata for the getter that contributes this property fragment.
+        &'static GetterMetadata,
+    ),
     /// A public setter declared a writable property fragment.
-    Setter(&'static SetterMetadata),
+    Setter(
+        /// Metadata for the setter that contributes this property fragment.
+        &'static SetterMetadata,
+    ),
 }

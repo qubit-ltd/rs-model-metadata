@@ -11,6 +11,14 @@
 /// Computes the 64-bit FNV-1a hash of `value`'s UTF-8 bytes.
 ///
 /// The standard offset basis and prime make the result stable across runs.
+///
+/// # Parameters
+///
+/// - `value`: Text whose UTF-8 byte sequence is fingerprinted.
+///
+/// # Returns
+///
+/// The stable 64-bit FNV-1a fingerprint of the input bytes.
 #[must_use]
 #[inline]
 pub(crate) fn stable_fingerprint(value: &str) -> u64 {

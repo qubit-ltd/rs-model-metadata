@@ -318,6 +318,8 @@ mod tests {
         let key = PathCacheKey::new(first_context, TypeId::of::<usize>(), 1, &["value"], false);
         cache.insert_or_existing(key, Arc::new(42));
 
+        assert!(format!("{cache:?}").contains("PathCache"));
+
         assert!(
             cache
                 .get_borrowed(second_context, TypeId::of::<usize>(), 1, &["value"], false)

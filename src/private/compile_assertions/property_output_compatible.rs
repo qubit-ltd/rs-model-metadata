@@ -21,7 +21,9 @@ use super::OptionalBorrowedPropertyOutput;
 ///
 /// - `Setter`: Value type accepted by the corresponding setter.
 #[doc(hidden)]
-pub trait PropertyOutputCompatible<Setter: ?Sized> {}
+pub trait PropertyOutputCompatible<Setter: ?Sized> {
+    // empty
+}
 
 impl<T: ?Sized> PropertyOutputCompatible<T> for T {}
 impl<T: ?Sized> PropertyOutputCompatible<T> for BorrowedPropertyOutput<T> {}

@@ -22,66 +22,94 @@ pub struct Configured {
 impl Configured {
     /// Never contributes an adapter or signature type reference.
     #[cfg(any())]
-    pub fn absent(&self) -> MissingGetterType { unreachable!() }
+    pub fn absent(&self) -> MissingGetterType {
+        unreachable!()
+    }
 
     /// Uses the default getter type.
     #[must_use]
     #[inline]
     #[cfg(not(feature = "alternate"))]
-    pub fn paired(&self) -> u32 { self.value }
+    pub fn paired(&self) -> u32 {
+        self.value
+    }
 
     /// Uses a different mutually exclusive getter type.
     #[must_use]
     #[cfg(feature = "alternate")]
-    pub fn paired(&self) -> String { self.value.to_string() }
+    pub fn paired(&self) -> String {
+        self.value.to_string()
+    }
 
     /// Adds a simultaneously enabled getter for a failure configuration.
     #[cfg(feature = "duplicate-getter")]
-    pub fn paired(&self) -> bool { true }
+    pub fn paired(&self) -> bool {
+        true
+    }
 
     /// Is absent when accessors is enabled; ordinary attributes remain intact.
     #[must_use]
     #[inline]
     #[cfg_attr(feature = "accessors", cfg(any()), inline)]
-    pub fn conditional(&self) -> u32 { self.value }
+    pub fn conditional(&self) -> u32 {
+        self.value
+    }
 
     /// Is absent only when both real features are enabled.
     #[must_use]
     #[inline]
-    #[cfg_attr(feature = "accessors", cfg_attr(feature = "alternate", cfg(any())), doc = "conditional docs")]
-    pub fn nested(&self) -> u32 { self.value }
+    #[cfg_attr(
+        feature = "accessors",
+        cfg_attr(feature = "alternate", cfg(any())),
+        doc = "conditional docs"
+    )]
+    pub fn nested(&self) -> u32 {
+        self.value
+    }
 
     /// Multiple presence-changing cfg_attr attributes are conjoined.
     #[must_use]
     #[inline]
     #[cfg_attr(feature = "accessors", cfg(all()), cfg(not(feature = "alternate")))]
-    pub fn multiple(&self) -> u32 { self.value }
+    pub fn multiple(&self) -> u32 {
+        self.value
+    }
 
     /// Independent cfg attributes are conjoined.
     #[must_use]
     #[inline]
     #[cfg(all())]
     #[cfg(not(feature = "alternate"))]
-    pub fn conjunction(&self) -> u32 { self.value }
+    pub fn conjunction(&self) -> u32 {
+        self.value
+    }
 
     /// A real feature controls an ordinary getter and setter pair.
     #[must_use]
     #[inline]
     #[cfg(feature = "accessors")]
-    pub fn feature_value(&self) -> u32 { self.value }
+    pub fn feature_value(&self) -> u32 {
+        self.value
+    }
 
     /// Never contributes an adapter or signature type reference.
     #[cfg(any())]
-    pub fn set_absent(&mut self, _: MissingSetterType) { unreachable!() }
+    pub fn set_absent(&mut self, _: MissingSetterType) {
+        unreachable!()
+    }
 
     /// Is deliberately the first setter candidate, but never enabled.
     #[cfg(any())]
-    pub fn set_paired(&mut self, _: MissingPairType) { unreachable!() }
+    pub fn set_paired(&mut self, _: MissingPairType) {
+        unreachable!()
+    }
 
     /// Matches the default getter when enabled.
     #[inline]
     #[cfg(all(not(feature = "alternate"), not(feature = "mismatch")))]
-    pub fn set_paired(&mut self, value: u32) { self.value = value; }
+    pub fn set_paired(&mut self, value: u32) {
+        self.value = value;
+    }
 
     /// Matches the alternate getter when enabled.
     #[cfg(all(feature = "alternate", not(feature = "mismatch")))]
@@ -99,7 +127,9 @@ impl Configured {
 
     /// A real feature controls an ordinary getter and setter pair.
     #[cfg(feature = "accessors")]
-    pub fn set_feature_value(&mut self, value: u32) { self.value = value; }
+    pub fn set_feature_value(&mut self, value: u32) {
+        self.value = value;
+    }
 }
 
 #[ModelImpl]
@@ -108,7 +138,9 @@ impl Configured {
     /// The complete provider and registration share the impl condition.
     #[must_use]
     #[inline]
-    pub fn enabled_impl(&self) -> u32 { self.value }
+    pub fn enabled_impl(&self) -> u32 {
+        self.value
+    }
 }
 
 #[cfg(test)]
@@ -155,12 +187,7 @@ mod tests {
                 .inherent_impls()
                 .expect("inherent impls")
                 .iter()
-                .any(|implementation| {
-                    implementation
-                        .methods()
-                        .iter()
-                        .any(|method| method.name() == name)
-                });
+                .any(|implementation| implementation.methods().iter().any(|method| method.name() == name));
             assert_eq!(method_present, enabled, "reflection method {name}");
             if let Some(property) = property {
                 assert!(

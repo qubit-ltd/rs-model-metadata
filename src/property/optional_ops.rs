@@ -65,10 +65,37 @@ impl OptionalOps {
     #[doc(hidden)]
     pub fn for_element<T: Reflect + ValueForRef<Local> + ValueForMut<Local> + std::any::Any>() -> Self {
         /// Returns the exact `TypeId` of the reflected element type.
+        ///
+        /// # Type Parameters
+        ///
+        /// * `T` - Reflected element type whose identity is returned.
+        ///
+        /// # Returns
+        ///
+        /// The process-local Rust type identity of `T`.
         fn type_id<T: 'static>() -> TypeId {
             TypeId::of::<T>()
         }
         /// Projects a matching optional value into a shared element borrow.
+        ///
+        /// # Type Parameters
+        ///
+        /// * `'a` - Lifetime retained by the projected borrow.
+        /// * `T` - Expected element type inside the optional value.
+        ///
+        /// # Parameters
+        ///
+        /// * `value` - Shared property borrow to check and project.
+        ///
+        /// # Returns
+        ///
+        /// `Ok(Some(_))` for a present element, `Ok(None)` for an absent one,
+        /// or an error when the property is not `Option<T>`.
+        ///
+        /// # Errors
+        ///
+        /// Returns `PropertyTypeMismatch` when the property's concrete type
+        /// differs from `Option<T>`.
         fn project_ref<'a, T>(value: PropertyBorrowed<'a>) -> Result<Option<PropertyBorrowed<'a>>, PropertyTypeMismatch>
         where
             T: Reflect + ValueForRef<Local> + std::any::Any,
@@ -85,6 +112,25 @@ impl OptionalOps {
             }
         }
         /// Projects a matching optional value into a mutable element borrow.
+        ///
+        /// # Type Parameters
+        ///
+        /// * `'a` - Lifetime retained by the projected exclusive borrow.
+        /// * `T` - Expected element type inside the optional value.
+        ///
+        /// # Parameters
+        ///
+        /// * `value` - Exclusive property borrow to check and project.
+        ///
+        /// # Returns
+        ///
+        /// `Ok(Some(_))` for a present element, `Ok(None)` for an absent one,
+        /// or an error when the property is not `Option<T>`.
+        ///
+        /// # Errors
+        ///
+        /// Returns `PropertyTypeMismatch` when the property's concrete type
+        /// differs from `Option<T>`.
         fn project_mut<'a, T>(value: PropertyMutable<'a>) -> Result<Option<PropertyMutable<'a>>, PropertyTypeMismatch>
         where
             T: Reflect + ValueForMut<Local>,

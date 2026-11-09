@@ -52,7 +52,7 @@ reason = "Redaction mode and options form one private declaration vocabulary"
 
 [[exceptions]]
 rule = "public-type-layout"
-path = "derive/src/ir/declaration/references.rs"
+path = "derive/src/ir/declaration/reference_ir.rs"
 reason = "Reference targets and uniqueness form one private declaration vocabulary"
 
 [[exceptions]]

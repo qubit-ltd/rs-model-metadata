@@ -84,7 +84,5 @@ fn main() {
         value: String::new(),
         label: None,
     };
-    let _ = ContractProperty {
-        name: String::new(),
-    };
+    let _ = ContractProperty { name: String::new() };
 }

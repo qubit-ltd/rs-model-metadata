@@ -88,6 +88,10 @@ impl ModelImplFragment {
     pub const fn for_type<T: Reflect + 'static>(provider: ModelImplProvider, source: ModelImplSource) -> Self {
         /// Returns the runtime type identity used to filter inventory entries.
         ///
+        /// # Type Parameters
+        ///
+        /// * `T` - The reflected type whose inventory entries are selected.
+        ///
         /// # Returns
         ///
         /// The runtime identity of `T`.

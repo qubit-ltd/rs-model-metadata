@@ -26,7 +26,9 @@ use super::SequenceConstraintTarget;
 /// implement this trait, so generated range constraints can distinguish them
 /// from sequences whose length varies at runtime.
 #[doc(hidden)]
-pub trait VariableLengthSequenceTarget: SequenceConstraintTarget {}
+pub trait VariableLengthSequenceTarget: SequenceConstraintTarget {
+    // empty
+}
 
 macro_rules! variable_sequence_target {
     ($($container:ty),+ $(,)?) => {

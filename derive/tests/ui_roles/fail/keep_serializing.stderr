@@ -1,11 +1,11 @@
 error: keep_serializing requires a named Option or standard collection field
-  --> tests/ui_roles/fail/keep_serializing.rs:15:8
+  --> tests/ui_roles/fail/keep_serializing.rs:16:8
    |
-15 | struct RedundantMarker {
+16 | struct RedundantMarker {
    |        ^^^^^^^^^^^^^^^
 
 error: keep_serializing requires a named Option or standard collection field
-  --> tests/ui_roles/fail/keep_serializing.rs:21:8
+  --> tests/ui_roles/fail/keep_serializing.rs:22:8
    |
-21 | struct PositionalMarker(#[keep_serializing] Option<u64>);
+22 | struct PositionalMarker(#[keep_serializing] Option<u64>);
    |        ^^^^^^^^^^^^^^^^

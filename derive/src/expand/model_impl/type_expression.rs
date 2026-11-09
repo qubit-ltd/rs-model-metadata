@@ -18,6 +18,17 @@ use syn::Type;
 /// `runtime` selects the metadata facade used by the generated tokens, while
 /// `generic_environment` identifies type and const parameters that must remain
 /// parameter references instead of being represented as concrete types.
+///
+/// # Parameters
+///
+/// * `ty` - The accessor's Rust type syntax to represent.
+/// * `runtime` - The runtime facade path referenced by generated tokens.
+/// * `generic_environment` - Declared type and const parameters retained as
+///   parameter references.
+///
+/// # Returns
+///
+/// Tokens constructing context-independent expression metadata for `ty`.
 #[must_use]
 #[inline]
 pub(super) fn type_expression_data(ty: &Type, runtime: &TokenStream, generic_environment: &[Ident]) -> TokenStream {

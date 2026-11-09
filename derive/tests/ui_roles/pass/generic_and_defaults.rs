@@ -7,7 +7,8 @@
 // =============================================================================
 // The filename is part of a Cargo or trybuild fixture protocol.
 
-//! Verifies successful role derives, const-generic models, and explicit serde derives.
+//! Verifies successful role derives, const-generic models, and explicit serde
+//! derives.
 
 use model_runtime::__private::qubit_id::Id;
 use qubit_model_derive::Entity;
@@ -54,7 +55,5 @@ fn main() {
     let _ = Revision(1);
     let _ = Status::Ready;
     let _ = View { id: Id::new(1) };
-    let _ = ExistingSafeSerialize {
-        value: String::new(),
-    };
+    let _ = ExistingSafeSerialize { value: String::new() };
 }

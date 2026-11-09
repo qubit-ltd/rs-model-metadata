@@ -58,7 +58,7 @@ criterion = "^0.8"
 serde_json = "^1.0"
 trybuild = "^1.0"
 uuid = "^1.29"
-qubit-datatype = "^0.15"
+qubit-datatype = { version = "^0.15", path = "../rs-datatype" }
 qubit-codec = { version = "^0.17", features = ["registry"] }
 qubit-model-derive = { version = "^0.2", path = "derive" }
 

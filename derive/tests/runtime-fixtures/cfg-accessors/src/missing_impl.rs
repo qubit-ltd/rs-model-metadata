@@ -14,5 +14,7 @@ use qubit_model_derive::ModelImpl;
 #[cfg(any())]
 impl MissingImplTarget {
     /// No signature or provider reference survives the impl condition.
-    pub fn missing_impl(&self) -> MissingImplReturn { unreachable!() }
+    pub fn missing_impl(&self) -> MissingImplReturn {
+        unreachable!()
+    }
 }

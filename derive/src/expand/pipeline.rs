@@ -38,6 +38,21 @@ use crate::validate::declaration::validate_declaration;
 /// normalize parsed options, validate the resulting intermediate
 /// representation, and generate the derive output. When declaration validation
 /// and runtime-path resolution both fail, their diagnostics are combined.
+///
+/// # Parameters
+///
+/// * `kind` - The derive or model-implementation macro being expanded.
+/// * `args` - The macro attribute arguments parsed as metadata options.
+/// * `input` - The input declaration or implementation token stream.
+///
+/// # Returns
+///
+/// The generated token stream when parsing, validation, and expansion succeed.
+///
+/// # Errors
+///
+/// Returns combined syntax, validation, runtime-path, or expansion diagnostics
+/// when the macro input cannot be expanded.
 pub(crate) fn run(kind: MacroKind, args: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let raw_options = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(args)?;
     if kind == MacroKind::ModelImpl {

@@ -29,6 +29,19 @@ pub(in crate::registry::model_registry) struct PathCacheKey {
 
 impl PathCacheKey {
     /// Copies the path inputs into a key for this registry's cache.
+    ///
+    /// # Parameters
+    ///
+    /// * `context_id` - The reflection context that owns the compiled path.
+    /// * `type_id` - The concrete Rust type identity of the root model.
+    /// * `metadata_address` - The root metadata allocation identity for this
+    ///   type.
+    /// * `segments` - The property names in the path, copied into the key.
+    /// * `write` - Whether the compiled path supports writes.
+    ///
+    /// # Returns
+    ///
+    /// An owned cache key containing all path identity and access-mode inputs.
     #[must_use]
     pub(in crate::registry::model_registry) fn new(
         context_id: ReflectionContextId,
@@ -47,6 +60,18 @@ impl PathCacheKey {
     }
 
     /// Compares an owned key against caller-borrowed path segments.
+    ///
+    /// # Parameters
+    ///
+    /// * `context_id` - The reflection context to compare with this key.
+    /// * `type_id` - The root model type identity to compare with this key.
+    /// * `metadata_address` - The root metadata allocation identity to compare.
+    /// * `segments` - The borrowed property path to compare segment by segment.
+    /// * `write` - The requested write capability to compare with this key.
+    ///
+    /// # Returns
+    ///
+    /// `true` when all identity, path, and access-mode components match.
     #[must_use]
     #[inline]
     pub(super) fn matches_borrowed(
