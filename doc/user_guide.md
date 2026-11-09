@@ -822,16 +822,23 @@ execution policy and cannot bypass declaration or binding errors.
 - A policy stop returns `Ok(report)` with `is_truncated() == true`. A legal skip
   alone does not trigger FailFast. An external validator's own result allocation
   is not limited by the report cap.
-- Nodes count the root once, each actual property/dependency/element read once,
-  and each rule invocation once. Repeated reads count repeatedly.
+- Nodes count the root once, each property/dependency read, each selector
+  element read, and each rule invocation. Repeated reads count repeatedly.
 - Depth counts property and element path segments plus parent hops for a dependency.
   Each access is checked before it happens.
-- Comparisons count selector element rule invocations and each pair checked by
-  outer sequence uniqueness. Element reads also consume nodes. Uniqueness uses
+- The shared comparison budget counts selector element rule invocations and
+  each pair checked by outer sequence uniqueness. Element reads also consume
+  nodes. Uniqueness uses
   `PartialEq` in first-index order and can take O(n²) comparisons; the budget is
   checked before each comparison. It does not inspect custom validator internals.
   Exhaustion of depth, nodes, or comparisons returns
-  `TraversalLimit` with the partial report. Accounting cannot wrap on overflow.
+  `TraversalLimit` with the partial report. Unknown-length selector iterators
+  must be probed with `next()` to determine whether another member exists. The
+  executor reserves the node and comparison budget for that possible member
+  before probing, so an exhaustion probe can consume budget even when it yields
+  no member; exact-size iterators avoid this extra probe. This conservative
+  accounting can truncate an unknown-length traversal earlier than its number
+  of yielded members suggests. Accounting cannot wrap on overflow.
 
 Decimal checks normalize numeric representation before checking scale, optional
 precision, then the exact range. Thus `1.2300` fits scale 2 while `1.234` does

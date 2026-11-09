@@ -117,16 +117,22 @@ impl ValidationOptionsBuilder {
         self
     }
 
-    /// Limits selector element rule calls; it cannot count comparisons
-    /// performed inside an external validator.
+    /// Limits the shared budget for selector element rule calls and each pair
+    /// checked by outer sequence uniqueness. Element reads also consume the
+    /// node budget. Work performed inside an external validator is not
+    /// counted. Unknown-length selector probes reserve node budget for a
+    /// possible read and rule call, plus comparison budget, before `next()`;
+    /// an exhaustion probe may consume these budgets without yielding a
+    /// member. Exhaustion returns `TraversalLimit` with a partial report.
     ///
     /// # Parameters
     ///
-    /// * `value` - Positive limit on selector element rule calls.
+    /// * `value` - Positive limit shared by selector element rule calls and
+    ///   outer sequence uniqueness comparisons.
     ///
     /// # Returns
     ///
-    /// This builder with the supplied selector-call budget.
+    /// This builder with the supplied comparison budget.
     #[inline]
     pub fn max_comparisons(mut self, value: NonZeroUsize) -> Self {
         self.options.max_comparisons = value;

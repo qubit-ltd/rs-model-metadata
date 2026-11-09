@@ -6,7 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-//! Shared accounting for actual validation execution operations.
+//! Shared accounting for validation execution operations and conservative
+//! selector probes.
 
 use qubit_validator::ExecutionError;
 use qubit_validator::ExecutionErrorKind;
@@ -17,9 +18,12 @@ use crate::validation::ValidationOptions;
 pub(crate) struct ExecutionBudget<'options> {
     /// Caller-specified immutable limits.
     options: &'options ValidationOptions,
-    /// Nodes already consumed; the root is the first node.
+    /// Nodes charged for the root and reserved property, element, and rule
+    /// operations. Unknown-length selector probes reserve a possible element
+    /// read and invocation before calling `next()`.
     nodes: usize,
-    /// Selector rule invocations already consumed.
+    /// Selector invocations and outer sequence pairs charged. A selector
+    /// probe consumes this budget before it is known whether an item exists.
     comparisons: usize,
 }
 

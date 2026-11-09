@@ -45,7 +45,13 @@ pub struct ValidationOptions {
     pub(super) max_nodes: NonZeroUsize,
     /// Maximum retained failures, including prerequisites.
     pub(super) max_violations: NonZeroUsize,
-    /// Maximum selector element rule calls.
+    /// Maximum selector element rule calls and outer sequence uniqueness
+    /// comparisons. Element reads also consume the node budget. Work inside
+    /// an external validator is not counted. Unknown-length selector probes
+    /// reserve node budget for a possible read and rule call, plus comparison
+    /// budget, before `next()`; an exhaustion probe may consume these budgets
+    /// without yielding a member. Exhaustion returns `TraversalLimit` with a
+    /// partial report.
     pub(super) max_comparisons: NonZeroUsize,
 }
 

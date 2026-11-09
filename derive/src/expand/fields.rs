@@ -1344,19 +1344,20 @@ fn expand_collection_items(field_type: &Type, runtime: &TokenStream) -> TokenStr
                 if position != #runtime::metadata::SelectorPosition::Element {
                     return Err(#runtime::metadata::PropertyAccessError::AdapterUnavailable);
                 }
-                Box::new(collection.iter().map(#runtime::__private::DynamicRef::<#runtime::__private::Local>::new))
-                    as Box<dyn Iterator<Item = #runtime::__private::DynamicRef<'_, #runtime::__private::Local>> + '_>
+                #runtime::metadata::BorrowedCollection::new(
+                    collection.iter().map(#runtime::__private::DynamicRef::<#runtime::__private::Local>::new)
+                )
             }
         }
     } else {
         quote! {
             match position {
-                #runtime::metadata::SelectorPosition::MapKey => Box::new(collection.keys().map(
-                    #runtime::__private::DynamicRef::<#runtime::__private::Local>::new
-                )) as Box<dyn Iterator<Item = #runtime::__private::DynamicRef<'_, #runtime::__private::Local>> + '_>,
-                #runtime::metadata::SelectorPosition::MapValue => Box::new(collection.values().map(
-                    #runtime::__private::DynamicRef::<#runtime::__private::Local>::new
-                )) as Box<dyn Iterator<Item = #runtime::__private::DynamicRef<'_, #runtime::__private::Local>> + '_>,
+                #runtime::metadata::SelectorPosition::MapKey => #runtime::metadata::BorrowedCollection::new(
+                    collection.keys().map(#runtime::__private::DynamicRef::<#runtime::__private::Local>::new)
+                ),
+                #runtime::metadata::SelectorPosition::MapValue => #runtime::metadata::BorrowedCollection::new(
+                    collection.values().map(#runtime::__private::DynamicRef::<#runtime::__private::Local>::new)
+                ),
                 #runtime::metadata::SelectorPosition::Element => {
                     return Err(#runtime::metadata::PropertyAccessError::AdapterUnavailable);
                 }
@@ -1371,11 +1372,11 @@ fn expand_collection_items(field_type: &Type, runtime: &TokenStream) -> TokenStr
             match value {
                 #runtime::metadata::PropertyValue::Borrowed(value) => {
                     #field_collection
-                    Ok(Some(#runtime::metadata::BorrowedCollection::new(#members)))
+                    Ok(Some(#members))
                 }
                 #runtime::metadata::PropertyValue::OptionalBorrowed(Some(value)) => {
                     #inner_collection
-                    Ok(Some(#runtime::metadata::BorrowedCollection::new(#members)))
+                    Ok(Some(#members))
                 }
                 #runtime::metadata::PropertyValue::OptionalBorrowed(None) => Ok(None),
                 #runtime::metadata::PropertyValue::BorrowedSlice(values) => {
@@ -2106,6 +2107,7 @@ mod tests {
     use syn::parse_quote;
 
     use super::codec_reference_expression;
+    use super::expand_collection_items;
     use super::expand_collection_ops;
     use super::expand_constraint;
     use super::expand_field;
@@ -2142,6 +2144,34 @@ mod tests {
         assert!(tokens.contains("GenericExpressionArgument :: Type"), "{tokens}");
         assert!(tokens.contains("ExpressionData :: Reference"), "{tokens}");
         assert!(!tokens.contains("ExpressionData :: Opaque"), "{tokens}");
+    }
+
+    #[test]
+    fn test_collection_items_expansion_passes_concrete_iterators_directly() {
+        let runtime = quote!(runtime);
+        for (ty, expected_iterators) in [
+            (parse_quote!(Vec<String>), vec!["collection . iter () . map"]),
+            (parse_quote!([String; 2]), vec!["collection . iter () . map"]),
+            (
+                parse_quote!(std::collections::HashMap<String, i32>),
+                vec!["collection . keys () . map", "collection . values () . map"],
+            ),
+            (
+                parse_quote!(std::collections::BTreeMap<String, i32>),
+                vec!["collection . keys () . map", "collection . values () . map"],
+            ),
+        ] {
+            let tokens = expand_collection_items(&ty, &runtime).to_string();
+            assert!(tokens.contains("BorrowedCollection :: new"), "{tokens}");
+            assert!(!tokens.contains("Box :: new"), "{}: {tokens}", ty.to_token_stream());
+            for expected in expected_iterators {
+                assert!(
+                    tokens.contains(expected),
+                    "{}: missing `{expected}` in {tokens}",
+                    ty.to_token_stream()
+                );
+            }
+        }
     }
 
     #[test]

@@ -663,6 +663,56 @@ fn execute_selected_members(
     report: &mut ReportAccumulator<'_>,
     has_more_work: bool,
 ) -> Result<(), ExecutionError> {
+    let FieldExecution::Registry { validator, .. } = binding.execution() else {
+        return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone()));
+    };
+    execute_selected_members_with_validator(
+        occurrence,
+        value,
+        path,
+        position,
+        items,
+        validator,
+        budget,
+        report,
+        has_more_work,
+    )
+}
+
+/// Executes selected members with an already-bound validator.
+///
+/// The private split allows the budget behavior to be tested without
+/// constructing the full validation plan and registry hierarchy.
+///
+/// # Parameters
+///
+/// * `occurrence` - Report index assigned to this field occurrence.
+/// * `value` - Property value containing the sequence or map to project.
+/// * `path` - Field path used as the base for member paths and failures.
+/// * `position` - Selector position choosing sequence or map members.
+/// * `items` - Adapter that projects the selected collection members.
+/// * `validator` - Bound rule applied to each selected member.
+/// * `budget` - Shared execution budget charged before each member read and
+///   validator call.
+/// * `report` - Accumulator receiving member outcomes and violations.
+/// * `has_more_work` - Whether work beyond the selected members remains for
+///   stop-policy handling.
+///
+/// # Errors
+///
+/// Returns an execution error when an adapter, budget, or validator fails.
+#[allow(clippy::too_many_arguments)]
+fn execute_selected_members_with_validator(
+    occurrence: usize,
+    value: PropertyValue<'_>,
+    path: &ValidationPath,
+    position: SelectorPosition,
+    items: crate::property::CollectionItemsAdapter,
+    validator: &qubit_validator::BoundValidator,
+    budget: &mut ExecutionBudget<'_>,
+    report: &mut ReportAccumulator<'_>,
+    has_more_work: bool,
+) -> Result<(), ExecutionError> {
     let mut values = items(&value, position).map_err(|error| {
         ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
             .with_trusted_source(error)
@@ -670,9 +720,6 @@ fn execute_selected_members(
     })?;
     let Some(mut values) = values.take() else {
         return Ok(());
-    };
-    let FieldExecution::Registry { validator, .. } = binding.execution() else {
-        return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone()));
     };
     let context = BoundValidationContext::new_with_paths(&[], &[])?;
     let mut index = 0_usize;
@@ -689,6 +736,8 @@ fn execute_selected_members(
             SelectorPosition::MapValue => path.clone().with_map_entry(index).with_map_value(),
         };
         let depth = member_path.as_segments().len();
+        // Charge before `next()`: an unknown-length iterator can only reveal
+        // exhaustion through a probe, which reserves one possible member.
         budget
             .read(depth)
             .map_err(|error| error.with_path(member_path.clone()))?;
@@ -896,28 +945,148 @@ mod any_view_tests {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+    use std::sync::Arc;
+
     use qubit_reflect::value::DynamicRef;
     use qubit_reflect::value::Local;
+    use qubit_validator::BoundValidationContext;
+    use qubit_validator::BoundValidator;
     use qubit_validator::ExecutionError;
     use qubit_validator::ExecutionErrorKind;
+    use qubit_validator::InputType;
+    use qubit_validator::PreparedOutcome;
+    use qubit_validator::PreparedValidator;
     use qubit_validator::ValidationPath;
+    use qubit_validator::ValidationValue;
     use qubit_validator::ValidatorId;
 
     use super::super::internal::selection_mask::SelectionMask;
+    use super::execute_selected_members_with_validator;
     use super::execute_unique;
     use super::field_matches;
     use super::optional_scalar_value;
     use super::prefix_error;
     use super::property_value;
     use super::unmatched_selection;
+    use crate::metadata::BorrowedCollection;
     use crate::metadata::BorrowedPropertySlice;
     use crate::metadata::PropertyOwned;
     use crate::metadata::PropertyValue;
+    use crate::metadata::SelectorPosition;
+    use crate::property::CollectionItemsAdapter;
     use crate::property::ItemEqAdapter;
     use crate::property::OptionalOps;
     use crate::validation::ValidationOptions;
     use crate::validation::internal::execution_budget::ExecutionBudget;
     use crate::validation::internal::report_accumulator::ReportAccumulator;
+
+    thread_local! {
+        static UNKNOWN_NEXT_CALLS: Cell<usize> = const { Cell::new(0) };
+        static SELECTOR_RULE_CALLS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    struct UnknownLen<I>(I);
+    impl<I: Iterator> Iterator for UnknownLen<I> {
+        type Item = I::Item;
+        fn next(&mut self) -> Option<Self::Item> {
+            UNKNOWN_NEXT_CALLS.with(|calls| calls.set(calls.get() + 1));
+            self.0.next()
+        }
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            (0, None)
+        }
+    }
+
+    fn unknown_len_items<'a>(
+        value: &PropertyValue<'a>,
+        _position: SelectorPosition,
+    ) -> Result<Option<BorrowedCollection<'a>>, crate::metadata::PropertyAccessError> {
+        let PropertyValue::Borrowed(value) = value else {
+            return Err(crate::metadata::PropertyAccessError::NotReadable);
+        };
+        let values = value
+            .clone()
+            .downcast::<Vec<u32>>()
+            .map_err(|_| crate::metadata::PropertyAccessError::NotReadable)?;
+        Ok(Some(BorrowedCollection::new(UnknownLen(
+            values.iter().map(DynamicRef::<Local>::new_any),
+        ))))
+    }
+
+    fn exact_len_items<'a>(
+        value: &PropertyValue<'a>,
+        _position: SelectorPosition,
+    ) -> Result<Option<BorrowedCollection<'a>>, crate::metadata::PropertyAccessError> {
+        let PropertyValue::Borrowed(value) = value else {
+            return Err(crate::metadata::PropertyAccessError::NotReadable);
+        };
+        let values = value
+            .clone()
+            .downcast::<Vec<u32>>()
+            .map_err(|_| crate::metadata::PropertyAccessError::NotReadable)?;
+        Ok(Some(BorrowedCollection::new(
+            values.iter().map(DynamicRef::<Local>::new_any),
+        )))
+    }
+
+    struct CountAndFailLast;
+    impl PreparedValidator for CountAndFailLast {
+        fn input_type(&self) -> InputType {
+            InputType::of::<u32>()
+        }
+        fn dependency_specs(&self) -> &'static [qubit_validator::DependencySpec] {
+            &[]
+        }
+        fn validate(
+            &self,
+            value: ValidationValue<'_>,
+            _context: &BoundValidationContext<'_>,
+        ) -> Result<PreparedOutcome, ExecutionError> {
+            SELECTOR_RULE_CALLS.with(|calls| calls.set(calls.get() + 1));
+            let ValidationValue::Typed(value) = value else {
+                panic!("typed input expected")
+            };
+            if value.downcast_ref::<u32>() == Some(&2) {
+                Ok(PreparedOutcome::Invalid(vec![qubit_validator::ViolationDraft::new(
+                    qubit_validator::ViolationCode::new("test.last"),
+                )]))
+            } else {
+                Ok(PreparedOutcome::valid())
+            }
+        }
+    }
+
+    fn run_unknown_matrix(
+        source: &[u32],
+        adapter: CollectionItemsAdapter,
+        options: &ValidationOptions,
+    ) -> Result<qubit_validator::ValidationReport, Box<(ExecutionError, qubit_validator::ValidationReport)>> {
+        UNKNOWN_NEXT_CALLS.with(|calls| calls.set(0));
+        SELECTOR_RULE_CALLS.with(|calls| calls.set(0));
+        let validator =
+            BoundValidator::try_from_prepared::<u32>(ValidatorId::new("test.selector"), Arc::new(CountAndFailLast))
+                .expect("validator input matches selector member type");
+        let collection = source.to_vec();
+        let value = PropertyValue::Borrowed(DynamicRef::<Local>::new(&collection));
+        let path = ValidationPath::root().with_field("values");
+        let mut budget = ExecutionBudget::new(options);
+        let mut report = ReportAccumulator::new(options);
+        if let Err(error) = execute_selected_members_with_validator(
+            0,
+            value,
+            &path,
+            SelectorPosition::Element,
+            adapter,
+            &validator,
+            &mut budget,
+            &mut report,
+            false,
+        ) {
+            return Err(Box::new((error, report.into_report())));
+        }
+        Ok(report.into_report())
+    }
 
     fn unused_item_comparison(
         left: crate::metadata::PropertyBorrowed<'_>,
@@ -1199,5 +1368,90 @@ mod tests {
 
         assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
         assert_eq!(error.path(), &path.with_index(2));
+    }
+
+    fn matrix_options(nodes: usize, comparisons: usize) -> ValidationOptions {
+        ValidationOptions::builder()
+            .max_nodes(std::num::NonZeroUsize::new(nodes).unwrap())
+            .max_comparisons(std::num::NonZeroUsize::new(comparisons).unwrap())
+            .build()
+    }
+
+    #[test]
+    fn test_unknown_length_selector_budget_boundary_matrix() {
+        let report = run_unknown_matrix(&[], unknown_len_items, &matrix_options(3, 1))
+            .expect("empty unknown iterator exhaustion probe fits");
+        assert!(report.is_valid());
+        assert!(!report.is_truncated());
+        assert_eq!(UNKNOWN_NEXT_CALLS.with(Cell::get), 1);
+        assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 0);
+        let (error, partial) = *run_unknown_matrix(&[], unknown_len_items, &matrix_options(2, 1))
+            .expect_err("empty unknown iterator cannot reserve an exhaustion probe");
+        assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
+        assert!(partial.is_valid());
+        assert!(!partial.is_truncated());
+        assert_eq!(UNKNOWN_NEXT_CALLS.with(Cell::get), 0);
+        assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 0);
+        let depth_limited = ValidationOptions::builder()
+            .max_depth(std::num::NonZeroUsize::new(1).unwrap())
+            .build();
+        let (error, partial) = *run_unknown_matrix(&[1], unknown_len_items, &depth_limited)
+            .expect_err("member depth is checked before the iterator is probed");
+        assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
+        assert!(partial.is_valid());
+        assert_eq!(UNKNOWN_NEXT_CALLS.with(Cell::get), 0);
+        assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 0);
+
+        let (error, partial) = *run_unknown_matrix(&[1], unknown_len_items, &matrix_options(3, 2))
+            .expect_err("one item fits, but the required completion probe has no node budget");
+        assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
+        assert!(partial.is_valid());
+        assert!(!partial.is_truncated());
+        assert_eq!(UNKNOWN_NEXT_CALLS.with(Cell::get), 1);
+        assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 1);
+        let report = run_unknown_matrix(&[1], exact_len_items, &matrix_options(3, 1))
+            .expect("exact size avoids the completion probe");
+        assert!(report.is_valid());
+        assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 1);
+
+        for options in [matrix_options(3, 2), matrix_options(10, 1)] {
+            let (error, partial) = *run_unknown_matrix(&[1, 2], unknown_len_items, &options)
+                .expect_err("second possible member exceeds node or comparison budget");
+            assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
+            assert!(partial.is_valid());
+            assert!(!partial.is_truncated());
+            assert_eq!(UNKNOWN_NEXT_CALLS.with(Cell::get), 1);
+            assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 1);
+        }
+
+        let (error, partial) = *run_unknown_matrix(&[1, 2], unknown_len_items, &matrix_options(5, 2))
+            .expect_err("two member reservations leave no budget to prove exhaustion");
+        assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
+        assert_eq!(partial.violations().len(), 1);
+        assert!(!partial.is_truncated());
+        assert_eq!(UNKNOWN_NEXT_CALLS.with(Cell::get), 2);
+        assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 2);
+        let report = run_unknown_matrix(&[1, 2], exact_len_items, &matrix_options(5, 2))
+            .expect("exact-size iterator completes at the same member budget");
+        assert_eq!(report.violations().len(), 1);
+        assert!(!report.is_truncated());
+        assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 2);
+
+        let options = ValidationOptions::builder()
+            .mode(crate::validation::ValidationMode::FailFast)
+            .max_nodes(std::num::NonZeroUsize::new(20).unwrap())
+            .max_comparisons(std::num::NonZeroUsize::new(10).unwrap())
+            .build();
+        let report = run_unknown_matrix(&[1, 2], unknown_len_items, &options)
+            .expect("FailFast returns a partial report rather than an error");
+        assert_eq!(UNKNOWN_NEXT_CALLS.with(Cell::get), 2);
+        assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 2);
+        assert_eq!(report.violations().len(), 1);
+        assert!(report.is_truncated());
+        let report = run_unknown_matrix(&[1, 2], exact_len_items, &options)
+            .expect("exact size identifies the failed item as the last member");
+        assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 2);
+        assert_eq!(report.violations().len(), 1);
+        assert!(!report.is_truncated());
     }
 }

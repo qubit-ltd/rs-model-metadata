@@ -118,7 +118,34 @@ fn test_bilingual_documentation_examples() {
 #[test]
 fn test_documented_installation_paths() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let parent = root.parent().expect("metadata checkout parent");
+    // Model the documented sibling checkout layout in an owned temporary
+    // directory. A linked worktree's parent may contain stale aliases for
+    // other worktrees, so the test must not rely on or replace those paths.
+    let layout = create_fixture();
+    let parent = layout.directory.join("rust-common");
+    fs::create_dir_all(&parent).expect("documented checkout layout");
+    symlink_directory(root, &parent.join("rs-model-metadata"));
+    symlink_directory(
+        &root.join("../rs-reflect").canonicalize().expect("reflect checkout"),
+        &parent.join("rs-reflect"),
+    );
+    symlink_directory(
+        &root
+            .join("../../rust-common/rs-validator")
+            .canonicalize()
+            .expect("validator checkout"),
+        &parent.join("rs-validator"),
+    );
+    for dependency in ["rs-redact", "rs-datatype"] {
+        symlink_directory(
+            &root
+                .join("..")
+                .join(dependency)
+                .canonicalize()
+                .unwrap_or_else(|error| panic!("{dependency} checkout: {error}")),
+            &parent.join(dependency),
+        );
+    }
     let mut configurations = Vec::new();
     let mut installation_kinds = BTreeMap::new();
     for document in DOCUMENTS {
@@ -151,7 +178,7 @@ fn test_documented_installation_paths() {
         );
         let metadata: Value = from_slice(&output.stdout)
             .unwrap_or_else(|error| panic!("{context}: invalid Cargo metadata JSON: {error}"));
-        check_raw_installation_identity(&metadata, installation, root, parent, &context);
+        check_raw_installation_identity(&metadata, installation, root, &parent, &context);
     }
 
     let core = configurations
@@ -180,6 +207,18 @@ fn test_documented_installation_paths() {
          ({}): {diagnostic}",
         expected_missing.display()
     );
+}
+
+/// Creates a directory symlink used only by the temporary documentation layout.
+#[cfg(unix)]
+fn symlink_directory(target: &Path, link: &Path) {
+    std::os::unix::fs::symlink(target, link).expect("documented checkout symlink");
+}
+
+/// Creates a directory symlink used only by the temporary documentation layout.
+#[cfg(windows)]
+fn symlink_directory(target: &Path, link: &Path) {
+    std::os::windows::fs::symlink_dir(target, link).expect("documented checkout symlink");
 }
 
 /// Removing a dependency must fail using the actual validation source. The old

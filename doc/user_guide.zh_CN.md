@@ -649,12 +649,15 @@ let report = plan.validate(&profile, &options)?;
   也不继续读取依赖或 selector 元素。
 - 策略停止返回 `Ok(report)`，并设置 `is_truncated() == true`。合法 skip 本身不会触发 FailFast。
   报告容量不会限制外部 validator 在返回结果时自行分配的内存。
-- 根计一个节点；每次实际属性、依赖、元素读取，以及每次规则调用，各计一个节点。重复读取重复计费。
+- 根计一个节点；属性、依赖读取、selector 元素读取和规则调用均计入节点预算。重复读取重复计费。
 - 深度按属性和元素路径段计算，依赖导航的 parent hop 也计入；访问发生前检查预算。
-- comparisons 统计 selector 元素规则调用次数，以及外层 sequence 去重检查的每一对元素；
+- 共享的 comparison 预算统计 selector 元素规则调用次数，以及外层 sequence 去重检查的每一对元素；
   元素读取也消耗节点预算。去重按索引顺序调用 `PartialEq`，最坏需要 O(n²) 次比较，
   每次比较前先检查预算；不测量自定义 validator 内部的比较。
-  深度、节点或比较预算不足返回 `TraversalLimit` 和部分报告，计数溢出不会回绕。
+  深度、节点或比较预算不足返回 `TraversalLimit` 和部分报告。未知长度的 selector 迭代器必须调用
+  `next()` 才能判断是否还有成员；执行器会在探测前为可能存在的成员预留节点和 comparison 预算，
+  因此即使探测结果为空，也可能消耗预算；精确长度迭代器无需这次额外探测。这种保守计费可能使
+  未知长度遍历早于其实际产出的成员数量而截断。计数溢出不会回绕。
 
 Decimal 先规范化数值表示，再依次检查 scale、可选 precision 和精确区间。因此 `1.2300`
 符合 scale 2，`1.234` 不符合。precision 按 `DECIMAL(p,s)` 总容量解释：scale 为 2、precision
