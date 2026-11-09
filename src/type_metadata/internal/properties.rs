@@ -48,7 +48,7 @@ fn property_accessor_expression_matches(
     let Some(property_expression) = property.type_expression_in(context) else {
         return true;
     };
-    property_expression.display().to_string() == accessor.display().to_string()
+    property_expression.structurally_eq(accessor)
 }
 
 /// Checks whether a getter's concrete output agrees with the property type.
@@ -185,7 +185,7 @@ pub(in crate::type_metadata) fn validate_properties(
                             .type_expression_data()
                             .map(|expression| type_expression_in(expression, descriptor.context())),
                     )
-                    .is_some_and(|(declared, field)| declared.display().to_string() != field.display().to_string());
+                    .is_some_and(|(declared, field)| !declared.structurally_eq(field));
                 if expression_mismatch {
                     errors.push(PropertyBuildError::new(
                         PropertyBuildErrorKind::FieldTypeMismatch,
