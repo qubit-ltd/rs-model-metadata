@@ -74,7 +74,7 @@ fn main() {
 }
 ```
 
-`StructureResolver::new` 审计全部已注册模型；`for_roots` 与 `for_static_roots` 只解析指定根及其可达模型。解析时检查角色、引用、Projection 来源、Value 闭包、唯一性作用域和查询声明。`ModelGraph` 借用选定的 registry，以 `TypeId` 或 `FieldLocation` 查询关系。仅由静态元数据构建的 registry 需要显式提供子模型；基于反射快照的 registry 可发现可达匿名子模型。模型图不会从全局 registry 补入缺失声明。
+`StructureResolver::new` 审计全部已注册模型；`for_roots` 与 `for_static_roots` 只解析指定根及其可达模型。解析时检查角色、引用、Projection 来源、Value 闭包、唯一性作用域和查询声明。`ModelGraph` 借用选定的 registry，以 `TypeId` 或 `FieldLocation` 查询关系。根生成的 nested metadata provider 在能提供元数据时可发现可达子模型；启用 `generic` 后，这包括具体化的嵌套泛型子模型。仅有非泛型子字段并不会使其模型元数据自动可用，绑定 context 需要注册该子模型的 provider。registry 索引、显式根、生成的 provider、context provider 和反射事实各有职责；解析 descriptor 仍需 context 中的反射事实。模型图不会从全局 registry 补入缺失声明。
 
 ## 声明与执行
 
@@ -111,7 +111,7 @@ fn main() {
 
 1. `ModelRegistry::try_global()` 从进程已链接的反射注册构造全局实例。初始化结果通过一次性单元保存；注册冲突或 ABI 错误不会在后续调用中偷偷变成成功。
 2. `ModelRegistry::from_context(&reflection)` 投影调用方提供的 `ReflectionContext` 快照。它保留来源信息，合并上下文中的 `ModelImpl` provider，并能在可达遍历中发现匿名子模型；不会查询全局上下文补缺。
-3. `ModelRegistry::from_static_metadata(...)` 用明确给出的元数据和来源建立索引。传入的 `ReflectionContext` 仍绑定到注册表，用于能力和属性解析，因此该 context 中注册的 `ModelImpl` provider 仍可见；若 context 没有对应 provider，则返回类型的本地属性。解析匿名子模型时，调用方仍须将子元数据列入输入。
+3. `ModelRegistry::from_static_metadata(...)` 用明确给出的元数据和来源建立索引。传入的 `ReflectionContext` 仍绑定到注册表，用于 capability 和属性解析，因此该 context 中注册的 provider 仍可见；若 context 没有匹配的属性 provider，则返回类型的本地属性。显式根生成的 nested metadata provider 可以发现子模型，而不把它加入 registry 索引；例如启用 `generic` 后，可发现具体化的嵌套泛型子模型。仅将非泛型子类型加入反射 context 不会提供其模型元数据；若要发现它，应在 context 中注册相应 metadata provider。绑定 context 仍须提供解析子模型 descriptor 所需的反射事实。
 
 注册表按稳定 ID、精确 `TypeId` 建索引。`get(id)` 返回注册条目，`metadata(id)` 返回具体类型元数据；启用 `generic` 后，`generic(id)` 与 `generic_metadata_for(definition_id)` 处理泛型定义。匿名定义可以按进程内定义身份查到，却不进入稳定 ID 列表。构建阶段会拒绝重复 ID、互相矛盾的具体类型注册、能力目标不属于快照、能力适配器类型不匹配和元数据与反射 descriptor 不一致等情形。
 

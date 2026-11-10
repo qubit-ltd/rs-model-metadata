@@ -207,10 +207,13 @@ assert_eq!(user_metadata.type_id(), TypeMetadata::of::<User>().type_id());
 | --- | --- | --- |
 | 最终二进制已链接的模型 | `ModelRegistry::try_global()` | 应用启动时检查全部链接声明 |
 | 显式反射上下文 | `ModelRegistry::from_context(&reflection)` | 测试隔离、插件视图或需要独立注册的 `ModelImpl` 访问器 |
-| 手头的一组静态元数据 | `from_static_metadata(...)` | 显式选择索引条目；属性仍按传入 context 解析，子模型也须显式提供 |
+| 手头的一组静态元数据 | `from_static_metadata(...)` | 显式选择索引条目；属性和嵌套 descriptor 仍按传入 context 解析 |
 
-注册表不会从进程全局范围补入当前范围缺失的模型。快照可从根发现可达匿名子模型。
-静态构造函数显式选择索引条目，但属性仍由传入的 context 解析；若要隔离 provider，
+显式根生成的 nested metadata provider 在能提供子模型元数据时，可以发现该子模型而无需把它
+加入静态 registry 索引；启用 `generic` 后，这包括具体化的嵌套泛型子模型。仅将非泛型子类型
+加入反射 context 不会提供其模型元数据；若要发现它，应在 context 中注册相应 metadata provider。
+绑定的 context 仍须包含解析嵌套 descriptor 所需的反射事实。注册表条目、显式根、nested
+provider 和 context 事实各有职责。解析不会从进程全局范围补入缺失事实，查找失败仍会作为错误返回。若要隔离 provider，
 应使用只含所需注册的精简 context。
 启用 `generic` 后，定义 provider 也随反射快照收集；静态注册表可用
 `from_static_metadata_with_generics` 显式提供。按 ID 的 `entries()` 不包含匿名定义，
@@ -691,7 +694,7 @@ precision 为 1、scale 为 0 时会接受 `1e3`，新版拒绝。元数据中�
 | 找不到引用目标 | 稳定 ID、已链接 crate、传入注册表的内容 |
 | 能力或 Property 冲突 | fallible 查询的 cause 与原始声明来源 |
 | 元数据注册冲突 | 查看 `ModelRegistryError::sources()`，按发现顺序取得双方片段身份 |
-| 匿名模型不在图中 | 检查传入反射快照；仅静态元数据注册表需要显式子元数据 |
+| 匿名模型不在图中 | 检查显式根是否生成可提供 metadata 的 nested provider；非泛型子类型应在 context 注册 provider，并检查解析 descriptor 所需的反射事实 |
 | 父依赖缺失 | 最近父对象优先的实例上下文与 graph 中的类型信息 |
 | selector 无执行支持 | ValidationCapabilities 或其他消费后端 |
 | codec 缺失或类型不符 | 注册项、显式引用和准确 value type |

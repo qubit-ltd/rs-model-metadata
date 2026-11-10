@@ -237,6 +237,14 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// The registry bound to the supplied context.
     ///
+    /// The indexed entries remain exactly those in `concrete`. A resolver may
+    /// discover child metadata from an explicit root's generated providers
+    /// when they yield metadata (for example, a concrete generic child model
+    /// with the `generic` feature). Non-generic child fields need a metadata
+    /// provider in the bound context. The context must supply the reflection
+    /// facts needed to resolve nested descriptors. Discovery does not add
+    /// metadata to the registry or consult the global registry.
+    ///
     /// # Errors
     ///
     /// Returns [`ModelRegistryError`] for an anonymous concrete registration,

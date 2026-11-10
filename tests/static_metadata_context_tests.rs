@@ -12,6 +12,7 @@
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
+use qubit_model_metadata::resolve::StructureResolver;
 use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
 
@@ -23,6 +24,28 @@ struct ContextBoundStaticFacts {
     name: String,
     #[opaque]
     opaque: OpaqueFieldType,
+}
+
+#[Model]
+struct AnonymousNestedChild {
+    name: String,
+}
+
+#[Model]
+struct AnonymousNestedParent {
+    child: AnonymousNestedChild,
+}
+
+#[cfg(feature = "generic")]
+#[Model]
+struct GenericAnonymousNestedChild<T> {
+    name: T,
+}
+
+#[cfg(feature = "generic")]
+#[Model]
+struct GenericAnonymousNestedParent {
+    child: GenericAnonymousNestedChild<String>,
 }
 
 /// Builds a reflection context containing the fixture's registration and field
@@ -103,4 +126,98 @@ fn test_opaque_field_keeps_static_facts_and_stays_hidden_from_reflect_descriptor
         "OpaqueFieldType",
     );
     ModelRegistry::from_context(&context).expect("opaque static field facts match the skipped reflection field");
+}
+
+fn nested_context(include_child: bool, register_child: bool) -> ReflectionContext {
+    let builder = ReflectionContext::builder()
+        .include_type::<AnonymousNestedParent>()
+        .include_type::<String>();
+    let builder = if include_child {
+        builder.include_type::<AnonymousNestedChild>()
+    } else {
+        builder
+    };
+    let builder = if register_child {
+        builder.register(qubit_model_metadata::__private::v8::model_metadata_registration::<
+            AnonymousNestedChild,
+        >())
+    } else {
+        builder
+    };
+    builder.build().expect("nested reflection context should build")
+}
+
+#[test]
+fn test_static_registry_does_not_infer_child_metadata_from_reflection_type() {
+    let reflection = nested_context(true, false);
+    let registry = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
+    let root = TypeMetadata::of::<AnonymousNestedParent>();
+    let child = TypeMetadata::of::<AnonymousNestedChild>();
+
+    let graph = StructureResolver::for_static_roots(&registry, [root])
+        .resolve()
+        .expect("unregistered child metadata is not a resolution error");
+
+    assert!(registry.entries().is_empty());
+    assert!(graph.model(root.type_id()).is_some());
+    assert!(
+        graph.model(child.type_id()).is_none(),
+        "reflection type inclusion alone does not provide model metadata"
+    );
+}
+
+#[test]
+fn test_static_registry_uses_registered_context_child_provider() {
+    let reflection = nested_context(true, true);
+    let registry = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
+    let root = TypeMetadata::of::<AnonymousNestedParent>();
+    let child = TypeMetadata::of::<AnonymousNestedChild>();
+
+    let graph = StructureResolver::for_static_roots(&registry, [root])
+        .resolve()
+        .expect("registered context provider supplies child metadata");
+
+    assert!(
+        registry.entries().is_empty(),
+        "context capabilities are not static index entries"
+    );
+    assert!(graph.model(child.type_id()).is_some());
+}
+
+#[test]
+fn test_static_registry_leaves_child_absent_when_context_lacks_child_type() {
+    let reflection = nested_context(false, false);
+    let registry = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
+    let root = TypeMetadata::of::<AnonymousNestedParent>();
+    let child = TypeMetadata::of::<AnonymousNestedChild>();
+
+    let graph = StructureResolver::for_static_roots(&registry, [root])
+        .resolve()
+        .expect("an unprovided child descriptor leaves the root graph valid");
+
+    assert!(registry.entries().is_empty());
+    assert!(graph.model(root.type_id()).is_some());
+    assert!(graph.model(child.type_id()).is_none());
+}
+
+#[cfg(feature = "generic")]
+#[test]
+fn test_generated_nested_provider_discovers_concrete_generic_child() {
+    let reflection = ReflectionContext::builder()
+        .include_type::<GenericAnonymousNestedParent>()
+        .include_type::<GenericAnonymousNestedChild<String>>()
+        .include_type::<String>()
+        .build()
+        .expect("generic nested reflection context should build");
+    let registry = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
+    let root = TypeMetadata::of::<GenericAnonymousNestedParent>();
+    let child = TypeMetadata::of::<GenericAnonymousNestedChild<String>>();
+
+    let graph = StructureResolver::for_static_roots(&registry, [root])
+        .resolve()
+        .expect("generated nested provider discovers the concrete generic child");
+
+    assert!(registry.entries().is_empty());
+    assert!(graph.model(root.type_id()).is_some());
+    assert!(graph.model(child.type_id()).is_some());
 }

@@ -97,10 +97,16 @@ the supplied metadata, while property resolution still uses the supplied
 `ReflectionContext`. `ModelImpl` providers registered in that context remain
 visible; a context without a matching provider returns local properties. To
 isolate capabilities, pass a context containing only the registrations you
-want. For metadata discovery, supply anonymous child metadata explicitly.
-A registry built from the intended reflection snapshot discovers reachable
-children from the root, without a second child entry in `roots`. Validation consumes the resulting graph without filling
-missing declarations from the process-wide registry.
+want. A generated nested metadata provider on an explicit root can discover a
+child without adding it to the static registry index; with `generic`, this
+includes a concrete generic child model. Merely including a non-generic child
+type in the reflection context does not provide its model metadata, so register
+the child's metadata provider in the context when it must be discoverable. The
+bound context must still contain the reflection facts needed to resolve each
+nested descriptor. Registry entries, explicit roots, nested providers, and
+context facts serve different roles. Resolution does not fill missing facts
+from the process-wide registry, and lookup failures remain errors. Validation
+consumes the resulting graph without global fallback.
 
 <!-- example: core/quick-start -->
 ```rust
@@ -782,11 +788,13 @@ fn main() {
 | Direct enum payload rules | Active variant only; inactive variant skipped; nested payload model rules remain unsupported |
 | Raw wrappers and recursive paths | Reachable work is discovered; unsupported use paths fail both capabilities and plan construction; no-work wrappers can pass |
 
-A reflection-backed registry discovers anonymous children reachable from the root,
-even through raw reflection wrappers. `for_roots` skips unrelated registered
-models but resolves reachable capabilities and properties from the same snapshot.
-Metadata-only registries require explicit metadata for every reachable child and
-do not import reflection capabilities. Use `TypeMetadata::try_of::<T>()` to
+A root's generated nested metadata providers can discover reachable children
+when they yield metadata; with `generic`, this includes concrete nested generic
+child models. For a non-generic child field, include the child's metadata
+provider in the bound context. The context must also provide reflection facts
+needed to resolve child descriptors. `for_roots` skips unrelated registry
+entries but resolves reachable capabilities and properties from the same
+context. Use `TypeMetadata::try_of::<T>()` to
 handle generated metadata ABI violations as `AbiViolation`; `TypeMetadata::of::<T>()`
 panics when that validation fails. Invalid explicit roots are reported during
 resolution, while invalid static registry entries fail registry construction.
@@ -886,7 +894,7 @@ a missing or non-text dependency is an execution error, not a value violation.
 | Missing model target | The target ID and linked registrations in the supplied registry |
 | Capability or Property conflict | The fallible query's cause and original declaration sources |
 | Metadata registration conflict | Inspect `ModelRegistryError::sources()` for both fragment identities in discovery order |
-| Anonymous model absent from graph | Check the supplied reflection snapshot; metadata-only registries need explicit child metadata |
+| Anonymous model absent from graph | Check the explicit root's nested metadata providers and whether the bound context has the reflection facts needed to resolve the child descriptor |
 | Missing parent dependency | Supply nearest-parent-first instance context and graph metadata |
 | Unsupported validation selector | Check ValidationCapabilities or use another consumer |
 | Codec missing/type mismatch | Registration, explicit reference, and exact codec value type |
