@@ -91,19 +91,25 @@ fn prepare_cfg_fixture(directory: &Path) -> PathBuf {
     let manifest = fs::read_to_string(source.join("Cargo.toml")).expect("fixture manifest");
     let manifest = manifest
         .replace(
-            "qubit-model-derive = { path = \"../../../\" }",
-            &format!("qubit-model-derive = {{ path = \"{}\" }}", package_root.display()),
+            "qubit-model-derive = { path = \"../../../\", version = \"^0.2\" }",
+            &format!(
+                "qubit-model-derive = {{ path = \"{}\", version = \"^0.2\" }}",
+                package_root.display()
+            ),
         )
         .replace(
-            "model_runtime = { package = \"qubit-model-metadata\", path = \"../../../..\", features = [\"generic\"] }",
+            "model_runtime = { package = \"qubit-model-metadata\", path = \"../../../../\", features = [\"generic\"] , version = \"^0.2\" }",
             &format!(
-                "model_runtime = {{ package = \"qubit-model-metadata\", path = \"{}\", features = [\"generic\"] }}",
+                "model_runtime = {{ package = \"qubit-model-metadata\", path = \"{}\", features = [\"generic\"], version = \"^0.2\" }}",
                 package_root.join("..").display()
             ),
         )
         .replace(
-            "qubit-reflect = { path = \"../../../../../rs-reflect\" }",
-            &format!("qubit-reflect = {{ path = \"{}\" }}", reflect_root.display()),
+            "qubit-reflect = { path = \"../../../../../rs-reflect\", version = \"^0.2\" }",
+            &format!(
+                "qubit-reflect = {{ path = \"{}\", version = \"^0.2\" }}",
+                reflect_root.display()
+            ),
         );
     fs::write(destination.join("Cargo.toml"), manifest).expect("fixture manifest copy");
     destination.join("Cargo.toml")
