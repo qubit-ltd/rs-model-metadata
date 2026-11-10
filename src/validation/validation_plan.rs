@@ -20,6 +20,7 @@ mod execute;
 // Defines private per-occurrence selection state for plan execution.
 pub(super) mod internal;
 
+use self::internal::selection_index::SelectionIndex;
 use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
 use crate::validation::internal::field_rule_binding::FieldRuleBinding;
@@ -77,6 +78,8 @@ pub struct ValidationPlan<'registry> {
     graph: Arc<ModelGraph<'registry>>,
     /// Field-level validator bindings.
     bindings: Box<[FieldRuleBinding]>,
+    /// Field-path index and cached paths for field-level occurrences.
+    selection_index: SelectionIndex,
     /// Model-level validator bindings.
     model_rules: Box<[ModelRuleBinding]>,
 }
@@ -133,6 +136,13 @@ impl<'registry> ValidationPlan<'registry> {
         all.extend(bindings);
         self.model_rules = all.into_boxed_slice();
         self
+    }
+
+    /// Returns the field-selection index retained by this plan.
+    #[must_use]
+    #[inline]
+    pub(in crate::validation::validation_plan) fn selection_index(&self) -> &SelectionIndex {
+        &self.selection_index
     }
 
     /// Returns model-level rules retained by the plan.

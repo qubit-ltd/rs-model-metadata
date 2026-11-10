@@ -68,6 +68,12 @@ struct SelectedEnvelope {
     fields: SelectedFields,
 }
 
+#[Model]
+struct SelectedMultipleRules {
+    #[text(non_blank, min_chars = 1)]
+    value: String,
+}
+
 struct AlwaysValid;
 
 impl PreparedValidator for AlwaysValid {
@@ -163,6 +169,24 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         )
         .expect("All selection validates every bound occurrence");
     assert_eq!(explicitly_all.violations().len(), 2);
+    let reverse_order = ValidationOptions::builder()
+        .selection(ValidationSelection::Fields(vec![
+            FieldPath::new("fields.second"),
+            FieldPath::new("fields.first"),
+        ]))
+        .build();
+    let ordered_report = plan
+        .validate_dynamic(DynamicRef::<Local>::new(&value), &reverse_order)
+        .expect("every requested path is bound");
+    assert_eq!(
+        ordered_report
+            .violations()
+            .iter()
+            .map(|violation| violation.path().render())
+            .collect::<Vec<_>>(),
+        ["fields.first", "fields.second"],
+        "requested order does not change declaration execution order"
+    );
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![selected.clone(), selected]))
         .build();
@@ -247,6 +271,10 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
             vec![FieldPath::new("first"), FieldPath::new("typo")],
             FieldPath::new("typo"),
         ),
+        (
+            vec![FieldPath::new("first_typo"), FieldPath::new("second_typo")],
+            FieldPath::new("first_typo"),
+        ),
         (vec![FieldPath::new("plain")], FieldPath::new("plain")),
         (vec![], FieldPath::from_segments(std::iter::empty::<String>())),
         (
@@ -309,27 +337,79 @@ fn test_explicit_empty_path_selects_model_level_rule() {
         },
     )
     .expect("standard constraints")
-    .with_model_rules([ModelRuleBinding::from_prepared::<SelectedFields>(
-        ValidatorId::new("selection.always_valid"),
-        Arc::new(AlwaysValid),
-    )
-    .expect("prepared model rule shape")]);
+    .with_model_rules([
+        ModelRuleBinding::from_prepared::<SelectedFields>(
+            ValidatorId::new("selection.always_valid"),
+            Arc::new(AlwaysValid),
+        )
+        .expect("prepared model rule shape"),
+        ModelRuleBinding::from_prepared::<SelectedFields>(
+            ValidatorId::new("selection.always_valid"),
+            Arc::new(AlwaysValid),
+        )
+        .expect("prepared model rule shape"),
+    ]);
     let options = ValidationOptions::builder()
-        .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
-            std::iter::empty::<String>(),
-        )]))
+        .selection(ValidationSelection::Fields(vec![
+            FieldPath::new("first"),
+            FieldPath::from_segments(std::iter::empty::<String>()),
+        ]))
+        .build();
+    let value = SelectedFields {
+        first: String::new(),
+        second: String::new(),
+        plain: String::new(),
+    };
+    let report = plan
+        .validate_dynamic(DynamicRef::<Local>::new_any(&value), &options)
+        .expect("explicit root and field paths select their respective occurrences");
+    assert_eq!(
+        report
+            .violations()
+            .iter()
+            .map(|violation| violation.path().render())
+            .collect::<Vec<_>>(),
+        ["first"],
+        "appended model rules precede field indices regardless of selection order"
+    );
+}
+
+#[test]
+fn test_field_selection_executes_all_rules_bound_to_the_same_path() {
+    let root = TypeMetadata::of::<SelectedMultipleRules>();
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let roots = [root];
+    let graph = Arc::new(
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("field structure"),
+    );
+    let validators = ValidatorRegistry::empty();
+    let plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph,
+            validators: &validators,
+        },
+    )
+    .expect("standard constraints");
+    assert_eq!(plan.binding_count(), 2, "both constraints bind to one field path");
+    let options = ValidationOptions::builder()
+        .selection(ValidationSelection::Fields(vec![FieldPath::new("value")]))
         .build();
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new_any(&SelectedFields {
-                first: String::new(),
-                second: String::new(),
-                plain: String::new(),
-            }),
-            &options,
-        )
-        .expect("explicit empty path selects the model-level occurrence");
-    assert!(report.violations().is_empty());
+        .validate(&SelectedMultipleRules { value: String::new() }, &options)
+        .expect("the selected field path is bound");
+    assert_eq!(report.violations().len(), 2, "selection includes every occurrence");
+    assert!(
+        report
+            .violations()
+            .iter()
+            .all(|violation| violation.path().render() == "value")
+    );
 }
 
 #[test]

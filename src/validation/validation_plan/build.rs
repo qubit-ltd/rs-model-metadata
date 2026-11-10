@@ -9,6 +9,7 @@
 //! Construction APIs for ValidationPlan.
 
 use super::ValidationPlan;
+use super::internal::selection_index::SelectionIndex;
 use crate::metadata::TypeMetadata;
 use crate::validation::ValidationBuildError;
 use crate::validation::ValidationBuildErrors;
@@ -100,10 +101,12 @@ impl<'registry> ValidationPlan<'registry> {
         for (index, binding) in bindings.iter_mut().enumerate() {
             binding.occurrence = index;
         }
+        let selection_index = SelectionIndex::new(&bindings);
         Ok(Self {
             root,
             graph: inputs.graph,
             bindings: bindings.into_boxed_slice(),
+            selection_index,
             model_rules: Box::new([]),
         })
     }

@@ -11,5 +11,8 @@
 // Stores cached selection state for each planned occurrence.
 pub(super) mod selection_entry;
 
+// Maps requested field paths to every matching planned occurrence.
+pub(super) mod selection_index;
+
 // Tracks selection state across the ordered execution plan.
 pub(super) mod selection_mask;

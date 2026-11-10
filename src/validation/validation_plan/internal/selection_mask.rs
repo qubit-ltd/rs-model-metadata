@@ -10,10 +10,10 @@
 
 use qubit_validator::ValidationPath;
 
-use super::super::execute::field_matches;
 use super::selection_entry::SelectionEntry;
+use super::selection_index::SelectionIndex;
 use crate::validation::internal::field_rule_binding::FieldRuleBinding;
-use crate::validation::internal::path_reader::path_for;
+use crate::validation::validation_options::FieldPath;
 use crate::validation::validation_options::ValidationSelection;
 
 /// Tracks which planned rule occurrences are selected and whether later work
@@ -32,52 +32,68 @@ pub(in crate::validation::validation_plan) enum SelectionMask {
         Vec<SelectionEntry>,
     ),
 }
-
 impl SelectionMask {
-    /// Builds occurrence state from the caller's selection and compiled
-    /// bindings.
+    /// Builds occurrence state from the caller's selection and field index.
     ///
     /// # Parameters
     ///
     /// * `selection` - Requested validation selection.
     /// * `model_rule_count` - Number of model-level occurrences before fields.
     /// * `bindings` - Ordered field-rule occurrences in the plan.
+    /// * `selection_index` - Plan-owned field selection index and path cache.
     ///
     /// # Returns
     ///
-    /// A mask that retains per-occurrence paths for explicit field selections
-    /// and avoids those entries for an all-fields selection.
+    /// A mask that retains selected occurrence paths and avoids per-occurrence
+    /// entries for an all-fields selection, or the first unmatched selection.
     pub(in crate::validation::validation_plan) fn new(
         selection: &ValidationSelection,
         model_rule_count: usize,
         bindings: &[FieldRuleBinding],
-    ) -> Self {
+        selection_index: &SelectionIndex,
+    ) -> Result<Self, FieldPath> {
         let total = model_rule_count + bindings.len();
         if matches!(selection, ValidationSelection::All) {
-            return Self::All { total };
+            return Ok(Self::All { total });
         }
-        let model_path = ValidationPath::root();
-        let mut entries = Vec::with_capacity(total);
-        entries.extend((0..model_rule_count).map(|_| SelectionEntry {
-            selected: selected(selection, &model_path),
-            later_selected: false,
-            field_path: None,
-        }));
-        for binding in bindings {
-            let path = path_for(binding.value());
-            let is_selected = selected(selection, &path);
-            entries.push(SelectionEntry {
-                selected: is_selected,
+        let ValidationSelection::Fields(fields) = selection else {
+            unreachable!("all-fields selection returned above");
+        };
+        if fields.is_empty() {
+            return Err(FieldPath::from_segments(std::iter::empty::<String>()));
+        }
+        let mut selected = vec![false; total];
+        for field in fields {
+            let selects_model_rules = field.segments().is_empty() && model_rule_count > 0;
+            if selects_model_rules {
+                selected[..model_rule_count].fill(true);
+            }
+            match selection_index.matching(field.segments()) {
+                Some(occurrences) => {
+                    for &binding_index in occurrences {
+                        selected[model_rule_count + binding_index] = true;
+                    }
+                }
+                None if !selects_model_rules => return Err(field.clone()),
+                None => {}
+            }
+        }
+        let mut entries: Vec<_> = selected
+            .into_iter()
+            .enumerate()
+            .map(|(occurrence, selected)| SelectionEntry {
+                selected,
                 later_selected: false,
-                field_path: is_selected.then_some(path),
-            });
-        }
+                field_path: (selected && occurrence >= model_rule_count)
+                    .then(|| selection_index.path(occurrence - model_rule_count).clone()),
+            })
+            .collect();
         let mut later = false;
         for entry in entries.iter_mut().rev() {
             entry.later_selected = later;
             later |= entry.selected;
         }
-        Self::Fields(entries)
+        Ok(Self::Fields(entries))
     }
 
     /// Returns whether the indexed occurrence is selected.
@@ -148,23 +164,5 @@ impl SelectionMask {
             Self::All { .. } => None,
             Self::Fields(entries) => entries[index].field_path.take(),
         }
-    }
-}
-
-/// Reports whether a validation path is selected by the caller.
-///
-/// # Parameters
-///
-/// - `selection`: Requested all-fields or explicit field-path selection.
-/// - `path`: Validation path to compare against the requested selection.
-///
-/// # Returns
-///
-/// `true` when the selection includes `path`.
-#[must_use]
-fn selected(selection: &ValidationSelection, path: &ValidationPath) -> bool {
-    match selection {
-        ValidationSelection::All => true,
-        ValidationSelection::Fields(fields) => fields.iter().any(|field| field_matches(field, path)),
     }
 }

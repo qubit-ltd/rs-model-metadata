@@ -43,11 +43,8 @@ use crate::validation::internal::execution_failure::ExecutionFailure;
 use crate::validation::internal::field_rule_binding::FieldExecution;
 use crate::validation::internal::field_rule_binding::FieldRuleBinding;
 use crate::validation::internal::path_reader;
-use crate::validation::internal::path_reader::path_for;
 use crate::validation::internal::report_accumulator::ReportAccumulator;
 use crate::validation::standard_constraints::StandardTarget;
-use crate::validation::validation_options::FieldPath;
-use crate::validation::validation_options::ValidationSelection;
 
 impl<'a> ValidationPlan<'a> {
     /// Executes selected occurrences under one stopping policy and work budget.
@@ -179,20 +176,27 @@ impl<'a> ValidationPlan<'a> {
             )
             .at_model(self.root(), None));
         }
-        if let Some(path) = unmatched_selection(options.selection(), self.model_rules().len(), self.bindings()) {
-            let error = ExecutionError::new(ExecutionErrorKind::InvalidSelection)
-                .with_path(ValidationPath::root())
-                .with_trusted_source(path);
-            return Err(
-                ModelValidationError::new(error, ReportAccumulator::new(options).into_report())
-                    .at_model(self.root(), None),
-            );
-        }
+        let model_rule_count = self.model_rules().len();
+        let mut mask = match SelectionMask::new(
+            options.selection(),
+            model_rule_count,
+            self.bindings(),
+            self.selection_index(),
+        ) {
+            Ok(mask) => mask,
+            Err(path) => {
+                let error = ExecutionError::new(ExecutionErrorKind::InvalidSelection)
+                    .with_path(ValidationPath::root())
+                    .with_trusted_source(path);
+                return Err(
+                    ModelValidationError::new(error, ReportAccumulator::new(options).into_report())
+                        .at_model(self.root(), None),
+                );
+            }
+        };
         let mut report = ReportAccumulator::new(options);
         let mut budget = ExecutionBudget::new(options);
-        let model_rule_count = self.model_rules().len();
         let model_path = ValidationPath::root();
-        let mut mask = SelectionMask::new(options.selection(), model_rule_count, self.bindings());
         for (occurrence, binding) in self.model_rules().iter().enumerate() {
             if report.stopped() {
                 return Ok(report.into_report());
@@ -226,7 +230,7 @@ impl<'a> ValidationPlan<'a> {
             }
             let path = mask
                 .take_field_path(mask_index)
-                .unwrap_or_else(|| path_for(binding.value()));
+                .unwrap_or_else(|| self.selection_index().path(binding_index).clone());
             let occurrence = self.model_rules().len() + binding.occurrence();
             let has_more_work = mask.later_selected(mask_index);
             if let Err(failure) = execute_field(
@@ -237,6 +241,7 @@ impl<'a> ValidationPlan<'a> {
                 self.graph(),
                 &mut budget,
                 &mut report,
+                path.clone(),
                 has_more_work,
             ) {
                 let mut error = (*failure.error).with_rule(binding.rule_id());
@@ -252,46 +257,6 @@ impl<'a> ValidationPlan<'a> {
         }
         Ok(report.into_report())
     }
-}
-
-/// Returns the first requested path that has no corresponding bound rule.
-///
-/// Model-level occurrences match the empty path. A field selection must not
-/// silently succeed when it is empty or names an existing field without a
-/// validation rule.
-///
-/// # Parameters
-///
-/// * `selection` - Requested model or field paths to match against bound rules.
-/// * `model_rule_count` - Number of model-level rules, which match the empty
-///   path.
-/// * `bindings` - Compiled field rules available to satisfy field selections.
-///
-/// # Returns
-///
-/// The first unmatched field path, or `None` when every requested path has a
-/// corresponding model or field rule.
-fn unmatched_selection(
-    selection: &ValidationSelection,
-    model_rule_count: usize,
-    bindings: &[FieldRuleBinding],
-) -> Option<FieldPath> {
-    let ValidationSelection::Fields(fields) = selection else {
-        return None;
-    };
-    if fields.is_empty() {
-        return Some(FieldPath::from_segments(std::iter::empty::<String>()));
-    }
-    fields
-        .iter()
-        .find(|field| {
-            let matches_model = model_rule_count > 0 && field.segments().is_empty();
-            !matches_model
-                && !bindings
-                    .iter()
-                    .any(|binding| field_matches(field, &path_for(binding.value())))
-        })
-        .cloned()
 }
 
 /// Reads a value before its dependencies and executes one compiled field rule.
@@ -321,13 +286,13 @@ fn execute_field<'value>(
     graph: &ModelGraph<'_>,
     budget: &mut ExecutionBudget<'_>,
     report: &mut ReportAccumulator<'_>,
+    path: ValidationPath,
     has_more_work: bool,
 ) -> Result<(), ExecutionFailure> {
     let context = graph
         .registry()
         .context()
         .expect("validation plans require the graph's reflection context");
-    let path = path_for(binding.value());
     let Some(value) = path_reader::read(context, binding.value(), root.clone(), 0, budget)? else {
         return Ok(());
     };
@@ -871,28 +836,6 @@ fn owned_value<'a>(value: &'a PropertyOwned) -> Result<ValidationValue<'a>, Exec
     Ok(ValidationValue::Typed(value.as_any()))
 }
 
-/// Matches the complete field-name sequence, ignoring collection indices.
-///
-/// # Parameters
-///
-/// * `field` - Requested field path containing field names only.
-/// * `path` - Compiled rule path, which may also contain collection indices.
-///
-/// # Returns
-///
-/// `true` when the field names match after collection indices are ignored.
-#[must_use]
-pub(super) fn field_matches(field: &FieldPath, path: &ValidationPath) -> bool {
-    field
-        .segments()
-        .iter()
-        .map(String::as_str)
-        .eq(path.as_segments().iter().filter_map(|segment| match segment {
-            PathSegment::Field(name) => Some(*name),
-            _ => None,
-        }))
-}
-
 #[cfg(test)]
 mod any_view_tests {
     use qubit_reflect::Reflect;
@@ -1036,14 +979,13 @@ mod tests {
     use qubit_validator::ValidationValue;
     use qubit_validator::ValidatorId;
 
+    use super::super::internal::selection_index::SelectionIndex;
     use super::super::internal::selection_mask::SelectionMask;
     use super::execute_selected_members_with_validator;
     use super::execute_unique;
-    use super::field_matches;
     use super::optional_scalar_value;
     use super::prefix_error;
     use super::property_value;
-    use super::unmatched_selection;
     use crate::metadata::BorrowedCollection;
     use crate::metadata::BorrowedPropertySlice;
     use crate::metadata::PropertyOwned;
@@ -1182,26 +1124,11 @@ mod tests {
     use crate::validation::validation_options::ValidationSelection;
 
     #[test]
-    fn test_field_matching_ignores_indices_without_allocating_a_field_list() {
-        assert!(field_matches(
-            &FieldPath::from_segments(["items", "name"]),
-            &ValidationPath::root()
-                .with_field("items")
-                .with_index(2)
-                .with_field("name"),
-        ));
-        assert!(!field_matches(
-            &FieldPath::from_segments(["items", "name"]),
-            &ValidationPath::root()
-                .with_field("items")
-                .with_index(2)
-                .with_field("other"),
-        ));
-    }
-
-    #[test]
     fn test_selection_mask_tracks_all_and_explicit_root_selection() {
-        let mut all = SelectionMask::new(&ValidationSelection::All, 1, &[]);
+        let bindings = [];
+        let index = SelectionIndex::new(&bindings);
+        let mut all =
+            SelectionMask::new(&ValidationSelection::All, 1, &bindings, &index).expect("all selection is always valid");
         assert!(all.selected(0));
         assert!(!all.later_selected(0));
         assert!(all.take_field_path(0).is_none());
@@ -1209,28 +1136,28 @@ mod tests {
         let mut fields = SelectionMask::new(
             &ValidationSelection::Fields(vec![FieldPath::from_segments([] as [&str; 0])]),
             1,
-            &[],
-        );
+            &bindings,
+            &index,
+        )
+        .expect("empty path selects the model occurrence");
         assert!(fields.selected(0));
         assert!(!fields.later_selected(0));
         assert!(fields.take_field_path(0).is_none());
     }
 
     #[test]
-    fn test_unmatched_selection_requires_a_bound_field_or_model_rule() {
-        assert!(unmatched_selection(&ValidationSelection::All, 0, &[]).is_none());
-
+    fn test_selection_mask_rejects_empty_selection_and_unmatched_root() {
+        let bindings = [];
+        let index = SelectionIndex::new(&bindings);
         let empty = ValidationSelection::Fields(Vec::new());
-        assert!(
-            unmatched_selection(&empty, 0, &[])
-                .expect("an empty field selection has no rule")
-                .segments()
-                .is_empty()
-        );
+        let Err(error) = SelectionMask::new(&empty, 0, &bindings, &index) else {
+            panic!("an empty field selection has no rule");
+        };
+        assert!(error.segments().is_empty());
 
         let root = ValidationSelection::Fields(vec![FieldPath::from_segments([] as [&str; 0])]);
-        assert!(unmatched_selection(&root, 1, &[]).is_none());
-        assert!(unmatched_selection(&root, 0, &[]).is_some());
+        assert!(SelectionMask::new(&root, 1, &bindings, &index).is_ok());
+        assert!(SelectionMask::new(&root, 0, &bindings, &index).is_err());
     }
 
     #[test]

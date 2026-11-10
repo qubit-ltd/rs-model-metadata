@@ -302,6 +302,39 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectionContext, roots: &[
         execution.bench_function(BenchmarkId::new("fields_last_selected", size), |bencher| {
             bencher.iter(|| black_box(plan.validate_dynamic(black_box(value.clone()), black_box(&last_selected))));
         });
+
+        let selection_options = |indices: Vec<usize>| {
+            ValidationOptions::builder()
+                .selection(ValidationSelection::Fields(
+                    indices
+                        .into_iter()
+                        .map(|index| FieldPath::new(format!("field_{index}")))
+                        .collect(),
+                ))
+                .build()
+        };
+        let single = selection_options(vec![0]);
+        let half = selection_options((0..(size / 2).max(1)).collect());
+        let full = selection_options((0..size).collect());
+        let repeated = selection_options(vec![0, 0]);
+        let mut invalid_fields: Vec<_> = (0..size)
+            .map(|index| FieldPath::new(format!("field_{index}")))
+            .collect();
+        invalid_fields.push(FieldPath::new("invalid_last"));
+        let invalid_last = ValidationOptions::builder()
+            .selection(ValidationSelection::Fields(invalid_fields))
+            .build();
+        for (selection, options) in [
+            ("selection_1", &single),
+            ("selection_half", &half),
+            ("selection_all", &full),
+            ("selection_repeated", &repeated),
+            ("selection_invalid_last", &invalid_last),
+        ] {
+            execution.bench_function(BenchmarkId::new(selection, size), |bencher| {
+                bencher.iter(|| black_box(plan.validate_dynamic(black_box(value.clone()), black_box(options))));
+            });
+        }
     }
     execution.finish();
 }
