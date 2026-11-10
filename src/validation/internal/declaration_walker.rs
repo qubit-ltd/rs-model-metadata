@@ -76,7 +76,7 @@ pub(crate) fn collect_with_budget(
             budget,
         );
     };
-    let work = match reachable_work(graph, context, &mut budget) {
+    let work = match reachable_work(root, graph, context, &mut budget) {
         Ok(work) => work,
         Err(detail) => {
             return (
@@ -111,13 +111,18 @@ pub(crate) fn collect_with_budget(
     (occurrences, errors, budget)
 }
 
-/// Computes executable-work reachability by monotone propagation, including
-/// cycles.
+/// Computes executable-work reachability from the requested root by monotone
+/// propagation, including cycles.
+///
+/// Structural discovery scans only models reachable from `root`. When a field
+/// needs expression fallback, name matching still examines the graph to retain
+/// its existing unique-name semantics.
 ///
 /// # Parameters
 ///
-/// * `graph` - The resolved models and relationships whose declarations are
-///   examined.
+/// * `root` - The canonical root model whose structural closure is examined.
+/// * `graph` - The resolved graph used to find nested models and preserve
+///   expression-fallback name resolution.
 /// * `context` - The reflection context used to resolve concrete field
 ///   descriptors.
 ///
@@ -126,13 +131,16 @@ pub(crate) fn collect_with_budget(
 /// Returns the set of model types whose reachable declarations require
 /// executable work.
 fn reachable_work(
+    root: &'static TypeMetadata,
     graph: &ModelGraph<'_>,
     context: &ReflectionContext,
     budget: &mut BuildBudget,
 ) -> Result<HashSet<TypeId>, ValidationBuildLimit> {
     let mut work = HashSet::new();
     let mut predecessors: HashMap<TypeId, Vec<TypeId>> = HashMap::new();
-    for model in graph.models() {
+    let mut discovered = HashSet::from([root.type_id()]);
+    let mut pending = vec![root];
+    while let Some(model) = pending.pop() {
         budget.charge(Counter::Work)?;
         for field in fields(model) {
             budget.charge(Counter::Work)?;
@@ -156,6 +164,9 @@ fn reachable_work(
                     .entry(target.type_id())
                     .or_default()
                     .push(model.type_id());
+                if discovered.insert(target.type_id()) {
+                    pending.push(target);
+                }
             }
         }
     }
@@ -1229,6 +1240,39 @@ mod build_budget_tests {
             crate::validation::ValidationBuildLimitKind::Work
         );
         assert_eq!(detail.limit(), 0);
+    }
+
+    #[test]
+    fn test_unrelated_model_does_not_consume_root_work_budget() {
+        let root = TypeMetadata::of::<BudgetNoWork>();
+        let models = ModelRegistry::try_global().expect("linked model registry");
+        let root_graph = graph_for(root);
+        let shared_graph = Arc::new(
+            StructureResolver::for_static_roots(
+                models,
+                [root, TypeMetadata::of::<BudgetWrapped>()],
+            )
+            .resolve()
+            .expect("shared graph resolves"),
+        );
+        // This covers root discovery and the retained graph-wide fallback
+        // name checks, but not a structural scan of the shared graph.
+        let budget = || BuildBudget::with_limits(64, 14, 100, 100, 100);
+        let (root_occurrences, root_errors, _) =
+            super::collect_with_budget(root, &root_graph, budget());
+        let (shared_occurrences, shared_errors, _) =
+            super::collect_with_budget(root, &shared_graph, budget());
+
+        assert!(
+            root_errors.is_empty(),
+            "14 work units suffice for the root alone"
+        );
+        assert!(
+            shared_errors.is_empty(),
+            "the unrelated model must not exhaust the root's work budget"
+        );
+        assert!(root_occurrences.is_empty());
+        assert_eq!(shared_occurrences.len(), root_occurrences.len());
     }
 
     #[test]

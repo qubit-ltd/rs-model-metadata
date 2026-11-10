@@ -18,6 +18,7 @@ use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
+use qubit_validator::ValidationReport;
 use qubit_validator::ValidatorRegistry;
 
 #[Model]
@@ -33,6 +34,12 @@ struct SharedValidatedLeaf {
 struct SharedValidatedRoot {
     left: SharedValidatedLeaf,
     right: SharedValidatedLeaf,
+}
+
+#[Model]
+struct UnrelatedValidatedModel {
+    #[text(non_blank)]
+    value: String,
 }
 
 /// A plan keeps its resolved graph alive after the caller releases its handle.
@@ -128,4 +135,69 @@ fn test_plan_keeps_occurrences_for_shared_nested_model_paths() {
         .map(|violation| violation.path().render())
         .collect();
     assert_eq!(paths, ["right.value"]);
+}
+
+/// Adding an unrelated registered model does not change root plan bindings.
+#[test]
+fn test_shared_graph_matches_root_only_plan_and_validation() {
+    let root = TypeMetadata::of::<SharedValidatedRoot>();
+    let models = ModelRegistry::try_global().expect("model registry");
+    let root_graph = Arc::new(
+        StructureResolver::for_static_roots(models, [root])
+            .resolve()
+            .expect("root graph resolves"),
+    );
+    let shared_graph = Arc::new(
+        StructureResolver::for_static_roots(
+            models,
+            [root, TypeMetadata::of::<UnrelatedValidatedModel>()],
+        )
+        .resolve()
+        .expect("shared graph resolves"),
+    );
+    let validators = ValidatorRegistry::empty();
+    let root_plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: root_graph,
+            validators: &validators,
+        },
+    )
+    .expect("root-only plan builds");
+    let shared_plan = ValidationPlan::build(
+        root,
+        ValidationBuildInputs {
+            graph: shared_graph,
+            validators: &validators,
+        },
+    )
+    .expect("shared graph plan builds");
+
+    assert_eq!(root_plan.binding_count(), 2);
+    assert_eq!(shared_plan.binding_count(), root_plan.binding_count());
+    let value = SharedValidatedRoot {
+        left: SharedValidatedLeaf {
+            value: String::new(),
+        },
+        right: SharedValidatedLeaf {
+            value: String::new(),
+        },
+    };
+    let root_report = root_plan
+        .validate(&value, &ValidationOptions::default())
+        .expect("root-only validation report");
+    let shared_report = shared_plan
+        .validate(&value, &ValidationOptions::default())
+        .expect("shared graph validation report");
+    let paths = |report: &ValidationReport| {
+        report
+            .violations()
+            .iter()
+            .map(|violation| violation.path().render())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(paths(&root_report), ["left.value", "right.value"]);
+    assert_eq!(paths(&shared_report), paths(&root_report));
+    assert_eq!(root_report.is_valid(), shared_report.is_valid());
+    assert_eq!(root_report.skipped(), shared_report.skipped());
 }
