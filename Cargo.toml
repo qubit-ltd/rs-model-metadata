@@ -50,7 +50,7 @@ qubit-codec = { version = "^0.17", features = ["registry"], optional = true }
 qubit-validator = { version = "^0.1", optional = true }
 qubit-validation-rules = { version = "^0.1", default-features = false, optional = true }
 qubit-reflect = { version = "^0.2", path = "../rs-reflect", default-features = false, features = ["derive", "ecosystem-types", "qubit-types"] }
-qubit-redact = { version = "^0.10", path = "../rs-redact", features = ["derive", "serde", "json", "bigdecimal"] }
+qubit-redact = { version = "^0.10", features = ["derive", "serde", "json", "bigdecimal"] }
 qubit-model-id = { version = "^0.1", path = "model-id" }
 
 [dev-dependencies]
@@ -58,7 +58,7 @@ criterion = "^0.8"
 serde_json = "^1.0"
 trybuild = "^1.0"
 uuid = "^1.29"
-qubit-datatype = { version = "^0.15", path = "../rs-datatype" }
+qubit-datatype = { version = "^0.15" }
 qubit-codec = { version = "^0.17", features = ["registry"] }
 qubit-model-derive = { version = "^0.2", path = "derive" }
 

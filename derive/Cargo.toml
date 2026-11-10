@@ -36,11 +36,11 @@ syn = { version = "^3.0", features = ["full", "visit-mut"] }
 [dev-dependencies]
 bigdecimal = "^0.4"
 chrono = { version = "^0.4", features = ["std"], default-features = false }
-model_runtime = { package = "qubit-model-metadata", path = "..", features = ["generic"] }
+model_runtime = { package = "qubit-model-metadata", path = "../", features = ["generic"] , version = "^0.2" }
 qubit-codec = { version = "^0.17", features = ["registry"] }
 qubit-id = "^0.7"
-qubit-reflect = { version = "=0.2.1", path = "../../rs-reflect" }
-qubit-validator = { version = "=0.1.0", path = "../../../rust-common/rs-validator" }
+qubit-reflect = { version = "^0.2", path = "../../rs-reflect" }
+qubit-validator = { version = "^0.1" }
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = "^1.0"
 trybuild = "^1.0"

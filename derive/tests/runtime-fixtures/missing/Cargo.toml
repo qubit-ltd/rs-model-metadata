@@ -7,6 +7,6 @@ publish = false
 [workspace]
 
 [dependencies]
-qubit-model-derive = { path = "../../../" }
-qubit-reflect = { path = "../../../../../rs-reflect" }
+qubit-model-derive = { path = "../../../", version = "^0.2" }
+qubit-reflect = { path = "../../../../../rs-reflect", version = "^0.2" }
 serde = { version = "^1.0", features = ["derive"] }
