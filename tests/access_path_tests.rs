@@ -244,6 +244,83 @@ fn test_registry() -> ModelRegistry<'static> {
     .expect("isolated model registry")
 }
 
+/// Typed, dynamic, and explicitly authorized access share the public path
+/// contract.
+#[test]
+fn test_compiled_path_supports_typed_dynamic_and_authorized_access() {
+    let registry = test_registry();
+    let path = PropertyAccessPath::compile(
+        &registry,
+        TypeMetadata::of::<AccessRoot>(),
+        &["middle", "leaf", "value"],
+    )
+    .expect("nested path compiles");
+    assert_eq!(path.leaf_property().name(), "value");
+    path.check_writable().expect("nested fields are writable");
+
+    let root = AccessRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf { value: "read".into() },
+            value: String::new(),
+        },
+    };
+    let PropertyValue::Borrowed(value) = path.read(&root).expect("typed read") else {
+        panic!("typed read returns a borrow");
+    };
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("read"));
+
+    let PropertyValue::Borrowed(value) = path.read_dynamic(PropertyBorrowed::new(&root)).expect("dynamic read") else {
+        panic!("dynamic read returns a borrow");
+    };
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("read"));
+
+    // SAFETY: This test owns the public fixture and authorizes its access.
+    let PropertyValue::Borrowed(value) =
+        unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }.expect("authorized dynamic read")
+    else {
+        panic!("authorized read returns a borrow");
+    };
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("read"));
+
+    let mut typed_root = AccessRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf { value: "before".into() },
+            value: String::new(),
+        },
+    };
+    path.write(&mut typed_root, String::from("typed")).expect("typed write");
+    assert_eq!(typed_root.middle.leaf.value, "typed");
+
+    let mut dynamic_root = AccessRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf { value: "before".into() },
+            value: String::new(),
+        },
+    };
+    path.write_dynamic(
+        PropertyMutable::new(&mut dynamic_root),
+        PropertyOwned::new(String::from("dynamic")),
+    )
+    .expect("dynamic write");
+    assert_eq!(dynamic_root.middle.leaf.value, "dynamic");
+
+    let mut authorized_root = AccessRoot {
+        middle: AccessMiddle {
+            leaf: AccessLeaf { value: "before".into() },
+            value: String::new(),
+        },
+    };
+    // SAFETY: This test owns the public fixture and authorizes its access.
+    unsafe {
+        path.write_dynamic_unsafe(
+            PropertyMutable::new(&mut authorized_root),
+            PropertyOwned::new(String::from("authorized")),
+        )
+    }
+    .expect("authorized dynamic write");
+    assert_eq!(authorized_root.middle.leaf.value, "authorized");
+}
+
 /// Repeated read compilation reuses one path within a registry snapshot.
 #[test]
 fn test_cached_read_path_reuses_successful_compilation() {
