@@ -219,6 +219,10 @@ fn main() {
 
 计划构建单独使用固定 `BuildBudget`：模型、wrapper 和类型表达式深度最多 64；发现和绑定工作最多计费 100,000 次；声明 occurrence 和绑定规则各最多 10,000 条；普通诊断最多 100 条。每次检查模型、字段、结构边、表达式节点、声明、selector 或 validator、反向可达边，以及每次绑定尝试，各计一个工作单位；同一项在不同阶段再次检查时分别计费。尝试产生第 101 条普通诊断时停止构建并添加唯一的 `BuildLimitExceeded` 终止错误，因此错误列表最多 101 条。能力检查与计划构建遵循相同的发现预算，绑定输出在追加前检查。该上限不约束调用方已创建的 graph 或 reflection context，也不限制外部 validator binder 内部的工作和分配；它与上述逐实例执行预算相互独立。
 
+`ValidationBuildError::build_limit()` 为超限错误提供 `ValidationBuildLimit`，其中包含 `ValidationBuildLimitKind` 和固定容量；其他构建错误返回 `None`。五类为 Depth（64）、Work（100,000）、Occurrences（10,000）、Bindings（10,000）和 Diagnostics（100 条普通诊断，之后增加一条终止错误）。类别 enum 标记为 `#[non_exhaustive]`，下游匹配需包含 wildcard 分支。根级错误可能在声明遍历前发生，因此可能没有 path、声明来源或 binder source。为保持兼容，`BuildLimitExceeded` 仍是无 payload 的 unit variant；调用方应使用访问器，不应解析显示字符串。
+
+MM-003 使用固定 Work 上限复现：修复前，同一个 root 的单 root 图在 10 个工作单位成功，共享无关模型的图需要 31 个单位。root-scoped 结构发现修复后，两图都在 10 个单位成功；共享图最先需要 14 个单位。剩余的全图工作来自 expression fallback 的名字查找，它为保留全局唯一名称语义而扫描全图，并将实际查找计入预算。该修复减少无关结构扫描，但没有消除所有全图工作，也没有改变名字解析语义。
+
 公共 `ValidationBuildErrorKind` 新增 `BuildLimitExceeded`，下游穷尽匹配可能需要增加显式分支或 fallback。rs-platform 当前包装聚合错误，没有需要迁移的穷尽 kind 匹配。
 
 启用 `codec` 时，声明中的稳定 codec ID 或 Rust codec 类型仍要经显式传入的 registry 绑定。选择优先级是字段显式 codec、Value 的 canonical codec、无 codec。`bind_codecs` 解析声明并返回已选实现的绑定结果；它不会调用 `encode` 或 `decode`、保存数据或执行应用策略。元数据本身不含 codec 实例，不承担持久化流程。

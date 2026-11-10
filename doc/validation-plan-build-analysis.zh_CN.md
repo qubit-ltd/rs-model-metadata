@@ -2,11 +2,13 @@
 
 [English](validation-plan-build-analysis.md)
 
+> **历史实验：** 本次有界性能测量早于当前固定校验计划构建上限。下文数据只反映当时的实现，不是当前 root-scoped walker 的性能测量，也不能证明当前构建没有上限。当前限制和诊断见[用户指南](user_guide.zh_CN.md#进阶用法停止条件与执行预算)。
+
 ## 核查问题与方法
 
-本次有界实验用于核查计划构建成本是否超出计划必须保留的 occurrence 数量。实验比较共享二叉模型树与单链：叶节点有一条 `non_blank` 文本声明；深度 1、4、8、10 的二叉模型分别产生 2、16、256、1,024 个 occurrence，单链各深度均产生 1 个。计时循环外构建模型图和 validator registry，计时操作只有 `ValidationPlan::build`。
+本次有界实验曾用于核查计划构建成本是否超出计划必须保留的 occurrence 数量。实验比较共享二叉模型树与单链：叶节点有一条 `non_blank` 文本声明；深度 1、4、8、10 的二叉模型分别产生 2、16、256、1,024 个 occurrence，单链各深度均产生 1 个。计时循环外构建模型图和 validator registry，计时操作只有 `ValidationPlan::build`。
 
-基准在计时前断言解析出的唯一模型类型数和计划 binding 数。`tests/validation/validation_plan_tests.rs` 另用两个字段共享同一受约束子类型的 root 构建计划，断言有两个 binding、违例顺序稳定为 `left.value`、`right.value`，并验证左侧合法时只报告 `right.value`。
+基准曾在计时前断言解析出的唯一模型类型数和计划 binding 数。`tests/validation/validation_plan_tests.rs` 另用两个字段共享同一受约束子类型的 root 构建计划，断言有两个 binding、违例顺序稳定为 `left.value`、`right.value`，并验证左侧合法时只报告 `right.value`。
 
 ## 复现命令与环境
 
@@ -37,4 +39,4 @@ cargo bench --locked --features validation --bench model_pipeline -- plan_build_
 
 `rs-platform/modules/model-runtime/src/lib.rs` 在首次成功验证时构建 root 图并创建计划，随后按 root `TypeId` 缓存计划，后续请求复用缓存。平台 `Person` 模型有三个可选 `CredentialInfo` 字段，其 `number` 字段带 validator，因此计划会为三个不同路径保留三个 occurrence。这是有限的分支展开，不是深层共享二叉结构。更宽的合成树属于压力形状，不代表已发现生产故障。
 
-结论：需要为不同路径保留不同 binding 时，路径展开本身会产生相应成本。本次核查没有确认需要生产修复的缺陷。walker 和公共 API 保持不变；未添加任意构建上限。`ValidationOptions` 只限制执行，不限制计划构建。应用应像 `ModelRuntime` 一样构建一次并复用计划。若后续真实负载证明构建资源不可接受，应另行设计构建预算及其兼容性行为。
+历史结论：需要为不同路径保留不同 binding 时，路径展开本身会产生相应成本。本实验在当时实现中没有发现可行动的冗余工作；其中耗时不代表当前 walker 的性能。当前实现已有固定构建上限，且它与 `ValidationOptions` 的实例执行预算相互独立，详见[当前用户指南](user_guide.zh_CN.md#进阶用法停止条件与执行预算)。应用应像 `ModelRuntime` 一样构建一次并复用计划。

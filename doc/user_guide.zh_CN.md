@@ -663,17 +663,30 @@ let report = plan.validate(&profile, &options)?;
   因此即使探测结果为空，也可能消耗预算；精确长度迭代器无需这次额外探测。这种保守计费可能使
   未知长度遍历早于其实际产出的成员数量而截断。计数溢出不会回绕。
 
-`ValidationOptions` 预算只在计划验证实例时生效。计划构建另有固定上限：模型、wrapper
-和类型表达式深度最多 64；发现工作最多计费 100,000 次；声明 occurrence 和绑定规则各最多
-10,000 条。构建最多保留 100 条普通诊断；尝试产生下一条诊断时会停止，并添加一条
-`BuildLimitExceeded` 终止诊断。`ValidationCapabilities::check` 和 `ValidationPlan::build`
-在发现、访问能力检查或绑定超限时都会返回该错误，不会返回残缺计划。这些上限防止本 crate
-展开超大路径集合，但不限制调用前已经创建的 `ModelGraph`、反射输入，或外部 validator binder
-内部的工作和分配。应针对目标 root 构建计划，并在多次验证中复用，不要为每个实例重复构建。
-每次检查模型、字段、结构边、表达式节点、声明、selector 或 validator、反向可达边，以及每次绑定尝试，
-各计一个发现工作单位；同一项在不同阶段被再次检查时分别计费。
-`ValidationBuildErrorKind` 是公共 enum；下游穷尽匹配需要处理新增的 `BuildLimitExceeded`。
-rs-platform 当前包装聚合构建错误，没有需要迁移的穷尽匹配。
+计划构建另有固定上限，与 `ValidationOptions` 的逐实例执行预算相互独立：模型、wrapper
+和类型表达式深度最多 64；发现及绑定工作最多计费 100,000 次；声明 occurrence 和绑定规则各最多
+10,000 条。每次检查模型、字段、结构边、表达式节点、声明、selector 或 validator、反向可达边，以及每次绑定尝试，
+各计一个工作单位；同一项在不同阶段被再次检查时分别计费。构建最多保留 100 条普通诊断；尝试产生第 101 条时
+停止，并添加唯一的 `BuildLimitExceeded` 终止诊断，因此错误列表最多 101 条。
+`ValidationCapabilities::check` 和 `ValidationPlan::build` 在发现、访问能力检查或绑定超限时都会返回该错误，不会返回残缺计划。
+这些上限不限制调用前已经创建的 `ModelGraph`、反射输入，或外部 validator binder 内部的工作和分配。
+应针对目标 root 构建计划，并在多次验证中复用，不要为每个实例重复构建。
+
+可通过 `ValidationBuildError::build_limit()` 读取结构化详情：`BuildLimitExceeded` 返回
+`Some(ValidationBuildLimit)`，其他构建错误返回 `None`。`ValidationBuildLimit::kind()` 给出超限类别，
+`limit()` 给出其固定容量：
+
+| `ValidationBuildLimitKind` | 固定容量 | 含义 |
+| --- | ---: | --- |
+| `Depth` | 64 | 嵌套模型、wrapper 或类型表达式的最大深度。 |
+| `Work` | 100,000 | 按规则计费的发现与绑定访问次数。 |
+| `Occurrences` | 10,000 | 为 root 保留的声明 occurrence 数。 |
+| `Bindings` | 10,000 | 计划构建输出的已绑定校验规则数。 |
+| `Diagnostics` | 100 | 唯一终止错误之前保留的普通诊断数。 |
+
+`ValidationBuildLimitKind` 标记为 `#[non_exhaustive]`，下游匹配应包含 wildcard 分支以兼容未来类别。
+根级错误可能在遍历到声明之前发生，因此 path、声明来源和 binder source 都可能缺失；不要推断或伪造位置详情。
+公共 `ValidationBuildErrorKind` 也应处理 `BuildLimitExceeded`，并提供所需的 fallback。
 
 Decimal 先规范化数值表示，再依次检查 scale、可选 precision 和精确区间。因此 `1.2300`
 符合 scale 2，`1.234` 不符合。precision 按 `DECIMAL(p,s)` 总容量解释：scale 为 2、precision

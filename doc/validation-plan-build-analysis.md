@@ -2,17 +2,19 @@
 
 [简体中文](validation-plan-build-analysis.zh_CN.md)
 
+> **Historical experiment:** This bounded performance run predates the current fixed validation-plan build limits. Its measurements below describe that earlier implementation only; they are not performance measurements of the current root-scoped walker or evidence that current builds are unbounded. See the [current build limits and diagnostics](user_guide.md#advanced-usage-stopping-policies-and-work-budgets).
+
 ## Question and method
 
-This bounded experiment checks whether plan construction does work that grows
-beyond the occurrences the plan must retain. It compares a shared binary model
+This bounded experiment checked whether plan construction did work that grew
+beyond the occurrences the plan had to retain. It compares a shared binary model
 tree with a single chain. Each leaf has one `non_blank` text declaration. At
 depths 1, 4, 8, and 10, the binary shapes produce 2, 16, 256, and 1,024
 occurrences, while the chain produces one occurrence at each depth. Graph
 resolution and validator setup happen outside the timed loop; the timed
 operation is `ValidationPlan::build`.
 
-The benchmark asserts the resolved unique model count and plan binding count
+The benchmark asserted the resolved unique model count and plan binding count
 before timing. `tests/validation/validation_plan_tests.rs` separately builds a
 root with the same constrained child type on two fields, asserts two bindings
 and stable `left.value`, `right.value` violation order, then verifies that a
@@ -63,11 +65,10 @@ plan appropriately retains three path-specific occurrences. This is bounded
 fan-out, not a deep shared binary shape. The much wider synthetic tree is a
 stress shape, not evidence of a production failure.
 
-Conclusion: path expansion has an inherent cost when distinct paths require
-distinct bindings. This investigation did not confirm a defect requiring a
-production fix. The walker and public API remain unchanged; no arbitrary build
-limit was introduced. `ValidationOptions` bounds execution only, not plan
-construction. Applications should build a plan once and reuse it, as
-`ModelRuntime` does. If a real workload later demonstrates unacceptable build
-resource use, a separate design should define a construction budget and its
-compatibility behavior.
+Historical conclusion: path expansion has an inherent cost when distinct paths
+require distinct bindings. This experiment found no actionable redundant work
+under the implementation it measured. Its timing results do not characterize the
+current walker. The current implementation has fixed construction limits, which
+are separate from `ValidationOptions` instance-execution budgets; see the
+[current user guide](user_guide.md#advanced-usage-stopping-policies-and-work-budgets).
+Applications should build a plan once and reuse it, as `ModelRuntime` does.

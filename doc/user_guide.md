@@ -864,16 +864,34 @@ selector or validator, reverse-reachability edge, and each binding attempt uses
 one discovery-work unit (an item inspected in separate phases is charged in
 each phase).
 Construction retains at most 100 ordinary diagnostics; the next diagnostic
-attempt stops the build and adds one `BuildLimitExceeded` diagnostic. Both
+attempt stops the build and adds one terminal `BuildLimitExceeded` diagnostic,
+so an error list contains at most 101 entries. Both
 `ValidationCapabilities::check` and `ValidationPlan::build` return that kind
 when discovery, access checking or binding exceeds a limit. No partial plan is
-returned. Build limits prevent this crate from expanding huge discovered path
-sets, but do not bound the already-created `ModelGraph`, reflection input, or
-work and allocations inside an external validator binder. Build a plan for the
-intended root and reuse it across validations instead of rebuilding it for each
-instance. Because `ValidationBuildErrorKind` is public, exhaustive downstream
-matches must handle the new `BuildLimitExceeded` variant; rs-platform currently
-wraps the aggregate build error and has no such exhaustive match to migrate.
+returned. Build limits do not bound the already-created `ModelGraph`, reflection
+input, or work and allocations inside an external validator binder. They are
+separate from `ValidationOptions`, whose budgets apply when a plan validates an
+instance. Build a plan for the intended root and reuse it across validations.
+
+Read structured detail with `ValidationBuildError::build_limit()`; it returns
+`Some(ValidationBuildLimit)` for `BuildLimitExceeded` and `None` for other build
+errors. `ValidationBuildLimit::kind()` identifies the exhausted budget and
+`limit()` returns its configured capacity:
+
+| `ValidationBuildLimitKind` | Fixed capacity | Meaning |
+| --- | ---: | --- |
+| `Depth` | 64 | Maximum nested model, wrapper, or type-expression depth. |
+| `Work` | 100,000 | Charged discovery and binding visits. |
+| `Occurrences` | 10,000 | Declaration occurrences retained for the root. |
+| `Bindings` | 10,000 | Bound validation rules emitted by plan construction. |
+| `Diagnostics` | 100 | Ordinary diagnostics retained before the single terminal error. |
+
+`ValidationBuildLimitKind` is `#[non_exhaustive]`; downstream matches must
+include a wildcard arm for future categories. A root-level failure can occur
+before traversal reaches a declaration, so its path, declaration source, and
+binder source may be absent. Do not infer or invent location details. The public
+`ValidationBuildErrorKind` is also extensible; matches must handle
+`BuildLimitExceeded` and any fallback they need.
 
 Decimal checks normalize numeric representation before checking scale, optional
 precision, then the exact range. Thus `1.2300` fits scale 2 while `1.234` does
