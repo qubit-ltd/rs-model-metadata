@@ -72,7 +72,8 @@ mod tests {
     /// Checks every temporal token against the actual registered signature.
     #[test]
     fn test_all_temporal_precisions_map_to_bindable_rules() {
-        let registry = ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
+        let registry =
+            ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
         for precision in [
             TemporalPrecision::Second,
             TemporalPrecision::Millisecond,
@@ -107,7 +108,8 @@ mod tests {
     /// Checks every character policy token against the text registration.
     #[test]
     fn test_all_character_policies_map_to_bindable_rules() {
-        let registry = ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
+        let registry =
+            ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
         for set in [
             AllowedChars::Unicode,
             AllowedChars::PrintableUnicode,
@@ -122,7 +124,9 @@ mod tests {
                 AllowedChars::PrintableAscii => Some("printable_ascii"),
                 AllowedChars::Code => Some("code"),
             };
-            let constraint = ConstraintMetadata::Text(TextConstraint::new(None, None, None, None, set, false, None));
+            let constraint = ConstraintMetadata::Text(TextConstraint::new(
+                None, None, None, None, set, false, None,
+            ));
             let mut count = 0;
             visit_rules(&constraint, |rule| {
                 count += 1;
@@ -147,7 +151,8 @@ mod tests {
     /// Checks every format's identity and parameterless text signature.
     #[test]
     fn test_all_text_formats_map_to_bindable_rules() {
-        let registry = ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
+        let registry =
+            ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
         for format in [
             TextFormat::EmailAscii,
             TextFormat::Mobile,
@@ -187,13 +192,24 @@ mod tests {
 
     #[test]
     fn test_decimal_contract_arguments_bind() {
-        let registry = ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
+        let registry =
+            ValidatorRegistry::from_registrations(registrations()).expect("built-in registry");
         for precision in [None, Some(3)] {
             for min_closed in [false, true] {
                 for max_closed in [false, true] {
                     let constraint = ConstraintMetadata::Decimal(
-                        DecimalConstraint::new(precision, 2, RoundingMode::HalfEven, DecimalSemantic::Money)
-                            .with_bounds(Some("1.23"), Some("2.34"), min_closed, max_closed),
+                        DecimalConstraint::new(
+                            precision,
+                            2,
+                            RoundingMode::HalfEven,
+                            DecimalSemantic::Money,
+                        )
+                        .with_bounds(
+                            Some("1.23"),
+                            Some("2.34"),
+                            min_closed,
+                            max_closed,
+                        ),
                     );
                     let mut count = 0;
                     visit_rules(&constraint, |rule| {
@@ -213,8 +229,14 @@ mod tests {
                             NamedValidationArgument::new("scale", ValidationArgument::Unsigned(2)),
                             NamedValidationArgument::new("min", ValidationArgument::String("1.23")),
                             NamedValidationArgument::new("max", ValidationArgument::String("2.34")),
-                            NamedValidationArgument::new("min_inclusive", ValidationArgument::Bool(min_closed)),
-                            NamedValidationArgument::new("max_inclusive", ValidationArgument::Bool(max_closed)),
+                            NamedValidationArgument::new(
+                                "min_inclusive",
+                                ValidationArgument::Bool(min_closed),
+                            ),
+                            NamedValidationArgument::new(
+                                "max_inclusive",
+                                ValidationArgument::Bool(max_closed),
+                            ),
                         ]);
                         assert_eq!(args, expected.as_slice());
                         registry
@@ -251,7 +273,9 @@ pub(crate) const SEQUENCE_UNIQUE_ID: ValidatorId = ValidatorId::new(ids::COLLECT
 /// # Errors
 /// Returns `InvalidDeclaration` if the built-in definitions or accepted caller
 /// registrations cannot form a registry.
-pub(crate) fn registry(validators: &ValidatorRegistry) -> Result<(ValidatorRegistry, Vec<BindError>), BindError> {
+pub(crate) fn registry(
+    validators: &ValidatorRegistry,
+) -> Result<(ValidatorRegistry, Vec<BindError>), BindError> {
     registry_with_builtins(registrations(), validators)
 }
 
@@ -283,7 +307,9 @@ fn registry_with_builtins(
                 .iter()
                 .any(|builtin| builtin.id() == registration.id())
         {
-            errors.push(BindError::new(BindErrorKind::InvalidDeclaration).with_rule(registration.id()));
+            errors.push(
+                BindError::new(BindErrorKind::InvalidDeclaration).with_rule(registration.id()),
+            );
         } else {
             registrations.push(*registration);
         }
@@ -307,8 +333,11 @@ fn registry_with_builtins(
 ///
 /// Returns `InvalidDeclaration` when the validator crate rejects the supplied
 /// registrations.
-fn build_builtin_registry(registrations: Vec<ValidatorRegistration>) -> Result<ValidatorRegistry, BindError> {
-    ValidatorRegistry::from_registrations(registrations).map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
+fn build_builtin_registry(
+    registrations: Vec<ValidatorRegistration>,
+) -> Result<ValidatorRegistry, BindError> {
+    ValidatorRegistry::from_registrations(registrations)
+        .map_err(|_| BindError::new(BindErrorKind::InvalidDeclaration))
 }
 
 /// Binds the executable portion of one metadata constraint.
@@ -345,7 +374,11 @@ pub(crate) fn bind(
         }
         StandardRule::SequenceUnique { .. } => {}
     });
-    if errors.is_empty() { Ok(bindings) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(bindings)
+    } else {
+        Err(errors)
+    }
 }
 
 /// Returns every known rule mapping in execution order without consulting a
@@ -378,22 +411,42 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
     match constraint {
         ConstraintMetadata::Text(text) => {
             if text.is_non_blank() {
-                visit_rule(&mut visitor, ids::TEXT_NON_BLANK, &[], StandardTarget::Value);
+                visit_rule(
+                    &mut visitor,
+                    ids::TEXT_NON_BLANK,
+                    &[],
+                    StandardTarget::Value,
+                );
             }
             if text.min_chars().is_some() || text.max_chars().is_some() {
                 let args = optional_u32_args(text.min_chars(), text.max_chars());
-                visit_rule(&mut visitor, ids::TEXT_CHAR_LENGTH, &args, StandardTarget::Value);
+                visit_rule(
+                    &mut visitor,
+                    ids::TEXT_CHAR_LENGTH,
+                    &args,
+                    StandardTarget::Value,
+                );
             }
             if text.min_bytes().is_some() || text.max_bytes().is_some() {
                 let args = optional_u32_args(text.min_bytes(), text.max_bytes());
-                visit_rule(&mut visitor, ids::TEXT_BYTE_LENGTH, &args, StandardTarget::Value);
+                visit_rule(
+                    &mut visitor,
+                    ids::TEXT_BYTE_LENGTH,
+                    &args,
+                    StandardTarget::Value,
+                );
             }
             if !matches!(text.allowed_chars(), AllowedChars::Unicode) {
                 let args = [NamedValidationArgument::new(
                     "set",
                     ValidationArgument::String(allowed_chars(text.allowed_chars())),
                 )];
-                visit_rule(&mut visitor, ids::TEXT_ALLOWED_CHARS, &args, StandardTarget::Value);
+                visit_rule(
+                    &mut visitor,
+                    ids::TEXT_ALLOWED_CHARS,
+                    &args,
+                    StandardTarget::Value,
+                );
             }
             if let Some(format) = text.format() {
                 let id = match format {
@@ -416,7 +469,9 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
                 );
             }
             if sequence.unique_items() {
-                visitor(StandardRule::SequenceUnique { id: SEQUENCE_UNIQUE_ID });
+                visitor(StandardRule::SequenceUnique {
+                    id: SEQUENCE_UNIQUE_ID,
+                });
             }
         }
         ConstraintMetadata::Map(map) => {
@@ -443,10 +498,16 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
                 ValidationArgument::Unsigned(u128::from(decimal.scale())),
             ));
             if let Some(min) = decimal.min() {
-                args.push(NamedValidationArgument::new("min", ValidationArgument::String(min)));
+                args.push(NamedValidationArgument::new(
+                    "min",
+                    ValidationArgument::String(min),
+                ));
             }
             if let Some(max) = decimal.max() {
-                args.push(NamedValidationArgument::new("max", ValidationArgument::String(max)));
+                args.push(NamedValidationArgument::new(
+                    "max",
+                    ValidationArgument::String(max),
+                ));
             }
             args.push(NamedValidationArgument::new(
                 "min_inclusive",
@@ -456,7 +517,12 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
                 "max_inclusive",
                 ValidationArgument::Bool(decimal.max_inclusive()),
             ));
-            visit_rule(&mut visitor, ids::DECIMAL_VALUE, &args, StandardTarget::Value);
+            visit_rule(
+                &mut visitor,
+                ids::DECIMAL_VALUE,
+                &args,
+                StandardTarget::Value,
+            );
         }
         ConstraintMetadata::Time(time) => {
             let precision = match time.precision() {
@@ -469,7 +535,12 @@ fn visit_rules(constraint: &ConstraintMetadata, mut visitor: impl FnMut(Standard
                 "precision",
                 ValidationArgument::String(precision),
             )];
-            visit_rule(&mut visitor, ids::TIME_PRECISION, &args, StandardTarget::Value);
+            visit_rule(
+                &mut visitor,
+                ids::TIME_PRECISION,
+                &args,
+                StandardTarget::Value,
+            );
         }
     }
 }
@@ -557,7 +628,10 @@ fn optional_u32_args(min: Option<u32>, max: Option<u32>) -> Vec<NamedValidationA
 /// Returns arguments for the present bounds, preserving minimum-before-maximum
 /// order.
 #[must_use]
-fn optional_usize_args(min: Option<usize>, max: Option<usize>) -> Vec<NamedValidationArgument<'static>> {
+fn optional_usize_args(
+    min: Option<usize>,
+    max: Option<usize>,
+) -> Vec<NamedValidationArgument<'static>> {
     let mut args = Vec::with_capacity(2);
     if let Some(value) = min {
         args.push(NamedValidationArgument::new(

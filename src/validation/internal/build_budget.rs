@@ -11,6 +11,8 @@
 mod counter;
 
 pub(crate) use self::counter::Counter;
+use crate::validation::ValidationBuildLimit;
+use crate::validation::ValidationBuildLimitKind;
 
 /// Maximum model, wrapper, and type-expression traversal depth.
 pub(crate) const MAX_DEPTH: usize = 64;
@@ -51,7 +53,13 @@ impl BuildBudget {
             occurrences: 0,
             bindings: 0,
             diagnostics: 0,
-            limits: [MAX_DEPTH, MAX_WORK, MAX_OCCURRENCES, MAX_BINDINGS, MAX_DIAGNOSTICS],
+            limits: [
+                MAX_DEPTH,
+                MAX_WORK,
+                MAX_OCCURRENCES,
+                MAX_BINDINGS,
+                MAX_DIAGNOSTICS,
+            ],
         }
     }
 
@@ -97,8 +105,8 @@ impl BuildBudget {
     ///
     /// # Errors
     ///
-    /// Returns `Err(())` when either limit is exhausted.
-    pub(crate) fn enter(&mut self, depth: usize) -> Result<(), ()> {
+    /// Returns the exhausted depth or work limit.
+    pub(crate) fn enter(&mut self, depth: usize) -> Result<(), ValidationBuildLimit> {
         self.check_depth(depth)?;
         self.charge(Counter::Work)
     }
@@ -115,9 +123,16 @@ impl BuildBudget {
     ///
     /// # Errors
     ///
-    /// Returns `Err(())` when `depth` exceeds the configured limit.
-    pub(crate) fn check_depth(&self, depth: usize) -> Result<(), ()> {
-        if depth > self.limits[0] { Err(()) } else { Ok(()) }
+    /// Returns the depth limit when `depth` exceeds its configured maximum.
+    pub(crate) fn check_depth(&self, depth: usize) -> Result<(), ValidationBuildLimit> {
+        if depth > self.limits[0] {
+            Err(ValidationBuildLimit::new(
+                ValidationBuildLimitKind::Depth,
+                self.limits[0],
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     /// Charges one item against the selected finite counter.
@@ -132,16 +147,32 @@ impl BuildBudget {
     ///
     /// # Errors
     ///
-    /// Returns `Err(())` when the counter has reached its configured limit.
-    pub(crate) fn charge(&mut self, counter: Counter) -> Result<(), ()> {
-        let (used, limit) = match counter {
-            Counter::Work => (&mut self.work, self.limits[1]),
-            Counter::Occurrence => (&mut self.occurrences, self.limits[2]),
-            Counter::Binding => (&mut self.bindings, self.limits[3]),
-            Counter::Diagnostic => (&mut self.diagnostics, self.limits[4]),
+    /// Returns the exhausted counter category and configured capacity.
+    pub(crate) fn charge(&mut self, counter: Counter) -> Result<(), ValidationBuildLimit> {
+        let (used, limit, kind) = match counter {
+            Counter::Work => (
+                &mut self.work,
+                self.limits[1],
+                ValidationBuildLimitKind::Work,
+            ),
+            Counter::Occurrence => (
+                &mut self.occurrences,
+                self.limits[2],
+                ValidationBuildLimitKind::Occurrences,
+            ),
+            Counter::Binding => (
+                &mut self.bindings,
+                self.limits[3],
+                ValidationBuildLimitKind::Bindings,
+            ),
+            Counter::Diagnostic => (
+                &mut self.diagnostics,
+                self.limits[4],
+                ValidationBuildLimitKind::Diagnostics,
+            ),
         };
         if *used >= limit {
-            return Err(());
+            return Err(ValidationBuildLimit::new(kind, limit));
         }
         *used += 1;
         Ok(())
@@ -155,6 +186,17 @@ impl BuildBudget {
     #[cfg(test)]
     fn work_used(&self) -> usize {
         self.work
+    }
+
+    /// Returns a selected counter for its capacity regression test.
+    #[cfg(test)]
+    fn used(&self, counter: Counter) -> usize {
+        match counter {
+            Counter::Work => self.work,
+            Counter::Occurrence => self.occurrences,
+            Counter::Binding => self.bindings,
+            Counter::Diagnostic => self.diagnostics,
+        }
     }
 }
 
@@ -175,17 +217,54 @@ mod tests {
         assert!(maxed.charge(Counter::Work).is_ok());
         assert_eq!(maxed.work_used(), 1);
 
-        for counter in [Counter::Occurrence, Counter::Binding, Counter::Diagnostic] {
+        for counter in [
+            Counter::Work,
+            Counter::Occurrence,
+            Counter::Binding,
+            Counter::Diagnostic,
+        ] {
             let mut budget = BuildBudget::with_limits(1, 1, 1, 1, 1);
             assert!(budget.charge(counter).is_ok());
-            assert!(budget.charge(counter).is_err());
+            assert_eq!(
+                budget.charge(counter).unwrap_err().kind(),
+                match counter {
+                    Counter::Work => crate::validation::ValidationBuildLimitKind::Work,
+                    Counter::Occurrence => crate::validation::ValidationBuildLimitKind::Occurrences,
+                    Counter::Binding => crate::validation::ValidationBuildLimitKind::Bindings,
+                    Counter::Diagnostic => crate::validation::ValidationBuildLimitKind::Diagnostics,
+                }
+            );
+            assert_eq!(budget.used(counter), 1, "failed charge does not increment");
+            if matches!(counter, Counter::Work) {
+                assert_eq!(budget.work_used(), 1);
+            }
 
             let mut empty = BuildBudget::with_limits(1, 0, 0, 0, 0);
-            assert!(empty.charge(counter).is_err());
+            let detail = empty.charge(counter).unwrap_err();
+            assert_eq!(
+                detail.kind(),
+                match counter {
+                    Counter::Work => crate::validation::ValidationBuildLimitKind::Work,
+                    Counter::Occurrence => crate::validation::ValidationBuildLimitKind::Occurrences,
+                    Counter::Binding => crate::validation::ValidationBuildLimitKind::Bindings,
+                    Counter::Diagnostic => crate::validation::ValidationBuildLimitKind::Diagnostics,
+                }
+            );
+            assert_eq!(detail.limit(), 0);
+            assert_eq!(empty.used(counter), 0, "failed charge does not increment");
+            if matches!(counter, Counter::Work) {
+                assert_eq!(empty.work_used(), 0);
+            }
         }
 
         let mut depth = BuildBudget::with_limits(0, usize::MAX, 1, 1, 1);
         assert!(depth.enter(0).is_ok());
-        assert!(depth.enter(1).is_err());
+        let detail = depth.enter(1).unwrap_err();
+        assert_eq!(
+            detail.kind(),
+            crate::validation::ValidationBuildLimitKind::Depth
+        );
+        assert_eq!(detail.limit(), 0);
+        assert_eq!(depth.work_used(), 1, "depth rejection does not charge work");
     }
 }

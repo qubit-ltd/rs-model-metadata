@@ -41,6 +41,8 @@ use crate::metadata::ValidatorMetadata;
 use crate::property::MapLenAdapter;
 use crate::resolve::ModelGraph;
 use crate::validation::ValidationBuildError;
+use crate::validation::ValidationBuildLimit;
+use crate::validation::ValidationBuildLimitKind;
 use crate::validation::compiled_property_path::CompiledPropertyPath;
 use crate::validation::standard_constraints;
 use crate::validation::validator_arguments::validator_arguments;
@@ -78,13 +80,19 @@ pub(crate) fn check_access(
             | ConstraintMetadata::Decimal(_)
             | ConstraintMetadata::Time(_),
         ) => false,
-        ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(_)) if occurrence.selector.is_none() => true,
+        ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(_))
+            if occurrence.selector.is_none() =>
+        {
+            true
+        }
         ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(_)) => false,
         ExecutionDeclaration::Validator(value) => {
             if let Some(selector) = occurrence.selector {
                 if !matches!(
                     selector,
-                    SelectorPosition::Element | SelectorPosition::MapKey | SelectorPosition::MapValue
+                    SelectorPosition::Element
+                        | SelectorPosition::MapKey
+                        | SelectorPosition::MapValue
                 ) || !value.depends_on().is_empty()
                     || !value.dependency_bindings().is_empty()
                 {
@@ -113,10 +121,19 @@ pub(crate) fn check_access(
     let scalar_constraint = matches!(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(
-            ConstraintMetadata::Text(_) | ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_)
+            ConstraintMetadata::Text(_)
+                | ConstraintMetadata::Decimal(_)
+                | ConstraintMetadata::Time(_)
         )
     );
-    let path = compile_access_path(occurrence, graph, context, requires_slice, is_map, scalar_constraint)?;
+    let path = compile_access_path(
+        occurrence,
+        graph,
+        context,
+        requires_slice,
+        is_map,
+        scalar_constraint,
+    )?;
     validate_collection_access(occurrence, &path, context, requires_slice, is_map)?;
     let selected_type = occurrence
         .selector
@@ -164,7 +181,13 @@ fn compile_access_path(
 ) -> Result<CompiledPropertyPath, Box<ValidationBuildError>> {
     let compile = |target| -> Result<_, Box<ValidationBuildError>> {
         let compiled = if occurrence.enum_variant.is_some() {
-            CompiledPropertyPath::compile_enum_payload(context, occurrence.root, occurrence, graph, target)
+            CompiledPropertyPath::compile_enum_payload(
+                context,
+                occurrence.root,
+                occurrence,
+                graph,
+                target,
+            )
         } else {
             CompiledPropertyPath::compile(
                 context,
@@ -195,7 +218,9 @@ fn compile_access_path(
     // transparent fields, which are not named graph properties.
     let (path, compiled_target) = match compile(initial_target) {
         Ok(path) => (path, initial_target),
-        Err(_) if is_map || scalar_constraint => (compile(TargetMode::Container)?, TargetMode::Container),
+        Err(_) if is_map || scalar_constraint => {
+            (compile(TargetMode::Container)?, TargetMode::Container)
+        }
         Err(error) => return Err(error),
     };
     let Some(property) = path.steps().last().map(|step| step.property()) else {
@@ -244,7 +269,9 @@ fn compile_access_path(
         match path.unwrap_terminal_optional(element) {
             Ok(path) => path,
             Err(error) => {
-                return Err(Box::new(ValidationBuildError::at_occurrence(occurrence, error)));
+                return Err(Box::new(ValidationBuildError::at_occurrence(
+                    occurrence, error,
+                )));
             }
         }
     } else {
@@ -289,7 +316,10 @@ fn validate_collection_access(
         return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
     }
     if let Some(selector) = occurrence.selector {
-        let items = occurrence.field.collection_ops().and_then(|ops| ops.collection_items());
+        let items = occurrence
+            .field
+            .collection_ops()
+            .and_then(|ops| ops.collection_items());
         let supported_type = selector_input_type(context, path, selector).is_some();
         let borrowed_output = path
             .steps()
@@ -302,7 +332,10 @@ fn validate_collection_access(
     }
     if matches!(occurrence.declaration, ExecutionDeclaration::Constraint(ConstraintMetadata::Sequence(sequence)) if sequence.unique_items())
     {
-        let item_eq = occurrence.field.collection_ops().and_then(|ops| ops.item_eq());
+        let item_eq = occurrence
+            .field
+            .collection_ops()
+            .and_then(|ops| ops.item_eq());
         let elements_match = occurrence
             .owner
             .field_descriptor_in(occurrence.field, context)
@@ -333,7 +366,8 @@ fn validate_collection_access(
                 }
                 property.optional_ops().is_some_and(|ops| {
                     generic_type_argument(descriptor, 0).is_some_and(|inner| {
-                        inner.type_id() == ops.element_type_id() && matches!(inner.kind(), TypeKind::Map(_))
+                        inner.type_id() == ops.element_type_id()
+                            && matches!(inner.kind(), TypeKind::Map(_))
                     })
                 })
             });
@@ -434,7 +468,10 @@ fn validate_validator_access(
         // Selected members are direct borrows, so optional values and
         // smart pointers need a separate projection adapter.
         if declaration.target() == TargetMode::Value
-            && matches!(descriptor.kind(), TypeKind::Optional(_) | TypeKind::SmartPointer(_))
+            && matches!(
+                descriptor.kind(),
+                TypeKind::Optional(_) | TypeKind::SmartPointer(_)
+            )
         {
             return Err(Box::new(ValidationBuildError::unsupported(occurrence)));
         }
@@ -454,7 +491,11 @@ fn validate_validator_access(
     }
     if declaration.dependency_bindings().is_empty() {
         for dependency in declaration.depends_on() {
-            let segments: Vec<_> = prefix.iter().chain(dependency.segments()).copied().collect();
+            let segments: Vec<_> = prefix
+                .iter()
+                .chain(dependency.segments())
+                .copied()
+                .collect();
             CompiledPropertyPath::compile(
                 context,
                 occurrence.root,
@@ -498,7 +539,10 @@ fn sequence_element_matches(declared: TypeDescriptor<'_>, output: TypeDescriptor
 ///
 /// * `descriptor` - The reflected type whose generic arguments are inspected.
 /// * `index` - The zero-based position of the type argument to resolve.
-fn generic_type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option<TypeDescriptor<'ctx>> {
+fn generic_type_argument<'ctx>(
+    descriptor: TypeDescriptor<'ctx>,
+    index: usize,
+) -> Option<TypeDescriptor<'ctx>> {
     descriptor
         .generic_arguments()
         .iter()
@@ -548,7 +592,12 @@ fn selector_input_type<'ctx>(
     let mut descriptor = property
         .getter()
         .filter(|getter| getter.output_kind() != GetterOutputKind::OptionalBorrowed)
-        .and_then(|getter| context.find_type_by_id(getter.output_type_id()).ok().flatten())
+        .and_then(|getter| {
+            context
+                .find_type_by_id(getter.output_type_id())
+                .ok()
+                .flatten()
+        })
         .or_else(|| property.descriptor_in(context).ok().flatten())?;
     if let Some(optional) = property.optional_ops() {
         descriptor = generic_type_argument(descriptor, 0)?;
@@ -597,7 +646,10 @@ pub(crate) fn bind(
         occurrence.declaration,
         ExecutionDeclaration::Constraint(ConstraintMetadata::Map(_))
     ) {
-        occurrence.field.collection_ops().and_then(|ops| ops.map_len())
+        occurrence
+            .field
+            .collection_ops()
+            .and_then(|ops| ops.map_len())
     } else {
         None
     };
@@ -614,19 +666,26 @@ pub(crate) fn bind(
                     }
                 })
                 .unwrap_or_else(|| value.input_type());
-            let standards = standard_constraints::bind(constraint, validators, input).map_err(|errors| {
-                errors
-                    .into_iter()
-                    .map(|error| ValidationBuildError::at_occurrence(occurrence, error))
-                    .collect::<Vec<_>>()
-            })?;
+            let standards =
+                standard_constraints::bind(constraint, validators, input).map_err(|errors| {
+                    errors
+                        .into_iter()
+                        .map(|error| ValidationBuildError::at_occurrence(occurrence, error))
+                        .collect::<Vec<_>>()
+                })?;
             let additional = standards.len()
                 + usize::from(matches!(
                     constraint,
                     ConstraintMetadata::Sequence(sequence) if sequence.unique_items()
                 ));
             if additional > max_bindings {
-                return Err(vec![ValidationBuildError::build_limit(occurrence.root)]);
+                return Err(vec![ValidationBuildError::at_build_limit(
+                    occurrence.root,
+                    ValidationBuildLimit::new(
+                        ValidationBuildLimitKind::Bindings,
+                        super::build_budget::MAX_BINDINGS,
+                    ),
+                )]);
             }
             let mut bindings: Vec<_> = standards
                 .into_iter()
@@ -652,8 +711,13 @@ pub(crate) fn bind(
                     }),
                 })
                 .collect();
-            if matches!(constraint, ConstraintMetadata::Sequence(sequence) if sequence.unique_items()) {
-                let Some(item_eq) = occurrence.field.collection_ops().and_then(|ops| ops.item_eq()) else {
+            if matches!(constraint, ConstraintMetadata::Sequence(sequence) if sequence.unique_items())
+            {
+                let Some(item_eq) = occurrence
+                    .field
+                    .collection_ops()
+                    .and_then(|ops| ops.item_eq())
+                else {
                     return Err(vec![ValidationBuildError::unsupported(occurrence)]);
                 };
                 bindings.push(FieldRuleBinding {
@@ -671,7 +735,13 @@ pub(crate) fn bind(
         }
         ExecutionDeclaration::Validator(declaration) => {
             if max_bindings == 0 {
-                return Err(vec![ValidationBuildError::build_limit(occurrence.root)]);
+                return Err(vec![ValidationBuildError::at_build_limit(
+                    occurrence.root,
+                    ValidationBuildLimit::new(
+                        ValidationBuildLimitKind::Bindings,
+                        super::build_budget::MAX_BINDINGS,
+                    ),
+                )]);
             }
             let input = if occurrence.selector.is_some() {
                 let Some(descriptor) = occurrence
@@ -695,13 +765,20 @@ pub(crate) fn bind(
             if occurrence.selector.is_some() && !validator.dependency_specs().is_empty() {
                 return Err(vec![ValidationBuildError::unsupported(occurrence)]);
             }
-            let dependencies = bind_dependencies(occurrence, declaration, &validator, &value, graph, ancestors)
-                .map_err(|errors| {
-                    errors
-                        .into_iter()
-                        .map(|error| access_error(occurrence, error))
-                        .collect::<Vec<_>>()
-                })?;
+            let dependencies = bind_dependencies(
+                occurrence,
+                declaration,
+                &validator,
+                &value,
+                graph,
+                ancestors,
+            )
+            .map_err(|errors| {
+                errors
+                    .into_iter()
+                    .map(|error| access_error(occurrence, error))
+                    .collect::<Vec<_>>()
+            })?;
             Ok(vec![FieldRuleBinding {
                 context: occurrence.clone(),
                 occurrence: occurrence.ordinal,
@@ -772,17 +849,30 @@ mod build_budget_tests {
             declaration: ExecutionDeclaration::Constraint(&field.constraints()[0]),
         };
         let caller_validators = ValidatorRegistry::empty();
-        let (validators, conflicts) =
-            standard_constraints::registry(&caller_validators).expect("standard validator registry");
+        let (validators, conflicts) = standard_constraints::registry(&caller_validators)
+            .expect("standard validator registry");
         assert!(conflicts.is_empty());
 
-        let overflow =
-            bind(&occurrence, &graph, &validators, &[], 1).expect_err("one declaration expands to two rules");
+        let overflow = bind(&occurrence, &graph, &validators, &[], 1)
+            .expect_err("one declaration expands to two rules");
         assert_eq!(overflow.len(), 1);
-        assert_eq!(overflow[0].kind(), ValidationBuildErrorKind::BuildLimitExceeded);
+        assert_eq!(
+            overflow[0].kind(),
+            ValidationBuildErrorKind::BuildLimitExceeded
+        );
+        let detail = overflow[0].build_limit().expect("binding limit detail");
+        assert_eq!(
+            detail.kind(),
+            crate::validation::ValidationBuildLimitKind::Bindings
+        );
+        assert_eq!(
+            detail.limit(),
+            crate::validation::internal::build_budget::MAX_BINDINGS
+        );
         assert!(overflow[0].source_error().is_none());
 
-        let exact = bind(&occurrence, &graph, &validators, &[], 2).expect("both expanded rules fit the exact budget");
+        let exact = bind(&occurrence, &graph, &validators, &[], 2)
+            .expect("both expanded rules fit the exact budget");
         assert_eq!(exact.len(), 2);
     }
 }
@@ -851,7 +941,11 @@ fn bind_dependencies(
                 );
                 continue;
             }
-            let segments: Vec<_> = prefix.iter().chain(dependency.segments()).copied().collect();
+            let segments: Vec<_> = prefix
+                .iter()
+                .chain(dependency.segments())
+                .copied()
+                .collect();
             CompiledPropertyPath::compile(
                 context,
                 occurrence.root,
@@ -924,7 +1018,9 @@ fn bind_dependencies(
 /// Returns a name-to-declaration index; duplicate names retain their first
 /// declaration to match a source-order search.
 #[must_use]
-fn index_declared_bindings(declared: &[DependencyBindingMetadata]) -> HashMap<&str, &DependencyBindingMetadata> {
+fn index_declared_bindings(
+    declared: &[DependencyBindingMetadata],
+) -> HashMap<&str, &DependencyBindingMetadata> {
     let mut indexed = HashMap::with_capacity(declared.len());
     for binding in declared {
         indexed.entry(binding.name()).or_insert(binding);
@@ -951,7 +1047,10 @@ mod tests {
 
         let indexed = index_declared_bindings(&BINDINGS);
 
-        assert!(std::ptr::eq(*indexed.get("owner").expect("indexed slot"), &BINDINGS[0]));
+        assert!(std::ptr::eq(
+            *indexed.get("owner").expect("indexed slot"),
+            &BINDINGS[0]
+        ));
     }
 
     #[test]

@@ -14,6 +14,8 @@ use crate::metadata::TypeMetadata;
 use crate::validation::ValidationBuildError;
 use crate::validation::ValidationBuildErrors;
 use crate::validation::ValidationBuildInputs;
+use crate::validation::ValidationBuildLimit;
+use crate::validation::ValidationBuildLimitKind;
 use crate::validation::internal::build_budget::BuildBudget;
 use crate::validation::internal::build_budget::Counter;
 use crate::validation::internal::declaration_walker;
@@ -75,41 +77,55 @@ impl<'registry> ValidationPlan<'registry> {
                 ValidationBuildError::missing_root(root),
             ]));
         };
-        let (occurrences, mut errors, mut budget) =
-            declaration_walker::collect_with_budget(root, inputs.graph.as_ref(), BuildBudget::new());
+        let (occurrences, mut errors, mut budget) = declaration_walker::collect_with_budget(
+            root,
+            inputs.graph.as_ref(),
+            BuildBudget::new(),
+        );
         if errors
             .iter()
             .any(|error| error.kind() == super::super::ValidationBuildErrorKind::BuildLimitExceeded)
         {
             return Err(ValidationBuildErrors::from_errors(errors));
         }
-        let (validators, registry_errors) = match standard_constraints::registry(inputs.validators) {
+        let (validators, registry_errors) = match standard_constraints::registry(inputs.validators)
+        {
             Ok(result) => result,
             Err(error) => {
-                if budget.charge(Counter::Diagnostic).is_err() {
-                    errors.push(ValidationBuildError::build_limit(root));
+                if let Err(detail) = budget.charge(Counter::Diagnostic) {
+                    errors.push(ValidationBuildError::at_build_limit(root, detail));
                     return Err(ValidationBuildErrors::from_errors(errors));
                 }
                 errors.push(ValidationBuildError::new(root, error));
                 return Err(ValidationBuildErrors::from_errors(errors));
             }
         };
-        let registry_errors_exceed_limit =
-            errors.len() + registry_errors.len() > crate::validation::internal::build_budget::MAX_DIAGNOSTICS;
-        let remaining = crate::validation::internal::build_budget::MAX_DIAGNOSTICS.saturating_sub(errors.len());
+        let registry_errors_exceed_limit = errors.len() + registry_errors.len()
+            > crate::validation::internal::build_budget::MAX_DIAGNOSTICS;
+        let remaining =
+            crate::validation::internal::build_budget::MAX_DIAGNOSTICS.saturating_sub(errors.len());
         let mut registry_errors = registry_errors.into_iter();
         for error in registry_errors.by_ref().take(remaining) {
-            let _ = budget.charge(Counter::Diagnostic);
+            if let Err(detail) = budget.charge(Counter::Diagnostic) {
+                errors.push(ValidationBuildError::at_build_limit(root, detail));
+                return Err(ValidationBuildErrors::from_errors(errors));
+            }
             errors.push(ValidationBuildError::new(root, error));
         }
         if registry_errors_exceed_limit {
-            errors.push(ValidationBuildError::build_limit(root));
+            errors.push(ValidationBuildError::at_build_limit(
+                root,
+                ValidationBuildLimit::new(
+                    ValidationBuildLimitKind::Diagnostics,
+                    crate::validation::internal::build_budget::MAX_DIAGNOSTICS,
+                ),
+            ));
             return Err(ValidationBuildErrors::from_errors(errors));
         }
         let mut bindings = Vec::new();
         for occurrence in occurrences {
-            if budget.charge(Counter::Work).is_err() {
-                errors.push(ValidationBuildError::build_limit(root));
+            if let Err(detail) = budget.charge(Counter::Work) {
+                errors.push(ValidationBuildError::at_build_limit(root, detail));
                 return Err(ValidationBuildErrors::from_errors(errors));
             }
             match occurrence_binder::bind(
@@ -121,8 +137,8 @@ impl<'registry> ValidationPlan<'registry> {
             ) {
                 Ok(mut compiled) => {
                     for _ in &compiled {
-                        if budget.charge(Counter::Binding).is_err() {
-                            errors.push(ValidationBuildError::build_limit(root));
+                        if let Err(detail) = budget.charge(Counter::Binding) {
+                            errors.push(ValidationBuildError::at_build_limit(root, detail));
                             return Err(ValidationBuildErrors::from_errors(errors));
                         }
                     }
@@ -130,23 +146,38 @@ impl<'registry> ValidationPlan<'registry> {
                 }
                 Err(mut failures) => {
                     if failures.iter().any(|failure| {
-                        failure.kind() == crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
+                        failure.kind()
+                            == crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
                     }) {
-                        errors.push(ValidationBuildError::build_limit(root));
+                        errors.push(
+                            failures
+                                .into_iter()
+                                .find(|failure| {
+                                    failure.kind()
+                                        == crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
+                                })
+                                .expect("detected terminal build-limit failure"),
+                        );
                         return Err(ValidationBuildErrors::from_errors(errors));
                     }
-                    let remaining =
-                        crate::validation::internal::build_budget::MAX_DIAGNOSTICS.saturating_sub(errors.len());
+                    let remaining = crate::validation::internal::build_budget::MAX_DIAGNOSTICS
+                        .saturating_sub(errors.len());
                     let failures_exceed_limit = failures.len() > remaining;
                     for failure in failures.drain(..).take(remaining) {
-                        if budget.charge(Counter::Diagnostic).is_err() {
-                            errors.push(ValidationBuildError::build_limit(root));
+                        if let Err(detail) = budget.charge(Counter::Diagnostic) {
+                            errors.push(ValidationBuildError::at_build_limit(root, detail));
                             return Err(ValidationBuildErrors::from_errors(errors));
                         }
                         errors.push(failure);
                     }
                     if failures_exceed_limit {
-                        errors.push(ValidationBuildError::build_limit(root));
+                        errors.push(ValidationBuildError::at_build_limit(
+                            root,
+                            ValidationBuildLimit::new(
+                                ValidationBuildLimitKind::Diagnostics,
+                                crate::validation::internal::build_budget::MAX_DIAGNOSTICS,
+                            ),
+                        ));
                         return Err(ValidationBuildErrors::from_errors(errors));
                     }
                 }

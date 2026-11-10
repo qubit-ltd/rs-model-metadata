@@ -64,7 +64,10 @@ impl ValidationCapabilities {
     ///
     /// Returns unsupported declarations and access paths in source order, or
     /// `RootNotInGraph` when the supplied graph does not include the root.
-    pub fn check(root: &'static TypeMetadata, graph: &ModelGraph<'_>) -> Result<(), ValidationBuildErrors> {
+    pub fn check(
+        root: &'static TypeMetadata,
+        graph: &ModelGraph<'_>,
+    ) -> Result<(), ValidationBuildErrors> {
         let (occurrences, mut errors, mut budget) =
             declaration_walker::collect_with_budget(root, graph, BuildBudget::new());
         if errors
@@ -74,17 +77,23 @@ impl ValidationCapabilities {
             return Err(ValidationBuildErrors::from_errors(errors));
         }
         for occurrence in occurrences {
-            if budget.charge(Counter::Work).is_err() {
-                errors.push(ValidationBuildError::build_limit(root));
+            if let Err(detail) = budget.charge(Counter::Work) {
+                errors.push(ValidationBuildError::at_build_limit(root, detail));
                 return Err(ValidationBuildErrors::from_errors(errors));
             }
             if let Err(error) = occurrence_binder::check_access(&occurrence, graph) {
                 if errors.len() >= super::super::internal::build_budget::MAX_DIAGNOSTICS {
-                    errors.push(ValidationBuildError::build_limit(root));
+                    errors.push(ValidationBuildError::at_build_limit(
+                        root,
+                        crate::validation::ValidationBuildLimit::new(
+                            crate::validation::ValidationBuildLimitKind::Diagnostics,
+                            super::super::internal::build_budget::MAX_DIAGNOSTICS,
+                        ),
+                    ));
                     return Err(ValidationBuildErrors::from_errors(errors));
                 }
-                if budget.charge(Counter::Diagnostic).is_err() {
-                    errors.push(ValidationBuildError::build_limit(root));
+                if let Err(detail) = budget.charge(Counter::Diagnostic) {
+                    errors.push(ValidationBuildError::at_build_limit(root, detail));
                     return Err(ValidationBuildErrors::from_errors(errors));
                 }
                 errors.push(*error);

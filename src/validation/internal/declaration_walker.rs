@@ -34,6 +34,8 @@ use crate::resolve::ModelGraph;
 use crate::structure::StructuralEdgeKind;
 use crate::structure::children::try_children;
 use crate::validation::ValidationBuildError;
+use crate::validation::ValidationBuildLimit;
+use crate::validation::ValidationBuildLimitKind;
 
 /// Collects supported occurrences and all structural execution failures.
 ///
@@ -58,24 +60,36 @@ pub(crate) fn collect_with_budget(
     root: &'static TypeMetadata,
     graph: &ModelGraph<'_>,
     mut budget: BuildBudget,
-) -> (Vec<ValidationOccurrence>, Vec<ValidationBuildError>, BuildBudget) {
+) -> (
+    Vec<ValidationOccurrence>,
+    Vec<ValidationBuildError>,
+    BuildBudget,
+) {
     let context = graph
         .registry()
         .context()
         .expect("resolved validation graphs retain their reflection context");
     let Some(root) = graph.model(root.type_id()) else {
-        return (Vec::new(), vec![ValidationBuildError::missing_root(root)], budget);
+        return (
+            Vec::new(),
+            vec![ValidationBuildError::missing_root(root)],
+            budget,
+        );
     };
     let work = match reachable_work(graph, context, &mut budget) {
         Ok(work) => work,
-        Err(()) => {
-            return (Vec::new(), vec![ValidationBuildError::build_limit(root)], budget);
+        Err(detail) => {
+            return (
+                Vec::new(),
+                vec![ValidationBuildError::at_build_limit(root, detail)],
+                budget,
+            );
         }
     };
     let mut occurrences = Vec::new();
     let mut errors = Vec::new();
     let mut ordinal = 0;
-    if walk(
+    if let Err(detail) = walk(
         root,
         root,
         &[],
@@ -90,11 +104,9 @@ pub(crate) fn collect_with_budget(
         &mut errors,
         &mut budget,
         0,
-    )
-    .is_err()
-    {
+    ) {
         occurrences.clear();
-        errors.push(ValidationBuildError::build_limit(root));
+        errors.push(ValidationBuildError::at_build_limit(root, detail));
     }
     (occurrences, errors, budget)
 }
@@ -117,7 +129,7 @@ fn reachable_work(
     graph: &ModelGraph<'_>,
     context: &ReflectionContext,
     budget: &mut BuildBudget,
-) -> Result<HashSet<TypeId>, ()> {
+) -> Result<HashSet<TypeId>, ValidationBuildLimit> {
     let mut work = HashSet::new();
     let mut predecessors: HashMap<TypeId, Vec<TypeId>> = HashMap::new();
     for model in graph.models() {
@@ -140,7 +152,10 @@ fn reachable_work(
                 budget,
             )? {
                 budget.charge(Counter::Work)?;
-                predecessors.entry(target.type_id()).or_default().push(model.type_id());
+                predecessors
+                    .entry(target.type_id())
+                    .or_default()
+                    .push(model.type_id());
             }
         }
     }
@@ -193,7 +208,7 @@ fn walk(
     errors: &mut Vec<ValidationBuildError>,
     budget: &mut BuildBudget,
     depth: usize,
-) -> Result<(), ()> {
+) -> Result<(), ValidationBuildLimit> {
     budget.enter(depth)?;
     active.insert(owner.type_id());
     for field in fields(owner) {
@@ -201,11 +216,11 @@ fn walk(
         let enum_variant = enum_variant_for_field(owner, field);
         let mut segments = prefix.to_vec();
         let transparent_unnamed = is_transparent_unnamed_field(owner, field);
-        segments.push(
-            field
-                .name()
-                .unwrap_or(if transparent_unnamed { "0" } else { "<unnamed>" }),
-        );
+        segments.push(field.name().unwrap_or(if transparent_unnamed {
+            "0"
+        } else {
+            "<unnamed>"
+        }));
         let unsupported = inherited_unsupported
             || (owner.as_enum().is_some()
                 && (!enum_variant.is_some_and(|variant| {
@@ -223,7 +238,9 @@ fn walk(
             }
             append_segment(
                 &mut path,
-                &field.name().map_or_else(|| field.index().to_string(), str::to_owned),
+                &field
+                    .name()
+                    .map_or_else(|| field.index().to_string(), str::to_owned),
             );
             path
         });
@@ -317,7 +334,7 @@ fn walk_nested_fields(
     errors: &mut Vec<ValidationBuildError>,
     budget: &mut BuildBudget,
     depth: usize,
-) -> Result<(), ()> {
+) -> Result<(), ValidationBuildLimit> {
     let field_descriptor = owner
         .field_descriptor_in(field, context)
         .and_then(|field| field.find_concrete_type());
@@ -332,7 +349,8 @@ fn walk_nested_fields(
             continue;
         }
         let direct = suffix.is_empty()
-            && direct_model(field_descriptor, graph, budget)?.is_some_and(|model| model.type_id() == target.type_id());
+            && direct_model(field_descriptor, graph, budget)?
+                .is_some_and(|model| model.type_id() == target.type_id());
         let mut nested_segments = segments.to_vec();
         if let Some(access_segments) = access_segments {
             nested_segments.extend(access_segments);
@@ -340,13 +358,16 @@ fn walk_nested_fields(
         let nested_path = (unsupported || owner.as_enum().is_some() || !direct).then(|| {
             let mut path = unsupported_path.map_or_else(
                 || {
-                    let mut path = diagnostic_prefix.map_or_else(|| prefix.join("."), str::to_owned);
+                    let mut path =
+                        diagnostic_prefix.map_or_else(|| prefix.join("."), str::to_owned);
                     if let Some(variant) = enum_variant {
                         append_segment(&mut path, variant.rust_name());
                     }
                     append_segment(
                         &mut path,
-                        &field.name().map_or_else(|| field.index().to_string(), str::to_owned),
+                        &field
+                            .name()
+                            .map_or_else(|| field.index().to_string(), str::to_owned),
                     );
                     path
                 },
@@ -369,7 +390,10 @@ fn walk_nested_fields(
             };
             *ordinal += 1;
             if errors.len() >= super::build_budget::MAX_DIAGNOSTICS {
-                return Err(());
+                return Err(ValidationBuildLimit::new(
+                    ValidationBuildLimitKind::Diagnostics,
+                    super::build_budget::MAX_DIAGNOSTICS,
+                ));
             }
             budget.charge(Counter::Diagnostic)?;
             errors.push(ValidationBuildError::unsupported(&occurrence));
@@ -426,7 +450,7 @@ fn collect_field_declarations(
     occurrences: &mut Vec<ValidationOccurrence>,
     errors: &mut Vec<ValidationBuildError>,
     budget: &mut BuildBudget,
-) -> Result<(), ()> {
+) -> Result<(), ValidationBuildLimit> {
     for_each_declaration(field, budget, |budget, selector, declaration| {
         budget.charge(Counter::Work)?;
         budget.charge(Counter::Occurrence)?;
@@ -444,7 +468,10 @@ fn collect_field_declarations(
         *ordinal += 1;
         if unsupported {
             if errors.len() >= super::build_budget::MAX_DIAGNOSTICS {
-                return Err(());
+                return Err(ValidationBuildLimit::new(
+                    ValidationBuildLimitKind::Diagnostics,
+                    super::build_budget::MAX_DIAGNOSTICS,
+                ));
             }
             budget.charge(Counter::Diagnostic)?;
             errors.push(ValidationBuildError::unsupported(&occurrence));
@@ -497,7 +524,9 @@ pub(crate) fn is_transparent_unnamed_field(owner: &TypeMetadata, field: &FieldMe
     owner
         .as_value()
         .and_then(|value| value.transparent_field())
-        .is_some_and(|inner| std::ptr::eq(inner, field) && field.index() == 0 && field.name().is_none())
+        .is_some_and(|inner| {
+            std::ptr::eq(inner, field) && field.index() == 0 && field.name().is_none()
+        })
 }
 
 /// Returns struct fields or enum payload fields in declaration order.
@@ -549,8 +578,12 @@ fn fields(model: &'static TypeMetadata) -> Box<dyn Iterator<Item = &'static Fiel
 fn for_each_declaration(
     field: &'static FieldMetadata,
     budget: &mut BuildBudget,
-    mut visit: impl FnMut(&mut BuildBudget, Option<SelectorPosition>, ExecutionDeclaration) -> Result<(), ()>,
-) -> Result<(), ()> {
+    mut visit: impl FnMut(
+        &mut BuildBudget,
+        Option<SelectorPosition>,
+        ExecutionDeclaration,
+    ) -> Result<(), ValidationBuildLimit>,
+) -> Result<(), ValidationBuildLimit> {
     for constraint in field.constraints() {
         budget.charge(Counter::Work)?;
         if constraint_has_work(constraint) {
@@ -600,7 +633,10 @@ fn for_each_declaration(
 /// # Errors
 ///
 /// Returns `Err(())` when inspecting the field exceeds the work budget.
-fn has_declarations(field: &'static FieldMetadata, budget: &mut BuildBudget) -> Result<bool, ()> {
+fn has_declarations(
+    field: &'static FieldMetadata,
+    budget: &mut BuildBudget,
+) -> Result<bool, ValidationBuildLimit> {
     for constraint in field.constraints() {
         budget.charge(Counter::Work)?;
         if constraint_has_work(constraint) {
@@ -667,7 +703,9 @@ fn constraint_has_work(constraint: &ConstraintMetadata) -> bool {
         ConstraintMetadata::Sequence(value) => {
             value.min_items().is_some() || value.max_items().is_some() || value.unique_items()
         }
-        ConstraintMetadata::Map(value) => value.min_entries().is_some() || value.max_entries().is_some(),
+        ConstraintMetadata::Map(value) => {
+            value.min_entries().is_some() || value.max_entries().is_some()
+        }
         ConstraintMetadata::Decimal(_) | ConstraintMetadata::Time(_) => true,
     }
 }
@@ -688,7 +726,7 @@ fn direct_model<'ctx>(
     mut descriptor: Option<TypeDescriptor<'ctx>>,
     graph: &ModelGraph<'_>,
     budget: &mut BuildBudget,
-) -> Result<Option<&'static TypeMetadata>, ()> {
+) -> Result<Option<&'static TypeMetadata>, ValidationBuildLimit> {
     let mut depth = 0;
     while let Some(current) = descriptor {
         budget.check_depth(depth)?;
@@ -698,7 +736,8 @@ fn direct_model<'ctx>(
         }
         let is_wrapper = matches!(
             current.kind(),
-            qubit_reflect::descriptor::TypeKind::Optional(_) | qubit_reflect::descriptor::TypeKind::SmartPointer(_)
+            qubit_reflect::descriptor::TypeKind::Optional(_)
+                | qubit_reflect::descriptor::TypeKind::SmartPointer(_)
         );
         descriptor = is_wrapper
             .then(|| {
@@ -761,7 +800,9 @@ fn structural_suffix(kind: StructuralEdgeKind) -> String {
             name,
             query_name,
         } => {
-            let name = query_name.or(name).map_or_else(|| index.to_string(), str::to_owned);
+            let name = query_name
+                .or(name)
+                .map_or_else(|| index.to_string(), str::to_owned);
             format!(".{name}")
         }
         StructuralEdgeKind::EnumVariantField {
@@ -807,7 +848,7 @@ fn nested_models<'ctx>(
     owner: &'static TypeMetadata,
     graph: &ModelGraph<'_>,
     budget: &mut BuildBudget,
-) -> Result<Vec<NestedModelUsage>, ()> {
+) -> Result<Vec<NestedModelUsage>, ValidationBuildLimit> {
     // Enter/leave frames keep traversal finite without recursive Rust calls.
     let mut pending: Vec<_> = descriptor
         .into_iter()
@@ -834,29 +875,42 @@ fn nested_models<'ctx>(
         }
         pending.push((current, String::new(), None, false, depth));
         let first_child = pending.len();
-        let child_result = try_children(current, |edge| {
-            if budget.check_depth(depth.saturating_add(1)).is_err() || budget.charge(Counter::Work).is_err() {
-                return ControlFlow::Break(());
+        let child_result = try_children(current, |edge| -> ControlFlow<ValidationBuildLimit> {
+            if let Err(detail) = budget.check_depth(depth.saturating_add(1)) {
+                return ControlFlow::Break(detail);
+            }
+            if let Err(detail) = budget.charge(Counter::Work) {
+                return ControlFlow::Break(detail);
             }
             let suffix = structural_suffix(edge.kind);
             let access_segments = match (access_segments.as_ref(), edge.kind) {
-                (Some(segments), StructuralEdgeKind::StructField { name, query_name, .. }) => {
-                    query_name.or(name).map(|name| {
-                        let mut next = segments.clone();
-                        next.push(name);
-                        next
-                    })
-                }
-                (Some(segments), StructuralEdgeKind::OptionalElement | StructuralEdgeKind::PointerPointee) => {
-                    Some(segments.clone())
-                }
+                (
+                    Some(segments),
+                    StructuralEdgeKind::StructField {
+                        name, query_name, ..
+                    },
+                ) => query_name.or(name).map(|name| {
+                    let mut next = segments.clone();
+                    next.push(name);
+                    next
+                }),
+                (
+                    Some(segments),
+                    StructuralEdgeKind::OptionalElement | StructuralEdgeKind::PointerPointee,
+                ) => Some(segments.clone()),
                 _ => None,
             };
-            pending.push((edge.target, format!("{path}{suffix}"), access_segments, true, depth + 1));
+            pending.push((
+                edge.target,
+                format!("{path}{suffix}"),
+                access_segments,
+                true,
+                depth + 1,
+            ));
             ControlFlow::Continue(())
         });
-        if child_result.is_break() {
-            return Err(());
+        if let ControlFlow::Break(detail) = child_result {
+            return Err(detail);
         }
         pending[first_child..].reverse();
     }
@@ -895,7 +949,7 @@ fn expression_models(
     output: &mut Vec<NestedModelUsage>,
     budget: &mut BuildBudget,
     depth: usize,
-) -> Result<(), ()> {
+) -> Result<(), ValidationBuildLimit> {
     budget.check_depth(depth)?;
     budget.charge(Counter::Work)?;
     match expression.kind() {
@@ -942,11 +996,22 @@ fn expression_models(
                         format!("{suffix}[]")
                     }
                     "HashMap" | "BTreeMap" => {
-                        format!("{suffix}{}", if position == 0 { "[key]" } else { "[value]" })
+                        format!(
+                            "{suffix}{}",
+                            if position == 0 { "[key]" } else { "[value]" }
+                        )
                     }
                     _ => suffix.to_owned(),
                 };
-                expression_models(nested, owner, graph, &nested_suffix, output, budget, depth + 1)?;
+                expression_models(
+                    nested,
+                    owner,
+                    graph,
+                    &nested_suffix,
+                    output,
+                    budget,
+                    depth + 1,
+                )?;
             }
         }
         TypeExpressionKind::Tuple(elements) => {
@@ -963,13 +1028,30 @@ fn expression_models(
             }
         }
         TypeExpressionKind::Array { element, .. } | TypeExpressionKind::Slice(element) => {
-            expression_models(element, owner, graph, &format!("{suffix}[]"), output, budget, depth + 1)?;
+            expression_models(
+                element,
+                owner,
+                graph,
+                &format!("{suffix}[]"),
+                output,
+                budget,
+                depth + 1,
+            )?;
         }
-        TypeExpressionKind::Reference { target, .. } | TypeExpressionKind::RawPointer { target, .. } => {
+        TypeExpressionKind::Reference { target, .. }
+        | TypeExpressionKind::RawPointer { target, .. } => {
             expression_models(target, owner, graph, suffix, output, budget, depth + 1)?;
         }
         TypeExpressionKind::AssociatedType(value) => {
-            expression_models(value.self_type(), owner, graph, suffix, output, budget, depth + 1)?;
+            expression_models(
+                value.self_type(),
+                owner,
+                graph,
+                suffix,
+                output,
+                budget,
+                depth + 1,
+            )?;
         }
         TypeExpressionKind::Parameter(_)
         | TypeExpressionKind::ParameterName(_)
@@ -1007,7 +1089,57 @@ mod build_budget_tests {
 
     #[Model(id = "budget.internal.Unsupported")]
     struct BudgetUnsupported {
-        pair: (BudgetLeaf, BudgetLeaf),
+        pair_00: (BudgetLeaf, BudgetLeaf),
+        pair_01: (BudgetLeaf, BudgetLeaf),
+        pair_02: (BudgetLeaf, BudgetLeaf),
+        pair_03: (BudgetLeaf, BudgetLeaf),
+        pair_04: (BudgetLeaf, BudgetLeaf),
+        pair_05: (BudgetLeaf, BudgetLeaf),
+        pair_06: (BudgetLeaf, BudgetLeaf),
+        pair_07: (BudgetLeaf, BudgetLeaf),
+        pair_08: (BudgetLeaf, BudgetLeaf),
+        pair_09: (BudgetLeaf, BudgetLeaf),
+        pair_10: (BudgetLeaf, BudgetLeaf),
+        pair_11: (BudgetLeaf, BudgetLeaf),
+        pair_12: (BudgetLeaf, BudgetLeaf),
+        pair_13: (BudgetLeaf, BudgetLeaf),
+        pair_14: (BudgetLeaf, BudgetLeaf),
+        pair_15: (BudgetLeaf, BudgetLeaf),
+        pair_16: (BudgetLeaf, BudgetLeaf),
+        pair_17: (BudgetLeaf, BudgetLeaf),
+        pair_18: (BudgetLeaf, BudgetLeaf),
+        pair_19: (BudgetLeaf, BudgetLeaf),
+        pair_20: (BudgetLeaf, BudgetLeaf),
+        pair_21: (BudgetLeaf, BudgetLeaf),
+        pair_22: (BudgetLeaf, BudgetLeaf),
+        pair_23: (BudgetLeaf, BudgetLeaf),
+        pair_24: (BudgetLeaf, BudgetLeaf),
+        pair_25: (BudgetLeaf, BudgetLeaf),
+        pair_26: (BudgetLeaf, BudgetLeaf),
+        pair_27: (BudgetLeaf, BudgetLeaf),
+        pair_28: (BudgetLeaf, BudgetLeaf),
+        pair_29: (BudgetLeaf, BudgetLeaf),
+        pair_30: (BudgetLeaf, BudgetLeaf),
+        pair_31: (BudgetLeaf, BudgetLeaf),
+        pair_32: (BudgetLeaf, BudgetLeaf),
+        pair_33: (BudgetLeaf, BudgetLeaf),
+        pair_34: (BudgetLeaf, BudgetLeaf),
+        pair_35: (BudgetLeaf, BudgetLeaf),
+        pair_36: (BudgetLeaf, BudgetLeaf),
+        pair_37: (BudgetLeaf, BudgetLeaf),
+        pair_38: (BudgetLeaf, BudgetLeaf),
+        pair_39: (BudgetLeaf, BudgetLeaf),
+        pair_40: (BudgetLeaf, BudgetLeaf),
+        pair_41: (BudgetLeaf, BudgetLeaf),
+        pair_42: (BudgetLeaf, BudgetLeaf),
+        pair_43: (BudgetLeaf, BudgetLeaf),
+        pair_44: (BudgetLeaf, BudgetLeaf),
+        pair_45: (BudgetLeaf, BudgetLeaf),
+        pair_46: (BudgetLeaf, BudgetLeaf),
+        pair_47: (BudgetLeaf, BudgetLeaf),
+        pair_48: (BudgetLeaf, BudgetLeaf),
+        pair_49: (BudgetLeaf, BudgetLeaf),
+        pair_50: (BudgetLeaf, BudgetLeaf),
     }
 
     #[Model(id = "budget.internal.NoWork")]
@@ -1029,7 +1161,9 @@ mod build_budget_tests {
         (root, graph)
     }
 
-    fn graph_for(root: &'static TypeMetadata) -> Arc<qubit_model_metadata::resolve::ModelGraph<'static>> {
+    fn graph_for(
+        root: &'static TypeMetadata,
+    ) -> Arc<qubit_model_metadata::resolve::ModelGraph<'static>> {
         let models = ModelRegistry::try_global().expect("linked model registry");
         Arc::new(
             StructureResolver::for_static_roots(models, [root])
@@ -1049,7 +1183,12 @@ mod build_budget_tests {
         let expression = field.type_expression_in(context);
         let mut budget = BuildBudget::with_limits(0, 10_000, 10, 10, 10);
 
-        assert!(nested_models(descriptor, expression, root, &graph, &mut budget).is_err());
+        let detail = nested_models(descriptor, expression, root, &graph, &mut budget).unwrap_err();
+        assert_eq!(
+            detail.kind(),
+            crate::validation::ValidationBuildLimitKind::Depth
+        );
+        assert_eq!(detail.limit(), 0);
     }
 
     #[test]
@@ -1057,11 +1196,18 @@ mod build_budget_tests {
         let (root, graph) = setup();
         let context = graph.registry().context().expect("reflection context");
         let field = root.fields().first().expect("wrapper field");
-        let expression = field.type_expression_in(context).expect("source expression");
+        let expression = field
+            .type_expression_in(context)
+            .expect("source expression");
         let mut budget = BuildBudget::with_limits(1, 10_000, 10, 10, 10);
         let mut targets = Vec::new();
 
-        assert!(expression_models(expression, root, &graph, "", &mut targets, &mut budget, 0).is_err());
+        let detail = expression_models(expression, root, &graph, "", &mut targets, &mut budget, 0)
+            .unwrap_err();
+        assert_eq!(
+            detail.kind(),
+            crate::validation::ValidationBuildLimitKind::Depth
+        );
     }
 
     #[test]
@@ -1077,21 +1223,54 @@ mod build_budget_tests {
             errors[0].kind(),
             crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
         );
+        let detail = errors[0].build_limit().expect("work limit detail");
+        assert_eq!(
+            detail.kind(),
+            crate::validation::ValidationBuildLimitKind::Work
+        );
+        assert_eq!(detail.limit(), 0);
+    }
+
+    #[test]
+    fn test_nested_model_callback_preserves_depth_limit_detail() {
+        let root = TypeMetadata::of::<BudgetWrapped>();
+        let graph = graph_for(root);
+        let budget = BuildBudget::with_limits(0, 10_000, 10, 10, 10);
+        let (occurrences, errors, _) = super::collect_with_budget(root, &graph, budget);
+
+        assert!(occurrences.is_empty());
+        assert_eq!(errors.len(), 1);
+        let detail = errors[0].build_limit().expect("depth limit detail");
+        assert_eq!(
+            detail.kind(),
+            crate::validation::ValidationBuildLimitKind::Depth
+        );
+        assert_eq!(detail.limit(), 0);
     }
 
     #[test]
     fn test_diagnostic_overflow_keeps_first_error_and_one_terminal_error() {
         let root = TypeMetadata::of::<BudgetUnsupported>();
         let graph = graph_for(root);
-        let budget = BuildBudget::with_limits(64, 10_000, 10, 10, 1);
+        let budget = BuildBudget::with_limits(64, 100_000, 10_000, 10_000, 100);
         let (occurrences, errors, _) = super::collect_with_budget(root, &graph, budget);
 
         assert!(occurrences.is_empty());
-        assert_eq!(errors.len(), 2);
+        assert_eq!(errors.len(), 101);
+        assert!(errors[..100].iter().all(|error| {
+            error.kind() == crate::validation::ValidationBuildErrorKind::UnsupportedExecution
+                && error.build_limit().is_none()
+        }));
         assert_eq!(
-            errors[1].kind(),
+            errors[100].kind(),
             crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
         );
+        let detail = errors[100].build_limit().expect("diagnostics limit detail");
+        assert_eq!(
+            detail.kind(),
+            crate::validation::ValidationBuildLimitKind::Diagnostics
+        );
+        assert_eq!(detail.limit(), 100);
     }
 
     #[test]
@@ -1107,5 +1286,11 @@ mod build_budget_tests {
             errors[0].kind(),
             crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
         );
+        let detail = errors[0].build_limit().expect("occurrences limit detail");
+        assert_eq!(
+            detail.kind(),
+            crate::validation::ValidationBuildLimitKind::Occurrences
+        );
+        assert_eq!(detail.limit(), 0);
     }
 }

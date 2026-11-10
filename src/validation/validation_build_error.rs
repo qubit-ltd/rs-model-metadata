@@ -17,6 +17,7 @@ use qubit_validator::BindErrorKind;
 use qubit_validator::ValidatorId;
 
 use super::ConstraintRuleRef;
+use super::ValidationBuildLimit;
 use super::validation_build_error_kind::ValidationBuildErrorKind;
 use crate::metadata::ConstraintMetadata;
 use crate::metadata::DeclarationLocation;
@@ -84,6 +85,8 @@ pub struct ValidationBuildError {
     selector: Option<SelectorPosition>,
     /// Stable classification independent of the rendered message.
     kind: ValidationBuildErrorKind,
+    /// Exhausted build budget, present only for `BuildLimitExceeded`.
+    build_limit: Option<ValidationBuildLimit>,
     /// Original binder failure; unsupported shapes and missing roots have none.
     source: Option<BindError>,
 }
@@ -108,6 +111,7 @@ impl ValidationBuildError {
             path: None,
             selector: None,
             kind: ValidationBuildErrorKind::ValidatorBinding(source.kind()),
+            build_limit: None,
             source: Some(source),
         }
     }
@@ -151,7 +155,10 @@ impl ValidationBuildError {
     /// - `occurrence`: Unsupported declaration and the source context to retain
     ///   in the diagnostic.
     pub(crate) fn unsupported(occurrence: &ValidationOccurrence) -> Self {
-        let mut error = Self::at_occurrence(occurrence, BindError::new(BindErrorKind::UnsupportedConstraint));
+        let mut error = Self::at_occurrence(
+            occurrence,
+            BindError::new(BindErrorKind::UnsupportedConstraint),
+        );
         error.kind = ValidationBuildErrorKind::UnsupportedExecution;
         error.source = None;
         error
@@ -179,9 +186,13 @@ impl ValidationBuildError {
     ///
     /// Returns a root-scoped resource-limit error without declaration or
     /// validator source context.
-    pub(crate) fn build_limit(root: &'static TypeMetadata) -> Self {
+    pub(crate) fn at_build_limit(
+        root: &'static TypeMetadata,
+        detail: ValidationBuildLimit,
+    ) -> Self {
         let mut error = Self::new(root, BindError::new(BindErrorKind::UnreadablePath));
         error.kind = ValidationBuildErrorKind::BuildLimitExceeded;
+        error.build_limit = Some(detail);
         error.source = None;
         error
     }
@@ -280,6 +291,13 @@ impl ValidationBuildError {
         self.kind
     }
 
+    /// Returns the exhausted build budget for a build-limit error.
+    #[must_use = "the optional build limit should be checked"]
+    #[inline]
+    pub const fn build_limit(&self) -> Option<ValidationBuildLimit> {
+        self.build_limit
+    }
+
     /// Returns the rule identifier, when binding reached a concrete rule.
     #[must_use = "the optional validator rule should be checked"]
     #[inline]
@@ -302,7 +320,8 @@ impl ValidationBuildError {
     /// map to several rules.
     #[must_use]
     pub fn constraint_rules(&self) -> Vec<ConstraintRuleRef> {
-        self.constraint.map_or_else(Vec::new, standard_constraints::rule_refs)
+        self.constraint
+            .map_or_else(Vec::new, standard_constraints::rule_refs)
     }
 
     /// Returns the underlying validator binding error, or `None` for an
@@ -357,11 +376,22 @@ impl fmt::Display for ValidationBuildError {
         if self.kind() == ValidationBuildErrorKind::BuildLimitExceeded {
             return write!(
                 f,
-                "validation plan for {} exceeded a build resource limit",
-                self.type_name()
+                "validation plan for {} exceeded build {:?} limit {}",
+                self.type_name(),
+                self.build_limit
+                    .expect("build-limit errors retain their detail")
+                    .kind(),
+                self.build_limit
+                    .expect("build-limit errors retain their detail")
+                    .limit(),
             );
         }
-        write!(f, "validation plan for {} failed: {:?}", self.type_name(), self.kind())?;
+        write!(
+            f,
+            "validation plan for {} failed: {:?}",
+            self.type_name(),
+            self.kind()
+        )?;
         if let Some(path) = &self.path {
             write!(f, " at {path}")?;
         }

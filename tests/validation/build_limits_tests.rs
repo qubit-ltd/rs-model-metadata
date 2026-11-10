@@ -10,12 +10,14 @@
 
 use std::sync::Arc;
 
+use chrono::NaiveDate;
 use qubit_model_derive::Model;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildInputs;
+use qubit_model_metadata::validation::ValidationBuildLimitKind;
 use qubit_model_metadata::validation::ValidationCapabilities;
 use qubit_model_metadata::validation::ValidationPlan;
 use qubit_validator::ValidatorRegistry;
@@ -24,6 +26,17 @@ use qubit_validator::ValidatorRegistry;
 struct SharedLeaf {
     #[text(non_blank)]
     value: String,
+}
+
+#[Model(id = "budget.IsolatedRoot")]
+struct IsolatedRoot {
+    value: u8,
+}
+
+#[Model(no_serialize, no_deserialize)]
+struct UnsupportedRoot {
+    #[time(precision = second)]
+    created: NaiveDate,
 }
 
 macro_rules! binary_models {
@@ -87,6 +100,30 @@ fn test_plan_rejects_exponential_occurrence_graph_without_materializing_values()
     assert!(terminal.declaration().is_none());
     assert!(terminal.path().is_none());
     assert!(terminal.source_error().is_none());
+    let detail = terminal.build_limit().expect("terminal limit detail");
+    assert!(matches!(
+        detail.kind(),
+        ValidationBuildLimitKind::Occurrences | ValidationBuildLimitKind::Work
+    ));
+    assert_eq!(
+        detail.limit(),
+        match detail.kind() {
+            ValidationBuildLimitKind::Occurrences => 10_000,
+            ValidationBuildLimitKind::Work => 100_000,
+            _ => panic!("unexpected build limit category for exponential fixture"),
+        }
+    );
+    assert!(terminal.to_string().contains(&format!(
+        "build {:?} limit {}",
+        detail.kind(),
+        detail.limit()
+    )));
+    assert!(
+        capability_errors
+            .iter()
+            .filter(|error| error.kind() != ValidationBuildErrorKind::BuildLimitExceeded)
+            .all(|error| error.build_limit().is_none())
+    );
 
     let validators = ValidatorRegistry::empty();
     let errors = match ValidationPlan::build(
@@ -108,6 +145,19 @@ fn test_plan_rejects_exponential_occurrence_graph_without_materializing_values()
     assert!(terminal.declaration().is_none());
     assert!(terminal.path().is_none());
     assert!(terminal.source_error().is_none());
+    let detail = terminal.build_limit().expect("plan terminal limit detail");
+    assert!(matches!(
+        detail.kind(),
+        ValidationBuildLimitKind::Occurrences | ValidationBuildLimitKind::Work
+    ));
+    assert_eq!(
+        detail.limit(),
+        match detail.kind() {
+            ValidationBuildLimitKind::Occurrences => 10_000,
+            ValidationBuildLimitKind::Work => 100_000,
+            _ => panic!("unexpected build limit category for exponential fixture"),
+        }
+    );
     assert_eq!(
         errors.iter().last().map(|error| error.kind()),
         Some(ValidationBuildErrorKind::BuildLimitExceeded),
@@ -118,4 +168,35 @@ fn test_plan_rejects_exponential_occurrence_graph_without_materializing_values()
             .iter()
             .any(|error| error.kind() == ValidationBuildErrorKind::BuildLimitExceeded)
     );
+}
+
+#[test]
+fn test_missing_root_has_no_build_limit_detail() {
+    let root = TypeMetadata::of::<IsolatedRoot>();
+    let models = ModelRegistry::try_global().expect("linked model registry");
+    let graph = StructureResolver::for_static_roots(models, [TypeMetadata::of::<SharedLeaf>()])
+        .resolve()
+        .expect("leaf graph resolves");
+    let errors =
+        ValidationCapabilities::check(root, &graph).expect_err("root is absent from graph");
+
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::RootNotInGraph);
+    assert!(errors[0].build_limit().is_none());
+}
+
+#[test]
+fn test_ordinary_unsupported_error_has_no_build_limit_detail() {
+    let root = TypeMetadata::of::<UnsupportedRoot>();
+    let models = ModelRegistry::try_global().expect("linked model registry");
+    let graph = StructureResolver::for_static_roots(models, [root])
+        .resolve()
+        .expect("date metadata resolves");
+    let errors =
+        ValidationCapabilities::check(root, &graph).expect_err("date precision unsupported");
+
+    assert_eq!(
+        errors[0].kind(),
+        ValidationBuildErrorKind::UnsupportedExecution
+    );
+    assert!(errors[0].build_limit().is_none());
 }
