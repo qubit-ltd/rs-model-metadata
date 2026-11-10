@@ -161,9 +161,7 @@ mod tests {
         assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
         assert_eq!(
             error.path(),
-            &ValidationPath::root()
-                .with_field("value")
-                .with_field("value")
+            &ValidationPath::root().with_field("value").with_field("value")
         );
 
         let wrong_ops = path(

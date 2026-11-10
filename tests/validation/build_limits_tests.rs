@@ -113,11 +113,11 @@ fn test_plan_rejects_exponential_occurrence_graph_without_materializing_values()
             _ => panic!("unexpected build limit category for exponential fixture"),
         }
     );
-    assert!(terminal.to_string().contains(&format!(
-        "build {:?} limit {}",
-        detail.kind(),
-        detail.limit()
-    )));
+    assert!(
+        terminal
+            .to_string()
+            .contains(&format!("build {:?} limit {}", detail.kind(), detail.limit()))
+    );
     assert!(
         capability_errors
             .iter()
@@ -177,8 +177,7 @@ fn test_missing_root_has_no_build_limit_detail() {
     let graph = StructureResolver::for_static_roots(models, [TypeMetadata::of::<SharedLeaf>()])
         .resolve()
         .expect("leaf graph resolves");
-    let errors =
-        ValidationCapabilities::check(root, &graph).expect_err("root is absent from graph");
+    let errors = ValidationCapabilities::check(root, &graph).expect_err("root is absent from graph");
 
     assert_eq!(errors[0].kind(), ValidationBuildErrorKind::RootNotInGraph);
     assert!(errors[0].build_limit().is_none());
@@ -191,12 +190,8 @@ fn test_ordinary_unsupported_error_has_no_build_limit_detail() {
     let graph = StructureResolver::for_static_roots(models, [root])
         .resolve()
         .expect("date metadata resolves");
-    let errors =
-        ValidationCapabilities::check(root, &graph).expect_err("date precision unsupported");
+    let errors = ValidationCapabilities::check(root, &graph).expect_err("date precision unsupported");
 
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert!(errors[0].build_limit().is_none());
 }

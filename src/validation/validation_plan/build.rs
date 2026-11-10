@@ -77,19 +77,15 @@ impl<'registry> ValidationPlan<'registry> {
                 ValidationBuildError::missing_root(root),
             ]));
         };
-        let (occurrences, mut errors, mut budget) = declaration_walker::collect_with_budget(
-            root,
-            inputs.graph.as_ref(),
-            BuildBudget::new(),
-        );
+        let (occurrences, mut errors, mut budget) =
+            declaration_walker::collect_with_budget(root, inputs.graph.as_ref(), BuildBudget::new());
         if errors
             .iter()
             .any(|error| error.kind() == super::super::ValidationBuildErrorKind::BuildLimitExceeded)
         {
             return Err(ValidationBuildErrors::from_errors(errors));
         }
-        let (validators, registry_errors) = match standard_constraints::registry(inputs.validators)
-        {
+        let (validators, registry_errors) = match standard_constraints::registry(inputs.validators) {
             Ok(result) => result,
             Err(error) => {
                 if let Err(detail) = budget.charge(Counter::Diagnostic) {
@@ -100,10 +96,9 @@ impl<'registry> ValidationPlan<'registry> {
                 return Err(ValidationBuildErrors::from_errors(errors));
             }
         };
-        let registry_errors_exceed_limit = errors.len() + registry_errors.len()
-            > crate::validation::internal::build_budget::MAX_DIAGNOSTICS;
-        let remaining =
-            crate::validation::internal::build_budget::MAX_DIAGNOSTICS.saturating_sub(errors.len());
+        let registry_errors_exceed_limit =
+            errors.len() + registry_errors.len() > crate::validation::internal::build_budget::MAX_DIAGNOSTICS;
+        let remaining = crate::validation::internal::build_budget::MAX_DIAGNOSTICS.saturating_sub(errors.len());
         let mut registry_errors = registry_errors.into_iter();
         for error in registry_errors.by_ref().take(remaining) {
             if let Err(detail) = budget.charge(Counter::Diagnostic) {
@@ -146,22 +141,20 @@ impl<'registry> ValidationPlan<'registry> {
                 }
                 Err(mut failures) => {
                     if failures.iter().any(|failure| {
-                        failure.kind()
-                            == crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
+                        failure.kind() == crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
                     }) {
                         errors.push(
                             failures
                                 .into_iter()
                                 .find(|failure| {
-                                    failure.kind()
-                                        == crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
+                                    failure.kind() == crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
                                 })
                                 .expect("detected terminal build-limit failure"),
                         );
                         return Err(ValidationBuildErrors::from_errors(errors));
                     }
-                    let remaining = crate::validation::internal::build_budget::MAX_DIAGNOSTICS
-                        .saturating_sub(errors.len());
+                    let remaining =
+                        crate::validation::internal::build_budget::MAX_DIAGNOSTICS.saturating_sub(errors.len());
                     let failures_exceed_limit = failures.len() > remaining;
                     for failure in failures.drain(..).take(remaining) {
                         if let Err(detail) = budget.charge(Counter::Diagnostic) {

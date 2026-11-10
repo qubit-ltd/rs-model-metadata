@@ -124,13 +124,7 @@ impl CompiledPropertyPath {
                 variant_name: None,
             }
         } else {
-            Self::compile(
-                context,
-                root,
-                &PropertyPath::new(prefix),
-                graph,
-                TargetMode::Value,
-            )?
+            Self::compile(context, root, &PropertyPath::new(prefix), graph, TargetMode::Value)?
         };
         let owner_type = path
             .steps
@@ -262,15 +256,12 @@ impl CompiledPropertyPath {
                 value_target,
                 declared_optional,
             )?;
-            let slice = property.getter().is_some_and(|getter| {
-                matches!(getter.output_kind(), GetterOutputKind::BorrowedSlice)
-            });
-            let compatible_text = matches!(expected.kind(), TypeKind::Text(_))
-                && matches!(actual.kind(), TypeKind::Text(_));
-            if expected.type_id() != actual.type_id()
-                && !compatible_text
-                && !(last && slice && !value_target)
-            {
+            let slice = property
+                .getter()
+                .is_some_and(|getter| matches!(getter.output_kind(), GetterOutputKind::BorrowedSlice));
+            let compatible_text =
+                matches!(expected.kind(), TypeKind::Text(_)) && matches!(actual.kind(), TypeKind::Text(_));
+            if expected.type_id() != actual.type_id() && !compatible_text && !(last && slice && !value_target) {
                 return Err(path_error(BindErrorKind::UnsupportedConstraint));
             }
             path_optional |= optional || declared_optional && !last;
@@ -370,13 +361,7 @@ impl CompiledPropertyPath {
                 variant_name: None,
             });
         };
-        let mut path = Self::compile(
-            context,
-            owner,
-            &PropertyPath::new(&segments),
-            graph,
-            TargetMode::Value,
-        )?;
+        let mut path = Self::compile(context, owner, &PropertyPath::new(&segments), graph, TargetMode::Value)?;
         path.context_depth = depth;
         path.dependency = Some(*binding);
         Ok(path)
@@ -491,11 +476,7 @@ impl CompiledPropertyPath {
     /// `true` when every optional dependency read has a matching optional
     /// prefix on `target`; otherwise `false`.
     #[must_use]
-    pub(crate) fn optionality_covered_by(
-        &self,
-        target: &Self,
-        context: &ReflectionContext,
-    ) -> bool {
+    pub(crate) fn optionality_covered_by(&self, target: &Self, context: &ReflectionContext) -> bool {
         if self.context_depth != 0
             || target.context_depth != 0
             || !self.deferred.is_empty()
@@ -510,16 +491,8 @@ impl CompiledPropertyPath {
                 .is_some_and(|(left, right)| {
                     left.iter().zip(right).all(|(a, b)| {
                         a.property().name() == b.property().name()
-                            && a.property()
-                                .descriptor_in(context)
-                                .ok()
-                                .flatten()
-                                .map(|d| d.type_id())
-                                == b.property()
-                                    .descriptor_in(context)
-                                    .ok()
-                                    .flatten()
-                                    .map(|d| d.type_id())
+                            && a.property().descriptor_in(context).ok().flatten().map(|d| d.type_id())
+                                == b.property().descriptor_in(context).ok().flatten().map(|d| d.type_id())
                     }) && target.optional_steps.contains(&index)
                 })
         })
@@ -543,10 +516,7 @@ impl CompiledPropertyPath {
     ///
     /// Returns `UnsupportedConstraint` if the final field is not a resolved
     /// `Option<T>` descriptor.
-    pub(crate) fn unwrap_terminal_optional(
-        mut self,
-        element: TypeDescriptor<'_>,
-    ) -> Result<Self, BindError> {
+    pub(crate) fn unwrap_terminal_optional(mut self, element: TypeDescriptor<'_>) -> Result<Self, BindError> {
         let element_type_id = self
             .steps
             .last()
@@ -623,16 +593,9 @@ mod tests {
         let context = graph.registry().context().expect("reflection context");
         let binding = DependencyBindingMetadata::new("expected", PropertyPath::new(&["value"]));
 
-        let path = CompiledPropertyPath::compile_dependency(
-            context,
-            metadata,
-            &[],
-            &binding,
-            &graph,
-            &[],
-            InputType::Text,
-        )
-        .expect("named dependency compiles");
+        let path =
+            CompiledPropertyPath::compile_dependency(context, metadata, &[], &binding, &graph, &[], InputType::Text)
+                .expect("named dependency compiles");
 
         assert_eq!(path.dependency(), Some(binding));
         assert_eq!(path.context_depth(), 0);
@@ -677,27 +640,13 @@ mod tests {
             declaration: ExecutionDeclaration::Traversal,
         };
 
-        let error = CompiledPropertyPath::compile_enum_payload(
-            context,
-            root,
-            &occurrence,
-            &graph,
-            TargetMode::Container,
-        )
-        .expect_err("enum payloads only compile as value targets");
-        assert_eq!(
-            error.kind(),
-            qubit_validator::BindErrorKind::UnsupportedConstraint
-        );
+        let error =
+            CompiledPropertyPath::compile_enum_payload(context, root, &occurrence, &graph, TargetMode::Container)
+                .expect_err("enum payloads only compile as value targets");
+        assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
 
-        let path = CompiledPropertyPath::compile_enum_payload(
-            context,
-            root,
-            &occurrence,
-            &graph,
-            TargetMode::Value,
-        )
-        .expect("enum payload compiles as a value target");
+        let path = CompiledPropertyPath::compile_enum_payload(context, root, &occurrence, &graph, TargetMode::Value)
+            .expect("enum payload compiles as a value target");
         assert_eq!(path.input_type(), InputType::Text);
         assert_eq!(path.variant_name, Some("Value"));
         assert!(path.variant_guard.is_some());
@@ -706,42 +655,23 @@ mod tests {
             enum_variant: None,
             ..occurrence.clone()
         };
-        let error = CompiledPropertyPath::compile_enum_payload(
-            context,
-            root,
-            &missing_variant,
-            &graph,
-            TargetMode::Value,
-        )
-        .expect_err("payload occurrence must retain its reflected variant");
-        assert_eq!(
-            error.kind(),
-            qubit_validator::BindErrorKind::UnsupportedConstraint
-        );
+        let error =
+            CompiledPropertyPath::compile_enum_payload(context, root, &missing_variant, &graph, TargetMode::Value)
+                .expect_err("payload occurrence must retain its reflected variant");
+        assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
 
         let foreign_descriptor = TypeDescriptor::of_in::<ForeignFieldFixture>(context);
         let foreign_field = v8::leak(FieldMetadata::from_reflect(
             foreign_descriptor.type_id(),
-            foreign_descriptor
-                .fields()
-                .get_at(0)
-                .expect("foreign field"),
+            foreign_descriptor.fields().get_at(0).expect("foreign field"),
         ));
         let mismatched_field = ValidationOccurrence {
             field: foreign_field,
             ..occurrence
         };
-        let error = CompiledPropertyPath::compile_enum_payload(
-            context,
-            root,
-            &mismatched_field,
-            &graph,
-            TargetMode::Value,
-        )
-        .expect_err("payload field must belong to the reflected enum owner");
-        assert_eq!(
-            error.kind(),
-            qubit_validator::BindErrorKind::UnsupportedConstraint
-        );
+        let error =
+            CompiledPropertyPath::compile_enum_payload(context, root, &mismatched_field, &graph, TargetMode::Value)
+                .expect_err("payload field must belong to the reflected enum owner");
+        assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
     }
 }

@@ -73,10 +73,7 @@ impl Debug for ValidationOccurrence {
             .field("root", &self.root.type_name())
             .field("owner", &self.owner.type_name())
             .field("field", &self.field.location())
-            .field(
-                "enum_variant",
-                &self.enum_variant.map(|variant| variant.rust_name()),
-            )
+            .field("enum_variant", &self.enum_variant.map(|variant| variant.rust_name()))
             .field("selector", &self.selector)
             .field("ordinal", &self.ordinal)
             .field("declared_rule_id", &self.declared_rule_id())
@@ -115,10 +112,7 @@ mod tests {
         let descriptor = TypeDescriptor::of_in::<OccurrenceFixture>(context);
         let fields = v8::leak_slice(vec![FieldMetadata::from_reflect(
             descriptor.type_id(),
-            descriptor
-                .fields()
-                .get_at(0)
-                .expect("fixture field descriptor"),
+            descriptor.fields().get_at(0).expect("fixture field descriptor"),
         )]);
         v8::leak(TypeMetadata::new::<OccurrenceFixture>(
             None,
@@ -129,10 +123,7 @@ mod tests {
 
     fn fixture_variant() -> &'static EnumVariantMetadata {
         let descriptor = TypeDescriptor::of_in::<VariantFixture>(ReflectionContext::global());
-        let reflect = descriptor
-            .variants()
-            .get_at(0)
-            .expect("fixture enum variant");
+        let reflect = descriptor.variants().get_at(0).expect("fixture enum variant");
         v8::leak(v8::enum_variant_metadata(
             descriptor.type_id(),
             reflect.index(),

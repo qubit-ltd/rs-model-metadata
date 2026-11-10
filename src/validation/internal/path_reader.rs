@@ -51,57 +51,37 @@ pub(crate) fn read<'value>(
 ) -> Result<Option<PropertyValue<'value>>, ExecutionError> {
     let mut receiver = root;
     for (index, step) in path.steps().iter().enumerate() {
-        if let Some(guard) = path
-            .variant_guard()
-            .filter(|guard| guard.after_steps == index)
-        {
+        if let Some(guard) = path.variant_guard().filter(|guard| guard.after_steps == index) {
             let depth = parent_depth
                 .checked_add(index)
                 .and_then(|depth| depth.checked_add(1))
-                .ok_or_else(|| {
-                    ExecutionError::new(ExecutionErrorKind::TraversalLimit)
-                        .with_path(path_for(path))
-                })?;
-            budget
-                .read(depth)
-                .map_err(|error| error.with_path(path_for(path)))?;
+                .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit).with_path(path_for(path)))?;
+            budget.read(depth).map_err(|error| error.with_path(path_for(path)))?;
             let variant = context
                 .find_type_by_id(guard.declaring_type)
                 .ok()
                 .flatten()
                 .and_then(|descriptor| descriptor.variants().get_at(guard.variant_index))
-                .ok_or_else(|| {
-                    ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                        .with_path(path_for(path))
-                })?;
-            if !variant
-                .is_active_dynamic(receiver.clone())
-                .map_err(|error| {
-                    ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                        .with_trusted_source(error)
-                        .with_path(path_for(path))
-                })?
-            {
+                .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))?;
+            if !variant.is_active_dynamic(receiver.clone()).map_err(|error| {
+                ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
+                    .with_trusted_source(error)
+                    .with_path(path_for(path))
+            })? {
                 return Ok(None);
             }
         }
         let depth = parent_depth
             .checked_add(index)
             .and_then(|depth| depth.checked_add(1))
-            .ok_or_else(|| {
-                ExecutionError::new(ExecutionErrorKind::TraversalLimit).with_path(path_for(path))
-            })?;
-        budget
-            .read(depth)
-            .map_err(|error| error.with_path(path_for(path)))?;
+            .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::TraversalLimit).with_path(path_for(path)))?;
+        budget.read(depth).map_err(|error| error.with_path(path_for(path)))?;
         // The path was compiled from registered Model metadata and its owner,
         // field descriptor, and target type were validated during resolution.
         // This is the trusted model-validation boundary for private fields.
         let output = unsafe {
             match step.owner() {
-                Some(owner) => step
-                    .property()
-                    .get_dynamic_unsafe_for(owner, context, receiver),
+                Some(owner) => step.property().get_dynamic_unsafe_for(owner, context, receiver),
                 None => step.property().get_dynamic_unsafe_in(context, receiver),
             }
         }
@@ -112,19 +92,16 @@ pub(crate) fn read<'value>(
         receiver = match output {
             PropertyValue::Borrowed(value) if step.optional_element().is_some() => {
                 let ops = step.property().optional_ops().ok_or_else(|| {
-                    ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                        .with_path(path_for(path))
+                    ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
                 })?;
                 match ops.project_ref(value).map_err(|error| {
-                    property_read_error(
-                        PropertyAccessError::ValueTypeMismatch(error),
-                        path_for(path),
-                    )
+                    property_read_error(PropertyAccessError::ValueTypeMismatch(error), path_for(path))
                 })? {
                     Some(value) if Some(ops.element_type_id()) == step.optional_element() => value,
                     Some(_) => {
-                        return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                            .with_path(path_for(path)));
+                        return Err(
+                            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
+                        );
                     }
                     None => return Ok(Some(PropertyValue::OptionalBorrowed(None))),
                 }
@@ -134,8 +111,7 @@ pub(crate) fn read<'value>(
                 return Ok(Some(PropertyValue::OptionalBorrowed(None)));
             }
             PropertyValue::Owned(_) | PropertyValue::BorrowedSlice(_) => {
-                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                    .with_path(path_for(path)));
+                return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)));
             }
         };
     }
@@ -236,26 +212,21 @@ fn read_dependency<'value>(
     let owner = if path.context_depth() == 0 {
         root
     } else {
-        ancestors
-            .get(path.context_depth() - 1)
-            .cloned()
-            .ok_or_else(|| {
-                ExecutionError::new(ExecutionErrorKind::MissingRequiredDependencyValue)
-                    .with_path(path_for(path))
-            })?
+        ancestors.get(path.context_depth() - 1).cloned().ok_or_else(|| {
+            ExecutionError::new(ExecutionErrorKind::MissingRequiredDependencyValue).with_path(path_for(path))
+        })?
     };
     if path.deferred().is_empty() {
         let context = graph
             .registry()
             .context()
             .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed))?;
-        return read(context, path, owner, path.context_depth(), budget)?.ok_or_else(|| {
-            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
-        });
+        return read(context, path, owner, path.context_depth(), budget)?
+            .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)));
     }
-    let metadata = graph.model(owner.clone().type_id()).ok_or_else(|| {
-        ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
-    })?;
+    let metadata = graph
+        .model(owner.clone().type_id())
+        .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))?;
     let context = graph
         .registry()
         .context()
@@ -273,14 +244,10 @@ fn read_dependency<'value>(
             .with_path(path_for(path))
     })?;
     if compiled.input_type() != path.input_type() {
-        return Err(
-            ExecutionError::new(ExecutionErrorKind::DependencyTypeMismatch)
-                .with_path(path_for(path)),
-        );
+        return Err(ExecutionError::new(ExecutionErrorKind::DependencyTypeMismatch).with_path(path_for(path)));
     }
-    read(context, &compiled, owner, path.context_depth(), budget)?.ok_or_else(|| {
-        ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path))
-    })
+    read(context, &compiled, owner, path.context_depth(), budget)?
+        .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path_for(path)))
 }
 
 /// Converts a compiled property suffix into its structured report path.
@@ -305,10 +272,7 @@ pub(crate) fn path_for(path: &CompiledPropertyPath) -> ValidationPath {
         .iter()
         .enumerate()
         .fold(ValidationPath::root(), |report_path, (index, step)| {
-            let report_path = if path
-                .variant_guard()
-                .is_some_and(|guard| guard.after_steps == index)
-            {
+            let report_path = if path.variant_guard().is_some_and(|guard| guard.after_steps == index) {
                 report_path.with_field(path.variant_name().expect("variant guard has a name"))
             } else {
                 report_path
@@ -389,10 +353,7 @@ mod tests {
             let fields = FIELDS.get_or_init(|| {
                 [FieldMetadata::from_reflect(
                     descriptor.type_id(),
-                    descriptor
-                        .fields()
-                        .get_at(0)
-                        .expect("dependency value field"),
+                    descriptor.fields().get_at(0).expect("dependency value field"),
                 )]
             });
             let properties = PROPERTIES.get_or_init(|| {
@@ -425,10 +386,7 @@ mod tests {
             let fields = FIELDS.get_or_init(|| {
                 [FieldMetadata::from_reflect(
                     descriptor.type_id(),
-                    descriptor
-                        .fields()
-                        .get_at(0)
-                        .expect("optional dependency child field"),
+                    descriptor.fields().get_at(0).expect("optional dependency child field"),
                 )
                 .with_optional_ops(OptionalOps::for_element::<DependencyRoot>())]
             });
@@ -443,9 +401,7 @@ mod tests {
             });
             v8::leak(
                 v8::GeneratedTypeMetadataBuilder::new::<OptionalDependencyRoot>(
-                    Some(ModelId::new(
-                        "validation.path_reader.OptionalDependencyRoot",
-                    )),
+                    Some(ModelId::new("validation.path_reader.OptionalDependencyRoot")),
                     fields,
                     v8::leak(v8::model_role()),
                 )
@@ -467,11 +423,8 @@ mod tests {
                 line: None,
                 column: None,
             });
-            ModelRegistry::from_static_metadata(
-                reflection_context(),
-                &[(dependency_metadata(), source)],
-            )
-            .expect("isolated dependency registry")
+            ModelRegistry::from_static_metadata(reflection_context(), &[(dependency_metadata(), source)])
+                .expect("isolated dependency registry")
         })
     }
 
@@ -574,15 +527,11 @@ mod tests {
             variant_guard: None,
             variant_name: None,
         };
-        let error =
-            match read_dependency(&path, PropertyBorrowed::new(&()), &[], &graph, &mut budget) {
-                Ok(_) => panic!("missing context unexpectedly succeeded"),
-                Err(error) => error,
-            };
-        assert_eq!(
-            error.kind(),
-            ExecutionErrorKind::MissingRequiredDependencyValue
-        );
+        let error = match read_dependency(&path, PropertyBorrowed::new(&()), &[], &graph, &mut budget) {
+            Ok(_) => panic!("missing context unexpectedly succeeded"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), ExecutionErrorKind::MissingRequiredDependencyValue);
         assert_eq!(error.path(), &ValidationPath::root());
     }
 
@@ -597,21 +546,12 @@ mod tests {
         let ancestors = [DynamicRef::<Local>::new(&root)];
         let path = deferred_value_path(InputType::Text);
 
-        let value = read_dependency(
-            &path,
-            DynamicRef::<Local>::new(&()),
-            &ancestors,
-            &graph,
-            &mut budget,
-        )
-        .expect("deferred path resolves against its ancestor");
+        let value = read_dependency(&path, DynamicRef::<Local>::new(&()), &ancestors, &graph, &mut budget)
+            .expect("deferred path resolves against its ancestor");
         let crate::metadata::PropertyValue::Borrowed(value) = value else {
             panic!("deferred field returns a borrow");
         };
-        assert_eq!(
-            value.downcast_ref::<String>().map(String::as_str),
-            Some("parent value")
-        );
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("parent value"));
 
         let mismatch = deferred_value_path(InputType::of::<u64>());
         let error = match read_dependency(
@@ -641,13 +581,7 @@ mod tests {
             deferred: vec!["missing"].into_boxed_slice(),
             ..deferred_value_path(InputType::Text)
         };
-        let error = match read_dependency(
-            &missing,
-            DynamicRef::<Local>::new(&()),
-            &ancestors,
-            &graph,
-            &mut budget,
-        ) {
+        let error = match read_dependency(&missing, DynamicRef::<Local>::new(&()), &ancestors, &graph, &mut budget) {
             Ok(_) => panic!("missing deferred property unexpectedly resolved"),
             Err(error) => error,
         };
@@ -666,10 +600,7 @@ mod tests {
         let error = match read_dependency(
             &too_deep,
             DynamicRef::<Local>::new(&()),
-            &[
-                DynamicRef::<Local>::new(&root),
-                DynamicRef::<Local>::new(&root),
-            ],
+            &[DynamicRef::<Local>::new(&root), DynamicRef::<Local>::new(&root)],
             &graph,
             &mut limited_budget,
         ) {
@@ -779,13 +710,7 @@ mod tests {
             value: "dependency value".to_owned(),
         };
 
-        let (values, paths) = match dependencies(
-            &[path],
-            DynamicRef::<Local>::new(&root),
-            &[],
-            &graph,
-            &mut budget,
-        ) {
+        let (values, paths) = match dependencies(&[path], DynamicRef::<Local>::new(&root), &[], &graph, &mut budget) {
             Ok(result) => result,
             Err(_) => panic!("dependency batch resolves"),
         };
@@ -809,13 +734,7 @@ mod tests {
             value: "unused".to_owned(),
         };
 
-        let (values, paths) = match dependencies(
-            &[],
-            DynamicRef::<Local>::new(&root),
-            &[],
-            &graph,
-            &mut budget,
-        ) {
+        let (values, paths) = match dependencies(&[], DynamicRef::<Local>::new(&root), &[], &graph, &mut budget) {
             Ok(batch) => batch,
             Err(_) => panic!("a rule with no dependency slots has an empty successful batch"),
         };
@@ -852,10 +771,7 @@ mod tests {
         let crate::metadata::PropertyValue::Borrowed(value) = result.unwrap() else {
             panic!("nested field returns a borrow");
         };
-        assert_eq!(
-            value.downcast_ref::<String>().map(String::as_str),
-            Some("nested value")
-        );
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("nested value"));
 
         let absent = OptionalDependencyRoot { child: None };
         let result = super::read(
@@ -885,8 +801,7 @@ mod tests {
         .expect("dependency field path compiles");
         path.variant_guard = Some(VariantGuard {
             after_steps: 0,
-            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context())
-                .type_id(),
+            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context()).type_id(),
             variant_index: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context())
                 .variants()
                 .get_at(0)
@@ -911,16 +826,10 @@ mod tests {
             Err(error) => error,
         };
         assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
-        assert!(
-            error
-                .trusted_source()
-                .is_some_and(|source| source.is::<TypeMismatch>())
-        );
+        assert!(error.trusted_source().is_some_and(|source| source.is::<TypeMismatch>()));
         assert_eq!(
             error.path(),
-            &ValidationPath::root()
-                .with_field("Named")
-                .with_field("value")
+            &ValidationPath::root().with_field("Named").with_field("value")
         );
     }
 
@@ -937,8 +846,7 @@ mod tests {
         .expect("dependency field path compiles");
         path.variant_guard = Some(VariantGuard {
             after_steps: 0,
-            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context())
-                .type_id(),
+            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context()).type_id(),
             variant_index: 0,
         });
         path.variant_name = Some("Named");
@@ -946,13 +854,7 @@ mod tests {
         let options = ValidationOptions::default();
         let mut budget = ExecutionBudget::new(&options);
 
-        let error = match read_dependency(
-            &path,
-            DynamicRef::<Local>::new(&inactive),
-            &[],
-            &graph,
-            &mut budget,
-        ) {
+        let error = match read_dependency(&path, DynamicRef::<Local>::new(&inactive), &[], &graph, &mut budget) {
             Err(error) => error,
             Ok(_) => panic!("a dependency field outside the active variant is absent"),
         };
@@ -974,8 +876,7 @@ mod tests {
         .expect("dependency field path compiles");
         path.variant_guard = Some(VariantGuard {
             after_steps: 0,
-            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context())
-                .type_id(),
+            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context()).type_id(),
             variant_index: usize::MAX,
         });
         path.variant_name = Some("Named");
@@ -999,9 +900,7 @@ mod tests {
         assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
         assert_eq!(
             error.path(),
-            &ValidationPath::root()
-                .with_field("Named")
-                .with_field("value")
+            &ValidationPath::root().with_field("Named").with_field("value")
         );
     }
 
@@ -1018,8 +917,7 @@ mod tests {
         .expect("dependency field path compiles");
         path.variant_guard = Some(VariantGuard {
             after_steps: 0,
-            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context())
-                .type_id(),
+            declaring_type: TypeDescriptor::of_in::<GuardMismatchFixture>(reflection_context()).type_id(),
             variant_index: 0,
         });
         path.variant_name = Some("Named");
@@ -1043,9 +941,7 @@ mod tests {
         assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
         assert_eq!(
             error.path(),
-            &ValidationPath::root()
-                .with_field("Named")
-                .with_field("value")
+            &ValidationPath::root().with_field("Named").with_field("value")
         );
     }
 
@@ -1108,11 +1004,7 @@ mod tests {
         path.variant_guard = Some(VariantGuard {
             after_steps: 0,
             declaring_type: descriptor.type_id(),
-            variant_index: descriptor
-                .variants()
-                .get_at(0)
-                .expect("guard variant")
-                .index(),
+            variant_index: descriptor.variants().get_at(0).expect("guard variant").index(),
         });
         path.variant_name = Some("Named");
         let inactive = GuardMismatchFixture::Other;
@@ -1129,25 +1021,15 @@ mod tests {
             ),
             Ok(None)
         ));
-        let dependency_error = match read_dependency(
-            &path,
-            DynamicRef::<Local>::new(&inactive),
-            &[],
-            &graph,
-            &mut budget,
-        ) {
-            Ok(_) => panic!("inactive dependency variant unexpectedly produced a value"),
-            Err(error) => error,
-        };
-        assert_eq!(
-            dependency_error.kind(),
-            ExecutionErrorKind::PropertyReadFailed
-        );
+        let dependency_error =
+            match read_dependency(&path, DynamicRef::<Local>::new(&inactive), &[], &graph, &mut budget) {
+                Ok(_) => panic!("inactive dependency variant unexpectedly produced a value"),
+                Err(error) => error,
+            };
+        assert_eq!(dependency_error.kind(), ExecutionErrorKind::PropertyReadFailed);
 
-        path.variant_guard
-            .as_mut()
-            .expect("guard exists")
-            .declaring_type = TypeDescriptor::of_in::<()>(reflection_context()).type_id();
+        path.variant_guard.as_mut().expect("guard exists").declaring_type =
+            TypeDescriptor::of_in::<()>(reflection_context()).type_id();
         let error = match super::read(
             reflection_context(),
             &path,
@@ -1161,9 +1043,7 @@ mod tests {
         assert_eq!(error.kind(), ExecutionErrorKind::PropertyReadFailed);
         assert_eq!(
             error.path(),
-            &ValidationPath::root()
-                .with_field("Named")
-                .with_field("value")
+            &ValidationPath::root().with_field("Named").with_field("value")
         );
     }
 }

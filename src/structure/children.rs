@@ -27,10 +27,7 @@ use crate::structure::StructuralEdgeKind;
 ///
 /// The resolved concrete type descriptor, or `None` when the position is
 /// absent, is not a type argument, or has no registered concrete type.
-fn type_argument<'ctx>(
-    descriptor: TypeDescriptor<'ctx>,
-    index: usize,
-) -> Option<TypeDescriptor<'ctx>> {
+fn type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option<TypeDescriptor<'ctx>> {
     descriptor
         .generic_arguments()
         .get_at(index)?
@@ -46,10 +43,7 @@ fn type_argument<'ctx>(
 ///
 /// - `descriptor`: Descriptor whose direct structural children are enumerated.
 /// - `visit`: Callback invoked once for each resolved child edge.
-pub(crate) fn children<'ctx>(
-    descriptor: TypeDescriptor<'ctx>,
-    mut visit: impl FnMut(StructuralEdge<'ctx>),
-) {
+pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl FnMut(StructuralEdge<'ctx>)) {
     let _: ControlFlow<()> = try_children(descriptor, |edge| {
         visit(edge);
         ControlFlow::Continue(())
@@ -57,6 +51,10 @@ pub(crate) fn children<'ctx>(
 }
 
 /// Calls `visit` for each direct structural child until it asks to stop.
+///
+/// # Type Parameters
+///
+/// - `B`: The value returned when `visit` stops traversal.
 ///
 /// # Parameters
 ///
@@ -125,10 +123,7 @@ pub(crate) fn try_children<'ctx, B>(
             }
         }
         TypeKind::Map(_) => {
-            for (index, kind) in [
-                (0, StructuralEdgeKind::MapKey),
-                (1, StructuralEdgeKind::MapValue),
-            ] {
+            for (index, kind) in [(0, StructuralEdgeKind::MapKey), (1, StructuralEdgeKind::MapValue)] {
                 if let Some(target) = type_argument(descriptor, index) {
                     emit!(StructuralEdge { target, kind });
                 }
