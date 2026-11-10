@@ -8,6 +8,7 @@
 
 //! Validation regression cases.
 
+mod build_limits_tests;
 mod constraint_rule_ref_tests;
 mod declaration_binding_tests;
 mod execution_policy_tests;

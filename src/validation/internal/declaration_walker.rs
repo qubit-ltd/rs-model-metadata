@@ -11,6 +11,7 @@
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ops::ControlFlow;
 
 use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
@@ -18,6 +19,8 @@ use qubit_reflect::descriptor::GenericExpressionArgumentKind;
 use qubit_reflect::descriptor::TypeExpression;
 use qubit_reflect::descriptor::TypeExpressionKind;
 
+use super::build_budget::BuildBudget;
+use super::build_budget::Counter;
 use super::execution_declaration::ExecutionDeclaration;
 use super::validation_occurrence::ValidationOccurrence;
 use crate::metadata::AllowedChars;
@@ -29,7 +32,7 @@ use crate::metadata::SelectorPosition;
 use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
 use crate::structure::StructuralEdgeKind;
-use crate::structure::children;
+use crate::structure::children::try_children;
 use crate::validation::ValidationBuildError;
 
 /// Collects supported occurrences and all structural execution failures.
@@ -51,22 +54,28 @@ use crate::validation::ValidationBuildError;
 /// Public `ModelRegistry` constructors retain their reflection context; this
 /// condition indicates an internally constructed graph with an absent context.
 #[must_use]
-pub(crate) fn collect(
+pub(crate) fn collect_with_budget(
     root: &'static TypeMetadata,
     graph: &ModelGraph<'_>,
-) -> (Vec<ValidationOccurrence>, Vec<ValidationBuildError>) {
+    mut budget: BuildBudget,
+) -> (Vec<ValidationOccurrence>, Vec<ValidationBuildError>, BuildBudget) {
     let context = graph
         .registry()
         .context()
         .expect("resolved validation graphs retain their reflection context");
     let Some(root) = graph.model(root.type_id()) else {
-        return (Vec::new(), vec![ValidationBuildError::missing_root(root)]);
+        return (Vec::new(), vec![ValidationBuildError::missing_root(root)], budget);
     };
-    let work = reachable_work(graph, context);
+    let work = match reachable_work(graph, context, &mut budget) {
+        Ok(work) => work,
+        Err(()) => {
+            return (Vec::new(), vec![ValidationBuildError::build_limit(root)], budget);
+        }
+    };
     let mut occurrences = Vec::new();
     let mut errors = Vec::new();
     let mut ordinal = 0;
-    walk(
+    if walk(
         root,
         root,
         &[],
@@ -79,8 +88,15 @@ pub(crate) fn collect(
         &mut ordinal,
         &mut occurrences,
         &mut errors,
-    );
-    (occurrences, errors)
+        &mut budget,
+        0,
+    )
+    .is_err()
+    {
+        occurrences.clear();
+        errors.push(ValidationBuildError::build_limit(root));
+    }
+    (occurrences, errors, budget)
 }
 
 /// Computes executable-work reachability by monotone propagation, including
@@ -97,12 +113,18 @@ pub(crate) fn collect(
 ///
 /// Returns the set of model types whose reachable declarations require
 /// executable work.
-fn reachable_work(graph: &ModelGraph<'_>, context: &ReflectionContext) -> HashSet<TypeId> {
+fn reachable_work(
+    graph: &ModelGraph<'_>,
+    context: &ReflectionContext,
+    budget: &mut BuildBudget,
+) -> Result<HashSet<TypeId>, ()> {
     let mut work = HashSet::new();
     let mut predecessors: HashMap<TypeId, Vec<TypeId>> = HashMap::new();
     for model in graph.models() {
+        budget.charge(Counter::Work)?;
         for field in fields(model) {
-            if !declarations(field).is_empty() {
+            budget.charge(Counter::Work)?;
+            if has_declarations(field, budget)? {
                 work.insert(model.type_id());
             }
             if field.is_opaque() || field.reference().is_some() {
@@ -115,20 +137,24 @@ fn reachable_work(graph: &ModelGraph<'_>, context: &ReflectionContext) -> HashSe
                 field.type_expression_in(context),
                 model,
                 graph,
-            ) {
+                budget,
+            )? {
+                budget.charge(Counter::Work)?;
                 predecessors.entry(target.type_id()).or_default().push(model.type_id());
             }
         }
     }
     let mut pending: Vec<_> = work.iter().copied().collect();
     while let Some(id) = pending.pop() {
+        budget.charge(Counter::Work)?;
         for predecessor in predecessors.get(&id).into_iter().flatten() {
+            budget.charge(Counter::Work)?;
             if work.insert(*predecessor) {
                 pending.push(*predecessor);
             }
         }
     }
-    work
+    Ok(work)
 }
 
 /// Visits usage paths in source order; only the active path deduplicates types.
@@ -165,9 +191,13 @@ fn walk(
     ordinal: &mut usize,
     occurrences: &mut Vec<ValidationOccurrence>,
     errors: &mut Vec<ValidationBuildError>,
-) {
+    budget: &mut BuildBudget,
+    depth: usize,
+) -> Result<(), ()> {
+    budget.enter(depth)?;
     active.insert(owner.type_id());
     for field in fields(owner) {
+        budget.charge(Counter::Work)?;
         let enum_variant = enum_variant_for_field(owner, field);
         let mut segments = prefix.to_vec();
         let transparent_unnamed = is_transparent_unnamed_field(owner, field);
@@ -208,7 +238,8 @@ fn walk(
             ordinal,
             occurrences,
             errors,
-        );
+            budget,
+        )?;
         if field.is_opaque() || field.reference().is_some() {
             continue;
         }
@@ -229,9 +260,12 @@ fn walk(
             ordinal,
             occurrences,
             errors,
-        );
+            budget,
+            depth,
+        )?;
     }
     active.remove(&owner.type_id());
+    Ok(())
 }
 
 /// Descends through a field's executable nested models in structural order.
@@ -281,18 +315,24 @@ fn walk_nested_fields(
     ordinal: &mut usize,
     occurrences: &mut Vec<ValidationOccurrence>,
     errors: &mut Vec<ValidationBuildError>,
-) {
+    budget: &mut BuildBudget,
+    depth: usize,
+) -> Result<(), ()> {
     let field_descriptor = owner
         .field_descriptor_in(field, context)
         .and_then(|field| field.find_concrete_type());
-    for (target, suffix, access_segments) in
-        nested_models(field_descriptor, field.type_expression_in(context), owner, graph)
-    {
+    for (target, suffix, access_segments) in nested_models(
+        field_descriptor,
+        field.type_expression_in(context),
+        owner,
+        graph,
+        budget,
+    )? {
         if !work.contains(&target.type_id()) {
             continue;
         }
         let direct = suffix.is_empty()
-            && direct_model(field_descriptor, graph).is_some_and(|model| model.type_id() == target.type_id());
+            && direct_model(field_descriptor, graph, budget)?.is_some_and(|model| model.type_id() == target.type_id());
         let mut nested_segments = segments.to_vec();
         if let Some(access_segments) = access_segments {
             nested_segments.extend(access_segments);
@@ -328,6 +368,10 @@ fn walk_nested_fields(
                 declaration: ExecutionDeclaration::Traversal,
             };
             *ordinal += 1;
+            if errors.len() >= super::build_budget::MAX_DIAGNOSTICS {
+                return Err(());
+            }
+            budget.charge(Counter::Diagnostic)?;
             errors.push(ValidationBuildError::unsupported(&occurrence));
             continue;
         }
@@ -344,8 +388,11 @@ fn walk_nested_fields(
             ordinal,
             occurrences,
             errors,
-        );
+            budget,
+            depth + 1,
+        )?;
     }
+    Ok(())
 }
 
 /// Records this field's declarations in their original metadata order.
@@ -378,8 +425,11 @@ fn collect_field_declarations(
     ordinal: &mut usize,
     occurrences: &mut Vec<ValidationOccurrence>,
     errors: &mut Vec<ValidationBuildError>,
-) {
-    for (selector, declaration) in declarations(field) {
+    budget: &mut BuildBudget,
+) -> Result<(), ()> {
+    for_each_declaration(field, budget, |budget, selector, declaration| {
+        budget.charge(Counter::Work)?;
+        budget.charge(Counter::Occurrence)?;
         let occurrence = ValidationOccurrence {
             root,
             owner,
@@ -393,11 +443,16 @@ fn collect_field_declarations(
         };
         *ordinal += 1;
         if unsupported {
+            if errors.len() >= super::build_budget::MAX_DIAGNOSTICS {
+                return Err(());
+            }
+            budget.charge(Counter::Diagnostic)?;
             errors.push(ValidationBuildError::unsupported(&occurrence));
         } else {
             occurrences.push(occurrence);
         }
-    }
+        Ok(())
+    })
 }
 
 /// Resolves the concrete enum variant associated with a payload field.
@@ -456,10 +511,10 @@ pub(crate) fn is_transparent_unnamed_field(owner: &TypeMetadata, field: &FieldMe
 /// # Returns
 ///
 /// Returns all fields of `model` in declaration order.
-fn fields(model: &'static TypeMetadata) -> Vec<&'static FieldMetadata> {
+fn fields(model: &'static TypeMetadata) -> Box<dyn Iterator<Item = &'static FieldMetadata>> {
     match model.as_enum() {
-        Some(value) => value.variants().iter().flat_map(|variant| variant.fields()).collect(),
-        None => model.fields().iter().collect(),
+        Some(value) => Box::new(value.variants().iter().flat_map(|variant| variant.fields())),
+        None => Box::new(model.fields().iter()),
     }
 }
 
@@ -476,33 +531,100 @@ fn fields(model: &'static TypeMetadata) -> Vec<&'static FieldMetadata> {
 ///
 /// Returns each executable constraint and validator with its optional selector
 /// position, preserving metadata order.
-fn declarations(field: &'static FieldMetadata) -> Vec<(Option<SelectorPosition>, ExecutionDeclaration)> {
-    let mut result = Vec::new();
+/// Visits executable declarations on a field without collecting them first.
+///
+/// # Parameters
+///
+/// - `field`: Field whose declarations are enumerated in metadata order.
+/// - `budget`: Shared build budget charged as declarations are inspected.
+/// - `visit`: Callback receiving each declaration and its optional selector.
+///
+/// # Returns
+///
+/// Returns `Ok(())` after every declaration has been visited.
+///
+/// # Errors
+///
+/// Returns `Err(())` when the callback or a budget check stops traversal.
+fn for_each_declaration(
+    field: &'static FieldMetadata,
+    budget: &mut BuildBudget,
+    mut visit: impl FnMut(&mut BuildBudget, Option<SelectorPosition>, ExecutionDeclaration) -> Result<(), ()>,
+) -> Result<(), ()> {
     for constraint in field.constraints() {
+        budget.charge(Counter::Work)?;
         if constraint_has_work(constraint) {
-            result.push((None, ExecutionDeclaration::Constraint(constraint)));
+            visit(budget, None, ExecutionDeclaration::Constraint(constraint))?;
         }
         for selector in selectors(constraint) {
+            budget.charge(Counter::Work)?;
             for constraint in selector.constraints() {
+                budget.charge(Counter::Work)?;
                 if constraint_has_work(constraint) {
-                    result.push((Some(selector.position()), ExecutionDeclaration::Constraint(constraint)));
+                    visit(
+                        budget,
+                        Some(selector.position()),
+                        ExecutionDeclaration::Constraint(constraint),
+                    )?;
                 }
             }
-            result.extend(
-                selector
-                    .validators()
-                    .iter()
-                    .map(|value| (Some(selector.position()), ExecutionDeclaration::Validator(value))),
-            );
+            for value in selector.validators() {
+                budget.charge(Counter::Work)?;
+                visit(
+                    budget,
+                    Some(selector.position()),
+                    ExecutionDeclaration::Validator(value),
+                )?;
+            }
         }
     }
-    result.extend(
-        field
-            .validators()
-            .iter()
-            .map(|value| (None, ExecutionDeclaration::Validator(value))),
-    );
-    result
+    for value in field.validators() {
+        budget.charge(Counter::Work)?;
+        visit(budget, None, ExecutionDeclaration::Validator(value))?;
+    }
+    Ok(())
+}
+
+/// Checks whether a field contains executable declarations.
+///
+/// # Parameters
+///
+/// - `field`: Field whose constraints and validators are inspected.
+/// - `budget`: Shared build budget charged for each inspected declaration.
+///
+/// # Returns
+///
+/// Returns `Ok(true)` when executable work is present, or `Ok(false)` when
+/// the field contains no executable declaration.
+///
+/// # Errors
+///
+/// Returns `Err(())` when inspecting the field exceeds the work budget.
+fn has_declarations(field: &'static FieldMetadata, budget: &mut BuildBudget) -> Result<bool, ()> {
+    for constraint in field.constraints() {
+        budget.charge(Counter::Work)?;
+        if constraint_has_work(constraint) {
+            return Ok(true);
+        }
+        for selector in selectors(constraint) {
+            budget.charge(Counter::Work)?;
+            for constraint in selector.constraints() {
+                budget.charge(Counter::Work)?;
+                if constraint_has_work(constraint) {
+                    return Ok(true);
+                }
+            }
+            if !selector.validators().is_empty() {
+                budget.charge(Counter::Work)?;
+                return Ok(true);
+            }
+        }
+    }
+    if !field.validators().is_empty() {
+        budget.charge(Counter::Work)?;
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 /// Returns nested selector metadata in key-before-value declaration order.
@@ -565,10 +687,14 @@ fn constraint_has_work(constraint: &ConstraintMetadata) -> bool {
 fn direct_model<'ctx>(
     mut descriptor: Option<TypeDescriptor<'ctx>>,
     graph: &ModelGraph<'_>,
-) -> Option<&'static TypeMetadata> {
+    budget: &mut BuildBudget,
+) -> Result<Option<&'static TypeMetadata>, ()> {
+    let mut depth = 0;
     while let Some(current) = descriptor {
+        budget.check_depth(depth)?;
+        budget.charge(Counter::Work)?;
         if let Some(model) = graph.model(current.type_id()) {
-            return Some(model);
+            return Ok(Some(model));
         }
         let is_wrapper = matches!(
             current.kind(),
@@ -584,8 +710,9 @@ fn direct_model<'ctx>(
                     .find_concrete_type()
             })
             .flatten();
+        depth += 1;
     }
-    None
+    Ok(None)
 }
 
 /// Appends one field, variant or tuple index to a dot-separated diagnostic
@@ -652,6 +779,9 @@ fn structural_suffix(kind: StructuralEdgeKind) -> String {
     }
 }
 
+/// One discovered nested model and its source access-path information.
+type NestedModelUsage = (&'static TypeMetadata, String, Option<Vec<&'static str>>);
+
 /// Finds every model usage behind structural wrappers without expanding model
 /// bodies. Returned suffixes distinguish static uses of the same target type.
 /// Only active ancestors suppress cycles; siblings are never deduplicated.
@@ -676,15 +806,20 @@ fn nested_models<'ctx>(
     expression: Option<TypeExpression<'ctx>>,
     owner: &'static TypeMetadata,
     graph: &ModelGraph<'_>,
-) -> Vec<(&'static TypeMetadata, String, Option<Vec<&'static str>>)> {
+    budget: &mut BuildBudget,
+) -> Result<Vec<NestedModelUsage>, ()> {
     // Enter/leave frames keep traversal finite without recursive Rust calls.
     let mut pending: Vec<_> = descriptor
         .into_iter()
-        .map(|value| (value, String::new(), Some(Vec::new()), true))
+        .map(|value| (value, String::new(), Some(Vec::new()), true, 0usize))
         .collect();
     let mut active = HashSet::new();
     let mut targets = Vec::new();
-    while let Some((current, path, access_segments, entering)) = pending.pop() {
+    if !pending.is_empty() {
+        budget.charge(Counter::Work)?;
+    }
+    while let Some((current, path, access_segments, entering, depth)) = pending.pop() {
+        budget.check_depth(depth)?;
         if !entering {
             active.remove(&current.type_id());
             continue;
@@ -697,9 +832,12 @@ fn nested_models<'ctx>(
             active.remove(&current.type_id());
             continue;
         }
-        pending.push((current, String::new(), None, false));
+        pending.push((current, String::new(), None, false, depth));
         let first_child = pending.len();
-        children(current, |edge| {
+        let child_result = try_children(current, |edge| {
+            if budget.check_depth(depth.saturating_add(1)).is_err() || budget.charge(Counter::Work).is_err() {
+                return ControlFlow::Break(());
+            }
             let suffix = structural_suffix(edge.kind);
             let access_segments = match (access_segments.as_ref(), edge.kind) {
                 (Some(segments), StructuralEdgeKind::StructField { name, query_name, .. }) => {
@@ -714,8 +852,12 @@ fn nested_models<'ctx>(
                 }
                 _ => None,
             };
-            pending.push((edge.target, format!("{path}{suffix}"), access_segments, true));
+            pending.push((edge.target, format!("{path}{suffix}"), access_segments, true, depth + 1));
+            ControlFlow::Continue(())
         });
+        if child_result.is_break() {
+            return Err(());
+        }
         pending[first_child..].reverse();
     }
     // Descriptor traversal is authoritative when it discovers a nested model:
@@ -727,11 +869,9 @@ fn nested_models<'ctx>(
     if targets.is_empty()
         && let Some(expression) = expression
     {
-        expression_models(expression, owner, graph, "", &mut targets);
+        expression_models(expression, owner, graph, "", &mut targets, budget, 0)?;
     }
-    targets.sort_by_key(|(metadata, suffix, _)| (metadata.type_id(), suffix.clone()));
-    targets.dedup_by(|left, right| left.0.type_id() == right.0.type_id() && left.1 == right.1);
-    targets
+    Ok(targets)
 }
 
 /// Retains model usages found in source expressions when a context has no
@@ -752,8 +892,12 @@ fn expression_models(
     owner: &'static TypeMetadata,
     graph: &ModelGraph<'_>,
     suffix: &str,
-    output: &mut Vec<(&'static TypeMetadata, String, Option<Vec<&'static str>>)>,
-) {
+    output: &mut Vec<NestedModelUsage>,
+    budget: &mut BuildBudget,
+    depth: usize,
+) -> Result<(), ()> {
+    budget.check_depth(depth)?;
+    budget.charge(Counter::Work)?;
     match expression.kind() {
         TypeExpressionKind::SelfType => {
             if let Some(model) = graph.model(owner.type_id()) {
@@ -768,16 +912,25 @@ fn expression_models(
                 && let Some(model) = graph.model(owner.type_id())
             {
                 output.push((model, suffix.to_owned(), None));
-                return;
+                return Ok(());
             }
-            let matches = graph
-                .models()
-                .iter()
-                .filter(|model| model.type_name() == path)
-                .collect::<Vec<_>>();
-            if let [model] = matches.as_slice() {
+            let mut matching_model = None;
+            let mut match_count = 0usize;
+            for model in graph.models() {
+                budget.charge(Counter::Work)?;
+                if model.type_name() == path {
+                    matching_model = Some(model);
+                    match_count += 1;
+                    if match_count > 1 {
+                        break;
+                    }
+                }
+            }
+            if match_count == 1
+                && let Some(model) = matching_model
+            {
                 output.push((model, suffix.to_owned(), None));
-                return;
+                return Ok(());
             }
             let tail = path.rsplit("::").next().unwrap_or(path);
             for (position, argument) in named.arguments().iter().enumerate() {
@@ -793,22 +946,30 @@ fn expression_models(
                     }
                     _ => suffix.to_owned(),
                 };
-                expression_models(nested, owner, graph, &nested_suffix, output);
+                expression_models(nested, owner, graph, &nested_suffix, output, budget, depth + 1)?;
             }
         }
         TypeExpressionKind::Tuple(elements) => {
             for (index, nested) in elements.iter().enumerate() {
-                expression_models(*nested, owner, graph, &format!("{suffix}.{index}"), output);
+                expression_models(
+                    *nested,
+                    owner,
+                    graph,
+                    &format!("{suffix}.{index}"),
+                    output,
+                    budget,
+                    depth + 1,
+                )?;
             }
         }
         TypeExpressionKind::Array { element, .. } | TypeExpressionKind::Slice(element) => {
-            expression_models(element, owner, graph, &format!("{suffix}[]"), output);
+            expression_models(element, owner, graph, &format!("{suffix}[]"), output, budget, depth + 1)?;
         }
         TypeExpressionKind::Reference { target, .. } | TypeExpressionKind::RawPointer { target, .. } => {
-            expression_models(target, owner, graph, suffix, output);
+            expression_models(target, owner, graph, suffix, output, budget, depth + 1)?;
         }
         TypeExpressionKind::AssociatedType(value) => {
-            expression_models(value.self_type(), owner, graph, suffix, output);
+            expression_models(value.self_type(), owner, graph, suffix, output, budget, depth + 1)?;
         }
         TypeExpressionKind::Parameter(_)
         | TypeExpressionKind::ParameterName(_)
@@ -816,5 +977,135 @@ fn expression_models(
         | TypeExpressionKind::TraitObject(_)
         | TypeExpressionKind::Opaque(_)
         | TypeExpressionKind::Never => {}
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod build_budget_tests {
+    use std::sync::Arc;
+
+    use qubit_model_derive::Model;
+    use qubit_model_metadata::metadata::TypeMetadata;
+    use qubit_model_metadata::registry::ModelRegistry;
+    use qubit_model_metadata::resolve::StructureResolver;
+
+    use super::BuildBudget;
+    use super::expression_models;
+    use super::nested_models;
+
+    #[Model(id = "budget.internal.Leaf")]
+    struct BudgetLeaf {
+        #[text(non_blank)]
+        name: String,
+    }
+
+    #[Model(id = "budget.internal.Wrapped")]
+    struct BudgetWrapped {
+        child: Option<Box<BudgetLeaf>>,
+    }
+
+    #[Model(id = "budget.internal.Unsupported")]
+    struct BudgetUnsupported {
+        pair: (BudgetLeaf, BudgetLeaf),
+    }
+
+    #[Model(id = "budget.internal.NoWork")]
+    struct BudgetNoWork {
+        value: u8,
+    }
+
+    fn setup() -> (
+        &'static TypeMetadata,
+        Arc<qubit_model_metadata::resolve::ModelGraph<'static>>,
+    ) {
+        let root = TypeMetadata::of::<BudgetWrapped>();
+        let models = ModelRegistry::try_global().expect("linked model registry");
+        let graph = Arc::new(
+            StructureResolver::for_static_roots(models, [root])
+                .resolve()
+                .expect("wrapper graph resolves"),
+        );
+        (root, graph)
+    }
+
+    fn graph_for(root: &'static TypeMetadata) -> Arc<qubit_model_metadata::resolve::ModelGraph<'static>> {
+        let models = ModelRegistry::try_global().expect("linked model registry");
+        Arc::new(
+            StructureResolver::for_static_roots(models, [root])
+                .resolve()
+                .expect("test graph resolves"),
+        )
+    }
+
+    #[test]
+    fn test_descriptor_wrapper_depth_uses_the_injected_limit() {
+        let (root, graph) = setup();
+        let context = graph.registry().context().expect("reflection context");
+        let field = root.fields().first().expect("wrapper field");
+        let descriptor = root
+            .field_descriptor_in(field, context)
+            .and_then(|field| field.find_concrete_type());
+        let expression = field.type_expression_in(context);
+        let mut budget = BuildBudget::with_limits(0, 10_000, 10, 10, 10);
+
+        assert!(nested_models(descriptor, expression, root, &graph, &mut budget).is_err());
+    }
+
+    #[test]
+    fn test_expression_fallback_depth_uses_the_injected_limit() {
+        let (root, graph) = setup();
+        let context = graph.registry().context().expect("reflection context");
+        let field = root.fields().first().expect("wrapper field");
+        let expression = field.type_expression_in(context).expect("source expression");
+        let mut budget = BuildBudget::with_limits(1, 10_000, 10, 10, 10);
+        let mut targets = Vec::new();
+
+        assert!(expression_models(expression, root, &graph, "", &mut targets, &mut budget, 0).is_err());
+    }
+
+    #[test]
+    fn test_no_work_graph_stops_when_work_budget_is_zero() {
+        let root = TypeMetadata::of::<BudgetNoWork>();
+        let graph = graph_for(root);
+        let budget = BuildBudget::with_limits(64, 0, 10, 10, 10);
+        let (occurrences, errors, _) = super::collect_with_budget(root, &graph, budget);
+
+        assert!(occurrences.is_empty());
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0].kind(),
+            crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
+        );
+    }
+
+    #[test]
+    fn test_diagnostic_overflow_keeps_first_error_and_one_terminal_error() {
+        let root = TypeMetadata::of::<BudgetUnsupported>();
+        let graph = graph_for(root);
+        let budget = BuildBudget::with_limits(64, 10_000, 10, 10, 1);
+        let (occurrences, errors, _) = super::collect_with_budget(root, &graph, budget);
+
+        assert!(occurrences.is_empty());
+        assert_eq!(errors.len(), 2);
+        assert_eq!(
+            errors[1].kind(),
+            crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
+        );
+    }
+
+    #[test]
+    fn test_occurrence_overflow_stops_before_collecting_the_next_declaration() {
+        let root = TypeMetadata::of::<BudgetLeaf>();
+        let graph = graph_for(root);
+        let budget = BuildBudget::with_limits(64, 10_000, 0, 10, 10);
+        let (occurrences, errors, _) = super::collect_with_budget(root, &graph, budget);
+
+        assert!(occurrences.is_empty());
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0].kind(),
+            crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
+        );
     }
 }

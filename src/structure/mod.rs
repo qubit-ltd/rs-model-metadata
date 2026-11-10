@@ -8,7 +8,7 @@
 
 //! Shared, one-layer traversal of reflected structural relationships.
 
-mod children;
+pub(crate) mod children;
 mod internal;
 
 pub(crate) use children::children;

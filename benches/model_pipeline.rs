@@ -34,6 +34,7 @@ use qubit_model_metadata::resolve::ResolveInputs;
 use qubit_model_metadata::resolve::StructureResolver;
 use qubit_model_metadata::validation::FieldPath;
 use qubit_model_metadata::validation::ModelRuleBinding;
+use qubit_model_metadata::validation::ValidationBuildErrorKind;
 use qubit_model_metadata::validation::ValidationBuildInputs;
 use qubit_model_metadata::validation::ValidationOptions;
 use qubit_model_metadata::validation::ValidationPlan;
@@ -89,6 +90,10 @@ scale_models! {
     (PlanScaleBinary8, "benchmark.PlanScaleBinary8", PlanScaleChain8, "benchmark.PlanScaleChain8", PlanScaleBinary7, PlanScaleChain7, 8),
     (PlanScaleBinary9, "benchmark.PlanScaleBinary9", PlanScaleChain9, "benchmark.PlanScaleChain9", PlanScaleBinary8, PlanScaleChain8, 9),
     (PlanScaleBinary10, "benchmark.PlanScaleBinary10", PlanScaleChain10, "benchmark.PlanScaleChain10", PlanScaleBinary9, PlanScaleChain9, 10),
+    (PlanScaleBinary11, "benchmark.PlanScaleBinary11", PlanScaleChain11, "benchmark.PlanScaleChain11", PlanScaleBinary10, PlanScaleChain10, 11),
+    (PlanScaleBinary12, "benchmark.PlanScaleBinary12", PlanScaleChain12, "benchmark.PlanScaleChain12", PlanScaleBinary11, PlanScaleChain11, 12),
+    (PlanScaleBinary13, "benchmark.PlanScaleBinary13", PlanScaleChain13, "benchmark.PlanScaleChain13", PlanScaleBinary12, PlanScaleChain12, 13),
+    (PlanScaleBinary14, "benchmark.PlanScaleBinary14", PlanScaleChain14, "benchmark.PlanScaleChain14", PlanScaleBinary13, PlanScaleChain13, 14),
 }
 
 struct AcceptModel;
@@ -450,11 +455,12 @@ fn model_count_pipeline(criterion: &mut Criterion, reflection: &ReflectionContex
 fn plan_build_scaling(criterion: &mut Criterion, reflection: &ReflectionContext) {
     let models = ModelRegistry::from_context(reflection).expect("valid scaling registrations");
     let validators = ValidatorRegistry::empty();
-    let roots: [(&str, &'static TypeMetadata, usize, usize); 8] = [
+    let roots: [(&str, &'static TypeMetadata, usize, usize); 9] = [
         ("binary", TypeMetadata::of::<PlanScaleBinary1>(), 1, 2),
         ("binary", TypeMetadata::of::<PlanScaleBinary4>(), 4, 16),
         ("binary", TypeMetadata::of::<PlanScaleBinary8>(), 8, 256),
         ("binary", TypeMetadata::of::<PlanScaleBinary10>(), 10, 1024),
+        ("binary", TypeMetadata::of::<PlanScaleBinary14>(), 14, 16_384),
         ("chain", TypeMetadata::of::<PlanScaleChain1>(), 1, 1),
         ("chain", TypeMetadata::of::<PlanScaleChain4>(), 4, 1),
         ("chain", TypeMetadata::of::<PlanScaleChain8>(), 8, 1),
@@ -476,15 +482,27 @@ fn plan_build_scaling(criterion: &mut Criterion, reflection: &ReflectionContext)
         );
         let expected_types = depth + 1;
         assert_eq!(graph.models().len(), expected_types);
-        let plan = ValidationPlan::build(
+        let build_result = ValidationPlan::build(
             root,
             ValidationBuildInputs {
                 graph: Arc::clone(&graph),
                 validators: &validators,
             },
-        )
-        .expect("scaling plan binds outside timing");
-        assert_eq!(plan.binding_count(), expected_occurrences);
+        );
+        if expected_occurrences > 10_000 {
+            let errors = match build_result {
+                Err(errors) => errors,
+                Ok(_) => panic!("oversized fixture is rejected outside timing"),
+            };
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.kind() == ValidationBuildErrorKind::BuildLimitExceeded)
+            );
+        } else {
+            let plan = build_result.expect("scaling plan binds outside timing");
+            assert_eq!(plan.binding_count(), expected_occurrences);
+        }
         println!(
             "plan_build_scaling/{shape}/depth_{depth}: unique_types={expected_types}, occurrences={expected_occurrences}"
         );
@@ -492,13 +510,26 @@ fn plan_build_scaling(criterion: &mut Criterion, reflection: &ReflectionContext)
             BenchmarkId::new(shape, format!("depth_{depth}_rules_{expected_occurrences}")),
             |bencher| {
                 bencher.iter(|| {
-                    black_box(ValidationPlan::build(
+                    let result = ValidationPlan::build(
                         black_box(root),
                         ValidationBuildInputs {
                             graph: Arc::clone(&graph),
                             validators: &validators,
                         },
-                    ))
+                    );
+                    if expected_occurrences > 10_000 {
+                        let errors = match result {
+                            Err(errors) => errors,
+                            Ok(_) => panic!("scale fixture exceeds build budget"),
+                        };
+                        black_box(
+                            errors
+                                .iter()
+                                .any(|error| error.kind() == ValidationBuildErrorKind::BuildLimitExceeded),
+                        );
+                    } else {
+                        let _ = black_box(result);
+                    }
                 });
             },
         );

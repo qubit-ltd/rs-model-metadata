@@ -8,7 +8,11 @@
 
 use crate::metadata::TypeMetadata;
 use crate::resolve::ModelGraph;
+use crate::validation::ValidationBuildError;
+use crate::validation::ValidationBuildErrorKind;
 use crate::validation::ValidationBuildErrors;
+use crate::validation::internal::build_budget::BuildBudget;
+use crate::validation::internal::build_budget::Counter;
 use crate::validation::internal::declaration_walker;
 use crate::validation::internal::occurrence_binder;
 
@@ -61,9 +65,28 @@ impl ValidationCapabilities {
     /// Returns unsupported declarations and access paths in source order, or
     /// `RootNotInGraph` when the supplied graph does not include the root.
     pub fn check(root: &'static TypeMetadata, graph: &ModelGraph<'_>) -> Result<(), ValidationBuildErrors> {
-        let (occurrences, mut errors) = declaration_walker::collect(root, graph);
+        let (occurrences, mut errors, mut budget) =
+            declaration_walker::collect_with_budget(root, graph, BuildBudget::new());
+        if errors
+            .iter()
+            .any(|error| error.kind() == ValidationBuildErrorKind::BuildLimitExceeded)
+        {
+            return Err(ValidationBuildErrors::from_errors(errors));
+        }
         for occurrence in occurrences {
+            if budget.charge(Counter::Work).is_err() {
+                errors.push(ValidationBuildError::build_limit(root));
+                return Err(ValidationBuildErrors::from_errors(errors));
+            }
             if let Err(error) = occurrence_binder::check_access(&occurrence, graph) {
+                if errors.len() >= super::super::internal::build_budget::MAX_DIAGNOSTICS {
+                    errors.push(ValidationBuildError::build_limit(root));
+                    return Err(ValidationBuildErrors::from_errors(errors));
+                }
+                if budget.charge(Counter::Diagnostic).is_err() {
+                    errors.push(ValidationBuildError::build_limit(root));
+                    return Err(ValidationBuildErrors::from_errors(errors));
+                }
                 errors.push(*error);
             }
         }

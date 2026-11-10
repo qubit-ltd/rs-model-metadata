@@ -169,6 +169,23 @@ impl ValidationBuildError {
         error
     }
 
+    /// Reports that bounded plan construction exhausted an internal budget.
+    ///
+    /// # Parameters
+    ///
+    /// - `root`: Canonical metadata for the requested validation root.
+    ///
+    /// # Returns
+    ///
+    /// Returns a root-scoped resource-limit error without declaration or
+    /// validator source context.
+    pub(crate) fn build_limit(root: &'static TypeMetadata) -> Self {
+        let mut error = Self::new(root, BindError::new(BindErrorKind::UnreadablePath));
+        error.kind = ValidationBuildErrorKind::BuildLimitExceeded;
+        error.source = None;
+        error
+    }
+
     /// Returns the concrete validation root identity.
     #[must_use]
     #[inline]
@@ -337,6 +354,13 @@ impl fmt::Display for ValidationBuildError {
     ///
     /// Returns the formatter's error if writing diagnostics fails.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.kind() == ValidationBuildErrorKind::BuildLimitExceeded {
+            return write!(
+                f,
+                "validation plan for {} exceeded a build resource limit",
+                self.type_name()
+            );
+        }
         write!(f, "validation plan for {} failed: {:?}", self.type_name(), self.kind())?;
         if let Some(path) = &self.path {
             write!(f, " at {path}")?;

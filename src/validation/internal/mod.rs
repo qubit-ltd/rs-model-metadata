@@ -11,6 +11,7 @@
 pub(super) mod field_rule_binding;
 pub(super) mod selector_binding;
 
+pub(crate) mod build_budget;
 pub(super) mod declaration_walker;
 pub(super) mod execution_declaration;
 pub(super) mod occurrence_binder;

@@ -587,6 +587,7 @@ pub(crate) fn bind(
     graph: &ModelGraph<'_>,
     validators: &ValidatorRegistry,
     ancestors: &[&'static TypeMetadata],
+    max_bindings: usize,
 ) -> Result<Vec<FieldRuleBinding>, Vec<ValidationBuildError>> {
     let Some(context) = graph.registry().context() else {
         return Err(vec![ValidationBuildError::unsupported(occurrence)]);
@@ -619,6 +620,14 @@ pub(crate) fn bind(
                     .map(|error| ValidationBuildError::at_occurrence(occurrence, error))
                     .collect::<Vec<_>>()
             })?;
+            let additional = standards.len()
+                + usize::from(matches!(
+                    constraint,
+                    ConstraintMetadata::Sequence(sequence) if sequence.unique_items()
+                ));
+            if additional > max_bindings {
+                return Err(vec![ValidationBuildError::build_limit(occurrence.root)]);
+            }
             let mut bindings: Vec<_> = standards
                 .into_iter()
                 .map(|standard| FieldRuleBinding {
@@ -661,6 +670,9 @@ pub(crate) fn bind(
             Ok(bindings)
         }
         ExecutionDeclaration::Validator(declaration) => {
+            if max_bindings == 0 {
+                return Err(vec![ValidationBuildError::build_limit(occurrence.root)]);
+            }
             let input = if occurrence.selector.is_some() {
                 let Some(descriptor) = occurrence
                     .selector
@@ -713,6 +725,65 @@ pub(crate) fn bind(
             }])
         }
         ExecutionDeclaration::Traversal => Err(vec![ValidationBuildError::unsupported(occurrence)]),
+    }
+}
+
+#[cfg(test)]
+mod build_budget_tests {
+    use std::sync::Arc;
+
+    use qubit_model_derive::Model;
+    use qubit_model_metadata::metadata::TypeMetadata;
+    use qubit_model_metadata::registry::ModelRegistry;
+    use qubit_model_metadata::resolve::StructureResolver;
+    use qubit_validator::ValidatorRegistry;
+
+    use super::super::execution_declaration::ExecutionDeclaration;
+    use super::super::validation_occurrence::ValidationOccurrence;
+    use super::bind;
+    use crate::validation::ValidationBuildErrorKind;
+    use crate::validation::standard_constraints;
+
+    #[Model(id = "budget.internal.MultiRule")]
+    struct MultiRule {
+        #[text(non_blank, min_chars = 1)]
+        value: String,
+    }
+
+    #[test]
+    fn test_binder_checks_expanded_rule_count_before_returning_bindings() {
+        let root = TypeMetadata::of::<MultiRule>();
+        let models = ModelRegistry::try_global().expect("linked model registry");
+        let graph = Arc::new(
+            StructureResolver::for_static_roots(models, [root])
+                .resolve()
+                .expect("multi-rule graph resolves"),
+        );
+        let field = root.fields().first().expect("declared field");
+        let occurrence = ValidationOccurrence {
+            root,
+            owner: root,
+            field,
+            enum_variant: None,
+            segments: vec!["value"],
+            unsupported_path: None,
+            selector: None,
+            ordinal: 0,
+            declaration: ExecutionDeclaration::Constraint(&field.constraints()[0]),
+        };
+        let caller_validators = ValidatorRegistry::empty();
+        let (validators, conflicts) =
+            standard_constraints::registry(&caller_validators).expect("standard validator registry");
+        assert!(conflicts.is_empty());
+
+        let overflow =
+            bind(&occurrence, &graph, &validators, &[], 1).expect_err("one declaration expands to two rules");
+        assert_eq!(overflow.len(), 1);
+        assert_eq!(overflow[0].kind(), ValidationBuildErrorKind::BuildLimitExceeded);
+        assert!(overflow[0].source_error().is_none());
+
+        let exact = bind(&occurrence, &graph, &validators, &[], 2).expect("both expanded rules fit the exact budget");
+        assert_eq!(exact.len(), 2);
     }
 }
 

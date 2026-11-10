@@ -855,10 +855,25 @@ execution policy and cannot bypass declaration or binding errors.
   accounting can truncate an unknown-length traversal earlier than its number
   of yielded members suggests. Accounting cannot wrap on overflow.
 
-These `ValidationOptions` budgets apply while a plan validates an instance;
-they do not limit declaration discovery or binding during `ValidationPlan::build`.
-Build a plan for the intended root and reuse it across validations instead of
-rebuilding it for each instance.
+The `ValidationOptions` budgets apply while a plan validates an instance.
+Plan construction has separate fixed limits: model, wrapper and type-expression
+depth is at most 64; discovery work is at most 100,000 charged visits; and the
+plan can contain at most 10,000 declaration occurrences and 10,000 bound rules.
+Each inspected model, field, structural edge, expression node, declaration,
+selector or validator, reverse-reachability edge, and each binding attempt uses
+one discovery-work unit (an item inspected in separate phases is charged in
+each phase).
+Construction retains at most 100 ordinary diagnostics; the next diagnostic
+attempt stops the build and adds one `BuildLimitExceeded` diagnostic. Both
+`ValidationCapabilities::check` and `ValidationPlan::build` return that kind
+when discovery, access checking or binding exceeds a limit. No partial plan is
+returned. Build limits prevent this crate from expanding huge discovered path
+sets, but do not bound the already-created `ModelGraph`, reflection input, or
+work and allocations inside an external validator binder. Build a plan for the
+intended root and reuse it across validations instead of rebuilding it for each
+instance. Because `ValidationBuildErrorKind` is public, exhaustive downstream
+matches must handle the new `BuildLimitExceeded` variant; rs-platform currently
+wraps the aggregate build error and has no such exhaustive match to migrate.
 
 Decimal checks normalize numeric representation before checking scale, optional
 precision, then the exact range. Thus `1.2300` fits scale 2 while `1.234` does

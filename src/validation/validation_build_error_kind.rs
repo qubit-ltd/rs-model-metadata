@@ -32,4 +32,6 @@ pub enum ValidationBuildErrorKind {
     UnsupportedExecution,
     /// The explicitly requested root was not included in the supplied graph.
     RootNotInGraph,
+    /// Plan construction exceeded a fixed resource budget.
+    BuildLimitExceeded,
 }

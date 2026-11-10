@@ -9,6 +9,8 @@
 //! Enumerates one context-bound descriptor layer without applying traversal
 //! policy.
 
+use std::ops::ControlFlow;
+
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::descriptor::TypeKind;
 
@@ -42,10 +44,35 @@ fn type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option
 /// - `descriptor`: Descriptor whose direct structural children are enumerated.
 /// - `visit`: Callback invoked once for each resolved child edge.
 pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl FnMut(StructuralEdge<'ctx>)) {
+    let _ = try_children(descriptor, |edge| {
+        visit(edge);
+        ControlFlow::Continue(())
+    });
+}
+
+/// Calls `visit` for each direct structural child until it asks to stop.
+///
+/// # Parameters
+///
+/// - `descriptor`: Descriptor whose direct structural children are enumerated.
+/// - `visit`: Callback invoked for each resolved edge; `Break` stops
+///   enumeration before the next edge is resolved.
+pub(crate) fn try_children<'ctx>(
+    descriptor: TypeDescriptor<'ctx>,
+    mut visit: impl FnMut(StructuralEdge<'ctx>) -> ControlFlow<()>,
+) -> ControlFlow<()> {
+    macro_rules! emit {
+        ($edge:expr) => {
+            if let ControlFlow::Break(()) = visit($edge) {
+                return ControlFlow::Break(());
+            }
+        };
+    }
+
     match descriptor.kind() {
         TypeKind::Optional(_) => {
             if let Some(target) = type_argument(descriptor, 0) {
-                visit(StructuralEdge {
+                emit!(StructuralEdge {
                     target,
                     kind: StructuralEdgeKind::OptionalElement,
                 });
@@ -53,7 +80,7 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
         }
         TypeKind::SmartPointer(_) => {
             if let Some(target) = type_argument(descriptor, 0) {
-                visit(StructuralEdge {
+                emit!(StructuralEdge {
                     target,
                     kind: StructuralEdgeKind::PointerPointee,
                 });
@@ -61,7 +88,7 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
         }
         TypeKind::Sequence(_) => {
             if let Some(target) = type_argument(descriptor, 0) {
-                visit(StructuralEdge {
+                emit!(StructuralEdge {
                     target,
                     kind: StructuralEdgeKind::SequenceElement,
                 });
@@ -69,7 +96,7 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
         }
         TypeKind::Set(_) => {
             if let Some(target) = type_argument(descriptor, 0) {
-                visit(StructuralEdge {
+                emit!(StructuralEdge {
                     target,
                     kind: StructuralEdgeKind::SetElement,
                 });
@@ -77,7 +104,7 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
         }
         TypeKind::Array(_) => {
             if let Some(target) = type_argument(descriptor, 0) {
-                visit(StructuralEdge {
+                emit!(StructuralEdge {
                     target,
                     kind: StructuralEdgeKind::ArrayElement,
                 });
@@ -85,7 +112,7 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
         }
         TypeKind::Slice(_) => {
             if let Some(target) = type_argument(descriptor, 0) {
-                visit(StructuralEdge {
+                emit!(StructuralEdge {
                     target,
                     kind: StructuralEdgeKind::SliceElement,
                 });
@@ -94,7 +121,7 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
         TypeKind::Map(_) => {
             for (index, kind) in [(0, StructuralEdgeKind::MapKey), (1, StructuralEdgeKind::MapValue)] {
                 if let Some(target) = type_argument(descriptor, index) {
-                    visit(StructuralEdge { target, kind });
+                    emit!(StructuralEdge { target, kind });
                 }
             }
         }
@@ -112,7 +139,7 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
                     .and_then(|field| field.find_concrete_type())
                     .or_else(|| type_argument(descriptor, index));
                 if let Some(target) = target {
-                    visit(StructuralEdge {
+                    emit!(StructuralEdge {
                         target,
                         kind: StructuralEdgeKind::TupleElement { index },
                     });
@@ -122,7 +149,7 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
         TypeKind::Struct(structure) => {
             for field in structure.fields().iter() {
                 if let Some(target) = field.find_concrete_type() {
-                    visit(StructuralEdge {
+                    emit!(StructuralEdge {
                         target,
                         kind: StructuralEdgeKind::StructField {
                             index: field.index(),
@@ -137,7 +164,7 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
             for variant in enumeration.variants().iter() {
                 for field in variant.fields().iter() {
                     if let Some(target) = field.find_concrete_type() {
-                        visit(StructuralEdge {
+                        emit!(StructuralEdge {
                             target,
                             kind: StructuralEdgeKind::EnumVariantField {
                                 variant_index: variant.index(),
@@ -153,4 +180,5 @@ pub(crate) fn children<'ctx>(descriptor: TypeDescriptor<'ctx>, mut visit: impl F
         }
         _ => {}
     }
+    ControlFlow::Continue(())
 }

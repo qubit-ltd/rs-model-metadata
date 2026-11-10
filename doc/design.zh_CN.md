@@ -217,6 +217,10 @@ fn main() {
 
 `ValidationOptions::default()` 采用 `CollectAll`、全部字段，以及深度 64、节点 100,000、违例 100、比较 1,000,000 的非零上限。`FailFast` 或达到违例上限属于成功执行后的截断报告；深度、节点、比较等遍历预算耗尽属于执行错误并附部分报告。共享预算覆盖根、属性、依赖和集合成员的读取及规则调用；selector 元素规则调用和外层 sequence 去重的每一对比较都会消耗比较预算。未知长度 selector 的探测会在调用 `next()` 前，为可能的读取和规则调用预留节点预算，并预留比较预算；用于确认耗尽的探测即使没有产出成员，也可能消耗这些预算。预算不约束外部自定义 validator 内部自行分配或执行的工作。Map entry 路径序号沿容器迭代顺序，`HashMap` 的顺序不稳定。字段选择匹配完整字段路径，不代表自动展开某个路径前缀。
 
+计划构建单独使用固定 `BuildBudget`：模型、wrapper 和类型表达式深度最多 64；发现和绑定工作最多计费 100,000 次；声明 occurrence 和绑定规则各最多 10,000 条；普通诊断最多 100 条。每次检查模型、字段、结构边、表达式节点、声明、selector 或 validator、反向可达边，以及每次绑定尝试，各计一个工作单位；同一项在不同阶段再次检查时分别计费。尝试产生第 101 条普通诊断时停止构建并添加唯一的 `BuildLimitExceeded` 终止错误，因此错误列表最多 101 条。能力检查与计划构建遵循相同的发现预算，绑定输出在追加前检查。该上限不约束调用方已创建的 graph 或 reflection context，也不限制外部 validator binder 内部的工作和分配；它与上述逐实例执行预算相互独立。
+
+公共 `ValidationBuildErrorKind` 新增 `BuildLimitExceeded`，下游穷尽匹配可能需要增加显式分支或 fallback。rs-platform 当前包装聚合错误，没有需要迁移的穷尽 kind 匹配。
+
 启用 `codec` 时，声明中的稳定 codec ID 或 Rust codec 类型仍要经显式传入的 registry 绑定。选择优先级是字段显式 codec、Value 的 canonical codec、无 codec。`bind_codecs` 解析声明并返回已选实现的绑定结果；它不会调用 `encode` 或 `decode`、保存数据或执行应用策略。元数据本身不含 codec 实例，不承担持久化流程。
 
 ## 错误分期与集成约束

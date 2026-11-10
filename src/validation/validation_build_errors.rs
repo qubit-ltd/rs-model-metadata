@@ -14,6 +14,7 @@ use std::ops::Index;
 use std::slice::Iter;
 
 use super::validation_build_error::ValidationBuildError;
+use super::validation_build_error_kind::ValidationBuildErrorKind;
 
 /// Independent failures collected while building one validation plan.
 ///
@@ -76,7 +77,12 @@ impl ValidationBuildErrors {
     /// The aggregate containing those diagnostics in stable root-before-
     /// occurrence order.
     pub(crate) fn from_errors(mut errors: Vec<ValidationBuildError>) -> Self {
-        errors.sort_by_key(ValidationBuildError::occurrence);
+        errors.sort_by_key(|error| {
+            (
+                error.kind() == ValidationBuildErrorKind::BuildLimitExceeded,
+                error.occurrence(),
+            )
+        });
         Self { errors }
     }
 

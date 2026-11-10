@@ -562,14 +562,6 @@ dependencies = [
 [[package]]
 name = "qubit-datatype"
 version = "0.15.3"
-dependencies = [
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "qubit-datatype"
-version = "0.15.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d46a377b8387ed84fc36e23e43438e6ec5908155c3bad5342acb0d1a71aa43e"
 dependencies = [
@@ -646,7 +638,7 @@ dependencies = [
  "chrono",
  "criterion",
  "qubit-codec",
- "qubit-datatype 0.15.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "qubit-datatype",
  "qubit-id",
  "qubit-model-derive",
  "qubit-model-id",
@@ -694,7 +686,7 @@ dependencies = [
  "bigdecimal",
  "chrono",
  "inventory",
- "qubit-datatype 0.15.3",
+ "qubit-datatype",
  "qubit-id",
  "qubit-reflect-derive",
  "thiserror",

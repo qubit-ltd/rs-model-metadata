@@ -10,6 +10,7 @@
 use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::ops::ControlFlow;
 
 use qubit_reflect::Reflect;
 use qubit_reflect::ReflectionContext;
@@ -18,6 +19,7 @@ use qubit_reflect::TypeDescriptor;
 use crate::structure::StructuralEdge;
 use crate::structure::StructuralEdgeKind;
 use crate::structure::children;
+use crate::structure::children::try_children;
 
 #[allow(dead_code)]
 #[Reflect]
@@ -125,6 +127,20 @@ fn test_structure_children_struct_names_and_positions() {
             (StructuralEdgeKind::TupleElement { index: 1 }, TypeId::of::<bool>()),
         ],
     );
+}
+
+#[test]
+fn test_build_budget_stops_structural_edge_enumeration_at_the_limit() {
+    let context = structural_context();
+    let mut visited = 0;
+
+    let result = try_children(context.type_of::<NamedRecord>(), |_| {
+        visited += 1;
+        ControlFlow::Break(())
+    });
+
+    assert!(result.is_break());
+    assert_eq!(visited, 1, "the next field must not be enumerated");
 }
 
 #[test]

@@ -663,9 +663,17 @@ let report = plan.validate(&profile, &options)?;
   因此即使探测结果为空，也可能消耗预算；精确长度迭代器无需这次额外探测。这种保守计费可能使
   未知长度遍历早于其实际产出的成员数量而截断。计数溢出不会回绕。
 
-这些 `ValidationOptions` 预算只在计划验证实例时生效，不限制
-`ValidationPlan::build` 的声明发现和规则绑定。应针对目标 root 构建计划，并在多次验证中复用，
-不要为每个实例重复构建。
+`ValidationOptions` 预算只在计划验证实例时生效。计划构建另有固定上限：模型、wrapper
+和类型表达式深度最多 64；发现工作最多计费 100,000 次；声明 occurrence 和绑定规则各最多
+10,000 条。构建最多保留 100 条普通诊断；尝试产生下一条诊断时会停止，并添加一条
+`BuildLimitExceeded` 终止诊断。`ValidationCapabilities::check` 和 `ValidationPlan::build`
+在发现、访问能力检查或绑定超限时都会返回该错误，不会返回残缺计划。这些上限防止本 crate
+展开超大路径集合，但不限制调用前已经创建的 `ModelGraph`、反射输入，或外部 validator binder
+内部的工作和分配。应针对目标 root 构建计划，并在多次验证中复用，不要为每个实例重复构建。
+每次检查模型、字段、结构边、表达式节点、声明、selector 或 validator、反向可达边，以及每次绑定尝试，
+各计一个发现工作单位；同一项在不同阶段被再次检查时分别计费。
+`ValidationBuildErrorKind` 是公共 enum；下游穷尽匹配需要处理新增的 `BuildLimitExceeded`。
+rs-platform 当前包装聚合构建错误，没有需要迁移的穷尽匹配。
 
 Decimal 先规范化数值表示，再依次检查 scale、可选 precision 和精确区间。因此 `1.2300`
 符合 scale 2，`1.234` 不符合。precision 按 `DECIMAL(p,s)` 总容量解释：scale 为 2、precision

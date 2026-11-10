@@ -14,6 +14,8 @@ use crate::metadata::TypeMetadata;
 use crate::validation::ValidationBuildError;
 use crate::validation::ValidationBuildErrors;
 use crate::validation::ValidationBuildInputs;
+use crate::validation::internal::build_budget::BuildBudget;
+use crate::validation::internal::build_budget::Counter;
 use crate::validation::internal::declaration_walker;
 use crate::validation::internal::occurrence_binder;
 use crate::validation::standard_constraints;
@@ -73,24 +75,81 @@ impl<'registry> ValidationPlan<'registry> {
                 ValidationBuildError::missing_root(root),
             ]));
         };
-        let (occurrences, mut errors) = declaration_walker::collect(root, inputs.graph.as_ref());
+        let (occurrences, mut errors, mut budget) =
+            declaration_walker::collect_with_budget(root, inputs.graph.as_ref(), BuildBudget::new());
+        if errors
+            .iter()
+            .any(|error| error.kind() == super::super::ValidationBuildErrorKind::BuildLimitExceeded)
+        {
+            return Err(ValidationBuildErrors::from_errors(errors));
+        }
         let (validators, registry_errors) = match standard_constraints::registry(inputs.validators) {
             Ok(result) => result,
             Err(error) => {
+                if budget.charge(Counter::Diagnostic).is_err() {
+                    errors.push(ValidationBuildError::build_limit(root));
+                    return Err(ValidationBuildErrors::from_errors(errors));
+                }
                 errors.push(ValidationBuildError::new(root, error));
                 return Err(ValidationBuildErrors::from_errors(errors));
             }
         };
-        errors.extend(
-            registry_errors
-                .into_iter()
-                .map(|error| ValidationBuildError::new(root, error)),
-        );
+        let registry_errors_exceed_limit =
+            errors.len() + registry_errors.len() > crate::validation::internal::build_budget::MAX_DIAGNOSTICS;
+        let remaining = crate::validation::internal::build_budget::MAX_DIAGNOSTICS.saturating_sub(errors.len());
+        let mut registry_errors = registry_errors.into_iter();
+        for error in registry_errors.by_ref().take(remaining) {
+            let _ = budget.charge(Counter::Diagnostic);
+            errors.push(ValidationBuildError::new(root, error));
+        }
+        if registry_errors_exceed_limit {
+            errors.push(ValidationBuildError::build_limit(root));
+            return Err(ValidationBuildErrors::from_errors(errors));
+        }
         let mut bindings = Vec::new();
         for occurrence in occurrences {
-            match occurrence_binder::bind(&occurrence, inputs.graph.as_ref(), &validators, ancestors) {
-                Ok(mut compiled) => bindings.append(&mut compiled),
-                Err(mut failures) => errors.append(&mut failures),
+            if budget.charge(Counter::Work).is_err() {
+                errors.push(ValidationBuildError::build_limit(root));
+                return Err(ValidationBuildErrors::from_errors(errors));
+            }
+            match occurrence_binder::bind(
+                &occurrence,
+                inputs.graph.as_ref(),
+                &validators,
+                ancestors,
+                crate::validation::internal::build_budget::MAX_BINDINGS - bindings.len(),
+            ) {
+                Ok(mut compiled) => {
+                    for _ in &compiled {
+                        if budget.charge(Counter::Binding).is_err() {
+                            errors.push(ValidationBuildError::build_limit(root));
+                            return Err(ValidationBuildErrors::from_errors(errors));
+                        }
+                    }
+                    bindings.append(&mut compiled)
+                }
+                Err(mut failures) => {
+                    if failures.iter().any(|failure| {
+                        failure.kind() == crate::validation::ValidationBuildErrorKind::BuildLimitExceeded
+                    }) {
+                        errors.push(ValidationBuildError::build_limit(root));
+                        return Err(ValidationBuildErrors::from_errors(errors));
+                    }
+                    let remaining =
+                        crate::validation::internal::build_budget::MAX_DIAGNOSTICS.saturating_sub(errors.len());
+                    let failures_exceed_limit = failures.len() > remaining;
+                    for failure in failures.drain(..).take(remaining) {
+                        if budget.charge(Counter::Diagnostic).is_err() {
+                            errors.push(ValidationBuildError::build_limit(root));
+                            return Err(ValidationBuildErrors::from_errors(errors));
+                        }
+                        errors.push(failure);
+                    }
+                    if failures_exceed_limit {
+                        errors.push(ValidationBuildError::build_limit(root));
+                        return Err(ValidationBuildErrors::from_errors(errors));
+                    }
+                }
             }
         }
         if !errors.is_empty() {
