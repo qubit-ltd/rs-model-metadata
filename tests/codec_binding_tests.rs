@@ -389,18 +389,35 @@ fn graph_with_name<'a>(owner: &'static TypeMetadata, source: &'a ModelRegistryOr
 fn assert_canonical_field(owner: &'static TypeMetadata, property: &str, expected: bool) {
     let source = source();
     let graph = graph_with_name(owner, &source);
-    assert!(graph.models().iter().any(|metadata| metadata.type_id() == TypeId::of::<Name>()));
+    assert!(
+        graph
+            .models()
+            .iter()
+            .any(|metadata| metadata.type_id() == TypeId::of::<Name>())
+    );
     let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
-    let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect("canonical codec binding");
-    assert!(bindings
-        .get(&CodecOccurrenceId::new(
-            TypeMetadata::of::<Name>(),
-            "",
-            CodecSource::CanonicalValue,
-        ))
-        .is_some(), "Name retains its own canonical occurrence");
+    let bindings = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("canonical codec binding");
+    assert!(
+        bindings
+            .get(&CodecOccurrenceId::new(
+                TypeMetadata::of::<Name>(),
+                "",
+                CodecSource::CanonicalValue,
+            ))
+            .is_some(),
+        "Name retains its own canonical occurrence"
+    );
     let field = bindings.get(&CodecOccurrenceId::new(owner, property, CodecSource::CanonicalValue));
-    assert_eq!(field.is_some(), expected, "owner field occurrence for {}", owner.type_name());
+    assert_eq!(
+        field.is_some(),
+        expected,
+        "owner field occurrence for {}",
+        owner.type_name()
+    );
     if let Some(binding) = field {
         assert_eq!(binding.occurrence().type_id(), owner.type_id());
         assert_eq!(binding.occurrence().property(), property);
@@ -423,9 +440,18 @@ fn test_direct_field_canonical_wrapper_matrix() {
 fn assert_explicit_mismatch(owner: &'static TypeMetadata, expected: TypeId) {
     let source = source();
     let graph = graph_with_name(owner, &source);
-    assert!(graph.models().iter().any(|metadata| metadata.type_id() == TypeId::of::<Name>()));
+    assert!(
+        graph
+            .models()
+            .iter()
+            .any(|metadata| metadata.type_id() == TypeId::of::<Name>())
+    );
     let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
-    let errors = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect_err("exact type mismatch");
+    let errors = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect_err("exact type mismatch");
     assert_eq!(errors.errors().len(), 1);
     let error = &errors.errors()[0];
     assert_eq!(error.kind(), CodecBindErrorKind::ValueTypeMismatch);
@@ -437,20 +463,33 @@ fn assert_explicit_mismatch(owner: &'static TypeMetadata, expected: TypeId) {
 }
 
 /// Explicit Name codecs accept `Name` and `Option<Name>`; other wrappers use
-/// their one-layer effective type and report the exact expected and actual types.
+/// their one-layer effective type and report the exact expected and actual
+/// types.
 #[test]
 fn test_direct_field_explicit_wrapper_matrix() {
-    for owner in [TypeMetadata::of::<ExplicitValue>(), TypeMetadata::of::<ExplicitOptional>()] {
+    for owner in [
+        TypeMetadata::of::<ExplicitValue>(),
+        TypeMetadata::of::<ExplicitOptional>(),
+    ] {
         let source = source();
         let graph = graph_with_name(owner, &source);
         let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
-        let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect("Name codec binding");
-        let binding = bindings.get(&CodecOccurrenceId::new(owner, "value", CodecSource::Field)).unwrap();
+        let bindings = bind_codecs(CodecBindInputs {
+            graph: &graph,
+            codecs: &codecs,
+        })
+        .expect("Name codec binding");
+        let binding = bindings
+            .get(&CodecOccurrenceId::new(owner, "value", CodecSource::Field))
+            .unwrap();
         assert_eq!(binding.descriptor().value_type_id(), TypeId::of::<Name>());
     }
     assert_explicit_mismatch(TypeMetadata::of::<ExplicitBox>(), TypeId::of::<Box<Name>>());
     assert_explicit_mismatch(TypeMetadata::of::<ExplicitOptionalBox>(), TypeId::of::<Box<Name>>());
-    assert_explicit_mismatch(TypeMetadata::of::<ExplicitNestedOptional>(), TypeId::of::<Option<Name>>());
+    assert_explicit_mismatch(
+        TypeMetadata::of::<ExplicitNestedOptional>(),
+        TypeId::of::<Option<Name>>(),
+    );
 }
 
 /// A codec registered for `Box<Name>` binds exactly and executes a round trip
@@ -462,8 +501,14 @@ fn test_direct_box_field_codec_matches_and_executes() {
         let graph = graph_with_name(owner, &source);
         let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION, &BOX_NAME_REGISTRATION])
             .expect("codec registry");
-        let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect("Box<Name> codec binding");
-        let binding = bindings.get(&CodecOccurrenceId::new(owner, "value", CodecSource::Field)).unwrap();
+        let bindings = bind_codecs(CodecBindInputs {
+            graph: &graph,
+            codecs: &codecs,
+        })
+        .expect("Box<Name> codec binding");
+        let binding = bindings
+            .get(&CodecOccurrenceId::new(owner, "value", CodecSource::Field))
+            .unwrap();
         let descriptor = binding.descriptor();
         assert_eq!(descriptor.value_type_id(), TypeId::of::<Box<Name>>());
         let input = Box::new(Name("wrapped".to_owned()));
@@ -472,7 +517,6 @@ fn test_direct_box_field_codec_matches_and_executes() {
         assert_eq!(decoded.downcast::<Box<Name>>().unwrap().as_ref().as_ref().0, "wrapped");
     }
 }
-
 
 #[Model(id = "codec.CanonicalOwner")]
 struct CanonicalOwner {
