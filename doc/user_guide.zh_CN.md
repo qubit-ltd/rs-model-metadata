@@ -261,6 +261,10 @@ codec、Value canonical codec、无 codec；Rust 类型形式的 codec 声明也
 `CodecOccurrenceId` 是进程内的绑定查找身份，包含准确的 `TypeId`、可选 `ModelId`、Property
 路径和声明来源。完整键仍包含 `TypeId`，因此即使 `model()` 返回稳定的 `ModelId`，相等、哈希和排序也只适用于当前进程。不要把该值、它的 `TypeId`、哈希值或 `Debug`/`Display` 输出当作持久化键或外部身份。需要跨进程标识声明时，消费者应另行定义稳定协议，并处理匿名模型。绑定不会调用 `encode` 或 `decode`、持久化数据，也不会执行应用策略。注册项缺失或值类型不匹配时会返回错误。
 
+直接字段绑定最多剥离最外层的一层 `Option<T>`，之后按类型精确匹配。若 `T` 声明了 canonical codec，则 `T` 和 `Option<T>` 的字段 occurrence 会继承该 codec。`Box<T>` 必须注册 `Box<T>` codec；`Option<Box<T>>` 的有效类型同样是精确的 `Box<T>`；`Option<Option<T>>` 则要求 `Option<T>` codec。此规则同时适用于字段显式 codec 与 canonical fallback。`T` 自身的 canonical occurrence 与模型拥有的字段 occurrence 是不同身份。
+
+集合元素和映射 selector 遵循独立规则，集合字段不会把元素 codec 当作直接字段 codec。宏接受字段声明不代表会生成拆包适配器。绑定只检查并选择注册项；消费者必须用注册项的准确类型执行 descriptor。
+
 <!-- example: codec -->
 ```toml
 [dependencies]

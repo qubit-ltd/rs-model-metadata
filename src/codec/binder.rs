@@ -39,6 +39,18 @@ pub use codec_occurrence_id::CodecOccurrenceId;
 
 /// Binds every codec declaration in a graph to an executable registration.
 ///
+/// For a direct field declaration or canonical value fallback, the required
+/// value type is the field type itself, except that one outer `Option<T>` is
+/// unwrapped to `T`. Smart pointers are matched exactly (`Box<T>` requires a
+/// `Box<T>` codec), and nested options are not recursively unwrapped. A
+/// canonical codec for `T` is therefore inherited by `T` and `Option<T>`
+/// fields, but not by `Box<T>`, `Option<Box<T>>`, or `Option<Option<T>>`.
+/// Collection selector declarations use their separate selector type rules.
+///
+/// This function resolves declarations and validates registration types. It
+/// does not call the selected codec's `encode` or `decode` methods; consumers
+/// execute the returned descriptors with values of the registered type.
+///
 /// # Errors
 ///
 /// Returns all missing, ambiguous, and value-type mismatched occurrences.

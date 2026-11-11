@@ -362,6 +362,11 @@ struct Profile {
 `Email` 的默认选择；没有相应注册项或准确类型不匹配，会在 `codec::bind_codecs`
 阶段报错，不会在宏展开时自动补齐。
 
+宏接受声明时会保留字段类型，不会生成包装类型的拆包适配器。运行时直接字段最多剥离最外层一层
+`Option<T>`，并按该类型精确匹配：`T` 与 `Option<T>` 可以使用 `T` 的 canonical codec；
+`Box<T>` 与 `Option<Box<T>>` 要求 `Box<T>` codec；`Option<Option<T>>` 要求 `Option<T>` codec。
+完整契约及 selector 的区别见[运行时 codec 绑定指南](../../doc/user_guide.zh_CN.md#codec-绑定)。
+
 ## 从声明到消费
 
 宏展开时检查当前类型的属性语法和本地冲突；`StructureResolver` 在模型集合确定后检查引用、角色与逻辑键；验证器、查询层或测试数据生成器再根据各自任务消费解析后的信息。验证器需要可读属性与规则实现，查询层需要决定参数名、比较操作和权限，随机生成器需要取得可复用的目标实体。三个消费者可以共享声明，但各自负责执行。

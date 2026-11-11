@@ -273,6 +273,207 @@ impl ValueDecoder<str> for NameCodec {
     }
 }
 
+#[derive(Default)]
+struct BoxNameCodec;
+
+impl ValueEncoder<Box<Name>> for BoxNameCodec {
+    type Output = String;
+    type Error = Infallible;
+
+    fn encode(&mut self, input: &Box<Name>) -> Result<String, Self::Error> {
+        Ok(input.0.clone())
+    }
+}
+
+impl ValueDecoder<str> for BoxNameCodec {
+    type Output = Box<Name>;
+    type Error = Infallible;
+
+    fn decode(&mut self, input: &str) -> Result<Self::Output, Self::Error> {
+        Ok(Box::new(Name(input.to_owned())))
+    }
+}
+
+static NAME_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<NameCodec, Name>();
+static NAME_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
+    ValueCodecId::new("test.name.direct"),
+    &NAME_DESCRIPTOR,
+    ValueCodecRegistrationSource::new("codec-tests", "direct-field", file!(), line!()),
+);
+static BOX_NAME_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<BoxNameCodec, Box<Name>>();
+static BOX_NAME_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
+    ValueCodecId::new("test.box_name.direct"),
+    &BOX_NAME_DESCRIPTOR,
+    ValueCodecRegistrationSource::new("codec-tests", "direct-box-field", file!(), line!()),
+);
+
+#[Model(id = "codec.DirectValue")]
+struct DirectValue {
+    value: Name,
+}
+
+#[Model(id = "codec.DirectOptional")]
+struct DirectOptional {
+    value: Option<Name>,
+}
+
+#[Model(id = "codec.DirectBox")]
+struct DirectBox {
+    value: Box<Name>,
+}
+
+#[Model(id = "codec.DirectOptionalBox")]
+struct DirectOptionalBox {
+    value: Option<Box<Name>>,
+}
+
+#[Model(id = "codec.DirectNestedOptional")]
+struct DirectNestedOptional {
+    value: Option<Option<Name>>,
+}
+
+#[Model(id = "codec.ExplicitValue")]
+struct ExplicitValue {
+    #[codec(NameCodec)]
+    value: Name,
+}
+
+#[Model(id = "codec.ExplicitOptional")]
+struct ExplicitOptional {
+    #[codec(NameCodec)]
+    value: Option<Name>,
+}
+
+#[Model(id = "codec.ExplicitBox")]
+struct ExplicitBox {
+    #[codec(NameCodec)]
+    value: Box<Name>,
+}
+
+#[Model(id = "codec.ExplicitOptionalBox")]
+struct ExplicitOptionalBox {
+    #[codec(NameCodec)]
+    value: Option<Box<Name>>,
+}
+
+#[Model(id = "codec.ExplicitNestedOptional")]
+struct ExplicitNestedOptional {
+    #[codec(NameCodec)]
+    value: Option<Option<Name>>,
+}
+
+#[Model(id = "codec.ExactBox")]
+struct ExactBox {
+    #[codec(BoxNameCodec)]
+    value: Box<Name>,
+}
+
+#[Model(id = "codec.ExactOptionalBox")]
+struct ExactOptionalBox {
+    #[codec(BoxNameCodec)]
+    value: Option<Box<Name>>,
+}
+
+fn graph_with_name<'a>(owner: &'static TypeMetadata, source: &'a ModelRegistryOrigin) -> ModelGraph<'a> {
+    let models = ModelRegistry::from_static_metadata(
+        ReflectionContext::global(),
+        &[(owner, source), (TypeMetadata::of::<Name>(), source)],
+    )
+    .expect("owner and canonical value models");
+    let models = Box::leak(Box::new(models));
+    StructureResolver::new(ResolveInputs { roots: &[], models })
+        .resolve()
+        .expect("direct field graph")
+}
+
+fn assert_canonical_field(owner: &'static TypeMetadata, property: &str, expected: bool) {
+    let source = source();
+    let graph = graph_with_name(owner, &source);
+    assert!(graph.models().iter().any(|metadata| metadata.type_id() == TypeId::of::<Name>()));
+    let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+    let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect("canonical codec binding");
+    assert!(bindings
+        .get(&CodecOccurrenceId::new(
+            TypeMetadata::of::<Name>(),
+            "",
+            CodecSource::CanonicalValue,
+        ))
+        .is_some(), "Name retains its own canonical occurrence");
+    let field = bindings.get(&CodecOccurrenceId::new(owner, property, CodecSource::CanonicalValue));
+    assert_eq!(field.is_some(), expected, "owner field occurrence for {}", owner.type_name());
+    if let Some(binding) = field {
+        assert_eq!(binding.occurrence().type_id(), owner.type_id());
+        assert_eq!(binding.occurrence().property(), property);
+        assert_eq!(binding.declaration().source(), CodecSource::CanonicalValue);
+        assert_eq!(binding.descriptor().value_type_id(), TypeId::of::<Name>());
+    }
+}
+
+/// Direct field canonical fallback unwraps only one outer `Option` and uses
+/// exact runtime type identity for smart pointers and nested options.
+#[test]
+fn test_direct_field_canonical_wrapper_matrix() {
+    assert_canonical_field(TypeMetadata::of::<DirectValue>(), "value", true);
+    assert_canonical_field(TypeMetadata::of::<DirectOptional>(), "value", true);
+    assert_canonical_field(TypeMetadata::of::<DirectBox>(), "value", false);
+    assert_canonical_field(TypeMetadata::of::<DirectOptionalBox>(), "value", false);
+    assert_canonical_field(TypeMetadata::of::<DirectNestedOptional>(), "value", false);
+}
+
+fn assert_explicit_mismatch(owner: &'static TypeMetadata, expected: TypeId) {
+    let source = source();
+    let graph = graph_with_name(owner, &source);
+    assert!(graph.models().iter().any(|metadata| metadata.type_id() == TypeId::of::<Name>()));
+    let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+    let errors = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect_err("exact type mismatch");
+    assert_eq!(errors.errors().len(), 1);
+    let error = &errors.errors()[0];
+    assert_eq!(error.kind(), CodecBindErrorKind::ValueTypeMismatch);
+    assert_eq!(error.occurrence().type_id(), owner.type_id());
+    assert_eq!(error.occurrence().property(), "value");
+    assert_eq!(error.occurrence().source(), CodecSource::Field);
+    assert_eq!(error.expected_type(), expected);
+    assert_eq!(error.actual_type(), Some(TypeId::of::<Name>()));
+}
+
+/// Explicit Name codecs accept `Name` and `Option<Name>`; other wrappers use
+/// their one-layer effective type and report the exact expected and actual types.
+#[test]
+fn test_direct_field_explicit_wrapper_matrix() {
+    for owner in [TypeMetadata::of::<ExplicitValue>(), TypeMetadata::of::<ExplicitOptional>()] {
+        let source = source();
+        let graph = graph_with_name(owner, &source);
+        let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+        let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect("Name codec binding");
+        let binding = bindings.get(&CodecOccurrenceId::new(owner, "value", CodecSource::Field)).unwrap();
+        assert_eq!(binding.descriptor().value_type_id(), TypeId::of::<Name>());
+    }
+    assert_explicit_mismatch(TypeMetadata::of::<ExplicitBox>(), TypeId::of::<Box<Name>>());
+    assert_explicit_mismatch(TypeMetadata::of::<ExplicitOptionalBox>(), TypeId::of::<Box<Name>>());
+    assert_explicit_mismatch(TypeMetadata::of::<ExplicitNestedOptional>(), TypeId::of::<Option<Name>>());
+}
+
+/// A codec registered for `Box<Name>` binds exactly and executes a round trip
+/// for both direct and optional smart-pointer fields.
+#[test]
+fn test_direct_box_field_codec_matches_and_executes() {
+    for owner in [TypeMetadata::of::<ExactBox>(), TypeMetadata::of::<ExactOptionalBox>()] {
+        let source = source();
+        let graph = graph_with_name(owner, &source);
+        let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION, &BOX_NAME_REGISTRATION])
+            .expect("codec registry");
+        let bindings = bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect("Box<Name> codec binding");
+        let binding = bindings.get(&CodecOccurrenceId::new(owner, "value", CodecSource::Field)).unwrap();
+        let descriptor = binding.descriptor();
+        assert_eq!(descriptor.value_type_id(), TypeId::of::<Box<Name>>());
+        let input = Box::new(Name("wrapped".to_owned()));
+        let encoded = descriptor.encode(&input).expect("encode Box<Name>");
+        let decoded = descriptor.decode(&encoded).expect("decode Box<Name>");
+        assert_eq!(decoded.downcast::<Box<Name>>().unwrap().as_ref().as_ref().0, "wrapped");
+    }
+}
+
+
 #[Model(id = "codec.CanonicalOwner")]
 struct CanonicalOwner {
     inherited: Name,

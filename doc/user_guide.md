@@ -334,6 +334,19 @@ and handle anonymous models. Binding does not call `encode` or `decode`, persist
 data, or apply application policy. Missing registration and value-type mismatch
 are reported as binding errors.
 
+For direct fields, binding removes at most one outer `Option<T>` and matches
+the resulting type exactly. If `T` declares a canonical codec, the field
+occurrence inherits it for `T` and `Option<T>`. `Box<T>` instead requires a
+codec registered for `Box<T>`; `Option<Box<T>>` uses that same exact boxed
+type, and `Option<Option<T>>` requires `Option<T>`. These rules apply to both
+explicit field codecs and canonical fallback. The canonical occurrence on the
+`T` value itself is separate from a field occurrence owned by its model.
+Collection element and map selectors follow their own selector rules and do
+not make a collection field use its element codec as a direct codec. A macro
+accepting one of these field declarations does not create an adapter that
+unwraps its value. Binding checks and selects registrations; the consumer
+must execute the descriptor with a value of its exact registered type.
+
 <!-- example: codec -->
 ```toml
 [dependencies]

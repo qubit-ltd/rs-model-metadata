@@ -214,6 +214,14 @@ registered with the supplied codec registry. Explicit field selection takes
 precedence over a Value's canonical codec; selecting that same canonical codec
 explicitly is legal.
 
+Macro acceptance preserves the field declaration; it does not generate a
+wrapper-unwrapping adapter. At runtime, direct fields unwrap at most one outer
+`Option<T>` and match that type exactly: `T` and `Option<T>` can use a canonical
+codec for `T`, while `Box<T>` and `Option<Box<T>>` require a codec for
+`Box<T>`, and `Option<Option<T>>` requires one for `Option<T>`. See the
+[runtime codec binding guide](../../doc/user_guide.md#codec-binding) for the
+full contract and selector distinction.
+
 ## Declaration support versus execution support
 
 A macro accepting a declaration does not promise that a particular consumer can
