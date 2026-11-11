@@ -19,6 +19,7 @@ use qubit_model_derive::Projection;
 use qubit_model_metadata::metadata::IndexingReasons;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::TypeMetadata;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ContextRequirement;
 use qubit_model_metadata::resolve::ResolveErrorKind;
@@ -38,6 +39,51 @@ struct Target {
 struct Root {
     #[reference(entity = Target, property = id)]
     target: Id,
+}
+
+#[Model(id = "identity.RustTypeOverlayRoot")]
+struct RustTypeOverlayRoot {
+    #[reference(entity = Target)]
+    target: Target,
+}
+
+#[Model(id = "identity.IdRoot")]
+struct ModelIdRoot {
+    #[reference(entity_id = "identity.Target")]
+    target: Target,
+}
+
+#[test]
+fn test_reference_targets_use_the_explicit_overlay_for_both_target_kinds() {
+    let models = ModelRegistry::from_context(ReflectionContext::global()).expect("valid registry");
+    let registered = TypeMetadata::of::<Target>();
+    let overlay = v8::leak(
+        v8::GeneratedTypeMetadataBuilder::new::<Target>(
+            registered.model_id(),
+            registered.fields(),
+            registered.role_metadata(),
+        )
+        .finish::<Target>(),
+    );
+    assert!(!std::ptr::eq(registered, overlay));
+    let root = TypeMetadata::of::<RustTypeOverlayRoot>();
+    let model_id_root = TypeMetadata::of::<ModelIdRoot>();
+    let roots = [overlay, root, model_id_root];
+    let graph = StructureResolver::for_roots(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("both reference target forms resolve");
+    assert!(std::ptr::eq(graph.model(overlay.type_id()).expect("graph target"), overlay));
+    for owner in [root, model_id_root] {
+        let field = owner.field("target").expect("reference field");
+        let resolved = graph
+            .reference(field.location().expect("reference location"))
+            .expect("resolved target");
+        assert!(std::ptr::eq(resolved.target(), overlay));
+        assert!(std::ptr::eq(graph.model(resolved.target().type_id()).unwrap(), resolved.target()));
+    }
 }
 
 #[test]
