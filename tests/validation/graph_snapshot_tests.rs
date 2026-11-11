@@ -13,6 +13,7 @@ use std::sync::Arc;
 use qubit_model_derive::Model;
 use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::FieldMetadata;
+use qubit_model_metadata::metadata::HasTypeMetadata;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::registry::ModelRegistryOrigin;
@@ -45,7 +46,7 @@ struct UniqueValues {
 /// Builds a second checked overlay for the same concrete descriptor, without
 /// domain constraints. This models explicitly selected snapshot declarations.
 #[must_use]
-fn unconstrained<T: Reflect>() -> &'static TypeMetadata {
+fn unconstrained<T: HasTypeMetadata + Reflect>() -> &'static TypeMetadata {
     let descriptor = TypeDescriptor::of::<T>();
     let fields = descriptor
         .fields()
@@ -53,8 +54,12 @@ fn unconstrained<T: Reflect>() -> &'static TypeMetadata {
         .map(|field| FieldMetadata::from_reflect(descriptor.type_id(), field))
         .collect();
     v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<T>(None, v8::leak_slice(fields), v8::leak(v8::model_role()))
-            .finish::<T>(),
+        v8::GeneratedTypeMetadataBuilder::new::<T>(
+            TypeMetadata::of::<T>().model_id(),
+            v8::leak_slice(fields),
+            v8::leak(v8::model_role()),
+        )
+        .finish::<T>(),
     )
 }
 
@@ -163,35 +168,111 @@ fn test_registered_root_overlay_uses_explicit_snapshot_declarations() {
     let models =
         ModelRegistry::from_static_metadata(&reflection, &[(registered, &origin)]).expect("registered declaration");
     let roots = [explicit];
-    let graph = Arc::new(
-        StructureResolver::new(ResolveInputs {
-            models: &models,
-            roots: &roots,
-        })
-        .resolve()
-        .expect("explicit overlay graph"),
-    );
-    assert!(std::ptr::eq(
-        graph.model(explicit.type_id()).expect("graph root"),
-        explicit
-    ));
+    let inputs = ResolveInputs {
+        models: &models,
+        roots: &roots,
+    };
+    let graphs = [
+        StructureResolver::new(inputs)
+            .resolve()
+            .expect("all-registered explicit overlay"),
+        StructureResolver::for_roots(inputs)
+            .resolve()
+            .expect("root-scoped explicit overlay"),
+        StructureResolver::for_static_roots(&models, [explicit])
+            .resolve()
+            .expect("static-root explicit overlay"),
+    ];
     let validators = ValidatorRegistry::empty();
-    let plan = ValidationPlan::build(
-        explicit,
-        ValidationBuildInputs {
-            graph: Arc::clone(&graph),
-            validators: &validators,
-        },
-    )
-    .expect("unconstrained snapshot");
-    assert_eq!(plan.binding_count(), 0);
-    let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&Record { name: String::new() }),
-            &ValidationOptions::default(),
+    for graph in graphs {
+        assert!(std::ptr::eq(
+            graph.model(explicit.type_id()).expect("graph root"),
+            explicit
+        ));
+        let plan = ValidationPlan::build(
+            explicit,
+            ValidationBuildInputs {
+                graph: Arc::new(graph),
+                validators: &validators,
+            },
         )
-        .expect("execution");
-    assert!(report.is_valid());
+        .expect("unconstrained snapshot");
+        assert_eq!(plan.binding_count(), 0);
+        let report = plan
+            .validate_dynamic(
+                DynamicRef::<Local>::new(&Record { name: String::new() }),
+                &ValidationOptions::default(),
+            )
+            .expect("execution");
+        assert!(report.is_valid());
+    }
+    assert!(std::ptr::eq(
+        models.metadata(registered.model_id().unwrap().as_str()).unwrap(),
+        registered
+    ));
+}
+
+/// Every resolver mode uses an explicit constrained overlay over an
+/// unconstrained registered declaration.
+#[test]
+fn test_registered_unconstrained_overlay_uses_explicit_validation_declarations() {
+    let registered = unconstrained::<Record>();
+    let explicit = TypeMetadata::of::<Record>();
+    let reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("linked context");
+    let origin = ModelRegistryOrigin {
+        crate_name: "graph-snapshot-tests",
+        crate_version: None,
+        module_path: "graph_snapshot_tests",
+        file: Some(file!()),
+        line: Some(1),
+        column: Some(1),
+    };
+    let models = ModelRegistry::from_static_metadata(&reflection, &[(registered, &origin)])
+        .expect("unconstrained registered declaration");
+    let roots = [explicit];
+    let inputs = ResolveInputs {
+        models: &models,
+        roots: &roots,
+    };
+    let graphs = [
+        StructureResolver::new(inputs)
+            .resolve()
+            .expect("all-registered constrained overlay"),
+        StructureResolver::for_roots(inputs)
+            .resolve()
+            .expect("root-scoped constrained overlay"),
+        StructureResolver::for_static_roots(&models, [explicit])
+            .resolve()
+            .expect("static-root constrained overlay"),
+    ];
+
+    let validators = ValidatorRegistry::empty();
+    for graph in graphs {
+        assert!(std::ptr::eq(
+            graph.model(explicit.type_id()).expect("selected graph root"),
+            explicit
+        ));
+        let plan = ValidationPlan::build(
+            explicit,
+            ValidationBuildInputs {
+                graph: Arc::new(graph),
+                validators: &validators,
+            },
+        )
+        .expect("explicit constrained snapshot");
+        assert_eq!(plan.binding_count(), 1);
+        let report = plan
+            .validate_dynamic(
+                DynamicRef::<Local>::new(&Record { name: String::new() }),
+                &ValidationOptions::default(),
+            )
+            .expect("execute explicit constraint");
+        assert_eq!(report.violations().len(), 1);
+        assert_eq!(report.violations()[0].path().render(), "name");
+    }
     assert!(std::ptr::eq(
         models.metadata(registered.model_id().unwrap().as_str()).unwrap(),
         registered
