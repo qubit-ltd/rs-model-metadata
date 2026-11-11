@@ -86,3 +86,8 @@ required-features = ["generic"]
 [[bench]]
 name = "typeref_baseline"
 harness = false
+
+[[bench]]
+name = "codec_binding"
+harness = false
+required-features = ["codec"]
