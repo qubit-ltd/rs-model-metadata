@@ -189,7 +189,8 @@ fn test_computed_property_accepts_equal_expression_and_rejects_associated_item_c
     let u16_text = qubit_reflect::__private::codegen_v4::expression::type_expression_in(&U16_OBJECT, &context)
         .display()
         .to_string();
-    assert_eq!(u8_text, u16_text);
+    assert_eq!(u8_text, "dyn Iterator<Item = u8>");
+    assert_eq!(u16_text, "dyn Iterator<Item = u16>");
 
     let colliding_getter = v8::leak(GetterMetadata::new::<PropertyRecord>(
         "computed",
@@ -231,7 +232,15 @@ fn test_field_property_accepts_equal_expression_and_rejects_different_structure(
         qubit_reflect::__private::codegen_v4::expression::type_expression_in(&COLLIDING_FIELD_PROJECTION, &context)
             .display()
             .to_string();
-    assert_eq!(actual_text, declared_text);
+    assert_eq!(
+        actual_text,
+        "<Container as for<'static> ProjectionTrait < 'static ><'static>>::Item"
+    );
+    assert_eq!(
+        declared_text,
+        "<Container as for<'a> ProjectionTrait < 'static ><'static>>::Item"
+    );
+    assert_ne!(actual_text, declared_text);
     assert!(
         !qubit_reflect::__private::codegen_v4::expression::type_expression_in(field_expression, &context,)
             .structurally_eq(qubit_reflect::__private::codegen_v4::expression::type_expression_in(
