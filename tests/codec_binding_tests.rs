@@ -300,6 +300,34 @@ static NAME_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistr
     &NAME_DESCRIPTOR,
     ValueCodecRegistrationSource::new("codec-tests", "direct-field", file!(), line!()),
 );
+
+macro_rules! empty_noise_models {
+    ($($name:ident),+ $(,)?) => {
+        $(
+            #[Model]
+            struct $name {}
+        )+
+    };
+}
+
+empty_noise_models!(
+    EmptyNoise01,
+    EmptyNoise02,
+    EmptyNoise03,
+    EmptyNoise04,
+    EmptyNoise05,
+    EmptyNoise06,
+    EmptyNoise07,
+    EmptyNoise08,
+    EmptyNoise09,
+    EmptyNoise10,
+    EmptyNoise11,
+    EmptyNoise12,
+    EmptyNoise13,
+    EmptyNoise14,
+    EmptyNoise15,
+    EmptyNoise16,
+);
 static BOX_NAME_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<BoxNameCodec, Box<Name>>();
 static BOX_NAME_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.box_name.direct"),
@@ -375,13 +403,21 @@ struct ExactOptionalBox {
 }
 
 fn graph_with_name<'a>(owner: &'static TypeMetadata, source: &'a ModelRegistryOrigin) -> ModelGraph<'a> {
+    graph_with_name_and_roots(owner, source, &[])
+}
+
+fn graph_with_name_and_roots<'a>(
+    owner: &'static TypeMetadata,
+    source: &'a ModelRegistryOrigin,
+    roots: &'a [&'static TypeMetadata],
+) -> ModelGraph<'a> {
     let models = ModelRegistry::from_static_metadata(
         ReflectionContext::global(),
         &[(owner, source), (TypeMetadata::of::<Name>(), source)],
     )
     .expect("owner and canonical value models");
     let models = Box::leak(Box::new(models));
-    StructureResolver::new(ResolveInputs { roots: &[], models })
+    StructureResolver::new(ResolveInputs { roots, models })
         .resolve()
         .expect("direct field graph")
 }
@@ -435,6 +471,54 @@ fn test_direct_field_canonical_wrapper_matrix() {
     assert_canonical_field(TypeMetadata::of::<DirectBox>(), "value", false);
     assert_canonical_field(TypeMetadata::of::<DirectOptionalBox>(), "value", false);
     assert_canonical_field(TypeMetadata::of::<DirectNestedOptional>(), "value", false);
+}
+
+#[test]
+fn test_canonical_binding_is_stable_when_graph_gains_unrelated_models() {
+    let source = source();
+    let owner = TypeMetadata::of::<DirectValue>();
+    let original = graph_with_name(owner, &source);
+    let noise = [
+        TypeMetadata::of::<EmptyNoise01>(),
+        TypeMetadata::of::<EmptyNoise02>(),
+        TypeMetadata::of::<EmptyNoise03>(),
+        TypeMetadata::of::<EmptyNoise04>(),
+        TypeMetadata::of::<EmptyNoise05>(),
+        TypeMetadata::of::<EmptyNoise06>(),
+        TypeMetadata::of::<EmptyNoise07>(),
+        TypeMetadata::of::<EmptyNoise08>(),
+        TypeMetadata::of::<EmptyNoise09>(),
+        TypeMetadata::of::<EmptyNoise10>(),
+        TypeMetadata::of::<EmptyNoise11>(),
+        TypeMetadata::of::<EmptyNoise12>(),
+        TypeMetadata::of::<EmptyNoise13>(),
+        TypeMetadata::of::<EmptyNoise14>(),
+        TypeMetadata::of::<EmptyNoise15>(),
+        TypeMetadata::of::<EmptyNoise16>(),
+    ];
+    let expanded = graph_with_name_and_roots(owner, &source, &noise);
+    assert_eq!(expanded.models().len(), original.models().len() + noise.len());
+
+    let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+    let original_bindings = bind_codecs(CodecBindInputs {
+        graph: &original,
+        codecs: &codecs,
+    })
+    .expect("original graph bindings");
+    let expanded_bindings = bind_codecs(CodecBindInputs {
+        graph: &expanded,
+        codecs: &codecs,
+    })
+    .expect("expanded graph bindings");
+    let occurrence = CodecOccurrenceId::new(owner, "value", CodecSource::CanonicalValue);
+    let original_value = original_bindings.get(&occurrence).expect("original canonical field");
+    let expanded_value = expanded_bindings.get(&occurrence).expect("expanded canonical field");
+    assert_eq!(expanded_bindings.bindings().len(), original_bindings.bindings().len());
+    assert_eq!(expanded_value.occurrence(), original_value.occurrence());
+    assert_eq!(
+        expanded_value.descriptor().value_type_id(),
+        original_value.descriptor().value_type_id()
+    );
 }
 
 fn assert_explicit_mismatch(owner: &'static TypeMetadata, expected: TypeId) {
@@ -701,6 +785,33 @@ fn test_opaque_collection_field_is_not_resolved_for_codec_binding() {
         codecs: &codecs,
     })
     .expect("opaque field skipped");
+    assert_eq!(bindings.bindings().len(), 0);
+}
+
+#[Model]
+struct OpaqueMissingCodecContainer {
+    #[opaque]
+    #[codec(id = "test.unregistered.opaque")]
+    hidden: Option<Vec<String>>,
+}
+
+#[test]
+fn test_opaque_unresolved_field_skips_missing_codec_registration() {
+    let root = TypeMetadata::of::<OpaqueMissingCodecContainer>();
+    let roots = [root];
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("opaque graph");
+    let codecs = ValueStringCodecRegistry::empty();
+    let bindings = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("unresolved opaque field is skipped before registry lookup");
     assert_eq!(bindings.bindings().len(), 0);
 }
 

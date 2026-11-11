@@ -25,6 +25,7 @@ use crate::metadata::CodecSource;
 use crate::metadata::FieldMetadata;
 use crate::metadata::SelectorPosition;
 use crate::metadata::TypeMetadata;
+use crate::resolve::ModelGraph;
 use crate::transparent_descriptor::transparent_descriptor;
 
 mod codec_bind_inputs;
@@ -46,6 +47,11 @@ pub use codec_occurrence_id::CodecOccurrenceId;
 /// canonical codec for `T` is therefore inherited by `T` and `Option<T>`
 /// fields, but not by `Box<T>`, `Option<Box<T>>`, or `Option<Option<T>>`.
 /// Collection selector declarations use their separate selector type rules.
+/// A field is processed only when its concrete descriptor can be resolved in
+/// the graph's reflection context. If that descriptor is unavailable, the
+/// field and all of its codec declarations are skipped. Consequently, success
+/// means that every processed declaration bound without error; it does not
+/// guarantee that every source declaration was checked or produced a binding.
 ///
 /// This function resolves declarations and validates registration types. It
 /// does not call the selected codec's `encode` or `decode` methods; consumers
@@ -77,7 +83,7 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
                 model,
                 field,
                 context,
-                inputs.graph.models(),
+                inputs.graph,
                 inputs.codecs,
                 &mut bindings,
                 &mut errors,
@@ -92,7 +98,7 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
                     path.into(),
                     field,
                     context,
-                    inputs.graph.models(),
+                    inputs.graph,
                     inputs.codecs,
                     &mut bindings,
                     &mut errors,
@@ -127,7 +133,7 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
 /// * `model` - Metadata for the model that owns the field.
 /// * `field` - Field whose direct and selector codec declarations are bound.
 /// * `context` - Reflection context used to inspect the field's concrete type.
-/// * `models` - Resolved model metadata used to find canonical value codecs.
+/// * `graph` - Resolved graph used to find canonical value codecs.
 /// * `codecs` - Runtime registry of executable value-string codecs.
 /// * `bindings` - Output map receiving successful bindings by occurrence.
 /// * `errors` - Output list receiving binding failures.
@@ -136,7 +142,7 @@ fn bind_field<'a>(
     model: &'static TypeMetadata,
     field: &'static FieldMetadata,
     context: &ReflectionContext,
-    models: &[&'static TypeMetadata],
+    graph: &ModelGraph<'_>,
     codecs: &'a ValueStringCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
@@ -146,7 +152,7 @@ fn bind_field<'a>(
         field.name().unwrap_or("<unnamed>").into(),
         field,
         context,
-        models,
+        graph,
         codecs,
         bindings,
         errors,
@@ -161,7 +167,7 @@ fn bind_field<'a>(
 /// * `path` - Canonical property path used to identify codec occurrences.
 /// * `field` - Field whose direct and selector codec declarations are bound.
 /// * `context` - Reflection context used to inspect the field's concrete type.
-/// * `models` - Resolved model metadata used to find canonical value codecs.
+/// * `graph` - Resolved graph used to find canonical value codecs.
 /// * `codecs` - Runtime registry of executable value-string codecs.
 /// * `bindings` - Output map receiving successful bindings by occurrence.
 /// * `errors` - Output list receiving binding failures.
@@ -171,7 +177,7 @@ fn bind_field_at<'a>(
     path: Box<str>,
     field: &'static FieldMetadata,
     context: &ReflectionContext,
-    models: &[&'static TypeMetadata],
+    graph: &ModelGraph<'_>,
     codecs: &'a ValueStringCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
@@ -189,7 +195,7 @@ fn bind_field_at<'a>(
             .unwrap_or_else(|| descriptor.type_id()),
         _ => descriptor.type_id(),
     };
-    let effective = field.codec().or_else(|| canonical_codec(expected, models));
+    let effective = field.codec().or_else(|| canonical_codec(expected, graph));
     if let Some(codec) = effective {
         bind_one(
             CodecOccurrenceId::new(model, path.clone(), codec.source()),
@@ -213,7 +219,7 @@ fn bind_field_at<'a>(
         let Some(expected) = selector_type_id(descriptor, selector.position()) else {
             continue;
         };
-        let Some(codec) = selector.codec().or_else(|| canonical_codec(expected, models)) else {
+        let Some(codec) = selector.codec().or_else(|| canonical_codec(expected, graph)) else {
             continue;
         };
         bind_one(
@@ -233,13 +239,9 @@ fn bind_field_at<'a>(
 /// # Parameters
 ///
 /// * `expected` - Runtime type whose canonical codec is being looked up.
-/// * `models` - Resolved model metadata searched for that concrete type.
-fn canonical_codec(expected: TypeId, models: &[&'static TypeMetadata]) -> Option<&'static CodecMetadata> {
-    models
-        .iter()
-        .find(|model| model.type_id() == expected)?
-        .as_value()?
-        .canonical_codec()
+/// * `graph` - Resolved graph whose model index is queried for that type.
+fn canonical_codec(expected: TypeId, graph: &ModelGraph<'_>) -> Option<&'static CodecMetadata> {
+    graph.model(expected)?.as_value()?.canonical_codec()
 }
 
 /// Resolves one declaration to exactly one compatible registry registration.

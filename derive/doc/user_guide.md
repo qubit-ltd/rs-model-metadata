@@ -209,10 +209,18 @@ The runtime `FieldAttributeMetadata::ValidateNested` marker and
 discovers nested declarations according to its support matrix without an extra
 marker; reference and opaque semantics still define traversal boundaries.
 
-Codecs retain an explicit stable ID or Rust codec type. The codec must be
-registered with the supplied codec registry. Explicit field selection takes
-precedence over a Value's canonical codec; selecting that same canonical codec
-explicitly is legal.
+Codecs retain an explicit stable ID or Rust codec type. For a field whose
+concrete descriptor resolves, the selected codec must be registered with the
+supplied codec registry. If its descriptor is absent, the entire field binding
+phase is skipped, including explicit codec and selector declarations. An
+opaque collection is one possible example, not a rule that every opaque field
+is skipped. `Ok` from binding means processed declarations had no binding
+errors; it does not mean every source declaration was checked. Consumers should
+check for expected `CodecOccurrenceId`s and choose startup failure or fallback
+when one is missing. This boundary is independent of the validation support
+matrix. Explicit field selection takes precedence over a Value's canonical
+codec; selecting that same canonical codec explicitly is legal. See the
+[runtime codec binding guide](../../doc/user_guide.md#codec-binding).
 
 Macro acceptance preserves the field declaration; it does not generate a
 wrapper-unwrapping adapter. At runtime, direct fields unwrap at most one outer

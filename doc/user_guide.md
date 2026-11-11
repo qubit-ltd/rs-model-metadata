@@ -449,6 +449,18 @@ fn main() {
 The returned binding identifies which implementation the application may use.
 The application owns codec invocation, persistence, and any surrounding policy.
 
+Binding processes declarations only for fields whose concrete reflection
+descriptors resolve in the supplied graph and context. If a field descriptor is
+absent, the entire binding phase for that field is skipped, including its
+explicit codec and selector declarations. An opaque collection is one example
+of a field whose descriptor may be unavailable; opacity does not mean that
+every opaque field is skipped. A successful `Ok` means the declarations that
+were processed had no binding errors. It does not mean every source declaration
+was checked or bound. When a codec is required, check for its expected
+`CodecOccurrenceId` in the returned bindings and choose an application startup
+failure or fallback when it is missing. This descriptor-resolution boundary is
+independent of the validation backend's `ValidationPlan` support matrix.
+
 ## Advanced usage: field identity and API migration
 
 A concrete field's `location()` is `Some(FieldLocation)`, containing the owner
@@ -621,7 +633,15 @@ only within the current process; a stable `ModelId` does not make the complete
 key persistent. Do not use the value, its `TypeId`, a hash, or its `Debug` or
 `Display` output as an external identity. Consumers needing cross-process
 declaration identity must define a stable protocol and account for anonymous
-models.
+models. Binding covers only declarations on fields whose concrete descriptors
+resolve. If a descriptor is absent, the whole field binding phase is skipped,
+including explicit codec and selector declarations. An opaque collection is
+one possible example, not a rule that every opaque field is skipped. `Ok`
+means the processed declarations had no binding errors; it does not certify
+that every source declaration was checked or bound. Check for each expected
+`CodecOccurrenceId` in the returned bindings and decide whether its absence
+should fail startup or activate an application fallback. This boundary is
+independent of the `ValidationPlan` support matrix.
 
 ## Limitations: execution support and explicit refusal
 

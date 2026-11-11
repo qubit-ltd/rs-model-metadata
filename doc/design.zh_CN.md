@@ -16,6 +16,8 @@
 
 可选的 `validation` feature 可将受支持的声明绑定为 `ValidationPlan`。随机对象生成和 REST 查询执行可以消费这份元数据契约，但不是 `ModelGraph` 自身的行为。
 
+启用 `codec` 后，绑定只处理具体 descriptor 可解析字段上的声明；descriptor 缺失时会跳过该字段的整个阶段，包括显式 codec 与 selector。`Ok` 表示已处理声明没有绑定错误，不代表检查了所有源声明。消费者应检查预期的 `CodecOccurrenceId`，并决定缺失时启动失败还是回退。此边界独立于验证支持矩阵。opaque 集合只是 descriptor 可能不可用的一个例子，并非所有 opaque 字段都会跳过。详见[运行时用户指南](user_guide.zh_CN.md#codec-绑定)。
+
 ## 边界与数据流
 
 ```text

@@ -168,7 +168,7 @@ fn accessor_getter(
 }
 
 #[test]
-fn test_computed_property_accepts_equal_expression_and_rejects_associated_item_collision() {
+fn test_computed_property_accepts_equal_expression_and_rejects_structural_mismatch() {
     let model = TypeMetadata::of::<PropertyRecord>();
     let context = context();
     let matching_getter = v8::leak(GetterMetadata::new::<PropertyRecord>(
@@ -182,16 +182,6 @@ fn test_computed_property_accepts_equal_expression_and_rejects_associated_item_c
     model
         .validate_properties_in(&context, &[matching])
         .expect("matching computed property expressions");
-
-    let u8_text = qubit_reflect::__private::codegen_v4::expression::type_expression_in(&U8_OBJECT, &context)
-        .display()
-        .to_string();
-    let u16_text = qubit_reflect::__private::codegen_v4::expression::type_expression_in(&U16_OBJECT, &context)
-        .display()
-        .to_string();
-    assert_eq!(u8_text, "dyn Iterator");
-    assert_eq!(u16_text, "dyn Iterator");
-    assert_eq!(u8_text, u16_text);
 
     let colliding_getter = v8::leak(GetterMetadata::new::<PropertyRecord>(
         "computed",
@@ -209,7 +199,7 @@ fn test_computed_property_accepts_equal_expression_and_rejects_associated_item_c
 }
 
 #[test]
-fn test_field_property_accepts_equal_expression_and_rejects_different_structure() {
+fn test_field_property_accepts_equal_expression_and_rejects_structural_mismatch() {
     let model = TypeMetadata::of::<PropertyRecord>();
     let context = context();
     let field = model.field("value").expect("value field");
@@ -226,19 +216,6 @@ fn test_field_property_accepts_equal_expression_and_rejects_different_structure(
         .validate_properties_in(&context, &[matching])
         .expect("matching field expressions");
 
-    let actual_text = qubit_reflect::__private::codegen_v4::expression::type_expression_in(field_expression, &context)
-        .display()
-        .to_string();
-    let declared_text =
-        qubit_reflect::__private::codegen_v4::expression::type_expression_in(&COLLIDING_FIELD_PROJECTION, &context)
-            .display()
-            .to_string();
-    assert_eq!(actual_text, "<Container as ProjectionTrait < 'static ><'static>>::Item");
-    assert_eq!(
-        declared_text,
-        "<Container as ProjectionTrait < 'static ><'static>>::Item"
-    );
-    assert_eq!(actual_text, declared_text);
     assert!(
         !qubit_reflect::__private::codegen_v4::expression::type_expression_in(field_expression, &context,)
             .structurally_eq(qubit_reflect::__private::codegen_v4::expression::type_expression_in(

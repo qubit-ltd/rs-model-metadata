@@ -358,9 +358,13 @@ struct Profile {
 }
 ```
 
-`EmailCodec` 和 `profile.email.v2` 的实现及注册项由应用提供。上例字段显式选择优先于
-`Email` 的默认选择；没有相应注册项或准确类型不匹配，会在 `codec::bind_codecs`
-阶段报错，不会在宏展开时自动补齐。
+`EmailCodec` 和 `profile.email.v2` 的实现及注册项由应用提供。对于具体 descriptor 可解析的字段，
+上例字段显式选择优先于 `Email` 的默认选择；没有相应注册项或准确类型不匹配，会在
+`codec::bind_codecs` 阶段报错，不会在宏展开时自动补齐。若字段 descriptor 缺失，整个字段绑定阶段
+都会跳过，包括显式 codec 和 selector 声明。opaque 集合是 descriptor 可能不可用的一个例子，
+并非所有 opaque 字段都会跳过。`Ok` 表示已处理声明没有绑定错误，不表示检查了所有源声明。消费者应
+检查预期的 `CodecOccurrenceId`，并决定缺失时启动失败还是回退。此边界独立于验证支持矩阵；完整说明见
+[运行时 codec 绑定指南](../../doc/user_guide.zh_CN.md#codec-绑定)。
 
 宏接受声明时会保留字段类型，不会生成包装类型的拆包适配器。运行时直接字段最多剥离最外层一层
 `Option<T>`，并按该类型精确匹配：`T` 与 `Option<T>` 可以使用 `T` 的 canonical codec；
