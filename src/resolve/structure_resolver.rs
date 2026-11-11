@@ -12,6 +12,7 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use super::error::ModelResolutionCause;
 use super::error::ResolveError;
 use super::error::ResolveErrorKind;
 use super::error::ResolveErrors;
@@ -32,6 +33,7 @@ use super::relations::resolve_property_path;
 use super::relations::validate_value_closure;
 use super::resolve_inputs::ResolveInputs;
 use crate::metadata::DeclaredEntityTarget;
+use crate::metadata::FieldMetadata;
 use crate::metadata::ModelRole;
 use crate::metadata::ProjectionMetadata;
 use crate::metadata::PropertyMetadata;
@@ -59,6 +61,13 @@ use crate::registry::ModelRegistryOrigin;
 /// Each root is ABI-validated, even when a later root supersedes it. The
 /// constructor's scope controls discovery only: it does not change this
 /// metadata selection rule or modify registry indexes.
+///
+/// Opaque fields stop traversal into their contents. The resolver still looks
+/// up the opaque field's declared concrete type to reject hidden model roles;
+/// absent metadata is allowed, while a failed capability or ABI lookup is
+/// returned as a field-scoped `MetadataResolution` error with its original
+/// cause. Such lookup failures are not treated as evidence that no model is
+/// present.
 ///
 /// # Examples
 ///
@@ -279,16 +288,16 @@ impl<'a> StructureResolver<'a> {
                 let field_segments = field.name().map(|name| [name]);
                 let field_path = field_segments.as_ref().map(|segments| PropertyPath::new(segments));
                 if field.is_opaque() {
-                    let hidden = field
-                        .opaque_type_id()
-                        .and_then(|type_id| context.reflection().find_type_by_id(type_id).ok().flatten())
-                        .and_then(|descriptor| context.metadata_for(descriptor).ok().flatten())
-                        .or_else(|| {
-                            metadata
-                                .field_descriptor_in(field, context.reflection())
-                                .and_then(|field| field.find_concrete_type())
-                                .and_then(|descriptor| context.metadata_for(descriptor).ok().flatten())
-                        });
+                    let hidden = match lookup_opaque_metadata(metadata, field, &context) {
+                        Ok(hidden) => hidden,
+                        Err(cause) => {
+                            errors.push(
+                                ResolveError::resolution(metadata, field_path, fragment_source, cause)
+                                    .with_declaration(*field.declaration()),
+                            );
+                            continue;
+                        }
+                    };
                     if let Some(hidden) = hidden.filter(|hidden| {
                         matches!(
                             hidden.role(),
@@ -713,6 +722,51 @@ impl<'a> StructureResolver<'a> {
         context: &ResolutionContext<'_>,
     ) -> Option<&'static TypeMetadata> {
         super::relations::resolve_declared_target(target, context)
+    }
+}
+
+/// Looks up only an opaque field's declared concrete type and its direct
+/// field descriptor fallback. Lookup failures remain errors; only absent
+/// metadata permits trying the fallback descriptor.
+///
+/// # Parameters
+///
+/// - `owner`: Metadata that declares `field`.
+/// - `field`: The opaque field whose concrete metadata is being checked.
+/// - `context`: Reflection and metadata providers used for the lookup.
+///
+/// # Returns
+///
+/// The declared concrete type's metadata, or `None` when neither descriptor
+/// resolves metadata.
+///
+/// # Errors
+///
+/// Returns reflection initialization or metadata lookup failures with their
+/// original cause.
+fn lookup_opaque_metadata(
+    owner: &'static TypeMetadata,
+    field: &'static FieldMetadata,
+    context: &ResolutionContext<'_>,
+) -> Result<Option<&'static TypeMetadata>, ModelResolutionCause> {
+    let direct_descriptor = match field.opaque_type_id() {
+        Some(type_id) => context
+            .reflection()
+            .find_type_by_id(type_id)
+            .map_err(|error| ModelResolutionCause::from(crate::metadata::PropertyResolutionError::Reflection(error)))?,
+        None => None,
+    };
+    if let Some(descriptor) = direct_descriptor
+        && let Some(hidden) = context.metadata_for(descriptor)?
+    {
+        return Ok(Some(hidden));
+    }
+    let fallback_descriptor = owner
+        .field_descriptor_in(field, context.reflection())
+        .and_then(|descriptor| descriptor.find_concrete_type());
+    match fallback_descriptor {
+        Some(descriptor) => context.metadata_for(descriptor).map_err(Into::into),
+        None => Ok(None),
     }
 }
 

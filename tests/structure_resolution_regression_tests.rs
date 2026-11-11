@@ -35,6 +35,7 @@ use qubit_reflect::Reflect;
 use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
 use qubit_reflect::capability::CapabilityRegistration;
+use qubit_reflect::capability::CapabilitySpec;
 use qubit_reflect::capability::CapabilityTargetId;
 use qubit_reflect::context::ReflectionContextBuilder;
 use qubit_reflect::descriptor::Reflect as ReflectTrait;
@@ -332,6 +333,38 @@ struct Invalid;
 #[Value]
 struct BrokenValue(Invalid);
 
+#[Model(id = "structure.OpaqueInvalidProviderOwner")]
+struct OpaqueInvalidProviderOwner {
+    #[opaque]
+    hidden: Invalid,
+}
+
+#[Reflect]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+struct WrongAdapterTarget;
+
+struct WrongMetadataAdapter;
+
+impl CapabilitySpec for WrongMetadataAdapter {
+    type Adapter = u32;
+
+    const ID: &'static str = "qubit.model.metadata.v1";
+}
+
+#[Model(id = "structure.OpaqueCapabilityOwner")]
+struct OpaqueCapabilityOwner {
+    #[opaque]
+    hidden: WrongAdapterTarget,
+}
+
+#[Model(id = "structure.OpaqueMultipleInvalidProviderOwner")]
+struct OpaqueMultipleInvalidProviderOwner {
+    #[opaque]
+    first: Invalid,
+    #[opaque]
+    second: Invalid,
+}
+
 fn reflection_builder() -> ReflectionContextBuilder {
     ReflectionContext::builder()
         .include_type::<Inner>()
@@ -386,6 +419,10 @@ fn reflection_builder() -> ReflectionContextBuilder {
         .include_type::<NestedInvalidValue>()
         .include_type::<SiblingValue>()
         .include_type::<Invalid>()
+        .include_type::<OpaqueInvalidProviderOwner>()
+        .include_type::<WrongAdapterTarget>()
+        .include_type::<OpaqueCapabilityOwner>()
+        .include_type::<OpaqueMultipleInvalidProviderOwner>()
         .include_type::<BrokenValue>()
         .include_type::<ExplicitOpaqueDiscoveryRoot>()
 }
@@ -789,6 +826,148 @@ fn test_model_registry_preserves_wrong_typed_metadata_provider_error() {
         error.sources()[0].module_path,
         "structure_resolution_regression_tests::Invalid"
     );
+}
+
+#[test]
+fn test_opaque_field_preserves_metadata_abi_error() {
+    let reflection = invalid_metadata_reflection();
+    let models = ModelRegistry::from_static_metadata(
+        &reflection,
+        &[(TypeMetadata::of::<OpaqueInvalidProviderOwner>(), &TEST_ORIGIN)],
+    )
+    .expect("metadata-only registry does not eagerly query Invalid");
+    let error = models
+        .metadata_for(
+            &reflection
+                .find_type_by_id(TypeMetadata::of::<Invalid>().type_id())
+                .unwrap()
+                .unwrap(),
+        )
+        .expect_err("Invalid provider returns metadata for the wrong type");
+    assert!(matches!(
+        error,
+        ModelMetadataError::Abi { type_id, source, .. }
+            if type_id == std::any::TypeId::of::<Invalid>() && source.code() == "QMM-ABI-002"
+    ));
+
+    let root = TypeMetadata::of::<OpaqueInvalidProviderOwner>();
+    let roots = [root];
+    for resolver in [
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        }),
+        StructureResolver::for_roots(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        }),
+        StructureResolver::for_static_roots(&models, roots),
+    ] {
+        let errors = resolver.resolve().expect_err("opaque provider error must be retained");
+        assert_eq!(errors.errors().len(), 1);
+        let error = &errors.errors()[0];
+        assert_eq!(error.kind(), ResolveErrorKind::MetadataResolution);
+        assert_eq!(error.owner_type_id(), Some(root.type_id()));
+        assert_eq!(error.path().map(|path| path.segments()), Some(&["hidden"][..]));
+        assert_eq!(error.declaration().expect("field declaration").field, Some(0));
+        assert_eq!(error.sources(), &[TEST_ORIGIN]);
+        assert!(matches!(
+            error.cause(),
+            Some(ModelResolutionCause::Metadata(ModelMetadataError::Abi {
+                type_id, source, ..
+            })) if *type_id == std::any::TypeId::of::<Invalid>()
+                && source.code() == "QMM-ABI-002"
+        ));
+    }
+}
+
+#[test]
+fn test_opaque_field_preserves_capability_error() {
+    let reflection = reflection_builder()
+        .register(CapabilityRegistration::for_type::<
+            WrongAdapterTarget,
+            WrongMetadataAdapter,
+        >(7_u32))
+        .build()
+        .expect("wrong adapter registration has valid context shape");
+    let models = ModelRegistry::from_static_metadata(
+        &reflection,
+        &[(TypeMetadata::of::<OpaqueCapabilityOwner>(), &TEST_ORIGIN)],
+    )
+    .expect("metadata-only registry does not eagerly validate opaque fields");
+    let descriptor = reflection
+        .find_type_by_id(std::any::TypeId::of::<WrongAdapterTarget>())
+        .unwrap()
+        .expect("opaque concrete field descriptor");
+    assert!(matches!(
+        models.metadata_for(&descriptor),
+        Err(ModelMetadataError::Capability { .. })
+    ));
+
+    let root = TypeMetadata::of::<OpaqueCapabilityOwner>();
+    let roots = [root];
+    for resolver in [
+        StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        }),
+        StructureResolver::for_roots(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        }),
+        StructureResolver::for_static_roots(&models, roots),
+    ] {
+        let errors = resolver
+            .resolve()
+            .expect_err("opaque capability error must be retained");
+        assert_eq!(errors.errors().len(), 1);
+        let error = &errors.errors()[0];
+        assert_eq!(error.kind(), ResolveErrorKind::MetadataResolution);
+        assert_eq!(error.owner_type_id(), Some(root.type_id()));
+        assert_eq!(error.path().map(|path| path.segments()), Some(&["hidden"][..]));
+        assert_eq!(error.declaration().expect("field declaration").field, Some(0));
+        assert_eq!(error.sources(), &[TEST_ORIGIN]);
+        assert!(matches!(
+            error.cause(),
+            Some(ModelResolutionCause::Metadata(ModelMetadataError::Capability {
+                type_id, ..
+            })) if *type_id == std::any::TypeId::of::<WrongAdapterTarget>()
+        ));
+    }
+}
+
+#[test]
+fn test_opaque_metadata_errors_keep_field_order() {
+    let reflection = invalid_metadata_reflection();
+    let models = ModelRegistry::from_static_metadata(
+        &reflection,
+        &[(TypeMetadata::of::<OpaqueMultipleInvalidProviderOwner>(), &TEST_ORIGIN)],
+    )
+    .expect("metadata-only registry");
+    let root = TypeMetadata::of::<OpaqueMultipleInvalidProviderOwner>();
+    let roots = [root];
+    let errors = StructureResolver::for_roots(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect_err("both opaque metadata failures are reported");
+    assert_eq!(errors.errors().len(), 2);
+    assert_eq!(
+        errors.errors()[0].path().map(|path| path.segments()),
+        Some(&["first"][..])
+    );
+    assert_eq!(
+        errors.errors()[1].path().map(|path| path.segments()),
+        Some(&["second"][..])
+    );
+    assert!(
+        errors
+            .errors()
+            .iter()
+            .all(|error| error.owner_type_id() == Some(root.type_id()))
+    );
+    assert!(errors.errors().iter().all(|error| error.sources() == [TEST_ORIGIN]));
 }
 
 #[test]
