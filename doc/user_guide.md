@@ -156,6 +156,20 @@ workflow below does. It skips structural initialization for unrelated models
 while reading reachable capabilities and property providers from the same
 registry snapshot.
 
+An explicit root takes precedence over registry metadata for the same Rust
+type in `new`, `for_roots`, and `for_static_roots`; if roots repeat a type, the
+last root wins. Every root is ABI-checked, even when a later root replaces it.
+The resolver mode changes discovery scope only: `new` still scans all
+registered types, while the root-scoped constructors follow reachable types.
+Registry indexes do not change. For example, suppose the registry contains
+metadata A for `User`, while the caller supplies metadata B for that same Rust
+type as a root. Older `AllRegistered` resolution kept A; resolution now uses B
+in all modes. To keep A's declarations, remove the unnecessary B root or pass
+A as the root. A `ModelId` target is still located through the registry and
+then selects the explicit root for that located type; an overlay does not add
+a stable-ID alias. Registration provenance continues to describe A's registry
+entry, while declaration locations in the graph come from selected metadata B.
+
 <!-- example: core/audit -->
 ```rust
 use qubit_model_metadata::registry::ModelRegistry;

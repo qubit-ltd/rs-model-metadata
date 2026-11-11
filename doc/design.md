@@ -104,6 +104,20 @@ Metadata, property, and path caches are scoped to their registry. The bounded pa
 
 Resolution gathers nodes by exact Rust type identity, assembles properties from the selected snapshot, and checks model roles and relationships: nested Entity rules, Value closure, Reference targets and properties, Projection sources, uniqueness scopes, and query declarations. It aggregates structural failures in `ResolveErrors`, retaining field and declaration context where available. A valid `ModelGraph` establishes structural consistency; it does not establish that validators or codecs are registered, nor that any instance value is valid.
 
+Explicit roots take precedence over registry metadata for the same concrete
+type in all resolver modes; the last root for a repeated type wins. Every root
+is ABI-checked, including superseded roots. The mode changes discovery scope
+only: `new` scans all registered types, while the root-scoped constructors
+follow reachable types. For example, if the registry contains metadata A for
+`User` and a root supplies metadata B for the same Rust type, older
+`AllRegistered` resolution retained A, while the current resolver selects B.
+Callers that need A's declarations should omit the unnecessary B root or pass
+A. A `ModelId` still locates its type through the registry before the resolver
+selects that type's explicit overlay; the overlay does not register an alias.
+Registry provenance continues to describe registration origin, while
+declaration locations come from the selected overlay. Registry indexes remain
+unchanged.
+
 The graph offers typed lookups for models, resolved property views, Reference targets, Projection sources, Entity query declarations, and individual declaration dependency occurrences. Query metadata reports declaration reasons such as identifier, indexed, global unique, and reference; it does not generate SQL, consumer filters, physical indexes, or every possible reachable path. `ObjectPath` uses `/` and `..` for object navigation; `PropertyPath` uses `.` for property selection. When a declaration requires parent context, the graph records that requirement and a later operation must receive the actual parent instance.
 
 ## Property access and write boundaries

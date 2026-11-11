@@ -26,6 +26,10 @@ use crate::resolve::ResolvedReference;
 /// The graph borrows its registry and freezes the metadata and properties
 /// selected during resolution. Query concrete models by [`TypeId`] and
 /// references by field location; neither lookup uses a copied field's address.
+/// When a concrete type has an explicit root, the graph uses that root's
+/// metadata in preference to the registry candidate. The registry remains
+/// unchanged: registration provenance still describes the registry entry,
+/// while declaration locations come from the selected metadata.
 /// Anonymous models must be included among the explicit roots when they are
 /// not discoverable through the supplied registry.
 ///

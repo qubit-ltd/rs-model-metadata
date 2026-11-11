@@ -78,6 +78,8 @@ fn main() {
 
 `StructureResolver::new` 审计全部已注册模型；`for_roots` 与 `for_static_roots` 只解析指定根及其可达模型。解析时检查角色、引用、Projection 来源、Value 闭包、唯一性作用域和查询声明。`ModelGraph` 借用选定的 registry，以 `TypeId` 或 `FieldLocation` 查询关系。根生成的 nested metadata provider 在能提供元数据时可发现可达子模型；启用 `generic` 后，这包括具体化的嵌套泛型子模型。仅有非泛型子字段并不会使其模型元数据自动可用，绑定 context 需要注册该子模型的 provider。registry 索引、显式根、生成的 provider、context provider 和反射事实各有职责；解析 descriptor 仍需 context 中的反射事实。模型图不会从全局 registry 补入缺失声明。
 
+所有解析模式中，同一具体类型的显式根优先于注册表元数据；重复根时最后一个根胜出。每个根都会进行 ABI 校验，包括被覆盖的根。模式只改变发现范围：`new` 扫描所有注册类型，根作用域构造器遍历可达类型。例如，若注册表中 `User` 的元数据为 A，而根为同一 Rust 类型提供元数据 B，旧版 `AllRegistered` 会保留 A，现在解析器选择 B。若调用方需要 A 的声明，应省去不需要的 B 根，或传入 A。`ModelId` 仍先由注册表定位类型，再为该类型选择显式 overlay；overlay 不会注册别名。注册表 provenance 仍表示注册来源，声明位置则来自选中的 overlay。注册表索引保持不变。
+
 ## 声明与执行
 
 核心 crate 保存约束、validator、selector、codec 引用，以及对象路径和属性路径。对象路径使用 `/` 与 `..`，属性路径使用 `.`。查询元数据提供声明及原因，不替应用生成任意筛选器。`PropertyAccessPath` 先编译结构路径，再对实例读写；读写支持范围不同。结构性写入错误会在调用末级 setter 前报告。授权、持久化及查询执行由应用负责。

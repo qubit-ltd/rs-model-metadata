@@ -239,6 +239,14 @@ assert!(declared.is_some());
 `for_roots`，下方的验证流程就是这种用法。它会跳过无关模型的结构初始化，同时从同一注册表快照
 读取可达模型的 capability 和 Property provider。
 
+在 `new`、`for_roots` 和 `for_static_roots` 中，显式根优先于同一 Rust 类型的注册表元数据；
+若根中重复出现某类型，则最后一个根胜出。每个根都会进行 ABI 校验，即使它被后续根覆盖。
+构造模式只改变发现范围：`new` 仍扫描所有注册类型，根作用域构造器则遍历可达类型。注册表索引
+不会改变。例如，注册表中 `User` 的元数据为 A，而调用方将同一 Rust 类型的元数据 B 作为根传入；
+旧版 `AllRegistered` 会保留 A，现在所有模式均使用 B。若应用需要保留 A 的声明，应移除不需要的
+B 根，或将 A 作为根传入。`ModelId` 目标仍由注册表定位类型，随后才为该类型选择显式根；overlay
+不会添加稳定 ID 别名。注册来源仍描述注册表条目 A 的 provenance，图中的声明位置则来自选中的元数据 B。
+
 <!-- example: core/audit -->
 ```rust
 use qubit_model_metadata::registry::ModelRegistry;

@@ -54,6 +54,12 @@ use crate::registry::ModelRegistryOrigin;
 /// from explicit roots. Use [`StructureResolver::for_static_roots`] when the
 /// resulting graph must outlive a caller-local root array.
 ///
+/// In all three constructors, explicit roots take precedence over registry
+/// metadata for the same concrete type; the last root of a repeated type wins.
+/// Each root is ABI-validated, even when a later root supersedes it. The
+/// constructor's scope controls discovery only: it does not change this
+/// metadata selection rule or modify registry indexes.
+///
 /// # Examples
 ///
 /// Include `qubit-model-derive` to declare models. Structural resolution works
@@ -113,6 +119,10 @@ pub struct StructureResolver<'a> {
 impl<'a> StructureResolver<'a> {
     /// Creates a resolver that audits all concrete registrations and roots.
     ///
+    /// Explicit roots replace registry metadata for the same concrete type;
+    /// repeated roots select the last metadata. All roots are ABI-validated.
+    /// This resolver still discovers every registered concrete type.
+    ///
     /// # Parameters
     ///
     /// - `inputs`: the borrowed registry and additional concrete roots.
@@ -135,7 +145,11 @@ impl<'a> StructureResolver<'a> {
     /// models.
     ///
     /// The registry remains available for resolving reachable references and
-    /// supplying the canonical metadata and properties for each model.
+    /// supplying metadata and properties for models without an explicit root.
+    /// An explicit root takes precedence for its concrete type, and the last
+    /// root wins when that type is repeated. Every root is ABI-validated. This
+    /// scope limits discovery to reachable models; it does not alter registry
+    /// indexes.
     ///
     /// # Parameters
     ///
@@ -159,6 +173,10 @@ impl<'a> StructureResolver<'a> {
     ///
     /// The resulting graph borrows only `models`; the root array is used
     /// during resolution and may be local to the caller.
+    /// Explicit roots take precedence over registry metadata for the same
+    /// concrete type; when a type is repeated, the last root wins. Every root
+    /// is ABI-validated. This scope limits discovery and does not modify the
+    /// registry indexes.
     ///
     /// # Parameters
     ///

@@ -14,6 +14,12 @@ use crate::registry::ModelRegistry;
 /// Supplies the registry snapshot and explicit roots for one resolution
 /// attempt.
 ///
+/// For a concrete type present in both the registry and `roots`, the explicit
+/// root supplies the metadata used by this resolution. If roots contain the
+/// same concrete type more than once, the last root is selected. Every root is
+/// ABI-validated, including roots superseded by a later root. This selection
+/// does not add entries or aliases to the registry.
+///
 /// # Type Parameters
 ///
 /// - `'a` is the borrow lifetime of the registry and root slice, and also the
@@ -41,5 +47,9 @@ pub struct ResolveInputs<'a> {
     /// Registry containing concrete and generic model registrations.
     pub models: &'a ModelRegistry<'a>,
     /// Additional concrete roots, including anonymous and generic models.
+    ///
+    /// Roots take precedence over registry metadata for the same concrete
+    /// type. The last root for a repeated concrete type is selected, but every
+    /// root is ABI-validated. This does not modify the registry's indexes.
     pub roots: &'a [&'static TypeMetadata],
 }
