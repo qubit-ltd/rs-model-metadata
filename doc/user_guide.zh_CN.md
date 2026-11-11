@@ -382,9 +382,12 @@ let username_property = resolved.property("username").expect("readable property"
 ```rust,ignore
 let read = models.compile_read_path_cached(user, &["username"])?;
 let write = models.compile_write_path_cached(user, &["username"])?;
+write.check_writable()?;
 ```
 
-上例沿用已取得的 `models` 与 `user`。编译成功表示结构路径和对应访问能力成立，不等于应用授权调用方读写该字段。缓存属于注册表快照，不跨不同快照复用；实际 JSON 读写可参考 [rs-platform 用户指南](../../rs-platform/doc/user-guide.zh_CN.md#属性路径的实际使用顺序)。
+上例沿用前文取得的 `models` 与 `user`。写模式编译会解析路径，并允许叶属性只有 setter；编译成功本身不代表整条路径在结构上可写。调用 `check_writable()` 可检查结构可写性，包括中间节点能否通过可变字段遍历，以及叶节点是否可写。通过检查仍不保证后续写入一定成功：适配器是否可用、实例状态、替换值类型和 setter 执行都可能导致运行时失败。应用还需自行决定是否授权调用方访问该字段。
+
+每个注册表最多缓存 256 条成功路径，读写模式合计计数。命中会刷新条目的 LRU 顺序；缓存满时插入新的成功结果，会淘汰最近最少使用的条目。编译失败不会缓存，之后再次调用会重新尝试。读模式和写模式使用不同的缓存键；不同注册表快照各自持有缓存。条目淘汰不会影响调用方已经持有的 `Arc`，但只有条目仍在缓存时，重复查询才共享指针地址。缓存未命中时，编译在锁外进行；并发请求同一路径可能重复编译，缓存不保证 single-flight。实际 JSON 读写可参考 [rs-platform 用户指南](../../rs-platform/doc/user-guide.zh_CN.md#属性路径的实际使用顺序)。
 
 ## 进阶用法：对象路径、引用与声明位置
 

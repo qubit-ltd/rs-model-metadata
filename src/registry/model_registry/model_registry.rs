@@ -694,12 +694,14 @@ impl<'reflection> ModelRegistry<'reflection> {
         self.compile_path_cached(root, segments, false)
     }
 
-    /// Compiles or reuses a successful writable path within this registry.
+    /// Compiles or reuses a successful write-mode path within this registry.
     ///
-    /// Write paths have separate entries from read paths. The leaf's runtime
-    /// writability remains checked by the compiled path when writing. Each
-    /// registry retains at most 256 successful paths, so pointer identity is
-    /// shared only while an entry remains cached.
+    /// Write paths have separate entries from read paths. The leaf's
+    /// structural writability is checked by
+    /// [`PropertyAccessPath::check_writable`]; that check does not
+    /// guarantee that a later write succeeds. Each registry retains at most
+    /// 256 successful paths, so pointer identity is shared only
+    /// while an entry remains cached.
     ///
     /// # Parameters
     ///
@@ -708,7 +710,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// # Returns
     ///
-    /// A shared compiled writable path on success.
+    /// A shared compiled write-mode path on success. This does not mean
+    /// [`PropertyAccessPath::check_writable`] has passed.
     ///
     /// # Errors
     ///

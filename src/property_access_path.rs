@@ -667,15 +667,7 @@ fn resolve_intermediate<'ctx>(
     index: usize,
     context: &'ctx ReflectionContext,
 ) -> Result<(Option<OptionalOps>, &'static TypeMetadata), PropertyAccessPathError> {
-    let descriptor =
-        property
-            .descriptor_in(context)
-            .ok()
-            .flatten()
-            .ok_or(PropertyAccessPathError::UnsupportedIntermediate {
-                index,
-                name: segment.to_owned(),
-            })?;
+    let descriptor = resolve_intermediate_descriptor(property.descriptor_in(context), segment, index)?;
     let is_optional = matches!(descriptor.kind(), TypeKind::Optional(_));
     let optional_ops = if is_optional { property.optional_ops() } else { None };
     let next_descriptor = if is_optional {
@@ -734,6 +726,35 @@ fn resolve_intermediate<'ctx>(
     Ok((optional_ops, next_owner))
 }
 
+/// Classifies the descriptor lookup result for an intermediate path segment.
+///
+/// # Parameters
+///
+/// - `descriptor`: Descriptor lookup result to classify.
+/// - `segment`: Path segment used when no descriptor is available.
+/// - `index`: Position of the segment in the compiled path.
+///
+/// # Returns
+///
+/// The descriptor when found.
+///
+/// # Errors
+///
+/// Preserves context lookup failures and reports a missing descriptor as an
+/// unsupported intermediate segment.
+fn resolve_intermediate_descriptor<'ctx>(
+    descriptor: Result<Option<qubit_reflect::TypeDescriptor<'ctx>>, qubit_reflect::error::ContextError>,
+    segment: &str,
+    index: usize,
+) -> Result<qubit_reflect::TypeDescriptor<'ctx>, PropertyAccessPathError> {
+    descriptor
+        .map_err(|source| PropertyAccessPathError::ContextLookup { index, source })?
+        .ok_or(PropertyAccessPathError::UnsupportedIntermediate {
+            index,
+            name: segment.to_owned(),
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::AtomicUsize;
@@ -742,8 +763,10 @@ mod tests {
     use qubit_model_derive::Model;
     use qubit_model_derive::ModelImpl;
     use qubit_reflect::ReflectionContext;
+    use qubit_reflect::error::ContextError;
 
     use super::PropertyAccessPath;
+    use super::resolve_intermediate_descriptor;
     use crate::metadata::OptionalOps;
     use crate::metadata::PropertyBorrowed;
     use crate::metadata::PropertyMutable;
@@ -751,6 +774,27 @@ mod tests {
     use crate::metadata::PropertyValue;
     use crate::metadata::TypeMetadata;
     use crate::registry::ModelRegistry;
+
+    #[test]
+    fn test_intermediate_descriptor_lookup_error_preserves_source() {
+        let source = ContextError::new("controlled descriptor lookup failure");
+        let error = match resolve_intermediate_descriptor(Err(source.clone()), "child", 3) {
+            Ok(_) => panic!("descriptor lookup failure must be preserved"),
+            Err(error) => error,
+        };
+
+        match &error {
+            super::PropertyAccessPathError::ContextLookup { index, source: actual } => {
+                assert_eq!(*index, 3);
+                assert_eq!(actual, &source);
+                assert_eq!(
+                    std::error::Error::source(&error).unwrap().to_string(),
+                    source.to_string()
+                );
+            }
+            other => panic!("unexpected descriptor lookup error: {other:?}"),
+        }
+    }
 
     #[Model(id = "tests.AccessPathUnitChild")]
     struct Child {

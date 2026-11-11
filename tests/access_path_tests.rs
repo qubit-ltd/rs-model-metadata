@@ -641,6 +641,10 @@ fn test_borrowed_getter_intermediate_is_readable_but_not_writable() {
     let path =
         PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<BorrowedParent>(), &["child", "value"])
             .expect("borrowed getter intermediate compiles for a write path");
+    assert!(matches!(
+        path.check_writable(),
+        Err(PropertyAccessPathError::UnwritableIntermediate { index: 0, name }) if name == "child"
+    ));
     let mut root = BorrowedParent {
         child: AccessLeaf {
             value: "before".to_owned(),
@@ -700,6 +704,13 @@ fn test_getter_only_leaf_is_not_writable() {
     let registry = test_registry();
     let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<OwnedParent>(), &["owned_child"])
         .expect("readable getter compiles as a leaf");
+    let write_path =
+        PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<OwnedParent>(), &["owned_child"])
+            .expect("read-only leaf compiles in write mode");
+    assert!(matches!(
+        write_path.check_writable(),
+        Err(PropertyAccessPathError::NotWritable { index: 0, name }) if name == "owned_child"
+    ));
 
     assert!(matches!(
         path.check_writable(),

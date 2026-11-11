@@ -475,15 +475,33 @@ That cache belongs to the registry and is released when the registry is dropped.
 from `graph.properties()` must not outlive the graph.
 
 For repeated property access, `ModelRegistry::compile_read_path_cached` and
-`compile_write_path_cached` return shared compiled paths. Each registry snapshot
-retains at most 256 successful paths across read and write modes; inserting a
-new success evicts the least recently used entry when full. A successful cache
-hit refreshes recency. Failed compilations
-are returned to the caller and retried on later calls. The key includes the
-exact root metadata, path segments, and access mode. Separate registries, including registries made
-from different reflection snapshots or overlays, have separate caches; a path
-from one snapshot cannot silently resolve against another. Compilation on a
-cache miss happens outside the lock, so concurrent misses may compile twice.
+`ModelRegistry::compile_write_path_cached` return shared compiled paths. Given
+the `models` registry and `user` root metadata from your application, a
+write-mode path can be compiled with:
+
+```rust,ignore
+let write = models.compile_write_path_cached(user, &["username"])?;
+write.check_writable()?;
+```
+
+Write-mode compilation resolves the path and permits a setter-only leaf; it
+does not establish that the whole path is structurally writable. Call
+`check_writable()` to check structural writability, including mutable
+intermediate traversal and a writable leaf. Passing this check does not
+guarantee that a later write will succeed: adapter availability, instance
+state, replacement type, or setter execution can still fail. Application
+authorization to access the field is a separate responsibility.
+
+Each registry snapshot retains at most 256 successful paths across read and
+write modes. A cache hit refreshes the entry's LRU position; inserting a new
+success at capacity evicts the least recently used entry. Failed compilations
+are not cached, so a later call retries them. Read-mode and write-mode paths
+have separate cache keys, and each registry snapshot has its own cache.
+Evicting an entry does not invalidate an `Arc` already held by a caller, but
+pointer identity is shared only while the entry remains cached. Compilation on
+a cache miss happens outside the cache lock, so concurrent misses for the same
+path may compile more than once; the cache does not guarantee single-flight
+compilation.
 
 The obsolete `FieldMetadata::validate_nested()` method and
 `FieldAttributeMetadata::ValidateNested` marker are removed. Neither controls
