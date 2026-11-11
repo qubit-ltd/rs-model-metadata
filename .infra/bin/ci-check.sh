@@ -14,4 +14,4 @@ if [[ -f "$worker_package" ]] && grep -Eq '"build:test-worker"[[:space:]]*:' "$w
     )
 fi
 
-exec "$project_root/.infra/bootstrap.sh" .infra/bin/ci-check.sh "$@"
+exec "${RS_INFRA_PYTHON:-python3}" "$project_root/scripts/ci-check-locked.py" "$@"

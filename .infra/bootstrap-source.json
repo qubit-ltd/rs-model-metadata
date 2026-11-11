@@ -20,7 +20,7 @@
     },
     ".infra/bin/ci-check.sh": {
       "executable": true,
-      "sha256": "c308224aa9e6eb8050dc529d887ad549d6267c032551539ce31a55fdefd4d3bf"
+      "sha256": "0f8549841bb66a42b70573d962a0388f030409826253411962f7b16d3e250177"
     },
     ".infra/bin/coverage.sh": {
       "executable": true,
