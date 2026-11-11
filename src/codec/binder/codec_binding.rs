@@ -39,7 +39,8 @@ use crate::metadata::CodecMetadata;
 /// ```
 #[derive(Debug)]
 pub struct CodecBinding<'a> {
-    /// Stable identity used to locate this binding in the resolved graph.
+    /// Process-local identity used to locate this binding in the resolved
+    /// graph.
     pub(super) occurrence: CodecOccurrenceId,
     /// Model declaration that selected the codec.
     pub(super) declaration: &'static CodecMetadata,
@@ -54,8 +55,8 @@ impl<'a> CodecBinding<'a> {
     ///
     /// # Returns
     ///
-    /// The stable identity of the model declaration represented by this
-    /// binding.
+    /// The process-local identity of the model declaration represented by
+    /// this binding.
     #[must_use]
     #[inline]
     pub const fn occurrence(&self) -> &CodecOccurrenceId {

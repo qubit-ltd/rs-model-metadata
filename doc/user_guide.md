@@ -323,10 +323,16 @@ Enable the `codec` feature and register the codec implementation before binding.
 `bind_codecs` walks an already resolved graph and returns the selected implementation
 for each codec declaration. It prefers an explicit field codec, then a Value
 canonical codec, then no codec; Rust-type codec declarations also require a matching
-registration. Occurrence identity includes the exact TypeId, optional ModelId,
-Property path, and declaration source. Binding does not call `encode` or `decode`,
-persist data, or apply application policy. Missing registration and value-type
-mismatch are reported as binding errors.
+registration. `CodecOccurrenceId` is a process-local binding lookup identity
+containing the exact `TypeId`, optional `ModelId`, Property path, and declaration
+source. Because its complete key includes `TypeId`, its equality, hash, and
+ordering are meaningful only within the current process, even when `model()`
+returns a stable `ModelId`. Do not persist the value, its `TypeId`, a hash, or
+its `Debug` or `Display` output as an external identity. Consumers needing to
+identify declarations across processes must define a stable protocol separately
+and handle anonymous models. Binding does not call `encode` or `decode`, persist
+data, or apply application policy. Missing registration and value-type mismatch
+are reported as binding errors.
 
 <!-- example: codec -->
 ```toml
@@ -572,24 +578,37 @@ whole rather than to one declared field. After building the plan, pass all
 prepared bindings to `with_model_rules` in one call:
 
 ```rust,ignore
-let plan = plan.with_model_rules(prepared_model_rules);
+let plan = plan.with_model_rules(prepared_model_rules)?;
 ```
 
 Here `prepared_model_rules` is any `IntoIterator<Item = ModelRuleBinding>` (for
-example, a `Vec<ModelRuleBinding>`). The returned plan owns the appended rules;
-the iterator is consumed. Rules retain iterator order and are appended after
-rules already on the plan. An empty iterator leaves existing model rules alone.
-Entries are not deduplicated, so repeated rule IDs remain separate occurrences.
-The API accepts incremental updates, but repeated calls rebuild the owned rule
-array each time; usually collect rules for a plan update and call this method
-once. Selected model-level rules execute before field rules; see
+example, a `Vec<ModelRuleBinding>`). The method consumes the plan and iterator,
+checks each binding against the plan root type, and returns a `Result`. A
+mismatch returns `PreparedSignatureMismatch` with the first incompatible rule
+ID; no validator or getter runs. Since the plan is consumed, the caller cannot
+reuse it after an error. Propagate the `BindError` with `?`, or use
+`.expect("model rules match plan root")` in a fixture whose types are fixed.
+
+On success, the returned plan owns the appended rules. Rules retain iterator
+order and are appended after rules already on the plan. An empty iterator leaves
+existing model rules alone. Entries are not deduplicated, so repeated rule IDs
+remain separate occurrences. The API accepts incremental updates, but repeated
+calls rebuild the owned rule array each time; usually collect rules for a plan
+update and call this method once. Selected model-level rules execute before
+field rules; see
 [stopping policies and work budgets](#advanced-usage-stopping-policies-and-work-budgets).
 
 With `codec`, call `codec::bind_codecs` using CodecBindInputs and an explicit
 codec registry after graph resolution. Selection order is explicit field codec,
 Value canonical codec, then no codec. Rust-type codec declarations also require
-registration. Explicitly naming the canonical codec is valid. Occurrence identity
-includes exact TypeId, optional stable ModelId, Property path, and source.
+registration. Explicitly naming the canonical codec is valid. `CodecOccurrenceId`
+is a process-local binding lookup identity containing exact `TypeId`, optional
+`ModelId`, Property path, and source. Its equality, hashing, and ordering apply
+only within the current process; a stable `ModelId` does not make the complete
+key persistent. Do not use the value, its `TypeId`, a hash, or its `Debug` or
+`Display` output as an external identity. Consumers needing cross-process
+declaration identity must define a stable protocol and account for anonymous
+models.
 
 ## Limitations: execution support and explicit refusal
 

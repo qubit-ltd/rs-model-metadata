@@ -11,7 +11,8 @@ use std::collections::BTreeMap;
 use super::codec_binding::CodecBinding;
 use super::codec_occurrence_id::CodecOccurrenceId;
 
-/// Immutable successful codec bindings keyed by stable occurrence identity.
+/// Immutable successful codec bindings keyed by process-local occurrence
+/// identity.
 ///
 /// # Type Parameters
 ///
@@ -42,16 +43,16 @@ use super::codec_occurrence_id::CodecOccurrenceId;
 /// ```
 #[derive(Debug)]
 pub struct CodecBindings<'a>(
-    /// Bindings indexed by stable occurrence identity.
+    /// Bindings indexed by process-local occurrence identity.
     pub(super) BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
 );
 
 impl<'a> CodecBindings<'a> {
-    /// Returns a binding by stable occurrence identity.
+    /// Returns a binding by process-local occurrence identity.
     ///
     /// # Parameters
     ///
-    /// * `occurrence` - Stable identity of the declaration to look up.
+    /// * `occurrence` - Process-local identity of the declaration to look up.
     ///
     /// # Returns
     ///
@@ -61,11 +62,12 @@ impl<'a> CodecBindings<'a> {
         self.0.get(occurrence)
     }
 
-    /// Iterates over bindings in stable identity order.
+    /// Iterates over bindings in process-local occurrence order.
     ///
     /// # Returns
     ///
-    /// An exact-size iterator over bindings, ordered by occurrence identity.
+    /// An exact-size iterator over bindings, ordered by occurrence identity
+    /// within the current process.
     #[inline]
     pub fn bindings(&self) -> impl ExactSizeIterator<Item = &CodecBinding<'a>> {
         self.0.values()

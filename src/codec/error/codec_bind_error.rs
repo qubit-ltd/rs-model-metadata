@@ -43,7 +43,7 @@ use crate::metadata::CodecReference;
 pub struct CodecBindError {
     /// Failure category reported to the caller.
     kind: CodecBindErrorKind,
-    /// Stable identity of the model declaration that failed to bind.
+    /// Process-local identity of the model declaration that failed to bind.
     occurrence: CodecOccurrenceId,
     /// Codec reference declared by the model metadata.
     declaration: CodecReference,
@@ -101,11 +101,11 @@ impl CodecBindError {
         self.kind
     }
 
-    /// Returns the stable declaration occurrence.
+    /// Returns the process-local declaration occurrence.
     ///
     /// # Returns
     ///
-    /// The identity of the model declaration that failed to bind.
+    /// The process-local identity of the model declaration that failed to bind.
     #[must_use]
     #[inline]
     pub const fn occurrence(&self) -> &CodecOccurrenceId {

@@ -258,8 +258,8 @@ fn main() {
 启用 `codec` feature 并注册 codec 实现后，再绑定已解析的结构图。
 `bind_codecs` 会遍历图中的 codec 声明，为每个声明选择实现并返回绑定结果。选择顺序是字段显式
 codec、Value canonical codec、无 codec；Rust 类型形式的 codec 声明也要求对应注册项存在。
-occurrence 身份包含准确的 TypeId、可选 ModelId、Property 路径和声明来源。绑定不会调用
-`encode` 或 `decode`、持久化数据，也不会执行应用策略。注册项缺失或值类型不匹配时会返回错误。
+`CodecOccurrenceId` 是进程内的绑定查找身份，包含准确的 `TypeId`、可选 `ModelId`、Property
+路径和声明来源。完整键仍包含 `TypeId`，因此即使 `model()` 返回稳定的 `ModelId`，相等、哈希和排序也只适用于当前进程。不要把该值、它的 `TypeId`、哈希值或 `Debug`/`Display` 输出当作持久化键或外部身份。需要跨进程标识声明时，消费者应另行定义稳定协议，并处理匿名模型。绑定不会调用 `encode` 或 `decode`、持久化数据，也不会执行应用策略。注册项缺失或值类型不匹配时会返回错误。
 
 <!-- example: codec -->
 ```toml
@@ -463,14 +463,18 @@ owned 集合的 getter、需要隐式解包的集合成员仍会在构建阶段�
 绑定一次性交给 `with_model_rules`：
 
 ```rust,ignore
-let plan = plan.with_model_rules(prepared_model_rules);
+let plan = plan.with_model_rules(prepared_model_rules)?;
 ```
 
 `prepared_model_rules` 可以是任意 `IntoIterator<Item = ModelRuleBinding>`，例如
-`Vec<ModelRuleBinding>`。方法会消费迭代器，并返回拥有这些新增规则的计划。新规则按输入顺序追加在已有模型规则之后；
-传入空迭代器不会改变现有规则。同一规则 ID 不会去重，重复项仍是独立 occurrence。
-API 允许分批追加，但每次调用都会重新构造拥有型规则数组；通常应先收集本次要追加的规则，再调用一次。
-被选中的模型级规则先于字段规则执行，详见[停止条件与执行预算](#进阶用法停止条件与执行预算)。
+`Vec<ModelRuleBinding>`。方法会消费计划和迭代器，先对照计划根类型检查每个绑定，并返回 `Result`。
+如果类型不匹配，会返回 `PreparedSignatureMismatch`，并携带首个不匹配规则的 ID；不会调用 validator 或 getter。
+由于计划已被消费，出错后不能继续复用原计划。可用 `?` 传播 `BindError`；固定类型的 fixture 可使用
+`.expect("model rules match plan root")`。
+
+成功时，返回计划拥有新增规则。新规则按输入顺序追加在已有模型规则之后；传入空迭代器不会改变现有规则。
+同一规则 ID 不会去重，重复项仍是独立 occurrence。API 允许分批追加，但每次调用都会重新构造拥有型规则数组；
+通常应先收集本次要追加的规则，再调用一次。被选中的模型级规则先于字段规则执行，详见[停止条件与执行预算](#进阶用法停止条件与执行预算)。
 
 ## 验证消费者：按声明和访问形状绑定
 

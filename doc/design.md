@@ -126,6 +126,8 @@ With `validation`, a validation operation has three distinct stages:
 2. `ValidationPlan::build(root, ValidationBuildInputs { graph, validators })` binds executable occurrences to built-in rules and the supplied `ValidatorRegistry`. It aggregates independent unsupported-shape, missing-rule, and type-mismatch errors. The graph's canonical metadata for the root type is authoritative; an overlay with the same `TypeId` cannot replace its declarations.
 3. `plan.validate(&value, &options)` checks the concrete instance root type, then reads and executes rules in declaration order. Rule violations are returned in `Ok(ValidationReport)`. Accessor, dependency, and traversal-budget failures return `Err(ModelValidationError)` with the report accumulated before execution stopped. Dynamic callers use `validate_dynamic(PropertyBorrowed::new_any(&value), &options)`.
 
+After building, `with_model_rules` consumes the plan and checks each added binding against the plan root before appending it. It returns `Result<Self, BindError>`; the first mismatch returns `PreparedSignatureMismatch` with that rule ID, without invoking validators or getters. A failed call consumes the plan.
+
 This complete program builds and reuses a plan for a concrete value:
 
 <!-- example: validation -->
@@ -202,6 +204,8 @@ MM-003 was reproduced with the same root and a fixed Work limit: before the fix,
 `ValidationBuildErrorKind` gains the public `BuildLimitExceeded` variant, which can require downstream exhaustive matches to add a fallback or explicit case. The current rs-platform runtime wraps the aggregate error and has no exhaustive kind match to migrate.
 
 With `codec`, stable codec IDs or Rust codec types in declarations must be bound through an explicitly supplied codec registry. The binding priority is field-specific codec, the Value's canonical codec, then no codec. `bind_codecs` resolves declarations to registered implementations and returns bindings; it does not call `encode` or `decode`, persist data, or apply application policy. Metadata contains no codec instances and does not implement a persistence workflow. See the [user guide](user_guide.md) for supported shapes and runnable usage.
+
+`CodecOccurrenceId` identifies one binding occurrence within the current process. Its complete key includes `TypeId`, optional `ModelId`, property path, and declaration source. Since `TypeId` remains part of the key, equality, hashing, and ordering are process-local even when a stable `ModelId` is present. Do not persist the value, its `TypeId`, a hash, or its `Debug` or `Display` output as an external identity. Consumers that need cross-process declaration identity must define a stable protocol separately and account for anonymous models.
 
 ## Error phases and integration
 

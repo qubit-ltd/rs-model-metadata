@@ -497,7 +497,8 @@ fn test_executes_typed_model_rule_binding() {
         },
     )
     .expect("binding")
-    .with_model_rules([binding]);
+    .with_model_rules([binding])
+    .expect("model rules match plan root");
     let report = plan
         .validate_dynamic(
             DynamicRef::<Local>::new_any(&TestModel { name: "bad".to_owned() }),
@@ -543,7 +544,8 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
         },
     )
     .expect("binding")
-    .with_model_rules([binding]);
+    .with_model_rules([binding])
+    .expect("model rules match plan root");
 
     let error = plan
         .validate_dynamic(

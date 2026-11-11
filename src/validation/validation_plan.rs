@@ -121,6 +121,15 @@ impl<'registry> ValidationPlan<'registry> {
 
     /// Adds prepared model-level validators to this plan in iteration order.
     ///
+    /// Each new binding is checked against this plan's root type before any
+    /// binding is appended. A mismatch stops at the first incompatible rule;
+    /// neither a validator nor a model getter is invoked. The input signature
+    /// fixed in each binding is used for this check.
+    ///
+    /// This method consumes the plan. If a binding is incompatible, the error
+    /// is returned and the plan, any bindings already staged by this call,
+    /// and the remaining iterator are dropped.
+    ///
     /// # Parameters
     ///
     /// * `bindings` - Prepared model-level validator occurrences to append.
@@ -129,13 +138,24 @@ impl<'registry> ValidationPlan<'registry> {
     ///
     /// This plan with the supplied model-level rules appended after existing
     /// model rules. An empty iterator leaves the existing rules unchanged.
-    pub fn with_model_rules(mut self, bindings: impl IntoIterator<Item = ModelRuleBinding>) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns `PreparedSignatureMismatch` with the first incompatible rule
+    /// ID when a binding does not accept this plan's root type.
+    pub fn with_model_rules(
+        mut self,
+        bindings: impl IntoIterator<Item = ModelRuleBinding>,
+    ) -> Result<Self, qubit_validator::BindError> {
         let bindings = bindings.into_iter();
         let mut all = Vec::with_capacity(self.model_rules.len() + bindings.size_hint().0);
         all.extend(self.model_rules);
-        all.extend(bindings);
+        for binding in bindings {
+            binding.check_root_type(self.root.type_id())?;
+            all.push(binding);
+        }
         self.model_rules = all.into_boxed_slice();
-        self
+        Ok(self)
     }
 
     /// Returns the field-selection index retained by this plan.

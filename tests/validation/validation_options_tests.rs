@@ -348,7 +348,8 @@ fn test_explicit_empty_path_selects_model_level_rule() {
             Arc::new(AlwaysValid),
         )
         .expect("prepared model rule shape"),
-    ]);
+    ])
+    .expect("model rules match plan root");
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![
             FieldPath::new("first"),

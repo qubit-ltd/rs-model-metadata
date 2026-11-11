@@ -109,11 +109,11 @@ fn assert_stopped(options: ValidationOptions, expected: usize) {
         },
     )
     .unwrap()
-    .with_model_rules([ModelRuleBinding::from_prepared::<Root>(
-        ValidatorId::new("execution.many"),
-        Arc::new(Many),
-    )
-    .expect("prepared model shape")]);
+    .with_model_rules([
+        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.many"), Arc::new(Many))
+            .expect("prepared model shape"),
+    ])
+    .expect("model rules match plan root");
     let report = plan
         .validate_dynamic(DynamicRef::<Local>::new_any(&Root { value: String::new() }), &options)
         .unwrap();
@@ -169,11 +169,11 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
         },
     )
     .unwrap()
-    .with_model_rules([ModelRuleBinding::from_prepared::<Root>(
-        ValidatorId::new("execution.many"),
-        Arc::new(Many),
-    )
-    .expect("prepared model shape")]);
+    .with_model_rules([
+        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.many"), Arc::new(Many))
+            .expect("prepared model shape"),
+    ])
+    .expect("model rules match plan root");
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
             std::iter::empty::<String>(),
@@ -227,7 +227,8 @@ fn test_model_empty_invalid_outcome_is_an_execution_error() {
         ValidatorId::new("execution.empty"),
         Arc::new(EmptyInvalid),
     )
-    .expect("prepared model shape")]);
+    .expect("prepared model shape")])
+    .expect("model rules match plan root");
     let error = plan
         .validate_dynamic(
             DynamicRef::<Local>::new_any(&Root { value: "ok".into() }),
@@ -314,7 +315,8 @@ fn test_fail_fast_stops_before_the_next_model_rule() {
             .expect("first rule shape"),
         ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.second"), Arc::new(CountedInvalid))
             .expect("second rule shape"),
-    ]);
+    ])
+    .expect("model rules match plan root");
 
     let report = plan
         .validate_dynamic(

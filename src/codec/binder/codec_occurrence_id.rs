@@ -15,7 +15,18 @@ use crate::metadata::CodecSource;
 use crate::metadata::ModelIdBuf;
 use crate::metadata::TypeMetadata;
 
-/// Stable identity of one codec occurrence.
+/// Process-local identity of one codec binding occurrence.
+///
+/// This identity is intended for binding lookup within the current process.
+/// It includes the owner's [`TypeId`], so equality, hashing, and ordering only
+/// identify the same occurrence within that process. A stable model ID
+/// returned by [`model`](Self::model) does not make the complete identity
+/// stable across processes.
+///
+/// Do not persist this value, its [`TypeId`], a hash of it, or its `Debug` or
+/// `Display` output as an external identity. Consumers that need to identify a
+/// declaration across processes must define a stable protocol separately and
+/// account for anonymous models.
 ///
 /// # Examples
 ///
@@ -54,7 +65,7 @@ pub struct CodecOccurrenceId {
 }
 
 impl CodecOccurrenceId {
-    /// Creates a stable occurrence identity.
+    /// Creates a process-local occurrence identity for binding lookup.
     ///
     /// # Parameters
     ///
@@ -66,7 +77,7 @@ impl CodecOccurrenceId {
     /// # Returns
     ///
     /// An identity containing the model type, property path, and declaration
-    /// source.
+    /// source, for use within the current process.
     #[must_use]
     pub fn new(model: &'static TypeMetadata, property: impl Into<Box<str>>, source: CodecSource) -> Self {
         Self {

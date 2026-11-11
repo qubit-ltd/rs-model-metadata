@@ -49,7 +49,7 @@ pub use codec_occurrence_id::CodecOccurrenceId;
 ///
 /// # Returns
 ///
-/// All successful bindings, keyed by stable codec occurrence identity.
+/// All successful bindings, keyed by process-local codec occurrence identity.
 pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<CodecBindings<'graph>, CodecBindErrors> {
     let mut bindings = BTreeMap::new();
     let mut errors = Vec::new();
@@ -234,7 +234,8 @@ fn canonical_codec(expected: TypeId, models: &[&'static TypeMetadata]) -> Option
 ///
 /// # Parameters
 ///
-/// * `occurrence` - Stable identity of the codec declaration being resolved.
+/// * `occurrence` - Process-local identity of the codec declaration being
+///   resolved.
 /// * `declaration` - Codec metadata declaring the requested registration.
 /// * `expected_type` - Runtime value type that the registration must support.
 /// * `codecs` - Runtime registry searched for compatible registrations.

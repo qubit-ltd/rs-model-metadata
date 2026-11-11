@@ -158,8 +158,9 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectionCont
                         },
                     )
                     .expect("benchmark plan");
-                    let plan = black_box(bindings.iter().cloned())
-                        .fold(plan, |plan, binding| plan.with_model_rules([binding]));
+                    let plan = black_box(bindings.iter().cloned()).fold(plan, |plan, binding| {
+                        plan.with_model_rules([binding]).expect("model rules match plan root")
+                    });
                     let _ = black_box(plan);
                 });
             },
@@ -174,7 +175,8 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectionCont
                     },
                 )
                 .expect("benchmark plan")
-                .with_model_rules(black_box(bindings.iter().cloned()));
+                .with_model_rules(black_box(bindings.iter().cloned()))
+                .expect("model rules match plan root");
                 let _ = black_box(plan);
             });
         });

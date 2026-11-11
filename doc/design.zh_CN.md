@@ -80,7 +80,7 @@ fn main() {
 
 核心 crate 保存约束、validator、selector、codec 引用，以及对象路径和属性路径。对象路径使用 `/` 与 `..`，属性路径使用 `.`。查询元数据提供声明及原因，不替应用生成任意筛选器。`PropertyAccessPath` 先编译结构路径，再对实例读写；读写支持范围不同。结构性写入错误会在调用末级 setter 前报告。授权、持久化及查询执行由应用负责。
 
-启用 `validation` 后，`ValidationCapabilities::check` 检查根模型声明能否执行。`ValidationPlan::build` 使用调用方提供的 `ValidatorRegistry` 和 `Arc<ModelGraph>` 绑定受支持的声明；不支持的形状或缺少规则会形成聚合的构建错误。`validate` 将规则违例作为报告返回；执行失败返回带部分报告的 `ModelValidationError`。`ValidationOptions` 控制字段选择、停止策略和预算。可选 codec 绑定也需要显式 registry。具体操作和执行边界见[用户手册](user_guide.zh_CN.md)。
+启用 `validation` 后，`ValidationCapabilities::check` 检查根模型声明能否执行。`ValidationPlan::build` 使用调用方提供的 `ValidatorRegistry` 和 `Arc<ModelGraph>` 绑定受支持的声明；不支持的形状或缺少规则会形成聚合的构建错误。`validate` 将规则违例作为报告返回；执行失败返回带部分报告的 `ModelValidationError`。`ValidationOptions` 控制字段选择、停止策略和预算。构建后，`with_model_rules` 会消费计划，并在追加前逐项检查新绑定是否接受计划根类型，返回 `Result<Self, BindError>`。首个错配会返回带规则 ID 的 `PreparedSignatureMismatch`，不会调用 validator 或 getter；调用失败后原计划已被消费。可选 codec 绑定也需要显式 registry。具体操作和执行边界见[用户手册](user_guide.zh_CN.md)。
 
 ## 错误与兼容契约
 
@@ -226,6 +226,8 @@ MM-003 使用固定 Work 上限复现：修复前，同一个 root 的单 root �
 公共 `ValidationBuildErrorKind` 新增 `BuildLimitExceeded`，下游穷尽匹配可能需要增加显式分支或 fallback。rs-platform 当前包装聚合错误，没有需要迁移的穷尽 kind 匹配。
 
 启用 `codec` 时，声明中的稳定 codec ID 或 Rust codec 类型仍要经显式传入的 registry 绑定。选择优先级是字段显式 codec、Value 的 canonical codec、无 codec。`bind_codecs` 解析声明并返回已选实现的绑定结果；它不会调用 `encode` 或 `decode`、保存数据或执行应用策略。元数据本身不含 codec 实例，不承担持久化流程。
+
+`CodecOccurrenceId` 用于在当前进程内查找一次 codec 绑定。完整键包含 `TypeId`、可选 `ModelId`、属性路径和声明来源。由于键中仍有 `TypeId`，即使存在稳定的 `ModelId`，相等比较、哈希和排序也只对当前进程有效。不要把该值、它的 `TypeId`、哈希值或 `Debug`/`Display` 输出当作持久化键或外部身份。需要跨进程标识声明时，消费者应另行定义稳定协议，并处理匿名模型。
 
 ## 错误分期与集成约束
 

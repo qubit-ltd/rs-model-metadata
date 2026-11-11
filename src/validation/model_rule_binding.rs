@@ -8,13 +8,16 @@
 
 //! Typed model-level validator bindings.
 
+use std::any::TypeId;
 use std::fmt;
 use std::sync::Arc;
 
 use qubit_validator::BindError;
+use qubit_validator::BindErrorKind;
 use qubit_validator::BoundValidationContext;
 use qubit_validator::BoundValidator;
 use qubit_validator::ExecutionError;
+use qubit_validator::InputType;
 use qubit_validator::PreparedValidator;
 use qubit_validator::ValidationOutcome;
 use qubit_validator::ValidationValue;
@@ -137,6 +140,31 @@ impl ModelRuleBinding {
     #[inline]
     pub(crate) const fn rule_id(&self) -> ValidatorId {
         self.validator.rule_id()
+    }
+
+    /// Checks that the bound validator accepts the plan root type.
+    ///
+    /// This compares the signature fixed when the binding was created; it
+    /// does not call the user supplied prepared validator again.
+    ///
+    /// # Parameters
+    ///
+    /// - `root_type`: concrete type identity of the plan root.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` when the binding accepts the root type.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PreparedSignatureMismatch` associated with this rule when the
+    /// bound input type differs from the plan root.
+    #[inline]
+    pub(crate) fn check_root_type(&self, root_type: TypeId) -> Result<(), BindError> {
+        if self.validator.input_type() != InputType::Typed(root_type) {
+            return Err(BindError::new(BindErrorKind::PreparedSignatureMismatch).with_rule(self.rule_id()));
+        }
+        Ok(())
     }
 
     /// Validates one model value through the common bound-validator checks.
