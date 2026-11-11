@@ -247,6 +247,8 @@ assert!(declared.is_some());
 B 根，或将 A 作为根传入。`ModelId` 目标仍由注册表定位类型，随后才为该类型选择显式根；overlay
 不会添加稳定 ID 别名。注册来源仍描述注册表条目 A 的 provenance，图中的声明位置则来自选中的元数据 B。
 
+Opaque 字段会停止遍历其内部内容，但解析器仍会查询字段所声明具体类型的元数据，以拒绝隐藏的模型角色。元数据缺失是允许的；能力或 ABI 查询失败会作为 `MetadataResolution` 错误附在所属字段上，并保留原始 cause，不能当成 opaque 值没有模型。应用应按 cause 修复 provider 或 runtime/derive ABI 不匹配。ReflectionContext 初始化错误仍保留 Reflection cause，不会被误报为 metadata ABI 错误。此前被忽略的错误 provider 现在会在解析时显现；普通解析器调用签名不变。
+
 <!-- example: core/audit -->
 ```rust
 use qubit_model_metadata::registry::ModelRegistry;

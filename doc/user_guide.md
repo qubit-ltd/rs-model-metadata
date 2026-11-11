@@ -170,6 +170,17 @@ then selects the explicit root for that located type; an overlay does not add
 a stable-ID alias. Registration provenance continues to describe A's registry
 entry, while declaration locations in the graph come from selected metadata B.
 
+Opaque fields stop traversal into their contents, but the resolver still
+checks metadata for the field's declared concrete type to reject hidden model
+roles. Missing metadata is allowed. A capability or ABI lookup failure is a
+`MetadataResolution` error attached to the owning field, with the original
+cause preserved; it is not treated as proof that the opaque value has no model.
+Fix the provider or runtime/derive ABI mismatch identified by that cause.
+Reflection-context initialization errors retain their reflection cause and
+are not reported as metadata ABI violations. This makes a previously ignored
+bad provider visible during resolution; ordinary resolver call signatures do
+not change.
+
 <!-- example: core/audit -->
 ```rust
 use qubit_model_metadata::registry::ModelRegistry;

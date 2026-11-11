@@ -104,6 +104,13 @@ Metadata, property, and path caches are scoped to their registry. The bounded pa
 
 Resolution gathers nodes by exact Rust type identity, assembles properties from the selected snapshot, and checks model roles and relationships: nested Entity rules, Value closure, Reference targets and properties, Projection sources, uniqueness scopes, and query declarations. It aggregates structural failures in `ResolveErrors`, retaining field and declaration context where available. A valid `ModelGraph` establishes structural consistency; it does not establish that validators or codecs are registered, nor that any instance value is valid.
 
+Opaque fields stop internal traversal, while the resolver still checks metadata
+for the field's declared concrete type. `Ok(None)` permits an absent model;
+capability or ABI lookup errors produce a field-scoped `MetadataResolution`
+diagnostic that retains its original cause. Reflection-context initialization
+errors retain a reflection cause. Previously ignored bad providers can
+therefore make resolution fail; resolver call signatures remain unchanged.
+
 Explicit roots take precedence over registry metadata for the same concrete
 type in all resolver modes; the last root for a repeated type wins. Every root
 is ABI-checked, including superseded roots. The mode changes discovery scope
