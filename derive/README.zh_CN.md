@@ -91,9 +91,13 @@ fn main() {
 | --- | --- |
 | `Entity`、`Projection`、`Model`、`Value`、`Enum` | 选择类型的领域角色，并生成反射和元数据。 |
 | `identifier`、`key_part`、`unique`、`indexed`、`reference` | 描述身份、逻辑键、唯一性、查询能力和关系。 |
-| `text`、`number`、`collection`、`validator`、`selector` | 描述内置约束与自定义规则绑定。 |
+| `text`、`decimal`、`money`、`time`、`sequence`、`map` | 声明内置约束。 |
+| `validator`、`element`、`map_key`、`map_value` | 声明自定义规则绑定和集合成员规则。 |
 | `codec`、`redact`、Serde 选项 | 描述值转换、输出脱敏和序列化行为。 |
 | `ModelImpl` | 将符合条件的 getter 和 setter 暴露为模型属性。 |
+
+普通整数和浮点数的范围需通过自定义 validator 声明。validator 能处理哪些值类型，
+由它的输入签名决定；语法见[声明手册](doc/user_guide.zh_CN.md)。
 
 局部非法声明在宏展开时失败。跨模型目标与关系由 `StructureResolver` 从
 `ModelRegistry` 构建模型图时检查；可执行规则另行绑定。语法与示例见[声明手册](doc/user_guide.zh_CN.md)，

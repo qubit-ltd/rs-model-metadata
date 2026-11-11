@@ -97,9 +97,14 @@ declarations; consumers decide how to execute them.
 | --- | --- |
 | `Entity`, `Projection`, `Model`, `Value`, `Enum` | Select the type's domain role and generate reflection plus metadata. |
 | `identifier`, `key_part`, `unique`, `indexed`, `reference` | Describe identity, logical keys, uniqueness, queryability, and relations. |
-| `text`, `number`, `collection`, `validator`, `selector` | Describe built-in constraints and custom rule bindings. |
+| `text`, `decimal`, `money`, `time`, `sequence`, `map` | Describe built-in constraints. |
+| `validator`, `element`, `map_key`, `map_value` | Declare custom rule bindings and collection member rules. |
 | `codec`, `redact`, Serde options | Describe value conversion, output masking, and wire behavior. |
 | `ModelImpl` | Expose eligible getters and setters as model properties. |
+
+Ordinary integer and floating-point ranges require a custom validator. Which
+value types it supports depends on the validator's input signature; see the
+[declaration guide](doc/user_guide.md) for the language-specific syntax.
 
 Invalid local declarations fail during macro expansion. Cross-model targets and
 relationships are checked when `StructureResolver` builds a graph from a
