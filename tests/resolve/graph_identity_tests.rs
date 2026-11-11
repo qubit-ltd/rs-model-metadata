@@ -16,10 +16,10 @@ use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::ModelImpl;
 use qubit_model_derive::Projection;
+use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::metadata::IndexingReasons;
 use qubit_model_metadata::metadata::PropertyValue;
 use qubit_model_metadata::metadata::TypeMetadata;
-use qubit_model_metadata::__private::v8;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::resolve::ContextRequirement;
 use qubit_model_metadata::resolve::ResolveErrorKind;
@@ -75,14 +75,20 @@ fn test_reference_targets_use_the_explicit_overlay_for_both_target_kinds() {
     })
     .resolve()
     .expect("both reference target forms resolve");
-    assert!(std::ptr::eq(graph.model(overlay.type_id()).expect("graph target"), overlay));
+    assert!(std::ptr::eq(
+        graph.model(overlay.type_id()).expect("graph target"),
+        overlay
+    ));
     for owner in [root, model_id_root] {
         let field = owner.field("target").expect("reference field");
         let resolved = graph
             .reference(field.location().expect("reference location"))
             .expect("resolved target");
         assert!(std::ptr::eq(resolved.target(), overlay));
-        assert!(std::ptr::eq(graph.model(resolved.target().type_id()).unwrap(), resolved.target()));
+        assert!(std::ptr::eq(
+            graph.model(resolved.target().type_id()).unwrap(),
+            resolved.target()
+        ));
     }
 }
 

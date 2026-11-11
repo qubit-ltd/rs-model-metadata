@@ -391,9 +391,7 @@ fn reflection_builder() -> ReflectionContextBuilder {
 }
 
 fn empty_reflection() -> ReflectionContext {
-    reflection_builder()
-        .build()
-        .expect("empty reflection context")
+    reflection_builder().build().expect("empty reflection context")
 }
 
 macro_rules! reflection_with_models {
@@ -421,10 +419,9 @@ fn invalid_metadata_provider() -> &'static TypeMetadata {
 
 fn invalid_metadata_reflection() -> ReflectionContext {
     reflection_builder()
-        .register(CapabilityRegistration::for_type::<
-            Invalid,
-            ModelMetadataCapability,
-        >(invalid_metadata_provider))
+        .register(CapabilityRegistration::for_type::<Invalid, ModelMetadataCapability>(
+            invalid_metadata_provider,
+        ))
         .build()
         .expect("one typed model metadata provider is valid")
 }
@@ -467,12 +464,8 @@ fn root_errors_without_named_child() -> ResolveErrors {
     root_errors_in_context(root, &reflection)
 }
 
-fn root_errors_in_context(
-    root: &'static TypeMetadata,
-    reflection: &ReflectionContext,
-) -> ResolveErrors {
-    let models =
-        ModelRegistry::from_context(reflection).expect("model metadata registration remains valid");
+fn root_errors_in_context(root: &'static TypeMetadata, reflection: &ReflectionContext) -> ResolveErrors {
+    let models = ModelRegistry::from_context(reflection).expect("model metadata registration remains valid");
     let roots = [root];
     match StructureResolver::new(ResolveInputs {
         models: &models,
@@ -511,10 +504,7 @@ fn test_entity_tuple_matches_direct_rejection() {
             TypeMetadata::of::<DirectEntity>(),
             root_errors::<DirectEntity> as fn() -> ResolveErrors,
         ),
-        (
-            TypeMetadata::of::<TupleEntity>(),
-            root_errors::<TupleEntity>,
-        ),
+        (TypeMetadata::of::<TupleEntity>(), root_errors::<TupleEntity>),
     ] {
         let errors = resolve_errors();
         let error = root_error(&errors, root, ResolveErrorKind::InvalidEntityNesting, 1);
@@ -522,10 +512,7 @@ fn test_entity_tuple_matches_direct_rejection() {
         assert_eq!(error.owner_type_name(), Some(root.type_name()));
         assert_eq!(declaration.variant, None);
         assert_eq!(error.actual_role(), Some(ModelRole::Entity));
-        assert_eq!(
-            error.path().expect("named owning field").segments(),
-            &["inner"]
-        );
+        assert_eq!(error.path().expect("named owning field").segments(), &["inner"]);
     }
 }
 
@@ -538,27 +525,14 @@ fn test_value_newtype_matches_named_rejection() {
             0,
             Some("inner"),
         ),
-        (
-            TypeMetadata::of::<WrappedValue>(),
-            root_errors::<WrappedValue>,
-            0,
-            None,
-        ),
-        (
-            TypeMetadata::of::<TupleValue>(),
-            root_errors::<TupleValue>,
-            0,
-            None,
-        ),
+        (TypeMetadata::of::<WrappedValue>(), root_errors::<WrappedValue>, 0, None),
+        (TypeMetadata::of::<TupleValue>(), root_errors::<TupleValue>, 0, None),
     ] {
         let errors = resolve_errors();
         let error = root_error(&errors, root, ResolveErrorKind::InvalidValueClosure, field);
         assert_eq!(error.actual_role(), Some(ModelRole::Model));
         assert_eq!(error.expected_role(), Some(ModelRole::Value));
-        assert_eq!(
-            error.path().map(|path| path.to_string()),
-            path.map(str::to_owned)
-        );
+        assert_eq!(error.path().map(|path| path.to_string()), path.map(str::to_owned));
     }
 }
 
@@ -607,10 +581,7 @@ fn test_entity_nested_wrappers_preserve_owning_field() {
         assert_eq!(error.owner_type_name(), Some(root.type_name()));
         assert_eq!(declaration.variant, None);
         assert_eq!(error.actual_role(), Some(role));
-        assert_eq!(
-            error.path().expect("outer field path").segments(),
-            &["inner"]
-        );
+        assert_eq!(error.path().expect("outer field path").segments(), &["inner"]);
     }
 }
 
@@ -632,10 +603,7 @@ fn test_only_root_discovers_raw_struct_enum_and_recursive_children_once() {
         .resolve()
         .expect("ordinary raw wrappers are discoverable");
         let child = TypeMetadata::of::<Child>();
-        assert!(
-            graph.properties(child).is_some(),
-            "reachable child is a graph node"
-        );
+        assert!(graph.properties(child).is_some(), "reachable child is a graph node");
         assert_eq!(
             graph
                 .models()
@@ -646,9 +614,7 @@ fn test_only_root_discovers_raw_struct_enum_and_recursive_children_once() {
         );
         assert_eq!(graph.models().len(), 2);
         assert!(
-            models
-                .by_type_id(TypeMetadata::of::<Plain>().type_id())
-                .is_none(),
+            models.by_type_id(TypeMetadata::of::<Plain>().type_id()).is_none(),
             "the test-local context did not import unrelated model registrations"
         );
         let metadata_only_reflection = empty_reflection();
@@ -678,14 +644,7 @@ fn test_legal_value_and_reference_contrasts() {
         let reflection = if root.type_id() == TypeMetadata::of::<RecursiveValue>().type_id() {
             recursive_value_reflection()
         } else {
-            reflection_with_models!(
-                LegalValue,
-                ReferenceEntity,
-                LegalChoice,
-                LegalChild,
-                Inner,
-                Plain
-            )
+            reflection_with_models!(LegalValue, ReferenceEntity, LegalChoice, LegalChild, Inner, Plain)
         };
         let models = ModelRegistry::from_context(&reflection).expect("empty model registry");
         let _graph = StructureResolver::new(ResolveInputs {
@@ -706,8 +665,7 @@ fn test_opaque_model_checks_and_discovery_boundary() {
         "opaque metadata retains exact static field identity without Reflect"
     );
     let reflection = reflection_with_models!(Inner, OpaqueEntity);
-    let isolated =
-        ModelRegistry::from_context(&reflection).expect("only relevant models are registered");
+    let isolated = ModelRegistry::from_context(&reflection).expect("only relevant models are registered");
     let errors = StructureResolver::new(ResolveInputs {
         models: &isolated,
         roots: &[root],
@@ -724,11 +682,7 @@ fn test_opaque_model_checks_and_discovery_boundary() {
     })
     .resolve()
     .expect("opaque non-model wrapper stays opaque");
-    assert_eq!(
-        graph.models().len(),
-        1,
-        "opaque wrapper must not expose Inner"
-    );
+    assert_eq!(graph.models().len(), 1, "opaque wrapper must not expose Inner");
     let roots = [TypeMetadata::of::<ModelBoundaryRoot>()];
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
@@ -754,10 +708,7 @@ fn test_primitive_only_and_empty_raw_structs_are_not_closed_values() {
             TypeMetadata::of::<PrimitiveRawValue>(),
             root_errors::<PrimitiveRawValue> as fn() -> ResolveErrors,
         ),
-        (
-            TypeMetadata::of::<EmptyRawValue>(),
-            root_errors::<EmptyRawValue>,
-        ),
+        (TypeMetadata::of::<EmptyRawValue>(), root_errors::<EmptyRawValue>),
     ] {
         let errors = resolve_errors();
         let error = root_error(&errors, root, ResolveErrorKind::InvalidValueClosure, 0);
@@ -772,10 +723,7 @@ fn test_primitive_only_and_empty_raw_structs_are_not_closed_values() {
     }
     let reflection = reflection_with_models!(LegalChild, LegalValue, LegalChoice, Inner, Plain);
     let models = ModelRegistry::from_context(&reflection).expect("registered legal value metadata");
-    let roots = [
-        TypeMetadata::of::<LegalChild>(),
-        TypeMetadata::of::<LegalValue>(),
-    ];
+    let roots = [TypeMetadata::of::<LegalChild>(), TypeMetadata::of::<LegalValue>()];
     let _graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -793,8 +741,7 @@ fn test_sibling_value_errors_keep_both_paths_and_nearest_declaration() {
         .errors()
         .iter()
         .filter(|error| {
-            error.kind() == ResolveErrorKind::InvalidValueClosure
-                && error.owner_type_id() == Some(root.type_id())
+            error.kind() == ResolveErrorKind::InvalidValueClosure && error.owner_type_id() == Some(root.type_id())
         })
         .collect();
     assert_eq!(errors.len(), 2, "sibling uses must both be checked");
@@ -825,10 +772,7 @@ fn test_unnamed_value_role_failure_has_no_fake_path() {
     );
     assert_eq!(error.actual_role(), Some(ModelRole::Model));
     assert_eq!(error.owner_type_id(), Some(root.type_id()));
-    assert_eq!(
-        error.declaration().expect("unnamed field source").field,
-        Some(0)
-    );
+    assert_eq!(error.declaration().expect("unnamed field source").field, Some(0));
 }
 
 #[test]
@@ -840,10 +784,7 @@ fn test_model_registry_preserves_wrong_typed_metadata_provider_error() {
         error.kind(),
         qubit_model_metadata::registry::ModelRegistryErrorKind::InvalidMetadata
     );
-    assert_eq!(
-        error.abi_cause().expect("typed ABI cause").code(),
-        "QMM-ABI-002"
-    );
+    assert_eq!(error.abi_cause().expect("typed ABI cause").code(), "QMM-ABI-002");
     assert_eq!(
         error.sources()[0].module_path,
         "structure_resolution_regression_tests::Invalid"
@@ -889,10 +830,7 @@ fn test_value_enum_failure_keeps_nearest_payload_declaration() {
     );
     assert_eq!(declaration.variant, Some(0));
     assert_eq!(error.actual_role(), Some(ModelRole::Model));
-    assert_eq!(
-        error.path().expect("available enum path").to_string(),
-        "child.PLAIN"
-    );
+    assert_eq!(error.path().expect("available enum path").to_string(), "child.PLAIN");
 }
 
 /// Exercises explicit roots with metadata-only and reflection-backed
@@ -900,10 +838,7 @@ fn test_value_enum_failure_keeps_nearest_payload_declaration() {
 fn check_explicit_roots(include_inner: bool) {
     let reflection = empty_reflection();
     let models = if include_inner {
-        ModelRegistry::from_static_metadata(
-            &reflection,
-            &[(TypeMetadata::of::<Inner>(), &TEST_ORIGIN)],
-        )
+        ModelRegistry::from_static_metadata(&reflection, &[(TypeMetadata::of::<Inner>(), &TEST_ORIGIN)])
             .expect("metadata-only Entity target registry")
     } else {
         ModelRegistry::from_context(&reflection).expect("empty model registry")
@@ -934,8 +869,7 @@ fn check_explicit_roots(include_inner: bool) {
     );
 
     let plain_reflection = reflection_with_models!(ExplicitPlainOwner, ExplicitPlainWrapper, Inner);
-    let plain_models =
-        ModelRegistry::from_context(&plain_reflection).expect("plain wrapper model context");
+    let plain_models = ModelRegistry::from_context(&plain_reflection).expect("plain wrapper model context");
     let root = TypeMetadata::of::<ExplicitPlainOwner>();
     let roots = [root, TypeMetadata::of::<ExplicitPlainWrapper>()];
     let errors = StructureResolver::new(ResolveInputs {
@@ -946,10 +880,7 @@ fn check_explicit_roots(include_inner: bool) {
     .expect_err("non-reference Entity nesting remains invalid");
     let error = root_error(&errors, root, ResolveErrorKind::InvalidEntityNesting, 1);
     assert_eq!(error.actual_role(), Some(ModelRole::Entity));
-    assert_eq!(
-        error.path().expect("owning wrapper path").segments(),
-        &["wrapper"]
-    );
+    assert_eq!(error.path().expect("owning wrapper path").segments(), &["wrapper"]);
     assert_eq!(error.owner_type_id(), Some(root.type_id()));
 
     let roots = [
@@ -978,8 +909,7 @@ fn test_explicit_only_value_and_enum_roots_are_closed() {
         TypeMetadata::of::<LegalChild>(),
     ];
     let reflection = empty_reflection();
-    let models = ModelRegistry::from_static_metadata(&reflection, &[])
-        .expect("empty metadata-only registry");
+    let models = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty metadata-only registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -1017,8 +947,7 @@ fn test_duplicate_model_metadata_capability_is_rejected_before_resolution() {
 fn test_explicit_opaque_root_does_not_discover_hidden_model() {
     let roots = [TypeMetadata::of::<ExplicitOpaqueDiscoveryRoot>()];
     let reflection = empty_reflection();
-    let models = ModelRegistry::from_static_metadata(&reflection, &[])
-        .expect("empty metadata-only registry");
+    let models = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty metadata-only registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -1034,17 +963,11 @@ fn test_explicit_roots_fallback_validates_descriptor_abi() {
     // Omitting the reflected field overlay deliberately creates a malformed
     // explicit input through the same unchecked ABI used by generated code.
     let malformed = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<PrimitiveRaw>(
-            None,
-            &[],
-            v8::leak(v8::model_role()),
-        )
-        .finish_unchecked(),
+        v8::GeneratedTypeMetadataBuilder::new::<PrimitiveRaw>(None, &[], v8::leak(v8::model_role())).finish_unchecked(),
     );
     let roots = [TypeMetadata::of::<PrimitiveRawValue>(), malformed];
     let reflection = empty_reflection();
-    let models = ModelRegistry::from_static_metadata(&reflection, &[])
-        .expect("empty metadata-only registry");
+    let models = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty metadata-only registry");
     for resolver in [StructureResolver::new, StructureResolver::for_roots] {
         let errors = resolver(ResolveInputs {
             models: &models,
@@ -1060,9 +983,7 @@ fn test_explicit_roots_fallback_validates_descriptor_abi() {
                     && error.owner_type_id() == Some(malformed.type_id())
             })
             .expect("ABI failure identifies the malformed explicit root");
-        let Some(ModelResolutionCause::Metadata(ModelMetadataError::Abi {
-            type_id, source, ..
-        })) = error.cause()
+        let Some(ModelResolutionCause::Metadata(ModelMetadataError::Abi { type_id, source, .. })) = error.cause()
         else {
             panic!("explicit root must retain its typed ABI failure");
         };
@@ -1099,35 +1020,28 @@ fn test_for_roots_resolves_only_the_reachable_registered_subgraph() {
     let full_errors = StructureResolver::new(inputs)
         .resolve()
         .expect_err("complete audit sees the unrelated invalid entity nesting");
-    assert!(full_errors.errors().iter().any(|error| error.kind()
-        == ResolveErrorKind::InvalidEntityNesting
-        && error.owner_type_id() == Some(TypeMetadata::of::<DirectEntity>().type_id())));
+    assert!(
+        full_errors
+            .errors()
+            .iter()
+            .any(|error| error.kind() == ResolveErrorKind::InvalidEntityNesting
+                && error.owner_type_id() == Some(TypeMetadata::of::<DirectEntity>().type_id()))
+    );
 
     let graph = StructureResolver::for_roots(inputs)
         .resolve()
         .expect("local resolution skips unrelated invalid registrations");
     assert!(graph.model(root.type_id()).is_some());
     assert!(graph.model(TypeMetadata::of::<Inner>().type_id()).is_some());
-    assert!(
-        graph
-            .model(TypeMetadata::of::<DirectEntity>().type_id())
-            .is_none()
-    );
+    assert!(graph.model(TypeMetadata::of::<DirectEntity>().type_id()).is_none());
     assert_eq!(graph.models().len(), 2);
-    assert!(
-        graph
-            .properties(TypeMetadata::of::<DirectEntity>())
-            .is_none()
-    );
+    assert!(graph.properties(TypeMetadata::of::<DirectEntity>()).is_none());
 }
 
 #[test]
 fn test_for_roots_empty_roots_produce_an_empty_graph() {
     let reflection = empty_reflection();
-    let models = ModelRegistry::from_static_metadata(
-        &reflection,
-        &[(TypeMetadata::of::<Inner>(), &TEST_ORIGIN)],
-    )
+    let models = ModelRegistry::from_static_metadata(&reflection, &[(TypeMetadata::of::<Inner>(), &TEST_ORIGIN)])
         .expect("registered concrete model");
     let roots: [&'static TypeMetadata; 0] = [];
     let inputs = ResolveInputs {
@@ -1144,11 +1058,7 @@ fn test_for_roots_empty_roots_produce_an_empty_graph() {
         .resolve()
         .expect("empty-root complete audit");
     assert_eq!(complete.models().len(), 1);
-    assert!(
-        complete
-            .model(TypeMetadata::of::<Inner>().type_id())
-            .is_some()
-    );
+    assert!(complete.model(TypeMetadata::of::<Inner>().type_id()).is_some());
 }
 
 #[test]
@@ -1158,8 +1068,7 @@ fn test_for_roots_rejects_malformed_overlay_even_when_registry_has_canonical_met
     let models = ModelRegistry::from_static_metadata(&reflection, &[(registered, &TEST_ORIGIN)])
         .expect("valid canonical model metadata");
     let malformed = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<Plain>(None, &[], v8::leak(v8::model_role()))
-            .finish_unchecked(),
+        v8::GeneratedTypeMetadataBuilder::new::<Plain>(None, &[], v8::leak(v8::model_role())).finish_unchecked(),
     );
     let roots = [malformed];
     let inputs = ResolveInputs {
@@ -1210,21 +1119,15 @@ fn test_registered_overlay_is_replaced_by_explicit_root() {
         .map(|field| FieldMetadata::from_reflect(descriptor.type_id(), field))
         .collect();
     let explicit = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<Plain>(
-            None,
-            v8::leak_slice(fields),
-            v8::leak(v8::model_role()),
-        )
-        .finish::<Plain>(),
+        v8::GeneratedTypeMetadataBuilder::new::<Plain>(None, v8::leak_slice(fields), v8::leak(v8::model_role()))
+            .finish::<Plain>(),
     );
     assert!(!std::ptr::eq(registered, explicit));
     let reflection = empty_reflection();
     let unrelated = TypeMetadata::of::<Inner>();
-    let models = ModelRegistry::from_static_metadata(
-        &reflection,
-        &[(registered, &TEST_ORIGIN), (unrelated, &TEST_ORIGIN)],
-    )
-    .expect("registered metadata is valid");
+    let models =
+        ModelRegistry::from_static_metadata(&reflection, &[(registered, &TEST_ORIGIN), (unrelated, &TEST_ORIGIN)])
+            .expect("registered metadata is valid");
     let roots = [explicit];
     let inputs = ResolveInputs {
         models: &models,
@@ -1307,19 +1210,15 @@ fn test_registered_overlay_is_replaced_by_explicit_root() {
     );
 
     let invalid = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<Plain>(None, &[], v8::leak(v8::model_role()))
-            .finish_unchecked(),
+        v8::GeneratedTypeMetadataBuilder::new::<Plain>(None, &[], v8::leak(v8::model_role())).finish_unchecked(),
     );
     for roots in [
         v8::leak_slice(vec![invalid, explicit]),
         v8::leak_slice(vec![explicit, invalid]),
     ] {
-        let errors = StructureResolver::for_roots(ResolveInputs {
-            models: &models,
-            roots,
-        })
-        .resolve()
-        .expect_err("every explicit root is ABI-validated");
+        let errors = StructureResolver::for_roots(ResolveInputs { models: &models, roots })
+            .resolve()
+            .expect_err("every explicit root is ABI-validated");
         assert!(errors.errors().iter().any(|error| {
             error.owner_type_id() == Some(invalid.type_id())
                 && matches!(
@@ -1330,9 +1229,7 @@ fn test_registered_overlay_is_replaced_by_explicit_root() {
         }));
     }
     assert!(std::ptr::eq(
-        models
-            .metadata("structure.Plain")
-            .expect("registry retains A"),
+        models.metadata("structure.Plain").expect("registry retains A"),
         registered
     ));
 }
@@ -1340,16 +1237,10 @@ fn test_registered_overlay_is_replaced_by_explicit_root() {
 #[test]
 fn test_for_roots_reports_all_malformed_roots_in_deterministic_order() {
     let malformed_primitive = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<PrimitiveRaw>(
-            None,
-            &[],
-            v8::leak(v8::model_role()),
-        )
-        .finish_unchecked(),
+        v8::GeneratedTypeMetadataBuilder::new::<PrimitiveRaw>(None, &[], v8::leak(v8::model_role())).finish_unchecked(),
     );
     let malformed_plain = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<Plain>(None, &[], v8::leak(v8::model_role()))
-            .finish_unchecked(),
+        v8::GeneratedTypeMetadataBuilder::new::<Plain>(None, &[], v8::leak(v8::model_role())).finish_unchecked(),
     );
     let roots = [malformed_primitive, malformed_plain];
     let reflection = empty_reflection();

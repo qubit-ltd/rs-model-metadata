@@ -189,10 +189,7 @@ impl<'a> StructureResolver<'a> {
     /// A resolver whose graph lifetime follows the registry, independent of
     /// the caller's root array.
     #[must_use]
-    pub fn for_static_roots<const N: usize>(
-        models: &'a ModelRegistry<'a>,
-        roots: [&'static TypeMetadata; N],
-    ) -> Self {
+    pub fn for_static_roots<const N: usize>(models: &'a ModelRegistry<'a>, roots: [&'static TypeMetadata; N]) -> Self {
         let owned_roots: Box<[&'static TypeMetadata]> = Box::new(roots);
         Self {
             inputs: ResolveInputs { models, roots: &[] },
@@ -246,8 +243,7 @@ impl<'a> StructureResolver<'a> {
         let mut projection_producers = Vec::new();
         let mut errors = Vec::new();
 
-        let (nodes, mut discovery_errors) =
-            discover_nodes(self.inputs.models, self.roots(), self.scope, &mut context);
+        let (nodes, mut discovery_errors) = discover_nodes(self.inputs.models, self.roots(), self.scope, &mut context);
         errors.append(&mut discovery_errors);
         for &(metadata, fragment_source) in &nodes {
             let first_error = errors.len();
@@ -268,18 +264,11 @@ impl<'a> StructureResolver<'a> {
                                 Some(metadata.role()),
                                 fragment_source,
                             )
-                            .with_cause(
-                                PropertyResolutionError::Assembly(build_errors.clone()).into(),
-                            ),
+                            .with_cause(PropertyResolutionError::Assembly(build_errors.clone()).into()),
                         );
                     }
                 }
-                Err(error) => errors.push(ResolveError::resolution(
-                    metadata,
-                    None,
-                    fragment_source,
-                    error,
-                )),
+                Err(error) => errors.push(ResolveError::resolution(metadata, None, fragment_source, error)),
             }
             let variant_fields = metadata
                 .as_enum()
@@ -288,23 +277,17 @@ impl<'a> StructureResolver<'a> {
                 .flat_map(|variant| variant.fields());
             for field in metadata.fields().iter().chain(variant_fields) {
                 let field_segments = field.name().map(|name| [name]);
-                let field_path = field_segments
-                    .as_ref()
-                    .map(|segments| PropertyPath::new(segments));
+                let field_path = field_segments.as_ref().map(|segments| PropertyPath::new(segments));
                 if field.is_opaque() {
                     let hidden = field
                         .opaque_type_id()
-                        .and_then(|type_id| {
-                            context.reflection().find_type_by_id(type_id).ok().flatten()
-                        })
+                        .and_then(|type_id| context.reflection().find_type_by_id(type_id).ok().flatten())
                         .and_then(|descriptor| context.metadata_for(descriptor).ok().flatten())
                         .or_else(|| {
                             metadata
                                 .field_descriptor_in(field, context.reflection())
                                 .and_then(|field| field.find_concrete_type())
-                                .and_then(|descriptor| {
-                                    context.metadata_for(descriptor).ok().flatten()
-                                })
+                                .and_then(|descriptor| context.metadata_for(descriptor).ok().flatten())
                         });
                     if let Some(hidden) = hidden.filter(|hidden| {
                         matches!(
@@ -338,33 +321,19 @@ impl<'a> StructureResolver<'a> {
                         ),
                         Ok(None) => {}
                         Err(error) => errors.push(
-                            (ResolveError::resolution(
-                                metadata,
-                                field_path,
-                                fragment_source,
-                                error,
-                            ))
+                            (ResolveError::resolution(metadata, field_path, fragment_source, error))
                                 .with_declaration(*field.declaration()),
                         ),
                     }
                 }
-                super::relations::validate_unique_scope(
-                    metadata,
-                    field,
-                    &context,
-                    fragment_source,
-                    &mut errors,
-                );
+                super::relations::validate_unique_scope(metadata, field, &context, fragment_source, &mut errors);
                 if let Some(reference) = field.reference() {
                     let mut local_reference_valid = true;
                     if let Some(navigation) = reference.path() {
-                        match super::relations::resolve_object_binding(
-                            metadata, navigation, &context,
-                        ) {
+                        match super::relations::resolve_object_binding(metadata, navigation, &context) {
                             Ok((_, true)) => {}
                             Ok((Some(binding), false)) => {
-                                if let Some(target) =
-                                    self.resolve_target(reference.target(), &context)
+                                if let Some(target) = self.resolve_target(reference.target(), &context)
                                     && binding.type_id() != target.type_id()
                                 {
                                     errors.push(
@@ -400,12 +369,7 @@ impl<'a> StructureResolver<'a> {
                             }
                             Err(cause) => {
                                 errors.push(
-                                    (ResolveError::resolution(
-                                        metadata,
-                                        field_path,
-                                        fragment_source,
-                                        cause,
-                                    )
+                                    (ResolveError::resolution(metadata, field_path, fragment_source, cause)
                                         .with_object_path(navigation))
                                     .with_declaration(*field.declaration()),
                                 );
@@ -419,9 +383,7 @@ impl<'a> StructureResolver<'a> {
                                 ReferenceSelection::Entity => None,
                                 ReferenceSelection::Property(path) => {
                                     match resolve_property_path(target, path, &context) {
-                                        Ok(Some(property)) if property.is_readable() => {
-                                            Some(property)
-                                        }
+                                        Ok(Some(property)) if property.is_readable() => Some(property),
                                         Ok(Some(_)) => {
                                             errors.push(
                                                 (ResolveError::new(
@@ -467,9 +429,7 @@ impl<'a> StructureResolver<'a> {
                                 }
                             };
                             let expected = match property {
-                                Some(property) => {
-                                    property.descriptor_in(context.reflection()).ok().flatten()
-                                }
+                                Some(property) => property.descriptor_in(context.reflection()).ok().flatten(),
                                 None => Some(target.descriptor_in(context.reflection())),
                             };
                             if let (Some(expected), Some(actual)) = (
@@ -551,10 +511,7 @@ impl<'a> StructureResolver<'a> {
                             target
                                 .as_entity()
                                 .and_then(|entity| {
-                                    target.field_descriptor_in(
-                                        entity.identifier(),
-                                        context.reflection(),
-                                    )
+                                    target.field_descriptor_in(entity.identifier(), context.reflection())
                                 })
                                 .and_then(|field| field.find_concrete_type()),
                             metadata
@@ -575,8 +532,7 @@ impl<'a> StructureResolver<'a> {
                             );
                             continue;
                         }
-                        projection_sources
-                            .insert(metadata.type_id(), ResolvedProjectionSource { target });
+                        projection_sources.insert(metadata.type_id(), ResolvedProjectionSource { target });
                     }
                     Some(target) => errors.push(ResolveError::new(
                         ResolveErrorKind::WrongModelRole,
@@ -599,13 +555,7 @@ impl<'a> StructureResolver<'a> {
 
             if metadata.role() == ModelRole::Value {
                 let mut visited = HashSet::new();
-                validate_value_closure(
-                    metadata,
-                    &context,
-                    &mut visited,
-                    fragment_source,
-                    &mut errors,
-                );
+                validate_value_closure(metadata, &context, &mut visited, fragment_source, &mut errors);
             }
 
             for error in &mut errors[first_error..] {
@@ -617,13 +567,7 @@ impl<'a> StructureResolver<'a> {
             }
         }
 
-        self.resolve_projection_producers(
-            &nodes,
-            &properties,
-            &context,
-            &mut errors,
-            &mut projection_producers,
-        );
+        self.resolve_projection_producers(&nodes, &properties, &context, &mut errors, &mut projection_producers);
 
         if errors.is_empty() {
             Ok(ModelGraph {
@@ -703,7 +647,7 @@ impl<'a> StructureResolver<'a> {
                 let fixed_source = projection
                     .as_projection()
                     .and_then(ProjectionMetadata::source)
-                    .and_then(|target| self.resolve_target(target, &context));
+                    .and_then(|target| self.resolve_target(target, context));
                 if fixed_source.is_some_and(|fixed| fixed.type_id() != source.type_id()) {
                     let mut error = ResolveError::new(
                         ResolveErrorKind::InvalidProjectionProducer,
@@ -719,15 +663,11 @@ impl<'a> StructureResolver<'a> {
                 }
                 let source_id = source
                     .as_entity()
-                    .and_then(|entity| {
-                        source.field_descriptor_in(entity.identifier(), context.reflection())
-                    })
+                    .and_then(|entity| source.field_descriptor_in(entity.identifier(), context.reflection()))
                     .and_then(|field| field.find_concrete_type());
                 let projection_id = projection
                     .as_projection()
-                    .and_then(|role| {
-                        projection.field_descriptor_in(role.identifier(), context.reflection())
-                    })
+                    .and_then(|role| projection.field_descriptor_in(role.identifier(), context.reflection()))
                     .and_then(|field| field.find_concrete_type());
                 if source_id
                     .zip(projection_id)
@@ -819,13 +759,7 @@ fn resolve_field_dependencies(
             } else {
                 super::graph::ContextRequirement::None
             };
-            super::relations::validate_dependency(
-                metadata,
-                declaration,
-                context,
-                fragment_source,
-                errors,
-            );
+            super::relations::validate_dependency(metadata, declaration, context, fragment_source, errors);
             dependencies.push(super::graph::ResolvedDependency {
                 declaration,
                 context: requirement,

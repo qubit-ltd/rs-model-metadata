@@ -43,10 +43,7 @@ impl<'a> ResolutionContext<'a> {
     ///
     /// A context seeded with the registry's concrete models and the explicit
     /// roots, without modifying the registry.
-    pub(in crate::resolve) fn new(
-        registry: &'a ModelRegistry<'a>,
-        roots: &[&'static TypeMetadata],
-    ) -> Self {
+    pub(in crate::resolve) fn new(registry: &'a ModelRegistry<'a>, roots: &[&'static TypeMetadata]) -> Self {
         let mut context = Self {
             registry,
             known: HashMap::new(),
@@ -76,7 +73,8 @@ impl<'a> ResolutionContext<'a> {
     /// Selects the explicit root for a candidate's type when one was supplied.
     ///
     /// This applies the context's existing root precedence to metadata already
-    /// obtained by the caller. It does not query registries or invoke providers.
+    /// obtained by the caller. It does not query registries or invoke
+    /// providers.
     ///
     /// # Parameters
     ///
@@ -86,10 +84,7 @@ impl<'a> ResolutionContext<'a> {
     ///
     /// The last explicit root for the candidate's type, or `candidate` when no
     /// explicit root for that type exists.
-    pub(in crate::resolve) fn canonical_metadata(
-        &self,
-        candidate: &'static TypeMetadata,
-    ) -> &'static TypeMetadata {
+    pub(in crate::resolve) fn canonical_metadata(&self, candidate: &'static TypeMetadata) -> &'static TypeMetadata {
         self.explicit_roots
             .get(&candidate.type_id())
             .copied()

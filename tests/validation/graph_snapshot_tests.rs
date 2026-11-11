@@ -53,11 +53,7 @@ fn unconstrained<T: Reflect>() -> &'static TypeMetadata {
         .map(|field| FieldMetadata::from_reflect(descriptor.type_id(), field))
         .collect();
     v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<T>(
-            None,
-            v8::leak_slice(fields),
-            v8::leak(v8::model_role()),
-        )
+        v8::GeneratedTypeMetadataBuilder::new::<T>(None, v8::leak_slice(fields), v8::leak(v8::model_role()))
             .finish::<T>(),
     )
 }
@@ -98,9 +94,7 @@ fn test_plan_uses_the_graphs_canonical_root_declarations() {
     assert!(std::ptr::eq(plan.root(), declared));
     let report = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new(&Record {
-                name: String::new(),
-            }),
+            DynamicRef::<Local>::new(&Record { name: String::new() }),
             &ValidationOptions::default(),
         )
         .expect("execution");
@@ -114,8 +108,7 @@ fn test_plan_does_not_import_constraints_from_another_overlay() {
     let declared = TypeMetadata::of::<Record>();
     let stripped = unconstrained::<Record>();
     let roots = [stripped];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-        .expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             models: &models,
@@ -141,9 +134,7 @@ fn test_plan_does_not_import_constraints_from_another_overlay() {
     assert!(std::ptr::eq(plan.root(), stripped));
     assert!(
         plan.validate_dynamic(
-            DynamicRef::<Local>::new(&Record {
-                name: String::new()
-            }),
+            DynamicRef::<Local>::new(&Record { name: String::new() }),
             &ValidationOptions::default()
         )
         .expect("execution")
@@ -169,8 +160,8 @@ fn test_registered_root_overlay_uses_explicit_snapshot_declarations() {
         line: Some(1),
         column: Some(1),
     };
-    let models = ModelRegistry::from_static_metadata(&reflection, &[(registered, &origin)])
-        .expect("registered declaration");
+    let models =
+        ModelRegistry::from_static_metadata(&reflection, &[(registered, &origin)]).expect("registered declaration");
     let roots = [explicit];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -196,17 +187,13 @@ fn test_registered_root_overlay_uses_explicit_snapshot_declarations() {
     assert_eq!(plan.binding_count(), 0);
     let report = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new(&Record {
-                name: String::new(),
-            }),
+            DynamicRef::<Local>::new(&Record { name: String::new() }),
             &ValidationOptions::default(),
         )
         .expect("execution");
     assert!(report.is_valid());
     assert!(std::ptr::eq(
-        models
-            .metadata(registered.model_id().unwrap().as_str())
-            .unwrap(),
+        models.metadata(registered.model_id().unwrap().as_str()).unwrap(),
         registered
     ));
 }
@@ -218,21 +205,16 @@ fn test_capabilities_check_graph_declarations_for_the_requested_type() {
     let declared = TypeMetadata::of::<UniqueValues>();
     let stripped = unconstrained::<UniqueValues>();
     let roots = [declared];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-        .expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
     })
     .resolve()
     .expect("uniqueness is structurally valid");
-    let errors = ValidationCapabilities::check(stripped, &graph)
-        .expect_err("erased uniqueness is unsupported");
+    let errors = ValidationCapabilities::check(stripped, &graph).expect_err("erased uniqueness is unsupported");
     assert_eq!(errors.len(), 1);
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].field_location(), declared.fields()[0].location());
     assert!(errors[0].constraint().is_some());
 }
