@@ -78,12 +78,13 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
     bind_core(inputs, None)
 }
 
-/// Binds codecs and reports field or selector declarations whose types could not be inspected.
+/// Binds codecs and reports field or selector declarations whose types could
+/// not be inspected.
 ///
 /// # Errors
 ///
-/// Returns the same missing, ambiguous, and type-mismatch errors as [`bind_codecs`].
-/// When any such error occurs, no partial report is returned.
+/// Returns the same missing, ambiguous, and type-mismatch errors as
+/// [`bind_codecs`]. When any such error occurs, no partial report is returned.
 ///
 /// # Returns
 ///
@@ -115,6 +116,14 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
 /// # Ok(())
 /// # }
 /// ```
+///
+/// # Parameters
+///
+/// * `inputs` - The resolved model graph and executable codec registry.
+///
+/// # Returns
+///
+/// Successful bindings and ordered type-resolution skip diagnostics.
 pub fn bind_codecs_with_report<'a, 'graph>(
     inputs: CodecBindInputs<'a, 'graph>,
 ) -> Result<CodecBindReport<'graph>, CodecBindErrors> {
@@ -123,6 +132,16 @@ pub fn bind_codecs_with_report<'a, 'graph>(
     Ok(CodecBindReport::new(bindings, skipped))
 }
 
+/// Binds codec declarations and optionally records type-resolution skips.
+///
+/// # Parameters
+///
+/// * `inputs` - The resolved model graph and executable codec registry.
+/// * `skipped` - Optional destination for field and selector diagnostics.
+///
+/// # Returns
+///
+/// The successful bindings, or the aggregated binding errors.
 fn bind_core<'a, 'graph>(
     inputs: CodecBindInputs<'a, 'graph>,
     mut skipped: Option<&mut Vec<CodecBindSkip>>,
@@ -197,6 +216,8 @@ fn bind_core<'a, 'graph>(
 /// * `codecs` - Runtime registry of executable value-string codecs.
 /// * `bindings` - Output map receiving successful bindings by occurrence.
 /// * `errors` - Output list receiving binding failures.
+/// * `skipped` - Optional destination for type-resolution diagnostics.
+#[allow(clippy::too_many_arguments)] // The optional report sink preserves the legacy binding path.
 #[inline]
 fn bind_field<'a>(
     model: &'static TypeMetadata,
@@ -233,6 +254,7 @@ fn bind_field<'a>(
 /// * `codecs` - Runtime registry of executable value-string codecs.
 /// * `bindings` - Output map receiving successful bindings by occurrence.
 /// * `errors` - Output list receiving binding failures.
+/// * `skipped` - Optional destination for type-resolution diagnostics.
 #[allow(clippy::too_many_arguments)]
 fn bind_field_at<'a>(
     model: &'static TypeMetadata,
@@ -423,4 +445,105 @@ fn selector_type_id(descriptor: TypeDescriptor<'_>, position: SelectorPosition) 
         .ok()?
         .find_concrete_type()
         .map(TypeDescriptor::type_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use qubit_codec::ValueStringCodecRegistry;
+    use qubit_model_derive::Model;
+    use qubit_reflect::ReflectionContext;
+
+    use super::super::CodecBindError;
+    use super::super::CodecBindSkipReason;
+    use super::super::CodecBinding;
+    use super::super::CodecOccurrenceId;
+    use super::bind_field_at;
+    use crate::metadata::ConstraintMetadata;
+    use crate::metadata::FieldMetadata;
+    use crate::metadata::MapConstraint;
+    use crate::metadata::SelectorMetadata;
+    use crate::metadata::SelectorPosition;
+    use crate::metadata::SequenceConstraint;
+    use crate::metadata::TypeMetadata;
+    use crate::registry::ModelRegistry;
+    use crate::resolve::ResolveInputs;
+    use crate::resolve::StructureResolver;
+
+    #[Model]
+    struct SelectorSkipProbe {
+        value: String,
+    }
+
+    static ELEMENT: SelectorMetadata = SelectorMetadata::new(SelectorPosition::Element, &[], &[], None, None);
+    static MAP_KEY: SelectorMetadata = SelectorMetadata::new(SelectorPosition::MapKey, &[], &[], None, None);
+    static MAP_VALUE: SelectorMetadata = SelectorMetadata::new(SelectorPosition::MapValue, &[], &[], None, None);
+    static CONSTRAINTS: [ConstraintMetadata; 2] = [
+        ConstraintMetadata::Sequence(SequenceConstraint::new(None, None, false).with_element(&ELEMENT)),
+        ConstraintMetadata::Map(MapConstraint::new(None, None).with_selectors(Some(&MAP_KEY), Some(&MAP_VALUE))),
+    ];
+
+    #[test]
+    fn test_reports_selector_skip_location_when_type_is_unavailable() {
+        let root = TypeMetadata::of::<SelectorSkipProbe>();
+        let reflected_field = &root.fields()[0];
+        let field: &'static FieldMetadata = Box::leak(Box::new(FieldMetadata::with_semantics(
+            root.type_id(),
+            None,
+            reflected_field.index(),
+            reflected_field.name(),
+            reflected_field.visibility(),
+            reflected_field.type_expression_data().expect("field expression"),
+            None,
+            &[],
+            &CONSTRAINTS,
+            &[],
+            reflected_field.serde(),
+        )));
+        let roots = [root];
+        let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+        let graph = StructureResolver::new(ResolveInputs {
+            models: &models,
+            roots: &roots,
+        })
+        .resolve()
+        .expect("valid graph from reflected model");
+        let codecs = ValueStringCodecRegistry::empty();
+        let mut bindings: BTreeMap<CodecOccurrenceId, CodecBinding<'_>> = BTreeMap::new();
+        let mut errors: Vec<CodecBindError> = Vec::new();
+        let mut skipped = Vec::new();
+
+        bind_field_at(
+            root,
+            "value".into(),
+            field,
+            ReflectionContext::global(),
+            &graph,
+            &codecs,
+            &mut bindings,
+            &mut errors,
+            Some(&mut skipped),
+        );
+
+        assert!(bindings.is_empty());
+        assert!(errors.is_empty());
+        assert_eq!(skipped.len(), 3);
+        let positions = [
+            SelectorPosition::Element,
+            SelectorPosition::MapKey,
+            SelectorPosition::MapValue,
+        ];
+        for (skip, position) in skipped.iter().zip(positions) {
+            assert_eq!(skip.model().type_id(), root.type_id());
+            assert_eq!(skip.property(), "value");
+            assert_eq!(skip.reason(), CodecBindSkipReason::SelectorTypeUnavailable);
+            assert_eq!(skip.location().selector, Some(position));
+            assert_eq!(skip.location().field, None);
+        }
+
+        // This intentionally inconsistent overlay is tested below the
+        // resolver boundary: public graph construction rejects it with
+        // QMM-ABI-020 before codec binding can observe it.
+    }
 }

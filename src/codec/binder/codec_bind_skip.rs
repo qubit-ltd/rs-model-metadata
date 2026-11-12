@@ -8,10 +8,9 @@
 
 //! One declaration omitted from codec binding due to unavailable type metadata.
 
+use super::CodecBindSkipReason;
 use crate::metadata::DeclarationLocation;
 use crate::metadata::TypeMetadata;
-
-use super::CodecBindSkipReason;
 
 /// Diagnostic for a field or selector whose target type could not be resolved.
 ///
@@ -19,13 +18,29 @@ use super::CodecBindSkipReason;
 /// A skip does not imply that the declaration should have a codec.
 #[derive(Clone, Debug)]
 pub struct CodecBindSkip {
+    /// Metadata for the model that owns the declaration.
     model: &'static TypeMetadata,
+    /// Canonical path of the field or enum payload.
     property: Box<str>,
+    /// Available source coordinates and declaration position.
     location: DeclarationLocation,
+    /// Type-resolution failure that caused the declaration to be skipped.
     reason: CodecBindSkipReason,
 }
 
 impl CodecBindSkip {
+    /// Constructs a skip diagnostic for one declaration.
+    ///
+    /// # Parameters
+    ///
+    /// * `model` - Metadata for the owning model.
+    /// * `property` - Canonical field or payload path.
+    /// * `location` - Available declaration coordinates and selector position.
+    /// * `reason` - Why the declaration type could not be resolved.
+    ///
+    /// # Returns
+    ///
+    /// The skip diagnostic with its property path stored as a string slice.
     pub(super) fn new(
         model: &'static TypeMetadata,
         property: Box<str>,

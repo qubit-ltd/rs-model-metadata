@@ -11,7 +11,8 @@
 use super::CodecBindSkip;
 use super::CodecBindings;
 
-/// Successful bindings plus diagnostics for declarations that could not be inspected.
+/// Successful bindings plus diagnostics for declarations that could not be
+/// inspected.
 ///
 /// A successful report does not establish that every field should have a codec,
 /// that every declaration was inspectable, or that application configuration
@@ -19,11 +20,23 @@ use super::CodecBindings;
 /// returns that error instead of a partial report.
 #[derive(Debug)]
 pub struct CodecBindReport<'a> {
+    /// Successfully resolved codec bindings.
     bindings: CodecBindings<'a>,
+    /// Declarations whose types could not be inspected.
     skipped: Box<[CodecBindSkip]>,
 }
 
 impl<'a> CodecBindReport<'a> {
+    /// Constructs a report from successful bindings and collected skips.
+    ///
+    /// # Parameters
+    ///
+    /// * `bindings` - The bindings resolved during traversal.
+    /// * `skipped` - Field and selector type-resolution diagnostics.
+    ///
+    /// # Returns
+    ///
+    /// An immutable report containing both collections.
     pub(super) fn new(bindings: CodecBindings<'a>, skipped: Vec<CodecBindSkip>) -> Self {
         Self {
             bindings,
