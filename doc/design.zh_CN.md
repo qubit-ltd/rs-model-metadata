@@ -231,7 +231,7 @@ MM-003 使用固定 Work 上限复现：修复前，同一个 root 的单 root �
 
 公共 `ValidationBuildErrorKind` 新增 `BuildLimitExceeded`，下游穷尽匹配可能需要增加显式分支或 fallback。rs-platform 当前包装聚合错误，没有需要迁移的穷尽 kind 匹配。
 
-启用 `codec` 时，声明中的稳定 codec ID 或 Rust codec 类型仍要经显式传入的 registry 绑定。选择优先级是字段显式 codec、Value 的 canonical codec、无 codec。`bind_codecs` 解析声明并返回已选实现的绑定结果；它不会调用 `encode` 或 `decode`、保存数据或执行应用策略。元数据本身不含 codec 实例，不承担持久化流程。
+启用 `codec` 时，声明中的稳定 codec ID 或 Rust codec 类型仍要经显式传入的 registry 绑定。可选入口 `bind_codecs_with_report` 返回成功绑定和有序的类型解析跳过项；每项包含所属模型、属性路径、可用的声明位置，以及 `FieldDescriptorUnavailable` 或 `SelectorTypeUnavailable` 原因。字段 descriptor 无法解析时，整个字段阶段（含显式 codec 和 selector）都会跳过，即使该字段没有 codec 声明也会记录。类型可解析但没有显式或 canonical codec 的声明只是不产生绑定，不记为 skip。空 skip 清单不能证明业务要求的 codec 都已配置，消费者应核对必需绑定并决定是否拒绝启动或回退。缺失、歧义和值类型不匹配仍返回错误，且不提供部分报告。原有 `bind_codecs` 入口及其结果语义保持可用。两种入口都只解析并选择注册项，不调用 `encode` 或 `decode`、不保存数据，也不执行应用策略。报告不会定义 occurrence 身份的持久化协议。该 descriptor 边界独立于验证支持矩阵；opaque 集合只是 descriptor 可能不可用的例子，并不意味着所有 opaque 字段都会跳过。选择优先级是字段显式 codec、Value 的 canonical codec、无 codec。元数据本身不含 codec 实例，不承担持久化流程。
 
 `CodecOccurrenceId` 用于在当前进程内查找一次 codec 绑定。完整键包含 `TypeId`、可选 `ModelId`、属性路径和声明来源。由于键中仍有 `TypeId`，即使存在稳定的 `ModelId`，相等比较、哈希和排序也只对当前进程有效。不要把该值、它的 `TypeId`、哈希值或 `Debug`/`Display` 输出当作持久化键或外部身份。需要跨进程标识声明时，消费者应另行定义稳定协议，并处理匿名模型。
 

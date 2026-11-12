@@ -17,7 +17,7 @@
 | 按稳定 ID 找模型 | `ModelRegistry::try_global()` | 在当前注册范围内查到元数据 |
 | 检查引用、查询声明和子模型 | `StructureResolver::for_roots` | 得到 `ModelGraph` 或结构错误 |
 | 校验一个实例 | `ValidationPlan::build`、`validate` | 得到有效、带违例或截断的报告；执行故障返回错误 |
-| 绑定 codec | `codec::bind_codecs` | 得到绑定结果或含来源的错误 |
+| 绑定并检查跳过项 | `codec::bind_codecs_with_report` | 得到成功绑定和类型解析跳过项，或绑定错误 |
 
 这里的 Field 是存储字段；Property 是字段与合格访问器合并后的可访问属性；
 `TypeMetadata` 是不依赖实例的静态描述。只有当任务涉及多个模型的关系时才需要结构图。
@@ -266,12 +266,16 @@ fn main() {
 ## Codec 绑定
 
 启用 `codec` feature 并注册 codec 实现后，再绑定已解析的结构图。
-`bind_codecs` 会遍历图中的 codec 声明，为每个声明选择实现并返回绑定结果。选择顺序是字段显式
+`bind_codecs_with_report` 会遍历图中的 codec 声明，为每个声明选择实现，并返回绑定结果及跳过诊断。选择顺序是字段显式
 codec、Value canonical codec、无 codec；Rust 类型形式的 codec 声明也要求对应注册项存在。
 `CodecOccurrenceId` 是进程内的绑定查找身份，包含准确的 `TypeId`、可选 `ModelId`、Property
 路径和声明来源。完整键仍包含 `TypeId`，因此即使 `model()` 返回稳定的 `ModelId`，相等、哈希和排序也只适用于当前进程。不要把该值、它的 `TypeId`、哈希值或 `Debug`/`Display` 输出当作持久化键或外部身份。需要跨进程标识声明时，消费者应另行定义稳定协议，并处理匿名模型。绑定不会调用 `encode` 或 `decode`、持久化数据，也不会执行应用策略。注册项缺失或值类型不匹配时会返回错误。
 
-绑定只处理所提供图和上下文中具体反射 descriptor 能解析的字段上的声明。若字段 descriptor 缺失，该字段的整个绑定阶段都会跳过，包括显式 codec 和 selector 声明。opaque 集合是 descriptor 可能不可用的一个例子；这不表示所有 opaque 字段都会跳过。成功返回 `Ok` 表示已处理的声明没有绑定错误，并不表示每条源声明都已检查或绑定。需要 codec 的字段应检查返回绑定中是否包含预期的 `CodecOccurrenceId`；缺失时由应用决定启动失败或使用回退方案。这个 descriptor 解析边界独立于验证后端的 `ValidationPlan` 支持矩阵。
+绑定只处理所提供图和上下文中具体反射 descriptor 能解析的字段上的声明。若字段 descriptor 缺失，该字段的整个绑定阶段都会跳过，包括显式 codec 和 selector 声明。opaque 集合是 descriptor 可能不可用的一个例子；这不表示所有 opaque 字段都会跳过。成功返回 `Ok` 表示已处理的声明没有绑定错误，并不表示每条源声明都已检查或绑定。需要 codec 的字段应检查预期 `CodecOccurrenceId` 是否出现在返回绑定中；缺失时由应用决定启动失败还是使用回退方案。这个 descriptor 解析边界独立于验证后端的 `ValidationPlan` 支持矩阵。
+
+可选入口 `bind_codecs_with_report` 返回 `CodecBindReport`：用 `bindings()` 读取已成功绑定项，用 `skipped()` 查看未能检查的声明，也可通过 `into_bindings()` 消费报告并取出绑定。每条 skip 提供所属模型 `model()`、规范化属性路径 `property()`、可用时的声明位置 `location()`，以及原因 `reason()`：`FieldDescriptorUnavailable` 表示字段 descriptor 无法解析，`SelectorTypeUnavailable` 表示 selector 目标类型无法解析。selector 的位置会标明 selector 类型；源码坐标若不存在则仍可能为空。字段无法解析时，即使没有声明 codec，也会记录 skip，因此它不等于发现了缺失 codec。类型可解析但没有显式或 canonical codec 的声明只是不产生绑定，不会记为 skip。
+
+空的 `skipped()` 仅表示本次遍历没有遇到这两类类型解析跳过，不能证明业务要求的 codec 都已配置；应用仍应核对自己依赖的绑定。有缺失注册、注册歧义或值类型不匹配时仍返回 `Err`，且不会返回部分报告。旧调用方可以继续使用 `bind_codecs`，无需迁移；只有需要跳过诊断时才改用新入口。
 
 直接字段绑定最多剥离最外层的一层 `Option<T>`，之后按类型精确匹配。若 `T` 声明了 canonical codec，则 `T` 和 `Option<T>` 的字段 occurrence 会继承该 codec。`Box<T>` 必须注册 `Box<T>` codec；`Option<Box<T>>` 的有效类型同样是精确的 `Box<T>`；`Option<Option<T>>` 则要求 `Option<T>` codec。此规则同时适用于字段显式 codec 与 canonical fallback。`T` 自身的 canonical occurrence 与模型拥有的字段 occurrence 是不同身份。
 
@@ -300,7 +304,9 @@ use qubit_codec::ValueStringCodecRegistration;
 use qubit_codec::ValueStringCodecRegistry;
 use qubit_model_derive::Model;
 use qubit_model_metadata::codec::bind_codecs;
+use qubit_model_metadata::codec::bind_codecs_with_report;
 use qubit_model_metadata::codec::CodecBindErrorKind;
+use qubit_model_metadata::codec::CodecBindSkipReason;
 use qubit_model_metadata::codec::CodecBindInputs;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -341,6 +347,14 @@ struct MissingName {
     value: String,
 }
 
+#[Model]
+struct ReportedName {
+    #[codec(id = "guide.string")]
+    value: String,
+    #[opaque]
+    hidden: Option<Vec<String>>,
+}
+
 static DESCRIPTOR: ValueStringCodecDescriptor =
     ValueStringCodecDescriptor::of::<StringCodec, String>();
 static REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
@@ -361,9 +375,24 @@ fn main() {
     let saved_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &saved_roots })
         .resolve()
         .expect("saved-name graph");
-    let bindings = bind_codecs(CodecBindInputs { graph: &saved_graph, codecs: &codecs })
+    let report = bind_codecs_with_report(CodecBindInputs { graph: &saved_graph, codecs: &codecs })
         .expect("registered codec binds");
-    assert_eq!(bindings.bindings().len(), 1);
+    assert_eq!(report.bindings().bindings().len(), 1);
+    assert!(report.skipped().is_empty());
+
+    let reported_roots = [TypeMetadata::of::<ReportedName>()];
+    let reported_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &reported_roots })
+        .resolve()
+        .expect("reported-name graph");
+    let report = bind_codecs_with_report(CodecBindInputs { graph: &reported_graph, codecs: &codecs })
+        .expect("type-resolution skips are reported");
+    assert_eq!(report.bindings().bindings().len(), 1);
+    assert_eq!(report.skipped().len(), 1);
+    let skip = &report.skipped()[0];
+    assert_eq!(skip.model().type_id(), TypeMetadata::of::<ReportedName>().type_id());
+    assert_eq!(skip.property(), "hidden");
+    assert_eq!(skip.reason(), CodecBindSkipReason::FieldDescriptorUnavailable);
+    let _source_location = skip.location();
 
     let missing_roots = [TypeMetadata::of::<MissingName>()];
     let missing_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &missing_roots })

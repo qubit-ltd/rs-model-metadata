@@ -345,7 +345,7 @@ registrations, or proves an instance valid.
 ## Codec binding
 
 Enable the `codec` feature and register the codec implementation before binding.
-`bind_codecs` walks an already resolved graph and returns the selected implementation
+`bind_codecs_with_report` walks an already resolved graph and returns the selected implementation
 for each codec declaration. It prefers an explicit field codec, then a Value
 canonical codec, then no codec; Rust-type codec declarations also require a matching
 registration. `CodecOccurrenceId` is a process-local binding lookup identity
@@ -396,7 +396,9 @@ use qubit_codec::ValueStringCodecRegistration;
 use qubit_codec::ValueStringCodecRegistry;
 use qubit_model_derive::Model;
 use qubit_model_metadata::codec::bind_codecs;
+use qubit_model_metadata::codec::bind_codecs_with_report;
 use qubit_model_metadata::codec::CodecBindErrorKind;
+use qubit_model_metadata::codec::CodecBindSkipReason;
 use qubit_model_metadata::codec::CodecBindInputs;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
@@ -437,6 +439,14 @@ struct MissingName {
     value: String,
 }
 
+#[Model]
+struct ReportedName {
+    #[codec(id = "guide.string")]
+    value: String,
+    #[opaque]
+    hidden: Option<Vec<String>>,
+}
+
 static DESCRIPTOR: ValueStringCodecDescriptor =
     ValueStringCodecDescriptor::of::<StringCodec, String>();
 static REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
@@ -457,9 +467,24 @@ fn main() {
     let saved_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &saved_roots })
         .resolve()
         .expect("saved-name graph");
-    let bindings = bind_codecs(CodecBindInputs { graph: &saved_graph, codecs: &codecs })
+    let report = bind_codecs_with_report(CodecBindInputs { graph: &saved_graph, codecs: &codecs })
         .expect("registered codec binds");
-    assert_eq!(bindings.bindings().len(), 1);
+    assert_eq!(report.bindings().bindings().len(), 1);
+    assert!(report.skipped().is_empty());
+
+    let reported_roots = [TypeMetadata::of::<ReportedName>()];
+    let reported_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &reported_roots })
+        .resolve()
+        .expect("reported-name graph");
+    let report = bind_codecs_with_report(CodecBindInputs { graph: &reported_graph, codecs: &codecs })
+        .expect("type-resolution skips are reported");
+    assert_eq!(report.bindings().bindings().len(), 1);
+    assert_eq!(report.skipped().len(), 1);
+    let skip = &report.skipped()[0];
+    assert_eq!(skip.model().type_id(), TypeMetadata::of::<ReportedName>().type_id());
+    assert_eq!(skip.property(), "hidden");
+    assert_eq!(skip.reason(), CodecBindSkipReason::FieldDescriptorUnavailable);
+    let _source_location = skip.location();
 
     let missing_roots = [TypeMetadata::of::<MissingName>()];
     let missing_graph = StructureResolver::new(ResolveInputs { models: &models, roots: &missing_roots })
@@ -473,6 +498,23 @@ fn main() {
 
 The returned binding identifies which implementation the application may use.
 The application owns codec invocation, persistence, and any surrounding policy.
+Use `report.bindings()` to inspect successful bindings and `report.skipped()` to
+inspect declarations that could not be checked. Each skip provides the owning
+model, canonical property path, declaration location when available, and a
+`CodecBindSkipReason` (`FieldDescriptorUnavailable` or
+`SelectorTypeUnavailable`). A selector skip's location identifies its selector
+position. An unresolvable field may have no codec declaration at all, so a skip
+does not mean that a codec is missing. A parseable declaration with no explicit
+or canonical codec is simply left unbound and is not reported as skipped.
+
+An opaque collection is one possible cause of a missing descriptor, but opacity
+alone does not imply a skip. An empty skip list only says that this traversal
+had no type-resolution skips; it does not prove that every business-required
+codec is configured. The application should inspect the bindings it requires
+and decide whether an absent binding is acceptable. If binding returns an error
+for a missing, ambiguous, or type-mismatched registration, no partial report is
+returned. Existing callers may keep using `bind_codecs` unchanged; switch to
+`bind_codecs_with_report` only when skipped-declaration diagnostics are useful.
 
 Binding processes declarations only for fields whose concrete reflection
 descriptors resolve in the supplied graph and context. If a field descriptor is
@@ -648,8 +690,17 @@ update and call this method once. Selected model-level rules execute before
 field rules; see
 [stopping policies and work budgets](#advanced-usage-stopping-policies-and-work-budgets).
 
-With `codec`, call `codec::bind_codecs` using CodecBindInputs and an explicit
-codec registry after graph resolution. Selection order is explicit field codec,
+With `codec`, call `codec::bind_codecs_with_report` using CodecBindInputs and an
+explicit codec registry after graph resolution. Its `CodecBindReport` exposes
+successful bindings and type-resolution skips through `bindings()` and
+`skipped()`; `into_bindings()` consumes the report and returns the bindings.
+Each skip provides its owner model, property path, available declaration
+location, and reason. A skip may describe a field with no codec declaration.
+Parseable declarations without an explicit or canonical codec are not skipped,
+and an empty skip list does not prove application-required codecs are configured.
+Missing, ambiguous, and type-mismatched registrations remain errors, with no
+partial report. Existing callers may continue using `codec::bind_codecs`.
+Selection order is explicit field codec,
 Value canonical codec, then no codec. Rust-type codec declarations also require
 registration. Explicitly naming the canonical codec is valid. `CodecOccurrenceId`
 is a process-local binding lookup identity containing exact `TypeId`, optional
