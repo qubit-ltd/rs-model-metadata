@@ -360,9 +360,15 @@ fn fresh_resolve_uses_its_explicit_metadata_override_without_a_prior_cache_hit()
         overlay.type_id(),
         TypeMetadata::of::<SharedLeaf>().type_id()
     );
+    let overlay_reflection = ReflectionContext::builder()
+        .include_linked()
+        .build()
+        .expect("second linked reflection context");
+    let overlay_models =
+        ModelRegistry::from_context(&overlay_reflection).expect("second model registry");
     let override_roots = [root, overlay];
     let errors = StructureResolver::new(ResolveInputs {
-        models: &models,
+        models: &overlay_models,
         roots: &override_roots,
     })
     .resolve()
