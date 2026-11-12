@@ -31,6 +31,8 @@ use qubit_model_metadata::codec::CodecBindErrorKind;
 use qubit_model_metadata::codec::CodecBindInputs;
 use qubit_model_metadata::codec::CodecOccurrenceId;
 use qubit_model_metadata::codec::bind_codecs;
+use qubit_model_metadata::codec::bind_codecs_with_report;
+use qubit_model_metadata::codec::CodecBindSkipReason;
 use qubit_model_metadata::metadata::CodecSource;
 use qubit_model_metadata::metadata::SelectorPosition;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -813,6 +815,140 @@ fn test_opaque_unresolved_field_skips_missing_codec_registration() {
     })
     .expect("unresolved opaque field is skipped before registry lookup");
     assert_eq!(bindings.bindings().len(), 0);
+}
+
+#[Model]
+struct ReportedOpaqueField {
+    #[codec(id = "test.string")]
+    visible: String,
+    #[opaque]
+    hidden: Option<Vec<String>>,
+}
+
+#[test]
+fn test_binding_report_contains_successes_and_unresolved_fields() {
+    let root = TypeMetadata::of::<ReportedOpaqueField>();
+    let roots = [root];
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("opaque graph");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
+
+    let report = bind_codecs_with_report(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("binding report");
+    assert_eq!(report.bindings().bindings().len(), 1);
+    assert!(
+        report
+            .bindings()
+            .get(&CodecOccurrenceId::new(root, "visible", CodecSource::Field))
+            .is_some()
+    );
+    assert_eq!(report.skipped().len(), 1);
+    assert_eq!(report.skipped()[0].property(), "hidden");
+    assert_eq!(
+        report.skipped()[0].reason(),
+        CodecBindSkipReason::FieldDescriptorUnavailable
+    );
+    assert_eq!(report.skipped()[0].model().type_id(), root.type_id());
+    assert_eq!(
+        report.skipped()[0].location(),
+        &root.fields()[1].declaration().clone()
+    );
+}
+
+#[Model]
+struct OpaqueNoCodec {
+    #[opaque]
+    hidden: Option<Vec<String>>,
+}
+
+#[test]
+fn test_report_includes_unresolved_field_without_explicit_codec() {
+    let root = TypeMetadata::of::<OpaqueNoCodec>();
+    let roots = [root];
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("opaque graph");
+    let codecs = ValueStringCodecRegistry::empty();
+    let report = bind_codecs_with_report(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("unresolved declaration is reported");
+    assert_eq!(report.bindings().bindings().len(), 0);
+    assert_eq!(report.skipped().len(), 1);
+    assert_eq!(report.skipped()[0].property(), "hidden");
+    assert_eq!(
+        report.skipped()[0].reason(),
+        CodecBindSkipReason::FieldDescriptorUnavailable
+    );
+}
+
+#[test]
+fn test_report_does_not_report_resolvable_field_without_codec() {
+    let root = TypeMetadata::of::<PlainField>();
+    let roots = [root];
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("plain graph");
+    let codecs = ValueStringCodecRegistry::empty();
+    let report = bind_codecs_with_report(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("no declarations require a codec");
+    assert_eq!(report.bindings().bindings().len(), 0);
+    assert!(report.skipped().is_empty());
+}
+
+#[Model]
+struct PlainField {
+    value: String,
+}
+
+#[test]
+fn test_report_preserves_binding_errors_without_partial_report() {
+    let source = source();
+    let graph = graph(TypeMetadata::of::<Missing>(), &source);
+    let codecs = ValueStringCodecRegistry::empty();
+    let old_errors = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .unwrap_err();
+    let report_errors = bind_codecs_with_report(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .unwrap_err();
+    assert_eq!(report_errors.errors().len(), old_errors.errors().len());
+    assert_eq!(
+        report_errors.errors()[0].kind(),
+        old_errors.errors()[0].kind()
+    );
+    assert_eq!(
+        report_errors.errors()[0].occurrence(),
+        old_errors.errors()[0].occurrence()
+    );
 }
 
 #[Model]

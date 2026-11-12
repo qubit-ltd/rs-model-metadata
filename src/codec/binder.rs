@@ -29,11 +29,17 @@ use crate::resolve::ModelGraph;
 use crate::transparent_descriptor::transparent_descriptor;
 
 mod codec_bind_inputs;
+mod codec_bind_report;
+mod codec_bind_skip;
+mod codec_bind_skip_reason;
 mod codec_binding;
 mod codec_bindings;
 mod codec_occurrence_id;
 
 pub use codec_bind_inputs::CodecBindInputs;
+pub use codec_bind_report::CodecBindReport;
+pub use codec_bind_skip::CodecBindSkip;
+pub use codec_bind_skip_reason::CodecBindSkipReason;
 pub use codec_binding::CodecBinding;
 pub use codec_bindings::CodecBindings;
 pub use codec_occurrence_id::CodecOccurrenceId;
@@ -69,6 +75,58 @@ pub use codec_occurrence_id::CodecOccurrenceId;
 ///
 /// All successful bindings, keyed by process-local codec occurrence identity.
 pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<CodecBindings<'graph>, CodecBindErrors> {
+    bind_core(inputs, None)
+}
+
+/// Binds codecs and reports field or selector declarations whose types could not be inspected.
+///
+/// # Errors
+///
+/// Returns the same missing, ambiguous, and type-mismatch errors as [`bind_codecs`].
+/// When any such error occurs, no partial report is returned.
+///
+/// # Returns
+///
+/// Successful bindings and an ordered list of type-resolution skips. An empty
+/// skip list does not prove every declaration was inspected or that every
+/// field requires a codec.
+///
+/// # Examples
+///
+/// ```
+/// #![cfg(feature = "codec")]
+/// use std::error::Error;
+///
+/// use qubit_codec::ValueStringCodecRegistry;
+/// use qubit_model_metadata::codec::{CodecBindInputs, bind_codecs_with_report};
+/// use qubit_model_metadata::registry::ModelRegistry;
+/// use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
+/// use qubit_reflect::ReflectionContext;
+///
+/// # fn main() -> Result<(), Box<dyn Error>> {
+/// let reflection = ReflectionContext::builder().build()?;
+/// let models = ModelRegistry::from_static_metadata(&reflection, &[])?;
+/// let roots: &[&'static qubit_model_metadata::metadata::TypeMetadata] = &[];
+/// let graph = StructureResolver::new(ResolveInputs { models: &models, roots }).resolve()?;
+/// let codecs = ValueStringCodecRegistry::empty();
+/// let report = bind_codecs_with_report(CodecBindInputs { graph: &graph, codecs: &codecs })?;
+/// assert!(report.skipped().is_empty());
+/// assert_eq!(report.bindings().bindings().len(), 0);
+/// # Ok(())
+/// # }
+/// ```
+pub fn bind_codecs_with_report<'a, 'graph>(
+    inputs: CodecBindInputs<'a, 'graph>,
+) -> Result<CodecBindReport<'graph>, CodecBindErrors> {
+    let mut skipped = Vec::new();
+    let bindings = bind_core(inputs, Some(&mut skipped))?;
+    Ok(CodecBindReport::new(bindings, skipped))
+}
+
+fn bind_core<'a, 'graph>(
+    inputs: CodecBindInputs<'a, 'graph>,
+    mut skipped: Option<&mut Vec<CodecBindSkip>>,
+) -> Result<CodecBindings<'graph>, CodecBindErrors> {
     let mut bindings = BTreeMap::new();
     let mut errors = Vec::new();
     let context = inputs
@@ -87,6 +145,7 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
                 inputs.codecs,
                 &mut bindings,
                 &mut errors,
+                skipped.as_deref_mut(),
             );
         }
         for variant in metadata.as_enum().into_iter().flat_map(|value| value.variants()) {
@@ -102,6 +161,7 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
                     inputs.codecs,
                     &mut bindings,
                     &mut errors,
+                    skipped.as_deref_mut(),
                 );
             }
         }
@@ -146,6 +206,7 @@ fn bind_field<'a>(
     codecs: &'a ValueStringCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
+    skipped: Option<&mut Vec<CodecBindSkip>>,
 ) {
     bind_field_at(
         model,
@@ -156,6 +217,7 @@ fn bind_field<'a>(
         codecs,
         bindings,
         errors,
+        skipped,
     );
 }
 
@@ -181,8 +243,17 @@ fn bind_field_at<'a>(
     codecs: &'a ValueStringCodecRegistry,
     bindings: &mut BTreeMap<CodecOccurrenceId, CodecBinding<'a>>,
     errors: &mut Vec<CodecBindError>,
+    mut skipped: Option<&mut Vec<CodecBindSkip>>,
 ) {
     let Some(descriptor) = field.reflect_in(context).and_then(|field| field.find_concrete_type()) else {
+        if let Some(skipped) = skipped.as_deref_mut() {
+            skipped.push(CodecBindSkip::new(
+                model,
+                path,
+                *field.declaration(),
+                CodecBindSkipReason::FieldDescriptorUnavailable,
+            ));
+        }
         return;
     };
     let expected = match descriptor.kind() {
@@ -217,6 +288,14 @@ fn bind_field_at<'a>(
     .flatten()
     {
         let Some(expected) = selector_type_id(descriptor, selector.position()) else {
+            if let Some(skipped) = skipped.as_deref_mut() {
+                skipped.push(CodecBindSkip::new(
+                    model,
+                    path.clone(),
+                    field.declaration().with_selector(selector.position()),
+                    CodecBindSkipReason::SelectorTypeUnavailable,
+                ));
+            }
             continue;
         };
         let Some(codec) = selector.codec().or_else(|| canonical_codec(expected, graph)) else {

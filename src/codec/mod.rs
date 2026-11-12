@@ -12,10 +12,14 @@ mod binder;
 mod error;
 
 pub use binder::CodecBindInputs;
+pub use binder::CodecBindReport;
+pub use binder::CodecBindSkip;
+pub use binder::CodecBindSkipReason;
 pub use binder::CodecBinding;
 pub use binder::CodecBindings;
 pub use binder::CodecOccurrenceId;
 pub use binder::bind_codecs;
+pub use binder::bind_codecs_with_report;
 pub use error::CodecBindError;
 pub use error::CodecBindErrorKind;
 pub use error::CodecBindErrors;
