@@ -73,6 +73,8 @@ pub(super) fn push_field_error(
 
 #[cfg(test)]
 mod value_closure_cache_tests;
+#[cfg(test)]
+mod nested_role_tests;
 
 /// Finds model metadata attached to or registered for a descriptor.
 ///
@@ -156,11 +158,12 @@ pub(super) fn resolve_declared_target(
 
 /// Finds an Entity or Projection through visible non-reference structure.
 ///
-/// Uses an explicit traversal stack and current ancestors to terminate cycles
-/// without suppressing sibling uses. Model fields retain their opaque and
-/// reference boundaries; raw descriptors use shared structural children.
-/// Returns the first forbidden role in declaration order, or `None` when no
-/// visible child has that role. Metadata lookup failures preserve their cause.
+/// Uses an explicit traversal stack and a TypeId set local to this query, so
+/// cycles terminate and shared descriptors are expanded once. Model fields
+/// retain their opaque and reference boundaries; raw descriptors use shared
+/// structural children. Returns the first forbidden role in declaration
+/// order, or `None` when no visible child has that role. Metadata lookup
+/// failures preserve their cause.
 ///
 /// # Parameters
 ///
@@ -179,17 +182,21 @@ pub(super) fn forbidden_entity_nested_role<'ctx>(
     descriptor: TypeDescriptor<'ctx>,
     context: &ResolutionContext<'ctx>,
 ) -> Result<Option<ModelRole>, ModelMetadataError> {
-    let mut ancestors = HashSet::new();
-    let mut pending = vec![(descriptor, false)];
-    while let Some((current, exiting)) = pending.pop() {
-        if exiting {
-            ancestors.remove(&current.type_id());
+    forbidden_entity_nested_role_with_visit(descriptor, context, |_| {})
+}
+
+fn forbidden_entity_nested_role_with_visit<'ctx>(
+    descriptor: TypeDescriptor<'ctx>,
+    context: &ResolutionContext<'ctx>,
+    mut on_visit: impl FnMut(std::any::TypeId),
+) -> Result<Option<ModelRole>, ModelMetadataError> {
+    let mut seen = HashSet::new();
+    let mut pending = vec![descriptor];
+    while let Some(current) = pending.pop() {
+        if !seen.insert(current.type_id()) {
             continue;
         }
-        if !ancestors.insert(current.type_id()) {
-            continue;
-        }
-        pending.push((current, true));
+        on_visit(current.type_id());
         let first_child = pending.len();
         if let Some(metadata) = metadata_for_descriptor(current, context)? {
             if matches!(metadata.role(), ModelRole::Entity | ModelRole::Projection) {
@@ -207,12 +214,12 @@ pub(super) fn forbidden_entity_nested_role<'ctx>(
                         .field_descriptor_in(field, context.reflection())
                         .and_then(|field| field.find_concrete_type())
                 {
-                    pending.push((child, false));
+                    pending.push(child);
                 }
             }
         } else {
             children(current, |edge| {
-                pending.push((edge.target, false));
+                pending.push(edge.target);
             });
         }
         pending[first_child..].reverse();

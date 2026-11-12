@@ -57,6 +57,20 @@ struct DirectEntity {
     inner: Inner,
 }
 
+#[Model]
+struct SharedInnerBranch {
+    left: Inner,
+    right: Inner,
+}
+
+#[Entity(id = "structure.SharedNested")]
+struct SharedNestedEntity {
+    #[identifier]
+    id: Id,
+    left: SharedInnerBranch,
+    right: SharedInnerBranch,
+}
+
 #[Entity(id = "structure.Tuple")]
 struct TupleEntity {
     #[identifier]
@@ -369,6 +383,8 @@ fn reflection_builder() -> ReflectionContextBuilder {
     ReflectionContext::builder()
         .include_type::<Inner>()
         .include_type::<DirectEntity>()
+        .include_type::<SharedInnerBranch>()
+        .include_type::<SharedNestedEntity>()
         .include_type::<TupleEntity>()
         .include_type::<ContainerEntity>()
         .include_type::<MapKeyEntity>()
@@ -551,6 +567,19 @@ fn test_entity_tuple_matches_direct_rejection() {
         assert_eq!(error.actual_role(), Some(ModelRole::Entity));
         assert_eq!(error.path().expect("named owning field").segments(), &["inner"]);
     }
+}
+
+#[test]
+fn test_entity_shared_nested_role_keeps_owner_path_and_declaration() {
+    let root = TypeMetadata::of::<SharedNestedEntity>();
+    let reflection = reflection_with_models!(SharedNestedEntity, SharedInnerBranch, Inner);
+    let errors = root_errors_in_context(root, &reflection);
+    let error = root_error(&errors, root, ResolveErrorKind::InvalidEntityNesting, 1);
+    assert_eq!(error.actual_role(), Some(ModelRole::Entity));
+    assert_eq!(error.path().expect("owning nested field").segments(), &["left"]);
+    let declaration = error.declaration().expect("owner declaration retained");
+    assert_eq!(declaration.variant, None);
+    assert_eq!(declaration.field, Some(1));
 }
 
 #[test]
