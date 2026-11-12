@@ -27,6 +27,7 @@ use fixtures::Pipeline1;
 use fixtures::Pipeline8;
 use fixtures::Pipeline32;
 use qubit_model_derive::Model;
+use qubit_model_derive::Value;
 use qubit_model_metadata::metadata::TypeMetadata;
 use qubit_model_metadata::registry::ModelRegistry;
 use qubit_model_metadata::registry::ModelRegistryOrigin;
@@ -94,6 +95,25 @@ scale_models! {
     (PlanScaleBinary12, "benchmark.PlanScaleBinary12", PlanScaleChain12, "benchmark.PlanScaleChain12", PlanScaleBinary11, PlanScaleChain11, 12),
     (PlanScaleBinary13, "benchmark.PlanScaleBinary13", PlanScaleChain13, "benchmark.PlanScaleChain13", PlanScaleBinary12, PlanScaleChain12, 13),
     (PlanScaleBinary14, "benchmark.PlanScaleBinary14", PlanScaleChain14, "benchmark.PlanScaleChain14", PlanScaleBinary13, PlanScaleChain13, 14),
+}
+
+#[Value]
+#[allow(dead_code)]
+struct ClosureLeaf { value: String }
+
+macro_rules! closure_levels {
+    ($(($name:ident, $prev:ty)),+ $(,)?) => { $(
+        #[Value]
+        #[allow(dead_code)]
+        struct $name { left: $prev, right: $prev }
+    )+ };
+}
+
+closure_levels! {
+    (Closure1, ClosureLeaf), (Closure2, Closure1), (Closure3, Closure2),
+    (Closure4, Closure3), (Closure5, Closure4), (Closure6, Closure5),
+    (Closure7, Closure6), (Closure8, Closure7), (Closure9, Closure8),
+    (Closure10, Closure9), (Closure11, Closure10), (Closure12, Closure11),
 }
 
 struct AcceptModel;
@@ -539,6 +559,47 @@ fn plan_build_scaling(criterion: &mut Criterion, reflection: &ReflectionContext)
     group.finish();
 }
 
+/// Measures structural resolution of shared Value subtrees, including roots
+/// and model registries only as setup outside the timed loop.
+fn structure_value_closure_shared(criterion: &mut Criterion, reflection: &ReflectionContext) {
+    let models = ModelRegistry::from_context(reflection).expect("valid closure registrations");
+    let roots_1 = [TypeMetadata::of::<Closure1>(), TypeMetadata::of::<ClosureLeaf>()];
+    let roots_4 = [TypeMetadata::of::<Closure4>(), TypeMetadata::of::<Closure2>()];
+    let roots_8 = [TypeMetadata::of::<Closure8>(), TypeMetadata::of::<Closure4>()];
+    let roots_12 = [TypeMetadata::of::<Closure12>(), TypeMetadata::of::<Closure6>()];
+    let cases: [(&str, usize, &[&'static TypeMetadata]); 4] = [
+        ("depth_1", 2, &roots_1),
+        ("depth_4", 5, &roots_4),
+        ("depth_8", 9, &roots_8),
+        ("depth_12", 13, &roots_12),
+    ];
+    let mut group = criterion.benchmark_group("structure_value_closure_shared");
+    group.sample_size(10).measurement_time(Duration::from_secs(1));
+    for (label, unique_types, roots) in cases {
+        for root_count in [1, roots.len()] {
+            let selected = &roots[..root_count];
+            let check = StructureResolver::for_roots(ResolveInputs { models: &models, roots: selected })
+                .resolve()
+                .expect("valid shared Value graph");
+            assert_eq!(check.models().len(), unique_types);
+            println!(
+                "structure_value_closure_shared/{label}/roots_{root_count}: unique_types={unique_types}, depth={}, roots={root_count}",
+                label.strip_prefix("depth_").expect("depth label"),
+            );
+            group.bench_function(BenchmarkId::new(label, format!("roots_{root_count}")), |bencher| {
+                bencher.iter(|| {
+                    black_box(
+                        StructureResolver::for_roots(ResolveInputs { models: &models, roots: selected })
+                            .resolve()
+                            .expect("valid shared Value graph"),
+                    )
+                });
+            });
+        }
+    }
+    group.finish();
+}
+
 /// Keeps cold probes ahead of any code that could initialize property caches.
 fn main() {
     let reflection = ReflectionContext::builder()
@@ -559,5 +620,6 @@ fn main() {
     model_count_pipeline(&mut criterion, &reflection);
     model_rule_batch_build(&mut criterion, &reflection);
     plan_build_scaling(&mut criterion, &reflection);
+    structure_value_closure_shared(&mut criterion, &reflection);
     criterion.final_summary();
 }
