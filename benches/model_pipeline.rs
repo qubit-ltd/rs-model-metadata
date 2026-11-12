@@ -26,6 +26,8 @@ use criterion::Criterion;
 use fixtures::Pipeline1;
 use fixtures::Pipeline8;
 use fixtures::Pipeline32;
+use qubit_id::Id;
+use qubit_model_derive::Entity;
 use qubit_model_derive::Model;
 use qubit_model_derive::Value;
 use qubit_model_metadata::metadata::TypeMetadata;
@@ -116,6 +118,25 @@ closure_levels! {
     (Closure4, Closure3), (Closure5, Closure4), (Closure6, Closure5),
     (Closure7, Closure6), (Closure8, Closure7), (Closure9, Closure8),
     (Closure10, Closure9), (Closure11, Closure10), (Closure12, Closure11),
+}
+
+macro_rules! entity_shared_roots {
+    ($(($name:ident, $id:literal, $nested:ty)),+ $(,)?) => { $(
+        #[Entity(id = $id)]
+        #[allow(dead_code)]
+        struct $name {
+            #[identifier]
+            id: Id,
+            nested: $nested,
+        }
+    )+ };
+}
+
+entity_shared_roots! {
+    (SharedNestedEntity1, "benchmark.SharedNestedEntity1", PlanScaleBinary1),
+    (SharedNestedEntity4, "benchmark.SharedNestedEntity4", PlanScaleBinary4),
+    (SharedNestedEntity8, "benchmark.SharedNestedEntity8", PlanScaleBinary8),
+    (SharedNestedEntity12, "benchmark.SharedNestedEntity12", PlanScaleBinary12),
 }
 
 struct AcceptModel;
@@ -608,6 +629,49 @@ fn structure_value_closure_shared(criterion: &mut Criterion, reflection: &Reflec
     group.finish();
 }
 
+/// Measures Entity resolution through a shared binary Model graph. Reflection
+/// and registry setup remain outside the timed loop; each root is checked
+/// before Criterion measures `resolve`.
+fn structure_entity_nesting_shared(criterion: &mut Criterion, reflection: &ReflectionContext) {
+    let models =
+        ModelRegistry::from_context(reflection).expect("valid Entity shared-graph registrations");
+    let cases: [(&str, &'static TypeMetadata, usize, usize); 4] = [
+        ("depth_1", TypeMetadata::of::<SharedNestedEntity1>(), 1, 3),
+        ("depth_4", TypeMetadata::of::<SharedNestedEntity4>(), 4, 6),
+        ("depth_8", TypeMetadata::of::<SharedNestedEntity8>(), 8, 10),
+        ("depth_12", TypeMetadata::of::<SharedNestedEntity12>(), 12, 14),
+    ];
+    let mut group = criterion.benchmark_group("structure_entity_nesting_shared");
+    group.sample_size(10).measurement_time(Duration::from_secs(1));
+    for (label, root, depth, expected_models) in cases {
+        let graph = StructureResolver::for_static_roots(&models, [root])
+            .resolve()
+            .expect("valid Entity shared Model graph outside timing");
+        assert_eq!(graph.models().len(), expected_models);
+        assert_eq!(
+            graph
+                .model(root.type_id())
+                .expect("Entity root is present")
+                .type_id(),
+            root.type_id()
+        );
+        println!(
+            "structure_entity_nesting_shared/{label}: depth={depth}, unique_models={}, roots=1",
+            graph.models().len(),
+        );
+        group.bench_function(label, |bencher| {
+            bencher.iter(|| {
+                black_box(
+                    StructureResolver::for_static_roots(&models, [root])
+                        .resolve()
+                        .expect("valid Entity shared Model graph"),
+                )
+            });
+        });
+    }
+    group.finish();
+}
+
 /// Keeps cold probes ahead of any code that could initialize property caches.
 fn main() {
     let reflection = ReflectionContext::builder()
@@ -629,5 +693,6 @@ fn main() {
     model_rule_batch_build(&mut criterion, &reflection);
     plan_build_scaling(&mut criterion, &reflection);
     structure_value_closure_shared(&mut criterion, &reflection);
+    structure_entity_nesting_shared(&mut criterion, &reflection);
     criterion.final_summary();
 }

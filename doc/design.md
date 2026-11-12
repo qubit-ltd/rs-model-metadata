@@ -104,6 +104,8 @@ Metadata, property, and path caches are scoped to their registry. The bounded pa
 
 Resolution gathers nodes by exact Rust type identity, assembles properties from the selected snapshot, and checks model roles and relationships: nested Entity rules, Value closure, Reference targets and properties, Projection sources, uniqueness scopes, and query declarations. It aggregates structural failures in `ResolveErrors`, retaining field and declaration context where available. A valid `ModelGraph` establishes structural consistency; it does not establish that validators or codecs are registered, nor that any instance value is valid.
 
+Each nested-role query for an Entity field keeps a local `TypeId` set and expands each reachable descriptor once. The query retains depth-first declaration order and returns the first forbidden role or metadata error. A different field starts a separate query; these sets are not shared across fields or resolver calls. Value-closure validation uses its own cache policy and does not use this set.
+
 Within one resolution, Value-closure checks may reuse a subtree only after it completed validly without depending on a detected back edge. This cache is local to that resolve attempt and is shared across Value roots; it does not cross registries, contexts, or later resolves. Invalid branches are still traversed so diagnostics retain their paths and ordering. Failed or cyclic graphs, and very deep chains, have no general resource bound.
 
 Opaque fields stop internal traversal, while the resolver still checks metadata
