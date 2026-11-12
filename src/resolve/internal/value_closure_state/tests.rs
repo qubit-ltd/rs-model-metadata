@@ -3,8 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 use std::any::TypeId;
@@ -12,7 +11,7 @@ use std::any::TypeId;
 use super::ValueClosureState;
 
 #[test]
-fn caches_only_clean_types_without_cycle_epoch_changes() {
+fn test_caches_only_clean_types_without_cycle_epoch_changes() {
     let mut state = ValueClosureState::new();
     let leaf = TypeId::of::<u8>();
     assert!(state.enter(leaf));
@@ -29,7 +28,7 @@ fn caches_only_clean_types_without_cycle_epoch_changes() {
 }
 
 #[test]
-fn back_edges_invalidate_active_ancestors_and_saturation_disables_caching() {
+fn test_back_edges_invalidate_active_ancestors_and_saturation_disables_caching() {
     let mut state = ValueClosureState::new();
     let outer = TypeId::of::<u8>();
     assert!(state.enter(outer));

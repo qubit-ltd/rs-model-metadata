@@ -3,8 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 use std::collections::BTreeMap;
@@ -81,9 +80,13 @@ enum SharedChoice {
     Branch(SharedBranch),
 }
 
+type SharedLeafChoice = (SharedLeaf, SharedChoice);
+type SharedLeafChoices = BTreeMap<String, SharedLeafChoice>;
+type SharedLeafChoiceList = Vec<SharedLeafChoices>;
+
 #[Value]
 struct WrappedShared {
-    nested: Option<Box<Vec<BTreeMap<String, (SharedLeaf, SharedChoice)>>>>,
+    nested: Option<Box<SharedLeafChoiceList>>,
 }
 
 #[Value]
@@ -126,7 +129,7 @@ struct CycleAfter {
 }
 
 #[test]
-fn expands_a_shared_valid_closure_once_across_roots() {
+fn test_expands_a_shared_valid_closure_once_across_roots() {
     let root = TypeMetadata::of::<SharedRoot>();
     let branch = TypeMetadata::of::<SharedBranch>();
     let reflection = ReflectionContext::builder()
@@ -144,15 +147,11 @@ fn expands_a_shared_valid_closure_once_across_roots() {
 
     assert!(errors.is_empty());
     assert!(state.active_is_empty(), "each root releases active types");
-    assert_eq!(
-        state.expansion_count(),
-        3,
-        "root, branch, and leaf types only"
-    );
+    assert_eq!(state.expansion_count(), 3, "root, branch, and leaf types only");
 }
 
 #[test]
-fn shared_dag_expansion_count_scales_with_unique_types_at_required_depths() {
+fn test_shared_dag_expansion_count_scales_with_unique_types_at_required_depths() {
     let reflection = ReflectionContext::builder()
         .include_linked()
         .build()
@@ -175,7 +174,7 @@ fn shared_dag_expansion_count_scales_with_unique_types_at_required_depths() {
 }
 
 #[test]
-fn shared_closure_through_enum_and_supported_containers_is_valid() {
+fn test_shared_closure_through_enum_and_supported_containers_is_valid() {
     let root = TypeMetadata::of::<WrappedSharedRoot>();
     let reflection = ReflectionContext::builder()
         .include_linked()
@@ -188,15 +187,12 @@ fn shared_closure_through_enum_and_supported_containers_is_valid() {
 
     validate_value_closure(root, &resolution, &mut state, None, &mut errors);
 
-    assert!(
-        errors.is_empty(),
-        "Option/Box/Vec/Map/tuple and Enum closure"
-    );
+    assert!(errors.is_empty(), "Option/Box/Vec/Map/tuple and Enum closure");
     assert!(state.active_is_empty());
 }
 
 #[test]
-fn invalid_shared_subtrees_preserve_both_diagnostic_paths_and_declarations() {
+fn test_invalid_shared_subtrees_preserve_both_diagnostic_paths_and_declarations() {
     let root = TypeMetadata::of::<InvalidSharedRoot>();
     let reflection = ReflectionContext::builder()
         .include_linked()
@@ -207,13 +203,7 @@ fn invalid_shared_subtrees_preserve_both_diagnostic_paths_and_declarations() {
     let mut state = ValueClosureState::new();
     let mut errors = Vec::new();
 
-    validate_value_closure(
-        root,
-        &resolution,
-        &mut state,
-        Some(&TEST_SOURCE),
-        &mut errors,
-    );
+    validate_value_closure(root, &resolution, &mut state, Some(&TEST_SOURCE), &mut errors);
 
     assert_eq!(errors.len(), 2);
     assert!(
@@ -228,11 +218,7 @@ fn invalid_shared_subtrees_preserve_both_diagnostic_paths_and_declarations() {
             .collect::<Vec<_>>(),
         ["first.model", "second.model"]
     );
-    assert!(
-        errors
-            .iter()
-            .all(|error| error.owner_type_id() == Some(root.type_id()))
-    );
+    assert!(errors.iter().all(|error| error.owner_type_id() == Some(root.type_id())));
     assert!(
         errors
             .iter()
@@ -248,7 +234,7 @@ fn invalid_shared_subtrees_preserve_both_diagnostic_paths_and_declarations() {
 }
 
 #[test]
-fn self_cycle_before_or_after_invalid_sibling_keeps_the_sibling_diagnostic() {
+fn test_self_cycle_before_or_after_invalid_sibling_keeps_the_sibling_diagnostic() {
     let before = TypeMetadata::of::<CycleBefore>();
     let after = TypeMetadata::of::<CycleAfter>();
     let reflection = ReflectionContext::builder()
@@ -283,33 +269,24 @@ fn diagnostic_snapshot(root: &'static TypeMetadata, legacy: bool) -> Vec<String>
         ValueClosureState::new()
     };
     let mut errors = Vec::new();
-    validate_value_closure(
-        root,
-        &resolution,
-        &mut state,
-        Some(&TEST_SOURCE),
-        &mut errors,
-    );
+    validate_value_closure(root, &resolution, &mut state, Some(&TEST_SOURCE), &mut errors);
     errors.iter().map(|error| format!("{error:?}")).collect()
 }
 
 #[test]
-fn cached_diagnostics_match_uncached_legacy_reference_on_small_graphs() {
+fn test_cached_diagnostics_match_uncached_legacy_reference_on_small_graphs() {
     for root in [
         TypeMetadata::of::<SharedRoot>(),
         TypeMetadata::of::<InvalidSharedRoot>(),
         TypeMetadata::of::<CycleBefore>(),
         TypeMetadata::of::<CycleAfter>(),
     ] {
-        assert_eq!(
-            diagnostic_snapshot(root, false),
-            diagnostic_snapshot(root, true)
-        );
+        assert_eq!(diagnostic_snapshot(root, false), diagnostic_snapshot(root, true));
     }
 }
 
 #[test]
-fn opaque_fields_remain_outside_the_cached_value_closure() {
+fn test_opaque_fields_remain_outside_the_cached_value_closure() {
     let root = TypeMetadata::of::<OpaqueValue>();
     let reflection = ReflectionContext::builder()
         .include_linked()
@@ -326,7 +303,7 @@ fn opaque_fields_remain_outside_the_cached_value_closure() {
 }
 
 #[test]
-fn fresh_resolve_uses_its_explicit_metadata_override_without_a_prior_cache_hit() {
+fn test_fresh_resolve_uses_its_explicit_metadata_override_without_a_prior_cache_hit() {
     let reflection = ReflectionContext::builder()
         .include_linked()
         .build()
@@ -356,16 +333,12 @@ fn fresh_resolve_uses_its_explicit_metadata_override_without_a_prior_cache_hit()
         )
         .finish::<SharedLeaf>(),
     );
-    assert_eq!(
-        overlay.type_id(),
-        TypeMetadata::of::<SharedLeaf>().type_id()
-    );
+    assert_eq!(overlay.type_id(), TypeMetadata::of::<SharedLeaf>().type_id());
     let overlay_reflection = ReflectionContext::builder()
         .include_linked()
         .build()
         .expect("second linked reflection context");
-    let overlay_models =
-        ModelRegistry::from_context(&overlay_reflection).expect("second model registry");
+    let overlay_models = ModelRegistry::from_context(&overlay_reflection).expect("second model registry");
     let override_roots = [root, overlay];
     let errors = StructureResolver::new(ResolveInputs {
         models: &overlay_models,

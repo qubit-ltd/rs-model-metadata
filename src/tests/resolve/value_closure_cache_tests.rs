@@ -3,8 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 use qubit_model_derive::Value;
@@ -33,16 +32,13 @@ struct ClosureRoot {
 }
 
 #[test]
-fn resolves_valid_shared_value_subtrees_across_roots() {
+fn test_resolves_valid_shared_value_subtrees_across_roots() {
     let reflection = ReflectionContext::builder()
         .include_linked()
         .build()
         .expect("reflection context");
     let models = ModelRegistry::from_context(&reflection).expect("model registry");
-    let roots = [
-        TypeMetadata::of::<ClosureRoot>(),
-        TypeMetadata::of::<ClosureBranch>(),
-    ];
+    let roots = [TypeMetadata::of::<ClosureRoot>(), TypeMetadata::of::<ClosureBranch>()];
     let _graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,

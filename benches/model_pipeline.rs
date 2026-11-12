@@ -99,7 +99,9 @@ scale_models! {
 
 #[Value]
 #[allow(dead_code)]
-struct ClosureLeaf { value: String }
+struct ClosureLeaf {
+    value: String,
+}
 
 macro_rules! closure_levels {
     ($(($name:ident, $prev:ty)),+ $(,)?) => { $(
@@ -578,9 +580,12 @@ fn structure_value_closure_shared(criterion: &mut Criterion, reflection: &Reflec
     for (label, unique_types, roots) in cases {
         for root_count in [1, roots.len()] {
             let selected = &roots[..root_count];
-            let check = StructureResolver::for_roots(ResolveInputs { models: &models, roots: selected })
-                .resolve()
-                .expect("valid shared Value graph");
+            let check = StructureResolver::for_roots(ResolveInputs {
+                models: &models,
+                roots: selected,
+            })
+            .resolve()
+            .expect("valid shared Value graph");
             assert_eq!(check.models().len(), unique_types);
             println!(
                 "structure_value_closure_shared/{label}/roots_{root_count}: unique_types={unique_types}, depth={}, roots={root_count}",
@@ -589,9 +594,12 @@ fn structure_value_closure_shared(criterion: &mut Criterion, reflection: &Reflec
             group.bench_function(BenchmarkId::new(label, format!("roots_{root_count}")), |bencher| {
                 bencher.iter(|| {
                     black_box(
-                        StructureResolver::for_roots(ResolveInputs { models: &models, roots: selected })
-                            .resolve()
-                            .expect("valid shared Value graph"),
+                        StructureResolver::for_roots(ResolveInputs {
+                            models: &models,
+                            roots: selected,
+                        })
+                        .resolve()
+                        .expect("valid shared Value graph"),
                     )
                 });
             });

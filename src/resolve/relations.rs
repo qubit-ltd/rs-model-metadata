@@ -72,7 +72,6 @@ pub(super) fn push_field_error(
 }
 
 #[cfg(test)]
-#[path = "relations/value_closure_cache_tests.rs"]
 mod value_closure_cache_tests;
 
 /// Finds model metadata attached to or registered for a descriptor.
@@ -525,8 +524,7 @@ fn value_descriptor_is_closed<'ctx>(
                             closed = false;
                             continue;
                         }
-                        closed &=
-                            validate_value_field(metadata, field, root, &nested, context, state, source, errors);
+                        closed &= validate_value_field(metadata, field, root, &nested, context, state, source, errors);
                     }
                 }
                 let complete = closed && errors.len() == before;
