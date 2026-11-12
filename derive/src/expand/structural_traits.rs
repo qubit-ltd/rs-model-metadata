@@ -179,10 +179,18 @@ fn bounded_generics(
 fn trait_arms(item: &DeriveInput, name: &str, shapes: &[FieldShape<'_>]) -> Vec<TokenStream> {
     let arms: Vec<_> = shapes
         .iter()
-        .map(|shape| {
+        .flat_map(|shape| {
             let constructor = &shape.constructor;
             let fields = shape.fields;
             let shape_presence = shape.presence.attribute();
+            if let Fields::Unnamed(tuple_fields) = fields
+                && tuple_fields.unnamed.iter().any(|field| {
+                    !crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                        .expect("field cfg attributes were parsed by the declaration pipeline").is_unconditional()
+                })
+            {
+                return tuple_trait_arms(name, &item.ident, constructor, fields, &shape_presence);
+            }
             let left: Vec<_> = (0..fields.len())
                 .map(|index| format_ident!("__model_left_{index}"))
                 .collect();
@@ -190,7 +198,7 @@ fn trait_arms(item: &DeriveInput, name: &str, shapes: &[FieldShape<'_>]) -> Vec<
                 .map(|index| format_ident!("__model_right_{index}"))
                 .collect();
             let pattern = pattern_tokens(constructor, fields, &left);
-            match name {
+            let arm = match name {
                 "Clone" => {
                     let values: Vec<_> = left
                         .iter()
@@ -271,10 +279,139 @@ fn trait_arms(item: &DeriveInput, name: &str, shapes: &[FieldShape<'_>]) -> Vec<
                     quote!(#shape_presence #pattern => { #(#calls)* })
                 }
                 _ => TokenStream::new(),
-            }
+            };
+            vec![arm]
         })
         .collect();
     arms
+}
+
+fn tuple_trait_arms(
+    name: &str,
+    struct_name: &Ident,
+    constructor: &TokenStream,
+    fields: &Fields,
+    shape_presence: &TokenStream,
+) -> Vec<TokenStream> {
+    let Fields::Unnamed(tuple_fields) = fields else {
+        unreachable!("conditional tuple trait arms require unnamed fields")
+    };
+    let field_conditions: Vec<_> = tuple_fields
+        .unnamed
+        .iter()
+        .map(|field| {
+            crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                .expect("field cfg attributes were parsed by the declaration pipeline")
+        })
+        .collect();
+    let conditional_indices: Vec<_> = field_conditions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, condition)| (!condition.is_unconditional()).then_some(index))
+        .collect();
+    // Rust cannot cfg-gate an individual tuple-pattern slot, so every
+    // satisfiable field-presence combination needs its own arm (2^n).
+    let Some(alternatives) = 1_usize.checked_shl(conditional_indices.len() as u32) else {
+        return vec![quote!(_ => compile_error!("too many cfg-controlled tuple fields for structural trait generation"))];
+    };
+    (0..alternatives)
+        .map(|mask| {
+            let terms: Vec<_> = conditional_indices
+                .iter()
+                .enumerate()
+                .map(|(bit, index)| {
+                    let predicate = field_conditions[*index].predicate();
+                    if mask & (1 << bit) != 0 {
+                        predicate
+                    } else {
+                        quote!(not(#predicate))
+                    }
+                })
+                .collect();
+            let field_condition = if terms.is_empty() {
+                TokenStream::new()
+            } else {
+                quote!(#[cfg(all(#(#terms),*))])
+            };
+            let active_fields: Vec<_> = tuple_fields
+                .unnamed
+                .iter()
+                .enumerate()
+                .filter_map(|(index, _field)| {
+                    if field_conditions[index].is_unconditional() {
+                        Some(index)
+                    } else {
+                        conditional_indices
+                            .iter()
+                            .position(|conditional| *conditional == index)
+                            .filter(|bit| mask & (1 << bit) != 0)
+                            .map(|_| index)
+                    }
+                })
+                .collect();
+            let left: Vec<_> = active_fields
+                .iter()
+                .map(|index| format_ident!("__model_left_{index}"))
+                .collect();
+            let right: Vec<_> = active_fields
+                .iter()
+                .map(|index| format_ident!("__model_right_{index}"))
+                .collect();
+            let pattern = quote!(#constructor(#(#left),*));
+            let arm = match name {
+                "Clone" => {
+                    let values = left.iter().map(|binding| quote!(::core::clone::Clone::clone(#binding)));
+                    quote!(#shape_presence #field_condition #pattern => #constructor(#(#values),*))
+                }
+                "PartialEq" => {
+                    let other = quote!(#constructor(#(#right),*));
+                    let comparisons = left.iter().zip(&right).map(|(left, right)| {
+                        quote!(if !::core::cmp::PartialEq::eq(#left, #right) { return false; })
+                    });
+                    quote!(#shape_presence #field_condition (#pattern, #other) => { #(#comparisons)* true })
+                }
+                "PartialOrd" | "Ord" => {
+                    let other = quote!(#constructor(#(#right),*));
+                    let comparisons = left.iter().zip(&right).map(|(left, right)| {
+                        if name == "PartialOrd" {
+                            quote!(match ::core::cmp::PartialOrd::partial_cmp(#left, #right) {
+                                Some(::core::cmp::Ordering::Equal) => {}, ordering => return ordering,
+                            })
+                        } else {
+                            quote!(match ::core::cmp::Ord::cmp(#left, #right) {
+                                ::core::cmp::Ordering::Equal => {}, ordering => return ordering,
+                            })
+                        }
+                    });
+                    let tail = if name == "PartialOrd" {
+                        quote!(Some(::core::cmp::Ordering::Equal))
+                    } else {
+                        quote!(::core::cmp::Ordering::Equal)
+                    };
+                    quote!(#shape_presence #field_condition (#pattern, #other) => { #(#comparisons)* #tail })
+                }
+                "Debug" => {
+                    let rendered_constructor = constructor.to_string();
+                    let label = if rendered_constructor == "Self" {
+                        struct_name.to_string()
+                    } else {
+                        rendered_constructor.split(" :: ").last().unwrap().to_owned()
+                    };
+                    quote!(#shape_presence #field_condition #pattern => {
+                        let mut builder = formatter.debug_tuple(#label);
+                        #(builder.field(#left);)*
+                        builder.finish()
+                    })
+                }
+                "Hash" => {
+                    let calls = left.iter().map(|binding| quote!(::core::hash::Hash::hash(#binding, state);));
+                    quote!(#shape_presence #field_condition #pattern => { #(#calls)* })
+                }
+                _ => TokenStream::new(),
+            };
+            arm
+        })
+        .collect()
 }
 
 /// Assembles trait methods from generated arms and enum ordering metadata.
@@ -320,6 +457,35 @@ fn trait_body(item: &DeriveInput, name: &str, shapes: &[FieldShape<'_>], arms: &
         "Default" => {
             let constructor = &shapes[0].constructor;
             let fields = shapes[0].fields;
+            if let Fields::Unnamed(tuple_fields) = fields
+                && tuple_fields.unnamed.iter().any(|field| {
+                    !crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                        .expect("field cfg attributes were parsed by the declaration pipeline").is_unconditional()
+                })
+            {
+                let conditions: Vec<_> = tuple_fields.unnamed.iter().map(|field| {
+                    crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                        .expect("field cfg attributes were parsed by the declaration pipeline")
+                }).collect();
+                let conditional: Vec<_> = conditions.iter().enumerate()
+                    .filter_map(|(index, condition)| (!condition.is_unconditional()).then_some(index)).collect();
+                let Some(alternatives) = 1_usize.checked_shl(conditional.len() as u32) else {
+                    return quote!(compile_error!("too many cfg-controlled tuple fields for Default generation"));
+                };
+                let branches = (0..alternatives).map(|mask| {
+                    let terms: Vec<_> = conditional.iter().enumerate().map(|(bit, index)| {
+                        let predicate = conditions[*index].predicate();
+                        if mask & (1 << bit) != 0 { predicate } else { quote!(not(#predicate)) }
+                    }).collect();
+                    let condition = quote!(#[cfg(all(#(#terms),*))]);
+                    let active: Vec<_> = (0..fields.len()).filter(|index| {
+                        conditions[*index].is_unconditional() || conditional.iter().position(|candidate| candidate == index).is_some_and(|bit| mask & (1 << bit) != 0)
+                    }).collect();
+                    let values = active.iter().map(|_| quote!(::core::default::Default::default()));
+                    quote!(#condition { #constructor(#(#values),*) })
+                });
+                return quote!(fn default() -> Self { #(#branches)* });
+            }
             let values: Vec<_> = fields
                 .iter()
                 .map(|_| quote!(::core::default::Default::default()))

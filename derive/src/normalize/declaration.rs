@@ -208,7 +208,10 @@ fn validate_declaration_options(declaration: &DeclarationIr, item: &DeriveInput,
             Error::new_spanned(&item.ident, "canonical codec is only valid for Value"),
         );
     }
-    if options.transparent && declaration.fields.len() != 1 {
+    if options.transparent
+        && declaration.fields.len() != 1
+        && declaration.fields.iter().all(|field| field.presence.is_unconditional())
+    {
         combine(
             errors,
             Error::new_spanned(&item.ident, "transparent Value requires exactly one field"),

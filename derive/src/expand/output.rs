@@ -249,8 +249,85 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
         Data::Union(_) => false,
     };
     if has_conditional_fields && !transparent {
+        // Conditional enum tuple payloads cannot carry cfg on individual
+        // pattern slots; Debug emits presence-shaped arms for them.
         generics.make_where_clause().predicates.push(parse_quote!(Self: ::core::fmt::Debug));
         return Ok(display_impl(item, &generics, quote!(::core::fmt::Debug::fmt(self, formatter))));
+    }
+    if transparent
+        && let Data::Struct(data) = &item.data
+        && let Fields::Unnamed(fields) = &data.fields
+        && fields.unnamed.iter().any(|field| {
+            field.attrs.iter().any(|attribute| {
+                attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
+            })
+        })
+    {
+        let conditions: Vec<_> = fields.unnamed.iter().map(|field|
+            crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+        ).collect::<Result<_>>()?;
+        let conditional: Vec<_> = conditions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, condition)| (!condition.is_unconditional()).then_some(index))
+            .collect();
+        let generic_parameters: Vec<_> = generics
+            .type_params()
+            .map(|parameter| parameter.ident.to_string())
+            .collect();
+        for (index, field) in fields.unnamed.iter().enumerate() {
+            let ty = &field.ty;
+            let rendered = quote!(#ty).to_string();
+            let references_generic = generic_parameters.iter().any(|parameter| {
+                rendered
+                    .split(|c: char| !c.is_alphanumeric() && c != '_')
+                    .any(|part| part == parameter)
+            });
+            if conditions[index].is_unconditional() || references_generic {
+                let ty = &field.ty;
+                generics
+                    .make_where_clause()
+                    .predicates
+                    .push(parse_quote!(#ty: ::core::fmt::Display));
+            }
+        }
+        let Some(alternatives) = 1_usize.checked_shl(conditional.len() as u32) else {
+            return Err(Error::new_spanned(
+                item,
+                "too many cfg-controlled tuple fields for transparent Display generation",
+            ));
+        };
+        let branches = (0..alternatives).map(|mask| {
+            let terms: Vec<_> = conditional
+                .iter()
+                .enumerate()
+                .map(|(bit, index)| {
+                    let predicate = conditions[*index].predicate();
+                    if mask & (1 << bit) != 0 {
+                        predicate
+                    } else {
+                        quote!(not(#predicate))
+                    }
+                })
+                .collect();
+            let condition = quote!(#[cfg(all(#(#terms),*))]);
+            let active: Vec<_> = (0..fields.unnamed.len())
+                .filter(|index| {
+                    conditions[*index].is_unconditional()
+                        || conditional
+                            .iter()
+                            .position(|candidate| candidate == index)
+                            .is_some_and(|bit| mask & (1 << bit) != 0)
+                })
+                .collect();
+            if active.len() == 1 {
+                let member = syn::Index::from(active[0]);
+                quote!(#condition { ::core::fmt::Display::fmt(&self.#member, formatter) })
+            } else {
+                quote!(#condition { Err(::core::fmt::Error) })
+            }
+        });
+        return Ok(display_impl(item, &generics, quote!(#(#branches)*)));
     }
     let body = match &item.data {
         Data::Struct(data) => {

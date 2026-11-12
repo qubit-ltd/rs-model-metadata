@@ -39,12 +39,24 @@ enum CfgEnum {
 enum GenericCfgEnum<T> {
     #[cfg(any())]
     Gone(MissingType),
-    Data(T),
+    Data(
+        #[cfg(any())] MissingType,
+        T,
+        #[cfg_attr(not(feature = "via-cfg-attr"), cfg(any()))] T,
+    ),
 }
 
 #[Value]
 #[cfg(feature = "test-extra")]
 struct CfgTuple(String, #[cfg(any())] MissingType);
+
+#[Value(default)]
+#[cfg(feature = "test-extra")]
+struct GenericTuple<T>(#[cfg(any())] MissingType, T);
+
+#[Value(transparent)]
+#[cfg(feature = "test-extra")]
+struct GenericTransparent<T>(#[cfg(any())] MissingType, T);
 
 #[Model]
 #[cfg(feature = "test-extra")]
@@ -122,7 +134,43 @@ mod tests {
             );
             assert_eq!(metadata.variants()[1].fields().last().unwrap().index(), 1);
             assert_eq!(pair.fields().iter().last().unwrap().index(), 1);
-            let _ = GenericCfgEnum::Data(5_u64);
+            #[cfg(feature = "via-cfg-attr")]
+            let generic_enum = GenericCfgEnum::Data(5_u64, 6_u64);
+            #[cfg(not(feature = "via-cfg-attr"))]
+            let generic_enum = GenericCfgEnum::Data(5_u64);
+            assert_eq!(generic_enum.clone(), generic_enum);
+            assert_eq!(
+                format!("{generic_enum}"),
+                if cfg!(feature = "via-cfg-attr") {
+                    "Data(5, 6)"
+                } else {
+                    "Data(5)"
+                }
+            );
+            let generic_metadata = TypeMetadata::of::<GenericCfgEnum<u64>>().as_enum().unwrap();
+            let generic_descriptor = TypeDescriptor::of::<GenericCfgEnum<u64>>();
+            let data_metadata = generic_metadata
+                .variants()
+                .iter()
+                .find(|variant| variant.rust_name() == "Data")
+                .unwrap();
+            let data_descriptor = generic_descriptor.variant("Data").unwrap();
+            assert_eq!(
+                data_metadata.fields().len(),
+                1 + usize::from(cfg!(feature = "via-cfg-attr"))
+            );
+            for (position, field) in data_metadata.fields().iter().enumerate() {
+                assert_eq!(field.index(), position + 1);
+                assert_eq!(
+                    data_descriptor
+                        .fields()
+                        .iter()
+                        .nth(position)
+                        .unwrap()
+                        .index(),
+                    position + 1
+                );
+            }
             assert_eq!(
                 TypeMetadata::of::<GenericCfgEnum<u64>>().role(),
                 model_runtime::metadata::ModelRole::Enum
@@ -136,6 +184,11 @@ mod tests {
             assert_eq!(tuple.fields()[0].index(), 0);
             assert_eq!(descriptor.fields().get_at(0).unwrap().index(), 0);
             let _ = CfgTuple(String::new());
+            let tuple = GenericTuple::<u64>(5);
+            assert_eq!(tuple.clone(), tuple);
+            assert_eq!(format!("{tuple}"), "GenericTuple(5)");
+            assert_eq!(GenericTuple::<u64>::default(), GenericTuple(0));
+            assert_eq!(format!("{}", GenericTransparent::<u64>(5)), "5");
         }
     }
 }

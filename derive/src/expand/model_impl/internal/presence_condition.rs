@@ -71,6 +71,11 @@ impl PresenceCondition {
         quote!(cfg!(#predicate))
     }
 
+    #[must_use]
+    pub(crate) fn predicate(&self) -> TokenStream {
+        self.predicate.clone()
+    }
+
     /// Returns the condition under which both candidates exist.
     ///
     /// # Parameters
