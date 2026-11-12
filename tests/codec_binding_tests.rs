@@ -514,13 +514,16 @@ fn test_direct_field_canonical_wrapper_matrix() {
 fn test_optional_inner_descriptor_is_concrete_without_context_type_lookup() {
     let context = ReflectionContext::builder()
         .include_type::<ExplicitOptional>()
+        .include_type::<DirectOptional>()
         .include_type::<Option<Name>>()
         .build()
         .expect("partial optional context");
-    assert!(context
-        .find_type_by_id(TypeId::of::<Name>())
-        .expect("type lookup")
-        .is_none());
+    assert!(
+        context
+            .find_type_by_id(TypeId::of::<Name>())
+            .expect("type lookup")
+            .is_none()
+    );
     let owner_descriptor = context
         .find_type_by_id(TypeId::of::<ExplicitOptional>())
         .expect("owner lookup")
@@ -537,23 +540,54 @@ fn test_optional_inner_descriptor_is_concrete_without_context_type_lookup() {
     assert_eq!(inner.type_id(), TypeId::of::<Name>());
 
     let source = source();
-    let models = ModelRegistry::from_static_metadata(&context, &[(TypeMetadata::of::<ExplicitOptional>(), &source)])
-        .expect("model registry accepts the partial context");
-    let roots = [TypeMetadata::of::<ExplicitOptional>()];
-    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
-        .resolve()
-        .expect("structure resolves with the concrete inner descriptor");
+    let models = ModelRegistry::from_static_metadata(
+        &context,
+        &[
+            (TypeMetadata::of::<ExplicitOptional>(), &source),
+            (TypeMetadata::of::<DirectOptional>(), &source),
+            (TypeMetadata::of::<Name>(), &source),
+        ],
+    )
+    .expect("model registry accepts the partial context");
+    let roots = [
+        TypeMetadata::of::<ExplicitOptional>(),
+        TypeMetadata::of::<DirectOptional>(),
+    ];
+    let graph = StructureResolver::new(ResolveInputs {
+        models: &models,
+        roots: &roots,
+    })
+    .resolve()
+    .expect("structure resolves with the concrete inner descriptor");
     let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
-    for bindings in [
-        bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect("legacy binder"),
-        bind_codecs_with_report(CodecBindInputs { graph: &graph, codecs: &codecs })
-            .expect("report binder")
-            .into_bindings(),
-    ] {
-        let field = bindings
-            .get(&CodecOccurrenceId::new(TypeMetadata::of::<ExplicitOptional>(), "value", CodecSource::Field))
+    let legacy = bind_codecs(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("legacy binder");
+    let report = bind_codecs_with_report(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("report binder");
+    for bindings in [&legacy, report.bindings()] {
+        let explicit = bindings
+            .get(&CodecOccurrenceId::new(
+                TypeMetadata::of::<ExplicitOptional>(),
+                "value",
+                CodecSource::Field,
+            ))
             .expect("inner explicit codec selected");
-        assert_eq!(field.descriptor().value_type_id(), TypeId::of::<Name>());
+        assert_eq!(explicit.descriptor().value_type_id(), TypeId::of::<Name>());
+
+        let canonical = bindings
+            .get(&CodecOccurrenceId::new(
+                TypeMetadata::of::<DirectOptional>(),
+                "value",
+                CodecSource::CanonicalValue,
+            ))
+            .expect("inner canonical codec selected");
+        assert_eq!(canonical.descriptor().value_type_id(), TypeId::of::<Name>());
     }
 }
 

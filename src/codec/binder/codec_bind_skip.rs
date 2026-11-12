@@ -16,7 +16,8 @@ use crate::metadata::TypeMetadata;
 ///
 /// The property follows the same canonical path used by codec occurrences.
 /// A skip does not imply that the declaration should have a codec.
-/// Skip records are obtained from [`CodecBindReport::skipped`](super::CodecBindReport::skipped).
+/// Skip records are obtained from
+/// [`CodecBindReport::skipped`](super::CodecBindReport::skipped).
 /// Source coordinates are optional because metadata providers may not supply
 /// them.
 ///

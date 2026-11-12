@@ -19,9 +19,10 @@ use super::CodecBindings;
 /// is complete. If any inspected declaration has a binding error, the operation
 /// returns that error instead of a partial report.
 ///
-/// Reports are returned by [`bind_codecs_with_report`](super::bind_codecs_with_report).
-/// The report can be inspected by reference or consumed to retain only its
-/// successful bindings.
+/// Reports are returned by
+/// [`bind_codecs_with_report`](super::bind_codecs_with_report). The report can
+/// be inspected by reference or consumed to retain only its successful
+/// bindings.
 ///
 /// # Examples
 ///
