@@ -72,9 +72,9 @@ pub(super) fn push_field_error(
 }
 
 #[cfg(test)]
-mod value_closure_cache_tests;
-#[cfg(test)]
 mod nested_role_tests;
+#[cfg(test)]
+mod value_closure_cache_tests;
 
 /// Finds model metadata attached to or registered for a descriptor.
 ///
@@ -185,6 +185,16 @@ pub(super) fn forbidden_entity_nested_role<'ctx>(
     forbidden_entity_nested_role_with_visit(descriptor, context, |_| {})
 }
 
+/// Checks visible nested roles and reports each newly expanded descriptor.
+///
+/// The callback runs once after the descriptor's `TypeId` is inserted into
+/// the query-local set and before its metadata is inspected.
+///
+/// # Parameters
+///
+/// - `descriptor`: The root descriptor to inspect.
+/// - `context`: The metadata and reflection context for this query.
+/// - `on_visit`: A callback for each descriptor expanded by this query.
 fn forbidden_entity_nested_role_with_visit<'ctx>(
     descriptor: TypeDescriptor<'ctx>,
     context: &ResolutionContext<'ctx>,

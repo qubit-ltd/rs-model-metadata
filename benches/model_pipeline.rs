@@ -633,8 +633,7 @@ fn structure_value_closure_shared(criterion: &mut Criterion, reflection: &Reflec
 /// and registry setup remain outside the timed loop; each root is checked
 /// before Criterion measures `resolve`.
 fn structure_entity_nesting_shared(criterion: &mut Criterion, reflection: &ReflectionContext) {
-    let models =
-        ModelRegistry::from_context(reflection).expect("valid Entity shared-graph registrations");
+    let models = ModelRegistry::from_context(reflection).expect("valid Entity shared-graph registrations");
     let cases: [(&str, &'static TypeMetadata, usize, usize); 4] = [
         ("depth_1", TypeMetadata::of::<SharedNestedEntity1>(), 1, 3),
         ("depth_4", TypeMetadata::of::<SharedNestedEntity4>(), 4, 6),
@@ -649,10 +648,7 @@ fn structure_entity_nesting_shared(criterion: &mut Criterion, reflection: &Refle
             .expect("valid Entity shared Model graph outside timing");
         assert_eq!(graph.models().len(), expected_models);
         assert_eq!(
-            graph
-                .model(root.type_id())
-                .expect("Entity root is present")
-                .type_id(),
+            graph.model(root.type_id()).expect("Entity root is present").type_id(),
             root.type_id()
         );
         println!(
