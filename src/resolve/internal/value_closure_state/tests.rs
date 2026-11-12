@@ -1,0 +1,46 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+// =============================================================================
+
+use std::any::TypeId;
+
+use super::ValueClosureState;
+
+#[test]
+fn caches_only_clean_types_without_cycle_epoch_changes() {
+    let mut state = ValueClosureState::new();
+    let leaf = TypeId::of::<u8>();
+    assert!(state.enter(leaf));
+    let epoch = state.epoch();
+    state.leave(leaf, epoch, true);
+    assert!(state.is_closed(leaf));
+    assert_eq!(state.expansion_count(), 1);
+
+    let failed = TypeId::of::<u16>();
+    assert!(state.enter(failed));
+    let epoch = state.epoch();
+    state.leave(failed, epoch, false);
+    assert!(!state.is_closed(failed));
+}
+
+#[test]
+fn back_edges_invalidate_active_ancestors_and_saturation_disables_caching() {
+    let mut state = ValueClosureState::new();
+    let outer = TypeId::of::<u8>();
+    assert!(state.enter(outer));
+    let start = state.epoch();
+    assert!(!state.enter(outer));
+    state.leave(outer, start, true);
+    assert!(!state.is_closed(outer));
+
+    state.cycle_epoch = u64::MAX;
+    let saturated = TypeId::of::<u16>();
+    assert!(state.enter(saturated));
+    state.leave(saturated, u64::MAX, true);
+    assert!(!state.is_closed(saturated));
+}

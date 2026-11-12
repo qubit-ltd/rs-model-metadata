@@ -8,7 +8,6 @@
 
 //! Relationship, property-path, and value-closure resolution helpers.
 
-use std::any::TypeId;
 use std::collections::HashSet;
 
 use qubit_reflect::TypeDescriptor;
@@ -22,6 +21,7 @@ use super::error::ResolveError;
 use super::error::ResolveErrorKind;
 use super::internal::OwnedPropertyPath;
 use super::internal::ResolutionContext;
+use super::internal::ValueClosureState;
 use crate::metadata::DeclaredEntityTarget;
 use crate::metadata::DependencyBindingMetadata;
 use crate::metadata::FieldMetadata;
@@ -70,6 +70,10 @@ pub(super) fn push_field_error(
     error.path = path;
     errors.push(error);
 }
+
+#[cfg(test)]
+#[path = "relations/value_closure_cache_tests.rs"]
+mod value_closure_cache_tests;
 
 /// Finds model metadata attached to or registered for a descriptor.
 ///
@@ -238,20 +242,20 @@ pub(super) fn path_from_segments(segments: &[&'static str]) -> OwnedPropertyPath
 ///
 /// - `metadata`: Value model whose nested field types are checked.
 /// - `context`: Resolution context for nested descriptors.
-/// - `visited`: Active type identities used to terminate recursive cycles.
+/// - `state`: Per-resolution value closure traversal and cache state.
 /// - `source`: Originating metadata fragment, when available.
 /// - `errors`: Collection receiving diagnostics for violations or lookup
 ///   failures.
 pub(super) fn validate_value_closure(
     metadata: &'static TypeMetadata,
     context: &ResolutionContext,
-    visited: &mut HashSet<TypeId>,
+    state: &mut ValueClosureState,
     source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
 ) {
     // Root callers consume the diagnostic collection; recursive callers use the
     // closure result.
-    let _ = validate_nested_value(metadata, metadata, &[], context, visited, source, errors);
+    let _ = validate_nested_value(metadata, metadata, &[], context, state, source, errors);
 }
 
 /// Validates a value subtree while retaining the originating model and full
@@ -263,7 +267,7 @@ pub(super) fn validate_value_closure(
 /// - `root`: Original value model owning the closure check.
 /// - `prefix`: Property path accumulated before this subtree.
 /// - `context`: Resolution context for nested descriptors.
-/// - `visited`: Active type identities used to terminate recursive cycles.
+/// - `state`: Per-resolution value closure traversal and cache state.
 /// - `source`: Originating metadata fragment, when available.
 /// - `errors`: Collection receiving diagnostics for invalid fields.
 ///
@@ -278,13 +282,17 @@ fn validate_nested_value(
     root: &'static TypeMetadata,
     prefix: &[&'static str],
     context: &ResolutionContext,
-    visited: &mut HashSet<TypeId>,
+    state: &mut ValueClosureState,
     source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
 ) -> bool {
-    if !visited.insert(metadata.type_id()) {
+    if state.is_closed(metadata.type_id()) {
         return true;
     }
+    if !state.enter(metadata.type_id()) {
+        return true;
+    }
+    let start_epoch = state.epoch();
     let initial = errors.len();
     let mut closed = true;
     for field in metadata.fields() {
@@ -295,10 +303,11 @@ fn validate_nested_value(
         if let Some(name) = field.name() {
             path.push(name);
         }
-        closed &= validate_value_field(metadata, field, root, &path, context, visited, source, errors);
+        closed &= validate_value_field(metadata, field, root, &path, context, state, source, errors);
     }
-    visited.remove(&metadata.type_id());
-    closed && errors.len() == initial
+    let complete = closed && errors.len() == initial;
+    state.leave(metadata.type_id(), start_epoch, complete);
+    complete
 }
 
 /// Checks a field's closure and anchors new failures to its actual declaration.
@@ -316,7 +325,7 @@ fn validate_nested_value(
 /// - `root`: Original value model owning the closure check.
 /// - `path`: Property names from the root to this field.
 /// - `context`: Resolution context for nested descriptors.
-/// - `visited`: Active type identities used to terminate recursive cycles.
+/// - `state`: Per-resolution value closure traversal and cache state.
 /// - `source`: Originating metadata fragment, when available.
 /// - `errors`: Collection receiving path-anchored diagnostics.
 ///
@@ -332,7 +341,7 @@ fn validate_value_field(
     root: &'static TypeMetadata,
     path: &[&'static str],
     context: &ResolutionContext,
-    visited: &mut HashSet<TypeId>,
+    state: &mut ValueClosureState,
     source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
 ) -> bool {
@@ -346,7 +355,7 @@ fn validate_value_field(
                 .type_expression_in(context.reflection())
                 .is_some_and(self_recursive_expression)
         },
-        |descriptor| value_descriptor_is_closed(descriptor, context, visited, root, source, errors, path),
+        |descriptor| value_descriptor_is_closed(descriptor, context, state, root, source, errors, path),
     );
     let property_path = (!path.is_empty()).then(|| PropertyPath::new(path));
     if !closed && errors.len() == before {
@@ -442,7 +451,7 @@ fn self_recursive_expression(expression: TypeExpression<'_>) -> bool {
 ///
 /// - `descriptor`: Runtime type descriptor whose value closure is checked.
 /// - `context`: Resolution context for metadata lookup.
-/// - `visited`: Active type identities used to terminate recursive cycles.
+/// - `state`: Per-resolution value closure traversal and cache state.
 /// - `root`: Original value model owning the closure check.
 /// - `source`: Originating metadata fragment, when available.
 /// - `errors`: Collection receiving metadata and closure diagnostics.
@@ -457,7 +466,7 @@ fn self_recursive_expression(expression: TypeExpression<'_>) -> bool {
 fn value_descriptor_is_closed<'ctx>(
     descriptor: TypeDescriptor<'ctx>,
     context: &ResolutionContext<'ctx>,
-    visited: &mut HashSet<TypeId>,
+    state: &mut ValueClosureState,
     root: &'static TypeMetadata,
     source: Option<&ModelRegistryOrigin>,
     errors: &mut Vec<ResolveError>,
@@ -477,14 +486,19 @@ fn value_descriptor_is_closed<'ctx>(
     };
     if let Some(metadata) = metadata {
         return match metadata.role() {
-            ModelRole::Value => validate_nested_value(metadata, root, path, context, visited, source, errors),
+            ModelRole::Value => validate_nested_value(metadata, root, path, context, state, source, errors),
             ModelRole::Enum => {
                 let Some(enumeration) = metadata.as_enum() else {
                     return false;
                 };
-                if !visited.insert(metadata.type_id()) {
+                if state.is_closed(metadata.type_id()) {
                     return true;
                 }
+                if !state.enter(metadata.type_id()) {
+                    return true;
+                }
+                let start_epoch = state.epoch();
+                let before = errors.len();
                 let mut closed = true;
                 for variant in enumeration.variants() {
                     for field in variant.fields() {
@@ -512,10 +526,11 @@ fn value_descriptor_is_closed<'ctx>(
                             continue;
                         }
                         closed &=
-                            validate_value_field(metadata, field, root, &nested, context, visited, source, errors);
+                            validate_value_field(metadata, field, root, &nested, context, state, source, errors);
                     }
                 }
-                visited.remove(&metadata.type_id());
+                let complete = closed && errors.len() == before;
+                state.leave(metadata.type_id(), start_epoch, complete);
                 closed
             }
             ModelRole::Entity | ModelRole::Projection | ModelRole::Model => {
@@ -548,14 +563,20 @@ fn value_descriptor_is_closed<'ctx>(
     ) {
         return false;
     }
-    if !visited.insert(descriptor.type_id()) {
+    if state.is_closed(descriptor.type_id()) {
         return true;
     }
+    if !state.enter(descriptor.type_id()) {
+        return true;
+    }
+    let start_epoch = state.epoch();
+    let before = errors.len();
     let mut closed = true;
     children(descriptor, |edge| {
-        closed &= value_descriptor_is_closed(edge.target, context, visited, root, source, errors, path);
+        closed &= value_descriptor_is_closed(edge.target, context, state, root, source, errors, path);
     });
-    visited.remove(&descriptor.type_id());
+    let complete = closed && errors.len() == before;
+    state.leave(descriptor.type_id(), start_epoch, complete);
     closed
 }
 

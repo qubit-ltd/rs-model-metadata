@@ -12,8 +12,10 @@ mod node_discovery;
 mod owned_property_path;
 mod resolution_context;
 mod resolve_scope;
+mod value_closure_state;
 
 pub(in crate::resolve) use node_discovery::discover_nodes;
 pub(super) use owned_property_path::OwnedPropertyPath;
 pub(super) use resolution_context::ResolutionContext;
 pub(in crate::resolve) use resolve_scope::ResolveScope;
+pub(super) use value_closure_state::ValueClosureState;

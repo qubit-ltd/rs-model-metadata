@@ -9,3 +9,4 @@
 //! Resolution test submodules.
 
 mod resolve_tests;
+mod value_closure_cache_tests;

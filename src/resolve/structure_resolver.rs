@@ -10,7 +10,6 @@
 
 use std::any::TypeId;
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use super::error::ModelResolutionCause;
 use super::error::ResolveError;
@@ -22,6 +21,7 @@ use super::graph::ResolvedProjectionSource;
 use super::graph::ResolvedReference;
 use super::internal::ResolutionContext;
 use super::internal::ResolveScope;
+use super::internal::ValueClosureState;
 use super::internal::discover_nodes;
 use super::queries::build_query;
 use super::reference_selection_ext::ReferenceSelectionExt;
@@ -251,6 +251,7 @@ impl<'a> StructureResolver<'a> {
         let mut properties = HashMap::new();
         let mut projection_producers = Vec::new();
         let mut errors = Vec::new();
+        let mut value_closure_state = ValueClosureState::new();
 
         let (nodes, mut discovery_errors) = discover_nodes(self.inputs.models, self.roots(), self.scope, &mut context);
         errors.append(&mut discovery_errors);
@@ -563,8 +564,13 @@ impl<'a> StructureResolver<'a> {
             }
 
             if metadata.role() == ModelRole::Value {
-                let mut visited = HashSet::new();
-                validate_value_closure(metadata, &context, &mut visited, fragment_source, &mut errors);
+                validate_value_closure(
+                    metadata,
+                    &context,
+                    &mut value_closure_state,
+                    fragment_source,
+                    &mut errors,
+                );
             }
 
             for error in &mut errors[first_error..] {
