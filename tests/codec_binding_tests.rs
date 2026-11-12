@@ -848,6 +848,19 @@ fn test_opaque_unresolved_field_skips_missing_codec_registration() {
     })
     .expect("unresolved opaque field is skipped before registry lookup");
     assert_eq!(bindings.bindings().len(), 0);
+
+    let report = bind_codecs_with_report(CodecBindInputs {
+        graph: &graph,
+        codecs: &codecs,
+    })
+    .expect("unresolved opaque field is reported before registry lookup");
+    assert!(report.bindings().bindings().next().is_none());
+    assert_eq!(report.skipped().len(), 1);
+    assert_eq!(report.skipped()[0].property(), "hidden");
+    assert_eq!(
+        report.skipped()[0].reason(),
+        CodecBindSkipReason::FieldDescriptorUnavailable
+    );
 }
 
 #[Model]
