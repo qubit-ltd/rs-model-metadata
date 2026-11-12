@@ -256,32 +256,64 @@ fn test_self_cycle_before_or_after_invalid_sibling_keeps_the_sibling_diagnostic(
     }
 }
 
-fn diagnostic_snapshot(root: &'static TypeMetadata, legacy: bool) -> Vec<String> {
+fn diagnostic_snapshot(root: &'static TypeMetadata) -> Vec<String> {
     let reflection = ReflectionContext::builder()
         .include_linked()
         .build()
         .expect("linked reflection context");
     let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let resolution = ResolutionContext::new(&models, &[root]);
-    let mut state = if legacy {
-        ValueClosureState::new_legacy_reference()
-    } else {
-        ValueClosureState::new()
-    };
+    let mut state = ValueClosureState::new();
     let mut errors = Vec::new();
     validate_value_closure(root, &resolution, &mut state, Some(&TEST_SOURCE), &mut errors);
-    errors.iter().map(|error| format!("{error:?}")).collect()
+    errors
+        .iter()
+        .map(|error| {
+            let declaration = error
+                .declaration()
+                .map_or_else(String::new, |location| format!("{location:?}"));
+            let sources = format!("{:?}", error.sources());
+            format!(
+                "{:?}|{}|{}|{declaration}|{:?}|{:?}|{sources}|{:?}",
+                error.kind(),
+                error.path().map_or_else(String::new, |path| path.to_string()),
+                error.owner_type_name().unwrap_or_default(),
+                error.expected_role(),
+                error.actual_role(),
+                error.cause(),
+            )
+        })
+        .collect()
+}
+
+/// Structured diagnostics captured from the uncached traversal at the
+/// pre-optimization revision `3a523022587ddc84b7f4e4ff03b7f99e6a0f955b`.
+fn legacy_diagnostic_snapshot(root: &'static TypeMetadata) -> Vec<&'static str> {
+    match root.type_name().rsplit("::").next() {
+        Some("SharedRoot") => vec![],
+        Some("InvalidSharedRoot") => vec![
+            "InvalidValueClosure|first.model|qubit_model_metadata::resolve::relations::value_closure_cache_tests::InvalidSharedRoot|DeclarationLocation { file: Some(\"src/resolve/relations/value_closure_cache_tests.rs\"), line: Some(110), column: Some(12), owner: None, variant: None, field: Some(0), selector: None }|Some(Value)|Some(Model)|[ModelRegistryOrigin { crate_name: \"value-closure-cache-tests\", crate_version: None, module_path: \"resolve::relations::value_closure_cache_tests\", file: Some(\"src/resolve/relations/value_closure_cache_tests.rs\"), line: Some(1), column: Some(1) }]|None",
+            "InvalidValueClosure|second.model|qubit_model_metadata::resolve::relations::value_closure_cache_tests::InvalidSharedRoot|DeclarationLocation { file: Some(\"src/resolve/relations/value_closure_cache_tests.rs\"), line: Some(110), column: Some(12), owner: None, variant: None, field: Some(0), selector: None }|Some(Value)|Some(Model)|[ModelRegistryOrigin { crate_name: \"value-closure-cache-tests\", crate_version: None, module_path: \"resolve::relations::value_closure_cache_tests\", file: Some(\"src/resolve/relations/value_closure_cache_tests.rs\"), line: Some(1), column: Some(1) }]|None",
+        ],
+        Some("CycleBefore") => vec![
+            "InvalidValueClosure|invalid|qubit_model_metadata::resolve::relations::value_closure_cache_tests::CycleBefore|DeclarationLocation { file: Some(\"src/resolve/relations/value_closure_cache_tests.rs\"), line: Some(122), column: Some(14), owner: None, variant: None, field: Some(1), selector: None }|Some(Value)|Some(Model)|[ModelRegistryOrigin { crate_name: \"value-closure-cache-tests\", crate_version: None, module_path: \"resolve::relations::value_closure_cache_tests\", file: Some(\"src/resolve/relations/value_closure_cache_tests.rs\"), line: Some(1), column: Some(1) }]|None",
+        ],
+        Some("CycleAfter") => vec![
+            "InvalidValueClosure|invalid|qubit_model_metadata::resolve::relations::value_closure_cache_tests::CycleAfter|DeclarationLocation { file: Some(\"src/resolve/relations/value_closure_cache_tests.rs\"), line: Some(127), column: Some(14), owner: None, variant: None, field: Some(0), selector: None }|Some(Value)|Some(Model)|[ModelRegistryOrigin { crate_name: \"value-closure-cache-tests\", crate_version: None, module_path: \"resolve::relations::value_closure_cache_tests\", file: Some(\"src/resolve/relations/value_closure_cache_tests.rs\"), line: Some(1), column: Some(1) }]|None",
+        ],
+        _ => panic!("missing legacy diagnostic fixture for {}", root.type_name()),
+    }
 }
 
 #[test]
-fn test_cached_diagnostics_match_uncached_legacy_reference_on_small_graphs() {
+fn test_cached_diagnostics_match_pre_cache_legacy_snapshots() {
     for root in [
         TypeMetadata::of::<SharedRoot>(),
         TypeMetadata::of::<InvalidSharedRoot>(),
         TypeMetadata::of::<CycleBefore>(),
         TypeMetadata::of::<CycleAfter>(),
     ] {
-        assert_eq!(diagnostic_snapshot(root, false), diagnostic_snapshot(root, true));
+        assert_eq!(diagnostic_snapshot(root), legacy_diagnostic_snapshot(root));
     }
 }
 

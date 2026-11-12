@@ -22,8 +22,6 @@ pub(in crate::resolve) struct ValueClosureState {
     cycle_epoch: u64,
     #[cfg(test)]
     expansions: usize,
-    #[cfg(test)]
-    cache_enabled: bool,
 }
 
 impl ValueClosureState {
@@ -37,8 +35,6 @@ impl ValueClosureState {
             cycle_epoch: 0,
             #[cfg(test)]
             expansions: 0,
-            #[cfg(test)]
-            cache_enabled: true,
         }
     }
 
@@ -54,25 +50,7 @@ impl ValueClosureState {
     /// `true` only when this attempt checked the type without errors or a
     /// cycle-dependent result.
     pub(in crate::resolve) fn is_closed(&self, type_id: TypeId) -> bool {
-        #[cfg(test)]
-        if !self.cache_enabled {
-            return false;
-        }
         self.closed.contains(&type_id)
-    }
-
-    /// Creates a test reference state that follows the uncached traversal.
-    ///
-    /// # Returns
-    ///
-    /// Empty state that tracks active recursion but bypasses successful-result
-    /// cache lookups and insertions.
-    #[cfg(test)]
-    pub(in crate::resolve) fn new_legacy_reference() -> Self {
-        Self {
-            cache_enabled: false,
-            ..Self::new()
-        }
     }
 
     /// Enters a type or records a back edge to an active type.
@@ -121,12 +99,7 @@ impl ValueClosureState {
     pub(in crate::resolve) fn leave(&mut self, type_id: TypeId, start_epoch: u64, clean: bool) {
         self.active.remove(&type_id);
         if clean && self.cycle_epoch == start_epoch && self.cycle_epoch != u64::MAX {
-            #[cfg(not(test))]
             self.closed.insert(type_id);
-            #[cfg(test)]
-            if self.cache_enabled {
-                self.closed.insert(type_id);
-            }
         }
     }
 

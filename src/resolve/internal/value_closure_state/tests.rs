@@ -43,3 +43,23 @@ fn test_back_edges_invalidate_active_ancestors_and_saturation_disables_caching()
     state.leave(saturated, u64::MAX, true);
     assert!(!state.is_closed(saturated));
 }
+
+#[test]
+fn test_multi_type_back_edge_invalidates_every_active_ancestor() {
+    let mut state = ValueClosureState::new();
+    let outer = TypeId::of::<u8>();
+    let inner = TypeId::of::<u16>();
+
+    assert!(state.enter(outer));
+    let outer_epoch = state.epoch();
+    assert!(state.enter(inner));
+    let inner_epoch = state.epoch();
+    assert!(!state.enter(outer));
+
+    state.leave(inner, inner_epoch, true);
+    state.leave(outer, outer_epoch, true);
+
+    assert!(!state.is_closed(outer));
+    assert!(!state.is_closed(inner));
+    assert!(state.active_is_empty());
+}
