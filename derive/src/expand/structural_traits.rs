@@ -8,6 +8,7 @@
 
 //! Structural trait implementations with bounds on actual field shapes.
 
+use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use quote::format_ident;
@@ -39,12 +40,81 @@ use syn::punctuated::Punctuated;
 pub(super) fn expand(item: &DeriveInput, name: &str) -> TokenStream {
     let trait_path = trait_path(name);
     let shapes = field_shapes(item);
-    let generics = bounded_generics(item, name, &trait_path, &shapes);
-    let arms = trait_arms(item, name, &shapes);
-    let body = trait_body(item, name, &shapes, &arms);
+    if shapes.iter().any(|shape| {
+        matches!(shape.fields, Fields::Unnamed(fields)
+            if fields.unnamed.iter().filter(|field| {
+                crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                    .expect("field cfg attributes were parsed by the declaration pipeline").is_unconditional() == false
+            }).count() > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS)
+    }) {
+        return quote!(compile_error!("conditional tuple field limit exceeded (maximum 8 per shape)"););
+    }
+    let Some(configurations) = presence_combinations(&shapes) else {
+        return quote!(compile_error!("too many cfg conditions for structural trait generation (maximum 8)"););
+    };
     let ident = &item.ident;
-    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
-    quote!(impl #impl_generics #trait_path for #ident #type_generics #where_clause { #body })
+    let implementations = configurations.iter().map(|configuration| {
+        let generics = bounded_generics(item, name, &trait_path, &shapes, &configuration.active);
+        let arms = trait_arms(item, name, &shapes, &configuration.active);
+        let body = trait_body(item, name, &shapes, &arms, &configuration.active);
+        let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+        let condition = &configuration.attribute;
+        quote!(#condition impl #impl_generics #trait_path for #ident #type_generics #where_clause { #body })
+    });
+    quote!(#(#implementations)*)
+}
+
+struct PresenceCombination {
+    attribute: TokenStream,
+    active: HashMap<String, bool>,
+}
+
+fn presence_combinations(shapes: &[FieldShape<'_>]) -> Option<Vec<PresenceCombination>> {
+    use crate::expand::model_impl::internal::presence_condition::PresenceCondition;
+    let mut conditions = Vec::<PresenceCondition>::new();
+    for shape in shapes {
+        if !shape.presence.is_unconditional() {
+            conditions.push(shape.presence.clone());
+        }
+        for field in shape.fields {
+            let condition = PresenceCondition::from_attributes(&field.attrs)
+                .expect("field cfg attributes were parsed by the declaration pipeline");
+            if !condition.is_unconditional() {
+                conditions.push(condition);
+            }
+        }
+    }
+    let mut unique = Vec::<PresenceCondition>::new();
+    let mut keys = std::collections::HashSet::new();
+    for condition in conditions {
+        if keys.insert(condition.predicate().to_string()) {
+            unique.push(condition);
+        }
+    }
+    if unique.len()
+        > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS
+    {
+        return None;
+    }
+    let combinations = 1_usize.checked_shl(unique.len() as u32)?;
+    Some((0..combinations).map(|mask| {
+        let active: HashMap<_, _> = unique.iter().enumerate().map(|(bit, condition)| {
+            (condition.predicate().to_string(), mask & (1 << bit) != 0)
+        }).collect();
+        let terms: Vec<_> = unique.iter().enumerate().map(|(bit, condition)| {
+            let predicate = condition.predicate();
+            if mask & (1 << bit) != 0 { predicate } else { quote!(not(#predicate)) }
+        }).collect();
+        let attribute = if terms.is_empty() { TokenStream::new() } else { quote!(#[cfg(all(#(#terms),*))]) };
+        PresenceCombination { attribute, active }
+    }).collect())
+}
+
+fn condition_is_active(
+    condition: &crate::expand::model_impl::internal::presence_condition::PresenceCondition,
+    active: &HashMap<String, bool>,
+) -> bool {
+    condition.is_unconditional() || active.get(&condition.predicate().to_string()).copied().unwrap_or(false)
 }
 
 struct FieldShape<'a> {
@@ -132,21 +202,20 @@ fn bounded_generics(
     name: &str,
     trait_path: &TokenStream,
     shapes: &[FieldShape<'_>],
+    active: &HashMap<String, bool>,
 ) -> syn::Generics {
     let mut generics = item.generics.clone();
     let ident = &item.ident;
     let (_, arguments, _) = item.generics.split_for_impl();
     let recursive_type = quote!(#ident #arguments).to_string();
-    let generic_parameters: Vec<_> = generics.type_params().map(|parameter| parameter.ident.to_string()).collect();
     for shape in shapes {
+        if !condition_is_active(&shape.presence, active) {
+            continue;
+        }
         for field in shape.fields {
             let presence = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
                 .expect("field cfg attributes were parsed by the declaration pipeline");
-            let rendered_type = field.ty.to_token_stream().to_string();
-            let references_parameter = rendered_type
-                .split(|character: char| !character.is_alphanumeric() && character != '_')
-                .any(|part| generic_parameters.iter().any(|parameter| parameter == part));
-            if (!presence.is_unconditional() || !shape.presence.is_unconditional()) && !references_parameter {
+            if !condition_is_active(&presence, active) {
                 continue;
             }
             for ty in recursive_bounds(&field.ty, &recursive_type).unwrap_or_else(|| vec![&field.ty]) {
@@ -176,7 +245,12 @@ fn bounded_generics(
 /// # Returns
 /// Match-arm token streams in constructor order.
 #[must_use]
-fn trait_arms(item: &DeriveInput, name: &str, shapes: &[FieldShape<'_>]) -> Vec<TokenStream> {
+fn trait_arms(
+    item: &DeriveInput,
+    name: &str,
+    shapes: &[FieldShape<'_>],
+    active: &HashMap<String, bool>,
+) -> Vec<TokenStream> {
     let arms: Vec<_> = shapes
         .iter()
         .flat_map(|shape| {
@@ -189,7 +263,7 @@ fn trait_arms(item: &DeriveInput, name: &str, shapes: &[FieldShape<'_>]) -> Vec<
                         .expect("field cfg attributes were parsed by the declaration pipeline").is_unconditional()
                 })
             {
-                return tuple_trait_arms(name, &item.ident, constructor, fields, &shape_presence);
+                return tuple_trait_arms(name, &item.ident, constructor, fields, &shape_presence, active);
             }
             let left: Vec<_> = (0..fields.len())
                 .map(|index| format_ident!("__model_left_{index}"))
@@ -292,6 +366,7 @@ fn tuple_trait_arms(
     constructor: &TokenStream,
     fields: &Fields,
     shape_presence: &TokenStream,
+    active: &HashMap<String, bool>,
 ) -> Vec<TokenStream> {
     let Fields::Unnamed(tuple_fields) = fields else {
         unreachable!("conditional tuple trait arms require unnamed fields")
@@ -304,51 +379,9 @@ fn tuple_trait_arms(
                 .expect("field cfg attributes were parsed by the declaration pipeline")
         })
         .collect();
-    let conditional_indices: Vec<_> = field_conditions
-        .iter()
-        .enumerate()
-        .filter_map(|(index, condition)| (!condition.is_unconditional()).then_some(index))
+    let active_fields: Vec<_> = tuple_fields.unnamed.iter().enumerate()
+        .filter_map(|(index, _field)| condition_is_active(&field_conditions[index], active).then_some(index))
         .collect();
-    // Rust cannot cfg-gate an individual tuple-pattern slot, so every
-    // satisfiable field-presence combination needs its own arm (2^n).
-    let Some(alternatives) = 1_usize.checked_shl(conditional_indices.len() as u32) else {
-        return vec![quote!(_ => compile_error!("too many cfg-controlled tuple fields for structural trait generation"))];
-    };
-    (0..alternatives)
-        .map(|mask| {
-            let terms: Vec<_> = conditional_indices
-                .iter()
-                .enumerate()
-                .map(|(bit, index)| {
-                    let predicate = field_conditions[*index].predicate();
-                    if mask & (1 << bit) != 0 {
-                        predicate
-                    } else {
-                        quote!(not(#predicate))
-                    }
-                })
-                .collect();
-            let field_condition = if terms.is_empty() {
-                TokenStream::new()
-            } else {
-                quote!(#[cfg(all(#(#terms),*))])
-            };
-            let active_fields: Vec<_> = tuple_fields
-                .unnamed
-                .iter()
-                .enumerate()
-                .filter_map(|(index, _field)| {
-                    if field_conditions[index].is_unconditional() {
-                        Some(index)
-                    } else {
-                        conditional_indices
-                            .iter()
-                            .position(|conditional| *conditional == index)
-                            .filter(|bit| mask & (1 << bit) != 0)
-                            .map(|_| index)
-                    }
-                })
-                .collect();
             let left: Vec<_> = active_fields
                 .iter()
                 .map(|index| format_ident!("__model_left_{index}"))
@@ -357,18 +390,18 @@ fn tuple_trait_arms(
                 .iter()
                 .map(|index| format_ident!("__model_right_{index}"))
                 .collect();
-            let pattern = quote!(#constructor(#(#left),*));
-            let arm = match name {
+    let pattern = quote!(#constructor(#(#left),*));
+    let arm = match name {
                 "Clone" => {
                     let values = left.iter().map(|binding| quote!(::core::clone::Clone::clone(#binding)));
-                    quote!(#shape_presence #field_condition #pattern => #constructor(#(#values),*))
+                    quote!(#shape_presence #pattern => #constructor(#(#values),*))
                 }
                 "PartialEq" => {
                     let other = quote!(#constructor(#(#right),*));
                     let comparisons = left.iter().zip(&right).map(|(left, right)| {
                         quote!(if !::core::cmp::PartialEq::eq(#left, #right) { return false; })
                     });
-                    quote!(#shape_presence #field_condition (#pattern, #other) => { #(#comparisons)* true })
+                    quote!(#shape_presence (#pattern, #other) => { #(#comparisons)* true })
                 }
                 "PartialOrd" | "Ord" => {
                     let other = quote!(#constructor(#(#right),*));
@@ -388,7 +421,7 @@ fn tuple_trait_arms(
                     } else {
                         quote!(::core::cmp::Ordering::Equal)
                     };
-                    quote!(#shape_presence #field_condition (#pattern, #other) => { #(#comparisons)* #tail })
+                    quote!(#shape_presence (#pattern, #other) => { #(#comparisons)* #tail })
                 }
                 "Debug" => {
                     let rendered_constructor = constructor.to_string();
@@ -397,7 +430,7 @@ fn tuple_trait_arms(
                     } else {
                         rendered_constructor.split(" :: ").last().unwrap().to_owned()
                     };
-                    quote!(#shape_presence #field_condition #pattern => {
+                    quote!(#shape_presence #pattern => {
                         let mut builder = formatter.debug_tuple(#label);
                         #(builder.field(#left);)*
                         builder.finish()
@@ -405,13 +438,11 @@ fn tuple_trait_arms(
                 }
                 "Hash" => {
                     let calls = left.iter().map(|binding| quote!(::core::hash::Hash::hash(#binding, state);));
-                    quote!(#shape_presence #field_condition #pattern => { #(#calls)* })
+                    quote!(#shape_presence #pattern => { #(#calls)* })
                 }
                 _ => TokenStream::new(),
             };
-            arm
-        })
-        .collect()
+    vec![arm]
 }
 
 /// Assembles trait methods from generated arms and enum ordering metadata.
@@ -429,7 +460,13 @@ fn tuple_trait_arms(
 /// Panics if `name` is unsupported or `Default` is requested for an item with
 /// no constructor shape.
 #[must_use]
-fn trait_body(item: &DeriveInput, name: &str, shapes: &[FieldShape<'_>], arms: &[TokenStream]) -> TokenStream {
+fn trait_body(
+    item: &DeriveInput,
+    name: &str,
+    shapes: &[FieldShape<'_>],
+    arms: &[TokenStream],
+    active: &HashMap<String, bool>,
+) -> TokenStream {
     let discriminant = matches!(item.data, Data::Enum(_))
         .then(|| quote!(::core::hash::Hash::hash(&::core::mem::discriminant(self), state);));
     let ordering_prefix = if matches!(name, "PartialOrd" | "Ord") {
@@ -467,24 +504,9 @@ fn trait_body(item: &DeriveInput, name: &str, shapes: &[FieldShape<'_>], arms: &
                     crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
                         .expect("field cfg attributes were parsed by the declaration pipeline")
                 }).collect();
-                let conditional: Vec<_> = conditions.iter().enumerate()
-                    .filter_map(|(index, condition)| (!condition.is_unconditional()).then_some(index)).collect();
-                let Some(alternatives) = 1_usize.checked_shl(conditional.len() as u32) else {
-                    return quote!(compile_error!("too many cfg-controlled tuple fields for Default generation"));
-                };
-                let branches = (0..alternatives).map(|mask| {
-                    let terms: Vec<_> = conditional.iter().enumerate().map(|(bit, index)| {
-                        let predicate = conditions[*index].predicate();
-                        if mask & (1 << bit) != 0 { predicate } else { quote!(not(#predicate)) }
-                    }).collect();
-                    let condition = quote!(#[cfg(all(#(#terms),*))]);
-                    let active: Vec<_> = (0..fields.len()).filter(|index| {
-                        conditions[*index].is_unconditional() || conditional.iter().position(|candidate| candidate == index).is_some_and(|bit| mask & (1 << bit) != 0)
-                    }).collect();
-                    let values = active.iter().map(|_| quote!(::core::default::Default::default()));
-                    quote!(#condition { #constructor(#(#values),*) })
-                });
-                return quote!(fn default() -> Self { #(#branches)* });
+                let values = conditions.iter().filter(|condition| condition_is_active(condition, active))
+                    .map(|_| quote!(::core::default::Default::default()));
+                return quote!(fn default() -> Self { #constructor(#(#values),*) });
             }
             let values: Vec<_> = fields
                 .iter()

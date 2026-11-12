@@ -1,6 +1,8 @@
 use model_runtime::__private::TypeDescriptor;
 use model_runtime::metadata::TypeMetadata;
 use qubit_model_derive::{Enum, Model, Value};
+use std::fmt::Display;
+use std::marker::PhantomData;
 
 // Native Rust control: cfg removes the unknown type before type checking.
 #[qubit_reflect::Reflect]
@@ -46,6 +48,43 @@ enum GenericCfgEnum<T> {
     ),
 }
 
+#[qubit_reflect::Reflect]
+struct NoTraitType;
+
+#[qubit_reflect::Reflect]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct NoDisplayType;
+
+#[qubit_reflect::Reflect]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct DisplayType;
+
+impl Display for DisplayType {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("display")
+    }
+}
+
+#[Enum(no_redact)]
+#[cfg(feature = "test-extra")]
+enum ConditionalBound<T: qubit_reflect::descriptor::Reflect> {
+    #[cfg(feature = "bound-enabled")]
+    Payload(T),
+    Empty(#[reflect(skip)] PhantomData<T>),
+}
+
+#[Enum(no_redact)]
+#[cfg(feature = "test-extra")]
+enum ZeroFieldPayload<T: qubit_reflect::descriptor::Reflect> {
+    Payload(
+        #[cfg(feature = "zero-field")]
+        u64,
+        #[cfg(feature = "zero-field")]
+        u32,
+    ),
+    Empty(#[reflect(skip)] PhantomData<T>),
+}
+
 #[Value]
 #[cfg(feature = "test-extra")]
 struct CfgTuple(String, #[cfg(any())] MissingType);
@@ -54,9 +93,50 @@ struct CfgTuple(String, #[cfg(any())] MissingType);
 #[cfg(feature = "test-extra")]
 struct GenericTuple<T>(#[cfg(any())] MissingType, T);
 
-#[Value(transparent)]
+#[Value(no_redact, no_serialize, no_deserialize, transparent)]
 #[cfg(feature = "test-extra")]
 struct GenericTransparent<T>(#[cfg(any())] MissingType, T);
+
+#[Value(no_redact, no_serialize, no_deserialize, transparent)]
+#[cfg(feature = "test-extra")]
+struct ConditionalTransparent(
+    #[cfg(feature = "transparent-disabled")]
+    NoDisplayType,
+    #[cfg(not(feature = "transparent-disabled"))]
+    DisplayType,
+);
+
+#[Value(default, no_redact, no_serialize, no_deserialize)]
+#[cfg(feature = "test-extra")]
+struct ConditionalDefault<T>(#[cfg(any())] T, Option<T>);
+
+#[cfg(feature = "expect-bound-failure")]
+fn active_conditional_bound_requires_clone() {
+    let value = ConditionalBound::<NoTraitType>::Payload(NoTraitType);
+    let _ = value.clone();
+}
+
+#[cfg(feature = "expect-transparent-failure")]
+fn active_transparent_field_requires_display() {
+    let _ = format!("{}", ConditionalTransparent(NoDisplayType));
+}
+
+#[cfg(feature = "tuple-limit")]
+#[Enum(no_redact)]
+enum TooManyTupleConditions<T: qubit_reflect::descriptor::Reflect> {
+    Payload(
+        #[cfg(feature = "tuple-limit")] u8,
+        #[cfg(feature = "tuple-limit")] u8,
+        #[cfg(feature = "tuple-limit")] u8,
+        #[cfg(feature = "tuple-limit")] u8,
+        #[cfg(feature = "tuple-limit")] u8,
+        #[cfg(feature = "tuple-limit")] u8,
+        #[cfg(feature = "tuple-limit")] u8,
+        #[cfg(feature = "tuple-limit")] u8,
+        #[cfg(feature = "tuple-limit")] u8,
+    ),
+    Empty(#[reflect(skip)] PhantomData<T>),
+}
 
 #[Model]
 #[cfg(feature = "test-extra")]
@@ -175,6 +255,32 @@ mod tests {
                 TypeMetadata::of::<GenericCfgEnum<u64>>().role(),
                 model_runtime::metadata::ModelRole::Enum
             );
+        }
+        #[cfg(feature = "test-extra")]
+        {
+            #[cfg(not(feature = "bound-enabled"))]
+            {
+                let value = ConditionalBound::<NoTraitType>::Empty(PhantomData);
+                let _ = value.clone();
+                let _ = value == value;
+                assert!(format!("{value}").starts_with("Empty(PhantomData<"));
+            }
+            #[cfg(feature = "bound-enabled")]
+            {
+                let value = ConditionalBound::Payload(5_u64);
+                let _ = value.clone();
+                assert_eq!(format!("{value}"), "Payload(5)");
+            }
+
+            #[cfg(not(feature = "zero-field"))]
+            let payload = ZeroFieldPayload::<NoTraitType>::Payload();
+            #[cfg(feature = "zero-field")]
+            let payload = ZeroFieldPayload::<NoTraitType>::Payload(3_u64, 4_u32);
+            let _ = payload.clone();
+            assert_eq!(format!("{payload}"), if cfg!(feature = "zero-field") { "Payload(3, 4)" } else { "Payload" });
+
+            let _ = ConditionalDefault::<NoTraitType>::default();
+            assert_eq!(format!("{}", ConditionalTransparent(DisplayType)), "display");
         }
         #[cfg(feature = "test-extra")]
         {

@@ -17,13 +17,17 @@ fn test_cfg_field_feature_matrix() {
         "test-extra,enum-probe,field-enabled",
         "test-extra,enum-probe,via-cfg-attr",
         "test-extra,enum-probe,field-enabled,via-cfg-attr",
+        "test-extra,enum-probe,zero-field",
+        "test-extra,enum-probe,zero-field,via-cfg-attr",
+        "test-extra,enum-probe,bound-enabled",
     ] {
         for action in ["check", "test"] {
             let output = run(&manifest, target.path(), action, features);
             assert!(
                 output.status.success(),
-                "{action} {features}:\n{}",
-                String::from_utf8_lossy(&output.stderr)
+                "{action} {features}:\nstdout:\n{}\nstderr:\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
             );
         }
     }
@@ -37,6 +41,31 @@ fn test_cfg_field_feature_matrix() {
         stderr.contains("Value") || stderr.contains("tuple"),
         "unexpected diagnostic: {stderr}"
     );
+
+    let output = run(
+        &manifest,
+        target.path(),
+        "check",
+        "test-extra,bound-enabled,expect-bound-failure",
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "conditional Clone bound unexpectedly disappeared");
+    assert!(stderr.contains("Clone"), "unexpected conditional-bound diagnostic: {stderr}");
+
+    let output = run(
+        &manifest,
+        target.path(),
+        "check",
+        "test-extra,transparent-disabled,expect-transparent-failure",
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "non-Display transparent field unexpectedly compiled");
+    assert!(stderr.contains("Display"), "unexpected transparent-bound diagnostic: {stderr}");
+
+    let output = run(&manifest, target.path(), "check", "tuple-limit");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "oversized tuple cfg shape unexpectedly compiled");
+    assert!(stderr.contains("conditional tuple"), "unexpected tuple-limit diagnostic: {stderr}");
 }
 
 fn prepare_fixture(directory: &Path) -> PathBuf {

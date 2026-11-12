@@ -13,6 +13,12 @@ via-cfg-attr = []
 invalid-enabled = []
 test-extra = []
 enum-probe = []
+bound-enabled = []
+expect-bound-failure = []
+transparent-disabled = []
+expect-transparent-failure = []
+zero-field = []
+tuple-limit = []
 
 [dependencies]
 qubit-model-derive = { path = "../../../", version = "^0.2" }

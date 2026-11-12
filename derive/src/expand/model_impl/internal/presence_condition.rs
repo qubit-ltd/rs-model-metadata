@@ -17,6 +17,9 @@ use syn::Result;
 use syn::Token;
 use syn::punctuated::Punctuated;
 
+/// Caps cfg-combination code generation at 256 variants per conditional shape.
+pub(crate) const MAX_CONDITIONAL_SHAPE_FIELDS: usize = 8;
+
 /// A configuration predicate evaluated only in the consuming crate.
 #[derive(Clone)]
 pub(crate) struct PresenceCondition {

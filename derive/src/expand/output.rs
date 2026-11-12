@@ -271,25 +271,13 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
             .enumerate()
             .filter_map(|(index, condition)| (!condition.is_unconditional()).then_some(index))
             .collect();
-        let generic_parameters: Vec<_> = generics
-            .type_params()
-            .map(|parameter| parameter.ident.to_string())
-            .collect();
-        for (index, field) in fields.unnamed.iter().enumerate() {
-            let ty = &field.ty;
-            let rendered = quote!(#ty).to_string();
-            let references_generic = generic_parameters.iter().any(|parameter| {
-                rendered
-                    .split(|c: char| !c.is_alphanumeric() && c != '_')
-                    .any(|part| part == parameter)
-            });
-            if conditions[index].is_unconditional() || references_generic {
-                let ty = &field.ty;
-                generics
-                    .make_where_clause()
-                    .predicates
-                    .push(parse_quote!(#ty: ::core::fmt::Display));
-            }
+        if conditional.len()
+            > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS
+        {
+            return Err(Error::new_spanned(
+                item,
+                "conditional tuple field limit exceeded (maximum 8 per shape)",
+            ));
         }
         let Some(alternatives) = 1_usize.checked_shl(conditional.len() as u32) else {
             return Err(Error::new_spanned(
@@ -297,7 +285,7 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
                 "too many cfg-controlled tuple fields for transparent Display generation",
             ));
         };
-        let branches = (0..alternatives).map(|mask| {
+        let implementations = (0..alternatives).map(|mask| {
             let terms: Vec<_> = conditional
                 .iter()
                 .enumerate()
@@ -320,14 +308,26 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
                             .is_some_and(|bit| mask & (1 << bit) != 0)
                 })
                 .collect();
-            if active.len() == 1 {
-                let member = syn::Index::from(active[0]);
-                quote!(#condition { ::core::fmt::Display::fmt(&self.#member, formatter) })
+            let body = if active.len() == 1 {
+                // cfg removes inactive tuple fields before Rust resolves tuple
+                // member indices, so the sole surviving field is always 0.
+                let member = syn::Index::from(0);
+                quote!(::core::fmt::Display::fmt(&self.#member, formatter))
             } else {
-                quote!(#condition { Err(::core::fmt::Error) })
+                quote!(Err(::core::fmt::Error))
+            };
+            let mut branch_generics = generics.clone();
+            for index in active {
+                let ty = &fields.unnamed[index].ty;
+                branch_generics
+                    .make_where_clause()
+                    .predicates
+                    .push(parse_quote!(#ty: ::core::fmt::Display));
             }
+            let implementation = display_impl(item, &branch_generics, body);
+            quote!(#condition #implementation)
         });
-        return Ok(display_impl(item, &generics, quote!(#(#branches)*)));
+        return Ok(quote!(#(#implementations)*));
     }
     let body = match &item.data {
         Data::Struct(data) => {
