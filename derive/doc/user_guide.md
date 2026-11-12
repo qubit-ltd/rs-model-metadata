@@ -148,6 +148,14 @@ Named Option and standard collection fields default when absent and omit empty
 values. `#[keep_serializing]` suppresses only automatic omission. Explicit Serde
 controls have precedence. Positional fields do not receive automatic omission.
 
+Rust `cfg` and nested `cfg_attr` conditions on stored fields and enum variants
+also control generated metadata and field-related output. A disabled declaration
+does not contribute a metadata entry or generated access to an unavailable
+field. Surviving descriptors keep their original source indices, so the first
+field returned by positional iteration may have an index greater than zero.
+Types and role constraints on disabled declarations are checked only in builds
+where those declarations are enabled.
+
 Default serialization delegates to rs-redact, which rejects Serde `flatten`.
 For plain Serde flattening, select `#[Model(no_redact)]`; this opt-out does not
 allow local field or selector redaction declarations. The metadata still records

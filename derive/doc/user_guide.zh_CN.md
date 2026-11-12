@@ -177,6 +177,10 @@ wire 名（通常为 SCREAMING_SNAKE_CASE）；`#[variant(name = "...")]` 或 va
 具名 Option 与标准集合字段在缺失时使用默认值，空值默认不序列化。`keep_serializing` 只关闭自动省略，
 显式 Serde 配置优先；位置字段不自动省略。
 
+字段和 enum variant 上的 Rust `cfg` 与嵌套 `cfg_attr` 也控制生成的元数据及字段相关输出。
+禁用的声明不会产生 metadata 项或引用不存在字段的生成访问；存活字段与 variant 保留原始源码索引，
+因此按位置取得的第一项，其 index 可能大于零。禁用配置中的字段类型和角色约束只在相应声明启用时检查。
+
 ```rust,ignore
 #[Model]
 struct Response {

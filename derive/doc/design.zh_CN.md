@@ -76,6 +76,8 @@ Rust 字段类型无法表达全部业务规则。`#[text(...)]`、`#[unique(...
 
 约束、validator、selector 与 codec 均先形成声明。`#[validator(id = "...")]` 可以重复出现，每个 occurrence 独立保留参数、依赖和位置。codec 可声明稳定 ID 或 Rust 类型；字段显式 codec 与 Value canonical codec 的选择在运行时绑定阶段决定。宏不调用规则、编码器、getter，也不验证某个对象实例。
 
+字段和 enum variant 的 Rust `cfg` 与嵌套 `cfg_attr` 条件由使用方 crate 求值。禁用声明不产生 metadata 项或访问该字段的生成代码；存活集合保持紧凑，但 descriptor 保留原始源码索引以匹配 `rs-reflect`。因此，按位置遍历得到的第一项，其 source index 在前面的字段被禁用时可以大于零。字段类型和角色校验只适用于当前配置中实际存在的声明。
+
 ## ModelImpl 的属性判定
 
 `ModelImpl` 为原 impl 生成 `ReflectImpl` 支持，再决定哪些方法能贡献属性。贡献者必须是公开、同步、安全、非方法泛型的固有方法；trait 方法和其他不符合访问器合同的方法可被反射，却不进入 Property 集合。泛型 impl 必须通过 `specialize(...)` 显式列出具体类型或常量绑定。可用的 getter 与 setter 按属性名合并到存储字段；没有字段的 getter 成为计算属性。冲突的访问器会诊断，不能依赖源顺序任意选择其中一个。

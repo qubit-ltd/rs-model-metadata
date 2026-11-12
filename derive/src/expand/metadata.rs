@@ -16,10 +16,10 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use quote::format_ident;
 use quote::quote;
-use syn::DeriveInput;
 use syn::Data;
-use syn::Fields;
+use syn::DeriveInput;
 use syn::Error;
+use syn::Fields;
 use syn::GenericArgument;
 use syn::GenericParam;
 use syn::Ident;
@@ -224,7 +224,10 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
 /// Tokens that declare and populate the nested metadata provider slice.
 #[must_use]
 fn expand_nested_metadata_providers(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
-    let mut candidates: Vec<(Type, crate::expand::model_impl::internal::presence_condition::PresenceCondition)> = Vec::new();
+    let mut candidates: Vec<(
+        Type,
+        crate::expand::model_impl::internal::presence_condition::PresenceCondition,
+    )> = Vec::new();
     for field in declaration
         .fields
         .iter()
@@ -234,7 +237,10 @@ fn expand_nested_metadata_providers(declaration: &DeclarationIr, runtime: &Token
         collect_nested_type_candidates(&field.ty, &mut field_candidates, &mut HashSet::new());
         for ty in field_candidates {
             let rendered = ty.to_token_stream().to_string();
-            if let Some((_, presence)) = candidates.iter_mut().find(|(candidate, _)| candidate.to_token_stream().to_string() == rendered) {
+            if let Some((_, presence)) = candidates
+                .iter_mut()
+                .find(|(candidate, _)| candidate.to_token_stream().to_string() == rendered)
+            {
                 *presence = presence.union(&field.presence);
             } else {
                 candidates.push((ty, field.presence.clone()));

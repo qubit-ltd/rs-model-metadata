@@ -11,10 +11,10 @@
 use syn::Ident;
 use syn::Type;
 use syn::Visibility;
-use crate::expand::model_impl::internal::presence_condition::PresenceCondition;
 
 use super::super::super::Located;
 use super::FieldOccurrence;
+use crate::expand::model_impl::internal::presence_condition::PresenceCondition;
 
 /// Normalized field declaration metadata consumed by model expansion.
 #[derive(Clone)]

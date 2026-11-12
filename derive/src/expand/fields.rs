@@ -563,7 +563,9 @@ fn expand_field_with_parameters(
 ) -> TokenStream {
     let index = *field.index.value();
     let presence = field.presence.attribute();
-    let variant = field.variant_index.map_or_else(|| quote!(None), |_| quote!(Some(variant_index)));
+    let variant = field
+        .variant_index
+        .map_or_else(|| quote!(None), |_| quote!(Some(variant_index)));
     let source_name = field.rust_name.as_ref().map_or_else(
         || quote!(None),
         |name| {

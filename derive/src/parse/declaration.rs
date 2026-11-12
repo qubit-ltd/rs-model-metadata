@@ -155,7 +155,10 @@ pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
         let fields = parse_fields(&variant.fields);
         match (canonical_name, names, fields) {
             (Ok(canonical_name), Ok((serialized_name, deserialized_name)), Ok(mut fields)) => {
-                let presence = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&variant.attrs)?;
+                let presence =
+                    crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(
+                        &variant.attrs,
+                    )?;
                 for field in &mut fields {
                     field.variant_index = Some(variant_index);
                     field.presence = field.presence.intersection(&presence);

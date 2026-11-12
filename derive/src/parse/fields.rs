@@ -35,6 +35,7 @@ use super::constraints::parse_constraint;
 use super::validator::parse_validator;
 use super::vocabulary::validate_redact_level;
 use crate::compiler::diagnostics::Diagnostics;
+use crate::expand::model_impl::internal::presence_condition::PresenceCondition;
 use crate::ir::Located;
 use crate::ir::declaration::CodecIr;
 use crate::ir::declaration::FieldIr;
@@ -48,7 +49,6 @@ use crate::ir::declaration::SelectorIr;
 use crate::ir::declaration::SelectorPositionIr;
 use crate::ir::declaration::SerdeIr;
 use crate::ir::declaration::UniqueIr;
-use crate::expand::model_impl::internal::presence_condition::PresenceCondition;
 
 /// Parses one field's attributes into normalized intermediate metadata.
 ///

@@ -240,40 +240,64 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
     let name = &item.ident;
     let mut generics = item.generics.clone();
     let has_conditional_fields = match &item.data {
-        Data::Struct(data) => data.fields.iter().any(|field| field.attrs.iter().any(|attribute|
-            attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))),
-        Data::Enum(data) => data.variants.iter().any(|variant|
-            variant.attrs.iter().any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
-                || variant.fields.iter().any(|field| field.attrs.iter().any(|attribute|
-                    attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")))),
+        Data::Struct(data) => data.fields.iter().any(|field| {
+            field
+                .attrs
+                .iter()
+                .any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
+        }),
+        Data::Enum(data) => data.variants.iter().any(|variant| {
+            variant
+                .attrs
+                .iter()
+                .any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
+                || variant.fields.iter().any(|field| {
+                    field
+                        .attrs
+                        .iter()
+                        .any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
+                })
+        }),
         Data::Union(_) => false,
     };
     if has_conditional_fields && !transparent {
         // Conditional enum tuple payloads cannot carry cfg on individual
         // pattern slots; Debug emits presence-shaped arms for them.
-        generics.make_where_clause().predicates.push(parse_quote!(Self: ::core::fmt::Debug));
-        return Ok(display_impl(item, &generics, quote!(::core::fmt::Debug::fmt(self, formatter))));
+        generics
+            .make_where_clause()
+            .predicates
+            .push(parse_quote!(Self: ::core::fmt::Debug));
+        return Ok(display_impl(
+            item,
+            &generics,
+            quote!(::core::fmt::Debug::fmt(self, formatter)),
+        ));
     }
     if transparent
         && let Data::Struct(data) = &item.data
         && let Fields::Unnamed(fields) = &data.fields
         && fields.unnamed.iter().any(|field| {
-            field.attrs.iter().any(|attribute| {
-                attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
-            })
+            field
+                .attrs
+                .iter()
+                .any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
         })
     {
-        let conditions: Vec<_> = fields.unnamed.iter().map(|field|
-            crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
-        ).collect::<Result<_>>()?;
+        let conditions: Vec<_> = fields
+            .unnamed
+            .iter()
+            .map(|field| {
+                crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(
+                    &field.attrs,
+                )
+            })
+            .collect::<Result<_>>()?;
         let conditional: Vec<_> = conditions
             .iter()
             .enumerate()
             .filter_map(|(index, condition)| (!condition.is_unconditional()).then_some(index))
             .collect();
-        if conditional.len()
-            > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS
-        {
+        if conditional.len() > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS {
             return Err(Error::new_spanned(
                 item,
                 "conditional tuple field limit exceeded (maximum 8 per shape)",
@@ -334,7 +358,10 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
             let mut fields = Vec::new();
             for (index, field) in data.fields.iter().enumerate() {
                 let ty = &field.ty;
-                let presence = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)?;
+                let presence =
+                    crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(
+                        &field.attrs,
+                    )?;
                 let condition = presence.attribute();
                 let member = field
                     .ident
@@ -588,4 +615,68 @@ fn has_serde_control(item: &DeriveInput, name: &str) -> Result<bool> {
         }
     }
     Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use syn::DeriveInput;
+    use syn::parse_quote;
+
+    use super::plain_display;
+
+    #[test]
+    fn test_plain_display_handles_conditional_and_transparent_shapes() {
+        let conditional: DeriveInput = parse_quote! {
+            enum Conditional {
+                #[cfg(feature = "tuple")]
+                Tuple(#[cfg(feature = "field")] u8, String),
+                Named { value: u8 },
+                Unit,
+            }
+        };
+        let delegated = plain_display(&conditional, false).unwrap().to_string();
+        assert!(delegated.contains("Debug"));
+
+        let transparent: DeriveInput = parse_quote! {
+            struct Transparent<T>(
+                #[cfg(feature = "left")] T,
+                #[cfg(feature = "right")] String,
+            );
+        };
+        let generated = plain_display(&transparent, true).unwrap().to_string();
+        assert!(generated.contains("Display"));
+        assert!(generated.contains("cfg"));
+
+        let invalid_shape: DeriveInput = parse_quote! {
+            struct Invalid(#[cfg(feature = "left")] u8, #[cfg(feature = "right")] u16);
+        };
+        let generated = plain_display(&invalid_shape, true).unwrap().to_string();
+        assert!(generated.contains("fmt :: Error"));
+    }
+
+    #[test]
+    fn test_plain_display_formats_unconditional_struct_and_enum_fields() {
+        let named: DeriveInput = parse_quote! {
+            struct Named { value: u8 }
+        };
+        assert!(
+            plain_display(&named, false)
+                .unwrap()
+                .to_string()
+                .contains("debug_struct")
+        );
+
+        let tuple: DeriveInput = parse_quote! {
+            struct Tuple(u8);
+        };
+        assert!(plain_display(&tuple, true).unwrap().to_string().contains("Display"));
+
+        let enumeration: DeriveInput = parse_quote! {
+            enum Output { Named { value: u8 }, Tuple(u8), Unit }
+        };
+        let generated = plain_display(&enumeration, false).unwrap().to_string();
+        assert!(generated.contains("debug_struct"));
+        assert!(generated.contains("debug_tuple"));
+        assert!(generated.contains("write_str"));
+    }
 }

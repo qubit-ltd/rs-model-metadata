@@ -9,6 +9,7 @@
 //! Structural trait implementations with bounds on actual field shapes.
 
 use std::collections::HashMap;
+
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use quote::format_ident;
@@ -41,10 +42,11 @@ pub(super) fn expand(item: &DeriveInput, name: &str) -> TokenStream {
     let trait_path = trait_path(name);
     let shapes = field_shapes(item);
     if shapes.iter().any(|shape| {
-        matches!(shape.fields, Fields::Unnamed(fields)
+        matches!(shape.1, Fields::Unnamed(fields)
             if fields.unnamed.iter().filter(|field| {
-                crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
-                    .expect("field cfg attributes were parsed by the declaration pipeline").is_unconditional() == false
+                !crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                    .expect("field cfg attributes were parsed by the declaration pipeline")
+                    .is_unconditional()
             }).count() > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS)
     }) {
         return quote!(compile_error!("conditional tuple field limit exceeded (maximum 8 per shape)"););
@@ -53,30 +55,38 @@ pub(super) fn expand(item: &DeriveInput, name: &str) -> TokenStream {
         return quote!(compile_error!("too many cfg conditions for structural trait generation (maximum 8)"););
     };
     let ident = &item.ident;
-    let implementations = configurations.iter().map(|configuration| {
-        let generics = bounded_generics(item, name, &trait_path, &shapes, &configuration.active);
-        let arms = trait_arms(item, name, &shapes, &configuration.active);
-        let body = trait_body(item, name, &shapes, &arms, &configuration.active);
+    let implementations = configurations.iter().map(|(condition, active)| {
+        let generics = bounded_generics(item, name, &trait_path, &shapes, active);
+        let arms = trait_arms(item, name, &shapes, active);
+        let body = trait_body(item, name, &shapes, &arms, active);
         let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
-        let condition = &configuration.attribute;
         quote!(#condition impl #impl_generics #trait_path for #ident #type_generics #where_clause { #body })
     });
     quote!(#(#implementations)*)
 }
 
-struct PresenceCombination {
-    attribute: TokenStream,
-    active: HashMap<String, bool>,
-}
-
-fn presence_combinations(shapes: &[FieldShape<'_>]) -> Option<Vec<PresenceCombination>> {
+/// Enumerates target-crate cfg combinations used to build conditional impls.
+///
+/// # Parameters
+/// * `shapes`: the declaration shapes and their presence conditions.
+///
+/// # Returns
+/// Each generated item condition paired with the active-predicate map, or
+/// `None` when the configured combination limit would be exceeded.
+fn presence_combinations(
+    shapes: &[(
+        TokenStream,
+        &Fields,
+        crate::expand::model_impl::internal::presence_condition::PresenceCondition,
+    )],
+) -> Option<Vec<(TokenStream, HashMap<String, bool>)>> {
     use crate::expand::model_impl::internal::presence_condition::PresenceCondition;
     let mut conditions = Vec::<PresenceCondition>::new();
     for shape in shapes {
-        if !shape.presence.is_unconditional() {
-            conditions.push(shape.presence.clone());
+        if !shape.2.is_unconditional() {
+            conditions.push(shape.2.clone());
         }
-        for field in shape.fields {
+        for field in shape.1 {
             let condition = PresenceCondition::from_attributes(&field.attrs)
                 .expect("field cfg attributes were parsed by the declaration pipeline");
             if !condition.is_unconditional() {
@@ -91,36 +101,54 @@ fn presence_combinations(shapes: &[FieldShape<'_>]) -> Option<Vec<PresenceCombin
             unique.push(condition);
         }
     }
-    if unique.len()
-        > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS
-    {
+    if unique.len() > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS {
         return None;
     }
     let combinations = 1_usize.checked_shl(unique.len() as u32)?;
-    Some((0..combinations).map(|mask| {
-        let active: HashMap<_, _> = unique.iter().enumerate().map(|(bit, condition)| {
-            (condition.predicate().to_string(), mask & (1 << bit) != 0)
-        }).collect();
-        let terms: Vec<_> = unique.iter().enumerate().map(|(bit, condition)| {
-            let predicate = condition.predicate();
-            if mask & (1 << bit) != 0 { predicate } else { quote!(not(#predicate)) }
-        }).collect();
-        let attribute = if terms.is_empty() { TokenStream::new() } else { quote!(#[cfg(all(#(#terms),*))]) };
-        PresenceCombination { attribute, active }
-    }).collect())
+    Some(
+        (0..combinations)
+            .map(|mask| {
+                let active: HashMap<_, _> = unique
+                    .iter()
+                    .enumerate()
+                    .map(|(bit, condition)| (condition.predicate().to_string(), mask & (1 << bit) != 0))
+                    .collect();
+                let terms: Vec<_> = unique
+                    .iter()
+                    .enumerate()
+                    .map(|(bit, condition)| {
+                        let predicate = condition.predicate();
+                        if mask & (1 << bit) != 0 {
+                            predicate
+                        } else {
+                            quote!(not(#predicate))
+                        }
+                    })
+                    .collect();
+                let attribute = if terms.is_empty() {
+                    TokenStream::new()
+                } else {
+                    quote!(#[cfg(all(#(#terms),*))])
+                };
+                (attribute, active)
+            })
+            .collect(),
+    )
 }
 
+/// Reports whether a declaration shape is present in a cfg combination.
+///
+/// # Parameters
+/// * `condition`: the condition attached to a shape or field.
+/// * `active`: the predicate values for the selected combination.
+///
+/// # Returns
+/// `true` when the declaration is unconditional or its predicate is active.
 fn condition_is_active(
     condition: &crate::expand::model_impl::internal::presence_condition::PresenceCondition,
     active: &HashMap<String, bool>,
 ) -> bool {
     condition.is_unconditional() || active.get(&condition.predicate().to_string()).copied().unwrap_or(false)
-}
-
-struct FieldShape<'a> {
-    constructor: TokenStream,
-    fields: &'a Fields,
-    presence: crate::expand::model_impl::internal::presence_condition::PresenceCondition,
 }
 
 /// Returns the standard trait path selected by its supported name.
@@ -161,24 +189,32 @@ fn trait_path(name: &str) -> TokenStream {
 /// # Panics
 /// Panics if called with a union after model-shape validation.
 #[must_use]
-fn field_shapes(item: &DeriveInput) -> Vec<FieldShape<'_>> {
+fn field_shapes(
+    item: &DeriveInput,
+) -> Vec<(
+    TokenStream,
+    &Fields,
+    crate::expand::model_impl::internal::presence_condition::PresenceCondition,
+)> {
     match &item.data {
-        Data::Struct(data) => vec![FieldShape {
-            constructor: quote!(Self),
-            fields: &data.fields,
-            presence: crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
-        }],
+        Data::Struct(data) => vec![(
+            quote!(Self),
+            &data.fields,
+            crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
+        )],
         Data::Enum(data) => data
             .variants
             .iter()
             .map(|variant| {
                 let ident = &variant.ident;
-                FieldShape {
-                    constructor: quote!(Self::#ident),
-                    fields: &variant.fields,
-                    presence: crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&variant.attrs)
-                        .expect("variant cfg attributes were parsed by the declaration pipeline"),
-                }
+                (
+                    quote!(Self::#ident),
+                    &variant.fields,
+                    crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(
+                        &variant.attrs,
+                    )
+                    .expect("variant cfg attributes were parsed by the declaration pipeline"),
+                )
             })
             .collect(),
         Data::Union(_) => unreachable!("validated model shape"),
@@ -201,7 +237,11 @@ fn bounded_generics(
     item: &DeriveInput,
     name: &str,
     trait_path: &TokenStream,
-    shapes: &[FieldShape<'_>],
+    shapes: &[(
+        TokenStream,
+        &Fields,
+        crate::expand::model_impl::internal::presence_condition::PresenceCondition,
+    )],
     active: &HashMap<String, bool>,
 ) -> syn::Generics {
     let mut generics = item.generics.clone();
@@ -209,12 +249,14 @@ fn bounded_generics(
     let (_, arguments, _) = item.generics.split_for_impl();
     let recursive_type = quote!(#ident #arguments).to_string();
     for shape in shapes {
-        if !condition_is_active(&shape.presence, active) {
+        if !condition_is_active(&shape.2, active) {
             continue;
         }
-        for field in shape.fields {
-            let presence = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
-                .expect("field cfg attributes were parsed by the declaration pipeline");
+        for field in shape.1 {
+            let presence = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(
+                &field.attrs,
+            )
+            .expect("field cfg attributes were parsed by the declaration pipeline");
             if !condition_is_active(&presence, active) {
                 continue;
             }
@@ -248,15 +290,19 @@ fn bounded_generics(
 fn trait_arms(
     item: &DeriveInput,
     name: &str,
-    shapes: &[FieldShape<'_>],
+    shapes: &[(
+        TokenStream,
+        &Fields,
+        crate::expand::model_impl::internal::presence_condition::PresenceCondition,
+    )],
     active: &HashMap<String, bool>,
 ) -> Vec<TokenStream> {
     let arms: Vec<_> = shapes
         .iter()
         .flat_map(|shape| {
-            let constructor = &shape.constructor;
-            let fields = shape.fields;
-            let shape_presence = shape.presence.attribute();
+            let constructor = &shape.0;
+            let fields = shape.1;
+            let shape_presence = shape.2.attribute();
             if let Fields::Unnamed(tuple_fields) = fields
                 && tuple_fields.unnamed.iter().any(|field| {
                     !crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
@@ -360,6 +406,18 @@ fn trait_arms(
     arms
 }
 
+/// Generates one structural-trait arm for each active tuple field shape.
+///
+/// # Parameters
+/// * `name`: the structural trait being generated.
+/// * `struct_name`: the declared type name used by Debug output.
+/// * `constructor`: tokens naming the tuple constructor.
+/// * `fields`: the source tuple fields.
+/// * `shape_presence`: the cfg predicate guarding the parent shape.
+/// * `active`: active cfg predicates for the selected configuration.
+///
+/// # Returns
+/// Generated match arms for the active tuple layout.
 fn tuple_trait_arms(
     name: &str,
     struct_name: &Ident,
@@ -379,69 +437,75 @@ fn tuple_trait_arms(
                 .expect("field cfg attributes were parsed by the declaration pipeline")
         })
         .collect();
-    let active_fields: Vec<_> = tuple_fields.unnamed.iter().enumerate()
+    let active_fields: Vec<_> = tuple_fields
+        .unnamed
+        .iter()
+        .enumerate()
         .filter_map(|(index, _field)| condition_is_active(&field_conditions[index], active).then_some(index))
         .collect();
-            let left: Vec<_> = active_fields
-                .iter()
-                .map(|index| format_ident!("__model_left_{index}"))
-                .collect();
-            let right: Vec<_> = active_fields
-                .iter()
-                .map(|index| format_ident!("__model_right_{index}"))
-                .collect();
+    let left: Vec<_> = active_fields
+        .iter()
+        .map(|index| format_ident!("__model_left_{index}"))
+        .collect();
+    let right: Vec<_> = active_fields
+        .iter()
+        .map(|index| format_ident!("__model_right_{index}"))
+        .collect();
     let pattern = quote!(#constructor(#(#left),*));
     let arm = match name {
-                "Clone" => {
-                    let values = left.iter().map(|binding| quote!(::core::clone::Clone::clone(#binding)));
-                    quote!(#shape_presence #pattern => #constructor(#(#values),*))
-                }
-                "PartialEq" => {
-                    let other = quote!(#constructor(#(#right),*));
-                    let comparisons = left.iter().zip(&right).map(|(left, right)| {
-                        quote!(if !::core::cmp::PartialEq::eq(#left, #right) { return false; })
-                    });
-                    quote!(#shape_presence (#pattern, #other) => { #(#comparisons)* true })
-                }
-                "PartialOrd" | "Ord" => {
-                    let other = quote!(#constructor(#(#right),*));
-                    let comparisons = left.iter().zip(&right).map(|(left, right)| {
-                        if name == "PartialOrd" {
-                            quote!(match ::core::cmp::PartialOrd::partial_cmp(#left, #right) {
-                                Some(::core::cmp::Ordering::Equal) => {}, ordering => return ordering,
-                            })
-                        } else {
-                            quote!(match ::core::cmp::Ord::cmp(#left, #right) {
-                                ::core::cmp::Ordering::Equal => {}, ordering => return ordering,
-                            })
-                        }
-                    });
-                    let tail = if name == "PartialOrd" {
-                        quote!(Some(::core::cmp::Ordering::Equal))
-                    } else {
-                        quote!(::core::cmp::Ordering::Equal)
-                    };
-                    quote!(#shape_presence (#pattern, #other) => { #(#comparisons)* #tail })
-                }
-                "Debug" => {
-                    let rendered_constructor = constructor.to_string();
-                    let label = if rendered_constructor == "Self" {
-                        struct_name.to_string()
-                    } else {
-                        rendered_constructor.split(" :: ").last().unwrap().to_owned()
-                    };
-                    quote!(#shape_presence #pattern => {
-                        let mut builder = formatter.debug_tuple(#label);
-                        #(builder.field(#left);)*
-                        builder.finish()
+        "Clone" => {
+            let values = left.iter().map(|binding| quote!(::core::clone::Clone::clone(#binding)));
+            quote!(#shape_presence #pattern => #constructor(#(#values),*))
+        }
+        "PartialEq" => {
+            let other = quote!(#constructor(#(#right),*));
+            let comparisons = left
+                .iter()
+                .zip(&right)
+                .map(|(left, right)| quote!(if !::core::cmp::PartialEq::eq(#left, #right) { return false; }));
+            quote!(#shape_presence (#pattern, #other) => { #(#comparisons)* true })
+        }
+        "PartialOrd" | "Ord" => {
+            let other = quote!(#constructor(#(#right),*));
+            let comparisons = left.iter().zip(&right).map(|(left, right)| {
+                if name == "PartialOrd" {
+                    quote!(match ::core::cmp::PartialOrd::partial_cmp(#left, #right) {
+                        Some(::core::cmp::Ordering::Equal) => {}, ordering => return ordering,
+                    })
+                } else {
+                    quote!(match ::core::cmp::Ord::cmp(#left, #right) {
+                        ::core::cmp::Ordering::Equal => {}, ordering => return ordering,
                     })
                 }
-                "Hash" => {
-                    let calls = left.iter().map(|binding| quote!(::core::hash::Hash::hash(#binding, state);));
-                    quote!(#shape_presence #pattern => { #(#calls)* })
-                }
-                _ => TokenStream::new(),
+            });
+            let tail = if name == "PartialOrd" {
+                quote!(Some(::core::cmp::Ordering::Equal))
+            } else {
+                quote!(::core::cmp::Ordering::Equal)
             };
+            quote!(#shape_presence (#pattern, #other) => { #(#comparisons)* #tail })
+        }
+        "Debug" => {
+            let rendered_constructor = constructor.to_string();
+            let label = if rendered_constructor == "Self" {
+                struct_name.to_string()
+            } else {
+                rendered_constructor.split(" :: ").last().unwrap().to_owned()
+            };
+            quote!(#shape_presence #pattern => {
+                let mut builder = formatter.debug_tuple(#label);
+                #(builder.field(#left);)*
+                builder.finish()
+            })
+        }
+        "Hash" => {
+            let calls = left
+                .iter()
+                .map(|binding| quote!(::core::hash::Hash::hash(#binding, state);));
+            quote!(#shape_presence #pattern => { #(#calls)* })
+        }
+        _ => TokenStream::new(),
+    };
     vec![arm]
 }
 
@@ -463,7 +527,11 @@ fn tuple_trait_arms(
 fn trait_body(
     item: &DeriveInput,
     name: &str,
-    shapes: &[FieldShape<'_>],
+    shapes: &[(
+        TokenStream,
+        &Fields,
+        crate::expand::model_impl::internal::presence_condition::PresenceCondition,
+    )],
     arms: &[TokenStream],
     active: &HashMap<String, bool>,
 ) -> TokenStream {
@@ -492,19 +560,30 @@ fn trait_body(
             })
         }
         "Default" => {
-            let constructor = &shapes[0].constructor;
-            let fields = shapes[0].fields;
+            let constructor = &shapes[0].0;
+            let fields = shapes[0].1;
             if let Fields::Unnamed(tuple_fields) = fields
                 && tuple_fields.unnamed.iter().any(|field| {
-                    !crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
-                        .expect("field cfg attributes were parsed by the declaration pipeline").is_unconditional()
+                    !crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(
+                        &field.attrs,
+                    )
+                    .expect("field cfg attributes were parsed by the declaration pipeline")
+                    .is_unconditional()
                 })
             {
-                let conditions: Vec<_> = tuple_fields.unnamed.iter().map(|field| {
-                    crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                let conditions: Vec<_> = tuple_fields
+                    .unnamed
+                    .iter()
+                    .map(|field| {
+                        crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(
+                            &field.attrs,
+                        )
                         .expect("field cfg attributes were parsed by the declaration pipeline")
-                }).collect();
-                let values = conditions.iter().filter(|condition| condition_is_active(condition, active))
+                    })
+                    .collect();
+                let values = conditions
+                    .iter()
+                    .filter(|condition| condition_is_active(condition, active))
                     .map(|_| quote!(::core::default::Default::default()));
                 return quote!(fn default() -> Self { #constructor(#(#values),*) });
             }
@@ -565,8 +644,12 @@ fn construct(constructor: &TokenStream, fields: &Fields, values: &[TokenStream])
         Fields::Named(fields) => {
             let entries = fields.named.iter().zip(values).map(|(field, value)| {
                 let name = &field.ident;
-                let condition = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
-                    .expect("field cfg attributes were parsed by the declaration pipeline").attribute();
+                let condition =
+                    crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(
+                        &field.attrs,
+                    )
+                    .expect("field cfg attributes were parsed by the declaration pipeline")
+                    .attribute();
                 quote!(#condition #name: #value)
             });
             quote!(#constructor { #(#entries),* })
@@ -633,8 +716,11 @@ fn enum_ordering_prefix(item: &DeriveInput, trait_name: &str) -> TokenStream {
                 .map(|(_, value)| quote!(#value))
                 .unwrap_or_else(|| next.clone());
             next = quote!((#value) + 1);
-            let presence = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&variant.attrs)
-                .expect("variant cfg attributes were parsed by the declaration pipeline").attribute();
+            let presence = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(
+                &variant.attrs,
+            )
+            .expect("variant cfg attributes were parsed by the declaration pipeline")
+            .attribute();
             quote!(#presence #pattern => #value)
         })
         .collect();
@@ -721,4 +807,76 @@ pub(super) fn recursive_bounds<'a>(ty: &'a Type, recursive_type: &str) -> Option
         })
         .collect();
     found.then_some(bounds)
+}
+
+#[cfg(test)]
+mod tests {
+    use syn::DeriveInput;
+    use syn::parse_quote;
+
+    use super::expand;
+
+    #[test]
+    fn test_structural_traits_generate_conditional_tuple_shapes() {
+        let item: DeriveInput = parse_quote! {
+            struct Conditional<T>(
+                #[cfg(feature = "first")] T,
+                #[cfg_attr(feature = "second", cfg(feature = "second_field"))]
+                String,
+            );
+        };
+        for trait_name in [
+            "Clone",
+            "PartialEq",
+            "Eq",
+            "Hash",
+            "Copy",
+            "Default",
+            "PartialOrd",
+            "Ord",
+            "Debug",
+        ] {
+            let output = expand(&item, trait_name).to_string();
+            assert!(!output.is_empty(), "missing {trait_name} output");
+            assert!(output.contains("cfg"), "missing cfg arms for {trait_name}");
+        }
+    }
+
+    #[test]
+    fn test_structural_traits_generate_named_and_enum_shapes() {
+        let item: DeriveInput = parse_quote! {
+            enum Conditional<T> {
+                #[cfg(feature = "payload")]
+                Tuple(#[cfg(feature = "field")] T, String),
+                Named { value: T },
+                Unit,
+            }
+        };
+        for trait_name in ["Clone", "PartialEq", "Hash", "PartialOrd", "Ord", "Debug"] {
+            let output = expand(&item, trait_name).to_string();
+            assert!(!output.is_empty(), "missing {trait_name} output");
+        }
+    }
+
+    #[test]
+    fn test_structural_traits_reject_excessive_cfg_combinations() {
+        let item: DeriveInput = parse_quote! {
+            struct TooMany(
+                #[cfg(feature = "a")] u8,
+                #[cfg(feature = "b")] u8,
+                #[cfg(feature = "c")] u8,
+                #[cfg(feature = "d")] u8,
+                #[cfg(feature = "e")] u8,
+                #[cfg(feature = "f")] u8,
+                #[cfg(feature = "g")] u8,
+                #[cfg(feature = "h")] u8,
+                #[cfg(feature = "i")] u8,
+            );
+        };
+        assert!(
+            expand(&item, "Clone")
+                .to_string()
+                .contains("conditional tuple field limit exceeded")
+        );
+    }
 }

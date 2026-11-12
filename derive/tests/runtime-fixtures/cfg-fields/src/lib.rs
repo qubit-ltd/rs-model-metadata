@@ -1,8 +1,20 @@
-use model_runtime::__private::TypeDescriptor;
-use model_runtime::metadata::TypeMetadata;
-use qubit_model_derive::{Enum, Model, Value};
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 use std::fmt::Display;
+#[cfg(any(feature = "test-extra", feature = "tuple-limit"))]
 use std::marker::PhantomData;
+
+#[cfg(any(feature = "test-extra", feature = "tuple-limit"))]
+use qubit_model_derive::Enum;
+use qubit_model_derive::Model;
+#[cfg(any(feature = "test-extra", feature = "invalid-enabled"))]
+use qubit_model_derive::Value;
 
 // Native Rust control: cfg removes the unknown type before type checking.
 #[qubit_reflect::Reflect]
@@ -38,7 +50,7 @@ enum CfgEnum {
 
 #[Enum]
 #[cfg(all(feature = "test-extra", feature = "enum-probe"))]
-enum GenericCfgEnum<T> {
+pub enum GenericCfgEnum<T> {
     #[cfg(any())]
     Gone(MissingType),
     Data(
@@ -67,7 +79,7 @@ impl Display for DisplayType {
 
 #[Enum(no_redact)]
 #[cfg(feature = "test-extra")]
-enum ConditionalBound<T: qubit_reflect::descriptor::Reflect> {
+pub enum ConditionalBound<T: qubit_reflect::descriptor::Reflect> {
     #[cfg(feature = "bound-enabled")]
     Payload(T),
     Empty(#[reflect(skip)] PhantomData<T>),
@@ -75,13 +87,8 @@ enum ConditionalBound<T: qubit_reflect::descriptor::Reflect> {
 
 #[Enum(no_redact)]
 #[cfg(feature = "test-extra")]
-enum ZeroFieldPayload<T: qubit_reflect::descriptor::Reflect> {
-    Payload(
-        #[cfg(feature = "zero-field")]
-        u64,
-        #[cfg(feature = "zero-field")]
-        u32,
-    ),
+pub enum ZeroFieldPayload<T: qubit_reflect::descriptor::Reflect> {
+    Payload(#[cfg(feature = "zero-field")] u64, #[cfg(feature = "zero-field")] u32),
     Empty(#[reflect(skip)] PhantomData<T>),
 }
 
@@ -91,33 +98,31 @@ struct CfgTuple(String, #[cfg(any())] MissingType);
 
 #[Value(default)]
 #[cfg(feature = "test-extra")]
-struct GenericTuple<T>(#[cfg(any())] MissingType, T);
+pub struct GenericTuple<T>(#[cfg(any())] MissingType, T);
 
 #[Value(no_redact, no_serialize, no_deserialize, transparent)]
 #[cfg(feature = "test-extra")]
-struct GenericTransparent<T>(#[cfg(any())] MissingType, T);
+pub struct GenericTransparent<T>(#[cfg(any())] MissingType, T);
 
 #[Value(no_redact, no_serialize, no_deserialize, transparent)]
 #[cfg(feature = "test-extra")]
 struct ConditionalTransparent(
-    #[cfg(feature = "transparent-disabled")]
-    NoDisplayType,
-    #[cfg(not(feature = "transparent-disabled"))]
-    DisplayType,
+    #[cfg(feature = "transparent-disabled")] NoDisplayType,
+    #[cfg(not(feature = "transparent-disabled"))] DisplayType,
 );
 
 #[Value(default, no_redact, no_serialize, no_deserialize)]
 #[cfg(feature = "test-extra")]
-struct ConditionalDefault<T>(#[cfg(any())] T, Option<T>);
+pub struct ConditionalDefault<T>(#[cfg(any())] T, Option<T>);
 
 #[cfg(feature = "expect-bound-failure")]
-fn active_conditional_bound_requires_clone() {
+fn test_active_conditional_bound_requires_clone() {
     let value = ConditionalBound::<NoTraitType>::Payload(NoTraitType);
     let _ = value.clone();
 }
 
 #[cfg(feature = "expect-transparent-failure")]
-fn active_transparent_field_requires_display() {
+fn test_active_transparent_field_requires_display() {
     let _ = format!("{}", ConditionalTransparent(NoDisplayType));
 }
 
@@ -140,7 +145,7 @@ enum TooManyTupleConditions<T: qubit_reflect::descriptor::Reflect> {
 
 #[Model]
 #[cfg(feature = "test-extra")]
-struct Generic<T> {
+pub struct Generic<T> {
     #[cfg(any())]
     absent: MissingType,
     value: T,
@@ -152,12 +157,39 @@ struct InvalidWhenEnabled(String, #[cfg(feature = "invalid-enabled")] String);
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use model_runtime::__private::TypeDescriptor;
+    use model_runtime::metadata::TypeMetadata;
+
+    #[cfg(all(feature = "test-extra", feature = "enum-probe"))]
+    use super::CfgEnum;
+    use super::CfgProbe;
+    #[cfg(feature = "test-extra")]
+    use super::CfgTuple;
+    #[cfg(feature = "test-extra")]
+    use super::ConditionalBound;
+    #[cfg(feature = "test-extra")]
+    use super::ConditionalDefault;
+    #[cfg(feature = "test-extra")]
+    use super::ConditionalTransparent;
+    #[cfg(feature = "test-extra")]
+    use super::DisplayType;
+    #[cfg(feature = "test-extra")]
+    use super::Generic;
+    #[cfg(all(feature = "test-extra", feature = "enum-probe"))]
+    use super::GenericCfgEnum;
+    #[cfg(feature = "test-extra")]
+    use super::GenericTransparent;
+    #[cfg(feature = "test-extra")]
+    use super::GenericTuple;
+    use super::Native;
+    #[cfg(feature = "test-extra")]
+    use super::NoTraitType;
+    #[cfg(feature = "test-extra")]
+    use super::ZeroFieldPayload;
+
     #[test]
-    fn fields_match_reflection() {
-        let _ = Native {
-            visible: String::new(),
-        };
+    fn test_fields_match_reflection() {
+        let _ = Native { visible: String::new() };
         let metadata = TypeMetadata::of::<CfgProbe>();
         let descriptor = TypeDescriptor::of::<CfgProbe>();
         assert_eq!(metadata.fields().len(), descriptor.fields().len());
@@ -165,14 +197,10 @@ mod tests {
         assert_eq!(descriptor.field("visible").unwrap().index(), 0);
         assert_eq!(
             metadata.fields().len(),
-            1 + usize::from(cfg!(feature = "field-enabled"))
-                + usize::from(cfg!(feature = "via-cfg-attr"))
+            1 + usize::from(cfg!(feature = "field-enabled")) + usize::from(cfg!(feature = "via-cfg-attr"))
         );
         for (index, field) in metadata.fields().iter().enumerate() {
-            assert_eq!(
-                descriptor.fields().get_at(index).unwrap().index(),
-                field.index()
-            );
+            assert_eq!(descriptor.fields().get_at(index).unwrap().index(), field.index());
         }
         #[cfg(feature = "test-extra")]
         {
@@ -180,11 +208,7 @@ mod tests {
             assert_eq!(generic.fields().len(), 1);
             assert_eq!(generic.fields()[0].index(), 1);
             assert_eq!(
-                TypeDescriptor::of::<Generic<u64>>()
-                    .fields()
-                    .get_at(0)
-                    .unwrap()
-                    .index(),
+                TypeDescriptor::of::<Generic<u64>>().fields().get_at(0).unwrap().index(),
                 1
             );
         }
@@ -242,12 +266,7 @@ mod tests {
             for (position, field) in data_metadata.fields().iter().enumerate() {
                 assert_eq!(field.index(), position + 1);
                 assert_eq!(
-                    data_descriptor
-                        .fields()
-                        .iter()
-                        .nth(position)
-                        .unwrap()
-                        .index(),
+                    data_descriptor.fields().iter().nth(position).unwrap().index(),
                     position + 1
                 );
             }
@@ -260,7 +279,7 @@ mod tests {
         {
             #[cfg(not(feature = "bound-enabled"))]
             {
-                let value = ConditionalBound::<NoTraitType>::Empty(PhantomData);
+                let value = ConditionalBound::<NoTraitType>::Empty(std::marker::PhantomData);
                 let _ = value.clone();
                 let _ = value == value;
                 assert!(format!("{value}").starts_with("Empty(PhantomData<"));
@@ -277,7 +296,14 @@ mod tests {
             #[cfg(feature = "zero-field")]
             let payload = ZeroFieldPayload::<NoTraitType>::Payload(3_u64, 4_u32);
             let _ = payload.clone();
-            assert_eq!(format!("{payload}"), if cfg!(feature = "zero-field") { "Payload(3, 4)" } else { "Payload" });
+            assert_eq!(
+                format!("{payload}"),
+                if cfg!(feature = "zero-field") {
+                    "Payload(3, 4)"
+                } else {
+                    "Payload"
+                }
+            );
 
             let _ = ConditionalDefault::<NoTraitType>::default();
             assert_eq!(format!("{}", ConditionalTransparent(DisplayType)), "display");

@@ -28,11 +28,23 @@ pub(crate) struct PresenceCondition {
 }
 
 impl PresenceCondition {
+    /// Creates a condition that is always true in the consuming crate.
+    #[must_use]
     pub(crate) fn always() -> Self {
-        Self { predicate: quote!(all()) }
+        Self {
+            predicate: quote!(all()),
+        }
     }
+
+    /// Reports whether this condition contains no existence predicate.
+    #[must_use]
     pub(crate) fn is_unconditional(&self) -> bool {
-        self.predicate.to_string().chars().filter(|character| !character.is_whitespace()).collect::<String>() == "all()"
+        self.predicate
+            .to_string()
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect::<String>()
+            == "all()"
     }
     /// Extracts all existence-changing attributes, returning syntax errors for
     /// malformed `cfg_attr` lists. Ordinary method attributes are ignored.
@@ -68,12 +80,14 @@ impl PresenceCondition {
         quote!(#[cfg(#predicate)])
     }
 
+    /// Returns the predicate as a `cfg!` expression.
     #[must_use]
     pub(crate) fn expression(&self) -> TokenStream {
         let predicate = &self.predicate;
         quote!(cfg!(#predicate))
     }
 
+    /// Returns the normalized predicate tokens.
     #[must_use]
     pub(crate) fn predicate(&self) -> TokenStream {
         self.predicate.clone()
@@ -98,11 +112,22 @@ impl PresenceCondition {
         }
     }
 
+    /// Returns the condition under which either candidate exists.
+    ///
+    /// # Parameters
+    ///
+    /// * `other` - The second condition whose predicate may hold.
+    ///
+    /// # Returns
+    ///
+    /// A condition requiring either this predicate or `other`'s predicate.
     #[must_use]
     pub(crate) fn union(&self, other: &Self) -> Self {
         let left = &self.predicate;
         let right = &other.predicate;
-        Self { predicate: quote!(any(#left, #right)) }
+        Self {
+            predicate: quote!(any(#left, #right)),
+        }
     }
 }
 
@@ -145,4 +170,52 @@ fn existence_predicate(meta: &Meta) -> Result<Option<TokenStream>> {
         return Ok(None);
     }
     Ok(Some(quote!(any(not(#trigger), all(#(#conditions),*)))))
+}
+
+#[cfg(test)]
+mod tests {
+    use syn::Attribute;
+    use syn::parse_quote;
+
+    use super::PresenceCondition;
+
+    #[test]
+    fn test_presence_conditions_cover_cfg_and_nested_cfg_attr() {
+        let unconditional = PresenceCondition::always();
+        assert!(unconditional.is_unconditional());
+        assert!(unconditional.expression().to_string().contains("cfg !"));
+
+        let cfg: Attribute = parse_quote!(#[cfg(feature = "enabled")]);
+        let configured = PresenceCondition::from_attributes(&[cfg]).unwrap();
+        assert!(!configured.is_unconditional());
+        assert!(configured.predicate().to_string().contains("enabled"));
+        assert!(configured.attribute().to_string().contains("cfg"));
+
+        let nested: Attribute =
+            parse_quote!(#[cfg_attr(feature = "outer", cfg_attr(feature = "middle", cfg(feature = "inner")))]);
+        let conditional = PresenceCondition::from_attributes(&[nested]).unwrap();
+        let predicate = conditional.predicate().to_string();
+        assert!(predicate.contains("outer"));
+        assert!(predicate.contains("middle"));
+        assert!(predicate.contains("inner"));
+        assert!(
+            conditional
+                .intersection(&configured)
+                .predicate()
+                .to_string()
+                .contains("all")
+        );
+        assert!(conditional.union(&configured).predicate().to_string().contains("any"));
+    }
+
+    #[test]
+    fn test_non_existence_attributes_do_not_add_conditions() {
+        let documentation: Attribute = parse_quote!(#[cfg_attr(feature = "docs", doc = "example")]);
+        assert!(
+            PresenceCondition::from_attributes(&[documentation])
+                .unwrap()
+                .is_unconditional()
+        );
+        assert!(PresenceCondition::from_attributes(&[]).unwrap().is_unconditional());
+    }
 }
