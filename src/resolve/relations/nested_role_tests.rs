@@ -6,6 +6,15 @@ use qubit_model_derive::Entity;
 use qubit_model_derive::Enum;
 use qubit_model_derive::Model;
 use qubit_model_derive::Projection;
+use qubit_reflect::__private::codegen_v4::access::FieldAccess as ReflectFieldAccess;
+use qubit_reflect::__private::codegen_v4::access::FieldMetadata as ReflectFieldMetadata;
+use qubit_reflect::__private::codegen_v4::access::TypeKindMetadata;
+use qubit_reflect::__private::codegen_v4::access::TypedFieldAdapter;
+use qubit_reflect::__private::codegen_v4::access::Visibility;
+use qubit_reflect::__private::codegen_v4::descriptor::Reflect as ReflectTrait;
+use qubit_reflect::__private::codegen_v4::descriptor::TypeRegistration;
+use qubit_reflect::__private::codegen_v4::expression::ExpressionData;
+use qubit_reflect::__private::codegen_v4::expression::GenericExpressionArgument;
 use qubit_reflect::Reflect;
 use qubit_reflect::ReflectionContext;
 use qubit_reflect::TypeDescriptor;
@@ -155,6 +164,165 @@ struct CycleThenError {
     failure: LookupFailure,
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[Reflect]
+struct AbiFailureTarget;
+
+fn wrong_abi_metadata_provider() -> &'static TypeMetadata {
+    TypeMetadata::of::<SharedLeaf>()
+}
+
+#[Model]
+struct AbiThenEntity {
+    failure: AbiFailureTarget,
+    forbidden: ForbiddenEntity,
+}
+
+#[Model]
+struct EntityThenAbi {
+    forbidden: ForbiddenEntity,
+    failure: AbiFailureTarget,
+}
+
+// Manual registrations build a two-TypeId cycle without recursive derive bounds.
+struct MutualCycleRoot {
+    next: Box<MutualCycleNode>,
+}
+
+struct MutualCycleNode {
+    back: MutualCycleRoot,
+    failure: AbiFailureTarget,
+    role: ForbiddenProjection,
+}
+
+const MUTUAL_ROOT_NAME: &str = concat!(module_path!(), "::MutualCycleRoot");
+const MUTUAL_NODE_NAME: &str = concat!(module_path!(), "::MutualCycleNode");
+const ABI_FAILURE_NAME: &str = concat!(module_path!(), "::AbiFailureTarget");
+const FORBIDDEN_PROJECTION_NAME: &str = concat!(module_path!(), "::ForbiddenProjection");
+
+fn mutual_root_next(value: &MutualCycleRoot) -> &Box<MutualCycleNode> {
+    &value.next
+}
+
+fn mutual_root_next_mut(value: &mut MutualCycleRoot) -> &mut Box<MutualCycleNode> {
+    &mut value.next
+}
+
+fn mutual_node_back(value: &MutualCycleNode) -> &MutualCycleRoot {
+    &value.back
+}
+
+fn mutual_node_back_mut(value: &mut MutualCycleNode) -> &mut MutualCycleRoot {
+    &mut value.back
+}
+
+fn mutual_node_failure(value: &MutualCycleNode) -> &AbiFailureTarget {
+    &value.failure
+}
+
+fn mutual_node_failure_mut(value: &mut MutualCycleNode) -> &mut AbiFailureTarget {
+    &mut value.failure
+}
+
+fn mutual_node_role(value: &MutualCycleNode) -> &ForbiddenProjection {
+    &value.role
+}
+
+fn mutual_node_role_mut(value: &mut MutualCycleNode) -> &mut ForbiddenProjection {
+    &mut value.role
+}
+
+impl ReflectTrait for MutualCycleRoot {
+    fn __reflect_registration() -> &'static TypeRegistration<Self> {
+        static ROOT_EXPRESSION: ExpressionData = ExpressionData::Named {
+            path: "Box",
+            definition: None,
+            arguments: &BOX_NODE_ARGUMENTS,
+        };
+        static ROOT_ADAPTER: TypedFieldAdapter<MutualCycleRoot, Box<MutualCycleNode>> =
+            TypedFieldAdapter::new(mutual_root_next, mutual_root_next_mut);
+        static ROOT_FIELDS: [ReflectFieldMetadata; 1] = [ReflectFieldMetadata::typed::<
+            MutualCycleRoot,
+            Box<MutualCycleNode>,
+        >(
+            0,
+            "next",
+            Visibility::Public,
+            &ROOT_EXPRESSION,
+            &ROOT_ADAPTER,
+            ReflectFieldAccess::new(true, true, true, true),
+        )];
+        static ROOT_SHAPE: TypeKindMetadata = TypeKindMetadata::Struct(&ROOT_FIELDS);
+        TypeRegistration::<Self>::get_or_init_with(|| {
+            TypeRegistration::<Self>::with_shape(&ROOT_SHAPE, None, &[])
+        })
+    }
+}
+
+impl ReflectTrait for MutualCycleNode {
+    fn __reflect_registration() -> &'static TypeRegistration<Self> {
+        static BACK_EXPRESSION: ExpressionData = ExpressionData::Named {
+            path: MUTUAL_ROOT_NAME,
+            definition: None,
+            arguments: &[],
+        };
+        static FAILURE_EXPRESSION: ExpressionData = ExpressionData::Named {
+            path: ABI_FAILURE_NAME,
+            definition: None,
+            arguments: &[],
+        };
+        static ROLE_EXPRESSION: ExpressionData = ExpressionData::Named {
+            path: FORBIDDEN_PROJECTION_NAME,
+            definition: None,
+            arguments: &[],
+        };
+        static BACK_ADAPTER: TypedFieldAdapter<MutualCycleNode, MutualCycleRoot> =
+            TypedFieldAdapter::new(mutual_node_back, mutual_node_back_mut);
+        static FAILURE_ADAPTER: TypedFieldAdapter<MutualCycleNode, AbiFailureTarget> =
+            TypedFieldAdapter::new(mutual_node_failure, mutual_node_failure_mut);
+        static ROLE_ADAPTER: TypedFieldAdapter<MutualCycleNode, ForbiddenProjection> =
+            TypedFieldAdapter::new(mutual_node_role, mutual_node_role_mut);
+        static FIELDS: [ReflectFieldMetadata; 3] = [
+            ReflectFieldMetadata::typed::<MutualCycleNode, MutualCycleRoot>(
+                0,
+                "back",
+                Visibility::Public,
+                &BACK_EXPRESSION,
+                &BACK_ADAPTER,
+                ReflectFieldAccess::new(true, true, true, true),
+            ),
+            ReflectFieldMetadata::typed::<MutualCycleNode, AbiFailureTarget>(
+                1,
+                "failure",
+                Visibility::Public,
+                &FAILURE_EXPRESSION,
+                &FAILURE_ADAPTER,
+                ReflectFieldAccess::new(true, true, true, true),
+            ),
+            ReflectFieldMetadata::typed::<MutualCycleNode, ForbiddenProjection>(
+                2,
+                "role",
+                Visibility::Public,
+                &ROLE_EXPRESSION,
+                &ROLE_ADAPTER,
+                ReflectFieldAccess::new(true, true, true, true),
+            ),
+        ];
+        static SHAPE: TypeKindMetadata = TypeKindMetadata::Struct(&FIELDS);
+        TypeRegistration::<Self>::get_or_init_with(|| {
+            TypeRegistration::<Self>::with_shape(&SHAPE, None, &[])
+        })
+    }
+}
+
+static NODE_EXPRESSION: ExpressionData = ExpressionData::Named {
+    path: MUTUAL_NODE_NAME,
+    definition: None,
+    arguments: &[],
+};
+static BOX_NODE_ARGUMENTS: [GenericExpressionArgument; 1] =
+    [GenericExpressionArgument::Type(&NODE_EXPRESSION)];
+
 type LegacyResult = Result<(Option<ModelRole>, Vec<TypeId>), ModelMetadataError>;
 
 fn reflection_context() -> ReflectionContext {
@@ -162,6 +330,13 @@ fn reflection_context() -> ReflectionContext {
         .include_linked()
         .build()
         .expect("linked reflection context")
+}
+
+fn descriptor_in<T: ReflectTrait>(reflection: &ReflectionContext) -> TypeDescriptor<'_> {
+    reflection
+        .find_type_by_id(TypeId::of::<T>())
+        .expect("type lookup succeeds")
+        .expect("descriptor is included in the reflection context")
 }
 
 fn lookup_failure_reflection() -> ReflectionContext {
@@ -173,6 +348,30 @@ fn lookup_failure_reflection() -> ReflectionContext {
         >(7_u32))
         .build()
         .expect("wrongly typed metadata capability is a valid reflection fixture")
+}
+
+fn abi_failure_reflection() -> ReflectionContext {
+    ReflectionContext::builder()
+        .include_linked()
+        .include_type::<MutualCycleRoot>()
+        .include_type::<MutualCycleNode>()
+        .include_type::<Box<MutualCycleNode>>()
+        .register(CapabilityRegistration::for_type::<
+            AbiFailureTarget,
+            crate::__private::ModelMetadataCapability,
+        >(wrong_abi_metadata_provider))
+        .build()
+        .expect("mismatched metadata provider is deferred until lookup")
+}
+
+fn mutual_cycle_reflection() -> ReflectionContext {
+    ReflectionContext::builder()
+        .include_linked()
+        .include_type::<MutualCycleRoot>()
+        .include_type::<MutualCycleNode>()
+        .include_type::<Box<MutualCycleNode>>()
+        .build()
+        .expect("mutually recursive raw descriptors are registered")
 }
 
 fn previous_algorithm<'ctx>(
@@ -397,6 +596,103 @@ fn test_nested_role_preserves_error_and_role_order_after_cycles() {
         Ok(Some(ModelRole::Entity)),
         "the first role returns before a later metadata error is queried",
     );
+}
+
+#[test]
+fn test_nested_role_preserves_abi_error_order_and_cause() {
+    let reflection = abi_failure_reflection();
+    let models = ModelRegistry::from_static_metadata(&reflection, &[])
+        .expect("metadata-only registry defers provider ABI validation");
+
+    let descriptor = TypeDescriptor::of::<AbiThenEntity>();
+    let root = TypeMetadata::of::<AbiThenEntity>();
+    let roots = [root, TypeMetadata::of::<ForbiddenEntity>()];
+    let resolution = ResolutionContext::new(&models, &roots);
+    let actual = forbidden_entity_nested_role(descriptor, &resolution);
+    let _ = assert_matches_previous(descriptor, &resolution)
+        .expect_err("ABI failure before the role must propagate");
+    assert!(matches!(
+        actual,
+        Err(ModelMetadataError::Abi { type_id, source, .. })
+            if type_id == TypeId::of::<AbiFailureTarget>()
+                && source.code() == "QMM-ABI-002"
+    ));
+
+    let root = TypeMetadata::of::<EntityThenAbi>();
+    let roots = [root, TypeMetadata::of::<ForbiddenEntity>()];
+    let resolution = ResolutionContext::new(&models, &roots);
+    assert_eq!(
+        assert_matches_previous(TypeDescriptor::of::<EntityThenAbi>(), &resolution),
+        Ok(Some(ModelRole::Entity)),
+        "the role before the ABI failure returns immediately",
+    );
+}
+
+#[test]
+fn test_nested_role_mutual_cycle_keeps_sibling_role_and_abi_error_visible() {
+    let reflection = mutual_cycle_reflection();
+    let root_descriptor = descriptor_in::<MutualCycleRoot>(&reflection);
+    assert_eq!(
+        root_descriptor.fields().len(),
+        1,
+        "root shape is registered"
+    );
+    let next_field = root_descriptor
+        .fields()
+        .iter()
+        .next()
+        .expect("root next field");
+    assert_eq!(
+        next_field
+            .find_concrete_type()
+            .expect("mutual node pointer descriptor resolves")
+            .type_id(),
+        TypeId::of::<Box<MutualCycleNode>>(),
+    );
+    let models = ModelRegistry::from_context(&reflection).expect("model registry");
+    let projection_root = TypeMetadata::of::<ForbiddenProjection>();
+    let role_context = ResolutionContext::new(&models, &[projection_root]);
+    let mut visited = Vec::new();
+    let root_descriptor = descriptor_in::<MutualCycleRoot>(&reflection);
+    let role_result =
+        forbidden_entity_nested_role_with_visit(root_descriptor, &role_context, |id| {
+            visited.push(id)
+        });
+    assert_eq!(
+        role_result.map_err(|error| format!("{error:?}")),
+        Ok(Some(ModelRole::Projection)),
+        "mutual cycle traversal visits {visited:?}",
+    );
+    assert_eq!(
+        visited,
+        [
+            TypeId::of::<MutualCycleRoot>(),
+            TypeId::of::<Box<MutualCycleNode>>(),
+            TypeId::of::<MutualCycleNode>(),
+            TypeId::of::<AbiFailureTarget>(),
+            TypeId::of::<ForbiddenProjection>(),
+        ],
+        "the back edge is skipped only after reaching the second distinct type, then its siblings are checked",
+    );
+    assert_eq!(
+        assert_matches_previous(root_descriptor, &role_context),
+        Ok(Some(ModelRole::Projection)),
+    );
+
+    let reflection = abi_failure_reflection();
+    let models = ModelRegistry::from_static_metadata(&reflection, &[])
+        .expect("metadata-only registry defers provider ABI validation");
+    let roots = [projection_root];
+    let resolution = ResolutionContext::new(&models, &roots);
+    let descriptor = descriptor_in::<MutualCycleRoot>(&reflection);
+    let _ = assert_matches_previous(descriptor, &resolution)
+        .expect_err("the sibling after the mutual back edge must be checked");
+    assert!(matches!(
+        forbidden_entity_nested_role(descriptor, &resolution),
+        Err(ModelMetadataError::Abi { type_id, source, .. })
+            if type_id == TypeId::of::<AbiFailureTarget>()
+                && source.code() == "QMM-ABI-002"
+    ));
 }
 
 #[test]
