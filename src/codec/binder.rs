@@ -98,20 +98,30 @@ pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<Co
 /// #![cfg(feature = "codec")]
 /// use std::error::Error;
 ///
+/// use qubit_model_derive::Model;
 /// use qubit_codec::ValueStringCodecRegistry;
-/// use qubit_model_metadata::codec::{CodecBindInputs, bind_codecs_with_report};
+/// use qubit_model_metadata::codec::{CodecBindInputs, CodecBindSkipReason, bind_codecs_with_report};
+/// use qubit_model_metadata::metadata::TypeMetadata;
 /// use qubit_model_metadata::registry::ModelRegistry;
 /// use qubit_model_metadata::resolve::{ResolveInputs, StructureResolver};
 /// use qubit_reflect::ReflectionContext;
 ///
+/// #[Model]
+/// struct Container {
+///     #[opaque]
+///     hidden: Option<Vec<String>>,
+/// }
+///
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let reflection = ReflectionContext::builder().build()?;
-/// let models = ModelRegistry::from_static_metadata(&reflection, &[])?;
-/// let roots: &[&'static qubit_model_metadata::metadata::TypeMetadata] = &[];
+/// let reflection = ReflectionContext::global();
+/// let models = ModelRegistry::from_static_metadata(reflection, &[])?;
+/// let roots: &[&'static TypeMetadata] = &[TypeMetadata::of::<Container>()];
 /// let graph = StructureResolver::new(ResolveInputs { models: &models, roots }).resolve()?;
 /// let codecs = ValueStringCodecRegistry::empty();
 /// let report = bind_codecs_with_report(CodecBindInputs { graph: &graph, codecs: &codecs })?;
-/// assert!(report.skipped().is_empty());
+/// assert_eq!(report.skipped().len(), 1);
+/// assert_eq!(report.skipped()[0].property(), "hidden");
+/// assert_eq!(report.skipped()[0].reason(), CodecBindSkipReason::FieldDescriptorUnavailable);
 /// assert_eq!(report.bindings().bindings().len(), 0);
 /// # Ok(())
 /// # }

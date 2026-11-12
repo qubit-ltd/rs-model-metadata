@@ -12,6 +12,22 @@
 ///
 /// These cases indicate an inspection boundary, not a missing codec. A
 /// declaration without a resolvable type may or may not require a codec.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::codec::CodecBindSkipReason;
+///
+/// fn describe(reason: CodecBindSkipReason) -> &'static str {
+///     match reason {
+///         CodecBindSkipReason::FieldDescriptorUnavailable => "field type unavailable",
+///         CodecBindSkipReason::SelectorTypeUnavailable => "selector type unavailable",
+///         _ => "other type-resolution boundary",
+///     }
+/// }
+///
+/// assert_eq!(describe(CodecBindSkipReason::FieldDescriptorUnavailable), "field type unavailable");
+/// ```
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CodecBindSkipReason {

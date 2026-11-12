@@ -508,6 +508,55 @@ fn test_direct_field_canonical_wrapper_matrix() {
     assert_canonical_field(TypeMetadata::of::<DirectNestedOptional>(), "value", false);
 }
 
+/// A reflected `Option<T>` registration retains its concrete generic type
+/// argument even when `T` is not independently indexed in the context.
+#[test]
+fn test_optional_inner_descriptor_is_concrete_without_context_type_lookup() {
+    let context = ReflectionContext::builder()
+        .include_type::<ExplicitOptional>()
+        .include_type::<Option<Name>>()
+        .build()
+        .expect("partial optional context");
+    assert!(context
+        .find_type_by_id(TypeId::of::<Name>())
+        .expect("type lookup")
+        .is_none());
+    let owner_descriptor = context
+        .find_type_by_id(TypeId::of::<ExplicitOptional>())
+        .expect("owner lookup")
+        .expect("owner descriptor");
+    let field_descriptor = owner_descriptor.fields().get_at(0).expect("value field");
+    let optional_descriptor = field_descriptor.find_concrete_type().expect("Option descriptor");
+    assert_eq!(optional_descriptor.type_id(), TypeId::of::<Option<Name>>());
+    let inner = optional_descriptor
+        .generic_arguments()
+        .get_at(0)
+        .and_then(|argument| argument.type_argument().ok())
+        .and_then(|argument| argument.find_concrete_type())
+        .expect("concrete inner descriptor");
+    assert_eq!(inner.type_id(), TypeId::of::<Name>());
+
+    let source = source();
+    let models = ModelRegistry::from_static_metadata(&context, &[(TypeMetadata::of::<ExplicitOptional>(), &source)])
+        .expect("model registry accepts the partial context");
+    let roots = [TypeMetadata::of::<ExplicitOptional>()];
+    let graph = StructureResolver::new(ResolveInputs { models: &models, roots: &roots })
+        .resolve()
+        .expect("structure resolves with the concrete inner descriptor");
+    let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+    for bindings in [
+        bind_codecs(CodecBindInputs { graph: &graph, codecs: &codecs }).expect("legacy binder"),
+        bind_codecs_with_report(CodecBindInputs { graph: &graph, codecs: &codecs })
+            .expect("report binder")
+            .into_bindings(),
+    ] {
+        let field = bindings
+            .get(&CodecOccurrenceId::new(TypeMetadata::of::<ExplicitOptional>(), "value", CodecSource::Field))
+            .expect("inner explicit codec selected");
+        assert_eq!(field.descriptor().value_type_id(), TypeId::of::<Name>());
+    }
+}
+
 #[test]
 fn test_canonical_binding_is_stable_when_graph_gains_unrelated_models() {
     let source = source();

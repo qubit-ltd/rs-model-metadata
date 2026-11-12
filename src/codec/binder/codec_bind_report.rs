@@ -18,6 +18,28 @@ use super::CodecBindings;
 /// that every declaration was inspectable, or that application configuration
 /// is complete. If any inspected declaration has a binding error, the operation
 /// returns that error instead of a partial report.
+///
+/// Reports are returned by [`bind_codecs_with_report`](super::bind_codecs_with_report).
+/// The report can be inspected by reference or consumed to retain only its
+/// successful bindings.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::codec::{CodecBindReport, CodecBindings};
+///
+/// fn inspect(report: &CodecBindReport<'_>) {
+///     let count = report.bindings().bindings().len();
+///     for skip in report.skipped() {
+///         assert!(!skip.property().is_empty());
+///         let _ = (skip.model().type_id(), skip.location(), count);
+///     }
+/// }
+///
+/// fn take_bindings<'a>(report: CodecBindReport<'a>) -> CodecBindings<'a> {
+///     report.into_bindings()
+/// }
+/// ```
 #[derive(Debug)]
 pub struct CodecBindReport<'a> {
     /// Successfully resolved codec bindings.

@@ -16,6 +16,24 @@ use crate::metadata::TypeMetadata;
 ///
 /// The property follows the same canonical path used by codec occurrences.
 /// A skip does not imply that the declaration should have a codec.
+/// Skip records are obtained from [`CodecBindReport::skipped`](super::CodecBindReport::skipped).
+/// Source coordinates are optional because metadata providers may not supply
+/// them.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_model_metadata::codec::CodecBindSkip;
+///
+/// fn inspect(skip: &CodecBindSkip) {
+///     let owner = skip.model().type_id();
+///     let property = skip.property();
+///     let file = skip.location().file;
+///     let line = skip.location().line;
+///     let reason = skip.reason();
+///     let _ = (owner, property, file, line, reason);
+/// }
+/// ```
 #[derive(Clone, Debug)]
 pub struct CodecBindSkip {
     /// Metadata for the model that owns the declaration.
