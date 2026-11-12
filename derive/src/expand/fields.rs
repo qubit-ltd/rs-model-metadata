@@ -562,9 +562,8 @@ fn expand_field_with_parameters(
     owner: Option<&Ident>,
 ) -> TokenStream {
     let index = *field.index.value();
-    let variant = field
-        .variant_index
-        .map_or_else(|| quote!(None), |index| quote!(Some(#index)));
+    let presence = field.presence.attribute();
+    let variant = field.variant_index.map_or_else(|| quote!(None), |_| quote!(Some(variant_index)));
     let source_name = field.rust_name.as_ref().map_or_else(
         || quote!(None),
         |name| {
@@ -769,6 +768,7 @@ fn expand_field_with_parameters(
         },
     };
     quote! {
+        #presence
         {
             #location
             let _field_type_expression_data = #type_expression;
@@ -2299,6 +2299,7 @@ mod tests {
             named: true,
             rust_name: Some(format_ident!("hidden")),
             visibility: Visibility::Inherited,
+            presence: crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
         };
         let concrete = expand_field_with_parameters(&opaque, &quote!(runtime), None, None, &[], None).to_string();
         assert!(
@@ -2336,6 +2337,7 @@ mod tests {
             named: true,
             rust_name: Some(Ident::new("value", Span::call_site())),
             visibility: Visibility::Inherited,
+            presence: crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
         };
         let generated = expand_field(&field, &quote!(descriptor_fields), &quote!(runtime), None, None).to_string();
         assert!(
@@ -2411,6 +2413,7 @@ mod tests {
             named: true,
             rust_name: Some(format_ident!("field")),
             visibility: Visibility::Inherited,
+            presence: crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
         };
         let constraint = ConstraintIr::Sequence {
             min: None,

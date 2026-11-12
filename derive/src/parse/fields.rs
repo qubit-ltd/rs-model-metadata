@@ -48,6 +48,7 @@ use crate::ir::declaration::SelectorIr;
 use crate::ir::declaration::SelectorPositionIr;
 use crate::ir::declaration::SerdeIr;
 use crate::ir::declaration::UniqueIr;
+use crate::expand::model_impl::internal::presence_condition::PresenceCondition;
 
 /// Parses one field's attributes into normalized intermediate metadata.
 ///
@@ -156,6 +157,7 @@ pub(crate) fn parse_field(index: usize, ty: &Type, attributes: &[Attribute], nam
         named,
         rust_name: None,
         visibility: syn::Visibility::Inherited,
+        presence: PresenceCondition::from_attributes(attributes)?,
     })
 }
 

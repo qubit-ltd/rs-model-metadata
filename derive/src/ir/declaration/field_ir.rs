@@ -11,6 +11,7 @@
 use syn::Ident;
 use syn::Type;
 use syn::Visibility;
+use crate::expand::model_impl::internal::presence_condition::PresenceCondition;
 
 use super::super::super::Located;
 use super::FieldOccurrence;
@@ -34,4 +35,6 @@ pub(crate) struct FieldIr {
     pub(crate) rust_name: Option<Ident>,
     /// Rust visibility written on the field.
     pub(crate) visibility: Visibility,
+    /// Consumer-evaluated condition controlling this source field.
+    pub(crate) presence: PresenceCondition,
 }

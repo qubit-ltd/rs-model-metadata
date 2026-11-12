@@ -10,7 +10,7 @@
 
 mod getter_ir;
 mod getter_return;
-mod presence_condition;
+pub(crate) mod presence_condition;
 mod property_method;
 mod setter_ir;
 mod substitutions;

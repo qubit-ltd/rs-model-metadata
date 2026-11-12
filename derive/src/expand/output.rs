@@ -239,11 +239,26 @@ fn explicit_derives(item: &DeriveInput) -> Result<BTreeSet<String>> {
 fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
     let name = &item.ident;
     let mut generics = item.generics.clone();
+    let has_conditional_fields = match &item.data {
+        Data::Struct(data) => data.fields.iter().any(|field| field.attrs.iter().any(|attribute|
+            attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))),
+        Data::Enum(data) => data.variants.iter().any(|variant|
+            variant.attrs.iter().any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
+                || variant.fields.iter().any(|field| field.attrs.iter().any(|attribute|
+                    attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")))),
+        Data::Union(_) => false,
+    };
+    if has_conditional_fields && !transparent {
+        generics.make_where_clause().predicates.push(parse_quote!(Self: ::core::fmt::Debug));
+        return Ok(display_impl(item, &generics, quote!(::core::fmt::Debug::fmt(self, formatter))));
+    }
     let body = match &item.data {
         Data::Struct(data) => {
             let mut fields = Vec::new();
             for (index, field) in data.fields.iter().enumerate() {
                 let ty = &field.ty;
+                let presence = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)?;
+                let condition = presence.attribute();
                 let member = field
                     .ident
                     .clone()
@@ -259,16 +274,18 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
                         quote!(::core::fmt::Display::fmt(&self.#member, formatter)),
                     ));
                 }
-                generics
-                    .make_where_clause()
-                    .predicates
-                    .push(parse_quote!(#ty: ::core::fmt::Debug));
+                if presence.is_unconditional() {
+                    generics
+                        .make_where_clause()
+                        .predicates
+                        .push(parse_quote!(#ty: ::core::fmt::Debug));
+                }
                 let label = field
                     .ident
                     .as_ref()
                     .map(ToString::to_string)
                     .unwrap_or_else(|| index.to_string());
-                fields.push(quote!(builder.field(#label, &self.#member);));
+                fields.push(quote!(#condition { builder.field(#label, &self.#member); }));
             }
             quote! { let mut builder = formatter.debug_struct(stringify!(#name)); #(#fields)* builder.finish() }
         }
@@ -278,11 +295,19 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
                 .iter()
                 .map(|variant| {
                     let variant_name = &variant.ident;
+                    let variant_condition = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&variant.attrs)
+                        .expect("variant cfg attributes were parsed by the declaration pipeline").attribute();
                     let label = variant_name.to_string();
                     let bindings: Vec<_> = (0..variant.fields.len())
                         .map(|index| format_ident!("__model_field_{index}"))
                         .collect();
+                    let variant_is_conditional = variant.attrs.iter().any(|attribute|
+                        attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"));
                     for field in &variant.fields {
+                        if variant_is_conditional { continue; }
+                        let presence = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                            .expect("field cfg attributes were parsed by the declaration pipeline");
+                        if !presence.is_unconditional() { continue; }
                         let ty = &field.ty;
                         generics
                             .make_where_clause()
@@ -291,19 +316,28 @@ fn plain_display(item: &DeriveInput, transparent: bool) -> Result<TokenStream> {
                     }
                     match &variant.fields {
                         Fields::Named(fields) => {
-                            let names: Vec<_> =
-                                fields.named.iter().map(|field| field.ident.as_ref().unwrap()).collect();
-                            let labels: Vec<_> = names.iter().map(ToString::to_string).collect();
-                            quote!(Self::#variant_name { #(#names: #bindings),* } => {
+                            let entries = fields.named.iter().zip(&bindings).map(|(field, binding)| {
+                                let field_name = field.ident.as_ref().unwrap();
+                                let condition = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                                    .expect("field cfg attributes were parsed by the declaration pipeline").attribute();
+                                quote!(#condition #field_name: #binding)
+                            });
+                            let calls = fields.named.iter().zip(&bindings).map(|(field, binding)| {
+                                let label = field.ident.as_ref().unwrap().to_string();
+                                let condition = crate::expand::model_impl::internal::presence_condition::PresenceCondition::from_attributes(&field.attrs)
+                                    .expect("field cfg attributes were parsed by the declaration pipeline").attribute();
+                                quote!(#condition builder.field(#label, #binding);)
+                            });
+                            quote!(#variant_condition Self::#variant_name { #(#entries),* } => {
                                 let mut builder = formatter.debug_struct(#label);
-                                #(builder.field(#labels, #bindings);)* builder.finish()
+                                #(#calls)* builder.finish()
                             })
                         }
-                        Fields::Unnamed(_) => quote!(Self::#variant_name(#(#bindings),*) => {
+                        Fields::Unnamed(_) => quote!(#variant_condition Self::#variant_name(#(#bindings),*) => {
                             let mut builder = formatter.debug_tuple(#label);
                             #(builder.field(#bindings);)* builder.finish()
                         }),
-                        Fields::Unit => quote!(Self::#variant_name => formatter.write_str(#label)),
+                        Fields::Unit => quote!(#variant_condition Self::#variant_name => formatter.write_str(#label)),
                     }
                 })
                 .collect::<Vec<_>>();

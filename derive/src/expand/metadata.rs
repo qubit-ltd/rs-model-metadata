@@ -17,6 +17,8 @@ use quote::ToTokens;
 use quote::format_ident;
 use quote::quote;
 use syn::DeriveInput;
+use syn::Data;
+use syn::Fields;
 use syn::Error;
 use syn::GenericArgument;
 use syn::GenericParam;
@@ -54,6 +56,19 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
     let fields = expand_field_vector(&declaration.fields, runtime, ident);
     let nested_metadata = expand_nested_metadata_providers(declaration, runtime);
     let role = expand_role(declaration, item, runtime);
+    let tuple_value_shape = if declaration.kind == MacroKind::Value
+        && matches!(&item.data, Data::Struct(data) if matches!(data.fields, Fields::Unnamed(_)))
+    {
+        let active_fields = declaration.fields.iter().map(|field| field.presence.expression());
+        quote! {
+            const _: () = assert!(
+                0usize #(+ (#active_fields as usize))* == 1,
+                "Value requires exactly one active tuple field",
+            );
+        }
+    } else {
+        TokenStream::new()
+    };
     let declared_model_id = declaration.options.id.as_ref().map_or_else(
         || quote!(None),
         |id| quote!(Some(#runtime::metadata::ModelId::new(#id))),
@@ -182,6 +197,7 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
     };
 
     quote! {
+        #tuple_value_shape
         impl #impl_generics #runtime::__private::ModelTypeSeal for #ident #ty_generics #where_clause {}
 
         impl #impl_generics #runtime::__private::TypeMetadataProvider for #ident #ty_generics #where_clause {
@@ -208,18 +224,28 @@ pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, r
 /// Tokens that declare and populate the nested metadata provider slice.
 #[must_use]
 fn expand_nested_metadata_providers(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
-    let mut candidates = Vec::new();
-    let mut seen = HashSet::new();
+    let mut candidates: Vec<(Type, crate::expand::model_impl::internal::presence_condition::PresenceCondition)> = Vec::new();
     for field in declaration
         .fields
         .iter()
         .chain(declaration.variants.iter().flat_map(|variant| variant.fields.iter()))
     {
-        collect_nested_type_candidates(&field.ty, &mut candidates, &mut seen);
+        let mut field_candidates = Vec::new();
+        collect_nested_type_candidates(&field.ty, &mut field_candidates, &mut HashSet::new());
+        for ty in field_candidates {
+            let rendered = ty.to_token_stream().to_string();
+            if let Some((_, presence)) = candidates.iter_mut().find(|(candidate, _)| candidate.to_token_stream().to_string() == rendered) {
+                *presence = presence.union(&field.presence);
+            } else {
+                candidates.push((ty, field.presence.clone()));
+            }
+        }
     }
-    let providers = candidates.iter().enumerate().map(|(index, ty)| {
+    let providers = candidates.iter().enumerate().map(|(index, (ty, presence))| {
         let provider = format_ident!("__qubit_nested_type_metadata_{index}");
+        let condition = presence.attribute();
         quote! {
+            #condition
             let #provider: fn() -> Option<&'static #runtime::metadata::TypeMetadata> = || {
                 use #runtime::__private::v8::NestedTypeMetadataProbe as _;
                 let marker = ::std::marker::PhantomData::<#ty>;
@@ -426,6 +452,7 @@ fn expand_generic_variant_vector(
     owner: &Ident,
 ) -> TokenStream {
     let bodies = variants.iter().enumerate().map(|(variant_index, variant)| {
+        let presence = variant.presence.attribute();
         let fields = expand_generic_field_vector(
             &variant.fields,
             definition_path.clone(),
@@ -440,13 +467,15 @@ fn expand_generic_variant_vector(
         let default = variant.default;
         let rust_name = &variant.rust_name;
         quote! {
+            #presence
             {
+                let variant_index = #variant_index;
                 #fields
                 let fields: &'static [#runtime::metadata::FieldMetadata] =
                     #runtime::__private::v8::leak_slice(fields);
                 variants.push(#runtime::__private::v8::generic_enum_variant_metadata(
                     #definition_path,
-                    #variant_index,
+                    variant_index,
                     #rust_name,
                     #canonical,
                     #serialized,

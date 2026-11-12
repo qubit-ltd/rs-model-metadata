@@ -182,6 +182,7 @@ fn identifier_accessor(item: &DeriveInput, index: usize, runtime: &TokenStream) 
 #[must_use]
 fn expand_enum_role(variants: &[VariantIr], owner: &Ident, runtime: &TokenStream) -> TokenStream {
     let variants = variants.iter().enumerate().map(|(variant_index, variant)| {
+        let presence = variant.presence.attribute();
         let fields = expand_field_vector(&variant.fields, runtime, owner);
         let canonical = &variant.canonical_name;
         let serialized = &variant.serialized_name;
@@ -189,12 +190,14 @@ fn expand_enum_role(variants: &[VariantIr], owner: &Ident, runtime: &TokenStream
         let default = variant.default;
         let rust_name = &variant.rust_name;
         quote! {
+            #presence
             {
+                let variant_index = #variant_index;
                 #fields
                 let fields: &'static [#runtime::metadata::FieldMetadata] = #runtime::__private::v8::leak_slice(fields);
                 variants.push(#runtime::__private::v8::enum_variant_metadata(
                     ::std::any::TypeId::of::<Self>(),
-                    #variant_index,
+                    variant_index,
                     #rust_name,
                     #canonical,
                     #serialized,

@@ -102,7 +102,11 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
         (MacroKind::Value, Data::Struct(data)) => {
             let valid_shape = match &data.fields {
                 Fields::Named(fields) => !fields.named.is_empty(),
-                Fields::Unnamed(fields) => fields.unnamed.len() == 1,
+                Fields::Unnamed(fields) => fields.unnamed.len() == 1 || fields.unnamed.iter().any(|field| {
+                    field.attrs.iter().any(|attribute| {
+                        attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
+                    })
+                }),
                 Fields::Unit => false,
             };
             if !valid_shape {

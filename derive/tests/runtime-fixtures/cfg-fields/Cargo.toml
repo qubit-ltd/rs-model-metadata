@@ -1,0 +1,20 @@
+[package]
+name = "model-derive-cfg-fields-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[features]
+default = []
+field-enabled = []
+via-cfg-attr = []
+invalid-enabled = []
+test-extra = []
+enum-probe = []
+
+[dependencies]
+qubit-model-derive = { path = "../../../", version = "^0.2" }
+model_runtime = { package = "qubit-model-metadata", path = "../../../../", features = ["generic"] , version = "^0.2" }
+qubit-reflect = { path = "../../../../../rs-reflect", version = "^0.2" }

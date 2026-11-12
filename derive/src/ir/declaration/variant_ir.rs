@@ -9,6 +9,7 @@
 //! Normalized enum-variant declaration metadata.
 
 use super::FieldIr;
+use crate::expand::model_impl::internal::presence_condition::PresenceCondition;
 
 /// Normalized enum variant names and its declared fields.
 #[derive(Clone)]
@@ -25,4 +26,6 @@ pub(crate) struct VariantIr {
     pub(crate) default: bool,
     /// Normalized variant fields.
     pub(crate) fields: Vec<FieldIr>,
+    /// Consumer-evaluated condition controlling this variant.
+    pub(crate) presence: PresenceCondition,
 }

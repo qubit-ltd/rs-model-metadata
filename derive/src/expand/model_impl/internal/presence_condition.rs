@@ -18,12 +18,19 @@ use syn::Token;
 use syn::punctuated::Punctuated;
 
 /// A configuration predicate evaluated only in the consuming crate.
-pub(in crate::expand::model_impl) struct PresenceCondition {
+#[derive(Clone)]
+pub(crate) struct PresenceCondition {
     /// Normalized predicate, including `all()` for unconditional presence.
     predicate: TokenStream,
 }
 
 impl PresenceCondition {
+    pub(crate) fn always() -> Self {
+        Self { predicate: quote!(all()) }
+    }
+    pub(crate) fn is_unconditional(&self) -> bool {
+        self.predicate.to_string().chars().filter(|character| !character.is_whitespace()).collect::<String>() == "all()"
+    }
     /// Extracts all existence-changing attributes, returning syntax errors for
     /// malformed `cfg_attr` lists. Ordinary method attributes are ignored.
     ///
@@ -40,7 +47,7 @@ impl PresenceCondition {
     /// # Errors
     ///
     /// Returns a syntax error when a `cfg_attr` list is malformed.
-    pub(in crate::expand::model_impl) fn from_attributes(attributes: &[Attribute]) -> Result<Self> {
+    pub(crate) fn from_attributes(attributes: &[Attribute]) -> Result<Self> {
         let predicates = attributes
             .iter()
             .map(|attribute| existence_predicate(&attribute.meta))
@@ -53,9 +60,15 @@ impl PresenceCondition {
 
     /// Returns an attribute guarding a generated item or metadata statement.
     #[must_use]
-    pub(in crate::expand::model_impl) fn attribute(&self) -> TokenStream {
+    pub(crate) fn attribute(&self) -> TokenStream {
         let predicate = &self.predicate;
         quote!(#[cfg(#predicate)])
+    }
+
+    #[must_use]
+    pub(crate) fn expression(&self) -> TokenStream {
+        let predicate = &self.predicate;
+        quote!(cfg!(#predicate))
     }
 
     /// Returns the condition under which both candidates exist.
@@ -69,12 +82,19 @@ impl PresenceCondition {
     /// The combined condition requiring both this predicate and `other`'s
     /// predicate.
     #[must_use]
-    pub(in crate::expand::model_impl) fn intersection(&self, other: &Self) -> Self {
+    pub(crate) fn intersection(&self, other: &Self) -> Self {
         let left = &self.predicate;
         let right = &other.predicate;
         Self {
             predicate: quote!(all(#left, #right)),
         }
+    }
+
+    #[must_use]
+    pub(crate) fn union(&self, other: &Self) -> Self {
+        let left = &self.predicate;
+        let right = &other.predicate;
+        Self { predicate: quote!(any(#left, #right)) }
     }
 }
 

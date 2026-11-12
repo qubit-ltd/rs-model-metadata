@@ -9,7 +9,7 @@
 //! Validates and expands getter/setter-backed model implementation blocks.
 
 // Groups private representations used by model implementation expansion.
-mod internal;
+pub(crate) mod internal;
 mod specialization;
 mod type_expression;
 
