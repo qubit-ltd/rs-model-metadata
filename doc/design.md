@@ -70,7 +70,7 @@ it into a model registry, and looks up the registered model:
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-id = "0.7"
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-reflect = "0.2"
 ```
 
 <!-- example: core/design-context -->
@@ -160,11 +160,9 @@ This complete program builds and reuses a plan for a concrete value:
 [dependencies]
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
-qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+qubit-reflect = "0.2"
+qubit-validator = "0.1.0"
 
-[patch.crates-io]
-qubit-validator = { path = "../../rust-common/rs-validator" }
 ```
 
 <!-- example: validation/design-plan -->

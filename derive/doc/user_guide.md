@@ -9,11 +9,12 @@ querying, or persistence. Rust 1.94 and edition 2024 are required. These manifes
 
 ## Installation and example context
 
-Create an independent `app` crate beside `rs-model-metadata` and `rs-reflect`.
+Create an independent `app` crate beside `rs-model-metadata`.
 CI uses `rust-platform/app`; the current local workspace uses `rust-common/app`.
 Neither checkout includes the application directory. Start with this minimal
 `app/Cargo.toml`, put complete programs in `app/src/main.rs`, and run `cargo run`
-from `app/`. Keep direct dependencies on the same checkout paths used by runtime:
+from `app/`. Only the unpublished model packages use checkout paths; published
+dependencies resolve from crates.io:
 
 <!-- example: app/package -->
 ```toml
@@ -30,24 +31,17 @@ checkout/
   rust-common/
     app/                 # independent application: Cargo.toml and src/main.rs
     rs-model-metadata/   # runtime and derive/
-    rs-reflect/
-    rs-id/
-    rs-validator/
-    rs-validation-rules/
-    rs-redact/
-    rs-datatype/
 ```
 
-In CI, these siblings are rooted at `rust-platform/` (including
-`rust-platform/app`); `rs-validator` remains at `rust-common/rs-validator`.
+In CI, the same layout is rooted at `rust-platform/app` and
+`rust-platform/rs-model-metadata`.
 
 The `core` installation below serves examples marked `core/...`. Programs marked
 `validation/...` use the separate validation installation in the runtime guide. Copy each complete program
 into `src/main.rs` and run `cargo run`. Fragments marked `rust,ignore` require
 the surrounding API objects or application types described beside them.
-`publish = false` describes these manifests; it does not establish whether any
-crate version has been published. An offline resolution failure is only evidence
-about the current local dependency cache.
+`publish = false` describes the model packages. Their checkout paths are needed
+for local consumer examples; published dependencies use crates.io versions.
 
 <!-- example: core -->
 ```toml
@@ -55,7 +49,7 @@ about the current local dependency cache.
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-id = "0.7"
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-reflect = "0.2"
 ```
 
 ## A user with safe output and discoverable properties

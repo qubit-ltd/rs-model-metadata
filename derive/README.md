@@ -20,12 +20,12 @@ the structural reflection supplied by `qubit-reflect`.
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-id = "0.7"
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-reflect = "0.2"
 ```
 
-Create an independent application crate named `app` beside `rs-model-metadata`
-and `rs-reflect`. In CI this location is `rust-platform/app`; in the current
-local workspace it is `rust-common/app`. Neither directory is included here.
+Create an independent application crate named `app` beside `rs-model-metadata`.
+In CI this location is `rust-platform/app`; in the current local workspace it is
+`rust-common/app`. Neither directory is included here.
 Use this minimal `app/Cargo.toml` shape, put the example in `app/src/main.rs`,
 and run `cargo run` from `app/`:
 

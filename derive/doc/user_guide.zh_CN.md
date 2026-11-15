@@ -10,7 +10,7 @@
 
 其他库可以利用同一份语义：自动验证领域对象；生成满足长度、唯一性及引用关系的随机测试数据；依据 `indexed` 等声明检查 REST 查询参数、构造过滤器并交给数据库层执行。宏负责声明，不替这些消费者决定数据库查询、唯一性检查或随机生成策略。
 
-当前 checkout 中相关 manifest 均为 `publish = false`，示例因此使用本地路径依赖。请在 `rs-model-metadata` 与 `rs-reflect` 的共同父目录新建独立的 `app` crate：CI 中对应 `rust-platform/app`，当前本地工作区对应 `rust-common/app`，仓库不会预先提供这个目录。`app/Cargo.toml` 可从以下最小配置开始；将完整程序保存为 `app/src/main.rs`，进入 `app/` 后运行 `cargo run`：
+metadata、model-id 和 derive crate 均标记为 `publish = false`，因此只有这些包使用本地路径依赖；已发布依赖从 crates.io 解析。请在 `rs-model-metadata` 的父目录新建独立的 `app` crate：CI 中对应 `rust-platform/app`，当前本地工作区对应 `rust-common/app`，仓库不会预先提供这个目录。`app/Cargo.toml` 可从以下最小配置开始；将完整程序保存为 `app/src/main.rs`，进入 `app/` 后运行 `cargo run`：
 
 <!-- example: app/package -->
 ```toml
@@ -30,7 +30,7 @@ edition = "2024"
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-id = "0.7"
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-reflect = "0.2"
 ```
 
 ## 实战场景：声明用户与人员资料的业务关系

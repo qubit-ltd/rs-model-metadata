@@ -50,7 +50,7 @@ ReflectionContext 快照 --> ModelRegistry --> StructureResolver --> ModelGraph
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-id = "0.7"
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-reflect = "0.2"
 ```
 
 <!-- example: core/design-context -->
@@ -167,11 +167,9 @@ Entity/Enum 字段的每次嵌套角色查询都拥有本地 `TypeId` 集合，�
 [dependencies]
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
-qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+qubit-reflect = "0.2"
+qubit-validator = "0.1.0"
 
-[patch.crates-io]
-qubit-validator = { path = "../../rust-common/rs-validator" }
 ```
 
 <!-- example: validation/design-plan -->

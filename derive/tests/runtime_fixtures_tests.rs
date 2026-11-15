@@ -127,53 +127,13 @@ fn run_linked_fixture(fixture_root: &Path, target_dir: &Path, binary: &str) -> s
         .expect("linked runtime fixture cargo run should start")
 }
 
-/// Copies runtime fixtures into a disposable tree and resolves their local
-/// dependency paths against the original checkout, including an optional
-/// reflect integration worktree override.
+/// Copies runtime fixtures into a disposable tree and resolves only paths to
+/// unpublished packages in this repository. Published dependencies stay on
+/// crates.io.
 fn prepare_runtime_fixtures(source_root: &Path, scratch: &Path) -> PathBuf {
     let destination_root = scratch.join("runtime-fixtures");
     copy_tree(source_root, &destination_root);
-    let reflect_root = std::env::var_os("QUBIT_REFLECT_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| source_root.join("../../../../rs-reflect"));
-    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
-    let validator_root = std::env::var_os("QUBIT_VALIDATOR_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| workspace_root.join("../../rust-common/rs-validator"));
-    rewrite_fixture_manifests(
-        source_root,
-        &destination_root,
-        source_root,
-        &destination_root,
-        &reflect_root,
-        &validator_root,
-    );
-    let linked_workspace_manifest = destination_root.join("linked-workspace/Cargo.toml");
-    let linked_workspace_config = fs::read_to_string(&linked_workspace_manifest).expect("linked-workspace manifest");
-    let validator_path = validator_root
-        .to_str()
-        .expect("UTF-8 validator checkout")
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"");
-    let validator_patch = format!("qubit-validator = {{ path = \"{validator_path}\" }}");
-    let mut replaced = false;
-    let mut linked_workspace_config = linked_workspace_config
-        .lines()
-        .map(|line| {
-            if line.trim_start().starts_with("qubit-validator =") {
-                replaced = true;
-                validator_patch.as_str()
-            } else {
-                line
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    if !replaced {
-        linked_workspace_config.push_str(&format!("\n[patch.crates-io]\n{validator_patch}\n"));
-    }
-    fs::write(linked_workspace_manifest, format!("{linked_workspace_config}\n"))
-        .expect("patch linked-workspace validator dependency");
+    rewrite_fixture_manifests(source_root, &destination_root, source_root, &destination_root);
     destination_root
 }
 
@@ -191,27 +151,13 @@ fn copy_tree(source: &Path, destination: &Path) {
     }
 }
 
-fn rewrite_fixture_manifests(
-    source_dir: &Path,
-    destination_dir: &Path,
-    fixture_root: &Path,
-    destination_root: &Path,
-    reflect_root: &Path,
-    validator_root: &Path,
-) {
+fn rewrite_fixture_manifests(source_dir: &Path, destination_dir: &Path, fixture_root: &Path, destination_root: &Path) {
     for entry in fs::read_dir(source_dir).expect("fixture directory") {
         let entry = entry.expect("fixture entry");
         let source_path = entry.path();
         let destination_path = destination_dir.join(entry.file_name());
         if source_path.is_dir() {
-            rewrite_fixture_manifests(
-                &source_path,
-                &destination_path,
-                fixture_root,
-                destination_root,
-                reflect_root,
-                validator_root,
-            );
+            rewrite_fixture_manifests(&source_path, &destination_path, fixture_root, destination_root);
         } else if source_path.file_name().is_some_and(|name| name == "Cargo.toml") {
             let original = fs::read_to_string(&source_path).expect("fixture manifest");
             let rewritten = original
@@ -233,11 +179,7 @@ fn rewrite_fixture_manifests(
                         .canonicalize()
                         .unwrap_or_else(|_| source_path.parent().expect("manifest parent").join(declared));
                     let fixture_root = fixture_root.canonicalize().expect("fixture source root");
-                    let replacement = if resolved.ends_with("rs-reflect") {
-                        reflect_root.to_path_buf()
-                    } else if resolved.ends_with("rs-validator") {
-                        validator_root.to_path_buf()
-                    } else if resolved.starts_with(&fixture_root) {
+                    let replacement = if resolved.starts_with(&fixture_root) {
                         destination_root.join(resolved.strip_prefix(fixture_root).expect("fixture-relative path"))
                     } else {
                         resolved

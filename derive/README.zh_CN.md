@@ -18,10 +18,10 @@
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-id = "0.7"
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-reflect = "0.2"
 ```
 
-请在 `rs-model-metadata` 与 `rs-reflect` 的共同父目录下新建独立的应用 crate `app`。
+请在 `rs-model-metadata` 的父目录下新建独立的应用 crate `app`。
 CI 中对应 `rust-platform/app`，当前本地工作区对应 `rust-common/app`；这两个位置都不是
 本仓库自带的目录。`app/Cargo.toml` 可从以下最小配置开始；将示例放入
 `app/src/main.rs`，再进入 `app/` 运行 `cargo run`：

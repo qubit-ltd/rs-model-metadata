@@ -125,23 +125,6 @@ fn test_documented_installation_paths() {
     let parent = layout.directory.join("rust-common");
     fs::create_dir_all(&parent).expect("documented checkout layout");
     symlink_directory(root, &parent.join("rs-model-metadata"));
-    let reflect_root = env::var_os("QUBIT_REFLECT_ROOT")
-        .map(PathBuf::from)
-        .or_else(|| {
-            root.ancestors()
-                .map(|ancestor| ancestor.join("rs-reflect"))
-                .find(|candidate| candidate.join("Cargo.toml").is_file())
-        })
-        .expect("reflect checkout");
-    symlink_directory(&reflect_root, &parent.join("rs-reflect"));
-    for dependency in ["rs-validator", "rs-redact", "rs-datatype"] {
-        let checkout = root
-            .ancestors()
-            .map(|ancestor| ancestor.join(dependency))
-            .find(|candidate| candidate.join("Cargo.toml").is_file())
-            .unwrap_or_else(|| panic!("{dependency} checkout"));
-        symlink_directory(&checkout, &parent.join(dependency));
-    }
     let mut configurations = Vec::new();
     let mut installation_kinds = BTreeMap::new();
     for document in DOCUMENTS {
@@ -295,26 +278,15 @@ fn guide_fences(root: &Path) -> Vec<Fence> {
     )
 }
 
-/// Markdown declares checkout roots; only those roots become absolute. Preserve
-/// symlink spelling so direct and runtime dependencies share Cargo identities.
+/// Markdown uses checkout paths only for unpublished model crates. Resolve
+/// only that root, leaving published dependencies on their registry identity.
 fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str) {
     fs::create_dir_all(directory.join("src")).expect("consumer sources");
-    let reflect_root = env::var_os("QUBIT_REFLECT_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| root.join("../rs-reflect"));
-    let replacements = [
-        ("../rs-model-metadata", root.to_path_buf()),
-        ("../rs-reflect", reflect_root),
-        ("../../rust-common", root.join("../../rust-common")),
-    ];
-    let mut dependencies = manifest.to_owned();
-    for (declared, actual) in replacements {
-        assert!(actual.is_dir(), "checkout root {} exists", actual.display());
-        let absolute = actual.to_str().expect("UTF-8 checkout root");
-        assert!(!absolute.chars().any(char::is_control), "printable checkout path");
-        let escaped = absolute.replace('\\', "\\\\").replace('"', "\\\"");
-        dependencies = dependencies.replace(declared, &escaped);
-    }
+    assert!(root.is_dir(), "checkout root {} exists", root.display());
+    let absolute = root.to_str().expect("UTF-8 checkout path");
+    assert!(!absolute.chars().any(char::is_control), "printable checkout path");
+    let escaped = absolute.replace('\\', "\\\\").replace('"', "\\\"");
+    let dependencies = manifest.replace("../rs-model-metadata", &escaped);
     // Package/workspace scaffolding is independent of dependency configuration.
     let package = concat!(
         "[package]\n",
@@ -401,7 +373,6 @@ fn check_raw_installation_identity(metadata: &Value, installation: &str, root: &
             ("qubit-model-metadata", documented_root.clone()),
             ("qubit-model-derive", documented_root.join("derive")),
             ("qubit-model-id", documented_root.join("model-id")),
-            ("qubit-reflect", parent.join("rs-reflect")),
         ],
         "core/model-id" => &[("qubit-model-id", documented_root.join("model-id"))],
         other => panic!("{context}: unexpected installation {other}"),
@@ -422,25 +393,11 @@ fn check_raw_installation_identity(metadata: &Value, installation: &str, root: &
             "{context}: {name} checkout identity"
         );
     }
+    if matches!(installation, "core" | "validation" | "codec") {
+        assert_registry_package(packages, "qubit-reflect", context);
+    }
     if installation == "validation" {
-        let manifest = parent
-            .parent()
-            .expect("checkout root")
-            .join("rust-common/rs-validator/Cargo.toml");
-        let package = packages
-            .iter()
-            .find(|package| package["name"] == "qubit-validator")
-            .expect("validation installation validator package");
-        let expected_manifest = manifest.canonicalize().unwrap_or(manifest);
-        let actual_manifest = package["manifest_path"]
-            .as_str()
-            .map(PathBuf::from)
-            .map(|path| path.canonicalize().unwrap_or(path));
-        assert_eq!(
-            actual_manifest.as_deref(),
-            Some(expected_manifest.as_path()),
-            "{context}: validator checkout identity"
-        );
+        assert_registry_package(packages, "qubit-validator", context);
     }
     if matches!(installation, "core" | "validation" | "codec") {
         let nodes = metadata["resolve"]["nodes"].as_array().expect("resolved nodes");
@@ -464,6 +421,18 @@ fn check_raw_installation_identity(metadata: &Value, installation: &str, root: &
             "{context}: codec feature"
         );
     }
+}
+
+fn assert_registry_package(packages: &[Value], name: &str, context: &str) {
+    let package = packages
+        .iter()
+        .find(|package| package["name"] == name)
+        .unwrap_or_else(|| panic!("{context}: missing package {name}"));
+    assert_eq!(
+        package["source"].as_str(),
+        Some("registry+https://github.com/rust-lang/crates.io-index"),
+        "{context}: {name} must resolve from crates.io"
+    );
 }
 
 /// Looks up a resolved package ID by the consuming crate's dependency name,

@@ -32,7 +32,7 @@ runtime 与 derive 版本一致。
 
 沿用[声明指南中的 `User` 与 `PersonInfo`](../derive/doc/user_guide.zh_CN.md#实战场景声明用户与人员资料的业务关系)：`User.username` 有长度与唯一性要求，`PersonInfo.user_id` 引用 `User.id`。消费者要做两件事：先确认关系声明在最终链接的模型集合中能解析，再把可执行的字段约束绑定为验证计划。随机测试生成器也会从相同元数据得知用户名应满足什么约束、`user_id` 应从哪个已存在用户取得。
 
-当前 checkout 中相关 manifest 均为 `publish = false`，示例因此使用本地路径依赖。请在 `rs-model-metadata` 与 `rs-reflect` 的共同父目录新建独立的 `app` crate：CI 中对应 `rust-platform/app`，当前本地工作区对应 `rust-common/app`，仓库不会预先提供这个目录。`app/Cargo.toml` 可从以下最小配置开始；将完整程序保存为 `app/src/main.rs`，进入 `app/` 后运行 `cargo run`：
+metadata、model-id 和 derive crate 均标记为 `publish = false`，因此只有这些包使用本地路径依赖；已发布依赖从 crates.io 解析。请在 `rs-model-metadata` 的父目录新建独立的 `app` crate：CI 中对应 `rust-platform/app`，当前本地工作区对应 `rust-common/app`，仓库不会预先提供这个目录。`app/Cargo.toml` 可从以下最小配置开始；将完整程序保存为 `app/src/main.rs`，进入 `app/` 后运行 `cargo run`：
 
 <!-- example: app/package -->
 ```toml
@@ -52,7 +52,7 @@ edition = "2024"
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", default-features = false }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-id = "0.7"
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-reflect = "0.2"
 ```
 
 只需要稳定模型 ID 的库可单独依赖协议 crate：
@@ -131,14 +131,12 @@ assert!(declared);
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["validation"] }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
 qubit-id = "0.7"
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
-qubit-validator = { version = "0.1.0", path = "../../rust-common/rs-validator" }
+qubit-reflect = "0.2"
+qubit-validator = "0.1.0"
 
-[patch.crates-io]
-qubit-validator = { path = "../../rust-common/rs-validator" }
 ```
 
-验证执行依赖同一 checkout 的 `rs-validator`；添加该依赖后，从新建的 `app/` 目录运行完整示例。
+验证执行通过 crates.io 上的 `qubit-validator` 包提供；添加该依赖后，从新建的 `app/` 目录运行完整示例。
 
 沿用前述用户模型，这里只校验输入中的 `username` 文本约束。`#[unique]` 告诉需要访问数据源的消费者应检查什么，却不等于只凭当前对象就能判断数据库中是否重名。下列完整程序故意提供长度不合格的用户名，展示元数据如何变成可执行的验证报告。
 
@@ -286,7 +284,7 @@ codec、Value canonical codec、无 codec；Rust 类型形式的 codec 声明也
 [dependencies]
 qubit-model-metadata = { version = "0.2", path = "../rs-model-metadata", features = ["codec"] }
 qubit-model-derive = { version = "0.2", path = "../rs-model-metadata/derive" }
-qubit-reflect = { version = "0.2", path = "../rs-reflect" }
+qubit-reflect = "0.2"
 qubit-codec = { version = "0.17", features = ["registry"] }
 ```
 

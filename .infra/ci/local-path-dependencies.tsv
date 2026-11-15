@@ -1,4 +1,1 @@
 # relative git root<TAB>repository URL<TAB>default branch
-../rs-reflect	https://github.com/qubit-ltd/rs-reflect	main
-../../rust-common/rs-validation-rules	https://github.com/qubit-ltd/rs-validation-rules	main
-../../rust-common/rs-validator	https://github.com/qubit-ltd/rs-validator	main
