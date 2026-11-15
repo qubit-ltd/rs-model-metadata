@@ -681,7 +681,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-reflect"
-version = "0.2.2"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9a7f70b2d9f6d2c97320fe7981d9f0ea42e1588a1f97a09a7a1c7b327db0824"
 dependencies = [
  "bigdecimal",
  "chrono",
@@ -695,7 +697,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-reflect-derive"
-version = "0.2.1"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "747d46d7b5ce3b324c4162bf4ed55fc57941015d5f6fa1543fa8736d8ac89da2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
