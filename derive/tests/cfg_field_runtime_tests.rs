@@ -96,7 +96,8 @@ fn test_cfg_field_feature_matrix() {
     );
 }
 
-/// Copies the fixture and rewrites local dependencies to the active checkouts.
+/// Copies the fixture and rewrites unpublished model dependencies to this
+/// checkout.
 ///
 /// # Parameters
 /// * `directory`: temporary parent directory for the copied fixture.
@@ -110,13 +111,9 @@ fn prepare_fixture(directory: &Path) -> PathBuf {
     fs::create_dir_all(destination.join("src")).unwrap();
     fs::copy(source.join("src/lib.rs"), destination.join("src/lib.rs")).unwrap();
     fs::copy(source.join("Cargo.lock"), destination.join("Cargo.lock")).unwrap();
-    let reflect = std::env::var_os("QUBIT_REFLECT_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| root.join("../../rs-reflect"));
     let manifest = fs::read_to_string(source.join("Cargo.toml")).unwrap()
         .replace("qubit-model-derive = { path = \"../../../\", version = \"^0.2\" }", &format!("qubit-model-derive = {{ path = \"{}\", version = \"^0.2\" }}", root.display()))
-        .replace("model_runtime = { package = \"qubit-model-metadata\", path = \"../../../../\", features = [\"generic\"] , version = \"^0.2\" }", &format!("model_runtime = {{ package = \"qubit-model-metadata\", path = \"{}\", features = [\"generic\"], version = \"^0.2\" }}", root.join("..").display()))
-        .replace("qubit-reflect = { path = \"../../../../../rs-reflect\", version = \"^0.2\" }", &format!("qubit-reflect = {{ path = \"{}\", version = \"^0.2\" }}", reflect.display()));
+        .replace("model_runtime = { package = \"qubit-model-metadata\", path = \"../../../../\", features = [\"generic\"] , version = \"^0.2\" }", &format!("model_runtime = {{ package = \"qubit-model-metadata\", path = \"{}\", features = [\"generic\"], version = \"^0.2\" }}", root.join("..").display()));
     fs::write(destination.join("Cargo.toml"), manifest).unwrap();
     destination.join("Cargo.toml")
 }
