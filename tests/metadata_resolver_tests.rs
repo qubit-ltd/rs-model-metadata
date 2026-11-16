@@ -112,7 +112,10 @@ fn test_resolver_resolves_reference_targets_and_properties() {
         .reference(reference_field.location().unwrap())
         .expect("resolved reference");
     assert!(std::ptr::eq(resolved.target(), target));
-    assert_eq!(resolved.property().map(|property| property.name()), Some("id"));
+    assert_eq!(
+        resolved.property().map(|property| property.name()),
+        Some("id")
+    );
     let query = graph.query(target.type_id()).expect("entity query");
     assert_eq!(query.declarations().len(), 1);
     assert_eq!(query.declarations()[0].path().segments(), &["id"]);
@@ -171,7 +174,14 @@ fn test_query_recurses_indexed_value_fields_and_reports_flat_name_conflicts() {
     })
     .resolve()
     .expect("flat-name policy belongs to downstream consumers");
-    assert_eq!(graph.query(conflict.type_id()).unwrap().declarations().len(), 3);
+    assert_eq!(
+        graph
+            .query(conflict.type_id())
+            .unwrap()
+            .declarations()
+            .len(),
+        3
+    );
 }
 
 #[test]

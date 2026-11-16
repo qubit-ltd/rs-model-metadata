@@ -69,11 +69,12 @@ pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
             field.variant_index = Some(index);
         }
     }
-    for field in declaration
-        .fields
-        .iter_mut()
-        .chain(declaration.variants.iter_mut().flat_map(|variant| &mut variant.fields))
-    {
+    for field in declaration.fields.iter_mut().chain(
+        declaration
+            .variants
+            .iter_mut()
+            .flat_map(|variant| &mut variant.fields),
+    ) {
         normalize_selector_containers(field);
         if field.named && supports_omission_metadata(&field.ty) {
             let position = field
@@ -81,7 +82,9 @@ pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
                 .iter()
                 .position(|value| matches!(value, FieldOccurrence::Serde(_)));
             let position = position.unwrap_or_else(|| {
-                field.occurrences.push(FieldOccurrence::Serde(SerdeIr::default()));
+                field
+                    .occurrences
+                    .push(FieldOccurrence::Serde(SerdeIr::default()));
                 field.occurrences.len() - 1
             });
             if let FieldOccurrence::Serde(serde) = &mut field.occurrences[position] {
@@ -115,19 +118,27 @@ pub(crate) fn normalize_declaration(declaration: &mut DeclarationIr) {
 /// # Errors
 ///
 /// Returns the combined role, field, capability, and ordering violations.
-pub(crate) fn validate_declaration_ir(declaration: &DeclarationIr, item: &DeriveInput) -> Result<()> {
+pub(crate) fn validate_declaration_ir(
+    declaration: &DeclarationIr,
+    item: &DeriveInput,
+) -> Result<()> {
     let mut errors = None;
     validate_declaration_options(declaration, item, &mut errors);
     validate_variant_names(declaration, item, &mut errors);
-    for field in declaration
-        .fields
-        .iter()
-        .chain(declaration.variants.iter().flat_map(|variant| &variant.fields))
-    {
+    for field in declaration.fields.iter().chain(
+        declaration
+            .variants
+            .iter()
+            .flat_map(|variant| &variant.fields),
+    ) {
         validate_field_declaration(declaration, field, item, &mut errors);
     }
     validate_key_part_order(declaration, item, &mut errors);
-    if let Some(error) = errors { Err(error) } else { Ok(()) }
+    if let Some(error) = errors {
+        Err(error)
+    } else {
+        Ok(())
+    }
 }
 
 /// Checks role-specific declaration options and their pairwise constraints.
@@ -137,7 +148,11 @@ pub(crate) fn validate_declaration_ir(declaration: &DeclarationIr, item: &Derive
 /// - `declaration`: Parsed declaration whose role and options are checked.
 /// - `item`: Original derive input used to locate option diagnostics.
 /// - `errors`: Accumulator that receives any option violations found.
-fn validate_declaration_options(declaration: &DeclarationIr, item: &DeriveInput, errors: &mut Option<Error>) {
+fn validate_declaration_options(
+    declaration: &DeclarationIr,
+    item: &DeriveInput,
+    errors: &mut Option<Error>,
+) {
     let options = &declaration.options;
     if declaration.kind == MacroKind::Entity && options.id.is_none() {
         combine(
@@ -181,7 +196,10 @@ fn validate_declaration_options(declaration: &DeclarationIr, item: &DeriveInput,
     if options.source.is_some() && options.source_id.is_some() {
         combine(
             errors,
-            Error::new_spanned(&item.ident, "Projection accepts only one of `source` or `source_id`"),
+            Error::new_spanned(
+                &item.ident,
+                "Projection accepts only one of `source` or `source_id`",
+            ),
         );
     }
     if options.open && (options.source.is_some() || options.source_id.is_some()) {
@@ -210,7 +228,10 @@ fn validate_declaration_options(declaration: &DeclarationIr, item: &DeriveInput,
     }
     if options.transparent
         && declaration.fields.len() != 1
-        && declaration.fields.iter().all(|field| field.presence.is_unconditional())
+        && declaration
+            .fields
+            .iter()
+            .all(|field| field.presence.is_unconditional())
     {
         combine(
             errors,
@@ -226,7 +247,11 @@ fn validate_declaration_options(declaration: &DeclarationIr, item: &DeriveInput,
 /// - `declaration`: Parsed declaration whose variant names are checked.
 /// - `item`: Original derive input used to locate duplicate-name diagnostics.
 /// - `errors`: Accumulator that receives a duplicate-name violation.
-fn validate_variant_names(declaration: &DeclarationIr, item: &DeriveInput, errors: &mut Option<Error>) {
+fn validate_variant_names(
+    declaration: &DeclarationIr,
+    item: &DeriveInput,
+    errors: &mut Option<Error>,
+) {
     let mut variant_names = HashSet::new();
     for variant in &declaration.variants {
         if !variant_names.insert(&variant.canonical_name) {
@@ -283,7 +308,10 @@ fn validate_field_role_compatibility(
     if has_identifier && !matches!(declaration.kind, MacroKind::Entity | MacroKind::Projection) {
         combine(
             errors,
-            Error::new_spanned(&item.ident, "identifier is only valid for Entity and Projection"),
+            Error::new_spanned(
+                &item.ident,
+                "identifier is only valid for Entity and Projection",
+            ),
         );
     }
     if has_reference && declaration.kind == MacroKind::Value {
@@ -294,7 +322,9 @@ fn validate_field_role_compatibility(
     }
     for occurrence in &field.occurrences {
         match occurrence {
-            FieldOccurrence::Identifier(IdentifierAssignmentIr::Database) if declaration.kind != MacroKind::Entity => {
+            FieldOccurrence::Identifier(IdentifierAssignmentIr::Database)
+                if declaration.kind != MacroKind::Entity =>
+            {
                 combine(
                     errors,
                     Error::new(
@@ -304,7 +334,8 @@ fn validate_field_role_compatibility(
                 );
             }
             FieldOccurrence::KeyPart(_)
-                if !matches!(declaration.kind, MacroKind::Model | MacroKind::Value) || !field.named =>
+                if !matches!(declaration.kind, MacroKind::Model | MacroKind::Value)
+                    || !field.named =>
             {
                 combine(
                     errors,
@@ -315,13 +346,21 @@ fn validate_field_role_compatibility(
                 );
             }
             FieldOccurrence::Constraint(ConstraintIr::Text(text)) => {
-                if text.min_chars.zip(text.max_chars).is_some_and(|(min, max)| min > max) {
+                if text
+                    .min_chars
+                    .zip(text.max_chars)
+                    .is_some_and(|(min, max)| min > max)
+                {
                     combine(
                         errors,
                         Error::new(field.index.span(), "text min_chars cannot exceed max_chars"),
                     );
                 }
-                if text.min_bytes.zip(text.max_bytes).is_some_and(|(min, max)| min > max) {
+                if text
+                    .min_bytes
+                    .zip(text.max_bytes)
+                    .is_some_and(|(min, max)| min > max)
+                {
                     combine(
                         errors,
                         Error::new(field.index.span(), "text min_bytes cannot exceed max_bytes"),
@@ -340,11 +379,17 @@ fn validate_field_role_compatibility(
 /// - `field`: Field whose occurrence combinations are checked.
 /// - `item`: Original derive input used to locate conflict diagnostics.
 /// - `errors`: Accumulator that receives any occurrence conflict found.
-fn validate_field_occurrence_conflicts(field: &FieldIr, item: &DeriveInput, errors: &mut Option<Error>) {
+fn validate_field_occurrence_conflicts(
+    field: &FieldIr,
+    item: &DeriveInput,
+    errors: &mut Option<Error>,
+) {
     let has_implicit_index = field.occurrences.iter().any(|value| {
         matches!(
             value,
-            FieldOccurrence::Identifier(_) | FieldOccurrence::Unique(_) | FieldOccurrence::Reference(_)
+            FieldOccurrence::Identifier(_)
+                | FieldOccurrence::Unique(_)
+                | FieldOccurrence::Reference(_)
         )
     });
     if has_implicit_index
@@ -379,7 +424,13 @@ fn validate_field_occurrence_conflicts(field: &FieldIr, item: &DeriveInput, erro
         |value: &FieldOccurrence| matches!(value, FieldOccurrence::Serde(_)),
     ];
     for predicate in predicates {
-        if field.occurrences.iter().filter(|value| predicate(value)).count() > 1 {
+        if field
+            .occurrences
+            .iter()
+            .filter(|value| predicate(value))
+            .count()
+            > 1
+        {
             combine(
                 errors,
                 Error::new_spanned(&item.ident, "duplicate singleton field declaration"),
@@ -420,10 +471,15 @@ fn validate_field_occurrence_conflicts(field: &FieldIr, item: &DeriveInput, erro
         .occurrences
         .iter()
         .any(|value| matches!(value, FieldOccurrence::Redact(_)));
-    let selector_redact = field
-        .occurrences
-        .iter()
-        .any(|value| matches!(value, FieldOccurrence::Selector(SelectorIr { redact: Some(_), .. })));
+    let selector_redact = field.occurrences.iter().any(|value| {
+        matches!(
+            value,
+            FieldOccurrence::Selector(SelectorIr {
+                redact: Some(_),
+                ..
+            })
+        )
+    });
     if field_redact && selector_redact {
         combine(
             errors,
@@ -456,7 +512,11 @@ fn validate_field_occurrence_conflicts(field: &FieldIr, item: &DeriveInput, erro
 /// - `item`: Original derive input used to locate ordering diagnostics.
 /// - `errors`: Accumulator that receives a violation if indices are not
 ///   contiguous.
-fn validate_key_part_order(declaration: &DeclarationIr, item: &DeriveInput, errors: &mut Option<Error>) {
+fn validate_key_part_order(
+    declaration: &DeclarationIr,
+    item: &DeriveInput,
+    errors: &mut Option<Error>,
+) {
     let mut orders: Vec<_> = declaration
         .fields
         .iter()
@@ -476,7 +536,10 @@ fn validate_key_part_order(declaration: &DeclarationIr, item: &DeriveInput, erro
     {
         combine(
             errors,
-            Error::new_spanned(&item.ident, "key_part orders must be unique and contiguous from zero"),
+            Error::new_spanned(
+                &item.ident,
+                "key_part orders must be unique and contiguous from zero",
+            ),
         );
     }
 }
@@ -530,10 +593,12 @@ pub(crate) fn normalize_selector_containers(field: &mut FieldIr) {
         )
     });
     if has_element
-        && !field
-            .occurrences
-            .iter()
-            .any(|value| matches!(value, FieldOccurrence::Constraint(ConstraintIr::Sequence { .. })))
+        && !field.occurrences.iter().any(|value| {
+            matches!(
+                value,
+                FieldOccurrence::Constraint(ConstraintIr::Sequence { .. })
+            )
+        })
     {
         field
             .occurrences
@@ -551,7 +616,10 @@ pub(crate) fn normalize_selector_containers(field: &mut FieldIr) {
     {
         field
             .occurrences
-            .push(FieldOccurrence::Constraint(ConstraintIr::Map { min: None, max: None }));
+            .push(FieldOccurrence::Constraint(ConstraintIr::Map {
+                min: None,
+                max: None,
+            }));
     }
 }
 
@@ -597,7 +665,10 @@ pub(crate) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
             if !selector_kinds.insert(kind) {
                 combine(
                     errors,
-                    Error::new(field.index.span(), format!("duplicate selector {kind} constraint")),
+                    Error::new(
+                        field.index.span(),
+                        format!("duplicate selector {kind} constraint"),
+                    ),
                 );
             }
         }
@@ -612,14 +683,20 @@ pub(crate) fn validate_field_constraints(field: &FieldIr, errors: &mut Option<Er
                 if min.zip(*max).is_some_and(|(min, max)| min > max) {
                     combine(
                         errors,
-                        Error::new(field.index.span(), "sequence min_items cannot exceed max_items"),
+                        Error::new(
+                            field.index.span(),
+                            "sequence min_items cannot exceed max_items",
+                        ),
                     );
                 }
             }
             ConstraintIr::Map { min, max } if min.zip(*max).is_some_and(|(min, max)| min > max) => {
                 combine(
                     errors,
-                    Error::new(field.index.span(), "map min_entries cannot exceed max_entries"),
+                    Error::new(
+                        field.index.span(),
+                        "map min_entries cannot exceed max_entries",
+                    ),
                 );
             }
             _ => {}

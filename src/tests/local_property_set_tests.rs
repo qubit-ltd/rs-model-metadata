@@ -42,6 +42,9 @@ fn test_property_lookup_matches_the_canonical_name() {
     );
     let set = LocalPropertySet::new(properties);
 
-    assert_eq!(set.property("value").map(PropertyMetadata::name), Some("value"));
+    assert_eq!(
+        set.property("value").map(PropertyMetadata::name),
+        Some("value")
+    );
     assert!(set.property("other").is_none());
 }

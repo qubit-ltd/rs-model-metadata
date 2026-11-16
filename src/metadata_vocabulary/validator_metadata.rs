@@ -215,7 +215,11 @@ const fn assert_unique_dependency_names(bindings: &[DependencyBindingMetadata]) 
 ///
 /// `true` when a binding in the prefix already uses `name`.
 #[must_use]
-const fn contains_dependency_name(bindings: &[DependencyBindingMetadata], end: usize, name: &str) -> bool {
+const fn contains_dependency_name(
+    bindings: &[DependencyBindingMetadata],
+    end: usize,
+    name: &str,
+) -> bool {
     let mut index = 0;
     while index < end {
         if same_str(bindings[index].name(), name) {

@@ -66,7 +66,8 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
         .expect("reflection context should build");
     let models = ModelRegistry::from_context(&reflection).expect("model registry should build");
     let metadata = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<Broken<1>>(None, &[], v8::leak(v8::model_role())).finish::<Broken<1>>(),
+        v8::GeneratedTypeMetadataBuilder::new::<Broken<1>>(None, &[], v8::leak(v8::model_role()))
+            .finish::<Broken<1>>(),
     );
     let context = models.context().expect("global registry context");
     let empty_merge = ModelImplMetadata::merge(metadata, &[], context);
@@ -79,7 +80,8 @@ fn test_property_path_preserves_assembly_failure_instead_of_missing_property() {
             .is_empty()
     );
     let context = ResolutionContext::new(&models, &[metadata]);
-    let error = resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &context).unwrap_err();
+    let error =
+        resolve_property_path(metadata, &PropertyPath::new(&["absent"]), &context).unwrap_err();
     let ModelResolutionCause::Properties(PropertyResolutionError::Assembly(errors)) = error else {
         panic!("expected original property assembly failure");
     };
@@ -141,10 +143,16 @@ fn test_relation_helpers_preserve_root_escape_and_reference_type_rules() {
     assert!(escaped);
 
     static DEPENDENCY_PROPERTY: [&str; 1] = ["value"];
-    let deferred =
-        DependencyBindingMetadata::new("value", PropertyPath::new(&DEPENDENCY_PROPERTY)).with_object_path(escape);
+    let deferred = DependencyBindingMetadata::new("value", PropertyPath::new(&DEPENDENCY_PROPERTY))
+        .with_object_path(escape);
     let mut dependency_errors = Vec::new();
-    validate_dependency(registered_metadata(), &deferred, &context, None, &mut dependency_errors);
+    validate_dependency(
+        registered_metadata(),
+        &deferred,
+        &context,
+        None,
+        &mut dependency_errors,
+    );
     assert!(
         dependency_errors.is_empty(),
         "a dependency outside the root is deferred"

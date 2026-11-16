@@ -49,7 +49,8 @@ impl VisitMut for Substitutions {
                 *ty = replacement.clone();
                 return;
             }
-            let rest: Punctuated<PathSegment, Token![::]> = path.path.segments.iter().skip(1).cloned().collect();
+            let rest: Punctuated<PathSegment, Token![::]> =
+                path.path.segments.iter().skip(1).cloned().collect();
             *ty = parse_quote!(<#replacement>::#rest);
         }
         visit_type_mut(self, ty);

@@ -82,7 +82,7 @@ note: required for `InvalidSelectorContainer` to implement `Reflect`
 19 | struct InvalidSelectorContainer {
    |        ^^^^^^^^^^^^^^^^^^^^^^^^
 note: required by a bound in `RegistrationFragment::for_reflected_type`
-  --> $QUBIT_REFLECT/src/runtime/context/registration.rs
+  --> $CARGO/qubit-reflect-$VERSION/src/runtime/context/registration.rs
    |
    |     pub const fn for_reflected_type<T: Reflect>(label: &'static str) -> Self {
    |                                        ^^^^^^^ required by this bound in `RegistrationFragment::for_reflected_type`

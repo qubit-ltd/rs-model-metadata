@@ -73,9 +73,10 @@ fn reflection() -> ReflectionContext {
         .include_type::<u64>()
         .include_type::<WrongMetadataFixture>()
         .include_type::<String>()
-        .register(CapabilityRegistration::for_type::<Invalid<1>, ModelMetadataCapability>(
-            wrong_metadata,
-        ))
+        .register(CapabilityRegistration::for_type::<
+            Invalid<1>,
+            ModelMetadataCapability,
+        >(wrong_metadata))
         .build()
         .expect("the typed provider is valid until its metadata is checked against Invalid")
 }
@@ -84,11 +85,17 @@ fn metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
         let reference = v8::leak(FieldReferenceMetadata::new(
-            v8::leak(DeclaredEntityTarget::ModelId(ModelId::new("missing.Target"))),
+            v8::leak(DeclaredEntityTarget::ModelId(ModelId::new(
+                "missing.Target",
+            ))),
             v8::leak(ReferenceSelection::Entity),
             false,
             Some(v8::leak(
-                ObjectPath::new(&[NavigationStep::Property("invalid"), NavigationStep::Property("value")]).unwrap(),
+                ObjectPath::new(&[
+                    NavigationStep::Property("invalid"),
+                    NavigationStep::Property("value"),
+                ])
+                .unwrap(),
             )),
         ));
         let fields = v8::leak_slice(vec![
@@ -122,7 +129,13 @@ fn metadata() -> &'static TypeMetadata {
                 .iter()
                 .zip([&INVALID_EXPRESSION, &U64_EXPRESSION])
                 .map(|(field, expression)| {
-                    v8::property_metadata(field.name().unwrap(), Some(expression), Some(field), None, None)
+                    v8::property_metadata(
+                        field.name().unwrap(),
+                        Some(expression),
+                        Some(field),
+                        None,
+                        None,
+                    )
                 })
                 .collect(),
         );
@@ -163,7 +176,9 @@ fn test_path_conflict_and_missing_target_are_both_reported() {
     let cause = errors
         .errors()
         .iter()
-        .find(|error| error.kind() == ResolveErrorKind::MetadataResolution && error.path().is_some())
+        .find(|error| {
+            error.kind() == ResolveErrorKind::MetadataResolution && error.path().is_some()
+        })
         .unwrap();
     assert_eq!(cause.model_id(), Some("error.PathRoot"));
     assert_eq!(cause.path().unwrap().to_string(), "target");

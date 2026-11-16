@@ -130,13 +130,19 @@ impl PropertyFragment {
     ///
     /// `Some` when the declaration or retained expression provides a type;
     /// otherwise, `None`.
-    pub fn type_expression_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<TypeExpression<'ctx>> {
+    pub fn type_expression_in<'ctx>(
+        &self,
+        context: &'ctx ReflectionContext,
+    ) -> Option<TypeExpression<'ctx>> {
         match self.source {
             PropertyFragmentSource::Field(field) => field.type_expression_in(context),
             PropertyFragmentSource::Getter(getter) => Some(getter.output_type_in(context)),
             PropertyFragmentSource::Setter(setter) => Some(setter.input_type_in(context)),
         }
-        .or_else(|| self.type_expression.map(|data| type_expression_in(data, context)))
+        .or_else(|| {
+            self.type_expression
+                .map(|data| type_expression_in(data, context))
+        })
     }
 
     /// Returns the field, getter, or setter that declared this fragment.

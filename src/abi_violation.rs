@@ -82,6 +82,9 @@ mod tests {
 
         assert_eq!(violation.code(), "metadata.role");
         assert_eq!(violation.message(), "role differs from descriptor");
-        assert_eq!(violation.to_string(), "metadata.role: role differs from descriptor");
+        assert_eq!(
+            violation.to_string(),
+            "metadata.role: role differs from descriptor"
+        );
     }
 }

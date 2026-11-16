@@ -34,7 +34,9 @@ fn test_debug_and_unbound_type_expression_fallback_are_observable() {
         descriptor,
     )));
     let fragment = PropertyFragment::new("name", None, PropertyFragmentSource::Field(field));
-    let empty_context = ReflectionContext::builder().build().expect("empty reflection context");
+    let empty_context = ReflectionContext::builder()
+        .build()
+        .expect("empty reflection context");
 
     assert!(format!("{fragment:?}").contains("PropertyFragment"));
     assert!(fragment.type_expression_in(&empty_context).is_none());

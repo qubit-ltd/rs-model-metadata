@@ -164,7 +164,9 @@ fn existence_predicate(meta: &Meta) -> Result<Option<TokenStream>> {
     let trigger = arguments
         .next()
         .ok_or_else(|| Error::new_spanned(list, "cfg_attr requires a predicate"))?;
-    let conditions = arguments.map(existence_predicate).collect::<Result<Vec<_>>>()?;
+    let conditions = arguments
+        .map(existence_predicate)
+        .collect::<Result<Vec<_>>>()?;
     let conditions: Vec<_> = conditions.into_iter().flatten().collect();
     if conditions.is_empty() {
         return Ok(None);
@@ -191,8 +193,7 @@ mod tests {
         assert!(configured.predicate().to_string().contains("enabled"));
         assert!(configured.attribute().to_string().contains("cfg"));
 
-        let nested: Attribute =
-            parse_quote!(#[cfg_attr(feature = "outer", cfg_attr(feature = "middle", cfg(feature = "inner")))]);
+        let nested: Attribute = parse_quote!(#[cfg_attr(feature = "outer", cfg_attr(feature = "middle", cfg(feature = "inner")))]);
         let conditional = PresenceCondition::from_attributes(&[nested]).unwrap();
         let predicate = conditional.predicate().to_string();
         assert!(predicate.contains("outer"));
@@ -205,7 +206,13 @@ mod tests {
                 .to_string()
                 .contains("all")
         );
-        assert!(conditional.union(&configured).predicate().to_string().contains("any"));
+        assert!(
+            conditional
+                .union(&configured)
+                .predicate()
+                .to_string()
+                .contains("any")
+        );
     }
 
     #[test]
@@ -216,6 +223,10 @@ mod tests {
                 .unwrap()
                 .is_unconditional()
         );
-        assert!(PresenceCondition::from_attributes(&[]).unwrap().is_unconditional());
+        assert!(
+            PresenceCondition::from_attributes(&[])
+                .unwrap()
+                .is_unconditional()
+        );
     }
 }

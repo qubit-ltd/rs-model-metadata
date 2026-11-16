@@ -23,8 +23,14 @@ fn test_reflection_conversion_keeps_the_context_error() {
         panic!("context error should become the reflection variant");
     };
     assert_eq!(retained, &cause);
-    assert_eq!(error.to_string(), "reflection registry error: registry is unavailable");
-    assert_eq!(error.source().expect("retained source").to_string(), cause.to_string());
+    assert_eq!(
+        error.to_string(),
+        "reflection registry error: registry is unavailable"
+    );
+    assert_eq!(
+        error.source().expect("retained source").to_string(),
+        cause.to_string()
+    );
 }
 
 #[test]

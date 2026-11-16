@@ -87,7 +87,8 @@ impl ValueDecoder<str> for U64Codec {
     }
 }
 
-static STRING_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<StringCodec, String>();
+static STRING_DESCRIPTOR: ValueStringCodecDescriptor =
+    ValueStringCodecDescriptor::of::<StringCodec, String>();
 static STRING_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.string"),
     &STRING_DESCRIPTOR,
@@ -98,7 +99,8 @@ static STRING_ALIAS_REGISTRATION: ValueStringCodecRegistration = ValueStringCode
     &STRING_DESCRIPTOR,
     ValueCodecRegistrationSource::new("codec-tests", "fixture", file!(), line!()),
 );
-static U64_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<U64Codec, u64>();
+static U64_DESCRIPTOR: ValueStringCodecDescriptor =
+    ValueStringCodecDescriptor::of::<U64Codec, u64>();
 static U64_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.wrong"),
     &U64_DESCRIPTOR,
@@ -129,7 +131,8 @@ impl ValueDecoder<str> for CountingCodec {
     }
 }
 
-static COUNTING_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<CountingCodec, String>();
+static COUNTING_DESCRIPTOR: ValueStringCodecDescriptor =
+    ValueStringCodecDescriptor::of::<CountingCodec, String>();
 static COUNTING_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.counting"),
     &COUNTING_DESCRIPTOR,
@@ -169,7 +172,8 @@ struct AnonymousCodec {
 /// Codec occurrence identity remains exact for anonymous graph roots.
 #[test]
 fn test_binds_anonymous_root_codecs() {
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("empty registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("empty registry");
     let metadata = TypeMetadata::of::<AnonymousCodec>();
     let roots = [metadata];
     let graph = StructureResolver::new(ResolveInputs {
@@ -178,7 +182,8 @@ fn test_binds_anonymous_root_codecs() {
     })
     .resolve()
     .expect("anonymous graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
     let bindings = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -208,8 +213,9 @@ fn source() -> ModelRegistryOrigin {
 /// keep the registry alive for the returned graph's lifetime. This fixture is
 /// only used by tests and avoids changing the production graph ownership API.
 fn graph<'a>(metadata: &'static TypeMetadata, source: &'a ModelRegistryOrigin) -> ModelGraph<'a> {
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, source)])
-        .expect("model registry");
+    let models =
+        ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, source)])
+            .expect("model registry");
     let models = Box::leak(Box::new(models));
     StructureResolver::new(ResolveInputs { roots: &[], models })
         .resolve()
@@ -221,7 +227,8 @@ fn test_binds_declared_and_rust_type_references() {
     let source = source();
     let declared_graph = graph(TypeMetadata::of::<Success>(), &source);
     let rust_graph = graph(TypeMetadata::of::<RustType>(), &source);
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
 
     assert_eq!(
         bind_codecs(CodecBindInputs {
@@ -270,11 +277,27 @@ fn test_reports_sorted_missing_ambiguous_and_type_mismatch_errors() {
         codecs: &codecs,
     })
     .unwrap_err();
-    assert_eq!(mismatch.errors()[0].kind(), CodecBindErrorKind::ValueTypeMismatch);
-    assert_eq!(mismatch.errors()[0].candidate_sources(), &[U64_REGISTRATION.source()]);
-    assert_eq!(mismatch.errors()[0].actual_type(), Some(TypeId::of::<u64>()));
-    assert_eq!(mismatch.errors()[0].declaration().declared_id(), Some("test.wrong"));
-    assert!(mismatch.errors()[0].to_string().contains("codec binding failed"));
+    assert_eq!(
+        mismatch.errors()[0].kind(),
+        CodecBindErrorKind::ValueTypeMismatch
+    );
+    assert_eq!(
+        mismatch.errors()[0].candidate_sources(),
+        &[U64_REGISTRATION.source()]
+    );
+    assert_eq!(
+        mismatch.errors()[0].actual_type(),
+        Some(TypeId::of::<u64>())
+    );
+    assert_eq!(
+        mismatch.errors()[0].declaration().declared_id(),
+        Some("test.wrong")
+    );
+    assert!(
+        mismatch.errors()[0]
+            .to_string()
+            .contains("codec binding failed")
+    );
     assert_eq!(mismatch.to_string(), "1 codec binding error(s)");
     let ambiguous = bind_codecs(CodecBindInputs {
         graph: &rust_graph,
@@ -329,7 +352,8 @@ impl ValueDecoder<str> for BoxNameCodec {
     }
 }
 
-static NAME_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<NameCodec, Name>();
+static NAME_DESCRIPTOR: ValueStringCodecDescriptor =
+    ValueStringCodecDescriptor::of::<NameCodec, Name>();
 static NAME_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.name.direct"),
     &NAME_DESCRIPTOR,
@@ -363,7 +387,8 @@ empty_noise_models!(
     EmptyNoise15,
     EmptyNoise16,
 );
-static BOX_NAME_DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<BoxNameCodec, Box<Name>>();
+static BOX_NAME_DESCRIPTOR: ValueStringCodecDescriptor =
+    ValueStringCodecDescriptor::of::<BoxNameCodec, Box<Name>>();
 static BOX_NAME_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("test.box_name.direct"),
     &BOX_NAME_DESCRIPTOR,
@@ -437,7 +462,10 @@ struct ExactOptionalBox {
     value: Option<Box<Name>>,
 }
 
-fn graph_with_name<'a>(owner: &'static TypeMetadata, source: &'a ModelRegistryOrigin) -> ModelGraph<'a> {
+fn graph_with_name<'a>(
+    owner: &'static TypeMetadata,
+    source: &'a ModelRegistryOrigin,
+) -> ModelGraph<'a> {
     graph_with_name_and_roots(owner, source, &[])
 }
 
@@ -466,7 +494,8 @@ fn assert_canonical_field(owner: &'static TypeMetadata, property: &str, expected
             .iter()
             .any(|metadata| metadata.type_id() == TypeId::of::<Name>())
     );
-    let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+    let codecs =
+        ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
     let bindings = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -482,7 +511,11 @@ fn assert_canonical_field(owner: &'static TypeMetadata, property: &str, expected
             .is_some(),
         "Name retains its own canonical occurrence"
     );
-    let field = bindings.get(&CodecOccurrenceId::new(owner, property, CodecSource::CanonicalValue));
+    let field = bindings.get(&CodecOccurrenceId::new(
+        owner,
+        property,
+        CodecSource::CanonicalValue,
+    ));
     assert_eq!(
         field.is_some(),
         expected,
@@ -529,7 +562,9 @@ fn test_optional_inner_descriptor_is_concrete_without_context_type_lookup() {
         .expect("owner lookup")
         .expect("owner descriptor");
     let field_descriptor = owner_descriptor.fields().get_at(0).expect("value field");
-    let optional_descriptor = field_descriptor.find_concrete_type().expect("Option descriptor");
+    let optional_descriptor = field_descriptor
+        .find_concrete_type()
+        .expect("Option descriptor");
     assert_eq!(optional_descriptor.type_id(), TypeId::of::<Option<Name>>());
     let inner = optional_descriptor
         .generic_arguments()
@@ -559,7 +594,8 @@ fn test_optional_inner_descriptor_is_concrete_without_context_type_lookup() {
     })
     .resolve()
     .expect("structure resolves with the concrete inner descriptor");
-    let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+    let codecs =
+        ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
     let legacy = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -615,9 +651,13 @@ fn test_canonical_binding_is_stable_when_graph_gains_unrelated_models() {
         TypeMetadata::of::<EmptyNoise16>(),
     ];
     let expanded = graph_with_name_and_roots(owner, &source, &noise);
-    assert_eq!(expanded.models().len(), original.models().len() + noise.len());
+    assert_eq!(
+        expanded.models().len(),
+        original.models().len() + noise.len()
+    );
 
-    let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+    let codecs =
+        ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
     let original_bindings = bind_codecs(CodecBindInputs {
         graph: &original,
         codecs: &codecs,
@@ -629,9 +669,16 @@ fn test_canonical_binding_is_stable_when_graph_gains_unrelated_models() {
     })
     .expect("expanded graph bindings");
     let occurrence = CodecOccurrenceId::new(owner, "value", CodecSource::CanonicalValue);
-    let original_value = original_bindings.get(&occurrence).expect("original canonical field");
-    let expanded_value = expanded_bindings.get(&occurrence).expect("expanded canonical field");
-    assert_eq!(expanded_bindings.bindings().len(), original_bindings.bindings().len());
+    let original_value = original_bindings
+        .get(&occurrence)
+        .expect("original canonical field");
+    let expanded_value = expanded_bindings
+        .get(&occurrence)
+        .expect("expanded canonical field");
+    assert_eq!(
+        expanded_bindings.bindings().len(),
+        original_bindings.bindings().len()
+    );
     assert_eq!(expanded_value.occurrence(), original_value.occurrence());
     assert_eq!(
         expanded_value.descriptor().value_type_id(),
@@ -648,7 +695,8 @@ fn assert_explicit_mismatch(owner: &'static TypeMetadata, expected: TypeId) {
             .iter()
             .any(|metadata| metadata.type_id() == TypeId::of::<Name>())
     );
-    let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+    let codecs =
+        ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
     let errors = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -675,7 +723,8 @@ fn test_direct_field_explicit_wrapper_matrix() {
     ] {
         let source = source();
         let graph = graph_with_name(owner, &source);
-        let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION]).expect("codec registry");
+        let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION])
+            .expect("codec registry");
         let bindings = bind_codecs(CodecBindInputs {
             graph: &graph,
             codecs: &codecs,
@@ -687,7 +736,10 @@ fn test_direct_field_explicit_wrapper_matrix() {
         assert_eq!(binding.descriptor().value_type_id(), TypeId::of::<Name>());
     }
     assert_explicit_mismatch(TypeMetadata::of::<ExplicitBox>(), TypeId::of::<Box<Name>>());
-    assert_explicit_mismatch(TypeMetadata::of::<ExplicitOptionalBox>(), TypeId::of::<Box<Name>>());
+    assert_explicit_mismatch(
+        TypeMetadata::of::<ExplicitOptionalBox>(),
+        TypeId::of::<Box<Name>>(),
+    );
     assert_explicit_mismatch(
         TypeMetadata::of::<ExplicitNestedOptional>(),
         TypeId::of::<Option<Name>>(),
@@ -698,11 +750,17 @@ fn test_direct_field_explicit_wrapper_matrix() {
 /// for both direct and optional smart-pointer fields.
 #[test]
 fn test_direct_box_field_codec_matches_and_executes() {
-    for owner in [TypeMetadata::of::<ExactBox>(), TypeMetadata::of::<ExactOptionalBox>()] {
+    for owner in [
+        TypeMetadata::of::<ExactBox>(),
+        TypeMetadata::of::<ExactOptionalBox>(),
+    ] {
         let source = source();
         let graph = graph_with_name(owner, &source);
-        let codecs = ValueStringCodecRegistry::from_registrations([&NAME_REGISTRATION, &BOX_NAME_REGISTRATION])
-            .expect("codec registry");
+        let codecs = ValueStringCodecRegistry::from_registrations([
+            &NAME_REGISTRATION,
+            &BOX_NAME_REGISTRATION,
+        ])
+        .expect("codec registry");
         let bindings = bind_codecs(CodecBindInputs {
             graph: &graph,
             codecs: &codecs,
@@ -716,7 +774,10 @@ fn test_direct_box_field_codec_matches_and_executes() {
         let input = Box::new(Name("wrapped".to_owned()));
         let encoded = descriptor.encode(&input).expect("encode Box<Name>");
         let decoded = descriptor.decode(&encoded).expect("decode Box<Name>");
-        assert_eq!(decoded.downcast::<Box<Name>>().unwrap().as_ref().as_ref().0, "wrapped");
+        assert_eq!(
+            decoded.downcast::<Box<Name>>().unwrap().as_ref().as_ref().0,
+            "wrapped"
+        );
     }
 }
 
@@ -730,7 +791,8 @@ struct CanonicalOwner {
 /// Explicit equality with canonical is legal and unannotated uses inherit it.
 #[test]
 fn test_canonical_fallback_preserves_occurrence_sources() {
-    static DESCRIPTOR: ValueStringCodecDescriptor = ValueStringCodecDescriptor::of::<NameCodec, Name>();
+    static DESCRIPTOR: ValueStringCodecDescriptor =
+        ValueStringCodecDescriptor::of::<NameCodec, Name>();
     static REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
         ValueCodecId::new("test.name"),
         &DESCRIPTOR,
@@ -739,8 +801,11 @@ fn test_canonical_fallback_preserves_occurrence_sources() {
     let owner = TypeMetadata::of::<CanonicalOwner>();
     let name = TypeMetadata::of::<Name>();
     let source = source();
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(owner, &source), (name, &source)])
-        .expect("models");
+    let models = ModelRegistry::from_static_metadata(
+        ReflectionContext::global(),
+        &[(owner, &source), (name, &source)],
+    )
+    .expect("models");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &[],
@@ -787,14 +852,16 @@ enum TupleCodecs {
 #[test]
 fn test_tuple_payload_codecs_have_distinct_occurrences() {
     let roots = [TypeMetadata::of::<TupleCodecs>()];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("empty registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("empty registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
     })
     .resolve()
     .expect("tuple graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codecs");
+    let codecs =
+        ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codecs");
     let bound = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -835,14 +902,16 @@ struct CodecContainers {
 fn test_container_selector_bindings_preserve_identity_and_execute() {
     let root = TypeMetadata::of::<CodecContainers>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
     })
     .resolve()
     .expect("container graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
     let bindings = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -860,16 +929,30 @@ fn test_container_selector_bindings_preserve_identity_and_execute() {
         ("map", SelectorPosition::MapValue),
     ] {
         let id = CodecOccurrenceId::new(root, field, CodecSource::Selector(selector));
-        let binding = bindings.get(&id).expect("each distinct selector is indexed");
+        let binding = bindings
+            .get(&id)
+            .expect("each distinct selector is indexed");
         assert_eq!(binding.occurrence(), &id);
-        assert_eq!(id.model(), None, "anonymous identity does not fabricate a model ID");
+        assert_eq!(
+            id.model(),
+            None,
+            "anonymous identity does not fabricate a model ID"
+        );
         assert_eq!(id.source(), CodecSource::Selector(selector));
-        assert_eq!(binding.registration().source(), STRING_REGISTRATION.source());
+        assert_eq!(
+            binding.registration().source(),
+            STRING_REGISTRATION.source()
+        );
         let descriptor = binding.descriptor();
         let input = format!("{field} value");
         let encoded = descriptor.encode(&input).expect("bound String encoder");
         let decoded = descriptor.decode(&encoded).expect("bound String decoder");
-        assert_eq!(*decoded.downcast::<String>().expect("exact bound value type"), input);
+        assert_eq!(
+            *decoded
+                .downcast::<String>()
+                .expect("exact bound value type"),
+            input
+        );
         assert!(id.to_string().ends_with(&format!("::{field}")));
     }
     assert!(
@@ -890,14 +973,16 @@ struct OpaqueCodecContainer {
 fn test_opaque_collection_field_is_not_resolved_for_codec_binding() {
     let root = TypeMetadata::of::<OpaqueCodecContainer>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
     })
     .resolve()
     .expect("opaque graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
     let bindings = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -917,7 +1002,8 @@ struct OpaqueMissingCodecContainer {
 fn test_opaque_unresolved_field_skips_missing_codec_registration() {
     let root = TypeMetadata::of::<OpaqueMissingCodecContainer>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -958,14 +1044,16 @@ struct ReportedOpaqueField {
 fn test_binding_report_contains_successes_and_unresolved_fields() {
     let root = TypeMetadata::of::<ReportedOpaqueField>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
     })
     .resolve()
     .expect("opaque graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
 
     let report = bind_codecs_with_report(CodecBindInputs {
         graph: &graph,
@@ -986,7 +1074,10 @@ fn test_binding_report_contains_successes_and_unresolved_fields() {
         CodecBindSkipReason::FieldDescriptorUnavailable
     );
     assert_eq!(report.skipped()[0].model().type_id(), root.type_id());
-    assert_eq!(report.skipped()[0].location(), &root.fields()[1].declaration().clone());
+    assert_eq!(
+        report.skipped()[0].location(),
+        &root.fields()[1].declaration().clone()
+    );
 }
 
 #[Model]
@@ -999,7 +1090,8 @@ struct OpaqueNoCodec {
 fn test_report_includes_unresolved_field_without_explicit_codec() {
     let root = TypeMetadata::of::<OpaqueNoCodec>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -1025,7 +1117,8 @@ fn test_report_includes_unresolved_field_without_explicit_codec() {
 fn test_report_does_not_report_resolvable_field_without_codec() {
     let root = TypeMetadata::of::<PlainField>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -1063,7 +1156,10 @@ fn test_report_preserves_binding_errors_without_partial_report() {
     })
     .unwrap_err();
     assert_eq!(report_errors.errors().len(), old_errors.errors().len());
-    assert_eq!(report_errors.errors()[0].kind(), old_errors.errors()[0].kind());
+    assert_eq!(
+        report_errors.errors()[0].kind(),
+        old_errors.errors()[0].kind()
+    );
     assert_eq!(
         report_errors.errors()[0].occurrence(),
         old_errors.errors()[0].occurrence()
@@ -1082,14 +1178,16 @@ struct MultipleBindingErrors {
 fn test_report_entry_matches_legacy_bindings_and_error_details() {
     let root = TypeMetadata::of::<ReportedOpaqueField>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
     })
     .resolve()
     .expect("opaque graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
     let inputs = || CodecBindInputs {
         graph: &graph,
         codecs: &codecs,
@@ -1099,13 +1197,20 @@ fn test_report_entry_matches_legacy_bindings_and_error_details() {
 
     assert_eq!(report.bindings().bindings().len(), legacy.bindings().len());
     let legacy_binding = legacy.bindings().next().expect("one legacy binding");
-    let reported_binding = report.bindings().bindings().next().expect("one reported binding");
+    let reported_binding = report
+        .bindings()
+        .bindings()
+        .next()
+        .expect("one reported binding");
     assert_eq!(reported_binding.occurrence(), legacy_binding.occurrence());
     assert!(std::ptr::eq(
         reported_binding.registration(),
         legacy_binding.registration()
     ));
-    assert!(std::ptr::eq(reported_binding.descriptor(), legacy_binding.descriptor()));
+    assert!(std::ptr::eq(
+        reported_binding.descriptor(),
+        legacy_binding.descriptor()
+    ));
 
     let error_root = TypeMetadata::of::<MultipleBindingErrors>();
     let error_roots = [error_root];
@@ -1115,7 +1220,8 @@ fn test_report_entry_matches_legacy_bindings_and_error_details() {
     })
     .resolve()
     .expect("error graph");
-    let wrong_codecs = ValueStringCodecRegistry::from_registrations([&U64_REGISTRATION]).expect("wrong codec registry");
+    let wrong_codecs = ValueStringCodecRegistry::from_registrations([&U64_REGISTRATION])
+        .expect("wrong codec registry");
     let error_inputs = || CodecBindInputs {
         graph: &error_graph,
         codecs: &wrong_codecs,
@@ -1140,15 +1246,16 @@ fn test_binding_report_does_not_execute_codec() {
     CODEC_CALLS.store(0, Ordering::SeqCst);
     let root = TypeMetadata::of::<CountingCodecModel>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
     })
     .resolve()
     .expect("counting codec graph");
-    let codecs =
-        ValueStringCodecRegistry::from_registrations([&COUNTING_REGISTRATION]).expect("counting codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&COUNTING_REGISTRATION])
+        .expect("counting codec registry");
 
     let report = bind_codecs_with_report(CodecBindInputs {
         graph: &graph,
@@ -1169,7 +1276,8 @@ enum AnonymousOpaqueEnum {
 fn test_report_skip_locates_anonymous_enum_payload() {
     let root = TypeMetadata::of::<AnonymousOpaqueEnum>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
@@ -1204,14 +1312,16 @@ struct WholeCollectionCodec {
 fn test_collection_is_not_unwrapped_for_direct_codec_binding() {
     let root = TypeMetadata::of::<WholeCollectionCodec>();
     let roots = [root];
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("isolated registry");
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,
     })
     .resolve()
     .expect("collection graph");
-    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION]).expect("codec registry");
+    let codecs = ValueStringCodecRegistry::from_registrations([&STRING_REGISTRATION])
+        .expect("codec registry");
     let errors = bind_codecs(CodecBindInputs {
         graph: &graph,
         codecs: &codecs,

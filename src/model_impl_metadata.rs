@@ -50,7 +50,9 @@ fn append_overlay_fragments(
     overlay: &ModelImplMetadata,
 ) {
     for fragment in overlay.fragments() {
-        if matches!(fragment.source(), PropertyFragmentSource::Field(_)) && !field_names.insert(fragment.name()) {
+        if matches!(fragment.source(), PropertyFragmentSource::Field(_))
+            && !field_names.insert(fragment.name())
+        {
             continue;
         }
         fragments.push(*fragment);
@@ -77,7 +79,11 @@ fn append_overlay_fragments(
 fn merge_overlay_properties(
     overlay: &ModelImplMetadata,
     origin: ModelImplSource,
-    properties: &mut Vec<(PropertyMetadata, Option<ModelImplSource>, Option<ModelImplSource>)>,
+    properties: &mut Vec<(
+        PropertyMetadata,
+        Option<ModelImplSource>,
+        Option<ModelImplSource>,
+    )>,
     property_indices: &mut HashMap<&'static str, usize>,
     errors: &mut Vec<PropertyBuildError>,
 ) {
@@ -201,7 +207,10 @@ impl ModelImplMetadata {
         fragments: &'static [PropertyFragment],
         properties: Result<&'static LocalPropertySet, &'static PropertyBuildErrors>,
     ) -> Self {
-        Self { fragments, properties }
+        Self {
+            fragments,
+            properties,
+        }
     }
 
     /// Merges the providers visible in one immutable reflection snapshot.
@@ -242,14 +251,27 @@ impl ModelImplMetadata {
             .collect();
         let mut fragments = Vec::new();
         let mut field_names = HashSet::new();
-        let mut properties: Vec<(PropertyMetadata, Option<ModelImplSource>, Option<ModelImplSource>)> = Vec::new();
+        let mut properties: Vec<(
+            PropertyMetadata,
+            Option<ModelImplSource>,
+            Option<ModelImplSource>,
+        )> = Vec::new();
         let mut property_indices = HashMap::new();
         let mut errors = Vec::new();
         for (overlay, origin) in overlays {
             append_overlay_fragments(&mut fragments, &mut field_names, overlay);
-            merge_overlay_properties(overlay, *origin, &mut properties, &mut property_indices, &mut errors);
+            merge_overlay_properties(
+                overlay,
+                *origin,
+                &mut properties,
+                &mut property_indices,
+                &mut errors,
+            );
         }
-        let properties: Vec<_> = properties.into_iter().map(|(property, _, _)| property).collect();
+        let properties: Vec<_> = properties
+            .into_iter()
+            .map(|(property, _, _)| property)
+            .collect();
         if let Err(error) = owner.validate_properties_in(context, &properties) {
             errors.extend_from_slice(error.errors());
         }
@@ -258,7 +280,10 @@ impl ModelImplMetadata {
         } else {
             Err(Arc::new(PropertyBuildErrors::new(errors)))
         };
-        MergedModelImpl::new(ResolvedPropertyFragments::Merged(Arc::from(fragments)), properties)
+        MergedModelImpl::new(
+            ResolvedPropertyFragments::Merged(Arc::from(fragments)),
+            properties,
+        )
     }
 
     /// Returns this implementation's original declarations in source order.
@@ -285,7 +310,9 @@ impl ModelImplMetadata {
     /// conflicting accessors, or invalid field ownership. This accessor does
     /// not rerun assembly or invoke providers.
     #[inline]
-    pub const fn try_properties(&self) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
+    pub const fn try_properties(
+        &self,
+    ) -> Result<&'static LocalPropertySet, &'static PropertyBuildErrors> {
         self.properties
     }
 }

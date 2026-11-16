@@ -22,7 +22,10 @@ use qubit_model_derive::ModelImpl;
 use qubit_reflect::ReflectionContext;
 
 #[Model(id = "test.derive.CodegenBoundaryGeneric")]
-#[allow(dead_code, reason = "the registration must not require a concrete monomorph")]
+#[allow(
+    dead_code,
+    reason = "the registration must not require a concrete monomorph"
+)]
 struct CodegenBoundaryGeneric<T> {
     value: Option<Vec<T>>,
 }
@@ -61,23 +64,35 @@ fn test_generic_model_registration_preserves_definition_identity_and_source() {
         .expect("generic definition must register without a concrete monomorph");
 
     assert_eq!(
-        generic.model_id().expect("registered definition ID").as_str(),
+        generic
+            .model_id()
+            .expect("registered definition ID")
+            .as_str(),
         "test.derive.CodegenBoundaryGeneric"
     );
     assert_eq!(registry.generic_definitions().len(), 1);
-    assert!(registry.metadata("test.derive.CodegenBoundaryGeneric").is_none());
+    assert!(
+        registry
+            .metadata("test.derive.CodegenBoundaryGeneric")
+            .is_none()
+    );
     let context = ReflectionContext::builder()
         .include_type::<CodegenBoundaryGeneric<u8>>()
         .build()
         .expect("generic definition context");
-    let definition = generic.definition_in(&context).expect("definition binds in context");
+    let definition = generic
+        .definition_in(&context)
+        .expect("definition binds in context");
     assert_eq!(definition.generics().parameters().len(), 1);
     let concrete = context
         .find_type_by_id(TypeId::of::<CodegenBoundaryGeneric<u8>>())
         .expect("type lookup must succeed")
         .expect("concrete generic instance must be in context");
     assert_eq!(
-        concrete.definition().expect("generic source definition").path(),
+        concrete
+            .definition()
+            .expect("generic source definition")
+            .path(),
         definition.path()
     );
     assert_eq!(generic.fields().len(), 1);
@@ -114,7 +129,11 @@ fn test_generic_model_registration_preserves_definition_identity_and_source() {
             .module_path
             .starts_with("model_codegen_boundary_tests::__qubit_reflect_v4_struct_")
     );
-    assert!(declaration_source.module_path.ends_with("::TypeDefinitionMarker"));
+    assert!(
+        declaration_source
+            .module_path
+            .ends_with("::TypeDefinitionMarker")
+    );
     assert_eq!(declaration_source.file, None);
     assert_eq!(declaration_source.line, None);
     assert_eq!(declaration_source.column, None);
@@ -150,7 +169,10 @@ fn test_model_impl_preserves_borrowed_and_mutable_property_shapes() {
         else {
             panic!("alias must preserve optional borrowing");
         };
-        assert_eq!(borrowed.downcast_ref::<String>().map(String::as_str), Some("visible"));
+        assert_eq!(
+            borrowed.downcast_ref::<String>().map(String::as_str),
+            Some("visible")
+        );
     }
 
     {

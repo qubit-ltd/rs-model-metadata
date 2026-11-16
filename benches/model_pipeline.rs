@@ -165,7 +165,11 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectionCont
     const SAMPLES: usize = 30;
     println!(
         "model_rule_batch_build: samples={SAMPLES}, profile={}",
-        if cfg!(debug_assertions) { "debug" } else { "release" }
+        if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        }
     );
     let models = ModelRegistry::from_context(reflection).expect("valid benchmark registrations");
     let root = TypeMetadata::of::<Pipeline1>();
@@ -202,27 +206,32 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectionCont
                     )
                     .expect("benchmark plan");
                     let plan = black_box(bindings.iter().cloned()).fold(plan, |plan, binding| {
-                        plan.with_model_rules([binding]).expect("model rules match plan root")
+                        plan.with_model_rules([binding])
+                            .expect("model rules match plan root")
                     });
                     let _ = black_box(plan);
                 });
             },
         );
-        group.bench_with_input(BenchmarkId::new("batch_api", count), &bindings, |bencher, bindings| {
-            bencher.iter(|| {
-                let plan = ValidationPlan::build(
-                    root,
-                    ValidationBuildInputs {
-                        graph: Arc::clone(&graph),
-                        validators: &validators,
-                    },
-                )
-                .expect("benchmark plan")
-                .with_model_rules(black_box(bindings.iter().cloned()))
-                .expect("model rules match plan root");
-                let _ = black_box(plan);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("batch_api", count),
+            &bindings,
+            |bencher, bindings| {
+                bencher.iter(|| {
+                    let plan = ValidationPlan::build(
+                        root,
+                        ValidationBuildInputs {
+                            graph: Arc::clone(&graph),
+                            validators: &validators,
+                        },
+                    )
+                    .expect("benchmark plan")
+                    .with_model_rules(black_box(bindings.iter().cloned()))
+                    .expect("model rules match plan root");
+                    let _ = black_box(plan);
+                });
+            },
+        );
     }
     group.finish();
 }
@@ -232,11 +241,16 @@ fn model_rule_batch_build(criterion: &mut Criterion, reflection: &ReflectionCont
 fn cold_properties(roots: &[(&'static TypeMetadata, usize)], reflection: &ReflectionContext) {
     for &(root, size) in roots {
         let started = Instant::now();
-        let properties =
-            black_box(root.try_properties_in(black_box(reflection))).expect("compatible independent getter fragments");
+        let properties = black_box(root.try_properties_in(black_box(reflection)))
+            .expect("compatible independent getter fragments");
         let elapsed = started.elapsed();
         assert_eq!(properties.properties().len(), size);
-        assert!(properties.properties().iter().all(|property| property.is_getter()));
+        assert!(
+            properties
+                .properties()
+                .iter()
+                .all(|property| property.is_getter())
+        );
         println!(
             "cold_properties/fields_{size}/impls_{size}: {} ns (one first-use observation)",
             elapsed.as_nanos()
@@ -245,7 +259,11 @@ fn cold_properties(roots: &[(&'static TypeMetadata, usize)], reflection: &Reflec
 }
 
 /// Measures each stable pipeline stage without recreating business inputs.
-fn pipeline(criterion: &mut Criterion, reflection: &ReflectionContext, roots: &[(&'static TypeMetadata, usize)]) {
+fn pipeline(
+    criterion: &mut Criterion,
+    reflection: &ReflectionContext,
+    roots: &[(&'static TypeMetadata, usize)],
+) {
     let models = ModelRegistry::from_context(reflection).expect("valid benchmark registrations");
     let validators = ValidatorRegistry::empty();
     let options = ValidationOptions::default();
@@ -260,9 +278,13 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectionContext, roots: &[
 
     let mut properties = criterion.benchmark_group("model_properties_merge_warm");
     for &(root, size) in roots {
-        properties.bench_with_input(BenchmarkId::new("fields_and_impls", size), &root, |bencher, root| {
-            bencher.iter(|| black_box(root.try_properties_in(black_box(reflection))));
-        });
+        properties.bench_with_input(
+            BenchmarkId::new("fields_and_impls", size),
+            &root,
+            |bencher, root| {
+                bencher.iter(|| black_box(root.try_properties_in(black_box(reflection))));
+            },
+        );
     }
     properties.finish();
 
@@ -272,9 +294,13 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectionContext, roots: &[
     }
     let mut cached = criterion.benchmark_group("model_properties_registry_cached");
     for &(root, size) in roots {
-        cached.bench_with_input(BenchmarkId::new("fields_and_impls", size), &root, |bencher, root| {
-            bencher.iter(|| black_box(models.properties_for(black_box(*root))));
-        });
+        cached.bench_with_input(
+            BenchmarkId::new("fields_and_impls", size),
+            &root,
+            |bencher, root| {
+                bencher.iter(|| black_box(models.properties_for(black_box(*root))));
+            },
+        );
     }
     cached.finish();
 
@@ -286,9 +312,18 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectionContext, roots: &[
             .expect("valid benchmark graph");
         assert_eq!(graph.models().len(), 1);
         assert_eq!(graph.models()[0].type_id(), root.type_id());
-        graphs.bench_with_input(BenchmarkId::new("fields", size), &root_set, |bencher, roots| {
-            bencher.iter(|| black_box(StructureResolver::for_static_roots(&models, [black_box(roots)[0]]).resolve()));
-        });
+        graphs.bench_with_input(
+            BenchmarkId::new("fields", size),
+            &root_set,
+            |bencher, roots| {
+                bencher.iter(|| {
+                    black_box(
+                        StructureResolver::for_static_roots(&models, [black_box(roots)[0]])
+                            .resolve(),
+                    )
+                });
+            },
+        );
     }
     graphs.finish();
 
@@ -341,7 +376,9 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectionContext, roots: &[
         assert!(report.skipped().is_empty());
         assert!(!report.is_truncated());
         execution.bench_function(BenchmarkId::new("fields", size), |bencher| {
-            bencher.iter(|| black_box(plan.validate_dynamic(black_box(value.clone()), black_box(&options))));
+            bencher.iter(|| {
+                black_box(plan.validate_dynamic(black_box(value.clone()), black_box(&options)))
+            });
         });
         let last_selected = ValidationOptions::builder()
             .selection(ValidationSelection::Fields(vec![FieldPath::new(format!(
@@ -350,7 +387,11 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectionContext, roots: &[
             ))]))
             .build();
         execution.bench_function(BenchmarkId::new("fields_last_selected", size), |bencher| {
-            bencher.iter(|| black_box(plan.validate_dynamic(black_box(value.clone()), black_box(&last_selected))));
+            bencher.iter(|| {
+                black_box(
+                    plan.validate_dynamic(black_box(value.clone()), black_box(&last_selected)),
+                )
+            });
         });
 
         let selection_options = |indices: Vec<usize>| {
@@ -382,7 +423,9 @@ fn pipeline(criterion: &mut Criterion, reflection: &ReflectionContext, roots: &[
             ("selection_invalid_last", &invalid_last),
         ] {
             execution.bench_function(BenchmarkId::new(selection, size), |bencher| {
-                bencher.iter(|| black_box(plan.validate_dynamic(black_box(value.clone()), black_box(options))));
+                bencher.iter(|| {
+                    black_box(plan.validate_dynamic(black_box(value.clone()), black_box(options)))
+                });
             });
         }
     }
@@ -410,14 +453,18 @@ fn model_count_pipeline(criterion: &mut Criterion, reflection: &ReflectionContex
 
     for model_count in counts {
         let entries = &registrations[..model_count];
-        let models = ModelRegistry::from_static_metadata(reflection, entries).expect("valid static registrations");
+        let models = ModelRegistry::from_static_metadata(reflection, entries)
+            .expect("valid static registrations");
         criterion.bench_function(
             &format!("model_registry_construction_models/{model_count}/static_entries"),
             |bencher| {
                 bencher.iter(|| {
                     black_box(
-                        ModelRegistry::from_static_metadata(black_box(reflection), black_box(entries))
-                            .expect("valid static registrations"),
+                        ModelRegistry::from_static_metadata(
+                            black_box(reflection),
+                            black_box(entries),
+                        )
+                        .expect("valid static registrations"),
                     )
                 })
             },
@@ -435,7 +482,10 @@ fn model_count_pipeline(criterion: &mut Criterion, reflection: &ReflectionContex
             full.models().len(),
             model_count,
             "complete graph for {model_count} entries included IDs: {:?}",
-            full.models().iter().map(|model| model.model_id()).collect::<Vec<_>>(),
+            full.models()
+                .iter()
+                .map(|model| model.model_id())
+                .collect::<Vec<_>>(),
         );
         let root = roots[0];
         let reachable = Arc::new(
@@ -464,7 +514,10 @@ fn model_count_pipeline(criterion: &mut Criterion, reflection: &ReflectionContex
             &format!("model_graph_reachable_models/{model_count}/one_root"),
             |bencher| {
                 bencher.iter(|| {
-                    black_box(StructureResolver::for_static_roots(black_box(&models), [black_box(root)]).resolve())
+                    black_box(
+                        StructureResolver::for_static_roots(black_box(&models), [black_box(root)])
+                            .resolve(),
+                    )
                 });
             },
         );
@@ -505,17 +558,28 @@ fn plan_build_scaling(criterion: &mut Criterion, reflection: &ReflectionContext)
         ("binary", TypeMetadata::of::<PlanScaleBinary4>(), 4, 16),
         ("binary", TypeMetadata::of::<PlanScaleBinary8>(), 8, 256),
         ("binary", TypeMetadata::of::<PlanScaleBinary10>(), 10, 1024),
-        ("binary", TypeMetadata::of::<PlanScaleBinary14>(), 14, 16_384),
+        (
+            "binary",
+            TypeMetadata::of::<PlanScaleBinary14>(),
+            14,
+            16_384,
+        ),
         ("chain", TypeMetadata::of::<PlanScaleChain1>(), 1, 1),
         ("chain", TypeMetadata::of::<PlanScaleChain4>(), 4, 1),
         ("chain", TypeMetadata::of::<PlanScaleChain8>(), 8, 1),
         ("chain", TypeMetadata::of::<PlanScaleChain10>(), 10, 1),
     ];
     let mut group = criterion.benchmark_group("plan_build_scaling");
-    group.sample_size(10).measurement_time(Duration::from_secs(1));
+    group
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(1));
     println!(
         "plan_build_scaling: profile={}, arch={}, os={}, samples=10, unique_types=binary(depth+1)/chain(depth+1)",
-        if cfg!(debug_assertions) { "debug" } else { "release" },
+        if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        },
         std::env::consts::ARCH,
         std::env::consts::OS,
     );
@@ -567,11 +631,9 @@ fn plan_build_scaling(criterion: &mut Criterion, reflection: &ReflectionContext)
                             Err(errors) => errors,
                             Ok(_) => panic!("scale fixture exceeds build budget"),
                         };
-                        black_box(
-                            errors
-                                .iter()
-                                .any(|error| error.kind() == ValidationBuildErrorKind::BuildLimitExceeded),
-                        );
+                        black_box(errors.iter().any(|error| {
+                            error.kind() == ValidationBuildErrorKind::BuildLimitExceeded
+                        }));
                     } else {
                         let _ = black_box(result);
                     }
@@ -586,10 +648,22 @@ fn plan_build_scaling(criterion: &mut Criterion, reflection: &ReflectionContext)
 /// and model registries only as setup outside the timed loop.
 fn structure_value_closure_shared(criterion: &mut Criterion, reflection: &ReflectionContext) {
     let models = ModelRegistry::from_context(reflection).expect("valid closure registrations");
-    let roots_1 = [TypeMetadata::of::<Closure1>(), TypeMetadata::of::<ClosureLeaf>()];
-    let roots_4 = [TypeMetadata::of::<Closure4>(), TypeMetadata::of::<Closure2>()];
-    let roots_8 = [TypeMetadata::of::<Closure8>(), TypeMetadata::of::<Closure4>()];
-    let roots_12 = [TypeMetadata::of::<Closure12>(), TypeMetadata::of::<Closure6>()];
+    let roots_1 = [
+        TypeMetadata::of::<Closure1>(),
+        TypeMetadata::of::<ClosureLeaf>(),
+    ];
+    let roots_4 = [
+        TypeMetadata::of::<Closure4>(),
+        TypeMetadata::of::<Closure2>(),
+    ];
+    let roots_8 = [
+        TypeMetadata::of::<Closure8>(),
+        TypeMetadata::of::<Closure4>(),
+    ];
+    let roots_12 = [
+        TypeMetadata::of::<Closure12>(),
+        TypeMetadata::of::<Closure6>(),
+    ];
     let cases: [(&str, usize, &[&'static TypeMetadata]); 4] = [
         ("depth_1", 2, &roots_1),
         ("depth_4", 5, &roots_4),
@@ -597,7 +671,9 @@ fn structure_value_closure_shared(criterion: &mut Criterion, reflection: &Reflec
         ("depth_12", 13, &roots_12),
     ];
     let mut group = criterion.benchmark_group("structure_value_closure_shared");
-    group.sample_size(10).measurement_time(Duration::from_secs(1));
+    group
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(1));
     for (label, unique_types, roots) in cases {
         for root_count in [1, roots.len()] {
             let selected = &roots[..root_count];
@@ -612,18 +688,21 @@ fn structure_value_closure_shared(criterion: &mut Criterion, reflection: &Reflec
                 "structure_value_closure_shared/{label}/roots_{root_count}: unique_types={unique_types}, depth={}, roots={root_count}",
                 label.strip_prefix("depth_").expect("depth label"),
             );
-            group.bench_function(BenchmarkId::new(label, format!("roots_{root_count}")), |bencher| {
-                bencher.iter(|| {
-                    black_box(
-                        StructureResolver::for_roots(ResolveInputs {
-                            models: &models,
-                            roots: selected,
-                        })
-                        .resolve()
-                        .expect("valid shared Value graph"),
-                    )
-                });
-            });
+            group.bench_function(
+                BenchmarkId::new(label, format!("roots_{root_count}")),
+                |bencher| {
+                    bencher.iter(|| {
+                        black_box(
+                            StructureResolver::for_roots(ResolveInputs {
+                                models: &models,
+                                roots: selected,
+                            })
+                            .resolve()
+                            .expect("valid shared Value graph"),
+                        )
+                    });
+                },
+            );
         }
     }
     group.finish();
@@ -633,22 +712,33 @@ fn structure_value_closure_shared(criterion: &mut Criterion, reflection: &Reflec
 /// and registry setup remain outside the timed loop; each root is checked
 /// before Criterion measures `resolve`.
 fn structure_entity_nesting_shared(criterion: &mut Criterion, reflection: &ReflectionContext) {
-    let models = ModelRegistry::from_context(reflection).expect("valid Entity shared-graph registrations");
+    let models =
+        ModelRegistry::from_context(reflection).expect("valid Entity shared-graph registrations");
     let cases: [(&str, &'static TypeMetadata, usize, usize); 4] = [
         ("depth_1", TypeMetadata::of::<SharedNestedEntity1>(), 1, 3),
         ("depth_4", TypeMetadata::of::<SharedNestedEntity4>(), 4, 6),
         ("depth_8", TypeMetadata::of::<SharedNestedEntity8>(), 8, 10),
-        ("depth_12", TypeMetadata::of::<SharedNestedEntity12>(), 12, 14),
+        (
+            "depth_12",
+            TypeMetadata::of::<SharedNestedEntity12>(),
+            12,
+            14,
+        ),
     ];
     let mut group = criterion.benchmark_group("structure_entity_nesting_shared");
-    group.sample_size(10).measurement_time(Duration::from_secs(1));
+    group
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(1));
     for (label, root, depth, expected_models) in cases {
         let graph = StructureResolver::for_static_roots(&models, [root])
             .resolve()
             .expect("valid Entity shared Model graph outside timing");
         assert_eq!(graph.models().len(), expected_models);
         assert_eq!(
-            graph.model(root.type_id()).expect("Entity root is present").type_id(),
+            graph
+                .model(root.type_id())
+                .expect("Entity root is present")
+                .type_id(),
             root.type_id()
         );
         println!(

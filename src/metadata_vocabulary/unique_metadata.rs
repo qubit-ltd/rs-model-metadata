@@ -71,7 +71,10 @@ impl UniqueMetadata {
     /// Unresolved metadata retaining the declaration for later substitution.
     #[must_use]
     #[inline]
-    pub const fn for_definition(respect_to: &'static [PropertyPath<'static>], ignore_case: Option<bool>) -> Self {
+    pub const fn for_definition(
+        respect_to: &'static [PropertyPath<'static>],
+        ignore_case: Option<bool>,
+    ) -> Self {
         Self {
             respect_to,
             ignore_case: false,
@@ -91,7 +94,10 @@ impl UniqueMetadata {
     ///
     /// Metadata with the explicit policy or a deferred default policy.
     #[must_use]
-    pub const fn for_type(respect_to: &'static [PropertyPath<'static>], ignore_case: Option<bool>) -> Self {
+    pub const fn for_type(
+        respect_to: &'static [PropertyPath<'static>],
+        ignore_case: Option<bool>,
+    ) -> Self {
         Self {
             respect_to,
             ignore_case: match ignore_case {

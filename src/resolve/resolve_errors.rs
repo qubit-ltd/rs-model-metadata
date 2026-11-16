@@ -115,7 +115,10 @@ mod tests {
         };
 
         assert_eq!(errors.errors().len(), 1);
-        assert_eq!(errors.errors()[0].kind(), ResolveErrorKind::InvalidValueClosure);
+        assert_eq!(
+            errors.errors()[0].kind(),
+            ResolveErrorKind::InvalidValueClosure
+        );
         assert_eq!(errors.to_string(), "1 model resolution error(s)");
         let owned = errors.into_vec();
         assert_eq!(owned.len(), 1);

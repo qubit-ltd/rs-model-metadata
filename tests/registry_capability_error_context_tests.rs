@@ -46,7 +46,8 @@ fn test_registry_capability_error_retains_typed_cause() {
         .build()
         .expect("valid context");
 
-    let error = ModelRegistry::from_context(&context).expect_err("wrong model metadata adapter must fail");
+    let error =
+        ModelRegistry::from_context(&context).expect_err("wrong model metadata adapter must fail");
 
     assert_eq!(error.kind(), ModelRegistryErrorKind::Capability);
     assert!(

@@ -54,7 +54,10 @@ pub(in crate::resolve) fn discover_nodes<'a>(
             .collect(),
         ResolveScope::ReachableFromRoots => Vec::new(),
     };
-    let mut seen: HashSet<_> = nodes.iter().map(|(metadata, _)| metadata.type_id()).collect();
+    let mut seen: HashSet<_> = nodes
+        .iter()
+        .map(|(metadata, _)| metadata.type_id())
+        .collect();
     for &root in roots {
         let root_descriptor = root.descriptor_in(context.reflection());
         if let Err(source) = root.validate_descriptor(&root_descriptor) {
@@ -140,7 +143,8 @@ pub(in crate::resolve) fn discover_nodes<'a>(
                 Ok(None) => {}
                 Err(error) => {
                     errors.push(
-                        ResolveError::resolution(metadata, None, source, error).with_declaration(*field.declaration()),
+                        ResolveError::resolution(metadata, None, source, error)
+                            .with_declaration(*field.declaration()),
                     );
                     continue;
                 }
