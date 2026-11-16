@@ -50,7 +50,11 @@ impl RedactMetadata {
     /// Metadata describing the redaction policy at the selected position.
     #[must_use]
     #[inline]
-    pub const fn new(sensitivity: Option<Sensitivity>, mode: RedactModeMetadata, position: RedactPosition) -> Self {
+    pub const fn new(
+        sensitivity: Option<Sensitivity>,
+        mode: RedactModeMetadata,
+        position: RedactPosition,
+    ) -> Self {
         Self {
             sensitivity,
             mode,

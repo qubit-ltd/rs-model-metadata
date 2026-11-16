@@ -79,7 +79,11 @@ fn test_generated_map_adapters_check_exact_type() {
     let hashed = HashMap::from([(String::from("one"), 1)]);
     let ordered = BTreeMap::from([(String::from("one"), 1), (String::from("two"), 2)]);
     for (name, value, expected) in [
-        ("hashed", PropertyValue::Borrowed(DynamicRef::<Local>::new(&hashed)), 1),
+        (
+            "hashed",
+            PropertyValue::Borrowed(DynamicRef::<Local>::new(&hashed)),
+            1,
+        ),
         (
             "ordered",
             PropertyValue::Borrowed(DynamicRef::<Local>::new(&ordered)),
@@ -92,7 +96,10 @@ fn test_generated_map_adapters_check_exact_type() {
             .collection_ops()
             .expect("collection adapter");
         let map_len = ops.map_len().expect("map length adapter");
-        assert_eq!(map_len(&value).expect("matching concrete map"), Some(expected));
+        assert_eq!(
+            map_len(&value).expect("matching concrete map"),
+            Some(expected)
+        );
         assert!(matches!(
             map_len(&PropertyValue::Borrowed(DynamicRef::<Local>::new(&42_i32))),
             Err(PropertyAccessError::ValueTypeMismatch(_))
@@ -113,10 +120,25 @@ fn test_generated_sequence_adapter_checks_exact_element_type() {
     let one = String::from("same");
     let two = String::from("same");
     let other = String::from("other");
-    assert!(item_eq(DynamicRef::<Local>::new(&one), DynamicRef::<Local>::new(&two)).expect("matching elements"));
-    assert!(!item_eq(DynamicRef::<Local>::new(&one), DynamicRef::<Local>::new(&other)).expect("different elements"));
+    assert!(
+        item_eq(
+            DynamicRef::<Local>::new(&one),
+            DynamicRef::<Local>::new(&two)
+        )
+        .expect("matching elements")
+    );
+    assert!(
+        !item_eq(
+            DynamicRef::<Local>::new(&one),
+            DynamicRef::<Local>::new(&other)
+        )
+        .expect("different elements")
+    );
     assert!(matches!(
-        item_eq(DynamicRef::<Local>::new(&one), DynamicRef::<Local>::new(&42_i32)),
+        item_eq(
+            DynamicRef::<Local>::new(&one),
+            DynamicRef::<Local>::new(&42_i32)
+        ),
         Err(PropertyAccessError::ValueTypeMismatch(_))
     ));
 }
@@ -157,13 +179,21 @@ fn test_array_slice_getter_generates_item_equality() {
     let item_eq = ops.item_eq().expect("array element equality");
     let left = String::from("same");
     let right = String::from("same");
-    assert!(item_eq(DynamicRef::<Local>::new(&left), DynamicRef::<Local>::new(&right)).expect("matching elements"));
+    assert!(
+        item_eq(
+            DynamicRef::<Local>::new(&left),
+            DynamicRef::<Local>::new(&right)
+        )
+        .expect("matching elements")
+    );
 }
 
 /// Without a slice getter, array uniqueness remains unsupported at binding.
 #[test]
 fn test_array_without_getter_is_rejected_by_capability_check() {
-    let reflection = ReflectionContext::builder().build().expect("empty reflection context");
+    let reflection = ReflectionContext::builder()
+        .build()
+        .expect("empty reflection context");
     let root = TypeMetadata::of::<ArrayWithoutGetter>();
     let roots = [root];
     let models = ModelRegistry::from_static_metadata(&reflection, &[]).expect("isolated registry");
@@ -175,5 +205,8 @@ fn test_array_without_getter_is_rejected_by_capability_check() {
     .expect("array structure");
     let errors = ValidationCapabilities::check(root, &graph).expect_err("missing slice getter");
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert_eq!(
+        errors[0].kind(),
+        ValidationBuildErrorKind::UnsupportedExecution
+    );
 }

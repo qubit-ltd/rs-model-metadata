@@ -88,6 +88,8 @@ impl LocalPropertySet {
     /// name.
     #[inline]
     pub fn property(&self, name: &str) -> Option<&'static PropertyMetadata> {
-        self.properties.iter().find(|property| property.name() == name)
+        self.properties
+            .iter()
+            .find(|property| property.name() == name)
     }
 }

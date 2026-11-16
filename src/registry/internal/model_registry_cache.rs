@@ -28,7 +28,8 @@ pub(in crate::registry) type PropertyCacheKey = (ReflectionContextId, TypeId, us
 
 /// Shares one lazy property-resolution result; the cell retains its value or
 /// original error.
-pub(in crate::registry) type PropertyCacheCell = Arc<OnceLock<Result<ResolvedProperties, PropertyResolutionError>>>;
+pub(in crate::registry) type PropertyCacheCell =
+    Arc<OnceLock<Result<ResolvedProperties, PropertyResolutionError>>>;
 
 /// Protects this registry's lazily initialized property-resolution cells.
 pub(in crate::registry) type PropertyCache = Mutex<HashMap<PropertyCacheKey, PropertyCacheCell>>;
@@ -38,7 +39,8 @@ pub(in crate::registry) type PropertyCache = Mutex<HashMap<PropertyCacheKey, Pro
 pub(in crate::registry) type MetadataCacheKey = (ReflectionContextId, TypeId, usize);
 
 /// Retains successful, missing, and failed metadata lookup results.
-pub(in crate::registry) type MetadataCacheValue = Result<Option<&'static TypeMetadata>, ModelMetadataError>;
+pub(in crate::registry) type MetadataCacheValue =
+    Result<Option<&'static TypeMetadata>, ModelMetadataError>;
 
 /// Shares one lazy metadata lookup among concurrent callers.
 pub(in crate::registry) type MetadataCacheCell = Arc<OnceLock<MetadataCacheValue>>;

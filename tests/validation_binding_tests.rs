@@ -80,7 +80,8 @@ fn prepare_text(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>
     Ok(Arc::new(AcceptText))
 }
 
-static TEXT_SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
+static TEXT_SIGNATURES: &[ValidatorSignature] =
+    &[ValidatorSignature::new(InputType::Text, &[], prepare_text)];
 static TEXT_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(TEXT_SIGNATURES);
 static TEXT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("test.text"),
@@ -107,10 +108,13 @@ fn inputs<'a>(models: &'a ModelRegistry<'a>) -> ResolveInputs<'a> {
 fn test_structure_resolution_and_binding_are_separate() {
     let owner = TypeMetadata::of::<Owner>();
     let fixture = TypeMetadata::of::<BindingFixture>();
-    let models =
-        ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(owner, source()), (fixture, source())])
-            .expect("isolated model registry");
-    let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION]).expect("isolated validator registry");
+    let models = ModelRegistry::from_static_metadata(
+        ReflectionContext::global(),
+        &[(owner, source()), (fixture, source())],
+    )
+    .expect("isolated model registry");
+    let validators = ValidatorRegistry::from_registrations([TEXT_REGISTRATION])
+        .expect("isolated validator registry");
     let graph = Arc::new(
         StructureResolver::new(inputs(&models))
             .resolve()
@@ -180,7 +184,8 @@ static PARENT_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
 /// Parent dependencies require explicit type and instance contexts.
 #[test]
 fn test_parent_dependency_uses_explicit_context() {
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("empty registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("empty registry");
     let child = TypeMetadata::of::<Child>();
     let parent = TypeMetadata::of::<Parent>();
     let roots = [child, parent];
@@ -201,7 +206,8 @@ fn test_parent_dependency_uses_explicit_context() {
         dependency,
         &child.field("value").expect("dependent field").validators()[0].dependency_bindings()[0]
     ));
-    let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("registry");
+    let validators =
+        ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("registry");
     let plan = ValidationPlan::build_with_context(
         child,
         ValidationBuildInputs {
@@ -296,7 +302,8 @@ static SAME_TYPE_REGISTRATION: ValidatorRegistration = ValidatorRegistration::ne
 /// Reversed declarations are reordered by their names before ordered execution.
 #[test]
 fn test_same_type_dependencies_follow_signature_order() {
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("empty registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("empty registry");
     let model = TypeMetadata::of::<NamedDependencies>();
     let roots = [model];
     let graph = Arc::new(
@@ -307,7 +314,8 @@ fn test_same_type_dependencies_follow_signature_order() {
         .resolve()
         .expect("dependency graph"),
     );
-    let validators = ValidatorRegistry::from_registrations([SAME_TYPE_REGISTRATION]).expect("registry");
+    let validators =
+        ValidatorRegistry::from_registrations([SAME_TYPE_REGISTRATION]).expect("registry");
     let plan = ValidationPlan::build(
         model,
         ValidationBuildInputs {
@@ -322,9 +330,12 @@ fn test_same_type_dependencies_follow_signature_order() {
         value: "input".into(),
     };
     assert!(
-        plan.validate_dynamic(DynamicRef::<Local>::new(&value), &ValidationOptions::default())
-            .unwrap()
-            .is_valid()
+        plan.validate_dynamic(
+            DynamicRef::<Local>::new(&value),
+            &ValidationOptions::default()
+        )
+        .unwrap()
+        .is_valid()
     );
 }
 
@@ -372,7 +383,8 @@ fn test_repeated_validator_ids_execute_every_occurrence() {
         &DESCRIPTOR,
         RegistrationSource::new("test", "repeat", file!(), line!()),
     );
-    let validators = ValidatorRegistry::from_registrations([registration]).expect("validator registry");
+    let validators =
+        ValidatorRegistry::from_registrations([registration]).expect("validator registry");
     let root = TypeMetadata::of::<RepeatedRules>();
     let graph = Arc::new(
         StructureResolver::for_static_roots(ModelRegistry::global(), [root])
@@ -415,7 +427,8 @@ struct WrongDependencyType {
 }
 
 fn build_dependency_fixture(root: &'static TypeMetadata) -> ValidationBuildErrors {
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("empty model registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
+        .expect("empty model registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -425,7 +438,8 @@ fn build_dependency_fixture(root: &'static TypeMetadata) -> ValidationBuildError
         .resolve()
         .expect("dependency fixture has a valid structure"),
     );
-    let validators = ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("parent rule binds");
+    let validators =
+        ValidatorRegistry::from_registrations([PARENT_REGISTRATION]).expect("parent rule binds");
     match ValidationPlan::build(
         root,
         ValidationBuildInputs {
@@ -444,12 +458,16 @@ fn test_model_binding_validates_required_dependency_declarations_and_types() {
         build_dependency_fixture(TypeMetadata::of::<MissingDependencyDeclaration>())
             .iter()
             .any(|error| error.kind()
-                == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingDependencyDeclaration))
+                == ValidationBuildErrorKind::ValidatorBinding(
+                    BindErrorKind::MissingDependencyDeclaration
+                ))
     );
     assert!(
         build_dependency_fixture(TypeMetadata::of::<WrongDependencyType>())
             .iter()
             .any(|error| error.kind()
-                == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::DependencyTypeMismatch))
+                == ValidationBuildErrorKind::ValidatorBinding(
+                    BindErrorKind::DependencyTypeMismatch
+                ))
     );
 }

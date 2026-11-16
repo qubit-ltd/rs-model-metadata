@@ -40,18 +40,46 @@ fn test_parse_validator_argument_shapes() {
     assert_eq!(
         validator.dependency_bindings,
         vec![
-            ("owner".to_owned(), vec![], vec!["owner".to_owned(), "id".to_owned()]),
+            (
+                "owner".to_owned(),
+                vec![],
+                vec!["owner".to_owned(), "id".to_owned()]
+            ),
             ("tenant".to_owned(), vec![], vec!["tenant".to_owned()])
         ]
     );
-    assert!(matches!(validator.params[0].1, StrategyArgumentIr::Bool(true)));
-    assert!(matches!(validator.params[1].1, StrategyArgumentIr::Unsigned(7)));
-    assert!(matches!(validator.params[2].1, StrategyArgumentIr::Integer(-2)));
-    assert!(matches!(validator.params[3].1, StrategyArgumentIr::String(_)));
-    assert!(matches!(validator.params[4].1, StrategyArgumentIr::BoolList(_)));
-    assert!(matches!(validator.params[5].1, StrategyArgumentIr::UnsignedList(_)));
-    assert!(matches!(validator.params[6].1, StrategyArgumentIr::IntegerList(_)));
-    assert!(matches!(validator.params[7].1, StrategyArgumentIr::StringList(_)));
+    assert!(matches!(
+        validator.params[0].1,
+        StrategyArgumentIr::Bool(true)
+    ));
+    assert!(matches!(
+        validator.params[1].1,
+        StrategyArgumentIr::Unsigned(7)
+    ));
+    assert!(matches!(
+        validator.params[2].1,
+        StrategyArgumentIr::Integer(-2)
+    ));
+    assert!(matches!(
+        validator.params[3].1,
+        StrategyArgumentIr::String(_)
+    ));
+    assert!(matches!(
+        validator.params[4].1,
+        StrategyArgumentIr::BoolList(_)
+    ));
+    assert!(matches!(
+        validator.params[5].1,
+        StrategyArgumentIr::UnsignedList(_)
+    ));
+    assert!(matches!(
+        validator.params[6].1,
+        StrategyArgumentIr::IntegerList(_)
+    ));
+    assert!(matches!(
+        validator.params[7].1,
+        StrategyArgumentIr::StringList(_)
+    ));
 }
 
 /// Preserves a named dependency slot separately from its source path.

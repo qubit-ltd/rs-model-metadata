@@ -58,7 +58,8 @@ fn test_unsafe_dynamic_read_bypasses_private_field_visibility() {
         reflected.declaring_type().type_id(),
         reflected,
     )));
-    let property = PropertyMetadata::new("secret", Some(&STRING_EXPRESSION), Some(field), None, None);
+    let property =
+        PropertyMetadata::new("secret", Some(&STRING_EXPRESSION), Some(field), None, None);
     let value = PrivatePropertyFixture {
         secret: "authorized".to_owned(),
     };
@@ -74,7 +75,10 @@ fn test_unsafe_dynamic_read_bypasses_private_field_visibility() {
     else {
         panic!("field fallback must return a borrowed value");
     };
-    assert_eq!(secret.downcast_ref::<String>().map(String::as_str), Some("authorized"));
+    assert_eq!(
+        secret.downcast_ref::<String>().map(String::as_str),
+        Some("authorized")
+    );
 }
 
 #[test]
@@ -90,7 +94,8 @@ fn test_unsafe_dynamic_write_bypasses_private_field_visibility() {
         reflected.declaring_type().type_id(),
         reflected,
     )));
-    let property = PropertyMetadata::new("secret", Some(&STRING_EXPRESSION), Some(field), None, None);
+    let property =
+        PropertyMetadata::new("secret", Some(&STRING_EXPRESSION), Some(field), None, None);
     let mut value = PrivatePropertyFixture {
         secret: "before".to_owned(),
     };
@@ -125,7 +130,13 @@ fn test_dynamic_read_propagates_getter_errors() {
         GetterOutputKind::Owned,
         fail_getter,
     )));
-    let property = PropertyMetadata::new("computed", Some(&STRING_EXPRESSION), None, Some(getter), None);
+    let property = PropertyMetadata::new(
+        "computed",
+        Some(&STRING_EXPRESSION),
+        None,
+        Some(getter),
+        None,
+    );
     let target = PrivatePropertyFixture {
         secret: "value".to_owned(),
     };
@@ -144,7 +155,9 @@ fn test_borrowed_slice_reports_empty_and_in_bounds_elements() {
     assert!(!slice.is_empty());
     assert_eq!(slice.len(), 2);
     assert_eq!(
-        slice.get(1).and_then(|value| value.downcast_ref::<u32>().copied()),
+        slice
+            .get(1)
+            .and_then(|value| value.downcast_ref::<u32>().copied()),
         Some(23)
     );
     assert!(slice.get(2).is_none());

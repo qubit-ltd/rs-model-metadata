@@ -54,7 +54,10 @@ impl PathCacheKey {
             context_id,
             type_id,
             metadata_address,
-            segments: segments.iter().map(|segment| (*segment).to_owned()).collect(),
+            segments: segments
+                .iter()
+                .map(|segment| (*segment).to_owned())
+                .collect(),
             write,
         }
     }

@@ -69,11 +69,8 @@ pub(crate) fn parse_constraint(attribute: &Attribute) -> Result<ConstraintIr> {
         return parse_time_constraint(attribute).map(ConstraintIr::Time);
     }
     if attribute.path().is_ident("sequence") {
-        return parse_sequence_constraint(attribute).map(|(min, max, unique)| ConstraintIr::Sequence {
-            min,
-            max,
-            unique,
-        });
+        return parse_sequence_constraint(attribute)
+            .map(|(min, max, unique)| ConstraintIr::Sequence { min, max, unique });
     }
     parse_map_constraint(attribute).map(|(min, max)| ConstraintIr::Map { min, max })
 }
@@ -122,7 +119,9 @@ fn parse_time_constraint(attribute: &Attribute) -> Result<String> {
 ///
 /// # Errors
 /// Returns an error for malformed, duplicate, unsupported, or missing options.
-fn parse_sequence_constraint(attribute: &Attribute) -> Result<(Option<usize>, Option<usize>, bool)> {
+fn parse_sequence_constraint(
+    attribute: &Attribute,
+) -> Result<(Option<usize>, Option<usize>, bool)> {
     let (mut min, mut max, mut unique) = (None, None, false);
     let mut any = false;
     let mut seen = HashSet::new();
@@ -148,7 +147,10 @@ fn parse_sequence_constraint(attribute: &Attribute) -> Result<(Option<usize>, Op
         }
     })?;
     if !any {
-        return Err(Error::new_spanned(attribute, "sequence requires at least one option"));
+        return Err(Error::new_spanned(
+            attribute,
+            "sequence requires at least one option",
+        ));
     }
     Ok((min, max, unique))
 }
@@ -186,7 +188,10 @@ fn parse_map_constraint(attribute: &Attribute) -> Result<(Option<usize>, Option<
         }
     })?;
     if !any {
-        return Err(Error::new_spanned(attribute, "map requires min_entries or max_entries"));
+        return Err(Error::new_spanned(
+            attribute,
+            "map requires min_entries or max_entries",
+        ));
     }
     Ok((min, max))
 }
@@ -235,7 +240,13 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
             validate_closed_value(
                 &expression,
                 &allowed_chars,
-                &["unicode", "printable_unicode", "ascii", "printable_ascii", "code"],
+                &[
+                    "unicode",
+                    "printable_unicode",
+                    "ascii",
+                    "printable_ascii",
+                    "code",
+                ],
                 "invalid allowed_chars value",
             )?;
             value.allowed_chars = Some(allowed_chars);
@@ -244,7 +255,10 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
             let expression: Expr = meta.value()?.parse()?;
             let format = parse_ident_value(expression.clone())?;
             if format == "email" {
-                return Err(Error::new_spanned(expression, "invalid text format; use email_ascii"));
+                return Err(Error::new_spanned(
+                    expression,
+                    "invalid text format; use email_ascii",
+                ));
             }
             validate_closed_value(
                 &expression,
@@ -259,7 +273,10 @@ fn parse_text_constraint(attribute: &Attribute) -> Result<TextConstraintIr> {
         }
     })?;
     if !any {
-        return Err(Error::new_spanned(attribute, "text requires at least one option"));
+        return Err(Error::new_spanned(
+            attribute,
+            "text requires at least one option",
+        ));
     }
     Ok(value)
 }
@@ -347,12 +364,18 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
         return Err(Error::new_spanned(attribute, "money requires scale"));
     }
     if precision.is_some_and(|precision| scale.is_some_and(|scale| scale > precision)) {
-        return Err(Error::new_spanned(attribute, "decimal scale cannot exceed precision"));
+        return Err(Error::new_spanned(
+            attribute,
+            "decimal scale cannot exceed precision",
+        ));
     }
     if let (Some(minimum), Some(maximum)) = (&min, &max) {
         match compare_decimal_literals(&minimum.value(), &maximum.value()) {
             Some(Ordering::Greater) => {
-                return Err(Error::new_spanned(attribute, "decimal min cannot exceed max"));
+                return Err(Error::new_spanned(
+                    attribute,
+                    "decimal min cannot exceed max",
+                ));
             }
             Some(Ordering::Equal) if !min_inclusive || !max_inclusive => {
                 return Err(Error::new_spanned(
@@ -406,7 +429,9 @@ fn parse_decimal_constraint(attribute: &Attribute, money: bool) -> Result<Decima
 /// leading integer zeroes and trailing fractional zeroes removed. Returns
 /// `None` for malformed spellings.
 fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
-    let (negative, unsigned) = value.strip_prefix('-').map_or((false, value), |value| (true, value));
+    let (negative, unsigned) = value
+        .strip_prefix('-')
+        .map_or((false, value), |value| (true, value));
     if unsigned.is_empty() || unsigned.starts_with('+') {
         return None;
     }
@@ -425,7 +450,11 @@ fn parse_decimal_literal(value: &str) -> Option<(bool, String, usize)> {
     let fraction = fraction.trim_end_matches('0');
     let digits = format!("{integer}{fraction}");
     let digits = digits.trim_start_matches('0').to_owned();
-    let normalized = if digits.is_empty() { "0".to_owned() } else { digits };
+    let normalized = if digits.is_empty() {
+        "0".to_owned()
+    } else {
+        digits
+    };
     let scale = fraction.len();
     Some((negative && normalized != "0", normalized, scale))
 }
@@ -469,10 +498,16 @@ mod tests {
     #[test]
     fn test_decimal_literal_boundaries() {
         assert_eq!(parse_decimal_literal("1."), Some((false, "1".into(), 0)));
-        assert_eq!(parse_decimal_literal("001.2300"), Some((false, "123".into(), 2)));
+        assert_eq!(
+            parse_decimal_literal("001.2300"),
+            Some((false, "123".into(), 2))
+        );
         assert_eq!(parse_decimal_literal("-0.0"), Some((false, "0".into(), 0)));
         assert_eq!(parse_decimal_literal("+1"), None);
         assert_eq!(parse_decimal_literal("1.2.3"), None);
-        assert_eq!(compare_decimal_literals("001.20", "1.2"), Some(Ordering::Equal));
+        assert_eq!(
+            compare_decimal_literals("001.20", "1.2"),
+            Some(Ordering::Equal)
+        );
     }
 }

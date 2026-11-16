@@ -54,9 +54,11 @@ fn context() -> ReflectionContext {
     ReflectionContext::builder()
         .include_type::<ContextBoundStaticFacts>()
         .include_type::<String>()
-        .register(qubit_model_metadata::__private::v8::model_metadata_registration::<
-            ContextBoundStaticFacts,
-        >())
+        .register(
+            qubit_model_metadata::__private::v8::model_metadata_registration::<
+                ContextBoundStaticFacts,
+            >(),
+        )
         .build()
         .expect("reflection context should build")
 }
@@ -82,7 +84,8 @@ fn test_registry_queries_reuse_static_metadata_without_crossing_contexts() {
     let first_descriptor = metadata.descriptor_in(&first_context);
     let second_descriptor = metadata.descriptor_in(&second_context);
     let first_registry = ModelRegistry::from_context(&first_context).expect("first model registry");
-    let second_registry = ModelRegistry::from_context(&second_context).expect("second model registry");
+    let second_registry =
+        ModelRegistry::from_context(&second_context).expect("second model registry");
 
     let first_metadata = first_registry
         .metadata_for(&first_descriptor)
@@ -97,7 +100,10 @@ fn test_registry_queries_reuse_static_metadata_without_crossing_contexts() {
     assert!(std::ptr::eq(second_metadata, metadata));
     assert!(std::ptr::eq(first_descriptor.context(), &first_context));
     assert!(std::ptr::eq(second_descriptor.context(), &second_context));
-    assert!(!std::ptr::eq(first_descriptor.context(), second_descriptor.context()));
+    assert!(!std::ptr::eq(
+        first_descriptor.context(),
+        second_descriptor.context()
+    ));
 }
 
 #[test]
@@ -125,7 +131,8 @@ fn test_opaque_field_keeps_static_facts_and_stays_hidden_from_reflect_descriptor
             .to_string(),
         "OpaqueFieldType",
     );
-    ModelRegistry::from_context(&context).expect("opaque static field facts match the skipped reflection field");
+    ModelRegistry::from_context(&context)
+        .expect("opaque static field facts match the skipped reflection field");
 }
 
 fn nested_context(include_child: bool, register_child: bool) -> ReflectionContext {
@@ -144,13 +151,16 @@ fn nested_context(include_child: bool, register_child: bool) -> ReflectionContex
     } else {
         builder
     };
-    builder.build().expect("nested reflection context should build")
+    builder
+        .build()
+        .expect("nested reflection context should build")
 }
 
 #[test]
 fn test_static_registry_does_not_infer_child_metadata_from_reflection_type() {
     let reflection = nested_context(true, false);
-    let registry = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
+    let registry =
+        ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
     let root = TypeMetadata::of::<AnonymousNestedParent>();
     let child = TypeMetadata::of::<AnonymousNestedChild>();
 
@@ -169,7 +179,8 @@ fn test_static_registry_does_not_infer_child_metadata_from_reflection_type() {
 #[test]
 fn test_static_registry_uses_registered_context_child_provider() {
     let reflection = nested_context(true, true);
-    let registry = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
+    let registry =
+        ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
     let root = TypeMetadata::of::<AnonymousNestedParent>();
     let child = TypeMetadata::of::<AnonymousNestedChild>();
 
@@ -187,7 +198,8 @@ fn test_static_registry_uses_registered_context_child_provider() {
 #[test]
 fn test_static_registry_leaves_child_absent_when_context_lacks_child_type() {
     let reflection = nested_context(false, false);
-    let registry = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
+    let registry =
+        ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
     let root = TypeMetadata::of::<AnonymousNestedParent>();
     let child = TypeMetadata::of::<AnonymousNestedChild>();
 
@@ -209,7 +221,8 @@ fn test_generated_nested_provider_discovers_concrete_generic_child() {
         .include_type::<String>()
         .build()
         .expect("generic nested reflection context should build");
-    let registry = ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
+    let registry =
+        ModelRegistry::from_static_metadata(&reflection, &[]).expect("empty static registry");
     let root = TypeMetadata::of::<GenericAnonymousNestedParent>();
     let child = TypeMetadata::of::<GenericAnonymousNestedChild<String>>();
 

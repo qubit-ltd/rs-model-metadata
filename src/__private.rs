@@ -306,7 +306,10 @@ pub mod v8 {
         identifier: &'static crate::metadata::FieldMetadata,
         identifier_accessor: crate::__private::IdentifierAccessor,
     ) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Entity(crate::metadata::EntityMetadata::new(identifier, identifier_accessor))
+        crate::metadata::RoleMetadata::Entity(crate::metadata::EntityMetadata::new(
+            identifier,
+            identifier_accessor,
+        ))
     }
 
     /// Builds projection-role metadata and its optional source target.
@@ -364,7 +367,10 @@ pub mod v8 {
         transparent_field: Option<&'static crate::metadata::FieldMetadata>,
         canonical_codec: Option<&'static crate::metadata::CodecMetadata>,
     ) -> crate::metadata::RoleMetadata {
-        crate::metadata::RoleMetadata::Value(crate::metadata::ValueMetadata::new(transparent_field, canonical_codec))
+        crate::metadata::RoleMetadata::Value(crate::metadata::ValueMetadata::new(
+            transparent_field,
+            canonical_codec,
+        ))
     }
 
     /// Builds metadata for one generated enum variant.
@@ -461,7 +467,9 @@ pub mod v8 {
     /// Role metadata containing the supplied enum variants.
     #[doc(hidden)]
     #[must_use]
-    pub const fn enum_role(variants: &'static [crate::metadata::EnumVariantMetadata]) -> crate::metadata::RoleMetadata {
+    pub const fn enum_role(
+        variants: &'static [crate::metadata::EnumVariantMetadata],
+    ) -> crate::metadata::RoleMetadata {
         crate::metadata::RoleMetadata::Enum(crate::metadata::EnumMetadata::new(variants))
     }
 
@@ -488,7 +496,13 @@ pub mod v8 {
         fields: &'static [crate::metadata::FieldMetadata],
         variants: &'static [crate::metadata::EnumVariantMetadata],
     ) -> crate::generic::GenericModelMetadata {
-        crate::generic::GenericModelMetadata::new(model_id.into(), role, definition_path, fields, variants)
+        crate::generic::GenericModelMetadata::new(
+            model_id.into(),
+            role,
+            definition_path,
+            fields,
+            variants,
+        )
     }
 
     /// Leaks a generated value for static metadata storage.

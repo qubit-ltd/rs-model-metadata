@@ -36,7 +36,13 @@ fn test_runtime_dependency_fixtures() {
 
 /// Downloads fixture dependencies before the isolated builds run offline.
 fn prefetch_runtime_fixture_dependencies(fixture_root: &Path) {
-    for fixture in ["normal", "renamed", "missing", "missing-invalid", "linked-workspace"] {
+    for fixture in [
+        "normal",
+        "renamed",
+        "missing",
+        "missing-invalid",
+        "linked-workspace",
+    ] {
         let manifest = fixture_root.join(fixture).join("Cargo.toml");
         let output = Command::new(env!("CARGO"))
             .args(["fetch", "--manifest-path"])
@@ -78,7 +84,8 @@ fn assert_missing_runtime_fixture_fails(fixture_root: &Path, target_dir: &Path) 
     let output = run_fixture(fixture_root, target_dir, "missing");
     assert!(!output.status.success(), "missing runtime fixture compiled");
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("Model derive requires the `qubit-model-metadata` dependency"),
+        String::from_utf8_lossy(&output.stderr)
+            .contains("Model derive requires the `qubit-model-metadata` dependency"),
         "unexpected missing runtime diagnostic: {}",
         String::from_utf8_lossy(&output.stderr)
     );
@@ -86,9 +93,15 @@ fn assert_missing_runtime_fixture_fails(fixture_root: &Path, target_dir: &Path) 
 
 /// Checks that a missing runtime dependency preserves independent validation
 /// diagnostics from the same model declaration.
-fn assert_missing_runtime_fixture_preserves_validation_error(fixture_root: &Path, target_dir: &Path) {
+fn assert_missing_runtime_fixture_preserves_validation_error(
+    fixture_root: &Path,
+    target_dir: &Path,
+) {
     let output = run_fixture(fixture_root, target_dir, "missing-invalid");
-    assert!(!output.status.success(), "missing-invalid runtime fixture compiled");
+    assert!(
+        !output.status.success(),
+        "missing-invalid runtime fixture compiled"
+    );
     let diagnostic = String::from_utf8_lossy(&output.stderr);
     assert!(
         diagnostic.contains("Model derive requires the `qubit-model-metadata` dependency"),
@@ -114,10 +127,22 @@ fn run_fixture(fixture_root: &Path, target_dir: &Path, name: &str) -> std::proce
 }
 
 /// Runs one collector binary from the cross-crate registration fixture.
-fn run_linked_fixture(fixture_root: &Path, target_dir: &Path, binary: &str) -> std::process::Output {
+fn run_linked_fixture(
+    fixture_root: &Path,
+    target_dir: &Path,
+    binary: &str,
+) -> std::process::Output {
     let fixture_dir = fixture_root.join("linked-workspace");
     Command::new(env!("CARGO"))
-        .args(["run", "--offline", "--quiet", "-p", "collector", "--bin", binary])
+        .args([
+            "run",
+            "--offline",
+            "--quiet",
+            "-p",
+            "collector",
+            "--bin",
+            binary,
+        ])
         .args((binary != "cross_crate").then_some("--features"))
         .args((binary == "duplicate_id").then_some("duplicate-fixture"))
         .args((binary == "missing_target").then_some("missing-fixture"))
@@ -133,7 +158,12 @@ fn run_linked_fixture(fixture_root: &Path, target_dir: &Path, binary: &str) -> s
 fn prepare_runtime_fixtures(source_root: &Path, scratch: &Path) -> PathBuf {
     let destination_root = scratch.join("runtime-fixtures");
     copy_tree(source_root, &destination_root);
-    rewrite_fixture_manifests(source_root, &destination_root, source_root, &destination_root);
+    rewrite_fixture_manifests(
+        source_root,
+        &destination_root,
+        source_root,
+        &destination_root,
+    );
     destination_root
 }
 
@@ -151,14 +181,27 @@ fn copy_tree(source: &Path, destination: &Path) {
     }
 }
 
-fn rewrite_fixture_manifests(source_dir: &Path, destination_dir: &Path, fixture_root: &Path, destination_root: &Path) {
+fn rewrite_fixture_manifests(
+    source_dir: &Path,
+    destination_dir: &Path,
+    fixture_root: &Path,
+    destination_root: &Path,
+) {
     for entry in fs::read_dir(source_dir).expect("fixture directory") {
         let entry = entry.expect("fixture entry");
         let source_path = entry.path();
         let destination_path = destination_dir.join(entry.file_name());
         if source_path.is_dir() {
-            rewrite_fixture_manifests(&source_path, &destination_path, fixture_root, destination_root);
-        } else if source_path.file_name().is_some_and(|name| name == "Cargo.toml") {
+            rewrite_fixture_manifests(
+                &source_path,
+                &destination_path,
+                fixture_root,
+                destination_root,
+            );
+        } else if source_path
+            .file_name()
+            .is_some_and(|name| name == "Cargo.toml")
+        {
             let original = fs::read_to_string(&source_path).expect("fixture manifest");
             let rewritten = original
                 .lines()
@@ -177,10 +220,19 @@ fn rewrite_fixture_manifests(source_dir: &Path, destination_dir: &Path, fixture_
                         .expect("manifest parent")
                         .join(declared)
                         .canonicalize()
-                        .unwrap_or_else(|_| source_path.parent().expect("manifest parent").join(declared));
+                        .unwrap_or_else(|_| {
+                            source_path
+                                .parent()
+                                .expect("manifest parent")
+                                .join(declared)
+                        });
                     let fixture_root = fixture_root.canonicalize().expect("fixture source root");
                     let replacement = if resolved.starts_with(&fixture_root) {
-                        destination_root.join(resolved.strip_prefix(fixture_root).expect("fixture-relative path"))
+                        destination_root.join(
+                            resolved
+                                .strip_prefix(fixture_root)
+                                .expect("fixture-relative path"),
+                        )
                     } else {
                         resolved
                     };

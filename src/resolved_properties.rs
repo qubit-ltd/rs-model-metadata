@@ -68,6 +68,8 @@ impl ResolvedProperties {
     /// view contains no property with that name.
     #[inline]
     pub fn property(&self, name: &str) -> Option<&PropertyMetadata> {
-        self.properties().iter().find(|property| property.name() == name)
+        self.properties()
+            .iter()
+            .find(|property| property.name() == name)
     }
 }

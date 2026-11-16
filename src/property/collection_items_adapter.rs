@@ -61,4 +61,7 @@ use crate::metadata::SelectorPosition;
 /// assert!(members.is_none());
 /// ```
 pub type CollectionItemsAdapter =
-    for<'a> fn(&PropertyValue<'a>, SelectorPosition) -> Result<Option<BorrowedCollection<'a>>, PropertyAccessError>;
+    for<'a> fn(
+        &PropertyValue<'a>,
+        SelectorPosition,
+    ) -> Result<Option<BorrowedCollection<'a>>, PropertyAccessError>;

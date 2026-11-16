@@ -199,7 +199,11 @@ impl SerdeFieldMetadata {
     /// This metadata with both behavior provenance values recorded.
     #[must_use]
     #[inline]
-    pub const fn with_sources(mut self, default_source: SerdeBehaviorSource, omit_source: SerdeBehaviorSource) -> Self {
+    pub const fn with_sources(
+        mut self,
+        default_source: SerdeBehaviorSource,
+        omit_source: SerdeBehaviorSource,
+    ) -> Self {
         self.default_source = default_source;
         self.omit_source = omit_source;
         self

@@ -44,12 +44,19 @@ use crate::ir::declaration::VariantIr;
 /// Tokens binding the role metadata, or a compile-time diagnostic for a role
 /// that cannot produce metadata.
 #[must_use]
-pub(super) fn expand_role(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
+pub(super) fn expand_role(
+    declaration: &DeclarationIr,
+    item: &DeriveInput,
+    runtime: &TokenStream,
+) -> TokenStream {
     match declaration.kind {
         MacroKind::Entity => {
             let Some(index) = identifier_index(&declaration.fields) else {
-                return Error::new(Span::call_site(), "Entity requires exactly one identifier field")
-                    .into_compile_error();
+                return Error::new(
+                    Span::call_site(),
+                    "Entity requires exactly one identifier field",
+                )
+                .into_compile_error();
             };
             let accessor = identifier_accessor(item, index, runtime);
             quote! {
@@ -62,8 +69,11 @@ pub(super) fn expand_role(declaration: &DeclarationIr, item: &DeriveInput, runti
         }
         MacroKind::Projection => {
             let Some(index) = identifier_index(&declaration.fields) else {
-                return Error::new(Span::call_site(), "Projection requires exactly one identifier field")
-                    .into_compile_error();
+                return Error::new(
+                    Span::call_site(),
+                    "Projection requires exactly one identifier field",
+                )
+                .into_compile_error();
             };
             let source = if let Some(source) = declaration.options.source.as_ref() {
                 quote!(Some(#runtime::__private::v8::leak(
@@ -119,9 +129,11 @@ pub(super) fn expand_role(declaration: &DeclarationIr, item: &DeriveInput, runti
             }
         }
         MacroKind::Enum => expand_enum_role(&declaration.variants, &item.ident, runtime),
-        MacroKind::ModelImpl => {
-            Error::new(Span::call_site(), "ModelImpl does not produce role metadata").into_compile_error()
-        }
+        MacroKind::ModelImpl => Error::new(
+            Span::call_site(),
+            "ModelImpl does not produce role metadata",
+        )
+        .into_compile_error(),
     }
 }
 
@@ -151,7 +163,11 @@ fn identifier_accessor(item: &DeriveInput, index: usize, runtime: &TokenStream) 
         _ => None,
     };
     let Some(member) = member else {
-        return Error::new(Span::call_site(), "identifier accessor requires a struct field").into_compile_error();
+        return Error::new(
+            Span::call_site(),
+            "identifier accessor requires a struct field",
+        )
+        .into_compile_error();
     };
     quote! {
         |value: #runtime::__private::DynamicRef<'_, #runtime::__private::Local>| {

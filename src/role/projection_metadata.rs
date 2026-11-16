@@ -145,7 +145,10 @@ impl ProjectionMetadata {
     /// Returns a type mismatch when `value` is not an instance of this
     /// projection.
     #[inline]
-    pub(crate) fn read_identifier<'a>(&self, value: DynamicRef<'a, Local>) -> Result<&'a Id, TypeMismatch> {
+    pub(crate) fn read_identifier<'a>(
+        &self,
+        value: DynamicRef<'a, Local>,
+    ) -> Result<&'a Id, TypeMismatch> {
         (self.identifier_accessor)(value)
     }
 }

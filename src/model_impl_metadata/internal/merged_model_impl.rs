@@ -47,7 +47,10 @@ impl MergedModelImpl {
         fragments: ResolvedPropertyFragments,
         properties: Result<ResolvedProperties, Arc<PropertyBuildErrors>>,
     ) -> Self {
-        Self { fragments, properties }
+        Self {
+            fragments,
+            properties,
+        }
     }
 
     /// Returns a shared view of the original fragments without copying them.

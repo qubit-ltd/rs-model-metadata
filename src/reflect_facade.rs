@@ -97,7 +97,9 @@ pub fn model_metadata_registration<T: HasTypeMetadata>() -> CapabilityRegistrati
         metadata.assert_valid_for::<T>();
         metadata
     }
-    CapabilityRegistration::for_type::<T, ModelMetadataCapability>(provide::<T> as ModelMetadataProvider)
+    CapabilityRegistration::for_type::<T, ModelMetadataCapability>(
+        provide::<T> as ModelMetadataProvider,
+    )
 }
 
 /// Creates the typed registration for generated `ModelImpl` metadata.
@@ -250,9 +252,9 @@ pub(crate) fn model_impl_metadata(
     if providers.is_empty() {
         return Ok(None);
     }
-    Ok(Some(ModelImplResolution::Merged(Arc::new(ModelImplMetadata::merge(
-        metadata, &providers, context,
-    )))))
+    Ok(Some(ModelImplResolution::Merged(Arc::new(
+        ModelImplMetadata::merge(metadata, &providers, context),
+    ))))
 }
 
 /// Appends providers targeting `metadata` while preserving fragment order.

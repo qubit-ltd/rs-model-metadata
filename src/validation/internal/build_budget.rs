@@ -53,7 +53,13 @@ impl BuildBudget {
             occurrences: 0,
             bindings: 0,
             diagnostics: 0,
-            limits: [MAX_DEPTH, MAX_WORK, MAX_OCCURRENCES, MAX_BINDINGS, MAX_DIAGNOSTICS],
+            limits: [
+                MAX_DEPTH,
+                MAX_WORK,
+                MAX_OCCURRENCES,
+                MAX_BINDINGS,
+                MAX_DIAGNOSTICS,
+            ],
         }
     }
 
@@ -144,13 +150,21 @@ impl BuildBudget {
     /// Returns the exhausted counter category and configured capacity.
     pub(crate) fn charge(&mut self, counter: Counter) -> Result<(), ValidationBuildLimit> {
         let (used, limit, kind) = match counter {
-            Counter::Work => (&mut self.work, self.limits[1], ValidationBuildLimitKind::Work),
+            Counter::Work => (
+                &mut self.work,
+                self.limits[1],
+                ValidationBuildLimitKind::Work,
+            ),
             Counter::Occurrence => (
                 &mut self.occurrences,
                 self.limits[2],
                 ValidationBuildLimitKind::Occurrences,
             ),
-            Counter::Binding => (&mut self.bindings, self.limits[3], ValidationBuildLimitKind::Bindings),
+            Counter::Binding => (
+                &mut self.bindings,
+                self.limits[3],
+                ValidationBuildLimitKind::Bindings,
+            ),
             Counter::Diagnostic => (
                 &mut self.diagnostics,
                 self.limits[4],
@@ -250,7 +264,10 @@ mod tests {
         let mut depth = BuildBudget::with_limits(0, usize::MAX, 1, 1, 1);
         assert!(depth.enter(0).is_ok());
         let detail = depth.enter(1).unwrap_err();
-        assert_eq!(detail.kind(), crate::validation::ValidationBuildLimitKind::Depth);
+        assert_eq!(
+            detail.kind(),
+            crate::validation::ValidationBuildLimitKind::Depth
+        );
         assert_eq!(detail.limit(), 0);
         assert_eq!(depth.work_used(), 1, "depth rejection does not charge work");
     }

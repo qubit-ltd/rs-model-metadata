@@ -159,7 +159,10 @@ impl SelectionMask {
     /// Panics when this mask stores field entries and `index` is out of
     /// bounds.
     #[inline]
-    pub(in crate::validation::validation_plan) fn take_field_path(&mut self, index: usize) -> Option<ValidationPath> {
+    pub(in crate::validation::validation_plan) fn take_field_path(
+        &mut self,
+        index: usize,
+    ) -> Option<ValidationPath> {
         match self {
             Self::All { .. } => None,
             Self::Fields(entries) => entries[index].field_path.take(),

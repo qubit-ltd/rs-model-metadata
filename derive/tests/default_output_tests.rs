@@ -95,7 +95,11 @@ fn test_default_outputs_protect_secrets() {
     };
     let encoded = serde_json::to_value(&value).expect("serialize");
     assert!(encoded.get("hidden").is_none());
-    for text in [format!("{value:?}"), format!("{value}"), encoded.to_string()] {
+    for text in [
+        format!("{value:?}"),
+        format!("{value}"),
+        encoded.to_string(),
+    ] {
         assert!(!text.contains("raw-secret"));
         assert!(!text.contains("hidden-secret"));
     }
@@ -104,7 +108,15 @@ fn test_default_outputs_protect_secrets() {
 #[Reflect]
 struct NoValueTraits;
 
-#[Model(eq, hash, no_redact, no_debug, no_display, no_serialize, no_deserialize)]
+#[Model(
+    eq,
+    hash,
+    no_redact,
+    no_debug,
+    no_display,
+    no_serialize,
+    no_deserialize
+)]
 struct Marker<T> {
     marker: std::marker::PhantomData<T>,
 }
@@ -156,7 +168,8 @@ fn test_redact_skip_shapes_and_disabled_restoration() {
     ] {
         assert!(!text.contains("hidden-"));
     }
-    let previous = Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
+    let previous =
+        Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
     let restored = (
         serde_json::to_string(&value),
         serde_json::to_string(&tuple),
@@ -222,7 +235,9 @@ fn test_selector_redaction_and_map_key_collisions() {
         assert!(!text.contains("raw-"), "unredacted selector: {text}");
         assert!(text.contains("visible-key"));
     }
-    value.keys.insert("another-key".into(), "another-value".into());
+    value
+        .keys
+        .insert("another-key".into(), "another-value".into());
     assert!(
         serde_json::to_string(&value).is_err(),
         "masked key collisions must not lose entries"
@@ -318,7 +333,10 @@ struct Recursive<T> {
 fn test_recursive_generic_structural_capabilities() {
     let value = Recursive {
         value: 1u32,
-        next: Some(Box::new(Recursive { value: 2, next: None })),
+        next: Some(Box::new(Recursive {
+            value: 2,
+            next: None,
+        })),
     };
     assert_eq!(value, value.clone());
 }

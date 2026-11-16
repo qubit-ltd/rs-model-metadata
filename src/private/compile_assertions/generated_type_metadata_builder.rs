@@ -56,7 +56,10 @@ impl GeneratedTypeMetadataBuilder {
     ///
     /// The builder with the supplied property metadata.
     #[inline]
-    pub const fn properties(mut self, properties: &'static [crate::metadata::PropertyMetadata]) -> Self {
+    pub const fn properties(
+        mut self,
+        properties: &'static [crate::metadata::PropertyMetadata],
+    ) -> Self {
         self.metadata = self.metadata.with_properties(properties);
         self
     }
@@ -71,7 +74,10 @@ impl GeneratedTypeMetadataBuilder {
     ///
     /// The builder with the supplied fragments.
     #[inline]
-    pub const fn property_fragments(mut self, fragments: &'static [crate::metadata::PropertyFragment]) -> Self {
+    pub const fn property_fragments(
+        mut self,
+        fragments: &'static [crate::metadata::PropertyFragment],
+    ) -> Self {
         self.metadata = self.metadata.with_property_fragments(fragments);
         self
     }
@@ -105,7 +111,10 @@ impl GeneratedTypeMetadataBuilder {
     /// The builder associated with the generic definition.
     #[inline]
     #[cfg(feature = "generic")]
-    pub const fn generic_definition(mut self, definition: &'static crate::generic::GenericModelMetadata) -> Self {
+    pub const fn generic_definition(
+        mut self,
+        definition: &'static crate::generic::GenericModelMetadata,
+    ) -> Self {
         self.metadata = self.metadata.with_generic_definition(definition);
         self
     }

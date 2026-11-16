@@ -153,7 +153,10 @@ impl PropertyMetadata {
     /// declared property type, getter output, or setter input; `None` when
     /// none of those sources provides a type expression.
     #[inline]
-    pub fn type_expression_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<TypeExpression<'ctx>> {
+    pub fn type_expression_in<'ctx>(
+        &self,
+        context: &'ctx ReflectionContext,
+    ) -> Option<TypeExpression<'ctx>> {
         if let Some(field) = self.field
             && let Some(expression) = field.type_expression_in(context)
         {
@@ -344,7 +347,10 @@ impl PropertyMetadata {
     /// Panics if metadata contains a backing field without a concrete
     /// reflection descriptor. Generated runtime metadata cannot create this
     /// state.
-    pub fn get<'a, T: ValueForRef<Local>>(&self, target: &'a T) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a, T: ValueForRef<Local>>(
+        &self,
+        target: &'a T,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
         self.get_dynamic(PropertyBorrowed::new(target))
     }
 
@@ -367,7 +373,10 @@ impl PropertyMetadata {
     ///
     /// Returns [`PropertyAccessError::NotReadable`] when neither source is
     /// available, or propagates the selected accessor's failure.
-    pub fn get_dynamic<'a>(&self, target: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get_dynamic<'a>(
+        &self,
+        target: PropertyBorrowed<'a>,
+    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
         self.get_dynamic_in(ReflectionContext::global(), target)
     }
 
@@ -572,7 +581,11 @@ impl PropertyMetadata {
     ///
     /// Returns [`PropertySetFailure`] when no writable source exists or the
     /// selected setter or field rejects the replacement.
-    pub fn set_dynamic(&self, target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
+    pub fn set_dynamic(
+        &self,
+        target: PropertyMutable<'_>,
+        value: PropertyOwned,
+    ) -> Result<(), PropertySetFailure> {
         self.set_dynamic_in(ReflectionContext::global(), target, value)
     }
 
@@ -655,7 +668,8 @@ impl PropertyMetadata {
                     value,
                 ));
             };
-            return unsafe { reflected.set_dynamic_unsafe(target, value) }.map_err(Self::map_field_set_failure);
+            return unsafe { reflected.set_dynamic_unsafe(target, value) }
+                .map_err(Self::map_field_set_failure);
         }
         Err(PropertySetFailure::before_execution(
             PropertyAccessError::NotWritable,

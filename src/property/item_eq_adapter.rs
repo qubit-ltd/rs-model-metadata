@@ -26,4 +26,5 @@ use super::PropertyBorrowed;
 ///
 /// assert!(equal(PropertyBorrowed::new(&1_u32), PropertyBorrowed::new(&1_u32)).expect("comparison"));
 /// ```
-pub type ItemEqAdapter = for<'a> fn(PropertyBorrowed<'a>, PropertyBorrowed<'a>) -> Result<bool, PropertyAccessError>;
+pub type ItemEqAdapter =
+    for<'a> fn(PropertyBorrowed<'a>, PropertyBorrowed<'a>) -> Result<bool, PropertyAccessError>;

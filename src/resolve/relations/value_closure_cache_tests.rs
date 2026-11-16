@@ -147,7 +147,11 @@ fn test_expands_a_shared_valid_closure_once_across_roots() {
 
     assert!(errors.is_empty());
     assert!(state.active_is_empty(), "each root releases active types");
-    assert_eq!(state.expansion_count(), 3, "root, branch, and leaf types only");
+    assert_eq!(
+        state.expansion_count(),
+        3,
+        "root, branch, and leaf types only"
+    );
 }
 
 #[test]
@@ -187,7 +191,10 @@ fn test_shared_closure_through_enum_and_supported_containers_is_valid() {
 
     validate_value_closure(root, &resolution, &mut state, None, &mut errors);
 
-    assert!(errors.is_empty(), "Option/Box/Vec/Map/tuple and Enum closure");
+    assert!(
+        errors.is_empty(),
+        "Option/Box/Vec/Map/tuple and Enum closure"
+    );
     assert!(state.active_is_empty());
 }
 
@@ -203,7 +210,13 @@ fn test_invalid_shared_subtrees_preserve_both_diagnostic_paths_and_declarations(
     let mut state = ValueClosureState::new();
     let mut errors = Vec::new();
 
-    validate_value_closure(root, &resolution, &mut state, Some(&TEST_SOURCE), &mut errors);
+    validate_value_closure(
+        root,
+        &resolution,
+        &mut state,
+        Some(&TEST_SOURCE),
+        &mut errors,
+    );
 
     assert_eq!(errors.len(), 2);
     assert!(
@@ -218,7 +231,11 @@ fn test_invalid_shared_subtrees_preserve_both_diagnostic_paths_and_declarations(
             .collect::<Vec<_>>(),
         ["first.model", "second.model"]
     );
-    assert!(errors.iter().all(|error| error.owner_type_id() == Some(root.type_id())));
+    assert!(
+        errors
+            .iter()
+            .all(|error| error.owner_type_id() == Some(root.type_id()))
+    );
     assert!(
         errors
             .iter()
@@ -265,7 +282,13 @@ fn diagnostic_snapshot(root: &'static TypeMetadata) -> Vec<String> {
     let resolution = ResolutionContext::new(&models, &[root]);
     let mut state = ValueClosureState::new();
     let mut errors = Vec::new();
-    validate_value_closure(root, &resolution, &mut state, Some(&TEST_SOURCE), &mut errors);
+    validate_value_closure(
+        root,
+        &resolution,
+        &mut state,
+        Some(&TEST_SOURCE),
+        &mut errors,
+    );
     errors
         .iter()
         .map(|error| {
@@ -276,7 +299,9 @@ fn diagnostic_snapshot(root: &'static TypeMetadata) -> Vec<String> {
             format!(
                 "{:?}|{}|{}|{declaration}|{:?}|{:?}|{sources}|{:?}",
                 error.kind(),
-                error.path().map_or_else(String::new, |path| path.to_string()),
+                error
+                    .path()
+                    .map_or_else(String::new, |path| path.to_string()),
                 error.owner_type_name().unwrap_or_default(),
                 error.expected_role(),
                 error.actual_role(),
@@ -365,12 +390,16 @@ fn test_fresh_resolve_uses_its_explicit_metadata_override_without_a_prior_cache_
         )
         .finish::<SharedLeaf>(),
     );
-    assert_eq!(overlay.type_id(), TypeMetadata::of::<SharedLeaf>().type_id());
+    assert_eq!(
+        overlay.type_id(),
+        TypeMetadata::of::<SharedLeaf>().type_id()
+    );
     let overlay_reflection = ReflectionContext::builder()
         .include_linked()
         .build()
         .expect("second linked reflection context");
-    let overlay_models = ModelRegistry::from_context(&overlay_reflection).expect("second model registry");
+    let overlay_models =
+        ModelRegistry::from_context(&overlay_reflection).expect("second model registry");
     let override_roots = [root, overlay];
     let errors = StructureResolver::new(ResolveInputs {
         models: &overlay_models,

@@ -41,7 +41,9 @@ fn test_capability_failure_retains_its_source() {
         .include_type::<Unmodeled>()
         .build()
         .expect("valid context");
-    let descriptor = context.type_by_id(TypeId::of::<Unmodeled>()).expect("registered type");
+    let descriptor = context
+        .type_by_id(TypeId::of::<Unmodeled>())
+        .expect("registered type");
     let cause = match descriptor.capability::<ModelMetadataCapability>() {
         Ok(_) => panic!("capability is absent"),
         Err(error) => error,
@@ -76,7 +78,10 @@ fn test_cause_free_failures_keep_their_kind_and_source_coordinates() {
     let model_id = ModelId::new("example.Conflict");
     let source = origin();
     let conflict = ModelRegistryError::conflict(Some(model_id), vec![source.clone()]);
-    assert_eq!(conflict.kind(), ModelRegistryErrorKind::RegistrationConflict);
+    assert_eq!(
+        conflict.kind(),
+        ModelRegistryErrorKind::RegistrationConflict
+    );
     assert_eq!(conflict.model_id(), Some(model_id));
     assert_eq!(conflict.sources(), std::slice::from_ref(&source));
     assert!(conflict.source().is_none());

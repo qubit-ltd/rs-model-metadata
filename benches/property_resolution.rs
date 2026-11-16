@@ -146,15 +146,22 @@ fn read_name(target: DynamicRef<'_, Local>) -> Result<PropertyValue<'_>, Propert
     let target = target
         .downcast::<ResolutionFixture>()
         .map_err(|_| PropertyAccessError::user("wrong owner"))?;
-    Ok(PropertyValue::Borrowed(DynamicRef::<Local>::new(&target.name)))
+    Ok(PropertyValue::Borrowed(DynamicRef::<Local>::new(
+        &target.name,
+    )))
 }
 
 /// Replaces the fixture's `name` field with an owned dynamic value.
-fn write_name(target: DynamicMut<'_, Local>, value: DynamicOwned<Local>) -> Result<(), PropertySetFailure> {
+fn write_name(
+    target: DynamicMut<'_, Local>,
+    value: DynamicOwned<Local>,
+) -> Result<(), PropertySetFailure> {
     let target = target
         .downcast::<ResolutionFixture>()
         .unwrap_or_else(|_| panic!("validated owner"));
-    target.name = value.downcast::<String>().unwrap_or_else(|_| panic!("validated input"));
+    target.name = value
+        .downcast::<String>()
+        .unwrap_or_else(|_| panic!("validated input"));
     Ok(())
 }
 
@@ -241,17 +248,21 @@ fn snapshot(two_providers: bool, unrelated_count: usize) -> ReflectionContext {
         .take(if two_providers { 2 } else { 1 })
         .enumerate()
         .map(|(index, provider)| {
-            ModelImplFragment::for_type::<ResolutionFixture>(provider, model_impl_source(index as u64 + 1))
+            ModelImplFragment::for_type::<ResolutionFixture>(
+                provider,
+                model_impl_source(index as u64 + 1),
+            )
         })
         .collect();
-    fragments.extend(
-        (0..unrelated_count)
-            .map(|index| ModelImplFragment::for_type::<String>(getter_provider, model_impl_source(index as u64 + 3))),
-    );
+    fragments.extend((0..unrelated_count).map(|index| {
+        ModelImplFragment::for_type::<String>(getter_provider, model_impl_source(index as u64 + 3))
+    }));
     let fragments = v8::leak_slice(fragments);
     ReflectionContext::builder()
         .include_linked()
-        .register(v8::model_impl_capability_registration::<ResolutionFixture>(fragments))
+        .register(v8::model_impl_capability_registration::<ResolutionFixture>(
+            fragments,
+        ))
         .build()
         .expect("valid explicit benchmark context")
 }
@@ -299,22 +310,57 @@ fn property_resolution(criterion: &mut Criterion) {
     else {
         panic!("expected borrowed name");
     };
-    assert_eq!(read.downcast_ref::<String>().expect("String getter"), "after");
-    let unrelated = owner.try_properties_in(&many).expect("unrelated capabilities ignored");
+    assert_eq!(
+        read.downcast_ref::<String>().expect("String getter"),
+        "after"
+    );
+    let unrelated = owner
+        .try_properties_in(&many)
+        .expect("unrelated capabilities ignored");
     assert_eq!(unrelated.properties().len(), merged.properties().len());
-    assert!(unrelated.property("name").expect("same name property").is_getter());
-    assert!(unrelated.property("name").expect("same name property").is_setter());
-    models.properties_for(owner).expect("prime model registry cache");
+    assert!(
+        unrelated
+            .property("name")
+            .expect("same name property")
+            .is_getter()
+    );
+    assert!(
+        unrelated
+            .property("name")
+            .expect("same name property")
+            .is_setter()
+    );
+    models
+        .properties_for(owner)
+        .expect("prime model registry cache");
 
     let mut group = criterion.benchmark_group("model_property_resolution");
     group.bench_function("direct_one", |bencher| {
-        bencher.iter(|| black_box(owner.try_properties_in(black_box(&one)).expect("one provider")));
+        bencher.iter(|| {
+            black_box(
+                owner
+                    .try_properties_in(black_box(&one))
+                    .expect("one provider"),
+            )
+        });
     });
     group.bench_function("direct_two", |bencher| {
-        bencher.iter(|| black_box(owner.try_properties_in(black_box(&two)).expect("two providers")));
+        bencher.iter(|| {
+            black_box(
+                owner
+                    .try_properties_in(black_box(&two))
+                    .expect("two providers"),
+            )
+        });
     });
     group.bench_function("registry_cached_two", |bencher| {
-        bencher.iter(|| black_box(models.properties_for(black_box(owner)).expect("cached two providers")));
+        bencher.iter(|| {
+            black_box(
+                models
+                    .properties_for(black_box(owner))
+                    .expect("cached two providers"),
+            )
+        });
     });
     group.bench_function("direct_many_unrelated", |bencher| {
         bencher.iter(|| {
@@ -347,9 +393,17 @@ fn property_resolution(criterion: &mut Criterion) {
     });
     paths.bench_function("hot_path_refreshed_amid_256_cold_roots", |bencher| {
         bencher.iter(|| {
-            black_box(models.compile_read_path_cached(owner, path).expect("initial hot path"));
+            black_box(
+                models
+                    .compile_read_path_cached(owner, path)
+                    .expect("initial hot path"),
+            );
             for root in first_cold_roots {
-                black_box(models.compile_read_path_cached(root, path).expect("cold root path"));
+                black_box(
+                    models
+                        .compile_read_path_cached(root, path)
+                        .expect("cold root path"),
+                );
             }
             black_box(
                 models
@@ -373,7 +427,11 @@ fn property_resolution(criterion: &mut Criterion) {
     let path_snapshot = path_snapshot();
     let path_models = ModelRegistry::from_context(&path_snapshot).expect("path model registry");
     let path_cases = [
-        (9, TypeMetadata::of::<ResolutionPathNine>(), ["f08", "leaf", "value"]),
+        (
+            9,
+            TypeMetadata::of::<ResolutionPathNine>(),
+            ["f08", "leaf", "value"],
+        ),
         (
             17,
             TypeMetadata::of::<ResolutionPathSeventeen>(),
@@ -391,23 +449,33 @@ fn property_resolution(criterion: &mut Criterion) {
         path_models
             .compile_read_path_cached(root, &segments)
             .expect("cached path compiles before measurement");
-        full_paths.bench_function(format!("uncached_last_field_{width}_fields_3_segments"), |bencher| {
-            bencher.iter(|| {
-                black_box(
-                    PropertyAccessPath::compile(black_box(&path_models), black_box(root), black_box(&segments))
+        full_paths.bench_function(
+            format!("uncached_last_field_{width}_fields_3_segments"),
+            |bencher| {
+                bencher.iter(|| {
+                    black_box(
+                        PropertyAccessPath::compile(
+                            black_box(&path_models),
+                            black_box(root),
+                            black_box(&segments),
+                        )
                         .expect("uncached full path"),
-                )
-            });
-        });
-        full_paths.bench_function(format!("cached_hit_last_field_{width}_fields_3_segments"), |bencher| {
-            bencher.iter(|| {
-                black_box(
-                    path_models
-                        .compile_read_path_cached(black_box(root), black_box(&segments))
-                        .expect("cached full path"),
-                )
-            });
-        });
+                    )
+                });
+            },
+        );
+        full_paths.bench_function(
+            format!("cached_hit_last_field_{width}_fields_3_segments"),
+            |bencher| {
+                bencher.iter(|| {
+                    black_box(
+                        path_models
+                            .compile_read_path_cached(black_box(root), black_box(&segments))
+                            .expect("cached full path"),
+                    )
+                });
+            },
+        );
     }
     full_paths.finish();
 }

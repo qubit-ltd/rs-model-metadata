@@ -61,7 +61,11 @@ use crate::compiler::type_path::is_option_path;
 ///
 /// Returns a syntax error when a property method or specialization option
 /// violates its supported contract.
-pub(crate) fn expand_model_impl(item: ItemImpl, runtime: &TokenStream, arguments: TokenStream) -> Result<TokenStream> {
+pub(crate) fn expand_model_impl(
+    item: ItemImpl,
+    runtime: &TokenStream,
+    arguments: TokenStream,
+) -> Result<TokenStream> {
     expand_inner(item, runtime, arguments, true)
 }
 
@@ -92,11 +96,10 @@ fn expand_inner(
     if item.generics.params.is_empty() && !arguments.is_empty() {
         let options = specialization::options(arguments.clone())?;
         if let Some(option) = options.first() {
-            let helper = option
-                .path()
-                .segments
-                .last()
-                .map_or_else(|| quote!(#option).to_string(), |segment| segment.ident.to_string());
+            let helper = option.path().segments.last().map_or_else(
+                || quote!(#option).to_string(),
+                |segment| segment.ident.to_string(),
+            );
             return Err(Error::new_spanned(
                 option,
                 format!("unknown reflection helper `{helper}`"),
@@ -155,10 +158,9 @@ fn expand_inner(
                 "generic ModelImpl property providers require at least one specialize(...) binding",
             ));
         }
-        if let Some(option) = options
-            .iter()
-            .find(|option| !matches!(option, syn::Meta::List(list) if list.path.is_ident("specialize")))
-        {
+        if let Some(option) = options.iter().find(
+            |option| !matches!(option, syn::Meta::List(list) if list.path.is_ident("specialize")),
+        ) {
             return Err(Error::new_spanned(
                 option,
                 "only specialize(...) is supported for generic ModelImpl property providers",
@@ -195,7 +197,8 @@ fn expand_inner(
         .map(|(index, setter)| expand_setter_adapter(index, setter, &target, runtime))
         .collect();
     let duplicate_assertions = expand_duplicate_property_assertions(&getters, &setters);
-    let compatibility_assertions = expand_property_compatibility_assertions(&getters, &setters, runtime);
+    let compatibility_assertions =
+        expand_property_compatibility_assertions(&getters, &setters, runtime);
     let getter_metadata: Vec<_> = getters
         .iter()
         .enumerate()
@@ -203,10 +206,17 @@ fn expand_inner(
             let presence = getter.presence.attribute();
             let property = &getter.property;
             let method = getter.method.to_string();
-            let adapter = format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}");
+            let adapter =
+                format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}");
             let (output_ty, kind) = match &getter.output {
-                GetterReturn::Owned(ty) => (ty.clone(), quote!(#runtime::metadata::GetterOutputKind::Owned)),
-                GetterReturn::Borrowed(ty) => (ty.clone(), quote!(#runtime::metadata::GetterOutputKind::Borrowed)),
+                GetterReturn::Owned(ty) => (
+                    ty.clone(),
+                    quote!(#runtime::metadata::GetterOutputKind::Owned),
+                ),
+                GetterReturn::Borrowed(ty) => (
+                    ty.clone(),
+                    quote!(#runtime::metadata::GetterOutputKind::Borrowed),
+                ),
                 GetterReturn::BorrowedStr => (
                     parse_quote!(str),
                     quote!(#runtime::metadata::GetterOutputKind::Borrowed),
@@ -473,7 +483,10 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
             return Ok(None);
         }
         if !matches!(method.vis, Visibility::Public(_)) {
-            return Err(Error::new_spanned(&method.sig.ident, "property setters must be public"));
+            return Err(Error::new_spanned(
+                &method.sig.ident,
+                "property setters must be public",
+            ));
         }
         if method.sig.asyncness.is_some() || matches!(method.sig.safety, syn::Safety::Unsafe(_)) {
             return Err(Error::new_spanned(
@@ -549,7 +562,8 @@ fn parse_property_method(method: &ImplItemFn) -> Result<Option<PropertyMethod>> 
         }
         Type::Path(path) => {
             if let Some(reference) = option_borrowed_type(path) {
-                if matches!(reference.elem.as_ref(), Type::Path(path) if path.path.is_ident("str")) {
+                if matches!(reference.elem.as_ref(), Type::Path(path) if path.path.is_ident("str"))
+                {
                     GetterReturn::OptionalBorrowedStr
                 } else {
                     GetterReturn::OptionalBorrowed((*reference.elem).clone())
@@ -630,7 +644,10 @@ fn returns_unit(output: &ReturnType) -> bool {
 /// Compile-error tokens for duplicate getters or setters whose presence
 /// conditions overlap.
 #[must_use]
-fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterIr]) -> Vec<TokenStream> {
+fn expand_duplicate_property_assertions(
+    getters: &[GetterIr],
+    setters: &[SetterIr],
+) -> Vec<TokenStream> {
     let mut assertions = Vec::new();
     for (index, getter) in getters.iter().enumerate() {
         for other in getters[..index]
@@ -639,7 +656,8 @@ fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterI
         {
             let presence = getter.presence.intersection(&other.presence).attribute();
             let message = format!("duplicate property getter `{}`", getter.property);
-            assertions.push(quote_spanned!(getter.method.span()=> #presence compile_error!(#message);));
+            assertions
+                .push(quote_spanned!(getter.method.span()=> #presence compile_error!(#message);));
         }
     }
     for (index, setter) in setters.iter().enumerate() {
@@ -649,7 +667,8 @@ fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterI
         {
             let presence = setter.presence.intersection(&other.presence).attribute();
             let message = format!("duplicate property setter `{}`", setter.property);
-            assertions.push(quote_spanned!(setter.method.span()=> #presence compile_error!(#message);));
+            assertions
+                .push(quote_spanned!(setter.method.span()=> #presence compile_error!(#message);));
         }
     }
     assertions
@@ -672,7 +691,12 @@ fn expand_duplicate_property_assertions(getters: &[GetterIr], setters: &[SetterI
 /// A token stream defining an adapter that invokes the getter and wraps its
 /// value for runtime reflection.
 #[must_use]
-fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
+fn expand_getter_adapter(
+    index: usize,
+    getter: &GetterIr,
+    target: &Type,
+    runtime: &TokenStream,
+) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
     let adapter = format_ident!("__qubit_model_property_getter_{index}_{target_suffix:016x}",);
     let method = &getter.method;
@@ -724,7 +748,12 @@ fn expand_getter_adapter(index: usize, getter: &GetterIr, target: &Type, runtime
 /// A token stream defining an adapter that checks the target and input value
 /// before invoking the setter.
 #[must_use]
-fn expand_setter_adapter(index: usize, setter: &SetterIr, target: &Type, runtime: &TokenStream) -> TokenStream {
+fn expand_setter_adapter(
+    index: usize,
+    setter: &SetterIr,
+    target: &Type,
+    runtime: &TokenStream,
+) -> TokenStream {
     let target_suffix = stable_fingerprint(&quote!(#target).to_string());
     let adapter = format_ident!("__qubit_model_property_setter_{index}_{target_suffix:016x}",);
     let method = &setter.method;

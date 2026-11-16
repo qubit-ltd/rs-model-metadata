@@ -41,7 +41,15 @@ fn test_owned_id_conversions_reject_invalid_dynamic_input() {
         ("directory.1Account", ModelIdError::InvalidSegment),
         ("directory.账户", ModelIdError::InvalidSegment),
     ] {
-        assert_eq!(ModelIdBuf::try_from(input), Err(expected), "borrowed: {input}");
-        assert_eq!(ModelIdBuf::try_from(input.to_owned()), Err(expected), "owned: {input}");
+        assert_eq!(
+            ModelIdBuf::try_from(input),
+            Err(expected),
+            "borrowed: {input}"
+        );
+        assert_eq!(
+            ModelIdBuf::try_from(input.to_owned()),
+            Err(expected),
+            "owned: {input}"
+        );
     }
 }

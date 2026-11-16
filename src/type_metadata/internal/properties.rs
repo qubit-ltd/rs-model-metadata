@@ -39,7 +39,11 @@ fn property_type_descriptor<'ctx>(
 ) -> Option<TypeDescriptor<'ctx>> {
     property
         .field()
-        .or_else(|| fields.iter().find(|field| field.name() == Some(property.name())))?
+        .or_else(|| {
+            fields
+                .iter()
+                .find(|field| field.name() == Some(property.name()))
+        })?
         .reflect_in(context)?
         .find_concrete_type()
 }
@@ -142,7 +146,8 @@ fn text_accessor_type_compatible(
     if accessor_type_id == property_type.type_id() {
         return true;
     }
-    if property_type.type_id() == TypeId::of::<String>() && accessor_type_id == TypeId::of::<str>() {
+    if property_type.type_id() == TypeId::of::<String>() && accessor_type_id == TypeId::of::<str>()
+    {
         return true;
     }
     context
@@ -199,7 +204,8 @@ pub(in crate::type_metadata) fn validate_properties(
                 property.name(),
             ));
         }
-        if property.field().is_none() && property.getter().is_none() && property.setter().is_none() {
+        if property.field().is_none() && property.getter().is_none() && property.setter().is_none()
+        {
             errors.push(PropertyBuildError::new(
                 PropertyBuildErrorKind::MissingSource,
                 property.name(),
@@ -210,16 +216,20 @@ pub(in crate::type_metadata) fn validate_properties(
             let is_owned_field = contains_field(fields, field);
             if !is_owned_field
                 || (!field.is_opaque()
-                    && reflected
-                        .as_ref()
-                        .is_some_and(|reflected| reflected.declaring_type().type_id() != descriptor.type_id()))
+                    && reflected.as_ref().is_some_and(|reflected| {
+                        reflected.declaring_type().type_id() != descriptor.type_id()
+                    }))
             {
                 errors.push(PropertyBuildError::new(
                     PropertyBuildErrorKind::ForeignField,
                     property.name(),
                 ));
             }
-            if is_owned_field && !field.is_opaque() && property.getter().is_none() && property.setter().is_none() {
+            if is_owned_field
+                && !field.is_opaque()
+                && property.getter().is_none()
+                && property.setter().is_none()
+            {
                 let expression_mismatch = property
                     .declared_type_expression_in(descriptor.context())
                     .zip(
@@ -264,14 +274,16 @@ pub(in crate::type_metadata) fn validate_properties(
                         setter.input_type_in(descriptor.context()),
                         descriptor.context(),
                     ))
-                || property_type_descriptor(property, fields, descriptor.context()).is_some_and(|value| {
-                    !accessor_types_compatible(
-                        Some(value),
-                        value.type_id(),
-                        setter.input_type_id(),
-                        descriptor.context(),
-                    )
-                })
+                || property_type_descriptor(property, fields, descriptor.context()).is_some_and(
+                    |value| {
+                        !accessor_types_compatible(
+                            Some(value),
+                            value.type_id(),
+                            setter.input_type_id(),
+                            descriptor.context(),
+                        )
+                    },
+                )
                 || property.getter().is_some_and(|getter| {
                     !accessor_types_compatible(
                         property_type_descriptor(property, fields, descriptor.context()),
@@ -339,7 +351,9 @@ mod tests {
             never_get,
         ));
         let property = v8::property_metadata("text", None, None, Some(getter), None);
-        let descriptor = context.type_by_id(TypeId::of::<String>()).expect("String descriptor");
+        let descriptor = context
+            .type_by_id(TypeId::of::<String>())
+            .expect("String descriptor");
 
         assert_eq!(descriptor.type_id(), TypeId::of::<String>());
         assert!(property_type_descriptor(&property, &[], &context).is_none());
@@ -348,7 +362,11 @@ mod tests {
             getter.output_type_in(&context),
             &context,
         ));
-        assert!(text_accessor_type_compatible(descriptor, TypeId::of::<str>(), &context));
+        assert!(text_accessor_type_compatible(
+            descriptor,
+            TypeId::of::<str>(),
+            &context
+        ));
         assert!(getter_type_compatible(Some(descriptor), getter, &context));
         assert!(accessor_types_compatible(
             Some(descriptor),

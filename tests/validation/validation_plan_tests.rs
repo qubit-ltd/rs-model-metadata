@@ -80,7 +80,10 @@ fn test_plan_retains_graph_after_caller_drops_arc() {
         .expect("typed validation with explicit ancestor context succeeds");
     assert!(contextual.is_valid());
     let dynamic = plan
-        .validate_dynamic(PropertyBorrowed::new(&profile), &ValidationOptions::default())
+        .validate_dynamic(
+            PropertyBorrowed::new(&profile),
+            &ValidationOptions::default(),
+        )
         .expect("dynamic validation succeeds");
     assert!(dynamic.is_valid());
 }
@@ -107,8 +110,12 @@ fn test_plan_keeps_occurrences_for_shared_nested_model_paths() {
     assert_eq!(plan.binding_count(), 2);
 
     let value = SharedValidatedRoot {
-        left: SharedValidatedLeaf { value: String::new() },
-        right: SharedValidatedLeaf { value: String::new() },
+        left: SharedValidatedLeaf {
+            value: String::new(),
+        },
+        right: SharedValidatedLeaf {
+            value: String::new(),
+        },
     };
     let report = plan
         .validate(&value, &ValidationOptions::default())
@@ -124,7 +131,9 @@ fn test_plan_keeps_occurrences_for_shared_nested_model_paths() {
         left: SharedValidatedLeaf {
             value: "valid".to_owned(),
         },
-        right: SharedValidatedLeaf { value: String::new() },
+        right: SharedValidatedLeaf {
+            value: String::new(),
+        },
     };
     let report = plan
         .validate(&value, &ValidationOptions::default())
@@ -148,9 +157,12 @@ fn test_shared_graph_matches_root_only_plan_and_validation() {
             .expect("root graph resolves"),
     );
     let shared_graph = Arc::new(
-        StructureResolver::for_static_roots(models, [root, TypeMetadata::of::<UnrelatedValidatedModel>()])
-            .resolve()
-            .expect("shared graph resolves"),
+        StructureResolver::for_static_roots(
+            models,
+            [root, TypeMetadata::of::<UnrelatedValidatedModel>()],
+        )
+        .resolve()
+        .expect("shared graph resolves"),
     );
     let validators = ValidatorRegistry::empty();
     let root_plan = ValidationPlan::build(
@@ -173,8 +185,12 @@ fn test_shared_graph_matches_root_only_plan_and_validation() {
     assert_eq!(root_plan.binding_count(), 2);
     assert_eq!(shared_plan.binding_count(), root_plan.binding_count());
     let value = SharedValidatedRoot {
-        left: SharedValidatedLeaf { value: String::new() },
-        right: SharedValidatedLeaf { value: String::new() },
+        left: SharedValidatedLeaf {
+            value: String::new(),
+        },
+        right: SharedValidatedLeaf {
+            value: String::new(),
+        },
     };
     let root_report = root_plan
         .validate(&value, &ValidationOptions::default())

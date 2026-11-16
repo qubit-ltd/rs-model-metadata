@@ -40,7 +40,9 @@ use crate::ir::declaration::DeclarationOptions;
 ///
 /// Returns combined diagnostics for duplicate, unsupported, or malformed
 /// options.
-pub(crate) fn parse_declaration_options(options: Punctuated<Meta, Token![,]>) -> Result<DeclarationOptions> {
+pub(crate) fn parse_declaration_options(
+    options: Punctuated<Meta, Token![,]>,
+) -> Result<DeclarationOptions> {
     let mut result = DeclarationOptions {
         behavior: Default::default(),
         id: None,
@@ -86,9 +88,13 @@ pub(crate) fn parse_declaration_options(options: Punctuated<Meta, Token![,]>) ->
                     Err(error) => diagnostics.push(error),
                 }
             }
-            Meta::Path(path) if path.is_ident("open") => {
-                set_marker_option(&mut markers, &mut diagnostics, "open", &mut result.open, path.span())
-            }
+            Meta::Path(path) if path.is_ident("open") => set_marker_option(
+                &mut markers,
+                &mut diagnostics,
+                "open",
+                &mut result.open,
+                path.span(),
+            ),
             Meta::Path(path) if path.is_ident("transparent") => set_marker_option(
                 &mut markers,
                 &mut diagnostics,
@@ -99,7 +105,10 @@ pub(crate) fn parse_declaration_options(options: Punctuated<Meta, Token![,]>) ->
             Meta::Path(path) if is_behavior_option(&path) => {
                 let name = path.get_ident().expect("behavior option identifier");
                 if !result.behavior.insert(name.to_string()) {
-                    diagnostics.push(Error::new_spanned(&path, "duplicate model capability option"));
+                    diagnostics.push(Error::new_spanned(
+                        &path,
+                        "duplicate model capability option",
+                    ));
                 }
             }
             other => {

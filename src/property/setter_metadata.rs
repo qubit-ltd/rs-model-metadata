@@ -68,18 +68,22 @@ fn validate_setter_types(
 ) -> Result<(), PropertyAccessError> {
     let actual_target = target.type_id();
     if actual_target != expected_target {
-        return Err(PropertyAccessError::TargetTypeMismatch(PropertyTypeMismatch {
-            expected: expected_target,
-            actual: actual_target,
-        }));
+        return Err(PropertyAccessError::TargetTypeMismatch(
+            PropertyTypeMismatch {
+                expected: expected_target,
+                actual: actual_target,
+            },
+        ));
     }
 
     let actual_value = value.type_id();
     if actual_value != expected_value {
-        return Err(PropertyAccessError::ValueTypeMismatch(PropertyTypeMismatch {
-            expected: expected_value,
-            actual: actual_value,
-        }));
+        return Err(PropertyAccessError::ValueTypeMismatch(
+            PropertyTypeMismatch {
+                expected: expected_value,
+                actual: actual_value,
+            },
+        ));
     }
 
     Ok(())
@@ -275,8 +279,17 @@ impl SetterMetadata {
     /// Returns [`PropertySetFailure`] with `value` retained when target or
     /// input validation fails before adapter execution. Adapter failures carry
     /// the recovery state produced by the setter.
-    pub fn set_dynamic(&self, target: PropertyMutable<'_>, value: PropertyOwned) -> Result<(), PropertySetFailure> {
-        if let Err(error) = validate_setter_types(&target, &value, (self.target_type_id)(), (self.input_type_id)()) {
+    pub fn set_dynamic(
+        &self,
+        target: PropertyMutable<'_>,
+        value: PropertyOwned,
+    ) -> Result<(), PropertySetFailure> {
+        if let Err(error) = validate_setter_types(
+            &target,
+            &value,
+            (self.target_type_id)(),
+            (self.input_type_id)(),
+        ) {
             return Err(PropertySetFailure::before_execution(error, value));
         }
         (self.adapter)(target, value)

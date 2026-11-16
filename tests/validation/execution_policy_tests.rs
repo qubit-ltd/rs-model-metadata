@@ -109,15 +109,25 @@ fn assert_stopped(options: ValidationOptions, expected: usize) {
         },
     )
     .unwrap()
-    .with_model_rules([
-        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.many"), Arc::new(Many))
-            .expect("prepared model shape"),
-    ])
+    .with_model_rules([ModelRuleBinding::from_prepared::<Root>(
+        ValidatorId::new("execution.many"),
+        Arc::new(Many),
+    )
+    .expect("prepared model shape")])
     .expect("model rules match plan root");
     let report = plan
-        .validate_dynamic(DynamicRef::<Local>::new_any(&Root { value: String::new() }), &options)
+        .validate_dynamic(
+            DynamicRef::<Local>::new_any(&Root {
+                value: String::new(),
+            }),
+            &options,
+        )
         .unwrap();
-    assert_eq!(report.violations().len(), expected, "report must obey the hard limit");
+    assert_eq!(
+        report.violations().len(),
+        expected,
+        "report must obey the hard limit"
+    );
     assert_eq!(
         GETTER_CALLS.with(Cell::get),
         0,
@@ -128,7 +138,12 @@ fn assert_stopped(options: ValidationOptions, expected: usize) {
 
 #[test]
 fn test_fail_fast_retains_only_one_violation_and_stops_before_fields() {
-    assert_stopped(ValidationOptions::builder().mode(ValidationMode::FailFast).build(), 1);
+    assert_stopped(
+        ValidationOptions::builder()
+            .mode(ValidationMode::FailFast)
+            .build(),
+        1,
+    );
 }
 
 #[test]
@@ -169,10 +184,11 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
         },
     )
     .unwrap()
-    .with_model_rules([
-        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.many"), Arc::new(Many))
-            .expect("prepared model shape"),
-    ])
+    .with_model_rules([ModelRuleBinding::from_prepared::<Root>(
+        ValidatorId::new("execution.many"),
+        Arc::new(Many),
+    )
+    .expect("prepared model shape")])
     .expect("model rules match plan root");
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![FieldPath::from_segments(
@@ -181,7 +197,12 @@ fn test_exact_limit_on_last_selected_occurrence_is_not_truncated() {
         .max_violations(NonZeroUsize::new(3).unwrap())
         .build();
     let report = plan
-        .validate_dynamic(DynamicRef::<Local>::new_any(&Root { value: "valid".into() }), &options)
+        .validate_dynamic(
+            DynamicRef::<Local>::new_any(&Root {
+                value: "valid".into(),
+            }),
+            &options,
+        )
         .unwrap();
 
     assert_eq!(report.failure_count(), 3);
@@ -235,7 +256,10 @@ fn test_model_empty_invalid_outcome_is_an_execution_error() {
             &ValidationOptions::default(),
         )
         .unwrap_err();
-    assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
+    assert_eq!(
+        error.error().kind(),
+        ExecutionErrorKind::AdapterContractViolation
+    );
 }
 
 #[test]
@@ -260,7 +284,12 @@ fn test_property_reads_and_rule_invocations_each_consume_a_node() {
         .max_nodes(NonZeroUsize::new(2).unwrap())
         .build();
     let error = plan
-        .validate_dynamic(DynamicRef::<Local>::new(&Root { value: String::new() }), &options)
+        .validate_dynamic(
+            DynamicRef::<Local>::new(&Root {
+                value: String::new(),
+            }),
+            &options,
+        )
         .unwrap_err();
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert!(error.partial_report().violations().is_empty());
@@ -285,9 +314,9 @@ impl PreparedValidator for CountedInvalid {
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
         RULE_CALLS.with(|calls| calls.set(calls.get() + 1));
-        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
-            "bad",
-        ))]))
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(
+            ViolationCode::new("bad"),
+        )]))
     }
 }
 
@@ -311,22 +340,36 @@ fn test_fail_fast_stops_before_the_next_model_rule() {
     )
     .unwrap()
     .with_model_rules([
-        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.first"), Arc::new(CountedInvalid))
-            .expect("first rule shape"),
-        ModelRuleBinding::from_prepared::<Root>(ValidatorId::new("execution.second"), Arc::new(CountedInvalid))
-            .expect("second rule shape"),
+        ModelRuleBinding::from_prepared::<Root>(
+            ValidatorId::new("execution.first"),
+            Arc::new(CountedInvalid),
+        )
+        .expect("first rule shape"),
+        ModelRuleBinding::from_prepared::<Root>(
+            ValidatorId::new("execution.second"),
+            Arc::new(CountedInvalid),
+        )
+        .expect("second rule shape"),
     ])
     .expect("model rules match plan root");
 
     let report = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new_any(&Root { value: String::new() }),
-            &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
+            DynamicRef::<Local>::new_any(&Root {
+                value: String::new(),
+            }),
+            &ValidationOptions::builder()
+                .mode(ValidationMode::FailFast)
+                .build(),
         )
         .expect("fail-fast returns the partial report");
     assert_eq!(report.violations().len(), 1);
     assert!(report.is_truncated());
-    assert_eq!(RULE_CALLS.with(Cell::get), 1, "second model rule must not run");
+    assert_eq!(
+        RULE_CALLS.with(Cell::get),
+        1,
+        "second model rule must not run"
+    );
     assert_eq!(GETTER_CALLS.with(Cell::get), 0, "field getter must not run");
 }
 
@@ -425,7 +468,11 @@ fn test_fields_and_selectors_prefix_relative_violation_paths() {
         values: vec!["invalid".into()],
     };
     for (root, value, occurrence_path) in [
-        (TypeMetadata::of::<Fields>(), DynamicRef::<Local>::new(&fields), "first"),
+        (
+            TypeMetadata::of::<Fields>(),
+            DynamicRef::<Local>::new(&fields),
+            "first",
+        ),
         (
             TypeMetadata::of::<Elements>(),
             DynamicRef::<Local>::new(&elements),
@@ -436,17 +483,20 @@ fn test_fields_and_selectors_prefix_relative_violation_paths() {
         assert_eq!(report.violations().len(), 3);
         assert!(report.skipped().is_empty());
         assert!(
-            report
-                .violations()
-                .iter()
-                .all(|violation| { violation.path().render() == format!("{occurrence_path}.nested") })
+            report.violations().iter().all(|violation| {
+                violation.path().render() == format!("{occurrence_path}.nested")
+            })
         );
     }
 }
 fn prepare_outcome(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(OutcomeRule))
 }
-static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_outcome)];
+static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(
+    InputType::Text,
+    &[],
+    prepare_outcome,
+)];
 static DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("execution.rule"),
@@ -500,8 +550,14 @@ fn test_fields_and_selectors_stop_globally_after_invalid_outcomes() {
         values: vec!["invalid".into(), "invalid".into()],
     };
     for (root, value) in [
-        (TypeMetadata::of::<Fields>(), DynamicRef::<Local>::new(&fields)),
-        (TypeMetadata::of::<Elements>(), DynamicRef::<Local>::new(&elements)),
+        (
+            TypeMetadata::of::<Fields>(),
+            DynamicRef::<Local>::new(&fields),
+        ),
+        (
+            TypeMetadata::of::<Elements>(),
+            DynamicRef::<Local>::new(&elements),
+        ),
     ] {
         let expected_path = if root.type_id() == TypeId::of::<Fields>() {
             "first.nested"
@@ -523,7 +579,9 @@ fn test_fields_and_selectors_stop_globally_after_invalid_outcomes() {
         let report = run(
             root,
             value,
-            &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
+            &ValidationOptions::builder()
+                .mode(ValidationMode::FailFast)
+                .build(),
         )
         .unwrap();
         assert_eq!(report.violations().len(), 1);
@@ -544,17 +602,32 @@ fn test_fields_and_selectors_reject_empty_invalid_outcomes() {
         values: vec!["empty-invalid".into()],
     };
     for (root, value) in [
-        (TypeMetadata::of::<Fields>(), DynamicRef::<Local>::new(&fields)),
-        (TypeMetadata::of::<Elements>(), DynamicRef::<Local>::new(&elements)),
+        (
+            TypeMetadata::of::<Fields>(),
+            DynamicRef::<Local>::new(&fields),
+        ),
+        (
+            TypeMetadata::of::<Elements>(),
+            DynamicRef::<Local>::new(&elements),
+        ),
     ] {
         let error = run(root, value, &ValidationOptions::default()).unwrap_err();
-        assert_eq!(error.error().kind(), ExecutionErrorKind::AdapterContractViolation);
+        assert_eq!(
+            error.error().kind(),
+            ExecutionErrorKind::AdapterContractViolation
+        );
         assert!(error.partial_report().violations().is_empty());
         assert_eq!(error.root_type_id(), Some(root.type_id()));
         assert_eq!(error.owner_type_id(), Some(root.type_id()));
         assert_eq!(error.field_location().unwrap().index(), 0);
         assert_eq!(error.declared_rule_id(), Some("execution.rule"));
-        assert!(error.source().unwrap().downcast_ref::<ExecutionError>().is_some());
+        assert!(
+            error
+                .source()
+                .unwrap()
+                .downcast_ref::<ExecutionError>()
+                .is_some()
+        );
     }
 }
 
@@ -596,7 +669,9 @@ fn test_missing_optional_does_not_trigger_fail_fast_before_invalid_field() {
     let report = run(
         TypeMetadata::of::<OptionalFields>(),
         DynamicRef::<Local>::new(&fields),
-        &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
+        &ValidationOptions::builder()
+            .mode(ValidationMode::FailFast)
+            .build(),
     )
     .unwrap();
     assert_eq!(RULE_CALLS.with(Cell::get), 1);
@@ -626,7 +701,10 @@ fn test_execution_error_retains_partial_report_occurrence_without_source() {
     assert_eq!(error.partial_report().violations().len(), 3);
     assert!(error.partial_report().is_truncated());
     assert_eq!(error.occurrence(), Some(1));
-    assert_eq!(error.field_location().unwrap().owner(), TypeId::of::<Fields>());
+    assert_eq!(
+        error.field_location().unwrap().owner(),
+        TypeId::of::<Fields>()
+    );
     assert_eq!(error.field_location().unwrap().index(), 1);
     assert!(error.declaration().unwrap().line.is_some());
     assert_eq!(error.owner_type_id(), Some(TypeId::of::<Fields>()));
@@ -662,13 +740,18 @@ fn test_model_validation_error_without_field_context_exposes_empty_accessors() {
     assert!(error.dependency_object_path().is_none());
     assert!(error.dependency_property_path().is_none());
     let (execution_error, report) = error.into_parts();
-    assert_eq!(execution_error.kind(), ExecutionErrorKind::InputTypeMismatch);
+    assert_eq!(
+        execution_error.kind(),
+        ExecutionErrorKind::InputTypeMismatch
+    );
     assert!(report.violations().is_empty());
 }
 
 #[test]
 fn test_owned_getter_value_is_executed_without_borrowing() {
-    let value = OwnedField { value: "valid".into() };
+    let value = OwnedField {
+        value: "valid".into(),
+    };
     assert!(TypeMetadata::try_of::<OwnedField>().is_ok());
     let report = run(
         TypeMetadata::of::<OwnedField>(),
@@ -730,7 +813,12 @@ fn test_node_budget_boundary_preserves_completed_field_results() {
     let options = ValidationOptions::builder()
         .max_nodes(NonZeroUsize::new(4).unwrap())
         .build();
-    let error = run(TypeMetadata::of::<Fields>(), DynamicRef::<Local>::new(&value), &options).unwrap_err();
+    let error = run(
+        TypeMetadata::of::<Fields>(),
+        DynamicRef::<Local>::new(&value),
+        &options,
+    )
+    .unwrap_err();
     assert_eq!(error.partial_report().violations().len(), 3);
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert_eq!(RULE_CALLS.with(Cell::get), 1);
@@ -739,10 +827,14 @@ fn test_node_budget_boundary_preserves_completed_field_results() {
         .max_nodes(NonZeroUsize::new(5).unwrap())
         .build();
     assert_eq!(
-        run(TypeMetadata::of::<Fields>(), DynamicRef::<Local>::new(&value), &options)
-            .unwrap()
-            .violations()
-            .len(),
+        run(
+            TypeMetadata::of::<Fields>(),
+            DynamicRef::<Local>::new(&value),
+            &options
+        )
+        .unwrap()
+        .violations()
+        .len(),
         6
     );
 }
@@ -778,7 +870,9 @@ fn test_missing_optional_occurrences_are_unique_without_triggering_fail_fast() {
             second: None,
             third: None,
         }),
-        &ValidationOptions::builder().mode(ValidationMode::FailFast).build(),
+        &ValidationOptions::builder()
+            .mode(ValidationMode::FailFast)
+            .build(),
     )
     .expect("absent optional fields should be skipped");
     assert!(report.is_valid());
@@ -901,7 +995,9 @@ impl PreparedValidator for DependencyErrorRule {
             .with_path(context.dependency_path(0)?.clone()))
     }
 }
-fn prepare_dependency_error(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
+fn prepare_dependency_error(
+    _: &mut ArgumentReader<'_>,
+) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(DependencyErrorRule))
 }
 static DEPENDENCY_ERROR_SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(
@@ -909,7 +1005,8 @@ static DEPENDENCY_ERROR_SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature
     &[DependencySpec::new("expected", InputType::Text, false)],
     prepare_dependency_error,
 )];
-static DEPENDENCY_ERROR_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(DEPENDENCY_ERROR_SIGNATURES);
+static DEPENDENCY_ERROR_DESCRIPTOR: ValidatorDescriptor =
+    ValidatorDescriptor::new(DEPENDENCY_ERROR_SIGNATURES);
 static DEPENDENCY_ERROR_REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("execution.dependency_error"),
     &DEPENDENCY_ERROR_DESCRIPTOR,
@@ -934,7 +1031,8 @@ fn test_dependency_error_path_preserves_external_dependency_coordinates() {
         .resolve()
         .unwrap(),
     );
-    let validators = ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
+    let validators =
+        ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
     let plan = ValidationPlan::build_with_context(
         root,
         ValidationBuildInputs {
@@ -947,7 +1045,9 @@ fn test_dependency_error_path_preserves_external_dependency_coordinates() {
     DEPENDENCY_ERROR_CALLS.with(|calls| calls.set(0));
     let error = plan
         .validate_with_context(
-            &DependencyErrorTarget { value: "child".into() },
+            &DependencyErrorTarget {
+                value: "child".into(),
+            },
             &[DynamicRef::<Local>::new(&Parent {
                 nickname: "parent".into(),
             })],
@@ -960,7 +1060,10 @@ fn test_dependency_error_path_preserves_external_dependency_coordinates() {
     assert_eq!(error.error().dependency(), Some("expected"));
     assert_eq!(error.error().path().render(), "nickname");
     assert_eq!(error.dependency_object_path().unwrap().to_string(), "..");
-    assert_eq!(error.dependency_property_path().unwrap().to_string(), "nickname");
+    assert_eq!(
+        error.dependency_property_path().unwrap().to_string(),
+        "nickname"
+    );
 }
 
 #[test]
@@ -981,7 +1084,8 @@ fn test_dependency_error_path_does_not_map_unknown_dependency_names() {
         .resolve()
         .unwrap(),
     );
-    let validators = ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
+    let validators =
+        ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
     let plan = ValidationPlan::build_with_context(
         root,
         ValidationBuildInputs {
@@ -1028,7 +1132,8 @@ fn test_dependency_error_path_preserves_sibling_dependency_coordinates() {
         .resolve()
         .unwrap(),
     );
-    let validators = ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
+    let validators =
+        ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
@@ -1051,7 +1156,10 @@ fn test_dependency_error_path_preserves_sibling_dependency_coordinates() {
     assert_eq!(DEPENDENCY_ERROR_CALLS.with(Cell::get), 1);
     assert_eq!(error.error().path().render(), "email");
     assert_eq!(error.error().dependency(), Some("expected"));
-    assert_eq!(error.dependency_property_path().unwrap().to_string(), "email");
+    assert_eq!(
+        error.dependency_property_path().unwrap().to_string(),
+        "email"
+    );
 }
 
 #[test]
@@ -1072,7 +1180,8 @@ fn test_dependency_error_path_preserves_nested_dependency_coordinates() {
         .resolve()
         .unwrap(),
     );
-    let validators = ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
+    let validators =
+        ValidatorRegistry::from_registrations([DEPENDENCY_ERROR_REGISTRATION]).unwrap();
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
@@ -1097,7 +1206,10 @@ fn test_dependency_error_path_preserves_nested_dependency_coordinates() {
     assert_eq!(DEPENDENCY_ERROR_CALLS.with(Cell::get), 1);
     assert_eq!(error.error().path().render(), "profile.email");
     assert_eq!(error.error().dependency(), Some("expected"));
-    assert_eq!(error.dependency_property_path().unwrap().to_string(), "email");
+    assert_eq!(
+        error.dependency_property_path().unwrap().to_string(),
+        "email"
+    );
 }
 
 #[test]
@@ -1136,7 +1248,9 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
         },
     )
     .unwrap();
-    let value = Dependent { value: "child".into() };
+    let value = Dependent {
+        value: "child".into(),
+    };
     let containing = Parent {
         nickname: "parent".into(),
     };
@@ -1157,7 +1271,10 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
             assert_eq!(PARENT_READS.with(Cell::get), 0);
             assert_eq!(error.root_type_id(), Some(TypeId::of::<Dependent>()));
             assert_eq!(error.dependency_object_path().unwrap().to_string(), "..");
-            assert_eq!(error.dependency_property_path().unwrap().to_string(), "nickname");
+            assert_eq!(
+                error.dependency_property_path().unwrap().to_string(),
+                "nickname"
+            );
             assert_eq!(error.error().path().render(), "nickname");
         }
         let options = ValidationOptions::builder()
@@ -1170,9 +1287,15 @@ fn test_parent_dependency_reads_share_depth_and_node_budgets_and_keep_navigation
                 .is_valid()
         );
         let error = plan
-            .validate_dynamic(DynamicRef::<Local>::new(&value), &ValidationOptions::default())
+            .validate_dynamic(
+                DynamicRef::<Local>::new(&value),
+                &ValidationOptions::default(),
+            )
             .unwrap_err();
-        assert_eq!(error.error().kind(), ExecutionErrorKind::MissingRequiredDependencyValue);
+        assert_eq!(
+            error.error().kind(),
+            ExecutionErrorKind::MissingRequiredDependencyValue
+        );
         assert_eq!(error.dependency_object_path().unwrap().to_string(), "..");
     }
 }
