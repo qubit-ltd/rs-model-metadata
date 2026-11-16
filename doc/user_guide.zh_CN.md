@@ -60,7 +60,7 @@ qubit-reflect = "0.2"
 <!-- example: core/model-id -->
 ```toml
 [dependencies]
-qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
+qubit-model-id = { version = "0.2", path = "../rs-model-metadata/model-id" }
 ```
 
 下面从读取本地语义开始，解析两个模型的关系，并检查查询声明。把完整程序保存为 `app/src/main.rs`，在 `app/` 目录运行 `cargo run`。`User` 和 `PersonInfo` 在这个程序内声明，不需要先拼接声明指南中的代码。

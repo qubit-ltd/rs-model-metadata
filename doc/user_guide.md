@@ -76,7 +76,7 @@ ID protocol directly:
 <!-- example: core/model-id -->
 ```toml
 [dependencies]
-qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
+qubit-model-id = { version = "0.2", path = "../rs-model-metadata/model-id" }
 ```
 
 Use `qubit_model_id::{ModelId, ModelIdBuf, ModelIdError}` in that library.

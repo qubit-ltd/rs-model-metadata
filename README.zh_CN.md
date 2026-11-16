@@ -46,7 +46,7 @@ validation 安装方式见运行时指南。
 <!-- example: core/model-id -->
 ```toml
 [dependencies]
-qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
+qubit-model-id = { version = "0.2", path = "../rs-model-metadata/model-id" }
 ```
 
 ## 示例：声明用户账号

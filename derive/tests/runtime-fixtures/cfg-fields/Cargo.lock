@@ -284,18 +284,18 @@ dependencies = [
 
 [[package]]
 name = "qubit-budget"
-version = "0.10.3"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69c4626ee27ff1e9e818a0791e9b4ee2dff0026d7ef1b0424b7cd285e6de6d0f"
+checksum = "560adfab9ea973d61949de25be0b547f9e518ac7f9ceafd2146c67cdb634dc4f"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "qubit-clock"
-version = "0.13.6"
+version = "0.13.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd0b8b77730b8c3ca744d8f4fd0e9b6d5d80755d1711f8df2a2ac950a722f3f4"
+checksum = "0e0136a48bd424268e68d5cd2c77e68451a27119b6bca8f322dacf57e5160a7c"
 dependencies = [
  "qubit-collections",
  "thiserror",
@@ -303,18 +303,18 @@ dependencies = [
 
 [[package]]
 name = "qubit-collections"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c9a09506a51e914b26b5bf9407ef5df62e67f709458fca64ad04dc0bd943622"
+checksum = "c527754f2a853857f9bbb28c045b9e7bd025d9848ff8496b7cb675e9a3533e40"
 dependencies = [
  "hashbrown",
 ]
 
 [[package]]
 name = "qubit-datatype"
-version = "0.15.4"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2232ddc2317412734785a9cb6e8d17050595c950cdfb4b079e80f7133d45ecc"
+checksum = "2d3c1f1ccc5796b858c08ca9097d5c881ca3a31653cec79f57cbbe60aa38f2c4"
 dependencies = [
  "serde",
  "thiserror",
@@ -322,9 +322,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-id"
-version = "0.7.6"
+version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "833caf850b00a162f3ac125fe2382cece2d2bd62866498ade52fac93917736aa"
+checksum = "7bb7a0250f2c8e27efd0c2988211e1926b82c58fe334ffbdc0ff7b7668b546db"
 dependencies = [
  "parking_lot",
  "qubit-clock",
@@ -334,18 +334,18 @@ dependencies = [
 
 [[package]]
 name = "qubit-io"
-version = "0.19.5"
+version = "0.19.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e563c7c3ed87a06ce8eba9810179e346762f7122f68090e64a5f9472425bc78"
+checksum = "3e782e5b568b1dfa6ee6e9b3f8617a86980b9438f0c449235e3840533d25f83c"
 dependencies = [
  "qubit-utils",
 ]
 
 [[package]]
 name = "qubit-json"
-version = "0.12.4"
+version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea8a293d7f923000f17a2ada7fc66e42b1e4eb12842f81efba2915d0da82f523"
+checksum = "605599add0b0dfe5ae47616c308d01f28d7dc8e53d3b3254929914bcd43cae50"
 dependencies = [
  "qubit-budget",
  "qubit-io",
@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-model-id"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "qubit-model-metadata"
@@ -387,9 +387,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact"
-version = "0.10.3"
+version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d217d6f987adc5f32b9daa5d506e99c5a435f99b1493d5ab3ef55caf27a3c86"
+checksum = "29b91e8345b45d01c2a1e18b8a86c40030d8229bd538a8ec58cf9e2383f1dc35"
 dependencies = [
  "bigdecimal",
  "qubit-budget",
@@ -413,9 +413,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-reflect"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9a7f70b2d9f6d2c97320fe7981d9f0ea42e1588a1f97a09a7a1c7b327db0824"
+checksum = "03c7ca21b8747f4d2093758b1d5fa6f3c400090734c4bfa91baa5684c52bcfd1"
 dependencies = [
  "bigdecimal",
  "chrono",
@@ -441,9 +441,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-utils"
-version = "0.3.4"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89e16644d9ad9d6eafa3216b8a1d50db0cec09ef364f6cbd082ff49ea87bf154"
+checksum = "51269ed5cb6c0a936c79de455c299479653cbb28d772cfad8231710d2623a8b6"
 
 [[package]]
 name = "quote"
