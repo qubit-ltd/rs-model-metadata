@@ -52,7 +52,7 @@ package:
 <!-- example: core/model-id -->
 ```toml
 [dependencies]
-qubit-model-id = { version = "0.1", path = "../rs-model-metadata/model-id" }
+qubit-model-id = { version = "0.2", path = "../rs-model-metadata/model-id" }
 ```
 
 ## Example: describe a user account

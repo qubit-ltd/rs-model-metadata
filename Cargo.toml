@@ -1,6 +1,9 @@
+[workspace.package]
+version = "0.2.0"
+
 [package]
 name = "qubit-model-metadata"
-version = "0.2.0"
+version.workspace = true
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -51,7 +54,7 @@ qubit-validator = { version = "^0.1", optional = true }
 qubit-validation-rules = { version = "^0.1", default-features = false, optional = true }
 qubit-reflect = { version = "^0.2", default-features = false, features = ["derive", "ecosystem-types", "qubit-types"] }
 qubit-redact = { version = "^0.10", features = ["derive", "serde", "json", "bigdecimal"] }
-qubit-model-id = { version = "^0.1", path = "model-id" }
+qubit-model-id = { version = "^0.2", path = "model-id" }
 
 [dev-dependencies]
 criterion = "^0.8"
