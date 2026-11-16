@@ -119,15 +119,15 @@ fn assert_missing_rule(root: &'static TypeMetadata) {
             root.type_name()
         );
     };
-    assert!(errors.iter().any(|error| error.kind()
-        == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule)));
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.kind() == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule))
+    );
     assert_eq!(errors[0].declared_rule_id(), Some("binding.missing"));
     assert_eq!(errors[0].root_type_id(), root.type_id());
     assert_eq!(errors[0].owner_type_id(), TypeId::of::<Child>());
-    assert_eq!(
-        errors[0].field_location().unwrap().owner(),
-        TypeId::of::<Child>()
-    );
+    assert_eq!(errors[0].field_location().unwrap().owner(), TypeId::of::<Child>());
     assert_eq!(errors[0].selector(), Some(SelectorPosition::Element));
     assert_eq!(
         errors[0].path(),
@@ -146,10 +146,7 @@ fn assert_missing_rule(root: &'static TypeMetadata) {
         .and_then(|cause| cause.downcast_ref::<BindError>())
         .expect("typed binder cause");
     assert_eq!(cause.kind(), BindErrorKind::MissingRule);
-    assert!(eq(
-        cause,
-        errors[0].source_error().expect("same binder cause")
-    ));
+    assert!(eq(cause, errors[0].source_error().expect("same binder cause")));
     let display = errors[0].to_string();
     assert!(display.contains(root.type_name()));
     assert!(display.contains(errors[0].path().expect("declaration path")));
@@ -200,14 +197,12 @@ fn test_enum_payload_constraint_is_not_silently_omitted() {
     let Err(errors) = result else {
         panic!("constrained enum payload must be bound or rejected");
     };
-    assert!(errors.iter().any(|error| {
-        error.kind() == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule)
-    }));
     assert!(
         errors
             .iter()
-            .any(|error| error.path() == Some("Named.name"))
+            .any(|error| { error.kind() == ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule) })
     );
+    assert!(errors.iter().any(|error| error.path() == Some("Named.name")));
 }
 
 #[test]
@@ -242,14 +237,10 @@ fn test_enum_payload_collection_selector_is_rejected_with_its_path() {
     })
     .resolve()
     .expect("valid structure");
-    let errors =
-        ValidationCapabilities::check(TypeMetadata::of::<UnsupportedSelectorChoice>(), &graph)
-            .expect_err("selectors inside enum payloads remain unsupported");
+    let errors = ValidationCapabilities::check(TypeMetadata::of::<UnsupportedSelectorChoice>(), &graph)
+        .expect_err("selectors inside enum payloads remain unsupported");
 
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(
         errors[0].path().map(ToString::to_string).as_deref(),
         Some("Named.values")
@@ -271,19 +262,15 @@ impl PreparedValidator for Reject {
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
         assert!(value.as_text().is_some());
-        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(
-            ViolationCode::new("bad"),
-        )]))
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+            "bad",
+        ))]))
     }
 }
 fn prepare_reject(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(Arc::new(Reject))
 }
-static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(
-    InputType::Text,
-    &[],
-    prepare_reject,
-)];
+static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare_reject)];
 static DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("binding.missing"),
@@ -291,40 +278,29 @@ static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     RegistrationSource::new("binding-tests", "nested", file!(), line!()),
 );
 
-static OPTIONAL_REQUIRED_DEPS: &[DependencySpec] =
-    &[DependencySpec::new("expected", InputType::Text, false)];
-static OPTIONAL_ALLOWED_DEPS: &[DependencySpec] =
-    &[DependencySpec::new("expected", InputType::Text, true)];
-fn prepare_optional_required(
-    _: &mut ArgumentReader<'_>,
-) -> Result<Arc<dyn PreparedValidator>, BindError> {
+static OPTIONAL_REQUIRED_DEPS: &[DependencySpec] = &[DependencySpec::new("expected", InputType::Text, false)];
+static OPTIONAL_ALLOWED_DEPS: &[DependencySpec] = &[DependencySpec::new("expected", InputType::Text, true)];
+fn prepare_optional_required(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
     Ok(prepare_text_with_context(OPTIONAL_REQUIRED_DEPS, |_, _| {
         Ok(PreparedOutcome::Valid)
     }))
 }
-fn prepare_optional_allowed(
-    _: &mut ArgumentReader<'_>,
-) -> Result<Arc<dyn PreparedValidator>, BindError> {
-    Ok(prepare_text_with_context(
-        OPTIONAL_ALLOWED_DEPS,
-        |_, context| {
-            let _ = context.value(0)?;
-            Ok(PreparedOutcome::Valid)
-        },
-    ))
+fn prepare_optional_allowed(_: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>, BindError> {
+    Ok(prepare_text_with_context(OPTIONAL_ALLOWED_DEPS, |_, context| {
+        let _ = context.value(0)?;
+        Ok(PreparedOutcome::Valid)
+    }))
 }
-static OPTIONAL_REQUIRED_DESCRIPTOR: ValidatorDescriptor =
-    ValidatorDescriptor::new(&[ValidatorSignature::new(
-        InputType::Text,
-        OPTIONAL_REQUIRED_DEPS,
-        prepare_optional_required,
-    )]);
-static OPTIONAL_ALLOWED_DESCRIPTOR: ValidatorDescriptor =
-    ValidatorDescriptor::new(&[ValidatorSignature::new(
-        InputType::Text,
-        OPTIONAL_ALLOWED_DEPS,
-        prepare_optional_allowed,
-    )]);
+static OPTIONAL_REQUIRED_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(&[ValidatorSignature::new(
+    InputType::Text,
+    OPTIONAL_REQUIRED_DEPS,
+    prepare_optional_required,
+)]);
+static OPTIONAL_ALLOWED_DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(&[ValidatorSignature::new(
+    InputType::Text,
+    OPTIONAL_ALLOWED_DEPS,
+    prepare_optional_allowed,
+)]);
 static OPTIONAL_VALIDATORS: &[ValidatorRegistration] = &[
     ValidatorRegistration::new(
         ValidatorId::new("binding.optional_required"),
@@ -388,10 +364,7 @@ struct Pair {
 
 #[test]
 fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() {
-    let reflection = ReflectionContext::builder()
-        .include_linked()
-        .build()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
     let models = ModelRegistry::from_context(&reflection).unwrap();
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -419,10 +392,7 @@ fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() 
         },
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&pair),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&pair), &ValidationOptions::default())
         .unwrap();
     assert_eq!(
         report
@@ -442,10 +412,7 @@ fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() 
     .unwrap();
     let missing = OptionalParent { child: None };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&missing),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&missing), &ValidationOptions::default())
         .unwrap();
     assert!(report.violations().is_empty());
     let present = OptionalParent {
@@ -454,10 +421,7 @@ fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() 
         }),
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&present),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&present), &ValidationOptions::default())
         .unwrap();
     assert_eq!(
         report
@@ -471,10 +435,7 @@ fn test_nested_selectors_execute_at_each_usage_path_and_skip_missing_optional() 
 
 #[test]
 fn test_capability_check_does_not_require_a_registered_validator() {
-    let reflection = ReflectionContext::builder()
-        .include_linked()
-        .build()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
     let models = ModelRegistry::from_context(&reflection).unwrap();
     let graph = StructureResolver::new(ResolveInputs {
         models: &models,
@@ -572,10 +533,7 @@ fn test_tuple_contained_declarations_are_discovered_and_rejected() {
     let errors = ValidationCapabilities::check(root, &graph)
         .expect_err("tuple-contained execution must not be silently omitted");
     assert_eq!(errors.len(), 1);
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].owner_type_id(), TypeId::of::<Child>());
     assert_eq!(errors[0].declared_rule_id(), Some("binding.missing"));
 }
@@ -598,13 +556,10 @@ fn test_selector_value_targets_require_an_actual_element_unwrap_adapter() {
         })
         .resolve()
         .expect("wrapper element structure is representable");
-        let errors = ValidationCapabilities::check(root, &graph)
-            .expect_err("slice elements cannot be implicitly unwrapped");
+        let errors =
+            ValidationCapabilities::check(root, &graph).expect_err("slice elements cannot be implicitly unwrapped");
         assert_eq!(errors.len(), 1);
-        assert_eq!(
-            errors[0].kind(),
-            ValidationBuildErrorKind::UnsupportedExecution
-        );
+        assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
         assert_eq!(errors[0].selector(), Some(SelectorPosition::Element));
         assert_eq!(errors[0].path(), Some("values"));
     }
@@ -651,14 +606,8 @@ struct Repeated {
 
 #[test]
 fn test_cycles_and_payloads_without_executable_work_are_allowed() {
-    for root in [
-        TypeMetadata::of::<QuietCycle>(),
-        TypeMetadata::of::<QuietChoice>(),
-    ] {
-        let reflection = ReflectionContext::builder()
-            .include_linked()
-            .build()
-            .unwrap();
+    for root in [TypeMetadata::of::<QuietCycle>(), TypeMetadata::of::<QuietChoice>()] {
+        let reflection = ReflectionContext::builder().include_linked().build().unwrap();
         let models = ModelRegistry::from_context(&reflection).unwrap();
         let roots = [root];
         let graph = StructureResolver::new(ResolveInputs {
@@ -678,10 +627,7 @@ fn test_unsupported_recursive_container_and_adapter_paths_fail_before_execution(
         TypeMetadata::of::<Container>(),
         TypeMetadata::of::<OwnedParent>(),
     ] {
-        let reflection = ReflectionContext::builder()
-            .include_linked()
-            .build()
-            .unwrap();
+        let reflection = ReflectionContext::builder().include_linked().build().unwrap();
         let models = ModelRegistry::from_context(&reflection).unwrap();
         let roots = [root];
         let graph = StructureResolver::new(ResolveInputs {
@@ -708,10 +654,7 @@ fn test_unsupported_recursive_container_and_adapter_paths_fail_before_execution(
 #[test]
 fn test_generated_collection_adapters_and_unsupported_recursive_paths() {
     let without_slice = TypeMetadata::of::<WithoutSlice>();
-    let reflection = ReflectionContext::builder()
-        .include_linked()
-        .build()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
     let models = ModelRegistry::from_context(&reflection).unwrap();
     let roots = [without_slice];
     let graph = StructureResolver::new(ResolveInputs {
@@ -727,10 +670,7 @@ fn test_generated_collection_adapters_and_unsupported_recursive_paths() {
         TypeMetadata::of::<Container>(),
         TypeMetadata::of::<OwnedParent>(),
     ] {
-        let reflection = ReflectionContext::builder()
-            .include_linked()
-            .build()
-            .unwrap();
+        let reflection = ReflectionContext::builder().include_linked().build().unwrap();
         let models = ModelRegistry::from_context(&reflection).unwrap();
         let roots = [root];
         let graph = StructureResolver::new(ResolveInputs {
@@ -758,10 +698,7 @@ fn test_generated_collection_adapters_and_unsupported_recursive_paths() {
 fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
     OPTIONAL_PARENT_GETTER_CALLS.with(|calls| calls.set(0));
     let root = TypeMetadata::of::<BorrowedOption>();
-    let reflection = ReflectionContext::builder()
-        .include_linked()
-        .build()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
     let models = ModelRegistry::from_context(&reflection).unwrap();
     let roots = [root];
     let graph = Arc::new(
@@ -795,9 +732,7 @@ fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
     let report = plan
         .validate_dynamic(
             DynamicRef::<Local>::new(&BorrowedOption {
-                child: Some(OptionalChild {
-                    value: String::new(),
-                }),
+                child: Some(OptionalChild { value: String::new() }),
             }),
             &ValidationOptions::default(),
         )
@@ -810,10 +745,7 @@ fn test_borrowed_optional_getter_path_executes_and_skips_missing() {
 
 #[test]
 fn test_duplicate_rule_ids_remain_distinct_occurrences() {
-    let reflection = ReflectionContext::builder()
-        .include_linked()
-        .build()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
     let models = ModelRegistry::from_context(&reflection).unwrap();
     let root = TypeMetadata::of::<Repeated>();
     let roots = [root];
@@ -894,10 +826,7 @@ impl SelectorConstraint {
 
 #[test]
 fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
-    let reflection = ReflectionContext::builder()
-        .include_linked()
-        .build()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
     let models = ModelRegistry::from_context(&reflection).unwrap();
     let root = TypeMetadata::of::<Mixed>();
     let roots = [root];
@@ -926,14 +855,8 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
         ValidationBuildErrorKind::ValidatorBinding(BindErrorKind::MissingRule)
     );
     assert_eq!(errors[1].path(), Some("a_date"));
-    assert_eq!(
-        errors[1].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
-    assert!(matches!(
-        errors[1].constraint(),
-        Some(ConstraintMetadata::Time(_))
-    ));
+    assert_eq!(errors[1].kind(), ValidationBuildErrorKind::UnsupportedExecution);
+    assert!(matches!(errors[1].constraint(), Some(ConstraintMetadata::Time(_))));
     assert!(
         !errors.is_empty(),
         "a rejected plan exposes its independent diagnostics"
@@ -944,10 +867,7 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
     // renderer or inspect them through borrowed collection iteration.
     let diagnostics: &[ValidationBuildError] = errors.as_ref();
     assert_eq!(diagnostics[0].declared_rule_id(), Some("binding.missing"));
-    let paths: Vec<_> = (&errors)
-        .into_iter()
-        .map(ValidationBuildError::path)
-        .collect();
+    let paths: Vec<_> = (&errors).into_iter().map(ValidationBuildError::path).collect();
     assert_eq!(paths, [Some("z_missing"), Some("a_date")]);
 }
 
@@ -955,10 +875,7 @@ fn test_build_aggregates_binding_and_unsupported_errors_in_source_order() {
 fn test_count_constraints_require_slice_adapter_and_element_selectors_are_supported() {
     let root = TypeMetadata::of::<UnreadableCount>();
     {
-        let reflection = ReflectionContext::builder()
-            .include_linked()
-            .build()
-            .unwrap();
+        let reflection = ReflectionContext::builder().include_linked().build().unwrap();
         let models = ModelRegistry::from_context(&reflection).unwrap();
         let roots = [root];
         let graph = StructureResolver::new(ResolveInputs {
@@ -968,16 +885,10 @@ fn test_count_constraints_require_slice_adapter_and_element_selectors_are_suppor
         .resolve()
         .unwrap();
         let errors = ValidationCapabilities::check(root, &graph).unwrap_err();
-        assert_eq!(
-            errors[0].kind(),
-            ValidationBuildErrorKind::UnsupportedExecution
-        );
+        assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     }
     let selector = TypeMetadata::of::<SelectorConstraint>();
-    let reflection = ReflectionContext::builder()
-        .include_linked()
-        .build()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
     let models = ModelRegistry::from_context(&reflection).unwrap();
     let roots = [selector];
     let graph = StructureResolver::new(ResolveInputs {
@@ -986,8 +897,7 @@ fn test_count_constraints_require_slice_adapter_and_element_selectors_are_suppor
     })
     .resolve()
     .unwrap();
-    ValidationCapabilities::check(selector, &graph)
-        .expect("element selector has a generated Vec adapter");
+    ValidationCapabilities::check(selector, &graph).expect("element selector has a generated Vec adapter");
     let root = TypeMetadata::of::<Counted>();
     let roots = [root];
     let graph = Arc::new(
@@ -1020,10 +930,7 @@ fn test_count_constraints_require_slice_adapter_and_element_selectors_are_suppor
 
 #[test]
 fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_supported() {
-    let reflection = ReflectionContext::builder()
-        .include_linked()
-        .build()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
     let models = ModelRegistry::from_context(&reflection).unwrap();
     let root = TypeMetadata::of::<UnreadableCount>();
     let roots = [root];
@@ -1034,10 +941,7 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_sup
     .resolve()
     .unwrap();
     let errors = ValidationCapabilities::check(root, &graph).unwrap_err();
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
 
     let selector = TypeMetadata::of::<SelectorConstraint>();
     let roots = [selector];
@@ -1081,10 +985,7 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_sup
 
 #[test]
 fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_explicitly_rejected() {
-    let reflection = ReflectionContext::builder()
-        .include_linked()
-        .build()
-        .unwrap();
+    let reflection = ReflectionContext::builder().include_linked().build().unwrap();
     let models = ModelRegistry::from_context(&reflection).unwrap();
     let root = TypeMetadata::of::<UnsupportedSelectorChoice>();
     let roots = [root];
@@ -1096,10 +997,7 @@ fn test_count_constraints_require_slice_adapter_and_selector_constraints_are_exp
     .unwrap();
     let errors = ValidationCapabilities::check(root, &graph)
         .expect_err("collection selectors in enum payloads remain unsupported");
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("Named.values"));
 }
 
@@ -1118,8 +1016,8 @@ fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
         .resolve()
         .expect("valid structure"),
     );
-    let validators = ValidatorRegistry::from_registrations(OPTIONAL_VALIDATORS.iter().copied())
-        .expect("rules register");
+    let validators =
+        ValidatorRegistry::from_registrations(OPTIONAL_VALIDATORS.iter().copied()).expect("rules register");
     let root = TypeMetadata::of::<OptionalDependency>();
     let Err(errors) = ValidationPlan::build(
         root,
@@ -1142,10 +1040,7 @@ fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
         .source()
         .and_then(|source| source.downcast_ref::<BindError>())
         .expect("typed cause");
-    assert_eq!(
-        cause.rule_id(),
-        Some(ValidatorId::new("binding.optional_required"))
-    );
+    assert_eq!(cause.rule_id(), Some(ValidatorId::new("binding.optional_required")));
     assert_eq!(cause.dependency(), Some("expected"));
     let root = TypeMetadata::of::<PresentOptionalDependency>();
     let _plan = ValidationPlan::build(
@@ -1169,10 +1064,7 @@ fn test_optional_dependency_paths_are_checked_against_signature_optionality() {
         value: "value".into(),
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&missing),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&missing), &ValidationOptions::default())
         .expect("missing optional dependency is passed through to the validator");
     assert!(report.violations().is_empty());
 }

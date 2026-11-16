@@ -85,10 +85,7 @@ impl fmt::Debug for ValidationArgument<'_> {
             Self::Integer(_) => formatter.write_str("Integer(<redacted>)"),
             Self::Unsigned(_) => formatter.write_str("Unsigned(<redacted>)"),
             Self::String(_) => formatter.write_str("String(<redacted>)"),
-            Self::BoolList(values) => formatter
-                .debug_struct("BoolList")
-                .field("len", &values.len())
-                .finish(),
+            Self::BoolList(values) => formatter.debug_struct("BoolList").field("len", &values.len()).finish(),
             Self::IntegerList(values) => formatter
                 .debug_struct("IntegerList")
                 .field("len", &values.len())

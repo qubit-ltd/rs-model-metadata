@@ -319,8 +319,7 @@ fn validate_nested_value(
         if let Some(name) = field.name() {
             path.push(name);
         }
-        closed &=
-            validate_value_field(metadata, field, root, &path, context, state, source, errors);
+        closed &= validate_value_field(metadata, field, root, &path, context, state, source, errors);
     }
     let complete = closed && errors.len() == initial;
     state.leave(metadata.type_id(), start_epoch, complete);
@@ -372,18 +371,14 @@ fn validate_value_field(
                 .type_expression_in(context.reflection())
                 .is_some_and(self_recursive_expression)
         },
-        |descriptor| {
-            value_descriptor_is_closed(descriptor, context, state, root, source, errors, path)
-        },
+        |descriptor| value_descriptor_is_closed(descriptor, context, state, root, source, errors, path),
     );
     let property_path = (!path.is_empty()).then(|| PropertyPath::new(path));
     if !closed && errors.len() == before {
         let actual_role = owner
             .field_descriptor_in(field, context.reflection())
             .and_then(|field| field.find_concrete_type())
-            .and_then(|descriptor| {
-                reported_metadata(descriptor, context, root, property_path, source, errors)
-            })
+            .and_then(|descriptor| reported_metadata(descriptor, context, root, property_path, source, errors))
             .map(TypeMetadata::role);
         if errors.len() == before {
             errors.push(ResolveError::new(
@@ -427,15 +422,7 @@ fn self_recursive_expression(expression: TypeExpression<'_>) -> bool {
             let name = named.path().rsplit("::").next().unwrap_or(named.path());
             if !matches!(
                 name,
-                "Option"
-                    | "Box"
-                    | "Vec"
-                    | "VecDeque"
-                    | "HashSet"
-                    | "BTreeSet"
-                    | "BinaryHeap"
-                    | "HashMap"
-                    | "BTreeMap"
+                "Option" | "Box" | "Vec" | "VecDeque" | "HashSet" | "BTreeSet" | "BinaryHeap" | "HashMap" | "BTreeMap"
             ) {
                 return false;
             }
@@ -515,9 +502,7 @@ fn value_descriptor_is_closed<'ctx>(
     };
     if let Some(metadata) = metadata {
         return match metadata.role() {
-            ModelRole::Value => {
-                validate_nested_value(metadata, root, path, context, state, source, errors)
-            }
+            ModelRole::Value => validate_nested_value(metadata, root, path, context, state, source, errors),
             ModelRole::Enum => {
                 let Some(enumeration) = metadata.as_enum() else {
                     return false;
@@ -556,9 +541,7 @@ fn value_descriptor_is_closed<'ctx>(
                             closed = false;
                             continue;
                         }
-                        closed &= validate_value_field(
-                            metadata, field, root, &nested, context, state, source, errors,
-                        );
+                        closed &= validate_value_field(metadata, field, root, &nested, context, state, source, errors);
                     }
                 }
                 let complete = closed && errors.len() == before;
@@ -580,10 +563,7 @@ fn value_descriptor_is_closed<'ctx>(
             }
         };
     }
-    if matches!(
-        descriptor.kind(),
-        TypeKind::Primitive(_) | TypeKind::Text(_)
-    ) {
+    if matches!(descriptor.kind(), TypeKind::Primitive(_) | TypeKind::Text(_)) {
         return true;
     }
     if !matches!(
@@ -608,8 +588,7 @@ fn value_descriptor_is_closed<'ctx>(
     let before = errors.len();
     let mut closed = true;
     children(descriptor, |edge| {
-        closed &=
-            value_descriptor_is_closed(edge.target, context, state, root, source, errors, path);
+        closed &= value_descriptor_is_closed(edge.target, context, state, root, source, errors, path);
     });
     let complete = closed && errors.len() == before;
     state.leave(descriptor.type_id(), start_epoch, complete);
@@ -650,16 +629,12 @@ pub(super) fn resolve_property_path(
             return Ok(result);
         }
         if index + 1 < path.segments().len() {
-            let Some(mut descriptor) = property.descriptor_in(context.reflection()).ok().flatten()
-            else {
+            let Some(mut descriptor) = property.descriptor_in(context.reflection()).ok().flatten() else {
                 return Ok(None);
             };
             let mut visited = HashSet::new();
             while visited.insert(descriptor.type_id()) {
-                if !matches!(
-                    descriptor.kind(),
-                    TypeKind::Optional(_) | TypeKind::SmartPointer(_)
-                ) {
+                if !matches!(descriptor.kind(), TypeKind::Optional(_) | TypeKind::SmartPointer(_)) {
                     break;
                 }
                 let Some(resolved) = descriptor
@@ -754,10 +729,7 @@ pub(super) fn validate_unique_scope(
 /// `true` when unwrapping allowed containers reaches the expected type, or
 /// `false` for mismatches, maps, unresolved wrappers, or cycles.
 #[must_use]
-pub(super) fn reference_value_matches(
-    expected: TypeDescriptor<'_>,
-    mut actual: TypeDescriptor<'_>,
-) -> bool {
+pub(super) fn reference_value_matches(expected: TypeDescriptor<'_>, mut actual: TypeDescriptor<'_>) -> bool {
     let mut visited = HashSet::new();
     while visited.insert(actual.type_id()) {
         if matches!(actual.kind(), TypeKind::Map(_)) {
@@ -853,10 +825,7 @@ fn resolve_object_path(
             }
             NavigationStep::Property(name) => {
                 let properties = context.registry().properties_for(current)?;
-                let Some(property) = properties
-                    .property(name)
-                    .filter(|property| property.is_readable())
-                else {
+                let Some(property) = properties.property(name).filter(|property| property.is_readable()) else {
                     return Ok((None, false));
                 };
                 let next = if follow_entity_bindings
@@ -864,13 +833,9 @@ fn resolve_object_path(
                 {
                     resolve_declared_target(reference.target(), context)
                 } else {
-                    let mut descriptor =
-                        property.descriptor_in(context.reflection()).ok().flatten();
+                    let mut descriptor = property.descriptor_in(context.reflection()).ok().flatten();
                     while let Some(value) = descriptor {
-                        if matches!(
-                            value.kind(),
-                            TypeKind::Optional(_) | TypeKind::SmartPointer(_)
-                        ) {
+                        if matches!(value.kind(), TypeKind::Optional(_) | TypeKind::SmartPointer(_)) {
                             descriptor = value
                                 .generic_arguments()
                                 .get_at(0)

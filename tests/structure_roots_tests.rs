@@ -210,10 +210,7 @@ fn test_query_declarations_do_not_apply_product_filter_policy() {
     .resolve()
     .expect("indexed model is a valid declaration");
     let root = TypeMetadata::of::<Record>();
-    let declarations = graph
-        .query(root.type_id())
-        .expect("query declarations")
-        .declarations();
+    let declarations = graph.query(root.type_id()).expect("query declarations").declarations();
     let names: Vec<_> = declarations
         .iter()
         .map(|value| value.field().name().expect("named field"))
@@ -242,21 +239,14 @@ fn test_optional_sequence_reference_resolves() {
     .expect("wrapped reference");
     assert!(
         graph
-            .reference(
-                root.fields()[0]
-                    .location()
-                    .expect("root reference field location")
-            )
+            .reference(root.fields()[0].location().expect("root reference field location"))
             .is_some()
     );
     let reflected = root.fields()[0]
         .reflect_in(&reflection)
         .expect("concrete reference field");
     assert!(matches!(
-        reflected
-            .find_concrete_type()
-            .expect("outer field type")
-            .kind(),
+        reflected.find_concrete_type().expect("outer field type").kind(),
         TypeKind::Optional(_)
     ));
 }
@@ -288,10 +278,7 @@ fn test_value_closure_rejects_enum_payload_references() {
         .iter()
         .find(|error| error.kind() == ResolveErrorKind::InvalidValueClosure)
         .expect("closure error");
-    assert_eq!(
-        error.owner_type_id(),
-        Some(TypeMetadata::of::<ClosedValue>().type_id())
-    );
+    assert_eq!(error.owner_type_id(), Some(TypeMetadata::of::<ClosedValue>().type_id()));
     let location = error.declaration().expect("payload declaration");
     assert_eq!(location.variant, Some(0));
     assert_eq!(location.field, Some(0));
@@ -334,11 +321,7 @@ fn test_binding_path_navigates_entity_behind_saved_id() {
     .expect("binding navigation follows Entity metadata");
     assert_eq!(
         graph
-            .reference(
-                root.fields()[1]
-                    .location()
-                    .expect("bound nation field location")
-            )
+            .reference(root.fields()[1].location().expect("bound nation field location"))
             .expect("bound nation reference")
             .target()
             .type_id(),
@@ -373,10 +356,7 @@ fn test_missing_local_dependency_is_a_structure_error() {
         .find(|error| error.owner_type_id() == Some(roots[0].type_id()))
         .expect("invalid dependency resolution reports an owning error");
     assert_eq!(error.kind(), ResolveErrorKind::MissingProperty);
-    assert_eq!(
-        error.path().expect("missing dependency path").to_string(),
-        "missing"
-    );
+    assert_eq!(error.path().expect("missing dependency path").to_string(), "missing");
     assert!(error.declaration().is_some());
 }
 
@@ -401,9 +381,13 @@ fn test_enum_entity_payload_requires_reference() {
         Err(errors) => errors,
         Ok(_) => panic!("unbound Entity payload must fail"),
     };
-    assert!(errors.errors().iter().any(|error| error.kind()
-        == ResolveErrorKind::InvalidEntityNesting
-        && error.owner_type_id() == Some(metadata.type_id())));
+    assert!(
+        errors
+            .errors()
+            .iter()
+            .any(|error| error.kind() == ResolveErrorKind::InvalidEntityNesting
+                && error.owner_type_id() == Some(metadata.type_id()))
+    );
 }
 
 #[Model]
@@ -438,10 +422,7 @@ fn test_validator_navigation_does_not_follow_entity_bindings() {
         .expect("dependency error");
     assert_eq!(error.kind(), ResolveErrorKind::MissingProperty);
     assert_eq!(
-        error
-            .object_path()
-            .expect("dependency object path")
-            .to_string(),
+        error.object_path().expect("dependency object path").to_string(),
         "owner"
     );
 }
@@ -504,10 +485,7 @@ fn test_reference_type_mismatch_retains_machine_readable_context() {
     assert_eq!(error.actual_role(), Some(ModelRole::Entity));
     assert_eq!(error.owner_type_id(), Some(owner.type_id()));
     assert_eq!(
-        error
-            .declaration()
-            .expect("reference declaration location")
-            .field,
+        error.declaration().expect("reference declaration location").field,
         Some(0)
     );
     assert_eq!(
@@ -548,15 +526,9 @@ fn test_unique_scope_error_retains_declaration_location() {
     .expect_err("missing scope");
     let error = &errors.errors()[0];
     assert_eq!(error.kind(), ResolveErrorKind::MissingProperty);
+    assert_eq!(error.path().expect("missing scope path").to_string(), "missing");
     assert_eq!(
-        error.path().expect("missing scope path").to_string(),
-        "missing"
-    );
-    assert_eq!(
-        error
-            .declaration()
-            .expect("unique scope declaration location")
-            .field,
+        error.declaration().expect("unique scope declaration location").field,
         Some(0)
     );
 }
@@ -580,10 +552,7 @@ fn test_unreadable_unique_scope_is_rejected() {
         .find(|error| error.kind() == ResolveErrorKind::UnreadableProperty)
         .expect("unreadable unique scope diagnostic");
     assert_eq!(error.path().expect("scope path").to_string(), "hidden");
-    assert_eq!(
-        error.declaration().expect("unique declaration").field,
-        Some(0)
-    );
+    assert_eq!(error.declaration().expect("unique declaration").field, Some(0));
 }
 
 #[Model]
@@ -651,13 +620,7 @@ fn test_nested_entity_projection_and_dependency_paths_resolve() {
         reference.target().type_id(),
         TypeMetadata::of::<NestedNation>().type_id()
     );
-    assert_eq!(
-        reference
-            .property()
-            .expect("referenced Entity property")
-            .name(),
-        "id"
-    );
+    assert_eq!(reference.property().expect("referenced Entity property").name(), "id");
 
     let projection = TypeMetadata::of::<NestedNationProjection>();
     assert_eq!(
@@ -670,14 +633,8 @@ fn test_nested_entity_projection_and_dependency_paths_resolve() {
     );
 
     let dependency = &graph.dependencies()[0];
-    assert_eq!(
-        dependency.declaration().object_path().to_string(),
-        "subject/nation"
-    );
-    assert_eq!(
-        dependency.declaration().property().to_string(),
-        "details.code"
-    );
+    assert_eq!(dependency.declaration().object_path().to_string(), "subject/nation");
+    assert_eq!(dependency.declaration().property().to_string(), "details.code");
 }
 
 #[Model]
@@ -710,11 +667,7 @@ fn test_nested_relation_errors_retain_exact_object_and_property_paths() {
     let reference_error = errors
         .errors()
         .iter()
-        .find(|error| {
-            error
-                .declaration()
-                .is_some_and(|location| location.field == Some(1))
-        })
+        .find(|error| error.declaration().is_some_and(|location| location.field == Some(1)))
         .expect("reference path error");
     assert_eq!(reference_error.kind(), ResolveErrorKind::MissingProperty);
     assert_eq!(
@@ -735,11 +688,7 @@ fn test_nested_relation_errors_retain_exact_object_and_property_paths() {
     let dependency_error = errors
         .errors()
         .iter()
-        .find(|error| {
-            error
-                .declaration()
-                .is_some_and(|location| location.field == Some(2))
-        })
+        .find(|error| error.declaration().is_some_and(|location| location.field == Some(2)))
         .expect("dependency path error");
     assert_eq!(dependency_error.kind(), ResolveErrorKind::MissingProperty);
     assert_eq!(

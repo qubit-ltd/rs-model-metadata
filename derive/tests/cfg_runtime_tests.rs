@@ -60,18 +60,14 @@ fn test_cfg_accessor_feature_matrix() {
     ] {
         let output = run_fixture(&fixture, &target, "check", features);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            !output.status.success(),
-            "invalid cfg features {features} compiled"
-        );
+        assert!(!output.status.success(), "invalid cfg features {features} compiled");
         assert!(
             stderr.contains(diagnostic),
             "cfg features {features} missing {diagnostic}: {stderr}"
         );
         let normalized_stderr = stderr.replace('\\', "/");
         assert!(
-            normalized_stderr.contains("src/lib.rs:")
-                || normalized_stderr.contains("src/configured.rs:"),
+            normalized_stderr.contains("src/lib.rs:") || normalized_stderr.contains("src/configured.rs:"),
             "cfg diagnostic needs source position: {stderr}"
         );
     }
@@ -84,17 +80,8 @@ fn prepare_cfg_fixture(directory: &Path) -> PathBuf {
     let source = package_root.join("tests/runtime-fixtures/cfg-accessors");
     let destination = directory.join("cfg-accessors");
     fs::create_dir_all(destination.join("src")).expect("fixture sources");
-    for module in [
-        "lib.rs",
-        "configured.rs",
-        "generic_configured.rs",
-        "missing_impl.rs",
-    ] {
-        fs::copy(
-            source.join("src").join(module),
-            destination.join("src").join(module),
-        )
-        .expect("fixture source module");
+    for module in ["lib.rs", "configured.rs", "generic_configured.rs", "missing_impl.rs"] {
+        fs::copy(source.join("src").join(module), destination.join("src").join(module)).expect("fixture source module");
     }
     fs::copy(source.join("Cargo.lock"), destination.join("Cargo.lock")).expect("fixture lockfile");
 
@@ -140,7 +127,5 @@ fn run_fixture(manifest: &Path, target: &Path, action: &str, features: &str) -> 
     if !features.is_empty() {
         command.args(["--features", features]);
     }
-    command
-        .output()
-        .expect("cfg fixture Cargo process should start")
+    command.output().expect("cfg fixture Cargo process should start")
 }

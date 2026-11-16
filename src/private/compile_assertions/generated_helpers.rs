@@ -24,9 +24,7 @@ use crate::metadata;
 #[doc(hidden)]
 #[must_use]
 #[inline]
-pub const fn local_property_set(
-    properties: &'static [metadata::PropertyMetadata],
-) -> metadata::LocalPropertySet {
+pub const fn local_property_set(properties: &'static [metadata::PropertyMetadata]) -> metadata::LocalPropertySet {
     metadata::LocalPropertySet::new(properties)
 }
 

@@ -51,11 +51,7 @@ use crate::ir::declaration::VariantIr;
 ///
 /// The implementations and registration items to append to the input type.
 #[must_use]
-pub(crate) fn expand_metadata(
-    declaration: &DeclarationIr,
-    item: &DeriveInput,
-    runtime: &TokenStream,
-) -> TokenStream {
+pub(crate) fn expand_metadata(declaration: &DeclarationIr, item: &DeriveInput, runtime: &TokenStream) -> TokenStream {
     let ident = &item.ident;
     let fields = expand_field_vector(&declaration.fields, runtime, ident);
     let nested_metadata = expand_nested_metadata_providers(declaration, runtime);
@@ -63,10 +59,7 @@ pub(crate) fn expand_metadata(
     let tuple_value_shape = if declaration.kind == MacroKind::Value
         && matches!(&item.data, Data::Struct(data) if matches!(data.fields, Fields::Unnamed(_)))
     {
-        let active_fields = declaration
-            .fields
-            .iter()
-            .map(|field| field.presence.expression());
+        let active_fields = declaration.fields.iter().map(|field| field.presence.expression());
         quote! {
             const _: () = assert!(
                 0usize #(+ (#active_fields as usize))* == 1,
@@ -94,19 +87,14 @@ pub(crate) fn expand_metadata(
     let mut impl_generics_source = item.generics.clone();
     for parameter in impl_generics_source.type_params_mut() {
         parameter.bounds.push(parse_quote!('static));
-        parameter
-            .bounds
-            .push(parse_quote!(#runtime::__private::Reflect));
+        parameter.bounds.push(parse_quote!(#runtime::__private::Reflect));
     }
     impl_generics_source
         .make_where_clause()
         .predicates
         .push(parse_quote!(Self: #runtime::__private::Reflect));
     let (impl_generics, ty_generics, where_clause) = impl_generics_source.split_for_impl();
-    let generic_metadata = format_ident!(
-        "__qubit_model_generic_metadata_{}",
-        ident.to_string().to_snake_case()
-    );
+    let generic_metadata = format_ident!("__qubit_model_generic_metadata_{}", ident.to_string().to_snake_case());
     let registration = match (declaration.options.id.as_ref(), has_generics) {
         (Some(_), false) => TokenStream::new(),
         (id, true) => expand_generic_registration(
@@ -235,20 +223,16 @@ pub(crate) fn expand_metadata(
 /// # Returns
 /// Tokens that declare and populate the nested metadata provider slice.
 #[must_use]
-fn expand_nested_metadata_providers(
-    declaration: &DeclarationIr,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn expand_nested_metadata_providers(declaration: &DeclarationIr, runtime: &TokenStream) -> TokenStream {
     let mut candidates: Vec<(
         Type,
         crate::expand::model_impl::internal::presence_condition::PresenceCondition,
     )> = Vec::new();
-    for field in declaration.fields.iter().chain(
-        declaration
-            .variants
-            .iter()
-            .flat_map(|variant| variant.fields.iter()),
-    ) {
+    for field in declaration
+        .fields
+        .iter()
+        .chain(declaration.variants.iter().flat_map(|variant| variant.fields.iter()))
+    {
         let mut field_candidates = Vec::new();
         collect_nested_type_candidates(&field.ty, &mut field_candidates, &mut HashSet::new());
         for ty in field_candidates {
@@ -263,22 +247,19 @@ fn expand_nested_metadata_providers(
             }
         }
     }
-    let providers = candidates
-        .iter()
-        .enumerate()
-        .map(|(index, (ty, presence))| {
-            let provider = format_ident!("__qubit_nested_type_metadata_{index}");
-            let condition = presence.attribute();
-            quote! {
-                #condition
-                let #provider: fn() -> Option<&'static #runtime::metadata::TypeMetadata> = || {
-                    use #runtime::__private::v8::NestedTypeMetadataProbe as _;
-                    let marker = ::std::marker::PhantomData::<#ty>;
-                    (&&marker).nested_type_metadata()
-                };
-                nested_metadata_providers.push(#provider);
-            }
-        });
+    let providers = candidates.iter().enumerate().map(|(index, (ty, presence))| {
+        let provider = format_ident!("__qubit_nested_type_metadata_{index}");
+        let condition = presence.attribute();
+        quote! {
+            #condition
+            let #provider: fn() -> Option<&'static #runtime::metadata::TypeMetadata> = || {
+                use #runtime::__private::v8::NestedTypeMetadataProbe as _;
+                let marker = ::std::marker::PhantomData::<#ty>;
+                (&&marker).nested_type_metadata()
+            };
+            nested_metadata_providers.push(#provider);
+        }
+    });
     quote! {
         let mut nested_metadata_providers = ::std::vec::Vec::new();
         #(#providers)*
@@ -298,11 +279,7 @@ fn expand_nested_metadata_providers(
 fn collect_nested_type_candidates(ty: &Type, output: &mut Vec<Type>, seen: &mut HashSet<String>) {
     match ty {
         Type::Path(TypePath { path, .. }) => {
-            if path
-                .segments
-                .last()
-                .is_some_and(|segment| segment.ident == "str")
-            {
+            if path.segments.last().is_some_and(|segment| segment.ident == "str") {
                 return;
             }
             if path
@@ -426,13 +403,8 @@ fn expand_generic_registration(
         generic_type_names,
         ident,
     );
-    let template_variants = expand_generic_variant_vector(
-        variants,
-        &definition_path,
-        runtime,
-        generic_type_names,
-        owner,
-    );
+    let template_variants =
+        expand_generic_variant_vector(variants, &definition_path, runtime, generic_type_names, owner);
     quote! {
         #[doc(hidden)]
         fn #metadata_fn() -> &'static #runtime::generic::GenericModelMetadata {

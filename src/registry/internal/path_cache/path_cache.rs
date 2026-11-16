@@ -58,10 +58,7 @@ impl<T> Debug for PathCache<T> {
     /// `Ok(())` after writing the summary, or the formatting error reported by
     /// the formatter.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-        formatter
-            .debug_struct("PathCache")
-            .field("len", &self.len)
-            .finish()
+        formatter.debug_struct("PathCache").field("len", &self.len).finish()
     }
 }
 
@@ -156,11 +153,7 @@ impl<T> PathCache<T> {
     ///
     /// Panics if the cache length and retained buckets violate the capacity
     /// invariant.
-    pub(in crate::registry) fn insert_or_existing(
-        &mut self,
-        key: PathCacheKey,
-        compiled: Arc<T>,
-    ) -> Arc<T> {
+    pub(in crate::registry) fn insert_or_existing(&mut self, key: PathCacheKey, compiled: Arc<T>) -> Arc<T> {
         if let Some(existing) = self.get(&key) {
             return existing;
         }
@@ -220,8 +213,7 @@ impl<T> PathCache<T> {
             for entry in bucket {
                 entry.last_access = stamps[..count]
                     .binary_search(&entry.last_access)
-                    .expect("retained access stamp is present")
-                    as u64;
+                    .expect("retained access stamp is present") as u64;
             }
         }
         self.next_access = count as u64;
@@ -321,10 +313,7 @@ mod tests {
     #[test]
     fn test_context_is_part_of_path_cache_identity() {
         let first_context = test_context_id();
-        let second_context = ReflectionContext::builder()
-            .build()
-            .expect("second empty context")
-            .id();
+        let second_context = ReflectionContext::builder().build().expect("second empty context").id();
         let mut cache = PathCache::default();
         let key = PathCacheKey::new(first_context, TypeId::of::<usize>(), 1, &["value"], false);
         cache.insert_or_existing(key, Arc::new(42));
@@ -373,13 +362,7 @@ mod tests {
     #[test]
     fn test_path_cache_duplicate_insert_keeps_existing_value() {
         let mut cache = PathCache::default();
-        let key = PathCacheKey::new(
-            test_context_id(),
-            TypeId::of::<usize>(),
-            7,
-            &["middle", "leaf"],
-            false,
-        );
+        let key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 7, &["middle", "leaf"], false);
         let first = cache.insert_or_existing(key.clone(), Arc::new(42));
         let competing = Arc::new(99);
 
@@ -427,20 +410,8 @@ mod tests {
             (type_id, 7, &["a", "b"][..].as_ref(), false, &first),
             (type_id, 7, &["a", "c"][..].as_ref(), false, &second),
             (type_id, 7, &["a", "b"][..].as_ref(), true, &read),
-            (
-                type_id,
-                8,
-                &["a", "b"][..].as_ref(),
-                false,
-                &alternate_metadata,
-            ),
-            (
-                TypeId::of::<u8>(),
-                7,
-                &["a", "b"][..].as_ref(),
-                false,
-                &alternate_type,
-            ),
+            (type_id, 8, &["a", "b"][..].as_ref(), false, &alternate_metadata),
+            (TypeId::of::<u8>(), 7, &["a", "b"][..].as_ref(), false, &alternate_type),
         ] {
             let actual = cache
                 .get_borrowed(test_context_id(), lookup_type, address, segments, write)
@@ -458,33 +429,15 @@ mod tests {
             forced_hash: Some(1),
             ..PathCache::default()
         };
-        let first_key = PathCacheKey::new(
-            test_context_id(),
-            TypeId::of::<usize>(),
-            1,
-            &["path-0"],
-            false,
-        );
+        let first_key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &["path-0"], false);
         let first = cache.insert_or_existing(first_key.clone(), Arc::new(0));
-        let second_key = PathCacheKey::new(
-            test_context_id(),
-            TypeId::of::<usize>(),
-            1,
-            &["path-1"],
-            false,
-        );
+        let second_key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &["path-1"], false);
         let second = cache.insert_or_existing(second_key.clone(), Arc::new(1));
 
         let mut newest = None;
         for index in 2..=CACHE_CAPACITY {
             let segment = format!("path-{index}");
-            let key = PathCacheKey::new(
-                test_context_id(),
-                TypeId::of::<usize>(),
-                1,
-                &[&segment],
-                false,
-            );
+            let key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &[&segment], false);
             let retained = cache.insert_or_existing(key, Arc::new(index));
             if index == CACHE_CAPACITY {
                 newest = Some(retained);
@@ -492,28 +445,15 @@ mod tests {
             assert!(cache.len() <= CACHE_CAPACITY);
         }
 
-        assert!(
-            cache.get(&first_key).is_none(),
-            "the oldest key should be evicted"
-        );
+        assert!(cache.get(&first_key).is_none(), "the oldest key should be evicted");
         assert!(Arc::ptr_eq(
             &second,
-            &cache
-                .get(&second_key)
-                .expect("second colliding key remains")
+            &cache.get(&second_key).expect("second colliding key remains")
         ));
-        let newest_key = PathCacheKey::new(
-            test_context_id(),
-            TypeId::of::<usize>(),
-            1,
-            &["path-256"],
-            false,
-        );
+        let newest_key = PathCacheKey::new(test_context_id(), TypeId::of::<usize>(), 1, &["path-256"], false);
         assert!(Arc::ptr_eq(
             &newest.expect("257th insertion is retained"),
-            &cache
-                .get(&newest_key)
-                .expect("newest colliding key remains")
+            &cache.get(&newest_key).expect("newest colliding key remains")
         ));
         let replacement = cache.insert_or_existing(first_key, Arc::new(999));
         assert!(!Arc::ptr_eq(&first, &replacement));
@@ -540,13 +480,7 @@ mod tests {
             .expect("hot path remains cached before eviction");
         assert!(Arc::ptr_eq(&hot, &hit));
         cache.insert_or_existing(
-            PathCacheKey::new(
-                test_context_id(),
-                type_id,
-                CACHE_CAPACITY + 1,
-                &["cold"],
-                false,
-            ),
+            PathCacheKey::new(test_context_id(), type_id, CACHE_CAPACITY + 1, &["cold"], false),
             Arc::new(CACHE_CAPACITY + 1),
         );
 
@@ -575,18 +509,9 @@ mod tests {
                 Arc::new(address),
             );
         }
-        assert!(Arc::ptr_eq(
-            &hot,
-            &cache.get(&hot_key).expect("owned-key hit")
-        ));
+        assert!(Arc::ptr_eq(&hot, &cache.get(&hot_key).expect("owned-key hit")));
         cache.insert_or_existing(
-            PathCacheKey::new(
-                test_context_id(),
-                type_id,
-                CACHE_CAPACITY + 1,
-                &["cold"],
-                false,
-            ),
+            PathCacheKey::new(test_context_id(), type_id, CACHE_CAPACITY + 1, &["cold"], false),
             Arc::new(0),
         );
         assert!(Arc::ptr_eq(
@@ -613,19 +538,10 @@ mod tests {
             &cache.insert_or_existing(hot_key.clone(), Arc::new(999))
         ));
         cache.insert_or_existing(
-            PathCacheKey::new(
-                test_context_id(),
-                type_id,
-                CACHE_CAPACITY + 1,
-                &["cold"],
-                false,
-            ),
+            PathCacheKey::new(test_context_id(), type_id, CACHE_CAPACITY + 1, &["cold"], false),
             Arc::new(0),
         );
-        assert!(Arc::ptr_eq(
-            &hot,
-            &cache.get(&hot_key).expect("duplicate hit remains")
-        ));
+        assert!(Arc::ptr_eq(&hot, &cache.get(&hot_key).expect("duplicate hit remains")));
     }
 
     /// Counter overflow preserves the relative age of entries during eviction.
@@ -649,13 +565,7 @@ mod tests {
                 .expect("hot hit")
         ));
         cache.insert_or_existing(
-            PathCacheKey::new(
-                test_context_id(),
-                type_id,
-                CACHE_CAPACITY + 1,
-                &["cold"],
-                false,
-            ),
+            PathCacheKey::new(test_context_id(), type_id, CACHE_CAPACITY + 1, &["cold"], false),
             Arc::new(0),
         );
 

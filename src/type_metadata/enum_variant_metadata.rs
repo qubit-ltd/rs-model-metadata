@@ -188,14 +188,8 @@ impl EnumVariantMetadata {
     /// The descriptor for this variant when its concrete owner is registered
     /// in `context`; otherwise, `None`.
     #[inline]
-    pub fn reflect_in<'ctx>(
-        &self,
-        context: &'ctx ReflectionContext,
-    ) -> Option<BoundVariantDescriptor<'ctx>> {
-        let ty = context
-            .find_type_by_id(self.owner_type_id?)
-            .ok()
-            .flatten()?;
+    pub fn reflect_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<BoundVariantDescriptor<'ctx>> {
+        let ty = context.find_type_by_id(self.owner_type_id?).ok().flatten()?;
         ty.variants()
             .iter()
             .find(|variant| variant.index() == self.source_index)

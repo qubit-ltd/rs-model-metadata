@@ -417,23 +417,14 @@ impl FieldMetadata {
     ///
     /// The matching reflected field when this is a concrete field and its
     /// owner is present in the context; otherwise `None`.
-    pub fn reflect_in<'ctx>(
-        &self,
-        context: &'ctx ReflectionContext,
-    ) -> Option<FieldDescriptor<'ctx>> {
-        let descriptor = context
-            .find_type_by_id(self.owner_type_id?)
-            .ok()
-            .flatten()?;
+    pub fn reflect_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<FieldDescriptor<'ctx>> {
+        let descriptor = context.find_type_by_id(self.owner_type_id?).ok().flatten()?;
         if let Some(variant_index) = self.source_variant {
             let variant = descriptor
                 .variants()
                 .iter()
                 .find(|value| value.index() == variant_index)?;
-            return variant
-                .fields()
-                .iter()
-                .find(|value| value.index() == self.source_index);
+            return variant.fields().iter().find(|value| value.index() == self.source_index);
         }
         descriptor
             .fields()
@@ -456,14 +447,8 @@ impl FieldMetadata {
     ///
     /// The context-bound expression when retained expression data or a
     /// reflected field is available; otherwise `None`.
-    pub fn type_expression_in<'ctx>(
-        &self,
-        context: &'ctx ReflectionContext,
-    ) -> Option<TypeExpression<'ctx>> {
-        if let Some(expression) = self
-            .expression
-            .filter(|expression| contains_self_type(expression))
-        {
+    pub fn type_expression_in<'ctx>(&self, context: &'ctx ReflectionContext) -> Option<TypeExpression<'ctx>> {
+        if let Some(expression) = self.expression.filter(|expression| contains_self_type(expression)) {
             return Some(type_expression_in(expression, context));
         }
         if let Some(field) = self.reflect_in(context) {
@@ -572,12 +557,10 @@ impl FieldMetadata {
     /// The identifier metadata when declared; otherwise `None`.
     #[inline]
     pub fn identifier(&self) -> Option<&'static IdentifierMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Identifier(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Identifier(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns whether this field is the model identifier.
@@ -598,13 +581,12 @@ impl FieldMetadata {
     /// The combined indexing reasons, empty when the field is not indexed.
     #[must_use]
     pub fn indexing_reasons(&self) -> IndexingReasons {
-        self.attributes.iter().fold(
-            IndexingReasons::empty(),
-            |result, attribute| match attribute {
+        self.attributes
+            .iter()
+            .fold(IndexingReasons::empty(), |result, attribute| match attribute {
                 FieldAttributeMetadata::Indexed(value) => result | *value,
                 _ => result,
-            },
-        )
+            })
     }
 
     /// Returns whether this field participates in any index.
@@ -624,12 +606,10 @@ impl FieldMetadata {
     /// The uniqueness metadata when declared; otherwise `None`.
     #[inline]
     pub fn unique(&self) -> Option<&'static FieldUniqueMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Unique(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Unique(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns whether this field declares uniqueness.
@@ -650,12 +630,10 @@ impl FieldMetadata {
     /// The reference metadata when declared; otherwise `None`.
     #[inline]
     pub fn reference(&self) -> Option<&'static FieldReferenceMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Reference(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Reference(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns the ordered composite-key declaration, when present.
@@ -665,12 +643,10 @@ impl FieldMetadata {
     /// The key position metadata when declared; otherwise `None`.
     #[inline]
     pub fn key_part(&self) -> Option<&'static KeyPartMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::KeyPart(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::KeyPart(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns all standard field constraints.
@@ -762,12 +738,10 @@ impl FieldMetadata {
     /// The codec metadata when declared; otherwise `None`.
     #[inline]
     pub fn codec(&self) -> Option<&'static CodecMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Codec(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Codec(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns the field redaction declaration, when present.
@@ -777,12 +751,10 @@ impl FieldMetadata {
     /// The redaction metadata when declared; otherwise `None`.
     #[inline]
     pub fn redact(&self) -> Option<&'static RedactMetadata> {
-        self.attributes
-            .iter()
-            .find_map(|attribute| match attribute {
-                FieldAttributeMetadata::Redact(value) => Some(*value),
-                _ => None,
-            })
+        self.attributes.iter().find_map(|attribute| match attribute {
+            FieldAttributeMetadata::Redact(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Returns the effective Serde behavior.

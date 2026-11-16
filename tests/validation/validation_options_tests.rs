@@ -119,8 +119,7 @@ fn test_object_path_contract_covers_current_parent_and_rendering() {
 #[test]
 fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
     let root = TypeMetadata::of::<SelectedEnvelope>();
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-        .expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root, TypeMetadata::of::<SelectedFields>()];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -139,23 +138,13 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         },
     )
     .expect("nested constraints");
-    assert_eq!(
-        plan.binding_count(),
-        2,
-        "both nested declarations must be bound"
-    );
+    assert_eq!(plan.binding_count(), 2, "both nested declarations must be bound");
     let names = ["fields".to_owned(), "second".to_owned()];
     let selected = FieldPath::from_segments(names.iter());
     drop(names);
     assert_eq!(selected, FieldPath::new("fields.second"));
-    assert_eq!(
-        format!("{selected:?}"),
-        "FieldPath { segments: \"<redacted>\" }"
-    );
-    assert_eq!(
-        selected.to_string(),
-        "field path did not match validation rules"
-    );
+    assert_eq!(format!("{selected:?}"), "FieldPath { segments: \"<redacted>\" }");
+    assert_eq!(selected.to_string(), "field path did not match validation rules");
     let value = SelectedEnvelope {
         fields: SelectedFields {
             first: String::new(),
@@ -164,10 +153,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         },
     };
     let all = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&value),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&value), &ValidationOptions::default())
         .expect("unselected execution");
     assert_eq!(
         all.violations()
@@ -179,9 +165,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
     let explicitly_all = plan
         .validate_dynamic(
             DynamicRef::<Local>::new(&value),
-            &ValidationOptions::builder()
-                .selection(ValidationSelection::All)
-                .build(),
+            &ValidationOptions::builder().selection(ValidationSelection::All).build(),
         )
         .expect("All selection validates every bound occurrence");
     assert_eq!(explicitly_all.violations().len(), 2);
@@ -204,10 +188,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
         "requested order does not change declaration execution order"
     );
     let options = ValidationOptions::builder()
-        .selection(ValidationSelection::Fields(vec![
-            selected.clone(),
-            selected,
-        ]))
+        .selection(ValidationSelection::Fields(vec![selected.clone(), selected]))
         .build();
     let report = plan
         .validate_dynamic(DynamicRef::<Local>::new(&value), &options)
@@ -247,10 +228,7 @@ fn test_segment_selection_owns_names_and_matches_exact_nested_paths() {
 /// Default construction paths agree without requiring compatibility setters.
 #[test]
 fn test_builder_preserves_default_options() {
-    assert_eq!(
-        ValidationOptions::builder().build(),
-        ValidationOptions::default()
-    );
+    assert_eq!(ValidationOptions::builder().build(), ValidationOptions::default());
     assert_eq!(
         ValidationOptionsBuilder::default().build(),
         ValidationOptions::default()
@@ -262,8 +240,7 @@ fn test_builder_preserves_default_options() {
 #[test]
 fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
     let root = TypeMetadata::of::<SelectedFields>();
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-        .expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -299,10 +276,7 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
             FieldPath::new("first_typo"),
         ),
         (vec![FieldPath::new("plain")], FieldPath::new("plain")),
-        (
-            vec![],
-            FieldPath::from_segments(std::iter::empty::<String>()),
-        ),
+        (vec![], FieldPath::from_segments(std::iter::empty::<String>())),
         (
             vec![FieldPath::from_segments(std::iter::empty::<String>())],
             FieldPath::from_segments(std::iter::empty::<String>()),
@@ -344,8 +318,7 @@ fn test_field_selection_rejects_paths_without_bound_rules_before_execution() {
 #[test]
 fn test_explicit_empty_path_selects_model_level_rule() {
     let root = TypeMetadata::of::<SelectedFields>();
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-        .expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -405,8 +378,7 @@ fn test_explicit_empty_path_selects_model_level_rule() {
 #[test]
 fn test_field_selection_executes_all_rules_bound_to_the_same_path() {
     let root = TypeMetadata::of::<SelectedMultipleRules>();
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-        .expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -425,27 +397,14 @@ fn test_field_selection_executes_all_rules_bound_to_the_same_path() {
         },
     )
     .expect("standard constraints");
-    assert_eq!(
-        plan.binding_count(),
-        2,
-        "both constraints bind to one field path"
-    );
+    assert_eq!(plan.binding_count(), 2, "both constraints bind to one field path");
     let options = ValidationOptions::builder()
         .selection(ValidationSelection::Fields(vec![FieldPath::new("value")]))
         .build();
     let report = plan
-        .validate(
-            &SelectedMultipleRules {
-                value: String::new(),
-            },
-            &options,
-        )
+        .validate(&SelectedMultipleRules { value: String::new() }, &options)
         .expect("the selected field path is bound");
-    assert_eq!(
-        report.violations().len(),
-        2,
-        "selection includes every occurrence"
-    );
+    assert_eq!(report.violations().len(), 2, "selection includes every occurrence");
     assert!(
         report
             .violations()
@@ -457,8 +416,7 @@ fn test_field_selection_executes_all_rules_bound_to_the_same_path() {
 #[test]
 fn test_typed_validate_entrypoint_reports_selected_field_violations() {
     let root = TypeMetadata::of::<SelectedFields>();
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-        .expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
@@ -493,10 +451,7 @@ fn test_typed_validate_entrypoint_reports_selected_field_violations() {
             .iter()
             .map(|violation| (violation.path().render(), violation.code().as_str()))
             .collect::<Vec<_>>(),
-        [
-            ("first".to_owned(), "text.blank"),
-            ("second".to_owned(), "text.blank"),
-        ],
+        [("first".to_owned(), "text.blank"), ("second".to_owned(), "text.blank"),],
         "typed execution preserves each constrained field's path and violation code"
     );
 }
@@ -505,8 +460,7 @@ fn test_typed_validate_entrypoint_reports_selected_field_violations() {
 #[test]
 fn test_builder_field_selection_and_budget_execute_together() {
     let root = TypeMetadata::of::<SelectedFields>();
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-        .expect("isolated registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
     let roots = [root];
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {

@@ -77,9 +77,8 @@ fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
         line: Some(line!()),
         column: None,
     };
-    let models =
-        ModelRegistry::from_static_metadata(&reflection, &[(registered_metadata(), &SOURCE)])
-            .expect("static model registry should build");
+    let models = ModelRegistry::from_static_metadata(&reflection, &[(registered_metadata(), &SOURCE)])
+        .expect("static model registry should build");
     let errors = StructureResolver::new(ResolveInputs {
         roots: &[],
         models: &models,
@@ -95,9 +94,7 @@ fn test_assembly_diagnostics_keep_property_names_and_original_causes() {
     assert!(Error::source(error).is_some());
     assert!(matches!(
         error.cause(),
-        Some(ModelResolutionCause::Properties(
-            PropertyResolutionError::Assembly(_)
-        ))
+        Some(ModelResolutionCause::Properties(PropertyResolutionError::Assembly(_)))
     ));
 }
 
@@ -110,13 +107,10 @@ fn test_static_root_resolution_keeps_root_after_caller_scope() {
         .expect("reflection context should build");
     let models = ModelRegistry::from_context(&reflection).expect("model registry should build");
     let root = v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<Broken<1>>(None, &[], v8::leak(v8::model_role()))
-            .finish::<Broken<1>>(),
+        v8::GeneratedTypeMetadataBuilder::new::<Broken<1>>(None, &[], v8::leak(v8::model_role())).finish::<Broken<1>>(),
     );
     let resolver = StructureResolver::for_static_roots(&models, [root]);
-    let errors = resolver
-        .resolve()
-        .expect_err("broken property assembly is reported");
+    let errors = resolver.resolve().expect_err("broken property assembly is reported");
     assert!(errors.errors().iter().any(|error| {
         error.kind() == ResolveErrorKind::InvalidProperties
             && error.model_id().is_none()

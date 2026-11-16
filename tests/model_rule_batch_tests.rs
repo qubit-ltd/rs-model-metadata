@@ -61,9 +61,9 @@ impl PreparedValidator for RejectModel {
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
         assert!(value.typed::<BatchModel>().is_some());
-        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(
-            ViolationCode::new("model.invalid"),
-        )]))
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+            "model.invalid",
+        ))]))
     }
 }
 
@@ -121,8 +121,7 @@ fn assert_batches(batches: Vec<Vec<ModelRuleBinding>>, expected: &[&str]) {
     )
     .expect("binding");
     let plan = batches.into_iter().fold(plan, |plan, bindings| {
-        plan.with_model_rules(bindings)
-            .expect("model rules match plan root")
+        plan.with_model_rules(bindings).expect("model rules match plan root")
     });
     assert_eq!(plan.binding_count(), expected.len());
     let report = plan

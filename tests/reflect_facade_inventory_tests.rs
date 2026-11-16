@@ -53,19 +53,8 @@ qubit_reflect::__private::__inventory::submit! {
 #[test]
 fn test_collects_multiple_impl_providers_for_one_concrete_type() {
     let fragments = all_model_impl_fragments();
-    assert_eq!(
-        fragments.len(),
-        2,
-        "both submitted providers should be retained"
-    );
-    let mut fingerprints: Vec<_> = fragments
-        .iter()
-        .map(|fragment| fragment.source().fingerprint)
-        .collect();
+    assert_eq!(fragments.len(), 2, "both submitted providers should be retained");
+    let mut fingerprints: Vec<_> = fragments.iter().map(|fragment| fragment.source().fingerprint).collect();
     fingerprints.sort_unstable();
-    assert_eq!(
-        fingerprints,
-        [1, 2],
-        "both declaration fingerprints should be retained"
-    );
+    assert_eq!(fingerprints, [1, 2], "both declaration fingerprints should be retained");
 }

@@ -61,9 +61,5 @@ fn test_for_roots_ignores_unrelated_invalid_snapshot_member() {
         .resolve()
         .expect("root-scoped resolution ignores the bad model");
     assert!(graph.model(root.type_id()).is_some());
-    assert!(
-        graph
-            .model(TypeMetadata::of::<SnapshotBad>().type_id())
-            .is_none()
-    );
+    assert!(graph.model(TypeMetadata::of::<SnapshotBad>().type_id()).is_none());
 }

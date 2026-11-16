@@ -66,22 +66,10 @@ impl ContractProperty {
 
 #[test]
 fn test_public_macros_emit_metadata_for_all_roles() {
-    assert_eq!(
-        TypeMetadata::of::<ContractEntity>().role(),
-        ModelRole::Entity
-    );
-    assert_eq!(
-        TypeMetadata::of::<ContractProjection>().role(),
-        ModelRole::Projection
-    );
-    assert_eq!(
-        TypeMetadata::of::<ContractModel<String>>().role(),
-        ModelRole::Model
-    );
-    assert_eq!(
-        TypeMetadata::of::<ContractEnum<String>>().role(),
-        ModelRole::Enum
-    );
+    assert_eq!(TypeMetadata::of::<ContractEntity>().role(), ModelRole::Entity);
+    assert_eq!(TypeMetadata::of::<ContractProjection>().role(), ModelRole::Projection);
+    assert_eq!(TypeMetadata::of::<ContractModel<String>>().role(), ModelRole::Model);
+    assert_eq!(TypeMetadata::of::<ContractEnum<String>>().role(), ModelRole::Enum);
     assert_eq!(TypeMetadata::of::<ContractValue>().role(), ModelRole::Value);
 }
 
@@ -92,15 +80,7 @@ fn test_model_impl_contributes_property_metadata() {
         .try_properties()
         .expect("ModelImpl properties must merge with fields");
 
-    let name = properties
-        .property("name")
-        .expect("ModelImpl name property");
-    assert_eq!(
-        name.getter().expect("name getter").rust_method_name(),
-        "name"
-    );
-    assert_eq!(
-        name.setter().expect("name setter").rust_method_name(),
-        "set_name"
-    );
+    let name = properties.property("name").expect("ModelImpl name property");
+    assert_eq!(name.getter().expect("name getter").rust_method_name(), "name");
+    assert_eq!(name.setter().expect("name setter").rust_method_name(), "set_name");
 }

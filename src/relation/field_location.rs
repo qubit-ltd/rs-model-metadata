@@ -59,11 +59,7 @@ impl FieldLocation {
     #[must_use]
     #[inline]
     pub(crate) const fn new(owner: TypeId, variant: Option<usize>, index: usize) -> Self {
-        Self {
-            owner,
-            variant,
-            index,
-        }
+        Self { owner, variant, index }
     }
 
     /// Returns the concrete owner type identity.

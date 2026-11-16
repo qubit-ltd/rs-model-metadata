@@ -52,14 +52,8 @@ impl DependencyBindingMetadata {
     #[inline]
     pub const fn new(name: &'static str, path: PropertyPath<'static>) -> Self {
         static UNKNOWN: DeclarationLocation = DeclarationLocation::unknown();
-        assert!(
-            !name.is_empty(),
-            "validator dependency name cannot be empty"
-        );
-        assert!(
-            !path.is_empty(),
-            "validator dependency path cannot be empty"
-        );
+        assert!(!name.is_empty(), "validator dependency name cannot be empty");
+        assert!(!path.is_empty(), "validator dependency path cannot be empty");
         Self {
             name,
             path,

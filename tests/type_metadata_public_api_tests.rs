@@ -61,12 +61,7 @@ fn test_type_metadata_delegates_structure_to_reflection() {
     assert!(metadata.field_at(0).is_some());
     assert!(metadata.field_at(1).is_none());
     assert!(metadata.try_property("value").unwrap().is_some());
-    assert!(
-        metadata
-            .try_property_in(&context, "value")
-            .unwrap()
-            .is_some()
-    );
+    assert!(metadata.try_property_in(&context, "value").unwrap().is_some());
     assert!(metadata.try_properties_in(&context).is_ok());
     assert!(metadata.property_fragments().is_ok());
     assert!(metadata.property_fragments_in(&context).is_ok());
@@ -87,12 +82,7 @@ fn test_registered_type_metadata_exposes_registration_identity() {
         "type_metadata_public_api.registered"
     );
     assert!(metadata.try_property("value").unwrap().is_some());
-    assert!(
-        metadata
-            .try_property_in(&context, "value")
-            .unwrap()
-            .is_some()
-    );
+    assert!(metadata.try_property_in(&context, "value").unwrap().is_some());
 }
 
 #[test]
@@ -112,12 +102,7 @@ fn test_missing_property_lookup_returns_none_for_static_metadata() {
         .include_type::<String>()
         .build()
         .expect("explicit context");
-    assert!(
-        metadata
-            .try_property_in(&context, "missing")
-            .unwrap()
-            .is_none()
-    );
+    assert!(metadata.try_property_in(&context, "missing").unwrap().is_none());
 }
 
 #[test]

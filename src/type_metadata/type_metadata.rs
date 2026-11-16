@@ -190,10 +190,7 @@ impl TypeMetadata {
     #[doc(hidden)]
     #[must_use]
     #[inline]
-    pub(crate) const fn with_property_fragments(
-        mut self,
-        fragments: &'static [PropertyFragment],
-    ) -> Self {
+    pub(crate) const fn with_property_fragments(mut self, fragments: &'static [PropertyFragment]) -> Self {
         self.property_fragments = fragments;
         self
     }
@@ -223,9 +220,7 @@ impl TypeMetadata {
     /// for the lifetime of the iterator; each yielded metadata value is
     /// independently `'static`.
     pub(crate) fn nested_metadata(&self) -> impl Iterator<Item = &'static TypeMetadata> + '_ {
-        self.nested_metadata_providers
-            .iter()
-            .filter_map(|provider| provider())
+        self.nested_metadata_providers.iter().filter_map(|provider| provider())
     }
 
     /// Records the generic definition that produced this concrete instance.
@@ -237,10 +232,7 @@ impl TypeMetadata {
     #[must_use]
     #[inline]
     #[cfg(feature = "generic")]
-    pub(crate) const fn with_generic_definition(
-        mut self,
-        definition: &'static GenericModelMetadata,
-    ) -> Self {
+    pub(crate) const fn with_generic_definition(mut self, definition: &'static GenericModelMetadata) -> Self {
         self.generic_definition = Some(definition);
         self
     }
@@ -385,9 +377,7 @@ impl TypeMetadata {
     /// # Errors
     ///
     /// Returns reflection initialization or intrinsic capability conflicts.
-    pub fn property_fragments(
-        &'static self,
-    ) -> Result<ResolvedPropertyFragments, PropertyResolutionError> {
+    pub fn property_fragments(&'static self) -> Result<ResolvedPropertyFragments, PropertyResolutionError> {
         self.property_fragments_in(ReflectionContext::global())
     }
 
@@ -411,12 +401,10 @@ impl TypeMetadata {
         &'static self,
         registry: &ReflectionContext,
     ) -> Result<ResolvedPropertyFragments, PropertyResolutionError> {
-        Ok(
-            match crate::reflect_facade::model_impl_metadata(self, registry)? {
-                None => ResolvedPropertyFragments::Static(self.property_fragments),
-                Some(ModelImplResolution::Merged(metadata)) => metadata.fragments(),
-            },
-        )
+        Ok(match crate::reflect_facade::model_impl_metadata(self, registry)? {
+            None => ResolvedPropertyFragments::Static(self.property_fragments),
+            Some(ModelImplResolution::Merged(metadata)) => metadata.fragments(),
+        })
     }
 
     /// Returns effective properties from the process-wide reflection snapshot.
@@ -461,9 +449,9 @@ impl TypeMetadata {
     ) -> Result<ResolvedProperties, PropertyResolutionError> {
         match crate::reflect_facade::model_impl_metadata(self, registry)? {
             None => Ok(ResolvedProperties::Static(&self.properties)),
-            Some(ModelImplResolution::Merged(metadata)) => metadata
-                .try_properties()
-                .map_err(PropertyResolutionError::Assembly),
+            Some(ModelImplResolution::Merged(metadata)) => {
+                metadata.try_properties().map_err(PropertyResolutionError::Assembly)
+            }
         }
     }
 
@@ -494,10 +482,7 @@ impl TypeMetadata {
     ///
     /// Returns reflection initialization, capability, or property assembly
     /// errors.
-    pub fn try_property(
-        &'static self,
-        name: &str,
-    ) -> Result<Option<PropertyMetadata>, PropertyResolutionError> {
+    pub fn try_property(&'static self, name: &str) -> Result<Option<PropertyMetadata>, PropertyResolutionError> {
         self.try_properties()
             .map(|properties| properties.property(name).copied())
     }
@@ -639,8 +624,7 @@ impl TypeMetadata {
     /// Panics when the descriptor or generated metadata violates the ABI.
     #[doc(hidden)]
     pub fn assert_valid_for<T: 'static>(&self) {
-        self.validate_for::<T>()
-            .unwrap_or_else(|error| panic!("{error}"));
+        self.validate_for::<T>().unwrap_or_else(|error| panic!("{error}"));
     }
 
     /// Checks that generated metadata is anchored to `T`.
@@ -674,10 +658,7 @@ impl TypeMetadata {
     /// # Parameters
     ///
     /// * `descriptor` - Reflection descriptor that must match this metadata.
-    pub(crate) fn validate_descriptor(
-        &self,
-        descriptor: &TypeDescriptor,
-    ) -> Result<(), AbiViolation> {
+    pub(crate) fn validate_descriptor(&self, descriptor: &TypeDescriptor) -> Result<(), AbiViolation> {
         if self.type_id != descriptor.type_id() {
             return Err(abi_violation(
                 "QMM-ABI-002",

@@ -93,10 +93,7 @@ fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
         email: Some(Email(String::new())),
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&invalid),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&invalid), &ValidationOptions::default())
         .expect("transparent field execution");
     assert_eq!(
         report.violations().len(),
@@ -112,17 +109,10 @@ fn test_transparent_value_nested_field_reports_violation_and_optional_skip() {
 
     let missing = Envelope { email: None };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&missing),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&missing), &ValidationOptions::default())
         .expect("missing email skips the field");
     assert!(report.violations().is_empty());
-    assert_eq!(
-        report.skipped().len(),
-        1,
-        "missing email should be skipped once"
-    );
+    assert_eq!(report.skipped().len(), 1, "missing email should be skipped once");
     assert_eq!(
         report.skipped()[0].path().render(),
         "email[0]",
@@ -200,10 +190,7 @@ fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
 
     let invalid = OptionalEmail(Some(String::new()));
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&invalid),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&invalid), &ValidationOptions::default())
         .expect("present optional scalar execution");
     assert_eq!(
         report.violations().len(),
@@ -219,10 +206,7 @@ fn test_transparent_value_optional_scalar_root_reports_violation_and_skip() {
 
     let missing = OptionalEmail(None);
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&missing),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&missing), &ValidationOptions::default())
         .expect("missing optional scalar skips the field");
     assert!(report.violations().is_empty());
     assert_eq!(
@@ -272,10 +256,7 @@ fn test_transparent_value_validation_through_generic_optional_wrapper() {
         },
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&present),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&present), &ValidationOptions::default())
         .expect("present wrapped value execution");
     assert_eq!(
         report.violations().len(),
@@ -292,17 +273,10 @@ fn test_transparent_value_validation_through_generic_optional_wrapper() {
         wrapped: GenericOptionalWrapper { value: None },
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&absent),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&absent), &ValidationOptions::default())
         .expect("absent wrapped value execution");
     assert!(report.violations().is_empty());
-    assert_eq!(
-        report.skipped().len(),
-        1,
-        "absent wrapped value should be skipped once"
-    );
+    assert_eq!(report.skipped().len(), 1, "absent wrapped value should be skipped once");
     assert_eq!(
         report.skipped()[0].path().render(),
         "wrapped.value[0]",

@@ -79,11 +79,7 @@ impl CodecOccurrenceId {
     /// An identity containing the model type, property path, and declaration
     /// source, for use within the current process.
     #[must_use]
-    pub fn new(
-        model: &'static TypeMetadata,
-        property: impl Into<Box<str>>,
-        source: CodecSource,
-    ) -> Self {
+    pub fn new(model: &'static TypeMetadata, property: impl Into<Box<str>>, source: CodecSource) -> Self {
         Self {
             model: model.model_id().map(ModelIdBuf::from),
             type_id: model.type_id(),

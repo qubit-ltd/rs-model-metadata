@@ -50,21 +50,14 @@ fn read_name(target: DynamicRef<'_, Local>) -> Result<PropertyValue<'_>, Propert
     let target = target
         .downcast::<Record>()
         .map_err(|_| PropertyAccessError::user("wrong owner"))?;
-    Ok(PropertyValue::Borrowed(DynamicRef::<Local>::new(
-        &target.name,
-    )))
+    Ok(PropertyValue::Borrowed(DynamicRef::<Local>::new(&target.name)))
 }
 
-fn write_name(
-    target: DynamicMut<'_, Local>,
-    value: DynamicOwned<Local>,
-) -> Result<(), PropertySetFailure> {
+fn write_name(target: DynamicMut<'_, Local>, value: DynamicOwned<Local>) -> Result<(), PropertySetFailure> {
     let target = target
         .downcast::<Record>()
         .unwrap_or_else(|_| panic!("validated owner"));
-    target.name = value
-        .downcast::<String>()
-        .unwrap_or_else(|_| panic!("validated input"));
+    target.name = value.downcast::<String>().unwrap_or_else(|_| panic!("validated input"));
     Ok(())
 }
 
@@ -91,10 +84,7 @@ const REGISTRY_ORIGIN: ModelRegistryOrigin = ModelRegistryOrigin {
 // ModelImpl code generation repeats the declaration's backing fields in each
 // overlay. These fixtures reproduce that ABI shape with independently owned
 // getter/setter descriptors, without exposing an internal merge test hook.
-fn overlay(
-    getter_name: Option<&'static str>,
-    setter_name: Option<&'static str>,
-) -> ModelImplMetadata {
+fn overlay(getter_name: Option<&'static str>, setter_name: Option<&'static str>) -> ModelImplMetadata {
     let owner = TypeMetadata::of::<Record>();
     let name = &owner.fields()[0];
     let count = &owner.fields()[1];
@@ -117,16 +107,8 @@ fn overlay(
         ))
     });
     let mut fragments = vec![
-        v8::property_fragment(
-            "name",
-            Some(name_expression),
-            PropertyFragmentSource::Field(name),
-        ),
-        v8::property_fragment(
-            "count",
-            Some(count_expression),
-            PropertyFragmentSource::Field(count),
-        ),
+        v8::property_fragment("name", Some(name_expression), PropertyFragmentSource::Field(name)),
+        v8::property_fragment("count", Some(count_expression), PropertyFragmentSource::Field(count)),
     ];
     if let Some(getter) = getter {
         fragments.push(v8::property_fragment(
@@ -202,10 +184,7 @@ fn counting_static_registry_getter() -> &'static ModelImplMetadata {
 static PANIC_ONCE: AtomicBool = AtomicBool::new(true);
 
 fn panic_once_getter() -> &'static ModelImplMetadata {
-    assert!(
-        !PANIC_ONCE.swap(false, Ordering::SeqCst),
-        "provider panic fixture"
-    );
+    assert!(!PANIC_ONCE.swap(false, Ordering::SeqCst), "provider panic fixture");
     getter_a()
 }
 
@@ -280,24 +259,13 @@ fn test_static_and_context_registries_resolve_the_same_properties() {
     let reflection = snapshot(getter_a, setter_a);
     let from_context = ModelRegistry::from_context(&reflection).expect("context registry");
     let from_static =
-        ModelRegistry::from_static_metadata(&reflection, &[(owner, &REGISTRY_ORIGIN)])
-            .expect("static registry");
-    let context_properties = from_context
-        .properties_for(owner)
-        .expect("context properties");
-    let static_properties = from_static
-        .properties_for(owner)
-        .expect("static properties");
+        ModelRegistry::from_static_metadata(&reflection, &[(owner, &REGISTRY_ORIGIN)]).expect("static registry");
+    let context_properties = from_context.properties_for(owner).expect("context properties");
+    let static_properties = from_static.properties_for(owner).expect("static properties");
     for properties in [&context_properties, &static_properties] {
         let name = properties.property("name").expect("name property");
-        assert_eq!(
-            name.getter().expect("getter").rust_method_name(),
-            "get_name"
-        );
-        assert_eq!(
-            name.setter().expect("setter").rust_method_name(),
-            "set_name"
-        );
+        assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
+        assert_eq!(name.setter().expect("setter").rust_method_name(), "set_name");
     }
 }
 
@@ -306,43 +274,24 @@ fn test_static_and_context_registries_resolve_the_same_properties() {
 fn test_static_registry_with_generics_uses_context_providers() {
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(getter_a, setter_a);
-    let registry = ModelRegistry::from_static_metadata_with_generics(
-        &reflection,
-        &[(owner, &REGISTRY_ORIGIN)],
-        &[],
-    )
-    .expect("static registry with empty generic list");
+    let registry = ModelRegistry::from_static_metadata_with_generics(&reflection, &[(owner, &REGISTRY_ORIGIN)], &[])
+        .expect("static registry with empty generic list");
     let properties = registry.properties_for(owner).expect("context properties");
     let name = properties.property("name").expect("name property");
-    assert_eq!(
-        name.getter().expect("getter").rust_method_name(),
-        "get_name"
-    );
-    assert_eq!(
-        name.setter().expect("setter").rust_method_name(),
-        "set_name"
-    );
+    assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
+    assert_eq!(name.setter().expect("setter").rust_method_name(), "set_name");
 }
 
 #[test]
 fn test_model_impl_aggregate_registers_each_source_fragment() {
     let owner = TypeMetadata::of::<Record>();
-    let registry = snapshot_with(&[
-        (getter_a as ModelImplProvider, SOURCE_A),
-        (setter_a, SOURCE_B),
-    ]);
+    let registry = snapshot_with(&[(getter_a as ModelImplProvider, SOURCE_A), (setter_a, SOURCE_B)]);
     let properties = owner
         .try_properties_in(&registry)
         .expect("aggregate capability selects each registered source fragment");
     let name = properties.property("name").expect("name property");
-    assert_eq!(
-        name.getter().expect("base getter").rust_method_name(),
-        "get_name"
-    );
-    assert_eq!(
-        name.setter().expect("fragment setter").rust_method_name(),
-        "set_name"
-    );
+    assert_eq!(name.getter().expect("base getter").rust_method_name(), "get_name");
+    assert_eq!(name.setter().expect("fragment setter").rust_method_name(), "set_name");
 }
 
 #[test]
@@ -350,28 +299,18 @@ fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
     let owner = TypeMetadata::of::<Record>();
     let static_properties = owner.try_properties().expect("generated static properties");
     assert_eq!(
-        static_properties
-            .property("name")
-            .map(|property| property.name()),
+        static_properties.property("name").map(|property| property.name()),
         Some("name")
     );
     assert!(static_properties.property("missing").is_none());
     let registry = snapshot(getter_a, setter_a);
-    let properties = owner
-        .try_properties_in(&registry)
-        .expect("complementary accessors");
+    let properties = owner.try_properties_in(&registry).expect("complementary accessors");
     let repeated = owner.try_properties_in(&registry).expect("owned merge");
     assert_eq!(properties.properties().len(), repeated.properties().len());
     assert_eq!(properties.properties().len(), 2);
     let name = properties.property("name").expect("merged name");
-    assert_eq!(
-        name.getter().expect("getter").rust_method_name(),
-        "get_name"
-    );
-    assert_eq!(
-        name.setter().expect("setter").rust_method_name(),
-        "set_name"
-    );
+    assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
+    assert_eq!(name.setter().expect("setter").rust_method_name(), "set_name");
     let mut value = Record {
         name: "before".to_owned(),
         count: 7,
@@ -387,15 +326,10 @@ fn test_complementary_overlays_merge_accessors_and_coalesce_field_fragments() {
     else {
         panic!("borrowed getter");
     };
-    assert!(eq(
-        read.downcast_ref::<String>().expect("String output"),
-        &value.name
-    ));
+    assert!(eq(read.downcast_ref::<String>().expect("String output"), &value.name));
     assert_eq!(value.name, "after");
     assert_eq!(value.count, 7);
-    let fragments = owner
-        .property_fragments_in(&registry)
-        .expect("raw fragments");
+    let fragments = owner.property_fragments_in(&registry).expect("raw fragments");
     let reflection = &registry;
     let fragments = fragments.fragments();
     assert_eq!(fragments.len(), 4);
@@ -457,9 +391,8 @@ fn test_distinct_accessors_conflict_without_poisoning_other_snapshots() {
         assert!(display.contains(first_method));
         assert!(display.contains(second_method));
         assert!(display.contains("model_impl_merge_tests"));
-        let PropertyResolutionError::Assembly(repeated) = owner
-            .try_properties_in(&registry)
-            .expect_err("cached conflict")
+        let PropertyResolutionError::Assembly(repeated) =
+            owner.try_properties_in(&registry).expect_err("cached conflict")
         else {
             panic!("same assembly category");
         };
@@ -491,20 +424,9 @@ fn test_distinct_getter_and_setter_report_both_conflicts() {
         panic!("property assembly error");
     };
     assert_eq!(errors.errors().len(), 2);
-    assert_eq!(
-        errors.errors()[0].kind(),
-        PropertyBuildErrorKind::ConflictingGetter
-    );
-    assert_eq!(
-        errors.errors()[1].kind(),
-        PropertyBuildErrorKind::ConflictingSetter
-    );
-    assert!(
-        errors
-            .errors()
-            .iter()
-            .all(|error| error.conflict().is_some())
-    );
+    assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::ConflictingGetter);
+    assert_eq!(errors.errors()[1].kind(), PropertyBuildErrorKind::ConflictingSetter);
+    assert!(errors.errors().iter().all(|error| error.conflict().is_some()));
 }
 
 #[test]
@@ -512,9 +434,7 @@ fn test_repeated_identity_is_not_a_distinct_accessor_conflict() {
     let owner = TypeMetadata::of::<Record>();
     for provider in [getter_a as ModelImplProvider, setter_a as ModelImplProvider] {
         let registry = snapshot(provider, provider);
-        let merged = owner
-            .try_properties_in(&registry)
-            .expect("same accessor identity");
+        let merged = owner.try_properties_in(&registry).expect("same accessor identity");
         assert_eq!(merged.properties().len(), 2);
         let repeated = owner.try_properties_in(&registry).expect("owned result");
         assert_eq!(merged.properties().len(), repeated.properties().len());
@@ -538,10 +458,7 @@ fn test_registry_cache_owns_dynamic_results_and_releases_them_with_the_registry(
     drop(first);
     drop(second);
     drop(registry);
-    assert!(
-        weak.upgrade().is_none(),
-        "registry cache retained merged storage"
-    );
+    assert!(weak.upgrade().is_none(), "registry cache retained merged storage");
 }
 
 #[test]
@@ -550,14 +467,10 @@ fn test_direct_snapshot_queries_own_independent_merges() {
     let reflection = snapshot(getter_a, setter_a);
     let first = owner.try_properties_in(&reflection).expect("first merge");
     let second = owner.try_properties_in(&reflection).expect("second merge");
-    let (ResolvedProperties::Merged(first), ResolvedProperties::Merged(second)) = (&first, &second)
-    else {
+    let (ResolvedProperties::Merged(first), ResolvedProperties::Merged(second)) = (&first, &second) else {
         panic!("expected dynamic merge");
     };
-    assert!(
-        !Arc::ptr_eq(first, second),
-        "direct queries do not keep a cache"
-    );
+    assert!(!Arc::ptr_eq(first, second), "direct queries do not keep a cache");
 }
 
 #[test]
@@ -565,14 +478,11 @@ fn test_distinct_model_registries_do_not_share_their_property_cache() {
     let owner = TypeMetadata::of::<Record>();
     let first_reflection = snapshot(getter_a, setter_a);
     let second_reflection = snapshot(getter_a, setter_a);
-    let first_registry =
-        ModelRegistry::from_context(&first_reflection).expect("first model registry");
-    let second_registry =
-        ModelRegistry::from_context(&second_reflection).expect("second model registry");
+    let first_registry = ModelRegistry::from_context(&first_reflection).expect("first model registry");
+    let second_registry = ModelRegistry::from_context(&second_reflection).expect("second model registry");
     let first = first_registry.properties_for(owner).expect("first merge");
     let second = second_registry.properties_for(owner).expect("second merge");
-    let (ResolvedProperties::Merged(first), ResolvedProperties::Merged(second)) = (&first, &second)
-    else {
+    let (ResolvedProperties::Merged(first), ResolvedProperties::Merged(second)) = (&first, &second) else {
         panic!("expected dynamic merge");
     };
     assert!(!Arc::ptr_eq(first, second));
@@ -608,14 +518,8 @@ fn test_fixed_capability_aggregates_sources_and_preserves_conflicts() {
         .try_properties_in(&registry)
         .expect("all registered source fragments are merged");
     let name = properties.property("name").expect("name property");
-    assert_eq!(
-        name.getter().expect("getter").rust_method_name(),
-        "get_name"
-    );
-    assert_eq!(
-        name.setter().expect("setter").rust_method_name(),
-        "set_name"
-    );
+    assert_eq!(name.getter().expect("getter").rust_method_name(), "get_name");
+    assert_eq!(name.setter().expect("setter").rust_method_name(), "set_name");
 
     let conflicting = snapshot(getter_a, getter_b);
     let PropertyResolutionError::Assembly(errors) = owner
@@ -625,10 +529,7 @@ fn test_fixed_capability_aggregates_sources_and_preserves_conflicts() {
         panic!("property assembly error");
     };
     assert_eq!(errors.errors().len(), 1);
-    assert_eq!(
-        errors.errors()[0].kind(),
-        PropertyBuildErrorKind::ConflictingGetter
-    );
+    assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::ConflictingGetter);
     assert_eq!(errors.errors()[0].property_name(), "name");
 }
 
@@ -638,9 +539,7 @@ fn test_provider_panic_does_not_poison_registry_cache() {
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(panic_once_getter, setter_a);
     let registry = ModelRegistry::from_context(&reflection).expect("model registry");
-    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        registry.properties_for(owner)
-    }));
+    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| registry.properties_for(owner)));
     assert!(panic.is_err());
     assert!(registry.properties_for(owner).is_ok());
 }
@@ -650,15 +549,9 @@ fn test_registry_cache_releases_failed_assembly_diagnostics_on_drop() {
     let owner = TypeMetadata::of::<Record>();
     let reflection = snapshot(getter_a, getter_b);
     let registry = ModelRegistry::from_context(&reflection).expect("model registry");
-    let first = registry
-        .properties_for(owner)
-        .expect_err("conflicting getters");
-    let second = registry
-        .properties_for(owner)
-        .expect_err("cached diagnostic");
-    let (PropertyResolutionError::Assembly(first), PropertyResolutionError::Assembly(second)) =
-        (first, second)
-    else {
+    let first = registry.properties_for(owner).expect_err("conflicting getters");
+    let second = registry.properties_for(owner).expect_err("cached diagnostic");
+    let (PropertyResolutionError::Assembly(first), PropertyResolutionError::Assembly(second)) = (first, second) else {
         panic!("expected assembly failures");
     };
     assert!(Arc::ptr_eq(&first, &second));
@@ -666,8 +559,5 @@ fn test_registry_cache_releases_failed_assembly_diagnostics_on_drop() {
     drop(first);
     drop(second);
     drop(registry);
-    assert!(
-        weak.upgrade().is_none(),
-        "registry cache retained failed diagnostics"
-    );
+    assert!(weak.upgrade().is_none(), "registry cache retained failed diagnostics");
 }

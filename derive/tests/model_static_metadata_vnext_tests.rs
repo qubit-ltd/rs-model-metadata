@@ -53,10 +53,7 @@ fn test_generated_static_metadata_binds_descriptors_to_each_context() {
     let second_expression = field
         .type_expression_in(&second)
         .expect("field type expression in second context");
-    assert!(!std::ptr::eq(
-        first_expression.context(),
-        second_expression.context(),
-    ));
+    assert!(!std::ptr::eq(first_expression.context(), second_expression.context(),));
     assert_eq!(first_expression.display().to_string(), "UnregisteredField",);
     assert!(
         first
@@ -69,8 +66,5 @@ fn test_generated_static_metadata_binds_descriptors_to_each_context() {
 #[test]
 fn test_generated_static_metadata_accepts_borrowed_str_fields() {
     let metadata = TypeMetadata::of::<BorrowedStrModel>();
-    assert_eq!(
-        metadata.field("value").expect("field metadata").name(),
-        Some("value")
-    );
+    assert_eq!(metadata.field("value").expect("field metadata").name(), Some("value"));
 }

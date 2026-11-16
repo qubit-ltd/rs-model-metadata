@@ -48,14 +48,8 @@ fn test_field_overlay_binds_concrete_and_opaque_type_facts() {
     ));
     assert!(descriptor.fields().get_at(0).is_some());
 
-    assert!(
-        opaque.is_opaque(),
-        "M static facts preserve the opaque boundary"
-    );
-    assert!(
-        opaque.reflect_in(reflection).is_none(),
-        "R omits opaque typed fields"
-    );
+    assert!(opaque.is_opaque(), "M static facts preserve the opaque boundary");
+    assert!(opaque.reflect_in(reflection).is_none(), "R omits opaque typed fields");
     assert_eq!(opaque.index(), 1);
     assert!(matches!(
         opaque.type_expression_in(reflection).unwrap().kind(),
@@ -85,9 +79,7 @@ fn test_generic_field_overlay_preserves_symbolic_expression() {
     assert_eq!(field.name(), Some("value"));
     assert!(field.reflect_in(reflection).is_none());
     assert!(matches!(
-        field
-            .type_expression_in(reflection)
-            .map(|expression| expression.kind()),
+        field.type_expression_in(reflection).map(|expression| expression.kind()),
         Some(TypeExpressionKind::ParameterName("T")),
     ));
 }
@@ -118,10 +110,7 @@ fn test_precision_queries_preserve_values_and_absence() {
     assert!(decimal.min_inclusive());
     assert!(decimal.max_inclusive());
     assert_eq!(
-        instant
-            .time_constraint()
-            .expect("declared time precision")
-            .precision(),
+        instant.time_constraint().expect("declared time precision").precision(),
         TemporalPrecision::Second
     );
     assert!(amount.time_constraint().is_none());

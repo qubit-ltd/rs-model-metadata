@@ -45,14 +45,10 @@ pub struct OptionalOps {
     /// Produces the exact reflected element type identity.
     element_type_id: fn() -> TypeId,
     /// Projects a shared `Option<T>` borrow while validating its concrete type.
-    project_ref: for<'a> fn(
-        PropertyBorrowed<'a>,
-    ) -> Result<Option<PropertyBorrowed<'a>>, PropertyTypeMismatch>,
+    project_ref: for<'a> fn(PropertyBorrowed<'a>) -> Result<Option<PropertyBorrowed<'a>>, PropertyTypeMismatch>,
     /// Projects a mutable `Option<T>` borrow while validating its concrete
     /// type.
-    project_mut: for<'a> fn(
-        PropertyMutable<'a>,
-    ) -> Result<Option<PropertyMutable<'a>>, PropertyTypeMismatch>,
+    project_mut: for<'a> fn(PropertyMutable<'a>) -> Result<Option<PropertyMutable<'a>>, PropertyTypeMismatch>,
 }
 
 impl OptionalOps {
@@ -67,8 +63,7 @@ impl OptionalOps {
     /// Operations that validate and project shared or mutable local borrows
     /// of `Option<T>`.
     #[doc(hidden)]
-    pub fn for_element<T: Reflect + ValueForRef<Local> + ValueForMut<Local> + std::any::Any>()
-    -> Self {
+    pub fn for_element<T: Reflect + ValueForRef<Local> + ValueForMut<Local> + std::any::Any>() -> Self {
         /// Returns the exact `TypeId` of the reflected element type.
         ///
         /// # Type Parameters
@@ -101,9 +96,7 @@ impl OptionalOps {
         ///
         /// Returns `PropertyTypeMismatch` when the property's concrete type
         /// differs from `Option<T>`.
-        fn project_ref<'a, T>(
-            value: PropertyBorrowed<'a>,
-        ) -> Result<Option<PropertyBorrowed<'a>>, PropertyTypeMismatch>
+        fn project_ref<'a, T>(value: PropertyBorrowed<'a>) -> Result<Option<PropertyBorrowed<'a>>, PropertyTypeMismatch>
         where
             T: Reflect + ValueForRef<Local> + std::any::Any,
         {
@@ -138,9 +131,7 @@ impl OptionalOps {
         ///
         /// Returns `PropertyTypeMismatch` when the property's concrete type
         /// differs from `Option<T>`.
-        fn project_mut<'a, T>(
-            value: PropertyMutable<'a>,
-        ) -> Result<Option<PropertyMutable<'a>>, PropertyTypeMismatch>
+        fn project_mut<'a, T>(value: PropertyMutable<'a>) -> Result<Option<PropertyMutable<'a>>, PropertyTypeMismatch>
         where
             T: Reflect + ValueForMut<Local>,
         {

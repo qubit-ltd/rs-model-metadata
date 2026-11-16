@@ -111,16 +111,8 @@ impl ModelFixture {
 #[test]
 fn test_six_entry_points_share_reflection_expansion() {
     assert_eq!(TypeDescriptor::of::<EntityFixture>().fields().len(), 1);
-    assert_eq!(
-        TypeDescriptor::of::<OpaqueIdentifierFixture>()
-            .fields()
-            .len(),
-        0
-    );
-    assert_eq!(
-        TypeMetadata::of::<OpaqueIdentifierFixture>().fields().len(),
-        1
-    );
+    assert_eq!(TypeDescriptor::of::<OpaqueIdentifierFixture>().fields().len(), 0);
+    assert_eq!(TypeMetadata::of::<OpaqueIdentifierFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<ProjectionFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<ModelFixture>().fields().len(), 1);
     assert_eq!(TypeDescriptor::of::<EnumFixture>().variants().len(), 2);
@@ -131,12 +123,8 @@ fn test_six_entry_points_share_reflection_expansion() {
     assert!(!std::ptr::eq(generic_u64, generic_string));
     assert_eq!(generic_u64.model_id(), None);
     assert!(std::ptr::eq(
-        generic_u64
-            .generic_definition()
-            .expect("generic definition"),
-        generic_string
-            .generic_definition()
-            .expect("shared generic definition"),
+        generic_u64.generic_definition().expect("generic definition"),
+        generic_string.generic_definition().expect("shared generic definition"),
     ));
     assert_eq!(ModelFixture { value: "ok".into() }.value(), "ok");
     let _ = EntityFixture { id: Id::new(1) }.id;
@@ -154,11 +142,7 @@ fn test_six_entry_points_share_reflection_expansion() {
 #[test]
 fn test_generic_metadata_initialization_is_unique_across_threads() {
     let addresses = (0..8)
-        .map(|_| {
-            std::thread::spawn(|| {
-                TypeMetadata::of::<GenericModel<u32>>() as *const TypeMetadata as usize
-            })
-        })
+        .map(|_| std::thread::spawn(|| TypeMetadata::of::<GenericModel<u32>>() as *const TypeMetadata as usize))
         .map(|thread| thread.join().expect("metadata thread must complete"))
         .collect::<Vec<_>>();
 
@@ -206,8 +190,7 @@ fn test_generic_model_impl_capabilities_are_context_bound() {
         .include_type::<GenericModel<u64>>()
         .build()
         .expect("concrete-only context builds");
-    let concrete_registry =
-        ModelRegistry::from_context(&concrete_only).expect("concrete-only model registry builds");
+    let concrete_registry = ModelRegistry::from_context(&concrete_only).expect("concrete-only model registry builds");
     let concrete_properties = concrete_registry
         .properties_for(TypeMetadata::of::<GenericModel<u64>>())
         .expect("metadata remains available without generic capability");

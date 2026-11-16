@@ -54,5 +54,4 @@ use super::PropertyValue;
 /// let value = PropertyValue::Owned(PropertyOwned::new(map));
 /// assert_eq!(map_len(&value).expect("map length"), Some(1));
 /// ```
-pub type MapLenAdapter =
-    for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>, PropertyAccessError>;
+pub type MapLenAdapter = for<'a> fn(&PropertyValue<'a>) -> Result<Option<usize>, PropertyAccessError>;

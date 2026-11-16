@@ -122,10 +122,7 @@ impl PropertySetFailure {
     /// replacement.
     #[must_use = "handle the property error and recovered replacement"]
     pub fn into_parts(self) -> (PropertyAccessError, Option<PropertyOwned>) {
-        (
-            *self.error,
-            self.replacement.map(|replacement| *replacement),
-        )
+        (*self.error, self.replacement.map(|replacement| *replacement))
     }
 }
 

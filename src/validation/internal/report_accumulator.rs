@@ -100,11 +100,7 @@ impl<'options> ReportAccumulator<'options> {
         if self.stopped {
             return self
                 .report
-                .record_outcome(
-                    occurrence,
-                    ValidationPath::root(),
-                    ValidationOutcome::valid(),
-                )
+                .record_outcome(occurrence, ValidationPath::root(), ValidationOutcome::valid())
                 .map_err(|_| contract_error());
         }
         let report_path = if matches!(&outcome, ValidationOutcome::Valid) {
@@ -119,9 +115,7 @@ impl<'options> ReportAccumulator<'options> {
         let added_failures = !accepted.failure_ids().is_empty();
         let at_limit = self.report.failure_count() >= self.options.max_violations();
         if !accepted.complete()
-            || (added_failures
-                && has_more_work
-                && (self.options.mode() == ValidationMode::FailFast || at_limit))
+            || (added_failures && has_more_work && (self.options.mode() == ValidationMode::FailFast || at_limit))
         {
             self.stopped = true;
             self.report.mark_truncated();
@@ -165,12 +159,7 @@ mod tests {
         let mut report = ReportAccumulator::new(&options);
 
         let error = report
-            .accept(
-                0,
-                &ValidationPath::root(),
-                ValidationOutcome::Invalid(vec![]),
-                false,
-            )
+            .accept(0, &ValidationPath::root(), ValidationOutcome::Invalid(vec![]), false)
             .expect_err("an invalid outcome must contain a violation");
 
         assert_eq!(error.kind(), ExecutionErrorKind::AdapterContractViolation);

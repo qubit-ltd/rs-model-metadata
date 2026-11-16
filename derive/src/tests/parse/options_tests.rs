@@ -34,10 +34,7 @@ fn test_parse_all_declaration_options() {
     let parsed = parse_declaration_options(options).expect("supported options");
 
     assert_eq!(parsed.id.expect("id").value(), "example.Model");
-    assert_eq!(
-        parsed.source_id.expect("source id").value(),
-        "example.Source"
-    );
+    assert_eq!(parsed.source_id.expect("source id").value(), "example.Source");
     assert!(parsed.source.is_some());
     assert!(parsed.codec.is_some());
     assert!(parsed.open && parsed.transparent);
@@ -47,15 +44,7 @@ fn test_parse_all_declaration_options() {
 #[test]
 fn test_parse_behavior_options() {
     let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
-    for name in [
-        "eq",
-        "hash",
-        "no_hash",
-        "copy",
-        "default",
-        "partial_ord",
-        "ord",
-    ] {
+    for name in ["eq", "hash", "no_hash", "copy", "default", "partial_ord", "ord"] {
         let option: TokenStream = name.parse().expect("option tokens");
         let options = parser.parse2(option).expect("option syntax");
         let options = parse_declaration_options(options).expect("supported behavior option");

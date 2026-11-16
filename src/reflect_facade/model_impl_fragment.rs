@@ -85,10 +85,7 @@ impl ModelImplFragment {
     #[must_use]
     #[inline]
     #[doc(hidden)]
-    pub const fn for_type<T: Reflect + 'static>(
-        provider: ModelImplProvider,
-        source: ModelImplSource,
-    ) -> Self {
+    pub const fn for_type<T: Reflect + 'static>(provider: ModelImplProvider, source: ModelImplSource) -> Self {
         /// Returns the runtime type identity used to filter inventory entries.
         ///
         /// # Type Parameters
@@ -149,8 +146,7 @@ __inventory::collect!(ModelImplFragment);
 #[doc(hidden)]
 #[must_use]
 pub fn model_impl_fragments<T: Reflect + 'static>() -> &'static [ModelImplFragment] {
-    static FRAGMENTS: OnceLock<Mutex<HashMap<TypeId, &'static [ModelImplFragment]>>> =
-        OnceLock::new();
+    static FRAGMENTS: OnceLock<Mutex<HashMap<TypeId, &'static [ModelImplFragment]>>> = OnceLock::new();
     let fragments = FRAGMENTS.get_or_init(|| Mutex::new(HashMap::new()));
     let mut fragments = fragments.lock().unwrap_or_else(PoisonError::into_inner);
     fragments
@@ -199,8 +195,5 @@ pub fn all_model_impl_fragments() -> &'static [ModelImplFragment] {
 
 /// Copies all inventory records into an owned vector in registration order.
 fn collect_inventory_fragments() -> Vec<ModelImplFragment> {
-    __inventory::iter::<ModelImplFragment>
-        .into_iter()
-        .copied()
-        .collect()
+    __inventory::iter::<ModelImplFragment>.into_iter().copied().collect()
 }

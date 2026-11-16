@@ -77,10 +77,7 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
     {
         combine(
             &mut errors,
-            Error::new_spanned(
-                &item.generics,
-                "Entity and Projection declarations cannot be generic",
-            ),
+            Error::new_spanned(&item.generics, "Entity and Projection declarations cannot be generic"),
         );
     }
 
@@ -109,8 +106,7 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
                     fields.unnamed.len() == 1
                         || fields.unnamed.iter().any(|field| {
                             field.attrs.iter().any(|attribute| {
-                                attribute.path().is_ident("cfg")
-                                    || attribute.path().is_ident("cfg_attr")
+                                attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
                             })
                         })
                 }
@@ -119,10 +115,7 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
             if !valid_shape {
                 combine(
                     &mut errors,
-                    Error::new_spanned(
-                        &data.fields,
-                        "Value requires named fields or one tuple field",
-                    ),
+                    Error::new_spanned(&data.fields, "Value requires named fields or one tuple field"),
                 );
             }
         }
@@ -141,11 +134,7 @@ pub(crate) fn validate_declaration(kind: MacroKind, item: &DeriveInput) -> Resul
         _ => {}
     }
 
-    if let Some(error) = errors {
-        Err(error)
-    } else {
-        Ok(())
-    }
+    if let Some(error) = errors { Err(error) } else { Ok(()) }
 }
 
 /// Rejects user reflection derives that would duplicate generated metadata.
@@ -171,11 +160,10 @@ pub(crate) fn reject_duplicate_reflect(attributes: &[Attribute]) -> Result<()> {
             continue;
         }
         let derives = attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
-        if let Some(path) = derives.iter().find(|path| {
-            path.segments
-                .last()
-                .is_some_and(|segment| segment.ident == "Reflect")
-        }) {
+        if let Some(path) = derives
+            .iter()
+            .find(|path| path.segments.last().is_some_and(|segment| segment.ident == "Reflect"))
+        {
             return Err(Error::new_spanned(
                 path,
                 "model macros generate Reflect; remove the duplicate derive",
@@ -208,10 +196,7 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
         Data::Union(_) => Vec::new(),
     };
     for (field, ir) in fields {
-        let opaque = field
-            .attrs
-            .iter()
-            .any(|attribute| attribute.path().is_ident("opaque"));
+        let opaque = field.attrs.iter().any(|attribute| attribute.path().is_ident("opaque"));
         rewrite_serde_helpers(field, ir, serde_helpers);
         remove_model_field_helpers(field);
         rewrite_selector_redaction(field, ir);
@@ -224,9 +209,7 @@ pub(crate) fn rewrite_field_helpers(data: &mut Data, declaration: &DeclarationIr
     }
     if let Data::Enum(data) = data {
         for variant in &mut data.variants {
-            variant
-                .attrs
-                .retain(|attribute| !attribute.path().is_ident("variant"));
+            variant.attrs.retain(|attribute| !attribute.path().is_ident("variant"));
         }
     }
 }
@@ -258,8 +241,7 @@ fn rewrite_serde_helpers(field: &mut Field, ir: &FieldIr, serde_helpers: bool) {
                 for segment in &mut path.segments {
                     segment.arguments = PathArguments::None;
                 }
-                let predicate =
-                    LitStr::new(&format!("{}::{method}", quote!(#path)), ir.index.span());
+                let predicate = LitStr::new(&format!("{}::{method}", quote!(#path)), ir.index.span());
                 field
                     .attrs
                     .push(parse_quote!(#[serde(skip_serializing_if = #predicate)]));
@@ -276,9 +258,9 @@ fn rewrite_serde_helpers(field: &mut Field, ir: &FieldIr, serde_helpers: bool) {
 /// - `field`: Parsed field whose consumed model helper attributes are removed
 ///   in place.
 fn remove_model_field_helpers(field: &mut Field) {
-    field.attrs.retain(|attribute| {
-        attribute.path().is_ident("redact") || !is_model_field_helper(attribute)
-    });
+    field
+        .attrs
+        .retain(|attribute| attribute.path().is_ident("redact") || !is_model_field_helper(attribute));
 }
 
 /// Rewrites selector redaction levels into the field-level redact attribute.
@@ -311,9 +293,7 @@ fn rewrite_selector_redaction(field: &mut Field, ir: &FieldIr) {
                 .attrs
                 .push(parse_quote!(#[redact(map_key_level = #key, map_value_level = #value)]));
         } else {
-            field
-                .attrs
-                .push(parse_quote!(#[redact(map_key_level = #key)]));
+            field.attrs.push(parse_quote!(#[redact(map_key_level = #key)]));
         }
     } else if let Some(level) = element_level.or(value_level) {
         field.attrs.push(parse_quote!(#[redact(level = #level)]));

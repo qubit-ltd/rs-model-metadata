@@ -45,11 +45,9 @@ macro_rules! __qubit_model_register_generic_model_capability {
     ) => {
         const _: () = {
             fn registration() -> $crate::__private::codegen_v4::registration::Registration {
-                $crate::__private::codegen_v4::registration::Registration::from(
-                    super::$capability::<$crate::__private::v8::GenericModelMetadataCapability>(
-                        $metadata,
-                    ),
-                )
+                $crate::__private::codegen_v4::registration::Registration::from(super::$capability::<
+                    $crate::__private::v8::GenericModelMetadataCapability,
+                >($metadata))
             }
 
             $crate::__private::codegen_v4::registration::submit_linked_definition_capability!(
@@ -57,8 +55,7 @@ macro_rules! __qubit_model_register_generic_model_capability {
                 registration
             );
 
-            const _: (&str, &str, u32, u32, u64) =
-                ($declaring_crate, $module_path, $line, $column, $fingerprint);
+            const _: (&str, &str, u32, u32, u64) = ($declaring_crate, $module_path, $line, $column, $fingerprint);
         };
     };
 }
@@ -81,11 +78,11 @@ macro_rules! __qubit_model_register_generic_model_impl_capability {
     ) => {
         const _: () = {
             fn registration() -> $crate::__private::codegen_v4::registration::Registration {
-                $crate::__private::codegen_v4::registration::Registration::from(
-                    super::$capability::<$crate::__private::v8::ModelImplCapability>(
-                        $crate::__private::v8::all_model_impl_fragments(),
-                    ),
-                )
+                $crate::__private::codegen_v4::registration::Registration::from(super::$capability::<
+                    $crate::__private::v8::ModelImplCapability,
+                >(
+                    $crate::__private::v8::all_model_impl_fragments(),
+                ))
             }
 
             $crate::__private::codegen_v4::registration::submit_linked_definition_capability!(
@@ -93,8 +90,7 @@ macro_rules! __qubit_model_register_generic_model_impl_capability {
                 registration
             );
 
-            const _: (&str, &str, u32, u32, u64) =
-                ($declaring_crate, $module_path, $line, $column, $fingerprint);
+            const _: (&str, &str, u32, u32, u64) = ($declaring_crate, $module_path, $line, $column, $fingerprint);
         };
     };
 }

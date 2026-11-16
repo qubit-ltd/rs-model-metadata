@@ -162,9 +162,7 @@ impl ModelRuleBinding {
     #[inline]
     pub(crate) fn check_root_type(&self, root_type: TypeId) -> Result<(), BindError> {
         if self.validator.input_type() != InputType::Typed(root_type) {
-            return Err(
-                BindError::new(BindErrorKind::PreparedSignatureMismatch).with_rule(self.rule_id())
-            );
+            return Err(BindError::new(BindErrorKind::PreparedSignatureMismatch).with_rule(self.rule_id()));
         }
         Ok(())
     }

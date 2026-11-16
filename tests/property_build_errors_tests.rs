@@ -62,9 +62,7 @@ fn context() -> ReflectionContext {
 }
 
 fn expression(field: &FieldMetadata) -> &'static TypeExpressionData {
-    field
-        .type_expression_data()
-        .expect("generated field expression")
+    field.type_expression_data().expect("generated field expression")
 }
 
 fn string_type_id() -> TypeId {
@@ -85,22 +83,13 @@ fn test_definition_only_property_field_returns_a_structured_error() {
         .expect("generic definition");
     let fields = definition.fields();
     let model = TypeMetadata::of::<Record>();
-    let property = v8::property_metadata(
-        "value",
-        Some(expression(&fields[0])),
-        Some(&fields[0]),
-        None,
-        None,
-    );
+    let property = v8::property_metadata("value", Some(expression(&fields[0])), Some(&fields[0]), None, None);
     let context = context();
     let errors = model
         .validate_properties_in(&context, &[property])
         .expect_err("definition-only field");
     assert_eq!(errors.errors().len(), 1);
-    assert_eq!(
-        errors.errors()[0].kind(),
-        PropertyBuildErrorKind::ForeignField
-    );
+    assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::ForeignField);
     assert_eq!(errors.errors()[0].property_name(), "value");
 }
 
@@ -115,13 +104,7 @@ fn test_property_errors_preserve_all_failures_in_deterministic_order() {
     let properties = [
         v8::property_metadata("z_missing", Some(expression(name)), None, None, None),
         v8::property_metadata("a_type", Some(expression(count)), Some(name), None, None),
-        v8::property_metadata(
-            "m_foreign",
-            Some(expression(name)),
-            Some(foreign),
-            None,
-            None,
-        ),
+        v8::property_metadata("m_foreign", Some(expression(name)), Some(foreign), None, None),
         v8::property_metadata("a_type", Some(expression(count)), Some(count), None, None),
     ];
     let errors = model
@@ -151,12 +134,7 @@ fn test_property_errors_preserve_all_failures_in_deterministic_order() {
             "property MissingSource for `z_missing`",
         )
     );
-    assert!(
-        errors
-            .errors()
-            .iter()
-            .all(|error| error.conflict().is_none())
-    );
+    assert!(errors.errors().iter().all(|error| error.conflict().is_none()));
     assert!(errors.source().is_none());
 }
 
@@ -165,20 +143,13 @@ fn test_property_errors_preserve_all_failures_in_deterministic_order() {
 fn test_empty_property_retains_both_name_and_source_diagnostics() {
     let model = TypeMetadata::of::<Record>();
     let context = context();
-    let property =
-        v8::property_metadata("", Some(expression(&model.fields()[0])), None, None, None);
+    let property = v8::property_metadata("", Some(expression(&model.fields()[0])), None, None, None);
     let errors = model
         .validate_properties_in(&context, &[property])
         .expect_err("empty property");
     assert_eq!(errors.errors().len(), 2);
-    assert_eq!(
-        errors.errors()[0].kind(),
-        PropertyBuildErrorKind::InvalidName
-    );
-    assert_eq!(
-        errors.errors()[1].kind(),
-        PropertyBuildErrorKind::MissingSource
-    );
+    assert_eq!(errors.errors()[0].kind(), PropertyBuildErrorKind::InvalidName);
+    assert_eq!(errors.errors()[1].kind(), PropertyBuildErrorKind::MissingSource);
     assert_eq!(errors.errors()[0].property_name(), "");
 }
 
@@ -213,41 +184,13 @@ fn test_accessor_signature_errors_are_aggregated_before_invocation() {
         GetterOutputKind::Borrowed,
         never_get,
     ));
-    let wrong_setter_owner = v8::leak(SetterMetadata::new::<Other, String>(
-        "set", name_type, never_set,
-    ));
-    let wrong_setter_input = v8::leak(SetterMetadata::new::<Record, u32>(
-        "set", count_type, never_set,
-    ));
+    let wrong_setter_owner = v8::leak(SetterMetadata::new::<Other, String>("set", name_type, never_set));
+    let wrong_setter_input = v8::leak(SetterMetadata::new::<Record, u32>("set", count_type, never_set));
     let properties = [
-        v8::property_metadata(
-            "getter_owner",
-            Some(name_type),
-            None,
-            Some(wrong_getter_owner),
-            None,
-        ),
-        v8::property_metadata(
-            "getter_output",
-            Some(name_type),
-            None,
-            Some(wrong_getter_output),
-            None,
-        ),
-        v8::property_metadata(
-            "setter_owner",
-            Some(name_type),
-            None,
-            None,
-            Some(wrong_setter_owner),
-        ),
-        v8::property_metadata(
-            "setter_input",
-            Some(name_type),
-            None,
-            None,
-            Some(wrong_setter_input),
-        ),
+        v8::property_metadata("getter_owner", Some(name_type), None, Some(wrong_getter_owner), None),
+        v8::property_metadata("getter_output", Some(name_type), None, Some(wrong_getter_output), None),
+        v8::property_metadata("setter_owner", Some(name_type), None, None, Some(wrong_setter_owner)),
+        v8::property_metadata("setter_input", Some(name_type), None, None, Some(wrong_setter_input)),
     ];
     let errors = model
         .validate_properties_in(&context, &properties)
@@ -303,11 +246,7 @@ fn test_property_validation_accepts_text_views_and_borrowed_slices() {
         Some(text_getter),
         Some(text_setter),
     );
-    assert!(
-        model
-            .validate_properties_in(&context, &[text_property])
-            .is_ok()
-    );
+    assert!(model.validate_properties_in(&context, &[text_property]).is_ok());
 
     let sequence = TypeMetadata::of::<SequenceRecord>();
     let values = &sequence.fields()[0];
@@ -328,9 +267,5 @@ fn test_property_validation_accepts_text_views_and_borrowed_slices() {
         Some(slice_getter),
         None,
     );
-    assert!(
-        sequence
-            .validate_properties_in(&context, &[sequence_property])
-            .is_ok()
-    );
+    assert!(sequence.validate_properties_in(&context, &[sequence_property]).is_ok());
 }

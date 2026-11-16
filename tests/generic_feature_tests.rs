@@ -62,27 +62,16 @@ fn test_generic_static_facts_bind_definition_and_symbolic_fields_per_context() {
         .include_type::<VariantFixture<String>>()
         .build()
         .expect("second context");
-    let first_definition = generic
-        .definition_in(&first)
-        .expect("definition in first context");
-    let second_definition = generic
-        .definition_in(&second)
-        .expect("definition in second context");
+    let first_definition = generic.definition_in(&first).expect("definition in first context");
+    let second_definition = generic.definition_in(&second).expect("definition in second context");
 
     assert_eq!(first_definition.path(), generic.definition_path());
     assert_eq!(second_definition.path(), generic.definition_path());
-    assert!(!std::ptr::eq(
-        first_definition.context(),
-        second_definition.context()
-    ));
-    let symbolic = generic.variants()[0]
-        .field("value")
-        .expect("symbolic field");
+    assert!(!std::ptr::eq(first_definition.context(), second_definition.context()));
+    let symbolic = generic.variants()[0].field("value").expect("symbolic field");
     assert_eq!(symbolic.definition_path(), Some(generic.definition_path()));
     assert!(symbolic.reflect_in(&first).is_none());
-    let first_expression = symbolic
-        .type_expression_in(&first)
-        .expect("symbolic expression");
+    let first_expression = symbolic.type_expression_in(&first).expect("symbolic expression");
     let second_expression = symbolic
         .type_expression_in(&second)
         .expect("symbolic expression in second context");
@@ -91,26 +80,18 @@ fn test_generic_static_facts_bind_definition_and_symbolic_fields_per_context() {
     let TypeExpressionKind::Named(vector) = first_expression.kind() else {
         panic!("the generic field should retain its outer named type");
     };
-    let GenericExpressionArgumentKind::Type(option) =
-        vector.arguments().get(0).expect("Vec element type").kind()
+    let GenericExpressionArgumentKind::Type(option) = vector.arguments().get(0).expect("Vec element type").kind()
     else {
         panic!("Vec argument should retain the nested Option type");
     };
     let TypeExpressionKind::Named(option) = option.kind() else {
         panic!("Option should remain a named type expression");
     };
-    let GenericExpressionArgumentKind::Type(parameter) = option
-        .arguments()
-        .get(0)
-        .expect("Option payload type")
-        .kind()
+    let GenericExpressionArgumentKind::Type(parameter) = option.arguments().get(0).expect("Option payload type").kind()
     else {
         panic!("Option argument should retain the generic parameter");
     };
-    assert!(matches!(
-        parameter.kind(),
-        TypeExpressionKind::ParameterName("T")
-    ));
+    assert!(matches!(parameter.kind(), TypeExpressionKind::ParameterName("T")));
     assert!(core::ptr::eq(parameter.context(), &first));
     let TypeExpressionKind::Named(second_vector) = second_expression.kind() else {
         panic!("the second context should retain the outer named type");
@@ -166,9 +147,7 @@ fn test_associated_type_arguments_preserve_projection_and_context_structure() {
             .find(|field| field.name() == Some(field_name))
             .expect("generic field");
         for context in [&first, &second] {
-            let expression = field
-                .type_expression_in(context)
-                .expect("associated type expression");
+            let expression = field.type_expression_in(context).expect("associated type expression");
             let TypeExpressionKind::AssociatedType(associated) = expression.kind() else {
                 panic!("field type must remain an associated-type projection");
             };
@@ -187,10 +166,7 @@ fn test_associated_type_arguments_preserve_projection_and_context_structure() {
                 GenericExpressionArgumentKind::Lifetime(LifetimeExpression::Static),
             ));
             assert!(core::ptr::eq(associated.arguments().context(), context));
-            assert_eq!(
-                associated.trait_().map(|value| value.path()),
-                expected_trait_path
-            );
+            assert_eq!(associated.trait_().map(|value| value.path()), expected_trait_path);
             if let Some(trait_) = associated.trait_() {
                 assert_eq!(trait_.arguments().len(), 1);
                 assert!(matches!(
@@ -226,9 +202,7 @@ fn test_generic_array_length_retains_const_parameter_in_each_context() {
     let field = generic.fields().first().expect("generic array field");
 
     for context in [&first, &second] {
-        let expression = field
-            .type_expression_in(context)
-            .expect("generic array expression");
+        let expression = field.type_expression_in(context).expect("generic array expression");
         let TypeExpressionKind::Array { element, length } = expression.kind() else {
             panic!("generic field should retain its array structure");
         };
@@ -259,39 +233,25 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
         .expect("second reflection context");
     assert_eq!(variants.len(), 2);
     assert_eq!(definition.variants().len(), variants.len());
-    for (index, (symbolic, concrete_variant)) in
-        definition.variants().iter().zip(variants).enumerate()
-    {
+    for (index, (symbolic, concrete_variant)) in definition.variants().iter().zip(variants).enumerate() {
         assert_eq!(symbolic.index(), index);
         assert_eq!(concrete_variant.index(), index);
         assert!(symbolic.reflect_in(&context).is_none());
-        assert_eq!(
-            symbolic.definition_path(),
-            Some(definition.definition_path())
-        );
+        assert_eq!(symbolic.definition_path(), Some(definition.definition_path()));
         assert!(concrete_variant.reflect_in(&context).is_some());
         assert!(core::ptr::eq(
             concrete_variant.reflect_in(&context).unwrap().context(),
             &context
         ));
         assert!(core::ptr::eq(
-            concrete_variant
-                .reflect_in(&second_context)
-                .unwrap()
-                .context(),
+            concrete_variant.reflect_in(&second_context).unwrap().context(),
             &second_context
         ));
         assert_eq!(concrete_variant.definition_path(), None);
         assert_eq!(symbolic.rust_name(), concrete_variant.rust_name());
         assert_eq!(symbolic.canonical_name(), concrete_variant.canonical_name());
-        assert_eq!(
-            symbolic.serialized_name(),
-            concrete_variant.serialized_name()
-        );
-        assert_eq!(
-            symbolic.deserialized_name(),
-            concrete_variant.deserialized_name()
-        );
+        assert_eq!(symbolic.serialized_name(), concrete_variant.serialized_name());
+        assert_eq!(symbolic.deserialized_name(), concrete_variant.deserialized_name());
         assert_eq!(symbolic.is_default(), concrete_variant.is_default());
         assert_eq!(symbolic.fields().len(), concrete_variant.fields().len());
         assert!(symbolic.field_at(symbolic.fields().len()).is_none());
@@ -301,25 +261,15 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
         for (field_index, symbolic_field) in symbolic.fields().iter().enumerate() {
             assert!(symbolic_field.location().is_none());
             assert!(symbolic_field.reflect_in(&context).is_none());
-            assert_eq!(
-                symbolic_field.definition_path(),
-                Some(definition.definition_path())
-            );
+            assert_eq!(symbolic_field.definition_path(), Some(definition.definition_path()));
             assert_eq!(symbolic_field.visibility(), Visibility::Private);
-            let field = concrete_variant
-                .field_at(field_index)
-                .expect("concrete payload");
-            let reflected_field = field
-                .reflect_in(&context)
-                .expect("payload binds to first context");
+            let field = concrete_variant.field_at(field_index).expect("concrete payload");
+            let reflected_field = field.reflect_in(&context).expect("payload binds to first context");
             let reflected_field_in_second = field
                 .reflect_in(&second_context)
                 .expect("payload binds to second context");
             assert!(core::ptr::eq(reflected_field.context(), &context));
-            assert!(core::ptr::eq(
-                reflected_field_in_second.context(),
-                &second_context
-            ));
+            assert!(core::ptr::eq(reflected_field_in_second.context(), &second_context));
             assert_eq!(field.definition_path(), None);
             assert_eq!(field.visibility(), Visibility::Private);
             assert!(field.variant_inherited());
@@ -336,9 +286,7 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
         }
     }
     assert_eq!(definition.variants()[0].rust_name(), "Named");
-    let named = definition.variants()[0]
-        .field("value")
-        .expect("named symbolic payload");
+    let named = definition.variants()[0].field("value").expect("named symbolic payload");
     assert!(core::ptr::eq(
         named,
         definition.variants()[0].field_at(0).expect("first payload")
@@ -357,20 +305,14 @@ fn test_generic_enum_payloads_separate_definition_and_concrete_field_identity() 
 #[test]
 fn test_specialization_cache_is_stable_per_concrete_type() {
     let first = TypeMetadata::try_of::<CacheFixture<u32>>().expect("valid first specialization");
-    let second =
-        TypeMetadata::try_of::<CacheFixture<u32>>().expect("valid repeated specialization");
-    let different =
-        TypeMetadata::try_of::<CacheFixture<u64>>().expect("valid second specialization");
+    let second = TypeMetadata::try_of::<CacheFixture<u32>>().expect("valid repeated specialization");
+    let different = TypeMetadata::try_of::<CacheFixture<u64>>().expect("valid second specialization");
 
     assert!(core::ptr::eq(first, second));
     assert!(!core::ptr::eq(first, different));
     assert!(core::ptr::eq(
-        first
-            .generic_definition()
-            .expect("first generic definition"),
-        different
-            .generic_definition()
-            .expect("shared generic definition")
+        first.generic_definition().expect("first generic definition"),
+        different.generic_definition().expect("shared generic definition")
     ));
     let definition_field = &first.generic_definition().expect("definition").fields()[0];
     assert!(definition_field.definition_path().is_some());

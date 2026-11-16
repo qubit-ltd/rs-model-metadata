@@ -146,18 +146,12 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// # Panics
     ///
     /// Propagates a panic from a registered metadata provider.
-    pub fn from_context(
-        reflection: &'reflection ReflectionContext,
-    ) -> Result<Self, ModelRegistryError> {
+    pub fn from_context(reflection: &'reflection ReflectionContext) -> Result<Self, ModelRegistryError> {
         let mut entries = Vec::new();
         let mut metadata_inputs = Vec::new();
         #[cfg(feature = "generic")]
         let mut generic_inputs = Vec::new();
-        for descriptor in reflection
-            .types()
-            .map_err(ModelRegistryError::context)?
-            .iter()
-        {
+        for descriptor in reflection.types().map_err(ModelRegistryError::context)?.iter() {
             let Some(capability) = descriptor
                 .find_capability::<crate::reflect_facade::ModelMetadataCapability>()
                 .map_err(ModelRegistryError::capability)?
@@ -176,12 +170,8 @@ impl<'reflection> ModelRegistry<'reflection> {
             metadata_inputs.push((metadata, capability_source.clone()));
             if metadata.model_id().is_some() {
                 entries.push(
-                    ModelEntry::concrete(
-                        metadata,
-                        capability_source.clone(),
-                        Some(capability_source.clone()),
-                    )
-                    .expect("metadata with a model ID creates an entry"),
+                    ModelEntry::concrete(metadata, capability_source.clone(), Some(capability_source.clone()))
+                        .expect("metadata with a model ID creates an entry"),
                 );
             }
         }
@@ -384,11 +374,8 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// not cache a result. Providers must not recursively enter this global
     /// initialization.
     pub fn try_global() -> Result<&'static ModelRegistry<'static>, ModelRegistryError> {
-        static REGISTRY: OnceLock<Result<ModelRegistry<'static>, ModelRegistryError>> =
-            OnceLock::new();
-        match REGISTRY
-            .get_or_init(|| ModelRegistry::<'static>::from_context(ReflectionContext::global()))
-        {
+        static REGISTRY: OnceLock<Result<ModelRegistry<'static>, ModelRegistryError>> = OnceLock::new();
+        match REGISTRY.get_or_init(|| ModelRegistry::<'static>::from_context(ReflectionContext::global())) {
             Ok(registry) => Ok(registry),
             Err(error) => Err(error.clone()),
         }
@@ -585,24 +572,21 @@ impl<'reflection> ModelRegistry<'reflection> {
             return Ok(self.by_type_id(descriptor.type_id()));
         };
         let type_id = descriptor.type_id();
-        let bound_descriptor = reflection.find_type_by_id(type_id).map_err(|source| {
-            ModelMetadataError::Capability {
-                type_id,
-                type_name: descriptor.rust_type_name(),
-                source: Box::new(qubit_reflect::capability::CapabilityError::Context(source)),
-            }
-        })?;
+        let bound_descriptor =
+            reflection
+                .find_type_by_id(type_id)
+                .map_err(|source| ModelMetadataError::Capability {
+                    type_id,
+                    type_name: descriptor.rust_type_name(),
+                    source: Box::new(qubit_reflect::capability::CapabilityError::Context(source)),
+                })?;
         let Some(descriptor) = bound_descriptor.as_ref() else {
             return Ok(None);
         };
         let key = (reflection.id(), type_id, 0);
         let cell: MetadataCacheCell = {
             let mut cache = self.metadata_cache.lock().expect("metadata cache lock");
-            Arc::clone(
-                cache
-                    .entry(key)
-                    .or_insert_with(|| Arc::new(OnceLock::new())),
-            )
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceLock::new())))
         };
         cell.get_or_init(|| {
             let provided = descriptor
@@ -615,13 +599,13 @@ impl<'reflection> ModelRegistry<'reflection> {
                 .map(|provider| (provider.adapter())());
             let metadata = provided.or_else(|| self.by_type_id(type_id));
             if let Some(metadata) = metadata {
-                metadata.validate_descriptor(descriptor).map_err(|source| {
-                    ModelMetadataError::Abi {
+                metadata
+                    .validate_descriptor(descriptor)
+                    .map_err(|source| ModelMetadataError::Abi {
                         type_id: descriptor.type_id(),
                         type_name: descriptor.rust_type_name(),
                         source,
-                    }
-                })?;
+                    })?;
             }
             Ok(metadata)
         })
@@ -671,14 +655,9 @@ impl<'reflection> ModelRegistry<'reflection> {
         );
         let cell: PropertyCacheCell = {
             let mut cache = self.property_cache.lock().expect("property cache lock");
-            Arc::clone(
-                cache
-                    .entry(key)
-                    .or_insert_with(|| Arc::new(OnceLock::new())),
-            )
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceLock::new())))
         };
-        cell.get_or_init(|| metadata.try_properties_in(reflection))
-            .clone()
+        cell.get_or_init(|| metadata.try_properties_in(reflection)).clone()
     }
 
     /// Compiles or reuses a successful readable path within this registry.
@@ -763,10 +742,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     /// The indexed generic metadata, or `None` when no definition matches.
     #[inline]
     #[cfg(feature = "generic")]
-    pub fn generic_metadata_for(
-        &self,
-        definition_id: TypeDefinitionId,
-    ) -> Option<&'static GenericModelMetadata> {
+    pub fn generic_metadata_for(&self, definition_id: TypeDefinitionId) -> Option<&'static GenericModelMetadata> {
         self.generic_definition_indices.get(&definition_id).copied()
     }
 
@@ -806,9 +782,7 @@ impl<'reflection> ModelRegistry<'reflection> {
     ///
     /// An iterator over each concrete metadata value and its owned source.
     #[inline]
-    pub(crate) fn concrete_entries(
-        &self,
-    ) -> impl Iterator<Item = (&'static TypeMetadata, &ModelRegistryOrigin)> + '_ {
+    pub(crate) fn concrete_entries(&self) -> impl Iterator<Item = (&'static TypeMetadata, &ModelRegistryOrigin)> + '_ {
         self.entries
             .iter()
             .filter_map(|entry| entry.metadata().map(|metadata| (metadata, entry.source())))
@@ -851,9 +825,7 @@ impl<'reflection> ModelRegistry<'reflection> {
         let metadata_address = root as *const _ as usize;
         {
             let mut cache = self.path_cache.lock().expect("path cache lock");
-            if let Some(hit) =
-                cache.get_borrowed(context_id, type_id, metadata_address, segments, write)
-            {
+            if let Some(hit) = cache.get_borrowed(context_id, type_id, metadata_address, segments, write) {
                 return Ok(hit);
             }
         }
@@ -863,9 +835,7 @@ impl<'reflection> ModelRegistry<'reflection> {
             PropertyAccessPath::compile(self, root, segments)?
         });
         let mut cache = self.path_cache.lock().expect("path cache lock");
-        if let Some(hit) =
-            cache.get_borrowed(context_id, type_id, metadata_address, segments, write)
-        {
+        if let Some(hit) = cache.get_borrowed(context_id, type_id, metadata_address, segments, write) {
             return Ok(hit);
         }
         let key = PathCacheKey::new(context_id, type_id, metadata_address, segments, write);
@@ -1026,10 +996,8 @@ fn prefill_metadata_cache(
     context: &ReflectionContext,
     metadata_inputs: Vec<(&'static TypeMetadata, ModelRegistryOrigin)>,
 ) -> Result<HashMap<MetadataCacheKey, MetadataCacheCell>, ModelRegistryError> {
-    let mut metadata_cache_with_sources: HashMap<
-        MetadataCacheKey,
-        (MetadataCacheCell, ModelRegistryOrigin),
-    > = HashMap::with_capacity(metadata_inputs.len());
+    let mut metadata_cache_with_sources: HashMap<MetadataCacheKey, (MetadataCacheCell, ModelRegistryOrigin)> =
+        HashMap::with_capacity(metadata_inputs.len());
     for (metadata, source) in metadata_inputs {
         let descriptor = metadata.descriptor_in(context);
         let key = (context.id(), descriptor.type_id(), 0);
@@ -1044,8 +1012,7 @@ fn prefill_metadata_cache(
             continue;
         }
         let cell = Arc::new(OnceLock::new());
-        cell.set(Ok(Some(metadata)))
-            .expect("new metadata cache cell");
+        cell.set(Ok(Some(metadata))).expect("new metadata cache cell");
         metadata_cache_with_sources.insert(key, (cell, source));
     }
     Ok(metadata_cache_with_sources
@@ -1084,9 +1051,7 @@ fn compare_entries(left: &ModelEntry, right: &ModelEntry) -> Ordering {
 /// # Returns
 ///
 /// Owned registry provenance copied from the capability registration.
-fn origin_from_capability(
-    origin: &qubit_reflect::capability::CapabilityOrigin<'_>,
-) -> ModelRegistryOrigin {
+fn origin_from_capability(origin: &qubit_reflect::capability::CapabilityOrigin<'_>) -> ModelRegistryOrigin {
     match origin {
         qubit_reflect::capability::CapabilityOrigin::Linked { registration }
         | qubit_reflect::capability::CapabilityOrigin::Explicit { registration } => {
@@ -1112,12 +1077,8 @@ mod tests {
     /// Creates distinct ABI-valid anonymous metadata values for one descriptor.
     fn anonymous_metadata() -> &'static TypeMetadata {
         v8::leak(
-            v8::GeneratedTypeMetadataBuilder::new::<AnonymousMetadataFixture>(
-                None,
-                &[],
-                v8::leak(v8::model_role()),
-            )
-            .finish::<AnonymousMetadataFixture>(),
+            v8::GeneratedTypeMetadataBuilder::new::<AnonymousMetadataFixture>(None, &[], v8::leak(v8::model_role()))
+                .finish::<AnonymousMetadataFixture>(),
         )
     }
 
@@ -1143,16 +1104,8 @@ mod tests {
             .include_type::<AnonymousMetadataFixture>()
             .build()
             .expect("fixture context");
-        assert!(
-            first
-                .validate_descriptor(&first.descriptor_in(&context))
-                .is_ok()
-        );
-        assert!(
-            second
-                .validate_descriptor(&second.descriptor_in(&context))
-                .is_ok()
-        );
+        assert!(first.validate_descriptor(&first.descriptor_in(&context)).is_ok());
+        assert!(second.validate_descriptor(&second.descriptor_in(&context)).is_ok());
         let first_source = test_origin(1);
         let second_source = test_origin(2);
 
@@ -1161,10 +1114,7 @@ mod tests {
             Vec::new(),
             #[cfg(feature = "generic")]
             Vec::new(),
-            vec![
-                (first, first_source.clone()),
-                (second, second_source.clone()),
-            ],
+            vec![(first, first_source.clone()), (second, second_source.clone())],
         )
         .expect_err("different metadata values for one descriptor must conflict");
         assert_eq!(error.kind(), ModelRegistryErrorKind::RegistrationConflict);
@@ -1215,17 +1165,14 @@ mod tests {
             .expect("fixture context");
         let metadata = registered_metadata();
         let source = test_origin(5);
-        let registry = ModelRegistry::from_static_metadata(&context, &[(metadata, &source)])
-            .expect("registered fixture metadata");
+        let registry =
+            ModelRegistry::from_static_metadata(&context, &[(metadata, &source)]).expect("registered fixture metadata");
         let id = "tests.RegistryUnitFixture";
 
         assert_eq!(registry.entries().len(), 1);
         let entry = registry.get(id).expect("indexed model ID");
         assert_eq!(entry.model_id().as_str(), id);
-        assert!(std::ptr::eq(
-            entry.metadata().expect("concrete metadata"),
-            metadata
-        ));
+        assert!(std::ptr::eq(entry.metadata().expect("concrete metadata"), metadata));
         assert!(registry.get("invalid model ID").is_none());
         assert!(registry.get("tests.Missing").is_none());
         assert!(std::ptr::eq(
@@ -1234,15 +1181,8 @@ mod tests {
                 .expect("concrete type index"),
             metadata,
         ));
-        assert!(
-            registry
-                .by_type_id(std::any::TypeId::of::<String>())
-                .is_none()
-        );
-        assert_eq!(
-            registry.source(id).expect("registration source").line,
-            Some(5)
-        );
+        assert!(registry.by_type_id(std::any::TypeId::of::<String>()).is_none());
+        assert_eq!(registry.source(id).expect("registration source").line, Some(5));
         assert!(registry.source("tests.Missing").is_none());
 
         let descriptor = context.type_of::<AnonymousMetadataFixture>();
@@ -1253,16 +1193,8 @@ mod tests {
                 .expect("explicit metadata fallback"),
             metadata,
         ));
-        assert!(
-            registry
-                .compile_read_path_cached(metadata, &["missing"])
-                .is_err()
-        );
-        assert!(
-            registry
-                .compile_write_path_cached(metadata, &["missing"])
-                .is_err()
-        );
+        assert!(registry.compile_read_path_cached(metadata, &["missing"]).is_err());
+        assert!(registry.compile_write_path_cached(metadata, &["missing"]).is_err());
 
         let fallible = ModelRegistry::try_global().expect("global registry initializes");
         let infallible = ModelRegistry::global();

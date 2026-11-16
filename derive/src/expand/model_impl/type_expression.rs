@@ -31,10 +31,6 @@ use syn::Type;
 /// Tokens constructing context-independent expression metadata for `ty`.
 #[must_use]
 #[inline]
-pub(super) fn type_expression_data(
-    ty: &Type,
-    runtime: &TokenStream,
-    generic_environment: &[Ident],
-) -> TokenStream {
+pub(super) fn type_expression_data(ty: &Type, runtime: &TokenStream, generic_environment: &[Ident]) -> TokenStream {
     super::super::fields::type_expression_data_with_parameters(ty, runtime, generic_environment)
 }

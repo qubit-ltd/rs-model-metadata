@@ -131,12 +131,8 @@ impl TypeMetadataProvider for CountedProviderFixture {
         COUNTED_PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst);
         static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
         METADATA.get_or_init(|| {
-            v8::GeneratedTypeMetadataBuilder::new::<CountedProviderFixture>(
-                None,
-                &[],
-                v8::leak(v8::model_role()),
-            )
-            .finish::<CountedProviderFixture>()
+            v8::GeneratedTypeMetadataBuilder::new::<CountedProviderFixture>(None, &[], v8::leak(v8::model_role()))
+                .finish::<CountedProviderFixture>()
         })
     }
 }
@@ -171,11 +167,7 @@ impl ModelTypeSeal for SnapshotIsolatedFixture {}
 fn isolated_metadata(id: &'static str) -> &'static TypeMetadata {
     static FIRST: OnceLock<TypeMetadata> = OnceLock::new();
     static SECOND: OnceLock<TypeMetadata> = OnceLock::new();
-    let cell = if id == "example.SnapshotFirst" {
-        &FIRST
-    } else {
-        &SECOND
-    };
+    let cell = if id == "example.SnapshotFirst" { &FIRST } else { &SECOND };
     cell.get_or_init(|| {
         v8::GeneratedTypeMetadataBuilder::new::<SnapshotIsolatedFixture>(
             Some(ModelId::new(id)),
@@ -202,23 +194,17 @@ impl CapabilitySpec for TestModelMetadataCapability {
     const ID: &'static str = "qubit.model.metadata.v1";
 }
 
-fn explicit_model_context<T: ReflectTrait + 'static>(
-    provider: ModelMetadataProvider,
-) -> ReflectionContext {
+fn explicit_model_context<T: ReflectTrait + 'static>(provider: ModelMetadataProvider) -> ReflectionContext {
     ReflectionContext::builder()
         .include_type::<T>()
-        .register(CapabilityRegistration::for_type::<
-            T,
-            TestModelMetadataCapability,
-        >(provider))
+        .register(CapabilityRegistration::for_type::<T, TestModelMetadataCapability>(
+            provider,
+        ))
         .build()
         .expect("valid explicit model context")
 }
 
-fn entry(
-    id: &'static str,
-    fingerprint: u64,
-) -> (&'static TypeMetadata, &'static ModelRegistryOrigin) {
+fn entry(id: &'static str, fingerprint: u64) -> (&'static TypeMetadata, &'static ModelRegistryOrigin) {
     let role = v8::leak(v8::model_role());
     let metadata = v8::leak(
         v8::GeneratedTypeMetadataBuilder::new::<RegistryFixture>(Some(ModelId::new(id)), &[], role)
@@ -299,11 +285,8 @@ fn local_provenance_metadata() -> &'static TypeMetadata {
 #[test]
 fn test_explicit_registry_retains_source_coordinates() {
     let source = registry_origin("fixture", "tests", line!(), 1, "model", 991);
-    let registry = ModelRegistry::from_static_metadata(
-        registry_context(),
-        &[(local_provenance_metadata(), &source)],
-    )
-    .expect("valid registry");
+    let registry = ModelRegistry::from_static_metadata(registry_context(), &[(local_provenance_metadata(), &source)])
+        .expect("valid registry");
     let entry = &registry.entries()[0];
     assert_eq!(entry.source(), &source);
     assert_eq!(entry.declaration_source(), None);
@@ -317,14 +300,11 @@ fn test_explicit_registry_retains_source_coordinates() {
 #[test]
 fn test_registry_indexes_registration_metadata_and_type_identity() {
     let item = entry("example.RegistryFixture", 1);
-    let registry =
-        ModelRegistry::from_static_metadata(registry_context(), &[item]).expect("valid registry");
+    let registry = ModelRegistry::from_static_metadata(registry_context(), &[item]).expect("valid registry");
     assert_eq!(registry.entries().len(), 1);
 
     assert!(std::ptr::eq(
-        registry
-            .metadata("example.RegistryFixture")
-            .expect("metadata"),
+        registry.metadata("example.RegistryFixture").expect("metadata"),
         item.0
     ));
     assert!(std::ptr::eq(
@@ -340,14 +320,11 @@ fn test_registry_indexes_registration_metadata_and_type_identity() {
 fn test_registry_reports_duplicate_ids_with_both_sources() {
     let first = entry("example.Duplicate", 1);
     let second = entry("example.Duplicate", 2);
-    let error = ModelRegistry::from_static_metadata(registry_context(), &[second, first])
-        .expect_err("duplicate IDs must fail");
+    let error =
+        ModelRegistry::from_static_metadata(registry_context(), &[second, first]).expect_err("duplicate IDs must fail");
 
     assert_eq!(error.kind(), ModelRegistryErrorKind::DuplicateModelId);
-    assert_eq!(
-        error.model_id().map(|id| id.as_str()),
-        Some("example.Duplicate")
-    );
+    assert_eq!(error.model_id().map(|id| id.as_str()), Some("example.Duplicate"));
     assert_eq!(error.sources().len(), 2);
     assert!(error.abi_cause().is_none());
 }
@@ -376,9 +353,8 @@ fn test_static_registry_constructors_reject_invalid_concrete_abi() {
         .finish_unchecked(),
     );
 
-    let error =
-        ModelRegistry::from_static_metadata(registry_context(), &[(invalid, &first_source)])
-            .expect_err("static registry must reject missing field overlays");
+    let error = ModelRegistry::from_static_metadata(registry_context(), &[(invalid, &first_source)])
+        .expect_err("static registry must reject missing field overlays");
     assert_eq!(error.kind(), ModelRegistryErrorKind::InvalidMetadata);
     assert_eq!(error.abi_cause().expect("ABI cause").code(), "QMM-ABI-003");
     assert_eq!(error.sources(), std::slice::from_ref(&first_source));
@@ -397,17 +373,10 @@ fn test_static_registry_constructors_reject_invalid_concrete_abi() {
     }
 
     let valid = TypeMetadata::of::<StaticRegistryAbiValidFixture>();
-    assert!(
-        ModelRegistry::from_static_metadata(registry_context(), &[(valid, &first_source)]).is_ok()
-    );
+    assert!(ModelRegistry::from_static_metadata(registry_context(), &[(valid, &first_source)]).is_ok());
     #[cfg(feature = "generic")]
     assert!(
-        ModelRegistry::from_static_metadata_with_generics(
-            registry_context(),
-            &[(valid, &second_source)],
-            &[]
-        )
-        .is_ok()
+        ModelRegistry::from_static_metadata_with_generics(registry_context(), &[(valid, &second_source)], &[]).is_ok()
     );
 }
 
@@ -417,29 +386,14 @@ fn test_registry_indexes_one_generic_definition_without_concrete_model_id() {
     let generic = TypeMetadata::of::<GenericFixture<u8>>()
         .generic_definition()
         .expect("generic metadata");
-    let definition = generic
-        .definition_in(registry_context())
-        .expect("generic definition");
-    let source = Box::leak(Box::new(registry_origin(
-        "fixture",
-        "tests",
-        3,
-        1,
-        "generic-model",
-        3,
-    )));
-    let registry = ModelRegistry::from_static_metadata_with_generics(
-        registry_context(),
-        &[],
-        &[(generic, source)],
-    )
-    .expect("generic registry");
+    let definition = generic.definition_in(registry_context()).expect("generic definition");
+    let source = Box::leak(Box::new(registry_origin("fixture", "tests", 3, 1, "generic-model", 3)));
+    let registry = ModelRegistry::from_static_metadata_with_generics(registry_context(), &[], &[(generic, source)])
+        .expect("generic registry");
     assert_eq!(registry.generic_definitions().len(), 1);
 
     assert!(std::ptr::eq(
-        registry
-            .generic("example.GenericFixture")
-            .expect("generic lookup"),
+        registry.generic("example.GenericFixture").expect("generic lookup"),
         generic,
     ));
     assert!(registry.metadata("example.GenericFixture").is_none());
@@ -461,16 +415,10 @@ fn test_anonymous_generic_definition_is_queryable_but_not_an_id_entry() {
     let generic = TypeMetadata::of::<AnonymousGenericFixture<u8>>()
         .generic_definition()
         .expect("anonymous generic metadata");
-    let definition = generic
-        .definition_in(registry_context())
-        .expect("generic definition");
+    let definition = generic.definition_in(registry_context()).expect("generic definition");
     let source = registry_origin("fixture", "tests", 41, 1, "generic-model", 41);
-    let registry = ModelRegistry::from_static_metadata_with_generics(
-        registry_context(),
-        &[],
-        &[(generic, &source)],
-    )
-    .expect("anonymous registry");
+    let registry = ModelRegistry::from_static_metadata_with_generics(registry_context(), &[], &[(generic, &source)])
+        .expect("anonymous registry");
 
     assert!(registry.entries().is_empty());
     assert_eq!(registry.generic_definitions().len(), 1);
@@ -585,9 +533,7 @@ fn test_registry_projects_concrete_models_and_sources_from_reflection() {
 fn test_combined_reflection_registration_projects_concrete_metadata() {
     let reflection = explicit_model_context::<ProjectedFixture>(ProjectedFixture::__type_metadata);
     let models = ModelRegistry::from_context(&reflection).expect("projected models");
-    let by_id = models
-        .metadata("example.ProjectedFixture")
-        .expect("metadata by ID");
+    let by_id = models.metadata("example.ProjectedFixture").expect("metadata by ID");
     let by_type = models
         .metadata_for(
             &reflection
@@ -604,8 +550,7 @@ fn test_combined_reflection_registration_projects_concrete_metadata() {
 #[test]
 fn test_metadata_for_caches_projected_and_anonymous_metadata_by_registry() {
     COUNTED_PROVIDER_CALLS.store(0, Ordering::SeqCst);
-    let reflection =
-        explicit_model_context::<CountedProviderFixture>(CountedProviderFixture::__type_metadata);
+    let reflection = explicit_model_context::<CountedProviderFixture>(CountedProviderFixture::__type_metadata);
     let registry = ModelRegistry::from_context(&reflection).expect("projected registry");
     let descriptor = reflection
         .type_by_id(std::any::TypeId::of::<CountedProviderFixture>())
@@ -625,15 +570,11 @@ fn test_metadata_for_caches_projected_and_anonymous_metadata_by_registry() {
     assert!(std::ptr::eq(first, second));
     assert_eq!(after_first, projected_calls);
     assert_eq!(after_second, after_first);
-    assert!(
-        first.model_id().is_none(),
-        "anonymous metadata is still cached"
-    );
+    assert!(first.model_id().is_none(), "anonymous metadata is still cached");
 
     NAMED_PROVIDER_CALLS.store(0, Ordering::SeqCst);
-    let named_reflection = explicit_model_context::<CountedNamedProviderFixture>(
-        CountedNamedProviderFixture::__type_metadata,
-    );
+    let named_reflection =
+        explicit_model_context::<CountedNamedProviderFixture>(CountedNamedProviderFixture::__type_metadata);
     let named_registry = ModelRegistry::from_context(&named_reflection).expect("named registry");
     let named_descriptor = named_reflection
         .type_by_id(std::any::TypeId::of::<CountedNamedProviderFixture>())
@@ -657,8 +598,7 @@ fn test_metadata_for_caches_projected_and_anonymous_metadata_by_registry() {
 
 #[test]
 fn test_metadata_cache_isolated_between_reflection_contexts() {
-    let first_reflection =
-        explicit_model_context::<SnapshotIsolatedFixture>(first_snapshot_metadata);
+    let first_reflection = explicit_model_context::<SnapshotIsolatedFixture>(first_snapshot_metadata);
     let first = ModelRegistry::from_context(&first_reflection).expect("first registry");
     let descriptor = first_reflection
         .type_by_id(std::any::TypeId::of::<SnapshotIsolatedFixture>())
@@ -668,8 +608,7 @@ fn test_metadata_cache_isolated_between_reflection_contexts() {
         first_snapshot_metadata(),
     ));
 
-    let second_reflection =
-        explicit_model_context::<SnapshotIsolatedFixture>(second_snapshot_metadata);
+    let second_reflection = explicit_model_context::<SnapshotIsolatedFixture>(second_snapshot_metadata);
     let second = ModelRegistry::from_context(&second_reflection).expect("second registry");
     let second_descriptor = second_reflection
         .type_by_id(std::any::TypeId::of::<SnapshotIsolatedFixture>())
@@ -680,11 +619,7 @@ fn test_metadata_cache_isolated_between_reflection_contexts() {
     ));
     assert_ne!(
         first.metadata_for(&descriptor).unwrap().unwrap().model_id(),
-        second
-            .metadata_for(&second_descriptor)
-            .unwrap()
-            .unwrap()
-            .model_id(),
+        second.metadata_for(&second_descriptor).unwrap().unwrap().model_id(),
     );
 }
 
@@ -693,16 +628,12 @@ fn test_metadata_cache_isolated_between_reflection_contexts() {
 #[test]
 fn test_registry_exposes_read_only_entries_with_sources() {
     let item = entry("example.RegistryEntry", 31);
-    let registry =
-        ModelRegistry::from_static_metadata(registry_context(), &[item]).expect("valid registry");
+    let registry = ModelRegistry::from_static_metadata(registry_context(), &[item]).expect("valid registry");
     let entries = registry.entries();
     assert_eq!(entries.len(), 1);
     let entry = registry.get("example.RegistryEntry").expect("entry");
     assert_eq!(entry.model_id().as_str(), "example.RegistryEntry");
-    assert!(std::ptr::eq(
-        entry.metadata().expect("concrete metadata"),
-        item.0
-    ));
+    assert!(std::ptr::eq(entry.metadata().expect("concrete metadata"), item.0));
     assert_eq!(entry.source(), item.1);
     assert_eq!(registry.source("example.RegistryEntry"), Some(item.1));
     #[cfg(feature = "generic")]
@@ -717,37 +648,18 @@ fn test_registry_exposes_read_only_entries_with_sources() {
 fn test_static_registry_excludes_independently_registered_model_impl_getter() {
     let metadata = TypeMetadata::of::<StaticPropertyFixture>();
     let source = registry_origin("fixture", "tests", line!(), 1, "model", 992);
-    let registry = ModelRegistry::from_static_metadata(registry_context(), &[(metadata, &source)])
-        .expect("static registry");
-    let properties = registry
-        .properties_for(metadata)
-        .expect("static properties");
-    assert!(
-        properties
-            .property("name")
-            .expect("stored property")
-            .getter()
-            .is_none()
-    );
+    let registry =
+        ModelRegistry::from_static_metadata(registry_context(), &[(metadata, &source)]).expect("static registry");
+    let properties = registry.properties_for(metadata).expect("static properties");
+    assert!(properties.property("name").expect("stored property").getter().is_none());
 
     #[cfg(feature = "generic")]
     {
-        let registry = ModelRegistry::from_static_metadata_with_generics(
-            registry_context(),
-            &[(metadata, &source)],
-            &[],
-        )
-        .expect("static registry with generic inputs");
-        let properties = registry
-            .properties_for(metadata)
-            .expect("static properties");
-        assert!(
-            properties
-                .property("name")
-                .expect("stored property")
-                .getter()
-                .is_none()
-        );
+        let registry =
+            ModelRegistry::from_static_metadata_with_generics(registry_context(), &[(metadata, &source)], &[])
+                .expect("static registry with generic inputs");
+        let properties = registry.properties_for(metadata).expect("static properties");
+        assert!(properties.property("name").expect("stored property").getter().is_none());
     }
 
     let reflection = ReflectionContext::builder()

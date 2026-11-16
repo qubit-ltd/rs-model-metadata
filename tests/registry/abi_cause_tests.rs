@@ -30,8 +30,7 @@ struct Invalid {
 fn invalid_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v8::GeneratedTypeMetadataBuilder::new::<Invalid>(None, &[], v8::leak(v8::model_role()))
-            .finish_unchecked()
+        v8::GeneratedTypeMetadataBuilder::new::<Invalid>(None, &[], v8::leak(v8::model_role())).finish_unchecked()
     })
 }
 
@@ -59,10 +58,7 @@ fn test_registry_retains_typed_abi_violation() {
         .expect("original ABI cause must remain available");
     assert_eq!(abi.code(), "QMM-ABI-003");
     assert!(!abi.message().is_empty());
-    assert_eq!(
-        abi.to_string(),
-        format!("{}: {}", abi.code(), abi.message())
-    );
+    assert_eq!(abi.to_string(), format!("{}: {}", abi.code(), abi.message()));
     assert_eq!(error.abi_cause(), Some(abi));
     assert!(error.to_string().contains(abi.code()));
     assert!(error.to_string().contains(abi.message()));

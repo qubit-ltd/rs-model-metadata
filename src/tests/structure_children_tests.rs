@@ -86,10 +86,7 @@ fn test_structure_children_tuple_order_and_single_layer() {
     assert_edges(
         context.type_of::<(u8, Option<bool>)>(),
         &[
-            (
-                StructuralEdgeKind::TupleElement { index: 0 },
-                TypeId::of::<u8>(),
-            ),
+            (StructuralEdgeKind::TupleElement { index: 0 }, TypeId::of::<u8>()),
             (
                 StructuralEdgeKind::TupleElement { index: 1 },
                 TypeId::of::<Option<bool>>(),
@@ -126,14 +123,8 @@ fn test_structure_children_struct_names_and_positions() {
     assert_edges(
         context.type_of::<PositionalRecord>(),
         &[
-            (
-                StructuralEdgeKind::TupleElement { index: 0 },
-                TypeId::of::<u8>(),
-            ),
-            (
-                StructuralEdgeKind::TupleElement { index: 1 },
-                TypeId::of::<bool>(),
-            ),
+            (StructuralEdgeKind::TupleElement { index: 0 }, TypeId::of::<u8>()),
+            (StructuralEdgeKind::TupleElement { index: 1 }, TypeId::of::<bool>()),
         ],
     );
 }
@@ -208,27 +199,12 @@ fn test_structure_children_map_key_before_value() {
 fn test_structure_children_container_and_wrapper_edges() {
     let context = structural_context();
     for (descriptor, kind) in [
-        (
-            context.type_of::<Vec<u8>>(),
-            StructuralEdgeKind::SequenceElement,
-        ),
-        (
-            context.type_of::<BTreeSet<u8>>(),
-            StructuralEdgeKind::SetElement,
-        ),
-        (
-            context.type_of::<[u8; 3]>(),
-            StructuralEdgeKind::ArrayElement,
-        ),
+        (context.type_of::<Vec<u8>>(), StructuralEdgeKind::SequenceElement),
+        (context.type_of::<BTreeSet<u8>>(), StructuralEdgeKind::SetElement),
+        (context.type_of::<[u8; 3]>(), StructuralEdgeKind::ArrayElement),
         (context.type_of::<[u8]>(), StructuralEdgeKind::SliceElement),
-        (
-            context.type_of::<Option<u8>>(),
-            StructuralEdgeKind::OptionalElement,
-        ),
-        (
-            context.type_of::<Box<u8>>(),
-            StructuralEdgeKind::PointerPointee,
-        ),
+        (context.type_of::<Option<u8>>(), StructuralEdgeKind::OptionalElement),
+        (context.type_of::<Box<u8>>(), StructuralEdgeKind::PointerPointee),
     ] {
         assert_edges(descriptor, &[(kind, TypeId::of::<u8>())]);
     }

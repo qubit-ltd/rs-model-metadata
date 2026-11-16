@@ -42,8 +42,7 @@ use super::PropertyValue;
 /// let adapter: GetterAdapter = get_count;
 /// assert!(adapter(PropertyBorrowed::new(&())).is_ok());
 /// ```
-pub type GetterAdapter =
-    for<'a> fn(PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
+pub type GetterAdapter = for<'a> fn(PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError>;
 
 /// Metadata and adapter for one explicit getter method.
 ///
@@ -268,10 +267,7 @@ impl GetterMetadata {
     /// Returns [`PropertyAccessError::TargetTypeMismatch`] when `target` has
     /// a different concrete type, or propagates the generated adapter error.
     #[inline]
-    pub fn get<'a, T: ValueForRef<Local>>(
-        &self,
-        target: &'a T,
-    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get<'a, T: ValueForRef<Local>>(&self, target: &'a T) -> Result<PropertyValue<'a>, PropertyAccessError> {
         self.get_dynamic(PropertyBorrowed::new(target))
     }
 
@@ -291,10 +287,7 @@ impl GetterMetadata {
     /// Returns [`PropertyAccessError::TargetTypeMismatch`] if the target has a
     /// different concrete type, or propagates the generated adapter error.
     #[inline]
-    pub fn get_dynamic<'a>(
-        &self,
-        target: PropertyBorrowed<'a>,
-    ) -> Result<PropertyValue<'a>, PropertyAccessError> {
+    pub fn get_dynamic<'a>(&self, target: PropertyBorrowed<'a>) -> Result<PropertyValue<'a>, PropertyAccessError> {
         (self.adapter)(target)
     }
 }

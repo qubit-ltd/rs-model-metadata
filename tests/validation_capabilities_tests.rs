@@ -109,9 +109,8 @@ fn test_map_key_selector_violation_reports_map_key_path() {
         column: None,
     };
     let metadata = TypeMetadata::of::<MapKeySelector>();
-    let models =
-        ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, &source)])
-            .expect("model registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, &source)])
+        .expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             roots: &[],
@@ -139,12 +138,7 @@ fn test_map_key_selector_violation_reports_map_key_path() {
         )
         .expect("map-key validation executes");
     assert_eq!(report.violations().len(), 1);
-    assert!(
-        report.violations()[0]
-            .path()
-            .render()
-            .ends_with(".<map-key>")
-    );
+    assert!(report.violations()[0].path().render().ends_with(".<map-key>"));
 }
 
 #[test]
@@ -155,10 +149,7 @@ fn test_owned_collection_getter_is_rejected_at_build() {
         .expect("model graph");
     let errors = ValidationCapabilities::check(TypeMetadata::of::<OwnedSelectorGetter>(), &graph)
         .expect_err("owned collection output cannot provide member borrows");
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
 }
 
 #[test]
@@ -167,13 +158,9 @@ fn test_boxed_slice_selector_is_rejected_without_a_borrow_adapter() {
     let graph = StructureResolver::new(ResolveInputs { models, roots: &[] })
         .resolve()
         .expect("model graph");
-    let errors =
-        ValidationCapabilities::check(TypeMetadata::of::<UnsupportedBoxedSliceSelector>(), &graph)
-            .expect_err("unsupported collection shapes remain build errors");
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    let errors = ValidationCapabilities::check(TypeMetadata::of::<UnsupportedBoxedSliceSelector>(), &graph)
+        .expect_err("unsupported collection shapes remain build errors");
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
 }
 
 #[test]
@@ -209,28 +196,12 @@ fn test_generated_collection_items_borrow_values_for_all_supported_shapes() {
 
     let borrowed_values = PropertyValue::Borrowed(DynamicRef::<Local>::new(&values));
     assert_eq!(
-        numbers(
-            items(
-                metadata,
-                "values",
-                &borrowed_values,
-                SelectorPosition::Element
-            )
-            .unwrap()
-        ),
+        numbers(items(metadata, "values", &borrowed_values, SelectorPosition::Element).unwrap()),
         [3, 5]
     );
     let borrowed_array = PropertyValue::Borrowed(DynamicRef::<Local>::new(&array));
     assert_eq!(
-        numbers(
-            items(
-                metadata,
-                "array",
-                &borrowed_array,
-                SelectorPosition::Element
-            )
-            .unwrap()
-        ),
+        numbers(items(metadata, "array", &borrowed_array, SelectorPosition::Element).unwrap()),
         [7, 11]
     );
 
@@ -242,13 +213,7 @@ fn test_generated_collection_items_borrow_values_for_all_supported_shapes() {
             .collect::<Vec<_>>(),
         ["hash-key"]
     );
-    let hash_values = items(
-        metadata,
-        "hashed",
-        &borrowed_hash,
-        SelectorPosition::MapValue,
-    )
-    .unwrap();
+    let hash_values = items(metadata, "hashed", &borrowed_hash, SelectorPosition::MapValue).unwrap();
     assert_eq!(
         hash_values
             .map(|item| *item.downcast_ref::<i32>().unwrap())
@@ -257,26 +222,14 @@ fn test_generated_collection_items_borrow_values_for_all_supported_shapes() {
     );
 
     let borrowed_tree = PropertyValue::Borrowed(DynamicRef::<Local>::new(&ordered));
-    let tree_keys = items(
-        metadata,
-        "ordered",
-        &borrowed_tree,
-        SelectorPosition::MapKey,
-    )
-    .unwrap();
+    let tree_keys = items(metadata, "ordered", &borrowed_tree, SelectorPosition::MapKey).unwrap();
     assert_eq!(
         tree_keys
             .map(|item| item.downcast_ref::<String>().unwrap().as_str().to_owned())
             .collect::<Vec<_>>(),
         ["tree-key"]
     );
-    let tree_values = items(
-        metadata,
-        "ordered",
-        &borrowed_tree,
-        SelectorPosition::MapValue,
-    )
-    .unwrap();
+    let tree_values = items(metadata, "ordered", &borrowed_tree, SelectorPosition::MapValue).unwrap();
     assert_eq!(
         tree_values
             .map(|item| *item.downcast_ref::<i32>().unwrap())
@@ -284,43 +237,18 @@ fn test_generated_collection_items_borrow_values_for_all_supported_shapes() {
         [17]
     );
 
-    let optional_some =
-        PropertyValue::OptionalBorrowed(Some(DynamicRef::<Local>::new(&optional_values)));
+    let optional_some = PropertyValue::OptionalBorrowed(Some(DynamicRef::<Local>::new(&optional_values)));
     assert_eq!(
-        numbers(
-            items(
-                metadata,
-                "optional",
-                &optional_some,
-                SelectorPosition::Element
-            )
-            .unwrap()
-        ),
+        numbers(items(metadata, "optional", &optional_some, SelectorPosition::Element).unwrap()),
         [19, 23]
     );
     let optional_none = PropertyValue::OptionalBorrowed(None);
-    assert!(
-        items(
-            metadata,
-            "optional",
-            &optional_none,
-            SelectorPosition::Element
-        )
-        .is_none()
-    );
+    assert!(items(metadata, "optional", &optional_none, SelectorPosition::Element).is_none());
 
     let slice_values = [29, 31];
     let borrowed_slice = PropertyValue::BorrowedSlice(BorrowedPropertySlice::new(&slice_values));
     assert_eq!(
-        numbers(
-            items(
-                metadata,
-                "values",
-                &borrowed_slice,
-                SelectorPosition::Element
-            )
-            .unwrap()
-        ),
+        numbers(items(metadata, "values", &borrowed_slice, SelectorPosition::Element).unwrap()),
         [29, 31]
     );
 }

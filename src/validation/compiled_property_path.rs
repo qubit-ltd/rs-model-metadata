@@ -64,12 +64,7 @@ fn resolve_getter_output<'ctx>(
             .flatten()
             .or_else(|| {
                 (getter.output_kind() != GetterOutputKind::Owned)
-                    .then(|| {
-                        property
-                            .descriptor_in_owner(current, context)
-                            .ok()
-                            .flatten()
-                    })
+                    .then(|| property.descriptor_in_owner(current, context).ok().flatten())
                     .flatten()
             })
             .ok_or_else(|| path_error(BindErrorKind::UnsupportedInput))?;
@@ -82,8 +77,8 @@ fn resolve_getter_output<'ctx>(
             return Err(path_error(BindErrorKind::UnsupportedConstraint));
         }
         if matches!(getter.output_kind(), GetterOutputKind::OptionalBorrowed) {
-            let inner = generic_type_argument(output, 0)
-                .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+            let inner =
+                generic_type_argument(output, 0).ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
             Ok((inner, true, false))
         } else if last && !value_target && getter.output_kind() == GetterOutputKind::BorrowedSlice {
             Ok((expected, false, false))
@@ -91,8 +86,8 @@ fn resolve_getter_output<'ctx>(
             if getter.output_kind() != GetterOutputKind::Borrowed {
                 return Err(path_error(BindErrorKind::UnsupportedConstraint));
             }
-            let actual_optional = generic_type_argument(output, 0)
-                .ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
+            let actual_optional =
+                generic_type_argument(output, 0).ok_or_else(|| path_error(BindErrorKind::UnsupportedConstraint))?;
             if property
                 .optional_ops()
                 .is_none_or(|ops| ops.element_type_id() != expected.type_id())
@@ -157,10 +152,7 @@ fn value_descriptor<'ctx>(mut descriptor: TypeDescriptor<'ctx>) -> (TypeDescript
 ///
 /// The concrete argument descriptor, or `None` when the index is out of range,
 /// the type expression cannot be resolved, or it is not concrete.
-fn generic_type_argument<'ctx>(
-    descriptor: TypeDescriptor<'ctx>,
-    index: usize,
-) -> Option<TypeDescriptor<'ctx>> {
+fn generic_type_argument<'ctx>(descriptor: TypeDescriptor<'ctx>, index: usize) -> Option<TypeDescriptor<'ctx>> {
     let argument = descriptor.generic_arguments().iter().nth(index)?;
     concrete_generic_type_argument(argument)
 }
@@ -175,9 +167,7 @@ fn generic_type_argument<'ctx>(
 ///
 /// The concrete type descriptor, or `None` for a const argument, unresolved
 /// type expression, or unavailable descriptor.
-fn concrete_generic_type_argument<'ctx>(
-    argument: GenericArgumentDescriptor<'ctx>,
-) -> Option<TypeDescriptor<'ctx>> {
+fn concrete_generic_type_argument<'ctx>(argument: GenericArgumentDescriptor<'ctx>) -> Option<TypeDescriptor<'ctx>> {
     argument.type_argument().ok()?.find_concrete_type()
 }
 
@@ -231,20 +221,11 @@ mod tests {
         let field = v8::leak(
             FieldMetadata::from_reflect(
                 descriptor.type_id(),
-                descriptor
-                    .fields()
-                    .get_at(0)
-                    .expect("optional terminal field"),
+                descriptor.fields().get_at(0).expect("optional terminal field"),
             )
             .with_optional_ops(OptionalOps::for_element::<String>()),
         );
-        let property = PropertyMetadata::new(
-            "value",
-            field.type_expression_data(),
-            Some(field),
-            None,
-            None,
-        );
+        let property = PropertyMetadata::new("value", field.type_expression_data(), Some(field), None, None);
         let path = CompiledPropertyPath {
             context_depth: 0,
             dependency: None,
@@ -262,16 +243,7 @@ mod tests {
             variant_name: None,
         }
         .unwrap_terminal_optional(
-            generic_type_argument(
-                descriptor
-                    .fields()
-                    .get_at(0)
-                    .unwrap()
-                    .find_concrete_type()
-                    .unwrap(),
-                0,
-            )
-            .unwrap(),
+            generic_type_argument(descriptor.fields().get_at(0).unwrap().find_concrete_type().unwrap(), 0).unwrap(),
         )
         .expect("Option<String> projects to its reflected text element");
 
@@ -290,18 +262,9 @@ mod tests {
         };
         assert!(!path.optionality_covered_by(&uncovered_target, context));
 
-        let (element, optional) = value_descriptor(
-            descriptor
-                .fields()
-                .get_at(0)
-                .unwrap()
-                .find_concrete_type()
-                .unwrap(),
-        );
-        assert_eq!(
-            element.type_id(),
-            TypeDescriptor::of_in::<String>(context).type_id()
-        );
+        let (element, optional) =
+            value_descriptor(descriptor.fields().get_at(0).unwrap().find_concrete_type().unwrap());
+        assert_eq!(element.type_id(), TypeDescriptor::of_in::<String>(context).type_id());
         assert!(optional);
     }
 
@@ -312,10 +275,7 @@ mod tests {
         let field = v8::leak(
             FieldMetadata::from_reflect(
                 descriptor.type_id(),
-                descriptor
-                    .fields()
-                    .get_at(0)
-                    .expect("optional terminal field"),
+                descriptor.fields().get_at(0).expect("optional terminal field"),
             )
             .with_optional_ops(OptionalOps::for_element::<String>()),
         );
@@ -324,13 +284,7 @@ mod tests {
             dependency: None,
             deferred: Box::new([]),
             steps: vec![PropertyStep {
-                property: PropertyMetadata::new(
-                    "value",
-                    field.type_expression_data(),
-                    Some(field),
-                    None,
-                    None,
-                ),
+                property: PropertyMetadata::new("value", field.type_expression_data(), Some(field), None, None),
                 owner: None,
                 optional_element: None,
             }]
@@ -345,10 +299,7 @@ mod tests {
         let error = path
             .unwrap_terminal_optional(TypeDescriptor::of_in::<u64>(context))
             .expect_err("Option<String> cannot project to an unrelated element type");
-        assert_eq!(
-            error.kind(),
-            qubit_validator::BindErrorKind::UnsupportedConstraint
-        );
+        assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
     }
 
     #[test]
@@ -357,23 +308,14 @@ mod tests {
         let descriptor = TypeDescriptor::of_in::<OptionalTerminalFixture>(context);
         let field = v8::leak(FieldMetadata::from_reflect(
             descriptor.type_id(),
-            descriptor
-                .fields()
-                .get_at(0)
-                .expect("optional terminal field"),
+            descriptor.fields().get_at(0).expect("optional terminal field"),
         ));
         let path = CompiledPropertyPath {
             context_depth: 0,
             dependency: None,
             deferred: Box::new([]),
             steps: vec![PropertyStep {
-                property: PropertyMetadata::new(
-                    "value",
-                    field.type_expression_data(),
-                    Some(field),
-                    None,
-                    None,
-                ),
+                property: PropertyMetadata::new("value", field.type_expression_data(), Some(field), None, None),
                 owner: None,
                 optional_element: None,
             }]
@@ -389,10 +331,7 @@ mod tests {
             .unwrap_terminal_optional(TypeDescriptor::of_in::<String>(context))
             .expect_err("the path has no checked OptionalOps adapter");
 
-        assert_eq!(
-            error.kind(),
-            qubit_validator::BindErrorKind::UnsupportedConstraint
-        );
+        assert_eq!(error.kind(), qubit_validator::BindErrorKind::UnsupportedConstraint);
     }
 
     #[test]
@@ -401,18 +340,12 @@ mod tests {
         let optional = TypeDescriptor::of_in::<Option<String>>(context);
         let (value, was_optional) = value_descriptor(optional);
         assert!(was_optional);
-        assert_eq!(
-            value.type_id(),
-            TypeDescriptor::of_in::<String>(context).type_id()
-        );
+        assert_eq!(value.type_id(), TypeDescriptor::of_in::<String>(context).type_id());
 
         let nested = TypeDescriptor::of_in::<Option<Box<Option<String>>>>(context);
         let (value, was_optional) = value_descriptor(nested);
         assert!(was_optional);
-        assert_eq!(
-            value.type_id(),
-            TypeDescriptor::of_in::<String>(context).type_id()
-        );
+        assert_eq!(value.type_id(), TypeDescriptor::of_in::<String>(context).type_id());
         assert!(generic_type_argument(value, 0).is_none());
     }
 }

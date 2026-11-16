@@ -36,9 +36,7 @@ pub(super) fn contains_self_type(expression: &TypeExpressionData) -> bool {
     fn argument_contains_self(argument: &GenericExpressionArgument) -> bool {
         match argument {
             GenericExpressionArgument::Type(expression)
-            | GenericExpressionArgument::AssociatedType {
-                value: expression, ..
-            } => contains_self_type(expression),
+            | GenericExpressionArgument::AssociatedType { value: expression, .. } => contains_self_type(expression),
             GenericExpressionArgument::Lifetime(_)
             | GenericExpressionArgument::Const(_)
             | GenericExpressionArgument::AssociatedTypeBound { .. } => false,
@@ -49,22 +47,15 @@ pub(super) fn contains_self_type(expression: &TypeExpressionData) -> bool {
         ExpressionData::SelfType => true,
         ExpressionData::Named { arguments, .. } => arguments.iter().any(argument_contains_self),
         ExpressionData::AssociatedType {
-            self_type,
-            arguments,
-            ..
+            self_type, arguments, ..
         } => contains_self_type(self_type) || arguments.iter().any(argument_contains_self),
         ExpressionData::Reference { target, .. }
         | ExpressionData::RawPointer { target, .. }
         | ExpressionData::Slice(target) => contains_self_type(target),
         ExpressionData::Array { element, .. } => contains_self_type(element),
-        ExpressionData::Tuple(elements) => {
-            elements.iter().any(|element| contains_self_type(element))
-        }
+        ExpressionData::Tuple(elements) => elements.iter().any(|element| contains_self_type(element)),
         ExpressionData::FunctionPointer(function) => {
-            function
-                .arguments
-                .iter()
-                .any(|argument| contains_self_type(argument))
+            function.arguments.iter().any(|argument| contains_self_type(argument))
                 || function.result.is_some_and(contains_self_type)
         }
         ExpressionData::Parameter(_)

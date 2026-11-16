@@ -68,20 +68,11 @@ fn test_bilingual_documentation_examples() {
             .collect();
         assert_eq!(
             manifests.len(),
-            blocks
-                .iter()
-                .filter(|block| block.language == "toml")
-                .count(),
+            blocks.iter().filter(|block| block.language == "toml").count(),
             "{document}: duplicate installation identifier"
         );
-        let programs: Vec<_> = blocks
-            .iter()
-            .filter(|block| block.language == "rust")
-            .collect();
-        assert!(
-            !programs.is_empty(),
-            "{document}: no complete runnable program"
-        );
+        let programs: Vec<_> = blocks.iter().filter(|block| block.language == "rust").collect();
+        assert!(!programs.is_empty(), "{document}: no complete runnable program");
         for (program_index, program) in programs.iter().enumerate() {
             let (installation, _) = program.example.split_once('/').unwrap_or_else(|| {
                 panic!(
@@ -143,12 +134,7 @@ fn test_documented_installation_paths() {
                 && block.language == "toml"
             {
                 installation_kinds.insert(block.example.clone(), ());
-                configurations.push((
-                    block.example,
-                    (*document).to_owned(),
-                    block.line,
-                    block.source,
-                ));
+                configurations.push((block.example, (*document).to_owned(), block.line, block.source));
             }
         }
     }
@@ -265,10 +251,7 @@ fn test_installation_rejects_missing_validation_feature() {
         .find(|block| block.example == "validation/profile")
         .expect("validation source");
     let incomplete = manifest.source.replace(", features = [\"validation\"]", "");
-    assert_ne!(
-        incomplete, manifest.source,
-        "actual manifest must declare validation"
-    );
+    assert_ne!(incomplete, manifest.source, "actual manifest must declare validation");
     let fixture = create_fixture();
     let directory = fixture.directory.join("rs-platform/app-missing-feature");
     prepare_consumer(&directory, root, &incomplete, &program.source);
@@ -301,10 +284,7 @@ fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str)
     fs::create_dir_all(directory.join("src")).expect("consumer sources");
     assert!(root.is_dir(), "checkout root {} exists", root.display());
     let absolute = root.to_str().expect("UTF-8 checkout path");
-    assert!(
-        !absolute.chars().any(char::is_control),
-        "printable checkout path"
-    );
+    assert!(!absolute.chars().any(char::is_control), "printable checkout path");
     let escaped = absolute.replace('\\', "\\\\").replace('"', "\\\"");
     let dependencies = manifest.replace("../rs-model-metadata", &escaped);
     // Package/workspace scaffolding is independent of dependency configuration.
@@ -316,11 +296,7 @@ fn prepare_consumer(directory: &Path, root: &Path, manifest: &str, source: &str)
         "publish = false\n\n",
         "[workspace]\n\n",
     );
-    fs::write(
-        directory.join("Cargo.toml"),
-        format!("{package}{dependencies}"),
-    )
-    .expect("exact documented dependencies");
+    fs::write(directory.join("Cargo.toml"), format!("{package}{dependencies}")).expect("exact documented dependencies");
     fs::write(directory.join("src/main.rs"), source).expect("verbatim Markdown source");
 }
 
@@ -385,17 +361,8 @@ fn check_package_identity(metadata: &Value, installation: &str, context: &str) {
     }
 }
 
-fn check_raw_installation_identity(
-    metadata: &Value,
-    installation: &str,
-    root: &Path,
-    parent: &Path,
-    context: &str,
-) {
-    let documented_root = if root
-        .file_name()
-        .is_some_and(|name| name == "rs-model-metadata")
-    {
+fn check_raw_installation_identity(metadata: &Value, installation: &str, root: &Path, parent: &Path, context: &str) {
+    let documented_root = if root.file_name().is_some_and(|name| name == "rs-model-metadata") {
         root.to_path_buf()
     } else {
         parent.join("rs-model-metadata")
@@ -433,9 +400,7 @@ fn check_raw_installation_identity(
         assert_registry_package(packages, "qubit-validator", context);
     }
     if matches!(installation, "core" | "validation" | "codec") {
-        let nodes = metadata["resolve"]["nodes"]
-            .as_array()
-            .expect("resolved nodes");
+        let nodes = metadata["resolve"]["nodes"].as_array().expect("resolved nodes");
         let runtime = nodes
             .iter()
             .find(|node| {
@@ -520,11 +485,7 @@ fn write_raw_consumer(directory: &Path, dependencies: &str) {
         "publish = false\n\n",
         "[workspace]\n\n",
     );
-    fs::write(
-        directory.join("Cargo.toml"),
-        format!("{package}{dependencies}"),
-    )
-    .expect("raw documented dependencies");
+    fs::write(directory.join("Cargo.toml"), format!("{package}{dependencies}")).expect("raw documented dependencies");
     fs::write(directory.join("src/main.rs"), "fn main() {}\n").expect("raw consumer source");
 }
 

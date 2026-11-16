@@ -81,12 +81,7 @@ fn test_exclusion_preserves_computed_and_stored_properties() {
     let properties = registry.properties_for(meta).expect("properties");
     assert!(properties.property("unavailable").is_none());
     assert!(properties.property("diagnostic").is_none());
-    assert!(
-        properties
-            .property("full_name")
-            .expect("computed")
-            .is_computed()
-    );
+    assert!(properties.property("full_name").expect("computed").is_computed());
     assert!(properties.property("name").expect("field").is_writable());
     let descriptor = TypeDescriptor::of_in::<Person>(&context);
     assert!(descriptor.method("diagnostic").is_ok());
@@ -124,11 +119,7 @@ fn test_trait_methods_do_not_contribute_properties() {
             .property("greeting")
             .is_none()
     );
-    assert!(
-        TypeDescriptor::of_in::<Person>(&context)
-            .method("greeting")
-            .is_ok()
-    );
+    assert!(TypeDescriptor::of_in::<Person>(&context).method("greeting").is_ok());
     assert_eq!(Person { name: "Ada".into() }.greeting(), "Ada");
 }
 
@@ -156,9 +147,7 @@ fn test_generic_impl_specializations_have_exact_property_types() {
     let text_properties = registry.properties_for(text).expect("text properties");
     let number_properties = registry.properties_for(number).expect("number properties");
     let text_property = text_properties.property("current").expect("text property");
-    let number_property = number_properties
-        .property("current")
-        .expect("number property");
+    let number_property = number_properties.property("current").expect("number property");
     assert_eq!(
         text_property
             .descriptor_in(context)
@@ -238,18 +227,12 @@ fn test_multiple_impl_blocks_merge_accessors() {
     let context = reflection_context();
     let registry = ModelRegistry::from_context(&context).expect("model registry");
     let metadata = TypeMetadata::of::<SplitAccessors>();
-    let properties = registry
-        .properties_for(metadata)
-        .expect("split accessors assemble");
+    let properties = registry.properties_for(metadata).expect("split accessors assemble");
     let title = properties.property("title").expect("computed property");
     assert!(title.getter().is_some());
     assert!(title.setter().is_some());
-    let repeated = registry
-        .properties_for(metadata)
-        .expect("repeat resolution");
-    let repeated_title = repeated
-        .property("title")
-        .expect("repeated computed property");
+    let repeated = registry.properties_for(metadata).expect("repeat resolution");
+    let repeated_title = repeated.property("title").expect("repeated computed property");
     assert!(repeated_title.getter().is_some());
     assert!(repeated_title.setter().is_some());
 }

@@ -26,19 +26,13 @@ use qubit_reflect::descriptor::Reflect as ReflectType;
 use qubit_reflect::descriptor::TypeDefinitionDescriptor;
 
 #[Reflect]
-#[allow(
-    dead_code,
-    reason = "the reflection derive registers this generic definition"
-)]
+#[allow(dead_code, reason = "the reflection derive registers this generic definition")]
 struct FirstGeneric<T> {
     value: T,
 }
 
 #[Reflect]
-#[allow(
-    dead_code,
-    reason = "the reflection derive registers this generic definition"
-)]
+#[allow(dead_code, reason = "the reflection derive registers this generic definition")]
 enum SecondGeneric<T> {
     Value(T),
 }
@@ -131,11 +125,7 @@ fn test_generic_model_capabilities_preserve_providers_and_registration_sources()
 
     let cases = [
         (first_definition(), first_metadata(), "example.FirstGeneric"),
-        (
-            second_definition(),
-            second_metadata(),
-            "example.SecondGeneric",
-        ),
+        (second_definition(), second_metadata(), "example.SecondGeneric"),
     ];
     for (definition, expected_metadata, model_id) in cases {
         let provider = definition
@@ -159,11 +149,7 @@ fn test_generic_model_capabilities_preserve_providers_and_registration_sources()
             .declaration_source()
             .expect("the generic definition declaration source is retained");
         assert_eq!(capability_source, declaration_source);
-        assert!(
-            capability_source
-                .module_path
-                .ends_with("::TypeDefinitionMarker")
-        );
+        assert!(capability_source.module_path.ends_with("::TypeDefinitionMarker"));
         assert_eq!(capability_source.file, None);
         assert_eq!(capability_source.line, None);
         assert_eq!(capability_source.column, None);

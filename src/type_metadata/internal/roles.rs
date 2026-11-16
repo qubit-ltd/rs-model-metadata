@@ -69,9 +69,7 @@ pub(in crate::type_metadata) fn validate_role(
             let mut canonical_names = HashSet::with_capacity(role.variants().len());
             let mut serialized_names = HashSet::with_capacity(role.variants().len());
             let mut deserialized_names = HashSet::with_capacity(role.variants().len());
-            for (index, (variant, reflect)) in
-                role.variants().iter().zip(reflected.iter()).enumerate()
-            {
+            for (index, (variant, reflect)) in role.variants().iter().zip(reflected.iter()).enumerate() {
                 if variant.index() != index
                     || reflect.index() != index
                     || reflect.declaring_type().type_id() != descriptor.type_id()
@@ -91,12 +89,7 @@ pub(in crate::type_metadata) fn validate_role(
                         "enum variant names must be non-empty and unique per namespace",
                     ));
                 }
-                validate_fields(
-                    variant.fields(),
-                    reflect.fields(),
-                    descriptor,
-                    "QMM-ABI-013",
-                )?;
+                validate_fields(variant.fields(), reflect.fields(), descriptor, "QMM-ABI-013")?;
                 defaults += usize::from(variant.is_default());
             }
             if defaults > 1 {
@@ -120,10 +113,7 @@ pub(in crate::type_metadata) fn validate_role(
 /// - `fields`: Declared field collection that must contain exactly one
 ///   identifier.
 /// - `identifier`: Role's identifier field to validate against that collection.
-fn validate_identifier(
-    fields: &[FieldMetadata],
-    identifier: &FieldMetadata,
-) -> Result<(), AbiViolation> {
+fn validate_identifier(fields: &[FieldMetadata], identifier: &FieldMetadata) -> Result<(), AbiViolation> {
     if !contains_field(fields, identifier)
         || !identifier.is_identifier()
         || fields.iter().filter(|field| field.is_identifier()).count() != 1

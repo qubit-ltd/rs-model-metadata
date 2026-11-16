@@ -188,11 +188,10 @@ impl<'a> ValidationPlan<'a> {
                 let error = ExecutionError::new(ExecutionErrorKind::InvalidSelection)
                     .with_path(ValidationPath::root())
                     .with_trusted_source(path);
-                return Err(ModelValidationError::new(
-                    error,
-                    ReportAccumulator::new(options).into_report(),
-                )
-                .at_model(self.root(), None));
+                return Err(
+                    ModelValidationError::new(error, ReportAccumulator::new(options).into_report())
+                        .at_model(self.root(), None),
+                );
             }
         };
         let mut report = ReportAccumulator::new(options);
@@ -212,16 +211,13 @@ impl<'a> ValidationPlan<'a> {
                 budget.invoke(0, false)?;
                 let outcome = binding.validate(input, &context)?;
                 let has_more_work = mask.later_selected(occurrence);
-                report
-                    .accept(occurrence, &path, outcome, has_more_work)
-                    .map(|_| ())
+                report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())
             })();
             if let Err(error) = result {
-                return Err(ModelValidationError::new(
-                    error.with_rule(binding.rule_id()),
-                    report.into_report(),
-                )
-                .at_model(self.root(), Some(occurrence)));
+                return Err(
+                    ModelValidationError::new(error.with_rule(binding.rule_id()), report.into_report())
+                        .at_model(self.root(), Some(occurrence)),
+                );
             }
         }
         for (binding_index, binding) in self.bindings().iter().enumerate() {
@@ -252,13 +248,11 @@ impl<'a> ValidationPlan<'a> {
                 if error.path().as_segments().is_empty() {
                     error = error.with_path(path);
                 }
-                return Err(
-                    ModelValidationError::new(error, report.into_report()).at_field(
-                        &binding.context,
-                        occurrence,
-                        failure.dependency,
-                    ),
-                );
+                return Err(ModelValidationError::new(error, report.into_report()).at_field(
+                    &binding.context,
+                    occurrence,
+                    failure.dependency,
+                ));
             }
         }
         Ok(report.into_report())
@@ -319,14 +313,12 @@ fn execute_field<'value>(
             .steps()
             .last()
             .and_then(|step| step.property().optional_ops())
-            .ok_or_else(|| {
-                ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
-                    .with_path(path.clone())
-            })?;
-        Some(optional_scalar_value(&value, descriptor).map_err(|_| {
-            ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
-                .with_path(path.clone())
-        })?)
+            .ok_or_else(|| ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone()))?;
+        Some(
+            optional_scalar_value(&value, descriptor).map_err(|_| {
+                ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone())
+            })?,
+        )
     } else {
         None
     };
@@ -345,9 +337,7 @@ fn execute_field<'value>(
                 prerequisites: Vec::new(),
             }
         };
-        report
-            .accept(occurrence, &path, outcome, has_more_work)
-            .map(|_| ())?;
+        report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
         return Ok(());
     }
     if let FieldExecution::SequenceUnique { item_eq } = binding.execution() {
@@ -433,8 +423,7 @@ fn execute_registry_field<'value>(
     else {
         return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).into());
     };
-    let (dependencies, paths) =
-        path_reader::dependencies(binding.dependencies(), root, ancestors, graph, budget)?;
+    let (dependencies, paths) = path_reader::dependencies(binding.dependencies(), root, ancestors, graph, budget)?;
     let values: Vec<_> = dependencies
         .iter()
         .map(property_value)
@@ -465,11 +454,9 @@ fn execute_registry_field<'value>(
                     .and_then(|step| step.property().optional_ops())
                     .is_some();
             if !declared_optional {
-                return Err(
-                    ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
-                        .with_path(path)
-                        .into(),
-                );
+                return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
+                    .with_path(path)
+                    .into());
             }
             report
                 .accept(
@@ -492,10 +479,9 @@ fn execute_registry_field<'value>(
         (Some(StandardTarget::SequenceCount), PropertyValue::BorrowedSlice(_)) => {
             ValidationValue::Typed(count.as_ref().expect("slice count"))
         }
-        (
-            Some(StandardTarget::MapCount),
-            PropertyValue::Borrowed(_) | PropertyValue::OptionalBorrowed(Some(_)),
-        ) => ValidationValue::Typed(map_count.as_ref().expect("map count")),
+        (Some(StandardTarget::MapCount), PropertyValue::Borrowed(_) | PropertyValue::OptionalBorrowed(Some(_))) => {
+            ValidationValue::Typed(map_count.as_ref().expect("map count"))
+        }
         (Some(StandardTarget::MapCount), _) => {
             return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
                 .with_path(path)
@@ -531,9 +517,7 @@ fn execute_registry_field<'value>(
             dependency,
         }
     })?;
-    report
-        .accept(occurrence, &path, outcome, has_more_work)
-        .map(|_| ())?;
+    report.accept(occurrence, &path, outcome, has_more_work).map(|_| ())?;
     Ok(())
 }
 
@@ -564,9 +548,7 @@ fn execute_unique(
     has_more_work: bool,
 ) -> Result<(), ExecutionError> {
     let PropertyValue::BorrowedSlice(values) = value else {
-        return Err(
-            ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path.clone())
-        );
+        return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(path.clone()));
     };
     budget
         .invoke(path.as_segments().len(), false)
@@ -583,16 +565,13 @@ fn execute_unique(
             .read(first_path.as_segments().len())
             .map_err(|error| error.with_path(first_path.clone()))?;
         let Some(first_value) = values.get(first) else {
-            return Err(
-                ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(first_path)
-            );
+            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(first_path));
         };
         budget
             .read(second_path.as_segments().len())
             .map_err(|error| error.with_path(second_path.clone()))?;
         let Some(second_value) = values.get(second) else {
-            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed)
-                .with_path(second_path.clone()));
+            return Err(ExecutionError::new(ExecutionErrorKind::PropertyReadFailed).with_path(second_path.clone()));
         };
         budget
             .compare(second_path.as_segments().len())
@@ -603,10 +582,9 @@ fn execute_unique(
                 .with_path(second_path.clone())
         })?;
         if equal {
-            let violation =
-                Violation::new(rule_id, ViolationCode::new("collection.duplicate_item"))
-                    .with_path(ValidationPath::root().with_index(second))
-                    .with_param("first_index", ViolationParam::Unsigned(first as u128));
+            let violation = Violation::new(rule_id, ViolationCode::new("collection.duplicate_item"))
+                .with_path(ValidationPath::root().with_index(second))
+                .with_param("first_index", ViolationParam::Unsigned(first as u128));
             report.accept(
                 occurrence,
                 path,
@@ -651,10 +629,7 @@ fn execute_selected_members(
     has_more_work: bool,
 ) -> Result<(), ExecutionError> {
     let FieldExecution::Registry { validator, .. } = binding.execution() else {
-        return Err(
-            ExecutionError::new(ExecutionErrorKind::AdapterContractViolation)
-                .with_path(path.clone()),
-        );
+        return Err(ExecutionError::new(ExecutionErrorKind::AdapterContractViolation).with_path(path.clone()));
     };
     execute_selected_members_with_validator(
         occurrence,
@@ -745,12 +720,7 @@ fn execute_selected_members_with_validator(
             )
             .map_err(|error| prefix_error(error, &member_path))?;
         report
-            .accept(
-                occurrence,
-                &member_path,
-                outcome,
-                member_has_more || has_more_work,
-            )
+            .accept(occurrence, &member_path, outcome, member_has_more || has_more_work)
             .map_err(|error| error.with_path(member_path))?;
         index += 1;
     }
@@ -764,18 +734,19 @@ fn execute_selected_members_with_validator(
 /// * `error` - Validator failure whose relative path is extended.
 /// * `prefix` - Field or member path prepended to the validator's path.
 fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionError {
-    let path = prefix
-        .as_segments()
-        .iter()
-        .chain(error.path().as_segments())
-        .fold(ValidationPath::root(), |path, segment| match segment {
-            PathSegment::Field(field) => path.with_field(field),
-            PathSegment::Index(index) => path.with_index(*index),
-            PathSegment::MapEntry(index) => path.with_map_entry(*index),
-            PathSegment::MapKey => path.with_map_key(),
-            PathSegment::MapValue => path.with_map_value(),
-            _ => path,
-        });
+    let path =
+        prefix
+            .as_segments()
+            .iter()
+            .chain(error.path().as_segments())
+            .fold(ValidationPath::root(), |path, segment| match segment {
+                PathSegment::Field(field) => path.with_field(field),
+                PathSegment::Index(index) => path.with_index(*index),
+                PathSegment::MapEntry(index) => path.with_map_entry(*index),
+                PathSegment::MapKey => path.with_map_key(),
+                PathSegment::MapValue => path.with_map_value(),
+                _ => path,
+            });
     error.with_path(path)
 }
 
@@ -788,9 +759,7 @@ fn prefix_error(error: ExecutionError, prefix: &ValidationPath) -> ExecutionErro
 ///
 /// * `value` - Reflected borrow converted to the validator's text or typed
 ///   input form.
-fn reflected_value<'a>(
-    value: &'a PropertyBorrowed<'_>,
-) -> Result<ValidationValue<'a>, ExecutionError> {
+fn reflected_value<'a>(value: &'a PropertyBorrowed<'_>) -> Result<ValidationValue<'a>, ExecutionError> {
     if let Some(text) = value.downcast_ref::<String>() {
         return Ok(ValidationValue::Text(text.as_str()));
     }
@@ -908,8 +877,7 @@ mod any_view_tests {
     fn test_owned_value_preserves_non_text_typed_input() {
         let value = DynamicOwned::<Local>::new(NonTextValue);
 
-        let input =
-            owned_value(&value).expect("owned reflected values expose their concrete Any view");
+        let input = owned_value(&value).expect("owned reflected values expose their concrete Any view");
 
         let qubit_validator::ValidationValue::Typed(actual) = input else {
             panic!("non-text owned values remain typed inputs");
@@ -966,11 +934,7 @@ mod typed_entry_tests {
         };
         let options = ValidationOptions::default();
 
-        assert!(
-            plan.validate(&value, &options)
-                .expect("typed validation")
-                .is_valid()
-        );
+        assert!(plan.validate(&value, &options).expect("typed validation").is_valid());
         assert!(
             plan.validate_with_context(&value, &[], &options)
                 .expect("typed contextual validation")
@@ -983,15 +947,9 @@ mod typed_entry_tests {
         );
 
         let mismatch = plan
-            .validate_dynamic(
-                DynamicRef::<Local>::new_any(&String::from("wrong root")),
-                &options,
-            )
+            .validate_dynamic(DynamicRef::<Local>::new_any(&String::from("wrong root")), &options)
             .expect_err("a different root type is rejected");
-        assert_eq!(
-            mismatch.error().kind(),
-            ExecutionErrorKind::InputTypeMismatch
-        );
+        assert_eq!(mismatch.error().kind(), ExecutionErrorKind::InputTypeMismatch);
 
         let selection = ValidationOptions::builder()
             .selection(ValidationSelection::Fields(vec![FieldPath::new("missing")]))
@@ -999,10 +957,7 @@ mod typed_entry_tests {
         let unmatched = plan
             .validate_dynamic(DynamicRef::<Local>::new_any(&value), &selection)
             .expect_err("an unmatched field selection is rejected");
-        assert_eq!(
-            unmatched.error().kind(),
-            ExecutionErrorKind::InvalidSelection
-        );
+        assert_eq!(unmatched.error().kind(), ExecutionErrorKind::InvalidSelection);
     }
 }
 
@@ -1110,11 +1065,9 @@ mod tests {
                 panic!("typed input expected")
             };
             if value.downcast_ref::<u32>() == Some(&2) {
-                Ok(PreparedOutcome::Invalid(vec![
-                    qubit_validator::ViolationDraft::new(qubit_validator::ViolationCode::new(
-                        "test.last",
-                    )),
-                ]))
+                Ok(PreparedOutcome::Invalid(vec![qubit_validator::ViolationDraft::new(
+                    qubit_validator::ViolationCode::new("test.last"),
+                )]))
             } else {
                 Ok(PreparedOutcome::valid())
             }
@@ -1125,17 +1078,12 @@ mod tests {
         source: &[u32],
         adapter: CollectionItemsAdapter,
         options: &ValidationOptions,
-    ) -> Result<
-        qubit_validator::ValidationReport,
-        Box<(ExecutionError, qubit_validator::ValidationReport)>,
-    > {
+    ) -> Result<qubit_validator::ValidationReport, Box<(ExecutionError, qubit_validator::ValidationReport)>> {
         UNKNOWN_NEXT_CALLS.with(|calls| calls.set(0));
         SELECTOR_RULE_CALLS.with(|calls| calls.set(0));
-        let validator = BoundValidator::try_from_prepared::<u32>(
-            ValidatorId::new("test.selector"),
-            Arc::new(CountAndFailLast),
-        )
-        .expect("validator input matches selector member type");
+        let validator =
+            BoundValidator::try_from_prepared::<u32>(ValidatorId::new("test.selector"), Arc::new(CountAndFailLast))
+                .expect("validator input matches selector member type");
         let collection = source.to_vec();
         let value = PropertyValue::Borrowed(DynamicRef::<Local>::new(&collection));
         let path = ValidationPath::root().with_field("values");
@@ -1179,8 +1127,8 @@ mod tests {
     fn test_selection_mask_tracks_all_and_explicit_root_selection() {
         let bindings = [];
         let index = SelectionIndex::new(&bindings);
-        let mut all = SelectionMask::new(&ValidationSelection::All, 1, &bindings, &index)
-            .expect("all selection is always valid");
+        let mut all =
+            SelectionMask::new(&ValidationSelection::All, 1, &bindings, &index).expect("all selection is always valid");
         assert!(all.selected(0));
         assert!(!all.later_selected(0));
         assert!(all.take_field_path(0).is_none());
@@ -1238,10 +1186,7 @@ mod tests {
         )
         .expect("matching Option<String> adapter projects successfully")
         .expect("present optional projects a borrow");
-        assert_eq!(
-            projected.downcast_ref::<String>().map(String::as_str),
-            Some("present")
-        );
+        assert_eq!(projected.downcast_ref::<String>().map(String::as_str), Some("present"));
 
         let absent: Option<String> = None;
         assert!(
@@ -1481,9 +1426,8 @@ mod tests {
             assert_eq!(SELECTOR_RULE_CALLS.with(Cell::get), 1);
         }
 
-        let (error, partial) =
-            *run_unknown_matrix(&[1, 2], unknown_len_items, &matrix_options(5, 2))
-                .expect_err("two member reservations leave no budget to prove exhaustion");
+        let (error, partial) = *run_unknown_matrix(&[1, 2], unknown_len_items, &matrix_options(5, 2))
+            .expect_err("two member reservations leave no budget to prove exhaustion");
         assert_eq!(error.kind(), ExecutionErrorKind::TraversalLimit);
         assert_eq!(partial.violations().len(), 1);
         assert!(!partial.is_truncated());

@@ -60,10 +60,7 @@ impl EntityMetadata {
     /// Entity metadata retaining the process-lifetime identifier field.
     #[must_use]
     #[inline]
-    pub(crate) const fn new(
-        identifier: &'static FieldMetadata,
-        identifier_accessor: IdentifierAccessor,
-    ) -> Self {
+    pub(crate) const fn new(identifier: &'static FieldMetadata, identifier_accessor: IdentifierAccessor) -> Self {
         Self {
             identifier,
             identifier_accessor,
@@ -97,10 +94,7 @@ impl EntityMetadata {
     ///
     /// Returns a type mismatch when `value` is not an instance of this entity.
     #[inline]
-    pub(crate) fn read_identifier<'a>(
-        &self,
-        value: DynamicRef<'a, Local>,
-    ) -> Result<&'a Id, TypeMismatch> {
+    pub(crate) fn read_identifier<'a>(&self, value: DynamicRef<'a, Local>) -> Result<&'a Id, TypeMismatch> {
         (self.identifier_accessor)(value)
     }
 }

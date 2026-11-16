@@ -79,9 +79,9 @@ impl PreparedValidator for AllowToken {
         if value.as_text() == Some(self.0.as_str()) {
             Ok(PreparedOutcome::Valid)
         } else {
-            Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(
-                ViolationCode::new("unexpected_token"),
-            )]))
+            Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+                "unexpected_token",
+            ))]))
         }
     }
 }
@@ -94,18 +94,9 @@ fn prepare(reader: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>
         ("upper", ValidationArgument::Unsigned(u128::MAX)),
         ("accepted", ValidationArgument::String("accepted")),
         ("switches", ValidationArgument::BoolList(&[true, false])),
-        (
-            "signed",
-            ValidationArgument::IntegerList(&[i128::MIN, i128::MAX]),
-        ),
-        (
-            "unsigned",
-            ValidationArgument::UnsignedList(&[0, u128::MAX]),
-        ),
-        (
-            "labels",
-            ValidationArgument::StringList(&["first", "second"]),
-        ),
+        ("signed", ValidationArgument::IntegerList(&[i128::MIN, i128::MAX])),
+        ("unsigned", ValidationArgument::UnsignedList(&[0, u128::MAX])),
+        ("labels", ValidationArgument::StringList(&["first", "second"])),
     ];
     let received: Vec<_> = expected
         .iter()
@@ -122,8 +113,7 @@ fn prepare(reader: &mut ArgumentReader<'_>) -> Result<Arc<dyn PreparedValidator>
     Ok(Arc::new(AllowToken(accepted.to_owned())))
 }
 
-static SIGNATURES: &[ValidatorSignature] =
-    &[ValidatorSignature::new(InputType::Text, &[], prepare)];
+static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare)];
 static DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("arguments.allow_token"),
@@ -134,8 +124,8 @@ static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
 /// Typed parameters reach preparation, then influence real plan execution.
 #[test]
 fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
-    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-        .expect("isolated model registry");
+    let models =
+        ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated model registry");
     let root = TypeMetadata::of::<ConfiguredToken>();
     let roots = [root];
     let graph = Arc::new(
@@ -146,8 +136,7 @@ fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
         .resolve()
         .expect("valid model structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("registered rule");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("registered rule");
     let plan = ValidationPlan::build(
         root,
         ValidationBuildInputs {
@@ -162,10 +151,7 @@ fn test_all_argument_kinds_survive_declaration_binding_and_execution() {
             token: token.to_owned(),
         };
         let report = plan
-            .validate_dynamic(
-                DynamicRef::<Local>::new(&value),
-                &ValidationOptions::default(),
-            )
+            .validate_dynamic(DynamicRef::<Local>::new(&value), &ValidationOptions::default())
             .expect("configured rule executes");
         assert_eq!(report.violations().len(), expected_failures);
         assert!(!report.is_truncated());
@@ -183,28 +169,13 @@ fn test_validation_argument_debug_redacts_values() {
     let strings = [secret, "another private value"];
     let arguments = [
         (ValidationArgument::Bool(true), "Bool(<redacted>)"),
-        (
-            ValidationArgument::Integer(i128::MIN),
-            "Integer(<redacted>)",
-        ),
-        (
-            ValidationArgument::Unsigned(u128::MAX),
-            "Unsigned(<redacted>)",
-        ),
+        (ValidationArgument::Integer(i128::MIN), "Integer(<redacted>)"),
+        (ValidationArgument::Unsigned(u128::MAX), "Unsigned(<redacted>)"),
         (ValidationArgument::String(secret), "String(<redacted>)"),
         (ValidationArgument::BoolList(&bools), "BoolList { len: 2 }"),
-        (
-            ValidationArgument::IntegerList(&integers),
-            "IntegerList { len: 2 }",
-        ),
-        (
-            ValidationArgument::UnsignedList(&unsigned),
-            "UnsignedList { len: 1 }",
-        ),
-        (
-            ValidationArgument::StringList(&strings),
-            "StringList { len: 2 }",
-        ),
+        (ValidationArgument::IntegerList(&integers), "IntegerList { len: 2 }"),
+        (ValidationArgument::UnsignedList(&unsigned), "UnsignedList { len: 1 }"),
+        (ValidationArgument::StringList(&strings), "StringList { len: 2 }"),
     ];
 
     for (argument, expected) in arguments {

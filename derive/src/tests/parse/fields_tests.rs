@@ -84,10 +84,7 @@ fn test_parse_field_attribute_vocabulary() {
     };
 
     assert!(matches!(identifier, IdentifierAssignmentIr::Database));
-    assert_eq!(
-        unique.respect_to,
-        vec![vec!["tenant".to_owned(), "id".to_owned()]]
-    );
+    assert_eq!(unique.respect_to, vec![vec!["tenant".to_owned(), "id".to_owned()]]);
     assert_eq!(unique.ignore_case, Some(false));
 
     let ReferenceTargetIr::ModelId(entity_id) = &reference.target else {
@@ -129,43 +126,20 @@ fn test_parse_field_attribute_vocabulary() {
     assert_eq!(field_validator.id.value(), "example.field");
     assert_eq!(field_validator.params.len(), 1);
     assert_eq!(field_validator.params[0].0, "limit");
-    assert!(matches!(
-        &field_validator.params[0].1,
-        StrategyArgumentIr::Unsigned(3)
-    ));
+    assert!(matches!(&field_validator.params[0].1, StrategyArgumentIr::Unsigned(3)));
 
     let syn::Type::Path(codec_type) = codec_type.as_ref() else {
         panic!("field codec type should be a Rust path");
     };
-    assert_eq!(
-        codec_type.path.segments.last().expect("codec path").ident,
-        "Codec"
-    );
+    assert_eq!(codec_type.path.segments.last().expect("codec path").ident, "Codec");
     assert!(matches!(&redact.mode, RedactModeIr::KeyedBy(path) if path == "owner.id"));
 
-    assert_eq!(
-        serde
-            .serialize_name
-            .as_ref()
-            .expect("serialize name")
-            .value(),
-        "out"
-    );
-    assert_eq!(
-        serde
-            .deserialize_name
-            .as_ref()
-            .expect("deserialize name")
-            .value(),
-        "in"
-    );
+    assert_eq!(serde.serialize_name.as_ref().expect("serialize name").value(), "out");
+    assert_eq!(serde.deserialize_name.as_ref().expect("deserialize name").value(), "in");
     assert!(serde.skip_serializing);
     assert!(!serde.skip_deserializing);
     assert!(serde.flatten);
-    assert_eq!(
-        serde.with.as_ref().expect("Serde adapter").value(),
-        "helper"
-    );
+    assert_eq!(serde.with.as_ref().expect("Serde adapter").value(), "helper");
     assert!(serde.default);
     assert!(serde.explicit_skip_serializing_if);
 

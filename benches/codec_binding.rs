@@ -61,12 +61,7 @@ static NAME_CODEC_DESCRIPTOR: ValueStringCodecDescriptor =
 static NAME_CODEC_REGISTRATION: ValueStringCodecRegistration = ValueStringCodecRegistration::new(
     ValueCodecId::new("benchmark.name"),
     &NAME_CODEC_DESCRIPTOR,
-    ValueCodecRegistrationSource::new(
-        "qubit-model-metadata",
-        "codec-binding-bench",
-        file!(),
-        line!(),
-    ),
+    ValueCodecRegistrationSource::new("qubit-model-metadata", "codec-binding-bench", file!(), line!()),
 );
 
 #[Model(id = "benchmark.CodecBindingHitOwner")]
@@ -197,8 +192,8 @@ fn run_benchmarks(criterion: &mut Criterion) {
         .build()
         .expect("benchmark reflection context");
     let models = ModelRegistry::from_context(&reflection).expect("benchmark model registry");
-    let codecs = ValueStringCodecRegistry::from_registrations([&NAME_CODEC_REGISTRATION])
-        .expect("benchmark codec registry");
+    let codecs =
+        ValueStringCodecRegistry::from_registrations([&NAME_CODEC_REGISTRATION]).expect("benchmark codec registry");
     let empty_models = empty_model_metadata();
 
     for (group_name, owner, expected_bindings) in [
@@ -210,12 +205,9 @@ fn run_benchmarks(criterion: &mut Criterion) {
             let mut roots = empty_models[..noise_count].to_vec();
             roots.extend(owner);
             let roots = Box::leak(roots.into_boxed_slice());
-            let graph = StructureResolver::for_roots(ResolveInputs {
-                models: &models,
-                roots,
-            })
-            .resolve()
-            .expect("benchmark graph");
+            let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots })
+                .resolve()
+                .expect("benchmark graph");
             let expected_nodes = noise_count + if group_name == "canonical_hit" { 2 } else { 1 };
             assert_eq!(graph.models().len(), expected_nodes);
             let initial = bind_codecs(CodecBindInputs {
@@ -245,12 +237,9 @@ fn run_benchmarks(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("empty_graph_walk");
     for noise_count in [0, 16, 64] {
         let roots = Box::leak(empty_models[..noise_count].to_vec().into_boxed_slice());
-        let graph = StructureResolver::for_roots(ResolveInputs {
-            models: &models,
-            roots,
-        })
-        .resolve()
-        .expect("empty benchmark graph");
+        let graph = StructureResolver::for_roots(ResolveInputs { models: &models, roots })
+            .resolve()
+            .expect("empty benchmark graph");
         assert_eq!(graph.models().len(), noise_count);
         let initial = bind_codecs(CodecBindInputs {
             graph: &graph,

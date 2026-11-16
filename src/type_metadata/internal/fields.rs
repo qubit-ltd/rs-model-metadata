@@ -73,23 +73,14 @@ pub(in crate::type_metadata) fn validate_fields(
                 "concrete field metadata has no declaration identity",
             ));
         };
-        if location.owner() != descriptor.type_id()
-            || location.index() != index
-            || field.index() != index
-        {
-            return Err(abi_violation(
-                code,
-                "field metadata identity differs from source order",
-            ));
+        if location.owner() != descriptor.type_id() || location.index() != index || field.index() != index {
+            return Err(abi_violation(code, "field metadata identity differs from source order"));
         }
         if field.is_opaque() {
             validate_field_semantics(field, descriptor.context())?;
             continue;
         }
-        let Some(reflect) = reflected
-            .iter()
-            .find(|candidate| candidate.index() == field.index())
-        else {
+        let Some(reflect) = reflected.iter().find(|candidate| candidate.index() == field.index()) else {
             return Err(abi_violation(
                 code,
                 "visible field metadata has no reflection field at its source index",
@@ -138,10 +129,7 @@ fn validate_key_part_order(metadata: &[FieldMetadata]) -> Result<(), AbiViolatio
 ///   codec are verified.
 /// * `context` - The reflection context used to resolve the field's concrete
 ///   type.
-fn validate_field_semantics(
-    field: &FieldMetadata,
-    context: &ReflectionContext,
-) -> Result<(), AbiViolation> {
+fn validate_field_semantics(field: &FieldMetadata, context: &ReflectionContext) -> Result<(), AbiViolation> {
     // Every counter is bounded by the slice length, so usize cannot overflow
     // even for malformed generated input containing more than 255 repeats.
     let mut singleton_counts = [0_usize; 9];
@@ -211,9 +199,7 @@ fn validate_field_semantics(
 ///
 /// * `validators` - The declarations whose parameter names and dependency paths
 ///   are checked.
-fn validate_validators(
-    validators: &[crate::metadata::ValidatorMetadata],
-) -> Result<(), AbiViolation> {
+fn validate_validators(validators: &[crate::metadata::ValidatorMetadata]) -> Result<(), AbiViolation> {
     for validator in validators {
         let mut parameter_names = HashSet::with_capacity(validator.params().len());
         if validator
@@ -221,10 +207,7 @@ fn validate_validators(
             .iter()
             .any(|argument| !parameter_names.insert(argument.name()))
         {
-            return Err(abi_violation(
-                "QMM-ABI-018",
-                "validator parameter names must be unique",
-            ));
+            return Err(abi_violation("QMM-ABI-018", "validator parameter names must be unique"));
         }
         for (index, dependency) in validator.depends_on().iter().enumerate() {
             if dependency.is_empty() || validator.depends_on()[..index].contains(dependency) {
@@ -262,10 +245,7 @@ fn validate_constraint_kinds(
             ConstraintMetadata::Sequence(sequence) => {
                 if let Some(selector) = sequence.element() {
                     if !allow_selectors {
-                        return Err(abi_violation(
-                            "QMM-ABI-020",
-                            "selector semantics must be non-recursive",
-                        ));
+                        return Err(abi_violation("QMM-ABI-020", "selector semantics must be non-recursive"));
                     }
                     validate_selector(selector, SelectorPosition::Element, descriptor)?;
                 }
@@ -278,10 +258,7 @@ fn validate_constraint_kinds(
                 ] {
                     if let Some(selector) = selector {
                         if !allow_selectors {
-                            return Err(abi_violation(
-                                "QMM-ABI-020",
-                                "selector semantics must be non-recursive",
-                            ));
+                            return Err(abi_violation("QMM-ABI-020", "selector semantics must be non-recursive"));
                         }
                         validate_selector(selector, position, descriptor)?;
                     }
@@ -372,10 +349,7 @@ fn validate_codec(
 /// * `descriptor` - The collection type whose generic arguments provide the
 ///   selected type.
 /// * `position` - The sequence, map-key, or map-value position to resolve.
-fn selector_type_descriptor(
-    descriptor: TypeDescriptor<'_>,
-    position: SelectorPosition,
-) -> Option<TypeDescriptor<'_>> {
+fn selector_type_descriptor(descriptor: TypeDescriptor<'_>, position: SelectorPosition) -> Option<TypeDescriptor<'_>> {
     let arguments = descriptor.generic_arguments();
     let index = match (descriptor.kind(), position) {
         (
@@ -386,9 +360,5 @@ fn selector_type_descriptor(
         (TypeKind::Map(_), SelectorPosition::MapValue) => 1,
         _ => return None,
     };
-    arguments
-        .get_at(index)?
-        .type_argument()
-        .ok()?
-        .find_concrete_type()
+    arguments.get_at(index)?.type_argument().ok()?.find_concrete_type()
 }

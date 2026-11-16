@@ -74,9 +74,7 @@ impl EnumMetadata {
     ///
     /// The matching variant, or `None` when no canonical name matches.
     pub fn variant(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
-        self.variants
-            .iter()
-            .find(|variant| variant.canonical_name() == name)
+        self.variants.iter().find(|variant| variant.canonical_name() == name)
     }
 
     /// Finds a variant by Rust identifier.
@@ -89,9 +87,7 @@ impl EnumMetadata {
     ///
     /// The matching variant, or `None` when no Rust identifier matches.
     pub fn variant_by_rust_name(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
-        self.variants
-            .iter()
-            .find(|variant| variant.rust_name() == name)
+        self.variants.iter().find(|variant| variant.rust_name() == name)
     }
 
     /// Finds a variant by serialization name.
@@ -104,8 +100,6 @@ impl EnumMetadata {
     ///
     /// The matching variant, or `None` when no serialization name matches.
     pub fn variant_by_serialized_name(&self, name: &str) -> Option<&'static EnumVariantMetadata> {
-        self.variants
-            .iter()
-            .find(|variant| variant.serialized_name() == name)
+        self.variants.iter().find(|variant| variant.serialized_name() == name)
     }
 }

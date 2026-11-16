@@ -42,12 +42,8 @@ struct WrongMetadataFixture<const N: usize> {
 fn wrong_metadata() -> &'static TypeMetadata {
     static METADATA: OnceLock<TypeMetadata> = OnceLock::new();
     METADATA.get_or_init(|| {
-        v8::GeneratedTypeMetadataBuilder::new::<WrongMetadataFixture<2>>(
-            None,
-            &[],
-            v8::leak(v8::model_role()),
-        )
-        .finish_unchecked()
+        v8::GeneratedTypeMetadataBuilder::new::<WrongMetadataFixture<2>>(None, &[], v8::leak(v8::model_role()))
+            .finish_unchecked()
     })
 }
 
@@ -132,18 +128,8 @@ fn test_registry_caches_absent_metadata_in_a_valid_context() {
         .type_by_id(std::any::TypeId::of::<u8>())
         .expect("included descriptor");
 
-    assert!(
-        registry
-            .metadata_for(&missing)
-            .expect("first lookup")
-            .is_none()
-    );
-    assert!(
-        registry
-            .metadata_for(&missing)
-            .expect("cached lookup")
-            .is_none()
-    );
+    assert!(registry.metadata_for(&missing).expect("first lookup").is_none());
+    assert!(registry.metadata_for(&missing).expect("cached lookup").is_none());
 }
 
 #[test]
@@ -165,9 +151,7 @@ fn test_panicking_metadata_provider_can_be_retried_during_registry_projection() 
     assert!(panic.is_err());
     let registry = ModelRegistry::from_context(&context).expect("retry after provider panic");
     assert!(std::ptr::eq(
-        registry
-            .metadata("error.PanicProvider")
-            .expect("registered model"),
+        registry.metadata("error.PanicProvider").expect("registered model"),
         TypeMetadata::of::<PanicProviderFixture>()
     ));
     assert_eq!(PANIC_PROVIDER_CALLS.load(Ordering::SeqCst), 2);

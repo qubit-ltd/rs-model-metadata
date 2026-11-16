@@ -97,23 +97,12 @@ fn type_expression_data_for_owner(
     match ty {
         Type::Path(path) => {
             if let Some(qself) = &path.qself {
-                let associated = path
-                    .path
-                    .segments
-                    .last()
-                    .expect("qualified path has a final segment");
+                let associated = path.path.segments.last().expect("qualified path has a final segment");
                 let name = LitStr::new(&associated.ident.to_string(), associated.ident.span());
-                let self_type =
-                    type_expression_data_for_owner(&qself.ty, runtime, generic_type_names, owner);
-                let arguments =
-                    trait_generic_arguments(&[associated], runtime, generic_type_names, owner);
+                let self_type = type_expression_data_for_owner(&qself.ty, runtime, generic_type_names, owner);
+                let arguments = trait_generic_arguments(&[associated], runtime, generic_type_names, owner);
                 let trait_ = if qself.position > 0 {
-                    let trait_segments = path
-                        .path
-                        .segments
-                        .iter()
-                        .take(qself.position)
-                        .collect::<Vec<_>>();
+                    let trait_segments = path.path.segments.iter().take(qself.position).collect::<Vec<_>>();
                     let mut trait_name = trait_segments
                         .iter()
                         .map(|segment| segment.to_token_stream().to_string())
@@ -123,12 +112,7 @@ fn type_expression_data_for_owner(
                         trait_name.insert_str(0, "::");
                     }
                     let trait_name = LitStr::new(&trait_name, path.path.span());
-                    let arguments = trait_generic_arguments(
-                        &trait_segments,
-                        runtime,
-                        generic_type_names,
-                        owner,
-                    );
+                    let arguments = trait_generic_arguments(&trait_segments, runtime, generic_type_names, owner);
                     let lifetimes = trait_generic_lifetimes(&trait_segments, runtime);
                     let data = quote!(#runtime::__private::codegen_v4::expression::TraitExpressionData::new(
                         #trait_name,
@@ -167,23 +151,13 @@ fn type_expression_data_for_owner(
                 );
                 return quote!(#leak(#expression::ParameterName(#name)));
             }
-            let first_segment = path
-                .path
-                .segments
-                .first()
-                .expect("type path has at least one segment");
+            let first_segment = path.path.segments.first().expect("type path has at least one segment");
             let is_projection = path.path.segments.len() > 1
                 && (first_segment.ident == "Self"
-                    || generic_type_names
-                        .iter()
-                        .any(|name| name == &first_segment.ident))
+                    || generic_type_names.iter().any(|name| name == &first_segment.ident))
                 && first_segment.arguments.is_empty();
             if is_projection {
-                let associated = path
-                    .path
-                    .segments
-                    .last()
-                    .expect("projection has a final segment");
+                let associated = path.path.segments.last().expect("projection has a final segment");
                 let name = LitStr::new(&associated.ident.to_string(), associated.ident.span());
                 let mut self_path = path.path.clone();
                 self_path.segments.pop();
@@ -197,8 +171,7 @@ fn type_expression_data_for_owner(
                     generic_type_names,
                     owner,
                 );
-                let arguments =
-                    trait_generic_arguments(&[associated], runtime, generic_type_names, owner);
+                let arguments = trait_generic_arguments(&[associated], runtime, generic_type_names, owner);
                 return quote!(#leak(#expression::AssociatedType {
                     self_type: #self_type,
                     trait_: None,
@@ -275,16 +248,13 @@ fn type_expression_data_for_owner(
             let mutable = mutability.is_some();
             quote!(#leak(#expression::Reference { lifetime: #lifetime, mutable: #mutable, target: #target }))
         }
-        Type::Ptr(TypePtr {
-            mutability, elem, ..
-        }) => {
+        Type::Ptr(TypePtr { mutability, elem, .. }) => {
             let target = type_expression_data_for_owner(elem, runtime, generic_type_names, owner);
             let mutable = matches!(mutability, syn::PointerMutability::Mut(_));
             quote!(#leak(#expression::RawPointer { mutable: #mutable, target: #target }))
         }
         Type::Slice(slice) => {
-            let element =
-                type_expression_data_for_owner(&slice.elem, runtime, generic_type_names, owner);
+            let element = type_expression_data_for_owner(&slice.elem, runtime, generic_type_names, owner);
             quote!(#leak(#expression::Slice(#element)))
         }
         Type::Array(TypeArray { elem, len, .. }) => {
@@ -293,24 +263,18 @@ fn type_expression_data_for_owner(
             quote!(#leak(#expression::Array { element: #element, length: #length }))
         }
         Type::Tuple(tuple) => {
-            let values = tuple.elems.iter().map(|item| {
-                type_expression_data_for_owner(item, runtime, generic_type_names, owner)
-            });
+            let values = tuple
+                .elems
+                .iter()
+                .map(|item| type_expression_data_for_owner(item, runtime, generic_type_names, owner));
             let values = quote!(#runtime::__private::v8::leak_slice(::std::vec![#(#values),*]));
             quote!(#leak(#expression::Tuple(#values)))
         }
         Type::Never(_) => quote!(#leak(#expression::Never)),
-        Type::Paren(paren) => {
-            type_expression_data_for_owner(&paren.elem, runtime, generic_type_names, owner)
-        }
-        Type::Group(group) => {
-            type_expression_data_for_owner(&group.elem, runtime, generic_type_names, owner)
-        }
+        Type::Paren(paren) => type_expression_data_for_owner(&paren.elem, runtime, generic_type_names, owner),
+        Type::Group(group) => type_expression_data_for_owner(&group.elem, runtime, generic_type_names, owner),
         _ => {
-            let message = LitStr::new(
-                "unsupported Rust type syntax in model metadata expression",
-                ty.span(),
-            );
+            let message = LitStr::new("unsupported Rust type syntax in model metadata expression", ty.span());
             quote!(compile_error!(#message); #leak(#expression::Opaque(&#runtime::__private::codegen_v4::expression::OpaqueTypeData::new(&[]))))
         }
     }
@@ -433,17 +397,15 @@ fn lifetime_expression(lifetime: &Lifetime, runtime: &TokenStream) -> TokenStrea
 /// Tokens for the supported literal or path representation, or a diagnostic
 /// for unsupported syntax.
 #[must_use]
-fn const_expression(
-    expression: &Expr,
-    runtime: &TokenStream,
-    generic_type_names: &[Ident],
-) -> TokenStream {
+fn const_expression(expression: &Expr, runtime: &TokenStream, generic_type_names: &[Ident]) -> TokenStream {
     let path = |value: &Expr| {
         let text = LitStr::new(&value.to_token_stream().to_string(), value.span());
         quote!(#runtime::__private::codegen_v4::expression::ConstExpression::Path(#text))
     };
-    let signed = |value: i128| quote!(#runtime::__private::codegen_v4::expression::ConstExpression::SignedInteger(#value));
-    let unsigned = |value: u128| quote!(#runtime::__private::codegen_v4::expression::ConstExpression::UnsignedInteger(#value));
+    let signed =
+        |value: i128| quote!(#runtime::__private::codegen_v4::expression::ConstExpression::SignedInteger(#value));
+    let unsigned =
+        |value: u128| quote!(#runtime::__private::codegen_v4::expression::ConstExpression::UnsignedInteger(#value));
     match expression {
         Expr::Block(value) if value.block.stmts.len() == 1 => {
             if let Stmt::Expr(inner, None) = &value.block.stmts[0] {
@@ -500,11 +462,7 @@ fn const_expression(
 /// # Returns
 /// Tokens that build the declaration's runtime field vector.
 #[must_use]
-pub(super) fn expand_field_vector(
-    fields: &[FieldIr],
-    runtime: &TokenStream,
-    owner: &Ident,
-) -> TokenStream {
+pub(super) fn expand_field_vector(fields: &[FieldIr], runtime: &TokenStream, owner: &Ident) -> TokenStream {
     let bodies = fields
         .iter()
         .map(|field| expand_field_with_parameters(field, runtime, None, None, &[], Some(owner)));
@@ -570,14 +528,7 @@ fn expand_field(
     generic_variant_inherited: Option<bool>,
     definition_path: Option<&TokenStream>,
 ) -> TokenStream {
-    expand_field_with_parameters(
-        field,
-        runtime,
-        generic_variant_inherited,
-        definition_path,
-        &[],
-        None,
-    )
+    expand_field_with_parameters(field, runtime, generic_variant_inherited, definition_path, &[], None)
 }
 
 /// Generates the ordered metadata bindings and field-vector update for one
@@ -698,13 +649,8 @@ fn expand_field_with_parameters(
         FieldOccurrence::Serde(value) => Some(value),
         _ => None,
     });
-    let (
-        collection_assertions,
-        selector_metadata,
-        constraints_binding,
-        collection_ops,
-        optional_ops,
-    ) = expand_collection_metadata(field, runtime, generic_variant_inherited.is_some());
+    let (collection_assertions, selector_metadata, constraints_binding, collection_ops, optional_ops) =
+        expand_collection_metadata(field, runtime, generic_variant_inherited.is_some());
     let identifier = identifier_assignment.map(|assignment| {
         let assignment = match assignment {
             IdentifierAssignmentIr::Application => {
@@ -772,13 +718,8 @@ fn expand_field_with_parameters(
             );
         }
     });
-    let redact = redact_ir.map(|value| {
-        expand_redact(
-            value,
-            quote!(#runtime::metadata::RedactPosition::Field),
-            runtime,
-        )
-    });
+    let redact =
+        redact_ir.map(|value| expand_redact(value, quote!(#runtime::metadata::RedactPosition::Field), runtime));
     let serde = serde_ir.map_or_else(
         || {
             quote!(
@@ -886,70 +827,37 @@ fn expand_collection_metadata(
     field: &FieldIr,
     runtime: &TokenStream,
     generic_definition: bool,
-) -> (
-    TokenStream,
-    TokenStream,
-    TokenStream,
-    TokenStream,
-    TokenStream,
-) {
+) -> (TokenStream, TokenStream, TokenStream, TokenStream, TokenStream) {
     let field_type = &field.ty;
     let element_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value)
-            if matches!(value.position, SelectorPositionIr::Element) =>
-        {
-            Some(value)
-        }
+        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::Element) => Some(value),
         _ => None,
     });
     let map_key_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value)
-            if matches!(value.position, SelectorPositionIr::MapKey) =>
-        {
-            Some(value)
-        }
+        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapKey) => Some(value),
         _ => None,
     });
     let map_value_ir = field.occurrences.iter().find_map(|value| match value {
-        FieldOccurrence::Selector(value)
-            if matches!(value.position, SelectorPositionIr::MapValue) =>
-        {
-            Some(value)
-        }
+        FieldOccurrence::Selector(value) if matches!(value.position, SelectorPositionIr::MapValue) => Some(value),
         _ => None,
     });
     let element_selector = element_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v8::SequenceConstraintTarget>::Element
         );
-        expand_selector_metadata(
-            value,
-            &value_type,
-            format_ident!("element_selector"),
-            runtime,
-        )
+        expand_selector_metadata(value, &value_type, format_ident!("element_selector"), runtime)
     });
     let map_key_selector = map_key_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v8::MapConstraintTarget>::Key
         );
-        expand_selector_metadata(
-            value,
-            &value_type,
-            format_ident!("map_key_selector"),
-            runtime,
-        )
+        expand_selector_metadata(value, &value_type, format_ident!("map_key_selector"), runtime)
     });
     let map_value_selector = map_value_ir.map(|value| {
         let value_type = quote!(
             <#field_type as #runtime::__private::v8::MapConstraintTarget>::Value
         );
-        expand_selector_metadata(
-            value,
-            &value_type,
-            format_ident!("map_value_selector"),
-            runtime,
-        )
+        expand_selector_metadata(value, &value_type, format_ident!("map_value_selector"), runtime)
     });
     let constraint_irs: Vec<_> = field
         .occurrences
@@ -968,8 +876,7 @@ fn expand_collection_metadata(
             runtime,
         )
     });
-    let constraint_assertions =
-        expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
+    let constraint_assertions = expand_constraint_assertions(&constraint_irs, quote!(#field_type), runtime);
     let requires_sequence = element_ir.is_some()
         || constraint_irs
             .iter()
@@ -1150,11 +1057,7 @@ fn type_is_static_concrete(ty: &Type, generic_type_names: &[Ident]) -> bool {
 /// # Returns
 /// Tokens binding `optional_ops` to an adapter or `None`.
 #[must_use]
-fn expand_optional_ops(
-    field: &FieldIr,
-    runtime: &TokenStream,
-    generic_definition: bool,
-) -> TokenStream {
+fn expand_optional_ops(field: &FieldIr, runtime: &TokenStream, generic_definition: bool) -> TokenStream {
     if generic_definition
         || field
             .occurrences
@@ -1335,16 +1238,9 @@ fn expand_map_length_adapter(
 /// Tokens defining the unique-item equality adapter when supported; otherwise
 /// an empty token stream.
 #[must_use]
-fn expand_unique_item_adapter(
-    field_type: &Type,
-    unique: bool,
-    runtime: &TokenStream,
-) -> TokenStream {
-    if unique
-        && (collection_name(field_type) == Some("Vec") || matches!(field_type, Type::Array(_)))
-    {
-        let element_type =
-            collection_element_type(field_type).expect("sequence element shape was checked");
+fn expand_unique_item_adapter(field_type: &Type, unique: bool, runtime: &TokenStream) -> TokenStream {
+    if unique && (collection_name(field_type) == Some("Vec") || matches!(field_type, Type::Array(_))) {
+        let element_type = collection_element_type(field_type).expect("sequence element shape was checked");
         quote! {
             fn assert_item_eq<T: ::core::cmp::PartialEq + 'static>() {}
             assert_item_eq::<#element_type>();
@@ -1586,17 +1482,9 @@ fn known_non_vec_unique_shape(ty: &Type) -> bool {
             let Some(name) = path.path.segments.last().map(|segment| &segment.ident) else {
                 return false;
             };
-            [
-                "VecDeque",
-                "LinkedList",
-                "BinaryHeap",
-                "Option",
-                "Box",
-                "Rc",
-                "Arc",
-            ]
-            .iter()
-            .any(|candidate| name == candidate)
+            ["VecDeque", "LinkedList", "BinaryHeap", "Option", "Box", "Rc", "Arc"]
+                .iter()
+                .any(|candidate| name == candidate)
         }
         _ => false,
     }
@@ -1815,8 +1703,7 @@ fn expand_selector_metadata(
         .iter()
         .map(|constraint| expand_constraint(constraint, false, false, false, runtime));
     let constraint_refs: Vec<_> = value.constraints.iter().collect();
-    let constraint_assertions =
-        expand_constraint_assertions(&constraint_refs, value_type.clone(), runtime);
+    let constraint_assertions = expand_constraint_assertions(&constraint_refs, value_type.clone(), runtime);
     let validators = value.validators.iter().map(|validator| {
         expand_validator(
             validator,
@@ -1913,20 +1800,13 @@ fn rounding_tokens(value: &str, runtime: &TokenStream) -> TokenStream {
 /// # Returns
 /// Tokens that construct the runtime validator metadata.
 #[must_use]
-fn expand_validator(
-    validator: &ValidatorIr,
-    runtime: &TokenStream,
-    declaration: TokenStream,
-) -> TokenStream {
+fn expand_validator(validator: &ValidatorIr, runtime: &TokenStream, declaration: TokenStream) -> TokenStream {
     let id = &validator.id;
     let params = validator.params.iter().map(|(name, value)| {
         let value = expand_strategy_argument(value, runtime);
         quote!(#runtime::__private::NamedValidationArgument::new(#name, #value))
     });
-    let depends_on = validator
-        .depends_on
-        .iter()
-        .map(|path| expand_field_path(path, runtime));
+    let depends_on = validator.depends_on.iter().map(|path| expand_field_path(path, runtime));
     let dependency_bindings = validator.dependency_bindings.iter().map(|(name, navigation, path)| {
         let navigation = expand_object_path(navigation, runtime);
         let path = expand_field_path(path, runtime);
@@ -2059,11 +1939,7 @@ fn expand_redact(redact: &RedactIr, position: TokenStream, runtime: &TokenStream
 /// # Returns
 /// Tokens constructing the runtime redaction value.
 #[must_use]
-fn redact_expression(
-    redact: &RedactIr,
-    position: TokenStream,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn redact_expression(redact: &RedactIr, position: TokenStream, runtime: &TokenStream) -> TokenStream {
     let (sensitivity, mode) = match &redact.mode {
         RedactModeIr::Level(level) => {
             let sensitivity = match level.as_str() {
@@ -2086,26 +1962,14 @@ fn redact_expression(
                 quote!(#runtime::metadata::RedactModeMetadata::Level),
             )
         }
-        RedactModeIr::Skip => (
-            quote!(None),
-            quote!(#runtime::metadata::RedactModeMetadata::Skip),
-        ),
-        RedactModeIr::Nested => (
-            quote!(None),
-            quote!(#runtime::metadata::RedactModeMetadata::Nested),
-        ),
-        RedactModeIr::Map => (
-            quote!(None),
-            quote!(#runtime::metadata::RedactModeMetadata::Map),
-        ),
+        RedactModeIr::Skip => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Skip)),
+        RedactModeIr::Nested => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Nested)),
+        RedactModeIr::Map => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Map)),
         RedactModeIr::KeyedBy(field) => (
             quote!(None),
             quote!(#runtime::metadata::RedactModeMetadata::KeyedBy(#field)),
         ),
-        RedactModeIr::Json => (
-            quote!(None),
-            quote!(#runtime::metadata::RedactModeMetadata::Json),
-        ),
+        RedactModeIr::Json => (quote!(None), quote!(#runtime::metadata::RedactModeMetadata::Json)),
     };
     quote!(#runtime::metadata::RedactMetadata::new(#sensitivity, #mode, #position))
 }
@@ -2124,11 +1988,7 @@ fn redact_expression(
 /// Tokens naming the corresponding runtime codec reference.
 #[must_use]
 #[inline]
-fn codec_reference_expression<T: ToTokens>(
-    codec: &CodecIr,
-    _value_type: &T,
-    runtime: &TokenStream,
-) -> TokenStream {
+fn codec_reference_expression<T: ToTokens>(codec: &CodecIr, _value_type: &T, runtime: &TokenStream) -> TokenStream {
     match codec {
         CodecIr::DeclaredId(id) => {
             quote!(#runtime::metadata::CodecReference::DeclaredId(#id))
@@ -2283,10 +2143,7 @@ mod tests {
         let ty: Type = parse_quote!(std::option::Option<&'static crate::model::Value<u32>>);
         let tokens = type_expression_data_with_parameters(&ty, &quote!(runtime), &[]).to_string();
         assert!(tokens.contains("ExpressionData :: Named"), "{tokens}");
-        assert!(
-            tokens.contains("GenericExpressionArgument :: Type"),
-            "{tokens}"
-        );
+        assert!(tokens.contains("GenericExpressionArgument :: Type"), "{tokens}");
         assert!(tokens.contains("ExpressionData :: Reference"), "{tokens}");
         assert!(!tokens.contains("ExpressionData :: Opaque"), "{tokens}");
     }
@@ -2295,14 +2152,8 @@ mod tests {
     fn test_collection_items_expansion_passes_concrete_iterators_directly() {
         let runtime = quote!(runtime);
         for (ty, expected_iterators) in [
-            (
-                parse_quote!(Vec<String>),
-                vec!["collection . iter () . map"],
-            ),
-            (
-                parse_quote!([String; 2]),
-                vec!["collection . iter () . map"],
-            ),
+            (parse_quote!(Vec<String>), vec!["collection . iter () . map"]),
+            (parse_quote!([String; 2]), vec!["collection . iter () . map"]),
             (
                 parse_quote!(std::collections::HashMap<String, i32>),
                 vec!["collection . keys () . map", "collection . values () . map"],
@@ -2314,11 +2165,7 @@ mod tests {
         ] {
             let tokens = expand_collection_items(&ty, &runtime).to_string();
             assert!(tokens.contains("BorrowedCollection :: new"), "{tokens}");
-            assert!(
-                !tokens.contains("Box :: new"),
-                "{}: {tokens}",
-                ty.to_token_stream()
-            );
+            assert!(!tokens.contains("Box :: new"), "{}: {tokens}", ty.to_token_stream());
             for expected in expected_iterators {
                 assert!(
                     tokens.contains(expected),
@@ -2339,27 +2186,12 @@ mod tests {
             ),
             (parse_quote!(Self), "ExpressionData :: SelfType"),
             (parse_quote!(&'_ str), "LifetimeExpression :: Placeholder"),
-            (
-                parse_quote!([u8; 4]),
-                "ConstExpression :: UnsignedInteger (4u128)",
-            ),
+            (parse_quote!([u8; 4]), "ConstExpression :: UnsignedInteger (4u128)"),
             (parse_quote!([u8; N]), "ConstExpression :: Path (\"N\")"),
-            (
-                parse_quote!(Container<4>),
-                "ConstExpression :: UnsignedInteger (4u128)",
-            ),
-            (
-                parse_quote!(Container<{ true }>),
-                "ConstExpression :: Boolean (true)",
-            ),
-            (
-                parse_quote!(Container<{ 'x' }>),
-                "ConstExpression :: Character ('x')",
-            ),
-            (
-                parse_quote!(<T as Iterator>::Item),
-                "ExpressionData :: AssociatedType",
-            ),
+            (parse_quote!(Container<4>), "ConstExpression :: UnsignedInteger (4u128)"),
+            (parse_quote!(Container<{ true }>), "ConstExpression :: Boolean (true)"),
+            (parse_quote!(Container<{ 'x' }>), "ConstExpression :: Character ('x')"),
+            (parse_quote!(<T as Iterator>::Item), "ExpressionData :: AssociatedType"),
         ] {
             let tokens = type_expression_data_with_parameters(&ty, &runtime, &[]).to_string();
             assert!(
@@ -2374,43 +2206,25 @@ mod tests {
     fn test_type_expression_data_links_declared_type_and_const_parameters_by_name() {
         let runtime = quote!(runtime);
         let parameters = [format_ident!("T"), format_ident!("N")];
-        let type_parameter =
-            type_expression_data_with_parameters(&parse_quote!(T), &runtime, &parameters)
-                .to_string();
+        let type_parameter = type_expression_data_with_parameters(&parse_quote!(T), &runtime, &parameters).to_string();
         let const_parameter =
-            type_expression_data_with_parameters(&parse_quote!([u8; N]), &runtime, &parameters)
-                .to_string();
+            type_expression_data_with_parameters(&parse_quote!([u8; N]), &runtime, &parameters).to_string();
         assert!(
             type_parameter.contains("ExpressionData :: ParameterName (\"T\")"),
             "{type_parameter}"
         );
-        assert!(
-            !type_parameter.contains("ExpressionData :: Named"),
-            "{type_parameter}"
-        );
+        assert!(!type_parameter.contains("ExpressionData :: Named"), "{type_parameter}");
         assert!(
             const_parameter.contains("ConstExpression :: Parameter (\"N\")"),
             "{const_parameter}"
         );
-        let projection = type_expression_data_with_parameters(
-            &parse_quote!(<T as Iterator<u8>>::Item),
-            &runtime,
-            &parameters,
-        )
-        .to_string();
-        assert!(
-            projection.contains("ExpressionData :: AssociatedType"),
-            "{projection}"
-        );
+        let projection =
+            type_expression_data_with_parameters(&parse_quote!(<T as Iterator<u8>>::Item), &runtime, &parameters)
+                .to_string();
+        assert!(projection.contains("ExpressionData :: AssociatedType"), "{projection}");
         assert!(projection.contains("ParameterName (\"T\")"), "{projection}");
-        assert!(
-            projection.contains("TraitExpressionData :: new"),
-            "{projection}"
-        );
-        assert!(
-            projection.contains("GenericExpressionArgument :: Type"),
-            "{projection}"
-        );
+        assert!(projection.contains("TraitExpressionData :: new"), "{projection}");
+        assert!(projection.contains("GenericExpressionArgument :: Type"), "{projection}");
         assert!(projection.contains("Iterator < u8 >"), "{projection}");
         let absolute_projection = type_expression_data_with_parameters(
             &parse_quote!(<T as ::crate::api::Trait<u8>>::Assoc),
@@ -2422,12 +2236,9 @@ mod tests {
             absolute_projection.contains("::crate :: api :: Trait < u8 >"),
             "{absolute_projection}"
         );
-        let associated_arguments = type_expression_data_with_parameters(
-            &parse_quote!(<T as Iterator<u8>>::Item<'a>),
-            &runtime,
-            &parameters,
-        )
-        .to_string();
+        let associated_arguments =
+            type_expression_data_with_parameters(&parse_quote!(<T as Iterator<u8>>::Item<'a>), &runtime, &parameters)
+                .to_string();
         assert!(
             associated_arguments.contains("arguments : runtime :: __private :: v8 :: leak_slice"),
             "{associated_arguments}"
@@ -2440,12 +2251,8 @@ mod tests {
             associated_arguments.contains("LifetimeExpression :: Named (\"a\")"),
             "{associated_arguments}"
         );
-        let unqualified_projection = type_expression_data_with_parameters(
-            &parse_quote!(T::Assoc<'a>),
-            &runtime,
-            &parameters,
-        )
-        .to_string();
+        let unqualified_projection =
+            type_expression_data_with_parameters(&parse_quote!(T::Assoc<'a>), &runtime, &parameters).to_string();
         assert!(
             unqualified_projection.contains("ExpressionData :: AssociatedType"),
             "{unqualified_projection}"
@@ -2464,22 +2271,13 @@ mod tests {
     fn test_type_expression_data_marks_only_exact_owner_paths_as_self() {
         let owner = format_ident!("RecursiveValue");
         let runtime = quote!(runtime);
-        let recursive = type_expression_for_owner(
-            &parse_quote!(Option<Box<RecursiveValue>>),
-            &runtime,
-            &[],
-            Some(&owner),
-        )
-        .to_string();
+        let recursive =
+            type_expression_for_owner(&parse_quote!(Option<Box<RecursiveValue>>), &runtime, &[], Some(&owner))
+                .to_string();
         assert_eq!(recursive.matches("ExpressionData :: SelfType").count(), 1);
 
-        let qualified_other = type_expression_for_owner(
-            &parse_quote!(other::RecursiveValue),
-            &runtime,
-            &[],
-            Some(&owner),
-        )
-        .to_string();
+        let qualified_other =
+            type_expression_for_owner(&parse_quote!(other::RecursiveValue), &runtime, &[], Some(&owner)).to_string();
         assert!(qualified_other.contains("ExpressionData :: Named"));
         assert!(!qualified_other.contains("ExpressionData :: SelfType"));
     }
@@ -2489,10 +2287,7 @@ mod tests {
         let generic_names = [format_ident!("T")];
         assert!(type_is_static_concrete(&parse_quote!(Option<Inner>), &[]));
         assert!(!type_is_static_concrete(&parse_quote!(&'a Inner), &[]));
-        assert!(!type_is_static_concrete(
-            &parse_quote!(Option<T>),
-            &generic_names
-        ));
+        assert!(!type_is_static_concrete(&parse_quote!(Option<T>), &generic_names));
     }
 
     #[test]
@@ -2506,12 +2301,9 @@ mod tests {
             named: true,
             rust_name: Some(format_ident!("hidden")),
             visibility: Visibility::Inherited,
-            presence:
-                crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
+            presence: crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
         };
-        let concrete =
-            expand_field_with_parameters(&opaque, &quote!(runtime), None, None, &[], None)
-                .to_string();
+        let concrete = expand_field_with_parameters(&opaque, &quote!(runtime), None, None, &[], None).to_string();
         assert!(
             concrete.contains("opaque_type_id : Option < :: std :: any :: TypeId > = Some")
                 && concrete.contains("TypeId :: of :: < Inner >"),
@@ -2519,12 +2311,8 @@ mod tests {
         );
 
         opaque.ty = parse_quote!(&'a Inner);
-        let borrowed =
-            expand_field_with_parameters(&opaque, &quote!(runtime), None, None, &[], None)
-                .to_string();
-        assert!(
-            borrowed.contains("let opaque_type_id : Option < :: std :: any :: TypeId > = None")
-        );
+        let borrowed = expand_field_with_parameters(&opaque, &quote!(runtime), None, None, &[], None).to_string();
+        assert!(borrowed.contains("let opaque_type_id : Option < :: std :: any :: TypeId > = None"));
 
         opaque.ty = parse_quote!(T);
         let generic_parameter = format_ident!("T");
@@ -2551,17 +2339,9 @@ mod tests {
             named: true,
             rust_name: Some(Ident::new("value", Span::call_site())),
             visibility: Visibility::Inherited,
-            presence:
-                crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
+            presence: crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
         };
-        let generated = expand_field(
-            &field,
-            &quote!(descriptor_fields),
-            &quote!(runtime),
-            None,
-            None,
-        )
-        .to_string();
+        let generated = expand_field(&field, &quote!(descriptor_fields), &quote!(runtime), None, None).to_string();
         assert!(
             generated.contains("codegen_v4 :: expression :: ExpressionData"),
             "{generated}"
@@ -2583,19 +2363,13 @@ mod tests {
                 (TokenTree::Punct(left), TokenTree::Punct(right)) => {
                     left.as_char() == right.as_char() && left.spacing() == right.spacing()
                 }
-                (TokenTree::Literal(left), TokenTree::Literal(right)) => {
-                    left.to_string() == right.to_string()
-                }
+                (TokenTree::Literal(left), TokenTree::Literal(right)) => left.to_string() == right.to_string(),
                 _ => false,
             }
         }
 
         fn token_slices_match(left: &[TokenTree], right: &[TokenTree]) -> bool {
-            left.len() == right.len()
-                && left
-                    .iter()
-                    .zip(right)
-                    .all(|(left, right)| token_matches(left, right))
+            left.len() == right.len() && left.iter().zip(right).all(|(left, right)| token_matches(left, right))
         }
 
         fn contains_token_sequence(actual: &[TokenTree], expected: &[TokenTree]) -> bool {
@@ -2641,8 +2415,7 @@ mod tests {
             named: true,
             rust_name: Some(format_ident!("field")),
             visibility: Visibility::Inherited,
-            presence:
-                crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
+            presence: crate::expand::model_impl::internal::presence_condition::PresenceCondition::always(),
         };
         let constraint = ConstraintIr::Sequence {
             min: None,
@@ -2756,13 +2529,7 @@ mod tests {
                 },
             );
         }
-        for precision in [
-            "second",
-            "millisecond",
-            "microsecond",
-            "nanosecond",
-            "invalid",
-        ] {
+        for precision in ["second", "millisecond", "microsecond", "nanosecond", "invalid"] {
             let value = ConstraintIr::Time(precision.to_owned());
             let tokens = expand_constraint(&value, false, false, false, &runtime);
             let expected_precision = match precision {
@@ -2870,8 +2637,7 @@ mod tests {
                 },
             );
         }
-        let rust_type_codec =
-            codec_reference_expression(&CodecIr::RustType(Box::new(ty)), &quote!(String), &runtime);
+        let rust_type_codec = codec_reference_expression(&CodecIr::RustType(Box::new(ty)), &quote!(String), &runtime);
         assert_tokens_contain(&rust_type_codec, "CodecReference::RustType");
         let declared_id_codec = codec_reference_expression(
             &CodecIr::DeclaredId(literal("example.codec")),
@@ -2901,10 +2667,7 @@ mod tests {
                 RedactModeIr::KeyedBy(_) => "RedactModeMetadata::KeyedBy",
                 RedactModeIr::Json => "RedactModeMetadata::Json",
             };
-            assert_tokens_contain(
-                &expand_redact(&RedactIr { mode }, quote!(position), &runtime),
-                expected,
-            );
+            assert_tokens_contain(&expand_redact(&RedactIr { mode }, quote!(position), &runtime), expected);
         }
 
         let serde_values = [

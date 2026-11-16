@@ -155,10 +155,7 @@ impl ValidationBuildError {
     /// - `occurrence`: Unsupported declaration and the source context to retain
     ///   in the diagnostic.
     pub(crate) fn unsupported(occurrence: &ValidationOccurrence) -> Self {
-        let mut error = Self::at_occurrence(
-            occurrence,
-            BindError::new(BindErrorKind::UnsupportedConstraint),
-        );
+        let mut error = Self::at_occurrence(occurrence, BindError::new(BindErrorKind::UnsupportedConstraint));
         error.kind = ValidationBuildErrorKind::UnsupportedExecution;
         error.source = None;
         error
@@ -186,10 +183,7 @@ impl ValidationBuildError {
     ///
     /// Returns a root-scoped resource-limit error without declaration or
     /// validator source context.
-    pub(crate) fn at_build_limit(
-        root: &'static TypeMetadata,
-        detail: ValidationBuildLimit,
-    ) -> Self {
+    pub(crate) fn at_build_limit(root: &'static TypeMetadata, detail: ValidationBuildLimit) -> Self {
         let mut error = Self::new(root, BindError::new(BindErrorKind::UnreadablePath));
         error.kind = ValidationBuildErrorKind::BuildLimitExceeded;
         error.build_limit = Some(detail);
@@ -320,8 +314,7 @@ impl ValidationBuildError {
     /// map to several rules.
     #[must_use]
     pub fn constraint_rules(&self) -> Vec<ConstraintRuleRef> {
-        self.constraint
-            .map_or_else(Vec::new, standard_constraints::rule_refs)
+        self.constraint.map_or_else(Vec::new, standard_constraints::rule_refs)
     }
 
     /// Returns the underlying validator binding error, or `None` for an
@@ -378,20 +371,13 @@ impl fmt::Display for ValidationBuildError {
                 f,
                 "validation plan for {} exceeded build {:?} limit {}",
                 self.type_name(),
-                self.build_limit
-                    .expect("build-limit errors retain their detail")
-                    .kind(),
+                self.build_limit.expect("build-limit errors retain their detail").kind(),
                 self.build_limit
                     .expect("build-limit errors retain their detail")
                     .limit(),
             );
         }
-        write!(
-            f,
-            "validation plan for {} failed: {:?}",
-            self.type_name(),
-            self.kind()
-        )?;
+        write!(f, "validation plan for {} failed: {:?}", self.type_name(), self.kind())?;
         if let Some(path) = &self.path {
             write!(f, " at {path}")?;
         }

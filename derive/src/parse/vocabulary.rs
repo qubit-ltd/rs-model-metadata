@@ -27,12 +27,7 @@ use syn::Result;
 /// # Errors
 /// Returns a syntax error at `expression` when `value` is not in `allowed`;
 /// the error uses `message` as its diagnostic text.
-pub(crate) fn validate_closed_value(
-    expression: &Expr,
-    value: &str,
-    allowed: &[&str],
-    message: &str,
-) -> Result<()> {
+pub(crate) fn validate_closed_value(expression: &Expr, value: &str, allowed: &[&str], message: &str) -> Result<()> {
     if allowed.contains(&value) {
         Ok(())
     } else {

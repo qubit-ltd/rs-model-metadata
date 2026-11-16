@@ -40,8 +40,7 @@ fn test_registry_error_preserves_context_capability_mismatch() {
         .build()
         .expect("a typed registration with a colliding ID is valid until queried");
 
-    let error = ModelRegistry::from_context(&context)
-        .expect_err("adapter contract mismatch must be reported");
+    let error = ModelRegistry::from_context(&context).expect_err("adapter contract mismatch must be reported");
 
     assert_eq!(error.kind(), ModelRegistryErrorKind::Capability);
     assert!(error.sources().is_empty());

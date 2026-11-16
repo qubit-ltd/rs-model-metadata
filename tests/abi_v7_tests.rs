@@ -69,8 +69,7 @@ fn test_generic_model_definition_accepts_no_stable_id() {
 /// Returning from a child is local navigation, not external parent context.
 #[test]
 fn test_balanced_navigation_does_not_require_parent_context() {
-    let path =
-        ObjectPath::new(&[NavigationStep::Property("child"), NavigationStep::Parent]).unwrap();
+    let path = ObjectPath::new(&[NavigationStep::Property("child"), NavigationStep::Parent]).unwrap();
     assert!(!path.requires_parent());
     let external = ObjectPath::new(&[
         NavigationStep::Property("child"),

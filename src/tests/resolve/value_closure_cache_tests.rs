@@ -38,10 +38,7 @@ fn test_resolves_valid_shared_value_subtrees_across_roots() {
         .build()
         .expect("reflection context");
     let models = ModelRegistry::from_context(&reflection).expect("model registry");
-    let roots = [
-        TypeMetadata::of::<ClosureRoot>(),
-        TypeMetadata::of::<ClosureBranch>(),
-    ];
+    let roots = [TypeMetadata::of::<ClosureRoot>(), TypeMetadata::of::<ClosureBranch>()];
     let _graph = StructureResolver::new(ResolveInputs {
         models: &models,
         roots: &roots,

@@ -60,10 +60,7 @@ impl SelectionIndex {
     /// An index retaining all occurrences whose field names have the same
     /// sequence, including occurrences that differ only by collection index.
     pub(in crate::validation::validation_plan) fn new(bindings: &[FieldRuleBinding]) -> Self {
-        let paths = bindings
-            .iter()
-            .map(|binding| path_for(binding.value()))
-            .collect();
+        let paths = bindings.iter().map(|binding| path_for(binding.value())).collect();
         Self::from_paths(paths)
     }
 
@@ -81,10 +78,7 @@ impl SelectionIndex {
         let mut occurrences = HashMap::with_capacity(paths.len());
         for (binding_index, path) in paths.iter().enumerate() {
             let key = field_names(path);
-            occurrences
-                .entry(key)
-                .or_insert_with(Vec::new)
-                .push(binding_index);
+            occurrences.entry(key).or_insert_with(Vec::new).push(binding_index);
         }
         Self {
             occurrences,
@@ -104,10 +98,7 @@ impl SelectionIndex {
     /// field rule has that path.
     #[must_use]
     #[inline]
-    pub(in crate::validation::validation_plan) fn matching(
-        &self,
-        segments: &[String],
-    ) -> Option<&[usize]> {
+    pub(in crate::validation::validation_plan) fn matching(&self, segments: &[String]) -> Option<&[usize]> {
         self.occurrences.get(segments).map(Vec::as_slice)
     }
 
@@ -122,10 +113,7 @@ impl SelectionIndex {
     /// The report path created for this binding while building the index.
     #[must_use]
     #[inline]
-    pub(in crate::validation::validation_plan) fn path(
-        &self,
-        binding_index: usize,
-    ) -> &ValidationPath {
+    pub(in crate::validation::validation_plan) fn path(&self, binding_index: usize) -> &ValidationPath {
         &self.paths[binding_index]
     }
 }
@@ -141,13 +129,10 @@ mod tests {
         segments
             .iter()
             .map(String::as_str)
-            .eq(path
-                .as_segments()
-                .iter()
-                .filter_map(|segment| match segment {
-                    qubit_validator::PathSegment::Field(name) => Some(*name),
-                    _ => None,
-                }))
+            .eq(path.as_segments().iter().filter_map(|segment| match segment {
+                qubit_validator::PathSegment::Field(name) => Some(*name),
+                _ => None,
+            }))
     }
 
     #[test]
@@ -178,9 +163,7 @@ mod tests {
                 .with_field("items")
                 .with_index(8)
                 .with_field("name"),
-            ValidationPath::root()
-                .with_field("items")
-                .with_field("other"),
+            ValidationPath::root().with_field("items").with_field("other"),
         ]);
         let matching = ["items".to_owned(), "name".to_owned()];
         let reordered = ["name".to_owned(), "items".to_owned()];

@@ -68,11 +68,7 @@ impl ResolvedReference {
     #[must_use]
     #[inline]
     pub fn context_requirement(&self) -> ContextRequirement {
-        if self
-            .declaration
-            .path()
-            .is_some_and(|path| path.requires_parent())
-        {
+        if self.declaration.path().is_some_and(|path| path.requires_parent()) {
             ContextRequirement::ParentObject
         } else {
             ContextRequirement::None

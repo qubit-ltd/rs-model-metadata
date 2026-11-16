@@ -126,13 +126,8 @@ impl ResolvedProjectionProducer {
     ///
     /// Panics if resolved producer metadata refers to an identifier that is
     /// not a concrete reflected field. The resolver guarantees this invariant.
-    pub fn project<'a>(
-        &self,
-        source: DynamicRef<'a, Local>,
-    ) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
-        let projector = self
-            .projector
-            .ok_or(ProjectionExecutionError::MissingProjector)?;
+    pub fn project<'a>(&self, source: DynamicRef<'a, Local>) -> Result<PropertyValue<'a>, ProjectionExecutionError> {
+        let projector = self.projector.ok_or(ProjectionExecutionError::MissingProjector)?;
         let source_identifier = self
             .source
             .as_entity()
@@ -172,17 +167,12 @@ impl ResolvedProjectionProducer {
     ///
     /// Panics if resolved projection metadata refers to an identifier that is
     /// not a concrete reflected field. The resolver guarantees this invariant.
-    fn projection_identifier(
-        &self,
-        target: DynamicRef<'_, Local>,
-    ) -> Result<Id, ProjectionExecutionError> {
+    fn projection_identifier(&self, target: DynamicRef<'_, Local>) -> Result<Id, ProjectionExecutionError> {
         let projection = self
             .projection
             .as_projection()
             .ok_or(ProjectionExecutionError::InvalidProducer)?;
-        let identifier = projection
-            .read_identifier(target)
-            .map_err(identifier_target_mismatch)?;
+        let identifier = projection.read_identifier(target).map_err(identifier_target_mismatch)?;
         Ok(*identifier)
     }
 }

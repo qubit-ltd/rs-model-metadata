@@ -101,9 +101,7 @@ fn presence_combinations(
             unique.push(condition);
         }
     }
-    if unique.len()
-        > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS
-    {
+    if unique.len() > crate::expand::model_impl::internal::presence_condition::MAX_CONDITIONAL_SHAPE_FIELDS {
         return None;
     }
     let combinations = 1_usize.checked_shl(unique.len() as u32)?;
@@ -113,9 +111,7 @@ fn presence_combinations(
                 let active: HashMap<_, _> = unique
                     .iter()
                     .enumerate()
-                    .map(|(bit, condition)| {
-                        (condition.predicate().to_string(), mask & (1 << bit) != 0)
-                    })
+                    .map(|(bit, condition)| (condition.predicate().to_string(), mask & (1 << bit) != 0))
                     .collect();
                 let terms: Vec<_> = unique
                     .iter()
@@ -152,11 +148,7 @@ fn condition_is_active(
     condition: &crate::expand::model_impl::internal::presence_condition::PresenceCondition,
     active: &HashMap<String, bool>,
 ) -> bool {
-    condition.is_unconditional()
-        || active
-            .get(&condition.predicate().to_string())
-            .copied()
-            .unwrap_or(false)
+    condition.is_unconditional() || active.get(&condition.predicate().to_string()).copied().unwrap_or(false)
 }
 
 /// Returns the standard trait path selected by its supported name.
@@ -268,9 +260,7 @@ fn bounded_generics(
             if !condition_is_active(&presence, active) {
                 continue;
             }
-            for ty in
-                recursive_bounds(&field.ty, &recursive_type).unwrap_or_else(|| vec![&field.ty])
-            {
+            for ty in recursive_bounds(&field.ty, &recursive_type).unwrap_or_else(|| vec![&field.ty]) {
                 generics
                     .make_where_clause()
                     .predicates
@@ -451,9 +441,7 @@ fn tuple_trait_arms(
         .unnamed
         .iter()
         .enumerate()
-        .filter_map(|(index, _field)| {
-            condition_is_active(&field_conditions[index], active).then_some(index)
-        })
+        .filter_map(|(index, _field)| condition_is_active(&field_conditions[index], active).then_some(index))
         .collect();
     let left: Vec<_> = active_fields
         .iter()
@@ -466,9 +454,7 @@ fn tuple_trait_arms(
     let pattern = quote!(#constructor(#(#left),*));
     let arm = match name {
         "Clone" => {
-            let values = left
-                .iter()
-                .map(|binding| quote!(::core::clone::Clone::clone(#binding)));
+            let values = left.iter().map(|binding| quote!(::core::clone::Clone::clone(#binding)));
             quote!(#shape_presence #pattern => #constructor(#(#values),*))
         }
         "PartialEq" => {
@@ -504,11 +490,7 @@ fn tuple_trait_arms(
             let label = if rendered_constructor == "Self" {
                 struct_name.to_string()
             } else {
-                rendered_constructor
-                    .split(" :: ")
-                    .last()
-                    .unwrap()
-                    .to_owned()
+                rendered_constructor.split(" :: ").last().unwrap().to_owned()
             };
             quote!(#shape_presence #pattern => {
                 let mut builder = formatter.debug_tuple(#label);
@@ -567,8 +549,8 @@ fn trait_body(
             quote!(fn clone(&self) -> Self { match self { #(#arms),* } })
         }
         "PartialEq" => {
-            let fallback = matches!(&item.data, Data::Enum(data) if data.variants.len() > 1)
-                .then(|| quote!(_ => false,));
+            let fallback =
+                matches!(&item.data, Data::Enum(data) if data.variants.len() > 1).then(|| quote!(_ => false,));
             quote!(fn eq(&self, other: &Self) -> bool { match (self, other) { #(#arms,)* #fallback } })
         }
         "Hash" => {
@@ -693,8 +675,7 @@ fn enum_ordering_prefix(item: &DeriveInput, trait_name: &str) -> TokenStream {
     let mut representation: Type = parse_quote!(isize);
     for attribute in &item.attrs {
         if attribute.path().is_ident("repr")
-            && let Ok(paths) =
-                attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)
+            && let Ok(paths) = attribute.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)
         {
             for path in paths {
                 if path.get_ident().is_some_and(|ident| {

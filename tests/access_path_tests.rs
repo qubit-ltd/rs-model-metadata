@@ -260,60 +260,40 @@ fn test_compiled_path_supports_typed_dynamic_and_authorized_access() {
 
     let root = AccessRoot {
         middle: AccessMiddle {
-            leaf: AccessLeaf {
-                value: "read".into(),
-            },
+            leaf: AccessLeaf { value: "read".into() },
             value: String::new(),
         },
     };
     let PropertyValue::Borrowed(value) = path.read(&root).expect("typed read") else {
         panic!("typed read returns a borrow");
     };
-    assert_eq!(
-        value.downcast_ref::<String>().map(String::as_str),
-        Some("read")
-    );
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("read"));
 
-    let PropertyValue::Borrowed(value) = path
-        .read_dynamic(PropertyBorrowed::new(&root))
-        .expect("dynamic read")
-    else {
+    let PropertyValue::Borrowed(value) = path.read_dynamic(PropertyBorrowed::new(&root)).expect("dynamic read") else {
         panic!("dynamic read returns a borrow");
     };
-    assert_eq!(
-        value.downcast_ref::<String>().map(String::as_str),
-        Some("read")
-    );
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("read"));
 
     // SAFETY: This test owns the public fixture and authorizes its access.
     let PropertyValue::Borrowed(value) =
-        unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }
-            .expect("authorized dynamic read")
+        unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }.expect("authorized dynamic read")
     else {
         panic!("authorized read returns a borrow");
     };
-    assert_eq!(
-        value.downcast_ref::<String>().map(String::as_str),
-        Some("read")
-    );
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("read"));
 
     let mut typed_root = AccessRoot {
         middle: AccessMiddle {
-            leaf: AccessLeaf {
-                value: "before".into(),
-            },
+            leaf: AccessLeaf { value: "before".into() },
             value: String::new(),
         },
     };
-    path.write(&mut typed_root, String::from("typed"))
-        .expect("typed write");
+    path.write(&mut typed_root, String::from("typed")).expect("typed write");
     assert_eq!(typed_root.middle.leaf.value, "typed");
 
     let mut dynamic_root = AccessRoot {
         middle: AccessMiddle {
-            leaf: AccessLeaf {
-                value: "before".into(),
-            },
+            leaf: AccessLeaf { value: "before".into() },
             value: String::new(),
         },
     };
@@ -326,9 +306,7 @@ fn test_compiled_path_supports_typed_dynamic_and_authorized_access() {
 
     let mut authorized_root = AccessRoot {
         middle: AccessMiddle {
-            leaf: AccessLeaf {
-                value: "before".into(),
-            },
+            leaf: AccessLeaf { value: "before".into() },
             value: String::new(),
         },
     };
@@ -474,10 +452,7 @@ fn test_cached_path_concurrent_initial_misses_return_valid_paths() {
             std::thread::spawn(move || {
                 barrier.wait();
                 registry
-                    .compile_read_path_cached(
-                        TypeMetadata::of::<AccessRoot>(),
-                        &["middle", "leaf", "value"],
-                    )
+                    .compile_read_path_cached(TypeMetadata::of::<AccessRoot>(), &["middle", "leaf", "value"])
                     .expect("concurrent path compiles")
             })
         })
@@ -498,12 +473,8 @@ fn test_cached_path_concurrent_initial_misses_return_valid_paths() {
 #[test]
 fn test_compile_for_write_accepts_setter_only_leaf() {
     let registry = test_registry();
-    let path = PropertyAccessPath::compile_for_write(
-        &registry,
-        TypeMetadata::of::<SetterOnly>(),
-        &["value"],
-    )
-    .expect("setter-only leaf compiles for writing");
+    let path = PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<SetterOnly>(), &["value"])
+        .expect("setter-only leaf compiles for writing");
     assert!(path.check_writable().is_ok());
     let mut root = SetterOnly {};
     SETTER_ONLY_CALLS.store(0, Ordering::Relaxed);
@@ -524,12 +495,8 @@ fn test_compile_for_write_accepts_setter_only_leaf() {
 #[test]
 fn test_read_optional_intermediate_reports_missing_value() {
     let registry = test_registry();
-    let path = PropertyAccessPath::compile(
-        &registry,
-        TypeMetadata::of::<OptionalRoot>(),
-        &["middle", "value"],
-    )
-    .expect("optional model path compiles");
+    let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<OptionalRoot>(), &["middle", "value"])
+        .expect("optional model path compiles");
     let root = OptionalRoot { middle: None };
 
     let read = path.read_dynamic(DynamicRef::<Local>::new(&root));
@@ -549,9 +516,7 @@ fn test_read_optional_intermediate_reports_missing_value() {
     };
     let value = path.read(&root).expect("optional path reads present value");
     assert!(match &value {
-        PropertyValue::Borrowed(value) => value
-            .downcast_ref::<String>()
-            .is_some_and(|value| value == "before"),
+        PropertyValue::Borrowed(value) => value.downcast_ref::<String>().is_some_and(|value| value == "before"),
         _ => false,
     });
     drop(value);
@@ -564,12 +529,9 @@ fn test_read_optional_intermediate_reports_missing_value() {
 #[test]
 fn test_write_missing_optional_intermediate_preserves_replacement() {
     let registry = test_registry();
-    let path = PropertyAccessPath::compile_for_write(
-        &registry,
-        TypeMetadata::of::<OptionalRoot>(),
-        &["middle", "value"],
-    )
-    .expect("optional model path compiles for writing");
+    let path =
+        PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<OptionalRoot>(), &["middle", "value"])
+            .expect("optional model path compiles for writing");
     let mut root = OptionalRoot { middle: None };
 
     let failure = path
@@ -595,11 +557,7 @@ fn test_write_missing_optional_intermediate_preserves_replacement() {
 fn test_compile_rejects_owned_intermediate_getter() {
     let registry = test_registry();
     OWNED_GETTER_CALLS.store(0, Ordering::Relaxed);
-    let result = PropertyAccessPath::compile(
-        &registry,
-        TypeMetadata::of::<OwnedParent>(),
-        &["owned_child", "value"],
-    );
+    let result = PropertyAccessPath::compile(&registry, TypeMetadata::of::<OwnedParent>(), &["owned_child", "value"]);
 
     assert!(
         matches!(
@@ -618,11 +576,8 @@ fn test_compile_rejects_owned_intermediate_getter() {
 #[test]
 fn test_compile_rejects_borrowed_slice_intermediate() {
     let registry = test_registry();
-    let error = match PropertyAccessPath::compile(
-        &registry,
-        TypeMetadata::of::<SliceParent>(),
-        &["children", "value"],
-    ) {
+    let error = match PropertyAccessPath::compile(&registry, TypeMetadata::of::<SliceParent>(), &["children", "value"])
+    {
         Err(error) => error,
         Ok(_) => panic!("a slice cannot be treated as one nested model"),
     };
@@ -637,12 +592,8 @@ fn test_compile_rejects_borrowed_slice_intermediate() {
 #[test]
 fn test_dynamic_read_rejects_a_mismatched_root_type() {
     let registry = test_registry();
-    let path = PropertyAccessPath::compile(
-        &registry,
-        TypeMetadata::of::<AccessRoot>(),
-        &["middle", "value"],
-    )
-    .expect("root path compiles");
+    let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &["middle", "value"])
+        .expect("root path compiles");
     let wrong_root = AccessLeaf {
         value: "unrelated".to_owned(),
     };
@@ -657,12 +608,8 @@ fn test_dynamic_read_rejects_a_mismatched_root_type() {
 #[test]
 fn test_dynamic_write_preserves_replacement_for_a_mismatched_root_type() {
     let registry = test_registry();
-    let path = PropertyAccessPath::compile_for_write(
-        &registry,
-        TypeMetadata::of::<AccessRoot>(),
-        &["middle", "value"],
-    )
-    .expect("root path compiles for writing");
+    let path = PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<AccessRoot>(), &["middle", "value"])
+        .expect("root path compiles for writing");
     let mut wrong_root = AccessLeaf {
         value: "unrelated".to_owned(),
     };
@@ -691,12 +638,9 @@ fn test_dynamic_write_preserves_replacement_for_a_mismatched_root_type() {
 #[test]
 fn test_borrowed_getter_intermediate_is_readable_but_not_writable() {
     let registry = test_registry();
-    let path = PropertyAccessPath::compile_for_write(
-        &registry,
-        TypeMetadata::of::<BorrowedParent>(),
-        &["child", "value"],
-    )
-    .expect("borrowed getter intermediate compiles for a write path");
+    let path =
+        PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<BorrowedParent>(), &["child", "value"])
+            .expect("borrowed getter intermediate compiles for a write path");
     assert!(matches!(
         path.check_writable(),
         Err(PropertyAccessPathError::UnwritableIntermediate { index: 0, name }) if name == "child"
@@ -715,9 +659,7 @@ fn test_borrowed_getter_intermediate_is_readable_but_not_writable() {
         Some(PropertyAccessPathError::UnwritableIntermediate { index: 0, name }) if name == "child"
     ));
     assert_eq!(
-        failure
-            .replacement()
-            .and_then(|value| value.downcast_ref::<String>()),
+        failure.replacement().and_then(|value| value.downcast_ref::<String>()),
         Some(&"replacement".to_owned())
     );
     assert_eq!(root.child.value, "before");
@@ -760,18 +702,11 @@ fn test_optional_borrowed_getter_intermediate_reads_present_and_missing_values()
 #[test]
 fn test_getter_only_leaf_is_not_writable() {
     let registry = test_registry();
-    let path = PropertyAccessPath::compile(
-        &registry,
-        TypeMetadata::of::<OwnedParent>(),
-        &["owned_child"],
-    )
-    .expect("readable getter compiles as a leaf");
-    let write_path = PropertyAccessPath::compile_for_write(
-        &registry,
-        TypeMetadata::of::<OwnedParent>(),
-        &["owned_child"],
-    )
-    .expect("read-only leaf compiles in write mode");
+    let path = PropertyAccessPath::compile(&registry, TypeMetadata::of::<OwnedParent>(), &["owned_child"])
+        .expect("readable getter compiles as a leaf");
+    let write_path =
+        PropertyAccessPath::compile_for_write(&registry, TypeMetadata::of::<OwnedParent>(), &["owned_child"])
+            .expect("read-only leaf compiles in write mode");
     assert!(matches!(
         write_path.check_writable(),
         Err(PropertyAccessPathError::NotWritable { index: 0, name }) if name == "owned_child"
@@ -919,25 +854,17 @@ fn test_unsafe_dynamic_access_can_cross_private_intermediates() {
     // SAFETY: this test explicitly authorizes access to `PrivateRoot::middle`
     // and to the nested model fields used by the path.
     {
-        let value = unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }
-            .expect("authorized unsafe read succeeds");
+        let value =
+            unsafe { path.read_dynamic_unsafe(PropertyBorrowed::new(&root)) }.expect("authorized unsafe read succeeds");
         let PropertyValue::Borrowed(value) = value else {
             panic!("string field should be returned as a borrow");
         };
-        assert_eq!(
-            value.downcast_ref::<String>().map(String::as_str),
-            Some("before")
-        );
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("before"));
     }
 
     // SAFETY: this test explicitly authorizes mutation through the same path.
-    unsafe {
-        path.write_dynamic_unsafe(
-            PropertyMutable::new(&mut root),
-            PropertyOwned::new("after".to_owned()),
-        )
-    }
-    .expect("authorized unsafe write succeeds");
+    unsafe { path.write_dynamic_unsafe(PropertyMutable::new(&mut root), PropertyOwned::new("after".to_owned())) }
+        .expect("authorized unsafe write succeeds");
     assert_eq!(root.middle.leaf.value, "after");
 }
 
@@ -1012,10 +939,7 @@ fn test_read_nested_property_from_root_instance() {
     let PropertyValue::Borrowed(value) = value else {
         panic!("string field should be returned as a borrow");
     };
-    assert_eq!(
-        value.downcast_ref::<String>().map(String::as_str),
-        Some("nested")
-    );
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("nested"));
     assert_eq!(path.leaf_property().name(), "value");
 }
 
@@ -1062,10 +986,7 @@ fn test_typed_access_path_apis_support_public_fields() {
         let PropertyValue::Borrowed(value) = value else {
             panic!("string field should be returned as a borrow");
         };
-        assert_eq!(
-            value.downcast_ref::<String>().map(String::as_str),
-            Some("before")
-        );
+        assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("before"));
     }
 
     path.write(&mut root, "after".to_owned())
@@ -1089,10 +1010,7 @@ fn test_typed_read_reports_root_type_mismatch() {
         Ok(_) => panic!("a different root type should be rejected"),
         Err(error) => error,
     };
-    assert!(matches!(
-        error,
-        PropertyAccessPathError::RootTypeMismatch { .. }
-    ));
+    assert!(matches!(error, PropertyAccessPathError::RootTypeMismatch { .. }));
 }
 
 /// Rejects empty, unknown, and root-mismatched path inputs structurally.
@@ -1108,11 +1026,7 @@ fn test_compile_and_read_report_structured_path_errors() {
         Err(PropertyAccessPathError::EmptySegment { index: 0 })
     ));
     assert!(matches!(
-        PropertyAccessPath::compile(
-            &registry,
-            TypeMetadata::of::<AccessRoot>(),
-            &["middle", "missing"],
-        ),
+        PropertyAccessPath::compile(&registry, TypeMetadata::of::<AccessRoot>(), &["middle", "missing"],),
         Err(PropertyAccessPathError::UnknownProperty { index: 1, .. })
     ));
     let path = PropertyAccessPath::compile(
@@ -1181,10 +1095,7 @@ fn test_write_leaf_failure_preserves_replacement() {
         },
     };
     let failure = path
-        .write_dynamic(
-            DynamicMut::<Local>::new(&mut root),
-            DynamicOwned::<Local>::new(17_u32),
-        )
+        .write_dynamic(DynamicMut::<Local>::new(&mut root), DynamicOwned::<Local>::new(17_u32))
         .expect_err("leaf value type must match");
 
     assert!(failure.property_failure().is_some());
@@ -1192,16 +1103,11 @@ fn test_write_leaf_failure_preserves_replacement() {
     assert!(std::error::Error::source(&failure).is_some());
     assert_eq!(
         failure.to_string(),
-        failure
-            .property_failure()
-            .expect("leaf failure")
-            .to_string()
+        failure.property_failure().expect("leaf failure").to_string()
     );
     assert!(format!("{failure:?}").contains("Property"));
     assert_eq!(
-        failure
-            .replacement()
-            .and_then(|value| value.downcast_ref::<u32>()),
+        failure.replacement().and_then(|value| value.downcast_ref::<u32>()),
         Some(&17)
     );
     assert_eq!(root.middle.leaf.value, "unchanged");

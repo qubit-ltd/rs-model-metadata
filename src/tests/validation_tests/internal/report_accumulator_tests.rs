@@ -58,9 +58,7 @@ fn test_prerequisite_references_do_not_consume_the_failure_limit() {
 
 #[test]
 fn test_fail_fast_stops_on_original_failure() {
-    let options = ValidationOptions::builder()
-        .mode(ValidationMode::FailFast)
-        .build();
+    let options = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
     let mut accumulator = ReportAccumulator::new(&options);
     accumulator
         .accept(

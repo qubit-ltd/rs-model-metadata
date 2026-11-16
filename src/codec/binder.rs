@@ -74,9 +74,7 @@ pub use codec_occurrence_id::CodecOccurrenceId;
 /// # Returns
 ///
 /// All successful bindings, keyed by process-local codec occurrence identity.
-pub fn bind_codecs<'a, 'graph>(
-    inputs: CodecBindInputs<'a, 'graph>,
-) -> Result<CodecBindings<'graph>, CodecBindErrors> {
+pub fn bind_codecs<'a, 'graph>(inputs: CodecBindInputs<'a, 'graph>) -> Result<CodecBindings<'graph>, CodecBindErrors> {
     bind_core(inputs, None)
 }
 
@@ -179,15 +177,9 @@ fn bind_core<'a, 'graph>(
                 skipped.as_deref_mut(),
             );
         }
-        for variant in metadata
-            .as_enum()
-            .into_iter()
-            .flat_map(|value| value.variants())
-        {
+        for variant in metadata.as_enum().into_iter().flat_map(|value| value.variants()) {
             for field in variant.fields() {
-                let field_name = field
-                    .name()
-                    .map_or_else(|| field.index().to_string(), str::to_owned);
+                let field_name = field.name().map_or_else(|| field.index().to_string(), str::to_owned);
                 let path = format!("{}.{}", variant.canonical_name(), field_name);
                 bind_field_at(
                     model,
@@ -285,10 +277,7 @@ fn bind_field_at<'a>(
     errors: &mut Vec<CodecBindError>,
     mut skipped: Option<&mut Vec<CodecBindSkip>>,
 ) {
-    let Some(descriptor) = field
-        .reflect_in(context)
-        .and_then(|field| field.find_concrete_type())
-    else {
+    let Some(descriptor) = field.reflect_in(context).and_then(|field| field.find_concrete_type()) else {
         if let Some(skipped) = skipped.as_deref_mut() {
             skipped.push(CodecBindSkip::new(
                 model,
@@ -320,9 +309,7 @@ fn bind_field_at<'a>(
             errors,
         );
     }
-    let sequence = field
-        .sequence_constraint()
-        .and_then(|value| value.element());
+    let sequence = field.sequence_constraint().and_then(|value| value.element());
     let map = field.map_constraint();
     for selector in [
         sequence,
@@ -343,18 +330,11 @@ fn bind_field_at<'a>(
             }
             continue;
         };
-        let Some(codec) = selector
-            .codec()
-            .or_else(|| canonical_codec(expected, graph))
-        else {
+        let Some(codec) = selector.codec().or_else(|| canonical_codec(expected, graph)) else {
             continue;
         };
         bind_one(
-            CodecOccurrenceId::new(
-                model,
-                path.clone(),
-                CodecSource::Selector(selector.position()),
-            ),
+            CodecOccurrenceId::new(model, path.clone(), CodecSource::Selector(selector.position())),
             codec,
             expected,
             codecs,
@@ -422,10 +402,7 @@ fn bind_one<'a>(
                 *declaration.codec(),
                 expected_type,
                 None,
-                candidates
-                    .iter()
-                    .map(|registration| registration.source())
-                    .collect(),
+                candidates.iter().map(|registration| registration.source()).collect(),
             ));
             return;
         }
@@ -509,19 +486,12 @@ mod tests {
         value: String,
     }
 
-    static ELEMENT: SelectorMetadata =
-        SelectorMetadata::new(SelectorPosition::Element, &[], &[], None, None);
-    static MAP_KEY: SelectorMetadata =
-        SelectorMetadata::new(SelectorPosition::MapKey, &[], &[], None, None);
-    static MAP_VALUE: SelectorMetadata =
-        SelectorMetadata::new(SelectorPosition::MapValue, &[], &[], None, None);
+    static ELEMENT: SelectorMetadata = SelectorMetadata::new(SelectorPosition::Element, &[], &[], None, None);
+    static MAP_KEY: SelectorMetadata = SelectorMetadata::new(SelectorPosition::MapKey, &[], &[], None, None);
+    static MAP_VALUE: SelectorMetadata = SelectorMetadata::new(SelectorPosition::MapValue, &[], &[], None, None);
     static CONSTRAINTS: [ConstraintMetadata; 2] = [
-        ConstraintMetadata::Sequence(
-            SequenceConstraint::new(None, None, false).with_element(&ELEMENT),
-        ),
-        ConstraintMetadata::Map(
-            MapConstraint::new(None, None).with_selectors(Some(&MAP_KEY), Some(&MAP_VALUE)),
-        ),
+        ConstraintMetadata::Sequence(SequenceConstraint::new(None, None, false).with_element(&ELEMENT)),
+        ConstraintMetadata::Map(MapConstraint::new(None, None).with_selectors(Some(&MAP_KEY), Some(&MAP_VALUE))),
     ];
 
     #[test]
@@ -534,9 +504,7 @@ mod tests {
             reflected_field.index(),
             reflected_field.name(),
             reflected_field.visibility(),
-            reflected_field
-                .type_expression_data()
-                .expect("field expression"),
+            reflected_field.type_expression_data().expect("field expression"),
             None,
             &[],
             &CONSTRAINTS,
@@ -544,8 +512,7 @@ mod tests {
             reflected_field.serde(),
         )));
         let roots = [root];
-        let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[])
-            .expect("isolated registry");
+        let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[]).expect("isolated registry");
         let graph = StructureResolver::new(ResolveInputs {
             models: &models,
             roots: &roots,

@@ -251,21 +251,17 @@ impl ReflectTrait for MutualCycleRoot {
         };
         static ROOT_ADAPTER: TypedFieldAdapter<MutualCycleRoot, Box<MutualCycleNode>> =
             TypedFieldAdapter::new(mutual_root_next, mutual_root_next_mut);
-        static ROOT_FIELDS: [ReflectFieldMetadata; 1] = [ReflectFieldMetadata::typed::<
-            MutualCycleRoot,
-            Box<MutualCycleNode>,
-        >(
-            0,
-            "next",
-            Visibility::Public,
-            &ROOT_EXPRESSION,
-            &ROOT_ADAPTER,
-            ReflectFieldAccess::new(true, true, true, true),
-        )];
+        static ROOT_FIELDS: [ReflectFieldMetadata; 1] =
+            [ReflectFieldMetadata::typed::<MutualCycleRoot, Box<MutualCycleNode>>(
+                0,
+                "next",
+                Visibility::Public,
+                &ROOT_EXPRESSION,
+                &ROOT_ADAPTER,
+                ReflectFieldAccess::new(true, true, true, true),
+            )];
         static ROOT_SHAPE: TypeKindMetadata = TypeKindMetadata::Struct(&ROOT_FIELDS);
-        TypeRegistration::<Self>::get_or_init_with(|| {
-            TypeRegistration::<Self>::with_shape(&ROOT_SHAPE, None, &[])
-        })
+        TypeRegistration::<Self>::get_or_init_with(|| TypeRegistration::<Self>::with_shape(&ROOT_SHAPE, None, &[]))
     }
 }
 
@@ -319,9 +315,7 @@ impl ReflectTrait for MutualCycleNode {
             ),
         ];
         static SHAPE: TypeKindMetadata = TypeKindMetadata::Struct(&FIELDS);
-        TypeRegistration::<Self>::get_or_init_with(|| {
-            TypeRegistration::<Self>::with_shape(&SHAPE, None, &[])
-        })
+        TypeRegistration::<Self>::get_or_init_with(|| TypeRegistration::<Self>::with_shape(&SHAPE, None, &[]))
     }
 }
 
@@ -330,8 +324,7 @@ static NODE_EXPRESSION: ExpressionData = ExpressionData::Named {
     definition: None,
     arguments: &[],
 };
-static BOX_NODE_ARGUMENTS: [GenericExpressionArgument; 1] =
-    [GenericExpressionArgument::Type(&NODE_EXPRESSION)];
+static BOX_NODE_ARGUMENTS: [GenericExpressionArgument; 1] = [GenericExpressionArgument::Type(&NODE_EXPRESSION)];
 
 type LegacyResult = Result<(Option<ModelRole>, Vec<TypeId>), ModelMetadataError>;
 
@@ -384,10 +377,7 @@ fn mutual_cycle_reflection() -> ReflectionContext {
         .expect("mutually recursive raw descriptors are registered")
 }
 
-fn previous_algorithm<'ctx>(
-    descriptor: TypeDescriptor<'ctx>,
-    context: &ResolutionContext<'ctx>,
-) -> LegacyResult {
+fn previous_algorithm<'ctx>(descriptor: TypeDescriptor<'ctx>, context: &ResolutionContext<'ctx>) -> LegacyResult {
     let mut ancestors = HashSet::new();
     let mut pending = vec![(descriptor, false)];
     let mut visits = Vec::new();
@@ -451,12 +441,11 @@ fn test_nested_role_shared_graph_expands_each_type_once() {
     let resolution = ResolutionContext::new(&models, &[root]);
     let mut visits = Vec::<TypeId>::new();
 
-    let result = forbidden_entity_nested_role_with_visit(
-        TypeDescriptor::of::<SharedLevel1>(),
-        &resolution,
-        |type_id| visits.push(type_id),
-    )
-    .expect("metadata lookup succeeds");
+    let result =
+        forbidden_entity_nested_role_with_visit(TypeDescriptor::of::<SharedLevel1>(), &resolution, |type_id| {
+            visits.push(type_id)
+        })
+        .expect("metadata lookup succeeds");
 
     assert_eq!(result, None);
     let unique = visits.iter().copied().collect::<HashSet<_>>();
@@ -510,11 +499,8 @@ fn test_nested_role_shared_graph_visit_count_tracks_unique_depth() {
     for _ in 0..2 {
         let mut visits = Vec::new();
         assert_eq!(
-            forbidden_entity_nested_role_with_visit(
-                TypeDescriptor::of::<SharedLevel1>(),
-                &resolution,
-                |id| visits.push(id),
-            )
+            forbidden_entity_nested_role_with_visit(TypeDescriptor::of::<SharedLevel1>(), &resolution, |id| visits
+                .push(id),)
             .expect("metadata lookup succeeds"),
             None,
         );
@@ -539,10 +525,7 @@ fn test_nested_role_cycle_does_not_hide_a_later_entity_or_projection() {
         ),
     ] {
         let resolution = ResolutionContext::new(&models, &[root]);
-        assert_eq!(
-            assert_matches_previous(descriptor, &resolution),
-            Ok(Some(role))
-        );
+        assert_eq!(assert_matches_previous(descriptor, &resolution), Ok(Some(role)));
     }
 }
 
@@ -563,18 +546,15 @@ fn test_nested_role_keeps_declaration_order_between_entity_and_projection() {
         ),
     ] {
         let resolution = ResolutionContext::new(&models, &[root]);
-        assert_eq!(
-            assert_matches_previous(descriptor, &resolution),
-            Ok(Some(expected))
-        );
+        assert_eq!(assert_matches_previous(descriptor, &resolution), Ok(Some(expected)));
     }
 }
 
 #[test]
 fn test_nested_role_preserves_error_and_role_order_after_cycles() {
     let reflection = lookup_failure_reflection();
-    let models = ModelRegistry::from_static_metadata(&reflection, &[])
-        .expect("metadata-only registry defers capability lookup");
+    let models =
+        ModelRegistry::from_static_metadata(&reflection, &[]).expect("metadata-only registry defers capability lookup");
 
     for (descriptor, root) in [
         (
@@ -619,8 +599,7 @@ fn test_nested_role_preserves_abi_error_order_and_cause() {
     let roots = [root, TypeMetadata::of::<ForbiddenEntity>()];
     let resolution = ResolutionContext::new(&models, &roots);
     let actual = forbidden_entity_nested_role(descriptor, &resolution);
-    let _ = assert_matches_previous(descriptor, &resolution)
-        .expect_err("ABI failure before the role must propagate");
+    let _ = assert_matches_previous(descriptor, &resolution).expect_err("ABI failure before the role must propagate");
     assert!(matches!(
         actual,
         Err(ModelMetadataError::Abi { type_id, source, .. })
@@ -642,16 +621,8 @@ fn test_nested_role_preserves_abi_error_order_and_cause() {
 fn test_nested_role_mutual_cycle_keeps_sibling_role_and_abi_error_visible() {
     let reflection = mutual_cycle_reflection();
     let root_descriptor = descriptor_in::<MutualCycleRoot>(&reflection);
-    assert_eq!(
-        root_descriptor.fields().len(),
-        1,
-        "root shape is registered"
-    );
-    let next_field = root_descriptor
-        .fields()
-        .iter()
-        .next()
-        .expect("root next field");
+    assert_eq!(root_descriptor.fields().len(), 1, "root shape is registered");
+    let next_field = root_descriptor.fields().iter().next().expect("root next field");
     assert_eq!(
         next_field
             .find_concrete_type()
@@ -664,10 +635,7 @@ fn test_nested_role_mutual_cycle_keeps_sibling_role_and_abi_error_visible() {
     let role_context = ResolutionContext::new(&models, &[projection_root]);
     let mut visited = Vec::new();
     let root_descriptor = descriptor_in::<MutualCycleRoot>(&reflection);
-    let role_result =
-        forbidden_entity_nested_role_with_visit(root_descriptor, &role_context, |id| {
-            visited.push(id)
-        });
+    let role_result = forbidden_entity_nested_role_with_visit(root_descriptor, &role_context, |id| visited.push(id));
     assert_eq!(
         role_result.map_err(|error| format!("{error:?}")),
         Ok(Some(ModelRole::Projection)),
@@ -712,10 +680,7 @@ fn test_nested_role_respects_opaque_and_reference_boundaries() {
     let models = ModelRegistry::from_context(&reflection).expect("model registry");
     let resolution = ResolutionContext::new(&models, &[root]);
     assert_eq!(
-        assert_matches_previous(
-            TypeDescriptor::of::<OpaqueAndReferenceBoundary>(),
-            &resolution,
-        ),
+        assert_matches_previous(TypeDescriptor::of::<OpaqueAndReferenceBoundary>(), &resolution,),
         Ok(None),
     );
 }
@@ -729,10 +694,7 @@ fn test_nested_role_finds_entities_through_enum_raw_and_repeated_containers() {
             TypeDescriptor::of::<ContainerPayload>(),
             TypeMetadata::of::<ContainerPayload>(),
         ),
-        (
-            TypeDescriptor::of::<EnumPayload>(),
-            TypeMetadata::of::<EnumPayload>(),
-        ),
+        (TypeDescriptor::of::<EnumPayload>(), TypeMetadata::of::<EnumPayload>()),
         (
             TypeDescriptor::of::<RawEntityPayload>(),
             TypeMetadata::of::<ContainerPayload>(),

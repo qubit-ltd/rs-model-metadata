@@ -42,12 +42,8 @@ fn second_context_metadata() -> &'static TypeMetadata {
 
 fn anonymous_metadata() -> &'static TypeMetadata {
     v8::leak(
-        v8::GeneratedTypeMetadataBuilder::new::<AnonymousMetadataFixture>(
-            None,
-            &[],
-            v8::leak(v8::model_role()),
-        )
-        .finish::<AnonymousMetadataFixture>(),
+        v8::GeneratedTypeMetadataBuilder::new::<AnonymousMetadataFixture>(None, &[], v8::leak(v8::model_role()))
+            .finish::<AnonymousMetadataFixture>(),
     )
 }
 
@@ -84,17 +80,11 @@ fn test_metadata_cache_is_scoped_to_its_reflection_context() {
         .expect("registered type");
 
     assert!(std::ptr::eq(
-        first
-            .metadata_for(&first_descriptor)
-            .expect("first lookup")
-            .unwrap(),
+        first.metadata_for(&first_descriptor).expect("first lookup").unwrap(),
         first_metadata,
     ));
     assert!(std::ptr::eq(
-        second
-            .metadata_for(&second_descriptor)
-            .expect("second lookup")
-            .unwrap(),
+        second.metadata_for(&second_descriptor).expect("second lookup").unwrap(),
         second_metadata,
     ));
     assert!(std::ptr::eq(
@@ -132,8 +122,7 @@ fn test_metadata_lookup_returns_none_for_type_outside_registry_context() {
 #[test]
 fn test_empty_metadata_registry_exposes_empty_indexes() {
     let empty_context = ReflectionContext::builder().build().expect("empty context");
-    let registry =
-        ModelRegistry::from_static_metadata(&empty_context, &[]).expect("empty registry is valid");
+    let registry = ModelRegistry::from_static_metadata(&empty_context, &[]).expect("empty registry is valid");
 
     assert!(format!("{registry:?}").contains("ModelRegistry"));
     assert!(registry.entries().is_empty());
@@ -173,19 +162,13 @@ fn test_global_registry_accessors_share_the_initialized_registry() {
     };
     assert_eq!(fixture.name, "registry");
     let metadata = TypeMetadata::try_of::<RegistryAccessorFixture>().expect("fixture ABI");
-    assert!(std::ptr::eq(
-        TypeMetadata::of::<RegistryAccessorFixture>(),
-        metadata
-    ));
+    assert!(std::ptr::eq(TypeMetadata::of::<RegistryAccessorFixture>(), metadata));
     assert_eq!(metadata.model_id().expect("fixture model ID").as_str(), id);
     assert!(metadata.is_registered());
     assert!(metadata.as_model().is_some());
     assert!(metadata.as_value().is_none());
     assert_eq!(metadata.fields().len(), 1);
-    assert_eq!(
-        metadata.field("name").expect("name field").name(),
-        Some("name")
-    );
+    assert_eq!(metadata.field("name").expect("name field").name(), Some("name"));
     assert!(std::ptr::eq(
         metadata.field_at(0).expect("first field"),
         metadata.field("name").unwrap()
@@ -207,12 +190,5 @@ fn test_global_registry_accessors_share_the_initialized_registry() {
     );
     assert!(fallible.metadata(id).is_some());
     assert!(fallible.source(id).is_some());
-    assert_eq!(
-        fallible
-            .get(id)
-            .expect("registered entry")
-            .model_id()
-            .as_str(),
-        id
-    );
+    assert_eq!(fallible.get(id).expect("registered entry").model_id().as_str(), id);
 }

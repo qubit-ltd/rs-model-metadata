@@ -200,9 +200,9 @@ impl PreparedValidator for Reject {
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
         assert!(value.as_text().is_some());
-        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(
-            ViolationCode::new("value.invalid"),
-        )]))
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+            "value.invalid",
+        ))]))
     }
 }
 
@@ -224,9 +224,9 @@ impl PreparedValidator for RejectModel {
         _: &BoundValidationContext<'_>,
     ) -> Result<PreparedOutcome, ExecutionError> {
         assert!(value.typed::<TestModel>().is_some());
-        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(
-            ViolationCode::new("model.invalid"),
-        )]))
+        Ok(PreparedOutcome::Invalid(vec![ViolationDraft::new(ViolationCode::new(
+            "model.invalid",
+        ))]))
     }
 }
 
@@ -248,8 +248,7 @@ impl PreparedValidator for FailModel {
     }
 }
 
-static SIGNATURES: &[ValidatorSignature] =
-    &[ValidatorSignature::new(InputType::Text, &[], prepare)];
+static SIGNATURES: &[ValidatorSignature] = &[ValidatorSignature::new(InputType::Text, &[], prepare)];
 static DESCRIPTOR: ValidatorDescriptor = ValidatorDescriptor::new(SIGNATURES);
 static REGISTRATION: ValidatorRegistration = ValidatorRegistration::new(
     ValidatorId::new("test.reject"),
@@ -272,18 +271,13 @@ fn source() -> &'static ModelRegistryOrigin {
 fn test_executes_bound_rule_and_prefixes_field_path() {
     let metadata = TypeMetadata::of::<TestModel>();
     let models = ModelRegistry::global();
-    assert!(
-        models
-            .by_type_id(TypeMetadata::of::<NestedModel>().type_id())
-            .is_some()
-    );
+    assert!(models.by_type_id(TypeMetadata::of::<NestedModel>().type_id()).is_some());
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs { roots: &[], models })
             .resolve()
             .expect("structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -294,9 +288,7 @@ fn test_executes_bound_rule_and_prefixes_field_path() {
     .expect("binding");
     let report = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new_any(&TestModel {
-                name: "bad".to_owned(),
-            }),
+            DynamicRef::<Local>::new_any(&TestModel { name: "bad".to_owned() }),
             &ValidationOptions::default(),
         )
         .expect("execution");
@@ -305,21 +297,14 @@ fn test_executes_bound_rule_and_prefixes_field_path() {
     assert_eq!(report.violations()[0].path().render(), "name");
 
     let typed = plan
-        .validate(
-            &TestModel {
-                name: "bad".to_owned(),
-            },
-            &ValidationOptions::default(),
-        )
+        .validate(&TestModel { name: "bad".to_owned() }, &ValidationOptions::default())
         .expect("typed validation execution");
     assert_eq!(typed.violations().len(), 1);
     assert_eq!(typed.violations()[0].path().render(), "name");
 
     let contextual = plan
         .validate_with_context(
-            &TestModel {
-                name: "bad".to_owned(),
-            },
+            &TestModel { name: "bad".to_owned() },
             &[],
             &ValidationOptions::default(),
         )
@@ -349,9 +334,7 @@ fn test_enum_named_payload_rule_runs_only_for_its_active_variant() {
 
     let invalid = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new(&EnumPayloadRules::Named {
-                name: "  ".to_owned(),
-            }),
+            DynamicRef::<Local>::new(&EnumPayloadRules::Named { name: "  ".to_owned() }),
             &ValidationOptions::default(),
         )
         .expect("active named field validation");
@@ -399,28 +382,20 @@ fn test_enum_tuple_payload_rule_reports_variant_and_field_index() {
 
 #[test]
 fn test_nested_enum_payload_paths_and_guard_budget_preserve_partial_report() {
-    let plan =
-        map_plan(TypeMetadata::of::<EnumPayloadRoot>()).expect("nested enum payload binding");
+    let plan = map_plan(TypeMetadata::of::<EnumPayloadRoot>()).expect("nested enum payload binding");
     let nested = EnumPayloadRoot {
         first: "valid".to_owned(),
-        payload: EnumPayloadRules::Named {
-            name: "  ".to_owned(),
-        },
+        payload: EnumPayloadRules::Named { name: "  ".to_owned() },
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&nested),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&nested), &ValidationOptions::default())
         .expect("nested enum payload validates");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "payload.Named.name");
 
     let budget_limited = EnumPayloadRoot {
         first: String::new(),
-        payload: EnumPayloadRules::Named {
-            name: "  ".to_owned(),
-        },
+        payload: EnumPayloadRules::Named { name: "  ".to_owned() },
     };
     let options = ValidationOptions::builder()
         .max_nodes(NonZeroUsize::new(4).expect("positive node budget"))
@@ -431,10 +406,7 @@ fn test_nested_enum_payload_paths_and_guard_budget_preserve_partial_report() {
     assert_eq!(error.error().kind(), ExecutionErrorKind::TraversalLimit);
     assert_eq!(error.error().path().render(), "payload.Named.name");
     assert_eq!(error.partial_report().violations().len(), 1);
-    assert_eq!(
-        error.partial_report().violations()[0].path().render(),
-        "first"
-    );
+    assert_eq!(error.partial_report().violations()[0].path().render(), "first");
 }
 
 #[test]
@@ -446,8 +418,7 @@ fn test_combined_enum_option_selector_unique_and_partial_budget_execution() {
             .resolve()
             .expect("combined validation structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -458,9 +429,7 @@ fn test_combined_enum_option_selector_unique_and_partial_budget_execution() {
     .expect("combined declarations bind");
     let model = DenseValidationRoot {
         first: "ok".to_owned(),
-        payload: EnumPayloadRules::Named {
-            name: "  ".to_owned(),
-        },
+        payload: EnumPayloadRules::Named { name: "  ".to_owned() },
         optional: Some(OptionalPathChild {
             first: String::new(),
             second: "x".to_owned(),
@@ -469,10 +438,7 @@ fn test_combined_enum_option_selector_unique_and_partial_budget_execution() {
     };
 
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&model),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
         .expect("unlimited combined validation completes");
     let paths: Vec<_> = report
         .violations()
@@ -483,13 +449,7 @@ fn test_combined_enum_option_selector_unique_and_partial_budget_execution() {
     assert!(paths.contains(&"optional.first".to_owned()));
     assert!(paths.contains(&"optional.second".to_owned()));
     assert!(paths.contains(&"values[0]".to_owned()));
-    assert_eq!(
-        paths
-            .iter()
-            .filter(|path| path.as_str() == "values[1]")
-            .count(),
-        2
-    );
+    assert_eq!(paths.iter().filter(|path| path.as_str() == "values[1]").count(), 2);
 
     let limited = ValidationOptions::builder()
         .max_comparisons(NonZeroUsize::new(1).expect("positive comparison budget"))
@@ -519,13 +479,10 @@ fn test_executes_typed_model_rule_binding() {
             .resolve()
             .expect("structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
-    let binding = ModelRuleBinding::from_prepared::<TestModel>(
-        ValidatorId::new("test.model.reject"),
-        Arc::new(RejectModel),
-    )
-    .expect("prepared model shape");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let binding =
+        ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.reject"), Arc::new(RejectModel))
+            .expect("prepared model shape");
     let diagnostic = format!("{binding:?}");
     assert!(diagnostic.contains("test.model.reject"));
     assert!(
@@ -544,27 +501,20 @@ fn test_executes_typed_model_rule_binding() {
     .expect("model rules match plan root");
     let report = plan
         .validate_dynamic(
-            DynamicRef::<Local>::new_any(&TestModel {
-                name: "bad".to_owned(),
-            }),
+            DynamicRef::<Local>::new_any(&TestModel { name: "bad".to_owned() }),
             &ValidationOptions::default(),
         )
         .expect("execution");
     assert_eq!(report.violations().len(), 2);
     assert_eq!(report.violations()[0].path().render(), "");
     let empty: [&str; 0] = [];
-    for (path, expected) in [
-        (FieldPath::from_segments(empty), ""),
-        (FieldPath::new("name"), "name"),
-    ] {
+    for (path, expected) in [(FieldPath::from_segments(empty), ""), (FieldPath::new("name"), "name")] {
         let options = ValidationOptions::builder()
             .selection(ValidationSelection::Fields(vec![path]))
             .build();
         let selected = plan
             .validate_dynamic(
-                DynamicRef::<Local>::new_any(&TestModel {
-                    name: "bad".to_owned(),
-                }),
+                DynamicRef::<Local>::new_any(&TestModel { name: "bad".to_owned() }),
                 &options,
             )
             .expect("selected model or field rule");
@@ -582,13 +532,10 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
             .resolve()
             .expect("structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
-    let binding = ModelRuleBinding::from_prepared::<TestModel>(
-        ValidatorId::new("test.model.failure"),
-        Arc::new(FailModel),
-    )
-    .expect("prepared model shape");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let binding =
+        ModelRuleBinding::from_prepared::<TestModel>(ValidatorId::new("test.model.failure"), Arc::new(FailModel))
+            .expect("prepared model shape");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -609,14 +556,8 @@ fn test_model_rule_execution_errors_keep_the_bound_rule_id() {
         )
         .expect_err("model rule execution fails");
     assert_eq!(error.error().kind(), ExecutionErrorKind::PropertyReadFailed);
-    assert_eq!(
-        error.error().rule_id(),
-        Some(ValidatorId::new("test.model.failure"))
-    );
-    let source = error
-        .error()
-        .trusted_source()
-        .expect("trusted cause retained");
+    assert_eq!(error.error().rule_id(), Some(ValidatorId::new("test.model.failure")));
+    let source = error.error().trusted_source().expect("trusted cause retained");
     assert!(source.is::<PropertyAccessError>());
     assert!(source.to_string().contains("sensitive property detail"));
     assert!(!error.to_string().contains("sensitive property detail"));
@@ -635,8 +576,7 @@ fn test_executes_element_selector_for_borrowed_slice() {
             .resolve()
             .expect("structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -678,8 +618,7 @@ fn test_executes_array_selector_and_skips_absent_optional_sequence() {
             .resolve()
             .expect("structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -725,8 +664,7 @@ fn test_executes_hash_and_btree_map_key_and_value_selectors() {
             .resolve()
             .expect("structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -752,16 +690,8 @@ fn test_executes_hash_and_btree_map_key_and_value_selectors() {
         .collect();
     assert!(paths.iter().any(|path| path.ends_with(".<map-key>")));
     assert!(paths.iter().any(|path| path.ends_with(".<map-value>")));
-    assert!(
-        paths
-            .iter()
-            .any(|path| path.starts_with("hash.<map-entry:0>"))
-    );
-    assert!(
-        paths
-            .iter()
-            .any(|path| path.starts_with("tree.<map-entry:0>"))
-    );
+    assert!(paths.iter().any(|path| path.starts_with("hash.<map-entry:0>")));
+    assert!(paths.iter().any(|path| path.starts_with("tree.<map-entry:0>")));
     for pair in paths.chunks_exact(2) {
         assert!(pair[0].ends_with(".<map-key>"));
         assert!(pair[1].ends_with(".<map-value>"));
@@ -786,18 +716,13 @@ fn test_executes_hash_and_btree_map_key_and_value_selectors() {
 fn test_executes_validators_declared_by_an_optional_nested_model() {
     let metadata = TypeMetadata::of::<NestedRoot>();
     let models = ModelRegistry::global();
-    assert!(
-        models
-            .by_type_id(TypeMetadata::of::<NestedModel>().type_id())
-            .is_some()
-    );
+    assert!(models.by_type_id(TypeMetadata::of::<NestedModel>().type_id()).is_some());
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs { roots: &[], models })
             .resolve()
             .expect("structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -811,9 +736,7 @@ fn test_executes_validators_declared_by_an_optional_nested_model() {
     let report = plan
         .validate_dynamic(
             DynamicRef::<Local>::new(&NestedRoot {
-                child: Some(NestedModel {
-                    name: "bad".to_owned(),
-                }),
+                child: Some(NestedModel { name: "bad".to_owned() }),
             }),
             &ValidationOptions::default(),
         )
@@ -863,10 +786,7 @@ fn test_optional_nested_model_executes_at_each_usage_path() {
         right: None,
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&missing),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&missing), &ValidationOptions::default())
         .expect("missing children skip descendants");
     assert!(report.violations().is_empty());
 
@@ -879,34 +799,20 @@ fn test_optional_nested_model_executes_at_each_usage_path() {
         right: Some(invalid_child()),
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&present),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&present), &ValidationOptions::default())
         .expect("both child uses execute");
     let paths: Vec<_> = report
         .violations()
         .iter()
         .map(|violation| violation.path().render())
         .collect();
-    assert_eq!(
-        paths,
-        ["left.first", "left.second", "right.first", "right.second"]
-    );
+    assert_eq!(paths, ["left.first", "left.second", "right.first", "right.second"]);
     let codes: Vec<_> = report
         .violations()
         .iter()
         .map(|violation| violation.code().as_str())
         .collect();
-    assert_eq!(
-        codes,
-        [
-            "text.blank",
-            "text.too_short",
-            "text.blank",
-            "text.too_short"
-        ]
-    );
+    assert_eq!(codes, ["text.blank", "text.too_short", "text.blank", "text.too_short"]);
 }
 
 #[test]
@@ -969,22 +875,15 @@ fn test_optional_intermediate_none_skips_terminal_optional_text() {
         )
         .expect("present terminal optional should execute text validation");
     assert_eq!(present_terminal.violations().len(), 1);
-    assert_eq!(
-        present_terminal.violations()[0].path().render(),
-        "child.value"
-    );
-    assert_eq!(
-        present_terminal.violations()[0].code().as_str(),
-        "text.blank"
-    );
+    assert_eq!(present_terminal.violations()[0].path().render(), "child.value");
+    assert_eq!(present_terminal.violations()[0].code().as_str(), "text.blank");
 }
 
 #[test]
 fn test_traversal_budgets_are_enforced_before_execution() {
     let metadata = TypeMetadata::of::<TestModel>();
-    let models =
-        ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, source())])
-            .expect("model registry");
+    let models = ModelRegistry::from_static_metadata(ReflectionContext::global(), &[(metadata, source())])
+        .expect("model registry");
     let graph = Arc::new(
         StructureResolver::new(ResolveInputs {
             roots: &[],
@@ -993,8 +892,7 @@ fn test_traversal_budgets_are_enforced_before_execution() {
         .resolve()
         .expect("structure"),
     );
-    let validators =
-        ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
+    let validators = ValidatorRegistry::from_registrations([REGISTRATION]).expect("validator registry");
     let plan = ValidationPlan::build(
         metadata,
         ValidationBuildInputs {
@@ -1003,9 +901,7 @@ fn test_traversal_budgets_are_enforced_before_execution() {
         },
     )
     .expect("binding");
-    let model = TestModel {
-        name: "bad".to_owned(),
-    };
+    let model = TestModel { name: "bad".to_owned() };
     let value = DynamicRef::<Local>::new(&model);
     let depth = ValidationOptions::builder()
         .max_depth(NonZeroUsize::new(1).expect("non-zero"))
@@ -1014,10 +910,7 @@ fn test_traversal_budgets_are_enforced_before_execution() {
     let nodes = ValidationOptions::builder()
         .max_nodes(NonZeroUsize::new(1).expect("non-zero"))
         .build();
-    assert!(
-        plan.validate_dynamic(DynamicRef::<Local>::new(&model), &nodes)
-            .is_err()
-    );
+    assert!(plan.validate_dynamic(DynamicRef::<Local>::new(&model), &nodes).is_err());
 }
 
 #[Model]
@@ -1106,17 +999,10 @@ fn test_map_count_validates_hash_and_tree_bounds_on_field_paths() {
             ordered: (0..count).map(|i| (i.to_string(), i)).collect(),
         };
         let report = plan
-            .validate_dynamic(
-                DynamicRef::<Local>::new(&model),
-                &ValidationOptions::default(),
-            )
+            .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
             .expect("map execution");
         assert_eq!(report.is_valid(), (1..=2).contains(&count));
-        let paths: Vec<_> = report
-            .violations()
-            .iter()
-            .map(|v| v.path().render())
-            .collect();
+        let paths: Vec<_> = report.violations().iter().map(|v| v.path().render()).collect();
         assert_eq!(
             paths,
             if (1..=2).contains(&count) {
@@ -1126,10 +1012,7 @@ fn test_map_count_validates_hash_and_tree_bounds_on_field_paths() {
             }
         );
         for violation in report.violations() {
-            assert_eq!(
-                violation.rule_id().as_str(),
-                "qubit.rules.collection.item_count"
-            );
+            assert_eq!(violation.rule_id().as_str(), "qubit.rules.collection.item_count");
             assert_eq!(
                 violation.code().as_str(),
                 if count == 0 {
@@ -1151,10 +1034,7 @@ fn test_map_optional_absence_skips_count_validation() {
     let plan = map_plan(TypeMetadata::of::<MapOptionalFixture>()).expect("optional map binding");
     let model = MapOptionalFixture { child: None };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&model),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
         .expect("optional map execution");
     assert!(report.is_valid());
     assert!(report.violations().is_empty());
@@ -1162,18 +1042,14 @@ fn test_map_optional_absence_skips_count_validation() {
 
 #[test]
 fn test_map_direct_optional_some_and_none_follow_count_bounds() {
-    let plan =
-        map_plan(TypeMetadata::of::<DirectOptionalMaps>()).expect("direct optional map binding");
+    let plan = map_plan(TypeMetadata::of::<DirectOptionalMaps>()).expect("direct optional map binding");
     for count in [None, Some(0), Some(1), Some(2), Some(3)] {
         let model = DirectOptionalMaps {
             hashed: count.map(|n| (0..n).map(|i| (i.to_string(), i)).collect()),
             ordered: count.map(|n| (0..n).map(|i| (i.to_string(), i)).collect()),
         };
         let report = plan
-            .validate_dynamic(
-                DynamicRef::<Local>::new(&model),
-                &ValidationOptions::default(),
-            )
+            .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
             .expect("direct optional execution");
         let expected_paths = if matches!(count, Some(0 | 3)) {
             vec!["hashed".to_owned(), "ordered".to_owned()]
@@ -1193,30 +1069,20 @@ fn test_map_direct_optional_some_and_none_follow_count_bounds() {
 
 #[test]
 fn test_map_optional_borrowed_getters_validate_some_and_skip_none() {
-    let plan =
-        map_plan(TypeMetadata::of::<OptionalGetterMaps>()).expect("optional getter map binding");
+    let plan = map_plan(TypeMetadata::of::<OptionalGetterMaps>()).expect("optional getter map binding");
     for count in [None, Some(0), Some(1), Some(2), Some(3)] {
         let model = OptionalGetterMaps {
             hashed: count.map(|n| (0..n).map(|i| (i.to_string(), i)).collect()),
             ordered: count.map(|n| (0..n).map(|i| (i.to_string(), i)).collect()),
         };
         let report = plan
-            .validate_dynamic(
-                DynamicRef::<Local>::new(&model),
-                &ValidationOptions::default(),
-            )
+            .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
             .expect("optional getter execution");
         let expected = if matches!(count, Some(0 | 3)) { 2 } else { 0 };
         assert_eq!(report.violations().len(), expected);
         for violation in report.violations() {
-            assert!(matches!(
-                violation.path().render().as_str(),
-                "hashed" | "ordered"
-            ));
-            assert_eq!(
-                violation.rule_id().as_str(),
-                "qubit.rules.collection.item_count"
-            );
+            assert!(matches!(violation.path().render().as_str(), "hashed" | "ordered"));
+            assert_eq!(violation.rule_id().as_str(), "qubit.rules.collection.item_count");
         }
     }
 }
@@ -1228,10 +1094,7 @@ fn test_map_missing_count_adapter_is_rejected_at_build() {
         Err(errors) => errors,
     };
     assert_eq!(errors.len(), 1);
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("entries"));
 }
 
@@ -1283,15 +1146,10 @@ fn test_nested_standard_constraints_are_executed() {
     )
     .expect("nested binding");
     let invalid = ConstrainedRoot {
-        child: Some(ConstrainedChild {
-            name: "x".to_owned(),
-        }),
+        child: Some(ConstrainedChild { name: "x".to_owned() }),
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&invalid),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&invalid), &ValidationOptions::default())
         .expect("execution");
     assert_eq!(report.violations().len(), 1);
     assert_eq!(report.violations()[0].path().render(), "child.name");
@@ -1395,27 +1253,16 @@ impl UniqueWrongGetterShape {
 #[test]
 fn test_unique_typed_and_model_execution_agree_on_first_duplicate() {
     let plan = map_plan(TypeMetadata::of::<UniqueOnlyFixture>()).expect("unique binding");
-    let cases: &[&[i32]] = &[
-        &[],
-        &[1],
-        &[1, 2, 3],
-        &[1, 1],
-        &[1, 2, 1],
-        &[2, 3, 3, 2],
-        &[1, 2, 3, 1],
-    ];
+    let cases: &[&[i32]] = &[&[], &[1], &[1, 2, 3], &[1, 1], &[1, 2, 1], &[2, 3, 3, 2], &[1, 2, 3, 1]];
 
     for values in cases {
-        let expected = UniqueItems::first_duplicate_with_limit(values, usize::MAX)
-            .expect("comparison budget covers every pair");
+        let expected =
+            UniqueItems::first_duplicate_with_limit(values, usize::MAX).expect("comparison budget covers every pair");
         let model = UniqueOnlyFixture {
             values: values.to_vec(),
         };
         let report = plan
-            .validate_dynamic(
-                DynamicRef::<Local>::new(&model),
-                &ValidationOptions::default(),
-            )
+            .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
             .expect("model uniqueness execution");
 
         match expected {
@@ -1434,9 +1281,7 @@ fn test_unique_typed_and_model_execution_agree_on_first_duplicate() {
         }
     }
 
-    let model = UniqueOnlyFixture {
-        values: vec![1, 2, 1],
-    };
+    let model = UniqueOnlyFixture { values: vec![1, 2, 1] };
     let one_comparison = ValidationOptions::builder()
         .max_comparisons(NonZeroUsize::new(1).expect("positive comparison budget"))
         .build();
@@ -1462,17 +1307,11 @@ fn test_unique_first_duplicate_has_indexed_path_and_safe_parameter() {
         values: vec![2, 3, 3, 2],
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&model),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
         .expect("unique execution");
     assert_eq!(report.violations().len(), 1);
     let violation = &report.violations()[0];
-    assert_eq!(
-        violation.rule_id().as_str(),
-        "qubit.rules.collection.unique"
-    );
+    assert_eq!(violation.rule_id().as_str(), "qubit.rules.collection.unique");
     assert_eq!(violation.code().as_str(), "collection.duplicate_item");
     assert_eq!(violation.path().render(), "values[2]");
     assert_eq!(
@@ -1482,12 +1321,9 @@ fn test_unique_first_duplicate_has_indexed_path_and_safe_parameter() {
     for values in [vec![], vec![2], vec![2, 3]] {
         let model = UniqueOnlyFixture { values };
         assert!(
-            plan.validate_dynamic(
-                DynamicRef::<Local>::new(&model),
-                &ValidationOptions::default()
-            )
-            .expect("distinct values")
-            .is_valid()
+            plan.validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
+                .expect("distinct values")
+                .is_valid()
         );
     }
 }
@@ -1496,16 +1332,10 @@ fn test_unique_first_duplicate_has_indexed_path_and_safe_parameter() {
 fn test_unique_report_does_not_expose_repeated_element() {
     let plan = map_plan(TypeMetadata::of::<UniqueTextFixture>()).expect("text equality binding");
     let model = UniqueTextFixture {
-        values: vec![
-            "sensitive-duplicate".to_owned(),
-            "sensitive-duplicate".to_owned(),
-        ],
+        values: vec!["sensitive-duplicate".to_owned(), "sensitive-duplicate".to_owned()],
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&model),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
         .expect("duplicate report");
     assert_eq!(report.violations()[0].path().render(), "values[1]");
     assert!(!format!("{:?}", report.violations()[0]).contains("sensitive-duplicate"));
@@ -1520,16 +1350,10 @@ fn test_unique_count_and_unique_have_separate_occurrences_and_partial_report() {
         later: "ok".to_owned(),
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&model),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
         .expect("all violations");
     assert_eq!(report.violations().len(), 2);
-    assert_eq!(
-        report.violations()[0].code().as_str(),
-        "collection.too_small"
-    );
+    assert_eq!(report.violations()[0].code().as_str(), "collection.too_small");
     assert_eq!(report.violations()[0].path().render(), "values");
     assert_eq!(report.violations()[1].path().render(), "values[2]");
 
@@ -1556,17 +1380,12 @@ fn test_unique_fail_fast_stops_before_later_field() {
         values: vec![1, 2, 1, 3],
         later: String::new(),
     };
-    let options = ValidationOptions::builder()
-        .mode(ValidationMode::FailFast)
-        .build();
+    let options = ValidationOptions::builder().mode(ValidationMode::FailFast).build();
     let report = plan
         .validate_dynamic(DynamicRef::<Local>::new(&model), &options)
         .expect("fail fast");
     assert_eq!(report.violations().len(), 1);
-    assert_eq!(
-        report.violations()[0].code().as_str(),
-        "collection.duplicate_item"
-    );
+    assert_eq!(report.violations()[0].code().as_str(), "collection.duplicate_item");
     assert_eq!(report.violations()[0].path().render(), "values[2]");
 }
 
@@ -1589,41 +1408,26 @@ fn test_unique_array_slice_getter_executes_and_unreadable_array_fails_build() {
     let plan = map_plan(TypeMetadata::of::<UniqueArrayFixture>()).expect("array slice getter");
     let model = UniqueArrayFixture { values: [1, 2, 1] };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&model),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
         .expect("array execution");
     assert_eq!(report.violations()[0].path().render(), "values[2]");
     let errors = match map_plan(TypeMetadata::of::<UniqueUnreadableArray>()) {
         Ok(_) => panic!("unreadable array must fail at build"),
         Err(errors) => errors,
     };
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("values"));
     let errors = match map_plan(TypeMetadata::of::<UniqueWrongGetterShape>()) {
         Ok(_) => panic!("non-slice getter must fail at build"),
         Err(errors) => errors,
     };
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("values"));
 }
 
 #[Model(no_redact, no_display, no_debug, no_serialize, no_deserialize)]
 struct ScalarDecimalFixture {
-    #[decimal(
-        precision = 4,
-        scale = 2,
-        min = "1.25",
-        max = "9.75",
-        min_inclusive = false
-    )]
+    #[decimal(precision = 4, scale = 2, min = "1.25", max = "9.75", min_inclusive = false)]
     amount: BigDecimal,
 }
 
@@ -1687,30 +1491,21 @@ fn test_scalar_decimal_normalizes_scale_and_checks_precision_and_exact_range() {
             amount: literal.parse().expect("decimal literal"),
         };
         let report = plan
-            .validate_dynamic(
-                DynamicRef::<Local>::new(&model),
-                &ValidationOptions::default(),
-            )
+            .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
             .expect("decimal execution");
         assert_eq!(
             report.violations().first().map(|v| v.code().as_str()),
             expected,
             "{literal}"
         );
-        assert!(
-            report
-                .violations()
-                .iter()
-                .all(|v| v.path().render() == "amount")
-        );
+        assert!(report.violations().iter().all(|v| v.path().render() == "amount"));
         assert!(!format!("{report:?}").contains(literal));
     }
 }
 
 #[test]
 fn test_scalar_decimal_precision_is_total_capacity_at_declared_scale() {
-    let plan =
-        map_plan(TypeMetadata::of::<DecimalCapacityFixture>()).expect("decimal capacity binding");
+    let plan = map_plan(TypeMetadata::of::<DecimalCapacityFixture>()).expect("decimal capacity binding");
     for (literal, expected) in [
         ("1.2300", None),
         ("12", Some("decimal.precision")),
@@ -1720,10 +1515,7 @@ fn test_scalar_decimal_precision_is_total_capacity_at_declared_scale() {
             amount: literal.parse().expect("decimal literal"),
         };
         let report = plan
-            .validate_dynamic(
-                DynamicRef::<Local>::new(&model),
-                &ValidationOptions::default(),
-            )
+            .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
             .expect("decimal execution");
         assert_eq!(
             report.violations().first().map(|v| v.code().as_str()),
@@ -1747,16 +1539,9 @@ fn test_scalar_time_resolutions_apply_to_utc_and_naive_getters() {
         local: "08:00:00.001001".parse().expect("naive time"),
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new_any(&model),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new_any(&model), &ValidationOptions::default())
         .expect("time execution");
-    let paths: Vec<_> = report
-        .violations()
-        .iter()
-        .map(|v| v.path().render())
-        .collect();
+    let paths: Vec<_> = report.violations().iter().map(|v| v.path().render()).collect();
     assert_eq!(paths, ["instant", "local"]);
     assert!(
         report
@@ -1774,18 +1559,14 @@ fn test_scalar_time_resolutions_apply_to_utc_and_naive_getters() {
 
 #[test]
 fn test_scalar_optional_none_skips_both_rules() {
-    let plan =
-        map_plan(TypeMetadata::of::<ScalarOptionalFixture>()).expect("optional scalar binding");
+    let plan = map_plan(TypeMetadata::of::<ScalarOptionalFixture>()).expect("optional scalar binding");
     let model = ScalarOptionalFixture {
         amount: None,
         instant: None,
         local: None,
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new_any(&model),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new_any(&model), &ValidationOptions::default())
         .expect("optional scalar execution");
     assert!(report.is_valid());
     assert_eq!(report.violations().len(), 0);
@@ -1800,16 +1581,9 @@ fn test_scalar_optional_none_skips_both_rules() {
         local: Some(NaiveTime::from_hms_milli_opt(8, 0, 0, 1).expect("local time")),
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new_any(&present),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new_any(&present), &ValidationOptions::default())
         .expect("present scalar execution");
-    let codes: Vec<_> = report
-        .violations()
-        .iter()
-        .map(|v| v.code().as_str())
-        .collect();
+    let codes: Vec<_> = report.violations().iter().map(|v| v.code().as_str()).collect();
     assert_eq!(codes, ["decimal.scale", "time.precision", "time.precision"]);
 }
 
@@ -1821,21 +1595,10 @@ fn test_scalar_declaration_reports_before_unrelated_field_failure() {
         label: String::new(),
     };
     let report = plan
-        .validate_dynamic(
-            DynamicRef::<Local>::new(&model),
-            &ValidationOptions::default(),
-        )
+        .validate_dynamic(DynamicRef::<Local>::new(&model), &ValidationOptions::default())
         .expect("ordered execution");
-    let codes: Vec<_> = report
-        .violations()
-        .iter()
-        .map(|v| v.code().as_str())
-        .collect();
-    let paths: Vec<_> = report
-        .violations()
-        .iter()
-        .map(|v| v.path().render())
-        .collect();
+    let codes: Vec<_> = report.violations().iter().map(|v| v.code().as_str()).collect();
+    let paths: Vec<_> = report.violations().iter().map(|v| v.path().render()).collect();
     assert_eq!(codes, ["decimal.scale", "text.blank"]);
     assert_eq!(paths, ["amount", "label"]);
 }
@@ -1846,10 +1609,7 @@ fn test_scalar_unsupported_temporal_type_is_rejected_at_build() {
         Ok(_) => panic!("date-only time rule must fail at build"),
         Err(errors) => errors,
     };
-    assert_eq!(
-        errors[0].kind(),
-        ValidationBuildErrorKind::UnsupportedExecution
-    );
+    assert_eq!(errors[0].kind(), ValidationBuildErrorKind::UnsupportedExecution);
     assert_eq!(errors[0].path(), Some("date"));
 }
 
@@ -1874,8 +1634,7 @@ fn test_unique_mismatched_getter_element_type_fails_at_build() {
         result => panic!("expected getter type mismatch, got {result:?}"),
     };
     assert!(property_errors.errors().iter().any(|error| {
-        error.property_name() == "values"
-            && error.kind() == PropertyBuildErrorKind::GetterTypeMismatch
+        error.property_name() == "values" && error.kind() == PropertyBuildErrorKind::GetterTypeMismatch
     }));
     let roots = [root];
     let errors = StructureResolver::new(ResolveInputs {
@@ -1885,12 +1644,6 @@ fn test_unique_mismatched_getter_element_type_fails_at_build() {
     .resolve()
     .expect_err("getter element type must match the declared sequence element");
     assert_eq!(errors.errors().len(), 1);
-    assert_eq!(
-        errors.errors()[0].kind(),
-        ResolveErrorKind::InvalidProperties
-    );
-    assert_eq!(
-        errors.errors()[0].path().expect("getter field").to_string(),
-        "values"
-    );
+    assert_eq!(errors.errors()[0].kind(), ResolveErrorKind::InvalidProperties);
+    assert_eq!(errors.errors()[0].path().expect("getter field").to_string(), "values");
 }

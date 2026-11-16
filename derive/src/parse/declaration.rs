@@ -151,10 +151,7 @@ pub(crate) fn parse_variants(data: &DataEnum) -> Result<Vec<VariantIr>> {
     for (variant_index, variant) in data.variants.iter().enumerate() {
         let default_name = variant.ident.to_string().to_shouty_snake_case();
         let canonical_name = parse_variant_name(&variant.attrs, &default_name);
-        let names = parse_variant_serde_names(
-            &variant.attrs,
-            canonical_name.as_deref().unwrap_or(&default_name),
-        );
+        let names = parse_variant_serde_names(&variant.attrs, canonical_name.as_deref().unwrap_or(&default_name));
         let fields = parse_fields(&variant.fields);
         match (canonical_name, names, fields) {
             (Ok(canonical_name), Ok((serialized_name, deserialized_name)), Ok(mut fields)) => {
@@ -245,16 +242,10 @@ fn parse_variant_name(attributes: &[Attribute], default: &str) -> Result<String>
 ///
 /// # Errors
 /// Returns an error when a Serde attribute is malformed.
-fn parse_variant_serde_names(
-    attributes: &[Attribute],
-    canonical: &str,
-) -> Result<(String, String)> {
+fn parse_variant_serde_names(attributes: &[Attribute], canonical: &str) -> Result<(String, String)> {
     let mut serialize = canonical.to_owned();
     let mut deserialize = canonical.to_owned();
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("serde"))
-    {
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("serde")) {
         let value = parse_serde(attribute)?;
         if let Some(name) = value.serialize_name {
             serialize = name.value();

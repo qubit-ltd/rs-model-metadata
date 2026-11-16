@@ -83,9 +83,7 @@ fn test_model_impl_merges_fields_getters_and_setters() {
             .len(),
         10
     );
-    let properties = metadata
-        .try_properties()
-        .expect("profile properties must merge");
+    let properties = metadata.try_properties().expect("profile properties must merge");
     let name = properties.property("name").expect("merged name property");
     let visits = properties.property("visits").expect("field property");
     let summary = properties.property("summary").expect("computed property");
@@ -98,9 +96,7 @@ fn test_model_impl_merges_fields_getters_and_setters() {
     assert_eq!(summary.storage_kind(), PropertyStorageKind::Computed);
     assert_eq!(token.storage_kind(), PropertyStorageKind::Virtual);
 
-    let alias = properties
-        .property("alias")
-        .expect("optional borrowed property");
+    let alias = properties.property("alias").expect("optional borrowed property");
     let tags = properties.property("tags").expect("slice property");
     let mut profile = Profile {
         name: "before".to_owned(),
@@ -131,10 +127,7 @@ fn test_model_impl_merges_fields_getters_and_setters() {
     else {
         panic!("summary getter must own");
     };
-    assert_eq!(
-        value.downcast_ref::<String>().map(String::as_str),
-        Some("after:3")
-    );
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("after:3"));
 
     let PropertyValue::OptionalBorrowed(Some(value)) = alias
         .get_dynamic(DynamicRef::<Local>::new(&profile))
@@ -142,10 +135,7 @@ fn test_model_impl_merges_fields_getters_and_setters() {
     else {
         panic!("alias getter must preserve optional borrowing");
     };
-    assert_eq!(
-        value.downcast_ref::<String>().map(String::as_str),
-        Some("visible")
-    );
+    assert_eq!(value.downcast_ref::<String>().map(String::as_str), Some("visible"));
 
     let PropertyValue::BorrowedSlice(values) = tags
         .get_dynamic(DynamicRef::<Local>::new(&profile))

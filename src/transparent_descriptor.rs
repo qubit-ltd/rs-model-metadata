@@ -29,9 +29,7 @@ use qubit_reflect::descriptor::TypeKind;
 /// descriptor's reflection context. Returns `None` if a wrapper has no first
 /// generic argument or that argument cannot be resolved to a concrete type in
 /// that context.
-pub(crate) fn transparent_descriptor<'ctx>(
-    mut descriptor: TypeDescriptor<'ctx>,
-) -> Option<TypeDescriptor<'ctx>> {
+pub(crate) fn transparent_descriptor<'ctx>(mut descriptor: TypeDescriptor<'ctx>) -> Option<TypeDescriptor<'ctx>> {
     loop {
         match descriptor.kind() {
             TypeKind::Optional(_) | TypeKind::SmartPointer(_) => {
