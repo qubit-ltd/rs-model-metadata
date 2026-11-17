@@ -14,7 +14,7 @@ homepage = "https://github.com/qubit-ltd/rs-model-metadata"
 readme = "README.md"
 keywords = ["metadata", "model", "reflection", "qubit", "rust"]
 categories = ["data-structures", "development-tools"]
-publish = false
+publish = true
 include = [
     "/Cargo.toml",
     "/LICENSE",

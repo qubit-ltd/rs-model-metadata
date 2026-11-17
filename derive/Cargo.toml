@@ -11,7 +11,7 @@ homepage = "https://github.com/qubit-ltd/rs-model-metadata/tree/main/derive"
 readme = "README.md"
 keywords = ["derive", "macro", "metadata", "model", "qubit"]
 categories = ["development-tools::procedural-macro-helpers"]
-publish = false
+publish = true
 include = [
     "/Cargo.toml",
     "/LICENSE",
