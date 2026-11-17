@@ -5,11 +5,3 @@ version = 4
 [[package]]
 name = "coverage-mapping-fixture"
 version = "0.0.0"
-
-[[patch.unused]]
-name = "qubit-io"
-version = "0.19.6"
-
-[[patch.unused]]
-name = "qubit-operation"
-version = "0.3.0"
