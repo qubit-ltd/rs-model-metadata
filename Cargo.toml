@@ -63,7 +63,7 @@ trybuild = "^1.0"
 uuid = "^1.29"
 qubit-datatype = { version = "^0.15" }
 qubit-codec = { version = "^0.17", features = ["registry"] }
-qubit-model-derive = { version = "^0.2", path = "derive" }
+qubit-model-derive = { path = "derive" }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

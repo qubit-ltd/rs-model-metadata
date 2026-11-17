@@ -44,4 +44,4 @@ qubit-codec = { version = "^0.17", features = ["registry"] }
 qubit-id = "^0.7"
 qubit-reflect = "^0.2"
 qubit-validator = { version = "^0.1" }
-model_runtime = { package = "qubit-model-metadata", path = "../", features = ["generic"] , version = "^0.2" }
+model_runtime = { package = "qubit-model-metadata", path = "../", features = ["generic"] }
