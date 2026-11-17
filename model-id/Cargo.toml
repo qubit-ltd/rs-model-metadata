@@ -3,7 +3,7 @@ name = "qubit-model-id"
 version.workspace = true
 edition = "2024"
 rust-version = "1.94"
-publish = false
+publish = true
 
 [lib]
 name = "qubit_model_id"
