@@ -3,6 +3,11 @@ name = "qubit-model-id"
 version.workspace = true
 edition = "2024"
 rust-version = "1.94"
+authors = ["Haixing Hu <starfish.hu@gmail.com>"]
+license = "Apache-2.0"
+repository = "https://github.com/qubit-ltd/rs-model-metadata"
+homepage = "https://github.com/qubit-ltd/rs-model-metadata"
+description = "Stable, portable model identifiers shared by model-aware Rust crates"
 publish = true
 
 [lib]
