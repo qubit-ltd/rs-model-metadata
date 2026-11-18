@@ -26,6 +26,6 @@ jobs:
       pull-requests: write
       pages: write
       id-token: write
-    uses: qubit-ltd/rs-infra-ci/.github/workflows/github-ci.yml@c2beddb6d00df07706a51d483649efb1ced4f532
+    uses: qubit-ltd/rs-infra-ci/.github/workflows/github-ci.yml@main
     with:
       feature-matrix-prefetch: true
